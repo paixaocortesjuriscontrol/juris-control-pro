@@ -11,6 +11,7 @@ import Processos from "./pages/Processos";
 import BuscarProcessos from "./pages/BuscarProcessos";
 import Coordenacoes from "./pages/Coordenacoes";
 import Relatorios from "./pages/Relatorios";
+import Administracao from "./pages/Administracao";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/buscar" element={<ProtectedRoute><BuscarProcessos /></ProtectedRoute>} />
             <Route path="/coordenacoes" element={<ProtectedRoute><Coordenacoes /></ProtectedRoute>} />
             <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><Administracao /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

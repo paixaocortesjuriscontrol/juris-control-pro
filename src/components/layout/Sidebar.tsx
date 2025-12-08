@@ -12,9 +12,11 @@ import {
   ChevronRight,
   Briefcase,
   Gavel,
-  Building2
+  Building2,
+  ShieldCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -33,6 +35,7 @@ const areas = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const { isAdmin } = useUserRole();
 
   return (
     <aside 
@@ -95,6 +98,17 @@ export function Sidebar() {
 
       {/* Settings & Collapse */}
       <div className="p-3 border-t border-sidebar-border space-y-1">
+        {isAdmin && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              cn("nav-item", isActive && "nav-item-active")
+            }
+          >
+            <ShieldCheck className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span className="text-sm font-medium">Administração</span>}
+          </NavLink>
+        )}
         <NavLink
           to="/configuracoes"
           className={({ isActive }) =>
