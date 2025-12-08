@@ -9,8 +9,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown } from "lucide-react";
 import * as XLSX from "xlsx";
+
+interface ValidationError {
+  campo: string;
+  mensagem: string;
+}
 
 interface ProcessoImport {
   numero: string;
@@ -34,13 +39,18 @@ interface ProcessoImport {
   partePassiva: string | null;
   cpfCnpjAtivo: string | null;
   cpfCnpjPassivo: string | null;
-  status: "pendente" | "sucesso" | "erro";
-  erro?: string;
+  status: "pendente" | "valido" | "invalido" | "sucesso" | "erro";
+  erros: ValidationError[];
+  erroImport?: string;
+  linhaOriginal: number;
 }
+
+const validAreas = ["civil", "trabalhista", "empresarial", "cível", "civel", "trabalho", "empresa"];
+const validSituacoes = ["ativo", "pendente", "urgente", "encerrado", "arquivado", "em andamento", "finalizado"];
 
 const mapAreaToEnum = (area: string | null): "civil" | "trabalhista" | "empresarial" => {
   if (!area) return "civil";
-  const areaLower = area.toLowerCase();
+  const areaLower = area.toLowerCase().trim();
   if (areaLower.includes("trabalhista") || areaLower.includes("trabalho")) return "trabalhista";
   if (areaLower.includes("empresarial") || areaLower.includes("empresa")) return "empresarial";
   return "civil";
@@ -48,7 +58,7 @@ const mapAreaToEnum = (area: string | null): "civil" | "trabalhista" | "empresar
 
 const mapStatusToEnum = (situacao: string | null): "ativo" | "pendente" | "urgente" | "encerrado" | "arquivado" => {
   if (!situacao) return "ativo";
-  const situacaoLower = situacao.toLowerCase();
+  const situacaoLower = situacao.toLowerCase().trim();
   if (situacaoLower.includes("encerrado") || situacaoLower.includes("finalizado")) return "encerrado";
   if (situacaoLower.includes("arquivado")) return "arquivado";
   if (situacaoLower.includes("urgente")) return "urgente";
@@ -59,7 +69,6 @@ const mapStatusToEnum = (situacao: string | null): "ativo" | "pendente" | "urgen
 const parseDate = (dateValue: any): string | null => {
   if (!dateValue) return null;
   
-  // Se for um número (Excel date serial)
   if (typeof dateValue === "number") {
     const date = XLSX.SSF.parse_date_code(dateValue);
     if (date) {
@@ -67,16 +76,21 @@ const parseDate = (dateValue: any): string | null => {
     }
   }
   
-  // Se for string, tenta parsear
   if (typeof dateValue === "string") {
-    const parts = dateValue.split(/[\/\-]/);
-    if (parts.length === 3) {
-      // Assume DD/MM/YYYY ou DD-MM-YYYY
-      if (parts[2].length === 4) {
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-      // Assume YYYY-MM-DD
-      return dateValue;
+    const trimmed = dateValue.trim();
+    if (!trimmed) return null;
+    
+    // DD/MM/YYYY format
+    const brMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (brMatch) {
+      const [, day, month, year] = brMatch;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+    
+    // YYYY-MM-DD format
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+      return trimmed;
     }
   }
   
@@ -84,14 +98,67 @@ const parseDate = (dateValue: any): string | null => {
 };
 
 const parseNumber = (value: any): number | null => {
-  if (!value) return null;
+  if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") return value;
   if (typeof value === "string") {
-    const cleaned = value.replace(/[^\d,.-]/g, "").replace(",", ".");
+    const cleaned = value.replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
     const num = parseFloat(cleaned);
     return isNaN(num) ? null : num;
   }
   return null;
+};
+
+const validateNumeroProcesso = (numero: string): boolean => {
+  if (!numero || numero.trim() === "") return false;
+  // Basic validation - should have some structure
+  return numero.trim().length >= 5;
+};
+
+const validateProcesso = (processo: ProcessoImport): ValidationError[] => {
+  const errors: ValidationError[] = [];
+  
+  // Required field: numero
+  if (!processo.numero || processo.numero.trim() === "") {
+    errors.push({ campo: "Número do processo", mensagem: "Campo obrigatório" });
+  } else if (!validateNumeroProcesso(processo.numero)) {
+    errors.push({ campo: "Número do processo", mensagem: "Formato inválido (mínimo 5 caracteres)" });
+  }
+  
+  // Validate area if provided
+  if (processo.area) {
+    const areaLower = processo.area.toLowerCase().trim();
+    const isValidArea = validAreas.some(a => areaLower.includes(a));
+    if (!isValidArea) {
+      errors.push({ campo: "Área", mensagem: `Valor inválido: "${processo.area}". Use: Civil, Trabalhista ou Empresarial` });
+    }
+  }
+  
+  // Validate situacao if provided
+  if (processo.situacao) {
+    const situacaoLower = processo.situacao.toLowerCase().trim();
+    const isValidSituacao = validSituacoes.some(s => situacaoLower.includes(s));
+    if (!isValidSituacao) {
+      errors.push({ campo: "Situação", mensagem: `Valor inválido: "${processo.situacao}". Use: Ativo, Pendente, Urgente, Encerrado ou Arquivado` });
+    }
+  }
+  
+  // Validate date if provided
+  if (processo.dataDistribuicao) {
+    const parsedDate = parseDate(processo.dataDistribuicao);
+    if (!parsedDate) {
+      errors.push({ campo: "Distribuído", mensagem: `Data inválida: "${processo.dataDistribuicao}". Use formato DD/MM/AAAA` });
+    }
+  }
+  
+  // Validate valor if provided
+  if (processo.valorAcao !== null && processo.valorAcao !== undefined) {
+    const parsedValue = parseNumber(processo.valorAcao);
+    if (parsedValue === null && String(processo.valorAcao) !== "") {
+      errors.push({ campo: "Valor da ação", mensagem: `Valor numérico inválido: "${processo.valorAcao}"` });
+    }
+  }
+  
+  return errors;
 };
 
 export default function ImportarProcessos() {
@@ -117,57 +184,79 @@ export default function ImportarProcessos() {
       const sheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
 
-      const parsed: ProcessoImport[] = jsonData.map((row: any): ProcessoImport => ({
-        numero: row["Número do processo"] || row["Numero do processo"] || "",
-        assunto: row["Assunto"],
-        situacao: row["Situação"] || row["Situacao"],
-        responsavel: row["Responsável"] || row["Responsavel"],
-        descricao: row["Descrição"] || row["Descricao"],
-        justica: row["Justiça"] || row["Justica"],
-        cidade: row["Cidade"],
-        estado: row["Estado"],
-        instancia: row["Instância"] || row["Instancia"],
-        orgao: row["Órgão (Comarca / Tribunal)"] || row["Orgao (Comarca / Tribunal)"],
-        orgaoJulgador: row["Órgão Julgador (Vara / Câmara)"] || row["Orgao Julgador (Vara / Camara)"],
-        sistema: row["Sistema"],
-        area: row["Área"] || row["Area"],
-        fase: row["Fase"],
-        dataDistribuicao: row["Distribuído"] || row["Distribuido"],
-        classeCNJ: row["Classe – CNJ"] || row["Classe - CNJ"] || row["Classe CNJ"],
-        valorAcao: row["Valor da ação"] || row["Valor da acao"],
-        parteAtiva: row["Parte Ativa"],
-        partePassiva: row["Parte Passiva"],
-        cpfCnpjAtivo: row["CPF/CNPJ Parte Ativa"],
-        cpfCnpjPassivo: row["CPF/CNPJ Parte Passiva"],
-        status: "pendente",
-      })).filter((p: ProcessoImport) => p.numero && p.numero.trim() !== "");
+      const parsed: ProcessoImport[] = jsonData.map((row: any, index: number): ProcessoImport => {
+        const processo: ProcessoImport = {
+          numero: String(row["Número do processo"] || row["Numero do processo"] || "").trim(),
+          assunto: row["Assunto"] || null,
+          situacao: row["Situação"] || row["Situacao"] || null,
+          responsavel: row["Responsável"] || row["Responsavel"] || null,
+          descricao: row["Descrição"] || row["Descricao"] || null,
+          justica: row["Justiça"] || row["Justica"] || null,
+          cidade: row["Cidade"] || null,
+          estado: row["Estado"] || null,
+          instancia: row["Instância"] || row["Instancia"] || null,
+          orgao: row["Órgão (Comarca / Tribunal)"] || row["Orgao (Comarca / Tribunal)"] || null,
+          orgaoJulgador: row["Órgão Julgador (Vara / Câmara)"] || row["Orgao Julgador (Vara / Camara)"] || null,
+          sistema: row["Sistema"] || null,
+          area: row["Área"] || row["Area"] || null,
+          fase: row["Fase"] || null,
+          dataDistribuicao: row["Distribuído"] || row["Distribuido"] || null,
+          classeCNJ: row["Classe – CNJ"] || row["Classe - CNJ"] || row["Classe CNJ"] || null,
+          valorAcao: row["Valor da ação"] || row["Valor da acao"] || null,
+          parteAtiva: row["Parte Ativa"] || null,
+          partePassiva: row["Parte Passiva"] || null,
+          cpfCnpjAtivo: row["CPF/CNPJ Parte Ativa"] || null,
+          cpfCnpjPassivo: row["CPF/CNPJ Parte Passiva"] || null,
+          status: "pendente",
+          erros: [],
+          linhaOriginal: index + 2, // +2 because Excel is 1-indexed and has header row
+        };
+        
+        // Validate the processo
+        processo.erros = validateProcesso(processo);
+        processo.status = processo.erros.length > 0 ? "invalido" : "valido";
+        
+        return processo;
+      });
 
       setProcessos(parsed);
+      
+      const validCount = parsed.filter(p => p.status === "valido").length;
+      const invalidCount = parsed.filter(p => p.status === "invalido").length;
       
       if (parsed.length === 0) {
         toast({
           title: "Nenhum processo encontrado",
-          description: "A planilha não contém processos válidos. Verifique se a coluna 'Número do processo' está preenchida.",
+          description: "A planilha não contém dados. Verifique se a primeira linha contém os cabeçalhos.",
           variant: "destructive",
         });
       } else {
         toast({
           title: "Planilha carregada",
-          description: `${parsed.length} processo(s) encontrado(s) para importação.`,
+          description: `${parsed.length} linha(s): ${validCount} válida(s), ${invalidCount} com erro(s).`,
+          variant: invalidCount > 0 ? "destructive" : "default",
         });
       }
     } catch (error) {
       console.error("Erro ao ler planilha:", error);
       toast({
         title: "Erro ao ler planilha",
-        description: "Verifique se o arquivo está no formato correto.",
+        description: "Verifique se o arquivo está no formato correto (.xlsx ou .xls).",
         variant: "destructive",
       });
     }
   };
 
   const handleImport = async () => {
-    if (processos.length === 0) return;
+    const validProcessos = processos.filter(p => p.status === "valido");
+    if (validProcessos.length === 0) {
+      toast({
+        title: "Nenhum processo válido",
+        description: "Corrija os erros de validação antes de importar.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setImporting(true);
     setProgress(0);
@@ -178,6 +267,11 @@ export default function ImportarProcessos() {
 
     for (let i = 0; i < updatedProcessos.length; i++) {
       const processo = updatedProcessos[i];
+      
+      // Skip invalid processos
+      if (processo.status === "invalido") {
+        continue;
+      }
       
       try {
         const { error } = await supabase.from("processos").insert({
@@ -197,14 +291,14 @@ export default function ImportarProcessos() {
         });
 
         if (error) {
-          updatedProcessos[i] = { ...processo, status: "erro", erro: error.message };
+          updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
           errorCount++;
         } else {
           updatedProcessos[i] = { ...processo, status: "sucesso" };
           successCount++;
         }
       } catch (err: any) {
-        updatedProcessos[i] = { ...processo, status: "erro", erro: err.message };
+        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
         errorCount++;
       }
 
@@ -216,7 +310,7 @@ export default function ImportarProcessos() {
 
     toast({
       title: "Importação concluída",
-      description: `${successCount} processo(s) importado(s) com sucesso. ${errorCount} erro(s).`,
+      description: `${successCount} processo(s) importado(s). ${errorCount} erro(s) de importação.`,
       variant: errorCount > 0 ? "destructive" : "default",
     });
   };
@@ -225,9 +319,54 @@ export default function ImportarProcessos() {
     window.open("/templates/MODELO_IMPORTACAO_PROCESSO_PADRAO.xlsx", "_blank");
   };
 
+  const downloadRejeitados = () => {
+    const rejeitados = processos.filter(p => p.status === "invalido" || p.status === "erro");
+    
+    if (rejeitados.length === 0) {
+      toast({
+        title: "Nenhum rejeitado",
+        description: "Não há processos rejeitados para exportar.",
+      });
+      return;
+    }
+
+    const exportData = rejeitados.map(p => ({
+      "Linha": p.linhaOriginal,
+      "Número do processo": p.numero,
+      "Área": p.area,
+      "Situação": p.situacao,
+      "Parte Ativa": p.parteAtiva,
+      "Parte Passiva": p.partePassiva,
+      "Órgão (Comarca / Tribunal)": p.orgao,
+      "Distribuído": p.dataDistribuicao,
+      "Valor da ação": p.valorAcao,
+      "Erros de Validação": p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; "),
+      "Erro de Importação": p.erroImport || "",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Rejeitados");
+    
+    // Auto-size columns
+    const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+      wch: Math.max(key.length, 15)
+    }));
+    ws["!cols"] = colWidths;
+    
+    XLSX.writeFile(wb, `processos_rejeitados_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: "Arquivo gerado",
+      description: `${rejeitados.length} processo(s) rejeitado(s) exportado(s).`,
+    });
+  };
+
+  const validCount = processos.filter(p => p.status === "valido").length;
+  const invalidCount = processos.filter(p => p.status === "invalido").length;
   const successCount = processos.filter(p => p.status === "sucesso").length;
   const errorCount = processos.filter(p => p.status === "erro").length;
-  const pendingCount = processos.filter(p => p.status === "pendente").length;
+  const totalRejeitados = invalidCount + errorCount;
 
   return (
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote utilizando uma planilha Excel">
@@ -255,7 +394,7 @@ export default function ImportarProcessos() {
               <div>
                 <h4 className="font-medium mb-2">2. Faça upload da planilha</h4>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Após preencher, faça o upload do arquivo para visualizar e importar.
+                  Após preencher, faça o upload do arquivo para validar e importar.
                 </p>
                 <div className="flex items-center gap-2">
                   <Input
@@ -267,6 +406,16 @@ export default function ImportarProcessos() {
                 </div>
               </div>
             </div>
+            
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Campos obrigatórios:</strong> Número do processo. <br />
+                <strong>Áreas válidas:</strong> Civil, Trabalhista, Empresarial. <br />
+                <strong>Situações válidas:</strong> Ativo, Pendente, Urgente, Encerrado, Arquivado. <br />
+                <strong>Formato de data:</strong> DD/MM/AAAA
+              </AlertDescription>
+            </Alert>
           </CardContent>
         </Card>
 
@@ -274,43 +423,58 @@ export default function ImportarProcessos() {
         {file && (
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                   <CardTitle>Pré-visualização</CardTitle>
                   <CardDescription>
-                    {processos.length} processo(s) encontrado(s) em "{file.name}"
+                    {processos.length} linha(s) encontrada(s) em "{file.name}"
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
                   {processos.length > 0 && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600">
-                        {pendingCount} pendentes
+                    <div className="flex items-center gap-2 text-sm flex-wrap">
+                      <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                        {validCount} válidos
                       </Badge>
-                      <Badge variant="outline" className="bg-green-500/10 text-green-600">
-                        {successCount} sucesso
+                      <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                        {invalidCount} inválidos
                       </Badge>
-                      <Badge variant="outline" className="bg-red-500/10 text-red-600">
-                        {errorCount} erros
-                      </Badge>
+                      {successCount > 0 && (
+                        <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
+                          {successCount} importados
+                        </Badge>
+                      )}
+                      {errorCount > 0 && (
+                        <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
+                          {errorCount} erros
+                        </Badge>
+                      )}
                     </div>
                   )}
-                  <Button 
-                    onClick={handleImport} 
-                    disabled={importing || processos.length === 0 || pendingCount === 0}
-                  >
-                    {importing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Importando...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Importar Processos
-                      </>
+                  <div className="flex gap-2">
+                    {totalRejeitados > 0 && (
+                      <Button variant="outline" onClick={downloadRejeitados}>
+                        <FileDown className="h-4 w-4 mr-2" />
+                        Baixar Rejeitados ({totalRejeitados})
+                      </Button>
                     )}
-                  </Button>
+                    <Button 
+                      onClick={handleImport} 
+                      disabled={importing || validCount === 0}
+                    >
+                      {importing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Importando...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Importar ({validCount})
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
               {importing && (
@@ -322,7 +486,7 @@ export default function ImportarProcessos() {
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Nenhum processo válido encontrado na planilha. Verifique se a coluna "Número do processo" está preenchida.
+                    Nenhum processo encontrado na planilha. Verifique se os cabeçalhos estão corretos.
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -331,35 +495,38 @@ export default function ImportarProcessos() {
                     <Table>
                       <TableHeader className="sticky top-0 bg-background">
                         <TableRow>
-                          <TableHead className="w-[50px]">Status</TableHead>
+                          <TableHead className="w-[60px]">Linha</TableHead>
+                          <TableHead className="w-[60px]">Status</TableHead>
                           <TableHead>Número</TableHead>
-                          <TableHead>Assunto</TableHead>
                           <TableHead>Área</TableHead>
                           <TableHead>Parte Ativa</TableHead>
                           <TableHead>Parte Passiva</TableHead>
                           <TableHead>Órgão</TableHead>
-                          <TableHead>Erro</TableHead>
+                          <TableHead className="min-w-[300px]">Erros</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {processos.map((processo, index) => (
-                          <TableRow key={index}>
+                          <TableRow key={index} className={processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : ""}>
+                            <TableCell className="text-muted-foreground">
+                              {processo.linhaOriginal}
+                            </TableCell>
                             <TableCell>
-                              {processo.status === "pendente" && (
-                                <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                              {processo.status === "valido" && (
+                                <div className="w-3 h-3 rounded-full bg-green-500" />
+                              )}
+                              {processo.status === "invalido" && (
+                                <XCircle className="h-4 w-4 text-red-500" />
                               )}
                               {processo.status === "sucesso" && (
-                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                <CheckCircle2 className="h-4 w-4 text-blue-500" />
                               )}
                               {processo.status === "erro" && (
-                                <XCircle className="h-4 w-4 text-red-500" />
+                                <XCircle className="h-4 w-4 text-orange-500" />
                               )}
                             </TableCell>
                             <TableCell className="font-mono text-sm">
-                              {processo.numero}
-                            </TableCell>
-                            <TableCell className="max-w-[200px] truncate">
-                              {processo.assunto || "-"}
+                              {processo.numero || <span className="text-red-500 italic">vazio</span>}
                             </TableCell>
                             <TableCell>{processo.area || "-"}</TableCell>
                             <TableCell className="max-w-[150px] truncate">
@@ -371,8 +538,19 @@ export default function ImportarProcessos() {
                             <TableCell className="max-w-[150px] truncate">
                               {processo.orgao || "-"}
                             </TableCell>
-                            <TableCell className="max-w-[200px] text-red-500 text-sm">
-                              {processo.erro || "-"}
+                            <TableCell className="text-sm">
+                              {processo.erros.length > 0 && (
+                                <div className="text-red-600 space-y-1">
+                                  {processo.erros.map((erro, i) => (
+                                    <div key={i}>• {erro.campo}: {erro.mensagem}</div>
+                                  ))}
+                                </div>
+                              )}
+                              {processo.erroImport && (
+                                <div className="text-orange-600">• Importação: {processo.erroImport}</div>
+                              )}
+                              {processo.status === "valido" && "-"}
+                              {processo.status === "sucesso" && <span className="text-blue-600">Importado com sucesso</span>}
                             </TableCell>
                           </TableRow>
                         ))}
