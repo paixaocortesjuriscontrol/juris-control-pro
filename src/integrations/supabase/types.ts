@@ -14,16 +14,442 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      clientes: {
+        Row: {
+          cpf_cnpj: string | null
+          created_at: string
+          email: string | null
+          endereco: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          telefone: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          cpf_cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          telefone?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          cpf_cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          telefone?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      coordenacoes: {
+        Row: {
+          area: Database["public"]["Enums"]["area_atuacao"]
+          coordenador_id: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          area: Database["public"]["Enums"]["area_atuacao"]
+          coordenador_id?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          area?: Database["public"]["Enums"]["area_atuacao"]
+          coordenador_id?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coordenacoes_coordenador_id_fkey"
+            columns: ["coordenador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documentos: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+          processo_id: string | null
+          tamanho_bytes: number | null
+          tipo: string | null
+          uploaded_by: string | null
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+          processo_id?: string | null
+          tamanho_bytes?: number | null
+          tipo?: string | null
+          uploaded_by?: string | null
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+          processo_id?: string | null
+          tamanho_bytes?: number | null
+          tipo?: string | null
+          uploaded_by?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membros_coordenacao: {
+        Row: {
+          cargo: string | null
+          coordenacao_id: string
+          created_at: string
+          id: string
+          usuario_id: string
+        }
+        Insert: {
+          cargo?: string | null
+          coordenacao_id: string
+          created_at?: string
+          id?: string
+          usuario_id: string
+        }
+        Update: {
+          cargo?: string | null
+          coordenacao_id?: string
+          created_at?: string
+          id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membros_coordenacao_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membros_coordenacao_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      movimentacoes: {
+        Row: {
+          created_at: string
+          data_movimentacao: string
+          descricao: string
+          fonte: string | null
+          id: string
+          processo_id: string
+          tipo: string | null
+        }
+        Insert: {
+          created_at?: string
+          data_movimentacao?: string
+          descricao: string
+          fonte?: string | null
+          id?: string
+          processo_id: string
+          tipo?: string | null
+        }
+        Update: {
+          created_at?: string
+          data_movimentacao?: string
+          descricao?: string
+          fonte?: string | null
+          id?: string
+          processo_id?: string
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimentacoes_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prazos: {
+        Row: {
+          created_at: string
+          data_cumprimento: string | null
+          data_vencimento: string
+          descricao: string | null
+          id: string
+          observacoes: string | null
+          prioridade: Database["public"]["Enums"]["prioridade_prazo"]
+          processo_id: string
+          responsavel_id: string | null
+          status: Database["public"]["Enums"]["status_prazo"]
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_cumprimento?: string | null
+          data_vencimento: string
+          descricao?: string | null
+          id?: string
+          observacoes?: string | null
+          prioridade?: Database["public"]["Enums"]["prioridade_prazo"]
+          processo_id: string
+          responsavel_id?: string | null
+          status?: Database["public"]["Enums"]["status_prazo"]
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_cumprimento?: string | null
+          data_vencimento?: string
+          descricao?: string | null
+          id?: string
+          observacoes?: string | null
+          prioridade?: Database["public"]["Enums"]["prioridade_prazo"]
+          processo_id?: string
+          responsavel_id?: string | null
+          status?: Database["public"]["Enums"]["status_prazo"]
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prazos_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prazos_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      processos: {
+        Row: {
+          advogado_responsavel_id: string | null
+          area: Database["public"]["Enums"]["area_atuacao"]
+          assunto: string | null
+          classe: string | null
+          cliente_id: string | null
+          comarca: string | null
+          coordenacao_id: string | null
+          created_at: string
+          data_distribuicao: string | null
+          data_encerramento: string | null
+          descricao: string | null
+          id: string
+          numero: string
+          polo_ativo: string | null
+          polo_passivo: string | null
+          status: Database["public"]["Enums"]["status_processo"]
+          tribunal: string | null
+          updated_at: string
+          valor_causa: number | null
+          vara: string | null
+        }
+        Insert: {
+          advogado_responsavel_id?: string | null
+          area: Database["public"]["Enums"]["area_atuacao"]
+          assunto?: string | null
+          classe?: string | null
+          cliente_id?: string | null
+          comarca?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          data_distribuicao?: string | null
+          data_encerramento?: string | null
+          descricao?: string | null
+          id?: string
+          numero: string
+          polo_ativo?: string | null
+          polo_passivo?: string | null
+          status?: Database["public"]["Enums"]["status_processo"]
+          tribunal?: string | null
+          updated_at?: string
+          valor_causa?: number | null
+          vara?: string | null
+        }
+        Update: {
+          advogado_responsavel_id?: string | null
+          area?: Database["public"]["Enums"]["area_atuacao"]
+          assunto?: string | null
+          classe?: string | null
+          cliente_id?: string | null
+          comarca?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          data_distribuicao?: string | null
+          data_encerramento?: string | null
+          descricao?: string | null
+          id?: string
+          numero?: string
+          polo_ativo?: string | null
+          polo_passivo?: string | null
+          status?: Database["public"]["Enums"]["status_processo"]
+          tribunal?: string | null
+          updated_at?: string
+          valor_causa?: number | null
+          vara?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processos_advogado_responsavel_id_fkey"
+            columns: ["advogado_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processos_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          area_principal: Database["public"]["Enums"]["area_atuacao"] | null
+          avatar_url: string | null
+          created_at: string
+          email: string
+          id: string
+          nome: string
+          oab: string | null
+          telefone: string | null
+          updated_at: string
+        }
+        Insert: {
+          area_principal?: Database["public"]["Enums"]["area_atuacao"] | null
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          id: string
+          nome: string
+          oab?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          area_principal?: Database["public"]["Enums"]["area_atuacao"] | null
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          nome?: string
+          oab?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_coordenacao: { Args: { _user_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin_or_coordenador: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "coordenador" | "advogado" | "estagiario"
+      area_atuacao: "civil" | "trabalhista" | "empresarial"
+      prioridade_prazo: "baixa" | "media" | "alta" | "urgente"
+      status_prazo: "pendente" | "cumprido" | "atrasado"
+      status_processo:
+        | "ativo"
+        | "pendente"
+        | "urgente"
+        | "encerrado"
+        | "arquivado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +576,18 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "coordenador", "advogado", "estagiario"],
+      area_atuacao: ["civil", "trabalhista", "empresarial"],
+      prioridade_prazo: ["baixa", "media", "alta", "urgente"],
+      status_prazo: ["pendente", "cumprido", "atrasado"],
+      status_processo: [
+        "ativo",
+        "pendente",
+        "urgente",
+        "encerrado",
+        "arquivado",
+      ],
+    },
   },
 } as const
