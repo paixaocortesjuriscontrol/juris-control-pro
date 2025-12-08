@@ -440,7 +440,13 @@ export type Database = {
       is_admin_or_coordenador: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "coordenador" | "advogado" | "estagiario"
+      app_role:
+        | "admin"
+        | "coordenador"
+        | "advogado"
+        | "estagiario"
+        | "assistente"
+        | "secretaria"
       area_atuacao: "civil" | "trabalhista" | "empresarial"
       prioridade_prazo: "baixa" | "media" | "alta" | "urgente"
       status_prazo: "pendente" | "cumprido" | "atrasado"
@@ -577,7 +583,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "coordenador", "advogado", "estagiario"],
+      app_role: [
+        "admin",
+        "coordenador",
+        "advogado",
+        "estagiario",
+        "assistente",
+        "secretaria",
+      ],
       area_atuacao: ["civil", "trabalhista", "empresarial"],
       prioridade_prazo: ["baixa", "media", "alta", "urgente"],
       status_prazo: ["pendente", "cumprido", "atrasado"],
