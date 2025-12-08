@@ -13,7 +13,8 @@ import {
   Briefcase,
   Gavel,
   Building2,
-  ShieldCheck
+  ShieldCheck,
+  ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -22,6 +23,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Scale, label: "Processos", path: "/processos" },
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
+  { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },

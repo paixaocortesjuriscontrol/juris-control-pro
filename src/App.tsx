@@ -12,6 +12,7 @@ import BuscarProcessos from "./pages/BuscarProcessos";
 import Coordenacoes from "./pages/Coordenacoes";
 import Relatorios from "./pages/Relatorios";
 import Administracao from "./pages/Administracao";
+import ConsultaExterna from "./pages/ConsultaExterna";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/coordenacoes" element={<ProtectedRoute><Coordenacoes /></ProtectedRoute>} />
             <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Administracao /></ProtectedRoute>} />
+            <Route path="/consulta-externa" element={<ProtectedRoute><ConsultaExterna /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
