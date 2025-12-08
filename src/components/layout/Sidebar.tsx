@@ -14,7 +14,8 @@ import {
   Gavel,
   Building2,
   ShieldCheck,
-  ExternalLink
+  ExternalLink,
+  Upload
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -24,6 +25,7 @@ const menuItems = [
   { icon: Scale, label: "Processos", path: "/processos" },
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
+  { icon: Upload, label: "Importar Processos", path: "/importar" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
