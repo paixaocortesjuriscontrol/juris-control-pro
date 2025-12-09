@@ -31,7 +31,7 @@ const Index = () => {
 
   // Prepare chart data
   const distribuicaoData = coordenacoes?.map(coord => ({
-    nome: coord.nome.length > 12 ? coord.nome.substring(0, 12) + "..." : coord.nome,
+    nome: coord.nome,
     total: coord.processCount,
     distribuidos: coord.processosDistribuidos || 0,
     naoDistribuidos: coord.processosNaoDistribuidos || 0,
