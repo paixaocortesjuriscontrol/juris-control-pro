@@ -275,12 +275,14 @@ serve(async (req) => {
             tipoParte: p.tipoParte
           })) || []
         },
-        movimentos: movimentos.slice(0, 50).map((m: any) => ({
+        movimentos: movimentos.slice(0, 100).map((m: any) => ({
           data: m.dataHora,
           nome: m.nome || m.movimentoNacional?.nome,
+          codigo: m.codigo || m.movimentoNacional?.codigo,
+          codigoNacional: m.movimentoNacional?.codigoNacional || m.codigoNacional,
           complemento: m.complementosTabelados?.map((c: any) => 
             `${c.nome}: ${c.valor}`
-          ).join(', ') || m.complemento
+          ).join(' | ') || m.complemento || ''
         }))
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
