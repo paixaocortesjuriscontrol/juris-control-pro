@@ -14,10 +14,12 @@ interface ProcessosDistribuicaoChartProps {
 }
 
 const areaColors = {
-  civil: "hsl(var(--area-civil))",
-  trabalhista: "hsl(var(--area-trabalhista))",
-  empresarial: "hsl(var(--area-empresarial))",
+  civil: "hsl(217 91% 60%)",      // Azul vibrante
+  trabalhista: "hsl(142 76% 36%)", // Verde escuro
+  empresarial: "hsl(262 83% 58%)", // Roxo vibrante
 };
+
+const naoDistribuidoColor = "hsl(215 25% 65%)"; // Cinza azulado
 
 export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartProps) {
   if (!data || data.length === 0) {
@@ -77,7 +79,7 @@ export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartP
                 name="Não Distribuídos" 
                 stackId="a"
                 radius={[4, 4, 0, 0]}
-                fill="hsl(var(--muted))"
+                fill={naoDistribuidoColor}
               />
             </BarChart>
           </ResponsiveContainer>
