@@ -97,11 +97,13 @@ const Processos = () => {
   };
 
   const filteredProcessos = (processos || []).filter((processo) => {
+    const searchLower = searchQuery.toLowerCase();
     const matchesSearch = 
-      processo.numero.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (processo.polo_ativo?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (processo.polo_passivo?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (processo.advogado_responsavel?.nome?.toLowerCase().includes(searchQuery.toLowerCase()));
+      processo.numero.toLowerCase().includes(searchLower) ||
+      (processo.polo_ativo?.toLowerCase().includes(searchLower)) ||
+      (processo.polo_passivo?.toLowerCase().includes(searchLower)) ||
+      (processo.advogado_responsavel?.nome?.toLowerCase().includes(searchLower)) ||
+      (processo.cliente?.nome?.toLowerCase().includes(searchLower));
     
     const matchesArea = areaFilter === "all" || processo.area === areaFilter;
     const matchesStatus = statusFilter === "all" || processo.status === statusFilter;
@@ -121,7 +123,7 @@ const Processos = () => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
-                placeholder="Buscar por número, parte ou advogado..." 
+                placeholder="Buscar por número, parte, advogado ou cliente..." 
                 className="pl-9"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

@@ -22,6 +22,7 @@ import BuscarDJEN from "./pages/BuscarDJEN";
 import NotFound from "./pages/NotFound";
 import Redistribuicoes from "./pages/Redistribuicoes";
 import Clientes from "./pages/Clientes";
+import ClienteDetalhes from "./pages/ClienteDetalhes";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/processos" element={<ProtectedRoute><Processos /></ProtectedRoute>} />
             <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
+            <Route path="/clientes/:id" element={<ProtectedRoute><ClienteDetalhes /></ProtectedRoute>} />
             <Route path="/processos/:id" element={<ProtectedRoute><ProcessoDetalhes /></ProtectedRoute>} />
             <Route path="/prazos" element={<ProtectedRoute><Prazos /></ProtectedRoute>} />
             <Route path="/buscar" element={<ProtectedRoute><BuscarProcessos /></ProtectedRoute>} />
