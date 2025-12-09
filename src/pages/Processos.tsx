@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useProcessos } from "@/hooks/useProcessos";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AtribuirCoordenacaoLoteDialog } from "@/components/processos/AtribuirCoordenacaoLoteDialog";
+import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { cn } from "@/lib/utils";
 import { Calendar, User } from "lucide-react";
 
@@ -44,6 +45,7 @@ const Processos = () => {
   const [selectedProcessos, setSelectedProcessos] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showAtribuirDialog, setShowAtribuirDialog] = useState(false);
+  const [showFormDialog, setShowFormDialog] = useState(false);
 
   // Ler parâmetros da URL na inicialização
   useEffect(() => {
@@ -161,8 +163,16 @@ const Processos = () => {
                   <span className="hidden sm:inline">Exportar</span>
                 </Button>
                 <Button 
-                  className="bg-primary hover:bg-primary/90 flex-1 sm:flex-none"
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
                   onClick={() => navigate("/importar")}
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Importar</span>
+                </Button>
+                <Button 
+                  className="bg-primary hover:bg-primary/90 flex-1 sm:flex-none"
+                  onClick={() => setShowFormDialog(true)}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Novo Processo</span>
@@ -320,6 +330,11 @@ const Processos = () => {
         onOpenChange={setShowAtribuirDialog}
         selectedProcessos={selectedProcessos}
         onSuccess={exitSelectionMode}
+      />
+
+      <ProcessoFormDialog
+        open={showFormDialog}
+        onOpenChange={setShowFormDialog}
       />
     </MainLayout>
   );
