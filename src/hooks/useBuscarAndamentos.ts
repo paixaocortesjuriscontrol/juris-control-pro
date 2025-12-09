@@ -4,6 +4,8 @@ interface Movimento {
   data: string;
   nome: string;
   complemento?: string;
+  codigo?: number;
+  codigoNacional?: number;
 }
 
 interface BuscarAndamentosResult {
@@ -37,13 +39,21 @@ export async function buscarAndamentosExternos(
     const movimentos: Movimento[] = data.movimentos;
 
     // Insert movements into the database
-    const movimentosToInsert = movimentos.map((mov) => ({
-      processo_id: processoId,
-      descricao: mov.nome || "Sem descrição",
-      data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-      tipo: "API Externa",
-      fonte: "DataJud/CNJ",
-    }));
+    const movimentosToInsert = movimentos.map((mov) => {
+      // Combine nome with complemento for full description
+      let descricaoCompleta = mov.nome || "Sem descrição";
+      if (mov.complemento) {
+        descricaoCompleta = `${descricaoCompleta} - ${mov.complemento}`;
+      }
+      
+      return {
+        processo_id: processoId,
+        descricao: descricaoCompleta,
+        data_movimentacao: mov.data || new Date().toISOString(),
+        tipo: mov.nome || "Movimentação",
+        fonte: "DataJud/CNJ",
+      };
+    });
 
     const { error: insertError } = await supabase
       .from("movimentacoes")

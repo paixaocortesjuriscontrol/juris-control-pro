@@ -309,34 +309,48 @@ export default function ProcessoDetalhes() {
             ) : movimentacoes && movimentacoes.length > 0 ? (
               <ScrollArea className="h-[400px] pr-4">
                 <div className="space-y-3">
-                  {movimentacoes.map((mov, index) => (
-                    <div 
-                      key={mov.id}
-                      className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-foreground">{mov.descricao}</p>
-                          {mov.tipo && (
-                            <Badge variant="outline" className="mt-1 text-xs">
-                              {mov.tipo}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
-                            <Clock className="w-3 h-3" />
-                            {formatDate(mov.data_movimentacao)}
-                          </p>
-                          {mov.fonte && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Fonte: {mov.fonte}
+                  {movimentacoes.map((mov) => {
+                    // Parse description to extract nome and complemento if combined
+                    const parts = mov.descricao.split(' - ');
+                    const nomeMovimento = parts[0];
+                    const complemento = parts.length > 1 ? parts.slice(1).join(' - ') : null;
+                    
+                    return (
+                      <div 
+                        key={mov.id}
+                        className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-foreground">{nomeMovimento}</p>
+                              {mov.tipo && mov.tipo !== nomeMovimento && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {mov.tipo}
+                                </Badge>
+                              )}
+                            </div>
+                            {complemento && (
+                              <p className="text-sm text-muted-foreground mt-1 break-words">
+                                {complemento}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
+                              <Clock className="w-3 h-3" />
+                              {formatDateTime(mov.data_movimentacao)}
                             </p>
-                          )}
+                            {mov.fonte && (
+                              <Badge variant="outline" className="text-xs mt-1">
+                                {mov.fonte}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
             ) : (
