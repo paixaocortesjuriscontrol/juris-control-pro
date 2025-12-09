@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.buscar-djen]
 verify_jwt = false
+
+[functions.monitorar-djen]
+verify_jwt = false
