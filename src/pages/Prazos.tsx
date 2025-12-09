@@ -56,6 +56,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePrazos, useUpdatePrazo, useDeletePrazo, type Prazo } from "@/hooks/usePrazos";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { PrazosCalendar } from "@/components/prazos/PrazosCalendar";
+import { TarefaDetalhesDialog } from "@/components/prazos/TarefaDetalhesDialog";
 import { format, parseISO, differenceInDays, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -82,6 +83,8 @@ const Prazos = () => {
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedPrazo, setSelectedPrazo] = useState<Prazo | null>(null);
+  const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false);
+  const [prazoDetalhes, setPrazoDetalhes] = useState<Prazo | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [prazoToDelete, setPrazoToDelete] = useState<string | null>(null);
 
@@ -507,9 +510,12 @@ const Prazos = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/processos/${prazo.processo_id}`)}>
+                          <DropdownMenuItem onClick={() => {
+                            setPrazoDetalhes(prazo);
+                            setDetalhesDialogOpen(true);
+                          }}>
                             <Eye className="w-4 h-4 mr-2" />
-                            Ver Processo
+                            Ver Detalhes / Conversar
                           </DropdownMenuItem>
                           {prazo.status !== "cumprido" && (
                             <DropdownMenuItem onClick={() => handleMarkAsCumprido(prazo)}>
@@ -546,6 +552,21 @@ const Prazos = () => {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         prazo={selectedPrazo}
+      />
+
+      {/* Detalhes Dialog */}
+      <TarefaDetalhesDialog
+        open={detalhesDialogOpen}
+        onOpenChange={setDetalhesDialogOpen}
+        prazo={prazoDetalhes}
+        onEdit={(p) => {
+          setDetalhesDialogOpen(false);
+          handleEdit(p);
+        }}
+        onMarkAsCumprido={async (p) => {
+          await handleMarkAsCumprido(p);
+          setDetalhesDialogOpen(false);
+        }}
       />
 
       {/* Delete Confirmation */}
