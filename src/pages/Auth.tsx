@@ -80,9 +80,11 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        const { error } = await signIn(formData.email, formData.password);
+        const { error, isInactive } = await signIn(formData.email, formData.password);
         if (error) {
-          if (error.message.includes("Invalid login credentials")) {
+          if (isInactive) {
+            toast.error("Sua conta está desativada. Entre em contato com o administrador.");
+          } else if (error.message.includes("Invalid login credentials")) {
             toast.error("Email ou senha incorretos");
           } else {
             toast.error(error.message);

@@ -1,17 +1,39 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; isInactive?: boolean }>;
   signUp: (email: string, password: string, nome: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Check if user is active in the profiles table
+async function checkUserActive(userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("ativo")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error checking user active status:", error);
+    return true; // Allow access if we can't check (fail open for existing users)
+  }
+
+  // If no profile found, allow access (new user)
+  if (!data) {
+    return true;
+  }
+
+  return data.ativo === true;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -21,29 +43,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      (event, currentSession) => {
+        // Synchronous state updates only
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
         setLoading(false);
+
+        // Defer the active check to avoid deadlocks
+        if (currentSession?.user && event === "SIGNED_IN") {
+          setTimeout(async () => {
+            const isActive = await checkUserActive(currentSession.user.id);
+            if (!isActive) {
+              toast.error("Sua conta está desativada. Entre em contato com o administrador.");
+              await supabase.auth.signOut();
+            }
+          }, 0);
+        }
       }
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      setSession(existingSession);
+      setUser(existingSession?.user ?? null);
       setLoading(false);
+
+      // Check if existing session user is active
+      if (existingSession?.user) {
+        const isActive = await checkUserActive(existingSession.user.id);
+        if (!isActive) {
+          toast.error("Sua conta está desativada. Entre em contato com o administrador.");
+          await supabase.auth.signOut();
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    return { error };
+
+    if (error) {
+      return { error };
+    }
+
+    // Check if user is active after successful authentication
+    if (data.user) {
+      const isActive = await checkUserActive(data.user.id);
+      if (!isActive) {
+        // Sign out the user immediately
+        await supabase.auth.signOut();
+        return { 
+          error: new Error("Sua conta está desativada. Entre em contato com o administrador."),
+          isInactive: true 
+        };
+      }
+    }
+
+    return { error: null };
   };
 
   const signUp = async (email: string, password: string, nome: string) => {
