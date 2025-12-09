@@ -348,7 +348,10 @@ const Processos = () => {
                 </div>
 
                 <h3 className="font-mono text-sm font-semibold text-foreground mb-1">{processo.numero}</h3>
-                <p className="text-foreground font-medium mb-2">{processo.polo_ativo || "Não informado"}</p>
+                <p className="text-foreground font-medium mb-1">{processo.polo_ativo || "Não informado"}</p>
+                {processo.cliente?.nome && (
+                  <p className="text-xs text-primary font-medium mb-1">Cliente: {processo.cliente.nome}</p>
+                )}
                 {processo.assunto && (
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{processo.assunto}</p>
                 )}

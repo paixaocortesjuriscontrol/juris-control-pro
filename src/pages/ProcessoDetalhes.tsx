@@ -85,7 +85,8 @@ export default function ProcessoDetalhes() {
         .from("processos")
         .select(`
           *,
-          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome, email)
+          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome, email),
+          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo, cpf_cnpj, email, telefone)
         `)
         .eq("id", id!)
         .maybeSingle();
@@ -471,6 +472,17 @@ export default function ProcessoDetalhes() {
                   {processo.advogado_responsavel?.nome || "Não atribuído"}
                 </p>
               </div>
+              
+              {processo.cliente && (
+                <div className="pt-4 border-t">
+                  <p className="text-sm text-muted-foreground mb-1">Cliente</p>
+                  <p className="font-medium">{processo.cliente.nome}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {processo.cliente.tipo === "pessoa_fisica" ? "Pessoa Física" : "Pessoa Jurídica"}
+                    {processo.cliente.cpf_cnpj && ` • ${processo.cliente.cpf_cnpj}`}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
