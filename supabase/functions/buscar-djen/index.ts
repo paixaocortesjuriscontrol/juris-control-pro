@@ -113,9 +113,19 @@ async function searchDJEN(params: SearchParams): Promise<any> {
     const errorText = await response.text();
     console.error("DJEN API error:", response.status, errorText);
     
-    // Try alternative endpoint structure
+    // 422 means "not found" - return empty results instead of error
+    if (response.status === 422) {
+      console.log("DJEN returned 422 (not found), returning empty results");
+      return { 
+        items: [], 
+        totalElements: 0, 
+        totalPages: 0,
+        message: "Nenhuma comunicação encontrada para os critérios informados"
+      };
+    }
+    
+    // Try alternative endpoint structure for 404/403
     if (response.status === 404 || response.status === 403) {
-      // Try the DataJud API as fallback for process-specific searches
       if (tipo === "processo" && numeroProcesso) {
         return await searchDataJudPublicacoes(numeroProcesso);
       }
