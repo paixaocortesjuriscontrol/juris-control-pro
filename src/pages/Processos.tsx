@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { Search, Filter, Plus, Download, ArrowUpDown, Scale } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { ProcessCard } from "@/components/dashboard/ProcessCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,8 +12,28 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useProcessos } from "@/hooks/useProcessos";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { AtribuirCoordenacaoLoteDialog } from "@/components/processos/AtribuirCoordenacaoLoteDialog";
+import { cn } from "@/lib/utils";
+import { Calendar, User } from "lucide-react";
+
+type AreaType = "civil" | "trabalhista" | "empresarial";
+type StatusType = "pending" | "active" | "closed" | "urgent";
+
+const areaLabels: Record<AreaType, string> = {
+  civil: "Cível",
+  trabalhista: "Trabalhista",
+  empresarial: "Empresarial",
+};
+
+const statusLabels: Record<StatusType, string> = {
+  pending: "Pendente",
+  active: "Ativo",
+  closed: "Encerrado",
+  urgent: "Urgente",
+};
 
 const Processos = () => {
   const navigate = useNavigate();
@@ -22,6 +41,9 @@ const Processos = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedProcessos, setSelectedProcessos] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [showAtribuirDialog, setShowAtribuirDialog] = useState(false);
 
   // Ler parâmetros da URL na inicialização
   useEffect(() => {
@@ -33,8 +55,8 @@ const Processos = () => {
   
   const { data: processos, isLoading } = useProcessos();
 
-  const mapStatus = (status: string) => {
-    const statusMap: Record<string, "active" | "pending" | "urgent" | "closed"> = {
+  const mapStatus = (status: string): StatusType => {
+    const statusMap: Record<string, StatusType> = {
       ativo: "active",
       pendente: "pending",
       urgente: "urgent",
@@ -42,6 +64,27 @@ const Processos = () => {
       arquivado: "closed",
     };
     return statusMap[status] || "active";
+  };
+
+  const toggleProcessoSelection = (id: string) => {
+    setSelectedProcessos(prev => 
+      prev.includes(id) 
+        ? prev.filter(p => p !== id)
+        : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedProcessos.length === filteredProcessos.length) {
+      setSelectedProcessos([]);
+    } else {
+      setSelectedProcessos(filteredProcessos.map(p => p.id));
+    }
+  };
+
+  const exitSelectionMode = () => {
+    setIsSelectionMode(false);
+    setSelectedProcessos([]);
   };
 
   const filteredProcessos = (processos || []).filter((processo) => {
@@ -103,17 +146,47 @@ const Processos = () => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 justify-end">
-            <Button variant="outline" className="flex-1 sm:flex-none">
-              <Download className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Exportar</span>
-            </Button>
-            <Button 
-              className="bg-primary hover:bg-primary/90 flex-1 sm:flex-none"
-              onClick={() => navigate("/importar")}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Novo Processo</span>
-            </Button>
+            {!isSelectionMode ? (
+              <>
+                <Button 
+                  variant="outline" 
+                  className="flex-1 sm:flex-none"
+                  onClick={() => setIsSelectionMode(true)}
+                >
+                  <CheckSquare className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Selecionar</span>
+                </Button>
+                <Button variant="outline" className="flex-1 sm:flex-none">
+                  <Download className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Exportar</span>
+                </Button>
+                <Button 
+                  className="bg-primary hover:bg-primary/90 flex-1 sm:flex-none"
+                  onClick={() => navigate("/importar")}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Novo Processo</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={toggleSelectAll}
+                  className="flex-1 sm:flex-none"
+                >
+                  {selectedProcessos.length === filteredProcessos.length ? "Desmarcar todos" : "Selecionar todos"}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={exitSelectionMode}
+                  className="flex-1 sm:flex-none"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancelar
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -152,6 +225,19 @@ const Processos = () => {
         )}
       </div>
 
+      {/* Selection Action Bar */}
+      {isSelectionMode && selectedProcessos.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-card border border-border shadow-lg rounded-xl px-6 py-4 flex items-center gap-4 animate-slide-up">
+          <span className="text-sm font-medium">
+            {selectedProcessos.length} processo(s) selecionado(s)
+          </span>
+          <Button onClick={() => setShowAtribuirDialog(true)}>
+            <FolderOpen className="w-4 h-4 mr-2" />
+            Atribuir Coordenação
+          </Button>
+        </div>
+      )}
+
       {/* Processes Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -161,19 +247,53 @@ const Processos = () => {
         </div>
       ) : filteredProcessos.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredProcessos.map((processo, index) => (
-            <ProcessCard 
-              key={processo.id}
-              id={processo.id}
-              numero={processo.numero}
-              cliente={processo.polo_ativo || "Não informado"}
-              area={processo.area}
-              status={mapStatus(processo.status)}
-              advogado={processo.advogado_responsavel?.nome || "Não atribuído"}
-              descricao={processo.assunto || "Sem descrição"}
-              delay={index * 50} 
-            />
-          ))}
+          {filteredProcessos.map((processo, index) => {
+            const isSelected = selectedProcessos.includes(processo.id);
+            const status = mapStatus(processo.status);
+            
+            return (
+              <div 
+                key={processo.id}
+                onClick={() => isSelectionMode ? toggleProcessoSelection(processo.id) : navigate(`/processos/${processo.id}`)}
+                className={cn(
+                  "bg-card rounded-xl p-5 border shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up cursor-pointer",
+                  isSelected ? "border-primary ring-2 ring-primary/20" : "border-border/50 hover:border-primary/30"
+                )}
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Badge className={cn("badge-area-" + processo.area, "text-xs font-medium px-2 py-0.5")}>
+                      {areaLabels[processo.area]}
+                    </Badge>
+                    <Badge className={cn("badge-status-" + status, "text-xs font-medium px-2 py-0.5")}>
+                      {statusLabels[status]}
+                    </Badge>
+                  </div>
+                  {isSelectionMode && (
+                    <Checkbox 
+                      checked={isSelected}
+                      onClick={(e) => e.stopPropagation()}
+                      onCheckedChange={() => toggleProcessoSelection(processo.id)}
+                    />
+                  )}
+                </div>
+
+                <h3 className="font-mono text-sm font-semibold text-foreground mb-1">{processo.numero}</h3>
+                <p className="text-foreground font-medium mb-2">{processo.polo_ativo || "Não informado"}</p>
+                {processo.assunto && (
+                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{processo.assunto}</p>
+                )}
+
+                <div className="flex items-center gap-4 text-sm text-muted-foreground pt-3 border-t border-border/50">
+                  <div className="flex items-center gap-1.5">
+                    <User className="w-4 h-4" />
+                    <span>{processo.advogado_responsavel?.nome || "Não atribuído"}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="text-center py-12 animate-fade-in">
@@ -194,6 +314,13 @@ const Processos = () => {
           )}
         </div>
       )}
+
+      <AtribuirCoordenacaoLoteDialog
+        open={showAtribuirDialog}
+        onOpenChange={setShowAtribuirDialog}
+        selectedProcessos={selectedProcessos}
+        onSuccess={exitSelectionMode}
+      />
     </MainLayout>
   );
 };
