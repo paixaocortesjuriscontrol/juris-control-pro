@@ -1,11 +1,19 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useToast } from "@/hooks/use-toast";
@@ -19,11 +27,17 @@ import {
   FileText, 
   RefreshCw,
   Clock,
-  Users
+  Users,
+  Edit,
+  Save,
+  X
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
+import { Database } from "@/integrations/supabase/types";
+
+type StatusProcesso = Database["public"]["Enums"]["status_processo"];
 
 const areaLabels: Record<string, string> = {
   civil: "Cível",
@@ -39,11 +53,19 @@ const statusLabels: Record<string, string> = {
   arquivado: "Arquivado",
 };
 
+const statusOptions: StatusProcesso[] = ["ativo", "pendente", "urgente", "encerrado", "arquivado"];
+
 export default function ProcessoDetalhes() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [atualizando, setAtualizando] = useState(false);
+  const [editando, setEditando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [editStatus, setEditStatus] = useState<StatusProcesso | "">("");
+  const [editCoordenacao, setEditCoordenacao] = useState<string>("");
+  const [editAdvogado, setEditAdvogado] = useState<string>("");
 
   const { data: processo, isLoading: loadingProcesso } = useQuery({
     queryKey: ["processo", id],
@@ -77,6 +99,99 @@ export default function ProcessoDetalhes() {
     },
     enabled: !!id,
   });
+
+  const { data: coordenacoes = [] } = useQuery({
+    queryKey: ["coordenacoes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coordenacoes")
+        .select("id, nome, area")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: membrosCoordenacao = [] } = useQuery({
+    queryKey: ["membros-coordenacao", editCoordenacao || processo?.coordenacao_id],
+    queryFn: async () => {
+      const coordId = editCoordenacao || processo?.coordenacao_id;
+      if (!coordId) return [];
+      
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select(`
+          usuario_id,
+          cargo,
+          profiles:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
+        `)
+        .eq("coordenacao_id", coordId);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!(editCoordenacao || processo?.coordenacao_id),
+  });
+
+  const handleIniciarEdicao = () => {
+    if (processo) {
+      setEditStatus(processo.status);
+      setEditCoordenacao(processo.coordenacao_id || "");
+      setEditAdvogado(processo.advogado_responsavel_id || "");
+      setEditando(true);
+    }
+  };
+
+  const handleCancelarEdicao = () => {
+    setEditando(false);
+    setEditStatus("");
+    setEditCoordenacao("");
+    setEditAdvogado("");
+  };
+
+  const handleSalvarEdicao = async () => {
+    if (!processo) return;
+    
+    setSalvando(true);
+    try {
+      const updates: Record<string, any> = {};
+      
+      if (editStatus && editStatus !== processo.status) {
+        updates.status = editStatus;
+      }
+      if (editCoordenacao !== (processo.coordenacao_id || "")) {
+        updates.coordenacao_id = editCoordenacao || null;
+      }
+      if (editAdvogado !== (processo.advogado_responsavel_id || "")) {
+        updates.advogado_responsavel_id = editAdvogado || null;
+      }
+      
+      if (Object.keys(updates).length === 0) {
+        toast({ title: "Nenhuma alteração detectada" });
+        setEditando(false);
+        return;
+      }
+      
+      const { error } = await supabase
+        .from("processos")
+        .update(updates)
+        .eq("id", processo.id);
+      
+      if (error) throw error;
+      
+      toast({ title: "Processo atualizado com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ["processo", id] });
+      setEditando(false);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSalvando(false);
+    }
+  };
 
   const handleAtualizarAndamentos = async () => {
     if (!processo) return;
@@ -181,13 +296,19 @@ export default function ProcessoDetalhes() {
                   <Scale className="w-5 h-5" />
                   Informações do Processo
                 </CardTitle>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Badge className={`badge-area-${processo.area}`}>
                     {areaLabels[processo.area] || processo.area}
                   </Badge>
                   <Badge className={`badge-status-${processo.status}`}>
                     {statusLabels[processo.status] || processo.status}
                   </Badge>
+                  {!editando && (
+                    <Button variant="outline" size="sm" onClick={handleIniciarEdicao}>
+                      <Edit className="w-4 h-4 mr-1" />
+                      Editar
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -217,6 +338,87 @@ export default function ProcessoDetalhes() {
                 <div className="pt-4 border-t">
                   <p className="text-sm text-muted-foreground mb-1">Descrição</p>
                   <p>{processo.descricao}</p>
+                </div>
+              )}
+
+              {/* Edit Section */}
+              {editando && (
+                <div className="pt-4 border-t space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-sm">Editar Processo</h4>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={handleCancelarEdicao} disabled={salvando}>
+                        <X className="w-4 h-4 mr-1" />
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={handleSalvarEdicao} disabled={salvando}>
+                        <Save className="w-4 h-4 mr-1" />
+                        {salvando ? "Salvando..." : "Salvar"}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Select value={editStatus} onValueChange={(v) => setEditStatus(v as StatusProcesso)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statusOptions.map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {statusLabels[status]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Coordenação Responsável</Label>
+                      <Select value={editCoordenacao} onValueChange={(v) => {
+                        setEditCoordenacao(v);
+                        setEditAdvogado(""); // Reset advogado when coordination changes
+                      }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a coordenação" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coordenacoes.map((coord) => (
+                            <SelectItem key={coord.id} value={coord.id}>
+                              {coord.nome} ({areaLabels[coord.area] || coord.area})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Distribuir para Advogado</Label>
+                      <Select 
+                        value={editAdvogado} 
+                        onValueChange={setEditAdvogado}
+                        disabled={!editCoordenacao && !processo.coordenacao_id}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            !editCoordenacao && !processo.coordenacao_id 
+                              ? "Selecione coordenação primeiro" 
+                              : "Selecione o advogado"
+                          } />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Não atribuído</SelectItem>
+                          {membrosCoordenacao.map((membro) => (
+                            <SelectItem key={membro.usuario_id} value={membro.usuario_id}>
+                              {membro.profiles?.nome || "Usuário"} {membro.cargo ? `(${membro.cargo})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
