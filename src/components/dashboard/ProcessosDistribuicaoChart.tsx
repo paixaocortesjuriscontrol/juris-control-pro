@@ -42,9 +42,43 @@ export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartP
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
               <XAxis 
                 dataKey="nome" 
-                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                tick={({ x, y, payload }) => {
+                  const words = payload.value.split(' ');
+                  const lines: string[] = [];
+                  let currentLine = '';
+                  
+                  words.forEach((word: string) => {
+                    if (currentLine.length + word.length > 12) {
+                      if (currentLine) lines.push(currentLine.trim());
+                      currentLine = word + ' ';
+                    } else {
+                      currentLine += word + ' ';
+                    }
+                  });
+                  if (currentLine.trim()) lines.push(currentLine.trim());
+                  
+                  return (
+                    <g transform={`translate(${x},${y})`}>
+                      {lines.map((line, index) => (
+                        <text
+                          key={index}
+                          x={0}
+                          y={index * 12}
+                          dy={12}
+                          textAnchor="middle"
+                          fill="hsl(var(--muted-foreground))"
+                          fontSize={10}
+                        >
+                          {line}
+                        </text>
+                      ))}
+                    </g>
+                  );
+                }}
                 tickLine={false}
                 axisLine={{ stroke: "hsl(var(--border))" }}
+                height={60}
+                interval={0}
               />
               <YAxis 
                 tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
