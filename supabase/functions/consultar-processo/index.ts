@@ -1,9 +1,39 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Allowed origins for CORS - restrict to application domains
+const ALLOWED_ORIGINS = [
+  'https://bfxahrrvoqxcdmfsvnrk.supabase.co',
+  'https://lovable.dev',
+  'https://id-preview--bfxahrrvoqxcdmfsvnrk.lovable.app',
+  // Add your custom domain here if you have one
+];
+
+// Check if origin is allowed (also allows localhost for development)
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  if (origin.startsWith('http://localhost:')) return true;
+  if (origin.endsWith('.lovable.app')) return true;
+  return ALLOWED_ORIGINS.includes(origin);
+}
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = isAllowedOrigin(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin || ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+}
+
+// Input validation for process number (CNJ format: 20 digits)
+function isValidProcessNumber(numero: string): boolean {
+  const cleaned = numero.replace(/\D/g, '');
+  return cleaned.length >= 15 && cleaned.length <= 25;
+}
+
+// Input validation for tribunal (alphanumeric with underscores only)
+function isValidTribunal(tribunal: string): boolean {
+  return /^[a-zA-Z0-9_]+$/.test(tribunal) && tribunal.length <= 50;
+}
 
 // API Key pública do DataJud/CNJ
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
@@ -109,8 +139,20 @@ function getTribunalInfo(numeroProcesso: string): { endpoint: string; nome: stri
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Reject requests from disallowed origins
+  if (!isAllowedOrigin(origin)) {
+    console.warn("Blocked request from unauthorized origin:", origin);
+    return new Response(
+      JSON.stringify({ error: "Origin not allowed" }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   try {
@@ -118,9 +160,25 @@ serve(async (req) => {
     
     console.log("Consultando processo:", numeroProcesso, "Tribunal:", tribunal);
 
-    if (!numeroProcesso) {
+    // Validate process number
+    if (!numeroProcesso || typeof numeroProcesso !== 'string') {
       return new Response(
         JSON.stringify({ error: "Número do processo é obrigatório" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!isValidProcessNumber(numeroProcesso)) {
+      return new Response(
+        JSON.stringify({ error: "Formato de número de processo inválido" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate tribunal if provided
+    if (tribunal && !isValidTribunal(tribunal)) {
+      return new Response(
+        JSON.stringify({ error: "Tribunal inválido" }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
