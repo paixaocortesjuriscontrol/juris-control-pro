@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 interface ValidationError {
@@ -195,6 +195,12 @@ export default function ImportarProcessos() {
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
   const [selectedMembro, setSelectedMembro] = useState<string>("");
   const [selectedCliente, setSelectedCliente] = useState<string>("");
+
+  // Projuris import states
+  const [projurisFile, setProjurisFile] = useState<File | null>(null);
+  const [projurisProcessos, setProjurisProcessos] = useState<ProcessoImport[]>([]);
+  const [projurisImporting, setProjurisImporting] = useState(false);
+  const [projurisProgress, setProjurisProgress] = useState(0);
 
   // Fetch coordenacoes
   const { data: coordenacoes = [] } = useCoordenacoesFull();
@@ -740,6 +746,358 @@ export default function ImportarProcessos() {
     setSelectedCliente("");
   };
 
+  // Projuris Excel parsing
+  const handleProjurisFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setProjurisFile(selectedFile);
+      parseProjurisExcel(selectedFile);
+    }
+  }, []);
+
+  const parseProjurisExcel = async (file: File) => {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null, range: 2 }); // Start from row 3 (index 2) to skip header rows
+
+      const parsed: ProcessoImport[] = jsonData
+        .filter((row: any) => {
+          // Skip empty rows and header rows
+          const numeroCNJ = row["Número CNJ"] || "";
+          return numeroCNJ && numeroCNJ.trim().length >= 5 && !numeroCNJ.includes("Número CNJ");
+        })
+        .map((row: any, index: number): ProcessoImport => {
+          // Parse Projuris columns - columns from the parsed spreadsheet
+          const numeroCNJ = String(row["Número CNJ"] || "").trim();
+          const assunto = row["Assunto"] || null;
+          const situacao = row["Situação"] || null;
+          const justica = row["Justiça"] || null;
+          const orgao = row["Órgao"] || row["Orgao"] || null;
+          const orgaoJulgador = row["Órgão julgador"] || row["Orgao julgador"] || null;
+          const area = row["Área"] || row["Area"] || null;
+          const dataDistribuicao = row["Data distribuição"] || row["Data distribuicao"] || null;
+          const valorAcao = row["Valor ação"] || row["Valor acao"] || null;
+          const partesAtivas = row["Partes ativas"] || null;
+          const partesPassivas = row["Partes passivas"] || null;
+          const estado = row["Estado"] || null;
+          const cidade = row["Cidade"] || null;
+          const clientes = row["Clientes"] || null;
+
+          const processo: ProcessoImport = {
+            numero: numeroCNJ,
+            assunto: assunto,
+            situacao: situacao,
+            responsavel: row["Responsáveis"] || row["Responsaveis"] || null,
+            descricao: row["Descrição"] || row["Descricao"] || null,
+            justica: justica,
+            cidade: cidade,
+            estado: estado,
+            instancia: row["Instância"] || row["Instancia"] || null,
+            orgao: orgao,
+            orgaoJulgador: orgaoJulgador,
+            sistema: null,
+            area: area,
+            fase: row["Fase"] || null,
+            dataDistribuicao: dataDistribuicao,
+            classeCNJ: null,
+            valorAcao: valorAcao,
+            parteAtiva: partesAtivas ? extractPartyName(partesAtivas) : null,
+            partePassiva: partesPassivas ? extractPartyName(partesPassivas) : null,
+            cpfCnpjAtivo: null,
+            cpfCnpjPassivo: null,
+            status: "pendente",
+            erros: [],
+            linhaOriginal: index + 4, // +4 because we skip 2 header rows and Excel is 1-indexed
+          };
+          
+          // Validate the processo
+          processo.erros = validateProcesso(processo);
+          processo.status = processo.erros.length > 0 ? "invalido" : "valido";
+          
+          return processo;
+        });
+
+      setProjurisProcessos(parsed);
+      
+      const validCount = parsed.filter(p => p.status === "valido").length;
+      const invalidCount = parsed.filter(p => p.status === "invalido").length;
+      
+      if (parsed.length === 0) {
+        toast({
+          title: "Nenhum processo encontrado",
+          description: "A planilha não contém dados válidos. Verifique se é uma planilha exportada do Projuris.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Planilha Projuris carregada",
+          description: `${parsed.length} processo(s): ${validCount} válido(s), ${invalidCount} com erro(s).`,
+          variant: invalidCount > 0 ? "destructive" : "default",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao ler planilha Projuris:", error);
+      toast({
+        title: "Erro ao ler planilha",
+        description: "Verifique se o arquivo é uma planilha do Projuris no formato correto (.xlsx).",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Helper to extract party name from Projuris format: "NOME (Tipo)"
+  const extractPartyName = (partyString: string): string => {
+    if (!partyString) return "";
+    // Remove the role/type in parentheses, e.g., "BANCO SANTANDER (Requerido)" -> "BANCO SANTANDER"
+    return partyString.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  };
+
+  const handleProjurisImport = async () => {
+    const validProcessos = projurisProcessos.filter(p => p.status === "valido");
+    if (validProcessos.length === 0) {
+      toast({
+        title: "Nenhum processo válido",
+        description: "Corrija os erros de validação antes de importar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProjurisImporting(true);
+    setProjurisProgress(0);
+
+    const updatedProcessos = [...projurisProcessos];
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < updatedProcessos.length; i++) {
+      const processo = updatedProcessos[i];
+      
+      // Skip invalid processos
+      if (processo.status === "invalido") {
+        continue;
+      }
+      
+      try {
+        // Check if process already exists
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processo.numero.trim())
+          .maybeSingle();
+
+        let processoId: string;
+        let isUpdate = false;
+
+        if (existingProcesso) {
+          // Update existing process with coordination and member if selected
+          const updateData: Record<string, any> = {};
+          if (selectedCoordenacao) {
+            updateData.coordenacao_id = selectedCoordenacao;
+          }
+          if (selectedMembro) {
+            updateData.advogado_responsavel_id = selectedMembro;
+          }
+          if (selectedCliente) {
+            updateData.cliente_id = selectedCliente;
+          }
+          
+          if (Object.keys(updateData).length > 0) {
+            await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
+          }
+          
+          processoId = existingProcesso.id;
+          isUpdate = true;
+        } else {
+          // Insert new process
+          const { data: insertedProcesso, error } = await supabase.from("processos").insert({
+            numero: processo.numero.trim(),
+            assunto: processo.assunto,
+            descricao: processo.descricao,
+            area: mapAreaToEnum(processo.area),
+            status: mapStatusToEnum(processo.situacao),
+            tribunal: processo.orgao,
+            vara: processo.orgaoJulgador,
+            comarca: processo.cidade,
+            classe: processo.classeCNJ,
+            data_distribuicao: parseDate(processo.dataDistribuicao),
+            valor_causa: parseNumber(processo.valorAcao),
+            polo_ativo: processo.parteAtiva,
+            polo_passivo: processo.partePassiva,
+            coordenacao_id: selectedCoordenacao || null,
+            advogado_responsavel_id: selectedMembro || null,
+            cliente_id: selectedCliente || null,
+          }).select("id").single();
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            errorCount++;
+            continue;
+          }
+          
+          processoId = insertedProcesso.id;
+        }
+
+        // Fetch additional data from API for new processes
+        if (!isUpdate) {
+          const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
+            body: { numeroProcesso: processo.numero.trim() },
+          });
+
+          if (apiData?.found && apiData?.processo) {
+            const processoApi = apiData.processo;
+            
+            // Extract parties if not already set
+            let poloAtivo = processo.parteAtiva;
+            let poloPassivo = processo.partePassiva;
+            
+            if ((!poloAtivo || !poloPassivo) && processoApi.partes && processoApi.partes.length > 0) {
+              const partesAtivas = processoApi.partes
+                .filter((p: any) => p.tipo === 'POLO_ATIVO' || p.tipoParte === 'AUTOR' || p.tipoParte === 'REQUERENTE' || p.tipoParte === 'RECLAMANTE')
+                .map((p: any) => p.nome)
+                .filter(Boolean);
+                
+              const partesPassivas = processoApi.partes
+                .filter((p: any) => p.tipo === 'POLO_PASSIVO' || p.tipoParte === 'REU' || p.tipoParte === 'REQUERIDO' || p.tipoParte === 'RECLAMADO')
+                .map((p: any) => p.nome)
+                .filter(Boolean);
+                
+              if (!poloAtivo && partesAtivas.length > 0) {
+                poloAtivo = partesAtivas.join(', ');
+              }
+              if (!poloPassivo && partesPassivas.length > 0) {
+                poloPassivo = partesPassivas.join(', ');
+              }
+            }
+
+            // Update with API data for empty fields
+            const updateData: Record<string, any> = {};
+            
+            if (!processo.orgao && (processoApi.tribunal || apiData.tribunal)) {
+              updateData.tribunal = processoApi.tribunal || apiData.tribunal;
+            }
+            if (!processo.orgaoJulgador && processoApi.orgaoJulgador) {
+              updateData.vara = processoApi.orgaoJulgador;
+            }
+            if (!processo.classeCNJ && processoApi.classe) {
+              updateData.classe = processoApi.classe;
+            }
+            if (!processo.assunto && processoApi.assunto) {
+              updateData.assunto = processoApi.assunto;
+            }
+            if (!processo.parteAtiva && poloAtivo) {
+              updateData.polo_ativo = poloAtivo;
+            }
+            if (!processo.partePassiva && poloPassivo) {
+              updateData.polo_passivo = poloPassivo;
+            }
+            if (!parseDate(processo.dataDistribuicao) && processoApi.dataAjuizamento) {
+              updateData.data_distribuicao = new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0];
+            }
+
+            // Update area based on tribunal if not set
+            if (!processo.area) {
+              const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
+              if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
+                updateData.area = "trabalhista";
+              }
+            }
+
+            if (Object.keys(updateData).length > 0) {
+              await supabase.from("processos").update(updateData).eq("id", processoId);
+            }
+
+            // Insert movements
+            if (apiData.movimentos && apiData.movimentos.length > 0) {
+              const movimentosToInsert = apiData.movimentos.map((mov: any) => ({
+                processo_id: processoId,
+                descricao: mov.nome || "Sem descrição",
+                data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+                tipo: "API Externa",
+                fonte: "DataJud/CNJ",
+              }));
+
+              await supabase.from("movimentacoes").insert(movimentosToInsert);
+            }
+          }
+        }
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "sucesso", 
+          erroImport: isUpdate ? "Atualizado (já existia)" : undefined 
+        };
+        successCount++;
+      } catch (err: any) {
+        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
+        errorCount++;
+      }
+
+      setProjurisProgress(((i + 1) / updatedProcessos.length) * 100);
+      setProjurisProcessos([...updatedProcessos]);
+    }
+
+    setProjurisImporting(false);
+
+    toast({
+      title: "Importação Projuris concluída",
+      description: `${successCount} processo(s) importado(s). ${errorCount} erro(s) de importação.`,
+      variant: errorCount > 0 ? "destructive" : "default",
+    });
+  };
+
+  const downloadProjurisRejeitados = () => {
+    const rejeitados = projurisProcessos.filter(p => p.status === "invalido" || p.status === "erro");
+    
+    if (rejeitados.length === 0) {
+      toast({
+        title: "Nenhum rejeitado",
+        description: "Não há processos rejeitados para exportar.",
+      });
+      return;
+    }
+
+    const exportData = rejeitados.map(p => ({
+      "Linha": p.linhaOriginal,
+      "Número CNJ": p.numero,
+      "Área": p.area,
+      "Situação": p.situacao,
+      "Parte Ativa": p.parteAtiva,
+      "Parte Passiva": p.partePassiva,
+      "Órgão": p.orgao,
+      "Data Distribuição": p.dataDistribuicao,
+      "Valor da Ação": p.valorAcao,
+      "Erros de Validação": p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; "),
+      "Erro de Importação": p.erroImport || "",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Rejeitados");
+    
+    // Auto-size columns
+    const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+      wch: Math.max(key.length, 15)
+    }));
+    ws["!cols"] = colWidths;
+    
+    XLSX.writeFile(wb, `projuris_rejeitados_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: "Arquivo gerado",
+      description: `${rejeitados.length} processo(s) rejeitado(s) exportado(s).`,
+    });
+  };
+
+  const clearProjuris = () => {
+    setProjurisFile(null);
+    setProjurisProcessos([]);
+    setProjurisProgress(0);
+  };
+
   // Get members of selected coordination
   const membrosDisponiveis = selectedCoordenacao 
     ? coordenacoes.find(c => c.id === selectedCoordenacao)?.membros?.filter(m => m.usuario?.id).map(m => ({
@@ -758,20 +1116,28 @@ export default function ImportarProcessos() {
   const errorCount = processos.filter(p => p.status === "erro").length;
   const totalRejeitados = invalidCount + errorCount;
 
+  const projurisValidCount = projurisProcessos.filter(p => p.status === "valido").length;
+  const projurisInvalidCount = projurisProcessos.filter(p => p.status === "invalido").length;
+  const projurisSuccessCount = projurisProcessos.filter(p => p.status === "sucesso").length;
+  const projurisErrorCount = projurisProcessos.filter(p => p.status === "erro").length;
+  const projurisTotalRejeitados = projurisInvalidCount + projurisErrorCount;
+
   return (
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-3 max-w-lg">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
-              <span className="hidden sm:inline">Lista de Números</span>
-              <span className="sm:hidden">Lista</span>
+              <span className="hidden sm:inline">Lista</span>
             </TabsTrigger>
             <TabsTrigger value="planilha" className="flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4" />
-              <span className="hidden sm:inline">Planilha Excel</span>
-              <span className="sm:hidden">Planilha</span>
+              <span className="hidden sm:inline">Planilha</span>
+            </TabsTrigger>
+            <TabsTrigger value="projuris" className="flex items-center gap-2">
+              <ArrowRightLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Projuris</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1300,6 +1666,279 @@ export default function ImportarProcessos() {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+
+          {/* Tab: Importar do Projuris */}
+          <TabsContent value="projuris" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ArrowRightLeft className="h-5 w-5" />
+                  Importar do Projuris
+                </CardTitle>
+                <CardDescription>
+                  Importe processos usando a planilha exportada do sistema Projuris.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">Faça upload da planilha do Projuris</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Exporte a planilha de processos do Projuris e faça o upload aqui.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleProjurisFileChange}
+                      className="max-w-xs"
+                      disabled={projurisImporting}
+                    />
+                    {projurisFile && (
+                      <Button variant="outline" onClick={clearProjuris} disabled={projurisImporting}>
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Coordenação Selection for Projuris Import */}
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="coordenacao-projuris" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Coordenação Responsável
+                  </Label>
+                  <Select 
+                    value={selectedCoordenacao} 
+                    onValueChange={(value) => {
+                      setSelectedCoordenacao(value);
+                      setSelectedMembro(""); // Reset member when coordination changes
+                    }}
+                    disabled={projurisImporting}
+                  >
+                    <SelectTrigger id="coordenacao-projuris" className="max-w-md">
+                      <SelectValue placeholder="Selecione a coordenação (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.nome} ({coord.area})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Todos os processos importados serão atribuídos a esta coordenação.
+                  </p>
+                </div>
+
+                {/* Member Selection for Projuris Import */}
+                {selectedCoordenacao && membrosDisponiveis.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="membro-projuris" className="flex items-center gap-2">
+                      Advogado Responsável (opcional)
+                    </Label>
+                    <Select 
+                      value={selectedMembro} 
+                      onValueChange={setSelectedMembro}
+                      disabled={projurisImporting}
+                    >
+                      <SelectTrigger id="membro-projuris" className="max-w-md">
+                        <SelectValue placeholder="Selecione o advogado responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membrosDisponiveis.map((membro) => (
+                          <SelectItem key={membro.id} value={membro.id}>
+                            {membro.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Se selecionado, os processos já serão atribuídos diretamente a este advogado.
+                    </p>
+                  </div>
+                )}
+
+                {/* Cliente Selection for Projuris Import */}
+                <div className="space-y-2">
+                  <Label htmlFor="cliente-projuris" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Cliente (opcional)
+                  </Label>
+                  <Select 
+                    value={selectedCliente} 
+                    onValueChange={setSelectedCliente}
+                    disabled={projurisImporting}
+                  >
+                    <SelectTrigger id="cliente-projuris" className="max-w-md">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Todos os processos importados serão vinculados a este cliente.
+                  </p>
+                </div>
+                
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Colunas reconhecidas:</strong> Número CNJ, Assunto, Situação, Órgão, Órgão julgador, Área, Data distribuição, Valor ação, Partes ativas, Partes passivas, Estado, Cidade, Clientes.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Projuris File Preview */}
+            {projurisFile && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle>Pré-visualização Projuris</CardTitle>
+                      <CardDescription>
+                        {projurisProcessos.length} processo(s) encontrado(s) em "{projurisFile.name}"
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {projurisProcessos.length > 0 && (
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                            {projurisValidCount} válidos
+                          </Badge>
+                          <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                            {projurisInvalidCount} inválidos
+                          </Badge>
+                          {projurisSuccessCount > 0 && (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
+                              {projurisSuccessCount} importados
+                            </Badge>
+                          )}
+                          {projurisErrorCount > 0 && (
+                            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
+                              {projurisErrorCount} erros
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {projurisTotalRejeitados > 0 && (
+                          <Button variant="outline" onClick={downloadProjurisRejeitados}>
+                            <FileDown className="h-4 w-4 mr-2" />
+                            Baixar Rejeitados ({projurisTotalRejeitados})
+                          </Button>
+                        )}
+                        <Button 
+                          onClick={handleProjurisImport} 
+                          disabled={projurisImporting || projurisValidCount === 0}
+                        >
+                          {projurisImporting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Importando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Importar ({projurisValidCount})
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {projurisImporting && (
+                    <Progress value={projurisProgress} className="mt-4" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {projurisProcessos.length === 0 ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Nenhum processo encontrado na planilha. Verifique se é uma planilha exportada do Projuris.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="max-h-[500px] overflow-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead className="w-[60px]">Linha</TableHead>
+                              <TableHead className="w-[60px]">Status</TableHead>
+                              <TableHead>Número CNJ</TableHead>
+                              <TableHead>Situação</TableHead>
+                              <TableHead>Parte Ativa</TableHead>
+                              <TableHead>Parte Passiva</TableHead>
+                              <TableHead>Órgão</TableHead>
+                              <TableHead className="min-w-[300px]">Erros</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {projurisProcessos.map((processo, index) => (
+                              <TableRow key={index} className={processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : ""}>
+                                <TableCell className="text-muted-foreground">
+                                  {processo.linhaOriginal}
+                                </TableCell>
+                                <TableCell>
+                                  {processo.status === "valido" && (
+                                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                                  )}
+                                  {processo.status === "invalido" && (
+                                    <XCircle className="h-4 w-4 text-red-500" />
+                                  )}
+                                  {processo.status === "sucesso" && (
+                                    <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                                  )}
+                                  {processo.status === "erro" && (
+                                    <XCircle className="h-4 w-4 text-orange-500" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {processo.numero || <span className="text-red-500 italic">vazio</span>}
+                                </TableCell>
+                                <TableCell>{processo.situacao || "-"}</TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.parteAtiva || "-"}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.partePassiva || "-"}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.orgao || "-"}
+                                </TableCell>
+                                <TableCell className="text-sm">
+                                  {processo.erros.length > 0 && (
+                                    <div className="text-red-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>• {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {processo.erroImport && (
+                                    <div className="text-orange-600">• Importação: {processo.erroImport}</div>
+                                  )}
+                                  {processo.status === "valido" && "-"}
+                                  {processo.status === "sucesso" && <span className="text-blue-600">Importado com sucesso</span>}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
