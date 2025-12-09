@@ -3,14 +3,16 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List } from "lucide-react";
 import * as XLSX from "xlsx";
 interface ValidationError {
   campo: string;
@@ -161,12 +163,25 @@ const validateProcesso = (processo: ProcessoImport): ValidationError[] => {
   return errors;
 };
 
+interface BatchProcesso {
+  numero: string;
+  status: "pendente" | "processando" | "sucesso" | "erro";
+  erroMensagem?: string;
+  andamentosImportados?: number;
+}
+
 export default function ImportarProcessos() {
   const [file, setFile] = useState<File | null>(null);
   const [processos, setProcessos] = useState<ProcessoImport[]>([]);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const { toast } = useToast();
+
+  // Batch import states
+  const [batchText, setBatchText] = useState("");
+  const [batchProcessos, setBatchProcessos] = useState<BatchProcesso[]>([]);
+  const [batchImporting, setBatchImporting] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -367,6 +382,118 @@ export default function ImportarProcessos() {
     });
   };
 
+  // Batch import functions
+  const parseBatchNumbers = () => {
+    const lines = batchText.split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length >= 5);
+    
+    const uniqueNumbers = [...new Set(lines)];
+    
+    const parsed: BatchProcesso[] = uniqueNumbers.map(numero => ({
+      numero,
+      status: "pendente" as const,
+    }));
+
+    setBatchProcessos(parsed);
+    
+    if (parsed.length === 0) {
+      toast({
+        title: "Nenhum número válido",
+        description: "Insira pelo menos um número de processo válido (mínimo 5 caracteres).",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Números carregados",
+        description: `${parsed.length} número(s) de processo(s) encontrado(s).`,
+      });
+    }
+  };
+
+  const handleBatchImport = async () => {
+    if (batchProcessos.length === 0) {
+      toast({
+        title: "Nenhum processo para importar",
+        description: "Primeiro carregue os números dos processos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setBatchImporting(true);
+    setBatchProgress(0);
+
+    const updatedProcessos = [...batchProcessos];
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < updatedProcessos.length; i++) {
+      const processo = updatedProcessos[i];
+      updatedProcessos[i] = { ...processo, status: "processando" };
+      setBatchProcessos([...updatedProcessos]);
+
+      try {
+        // Insert process with minimal data - system will fetch details from API
+        const { data: insertedProcesso, error } = await supabase.from("processos").insert({
+          numero: processo.numero,
+          area: "civil", // Default area
+          status: "ativo",
+        }).select("id").single();
+
+        if (error) {
+          updatedProcessos[i] = { 
+            ...processo, 
+            status: "erro", 
+            erroMensagem: error.message.includes("duplicate") ? "Processo já cadastrado" : error.message 
+          };
+          errorCount++;
+        } else {
+          // Fetch movements from external API
+          let andamentosImportados = 0;
+          if (insertedProcesso?.id) {
+            const andamentosResult = await buscarAndamentosExternos(insertedProcesso.id, processo.numero);
+            andamentosImportados = andamentosResult.movimentosInseridos;
+          }
+          updatedProcessos[i] = { 
+            ...processo, 
+            status: "sucesso",
+            andamentosImportados,
+          };
+          successCount++;
+        }
+      } catch (err: any) {
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "erro", 
+          erroMensagem: err.message 
+        };
+        errorCount++;
+      }
+
+      setBatchProgress(((i + 1) / updatedProcessos.length) * 100);
+      setBatchProcessos([...updatedProcessos]);
+    }
+
+    setBatchImporting(false);
+
+    toast({
+      title: "Importação concluída",
+      description: `${successCount} processo(s) importado(s). ${errorCount} erro(s).`,
+      variant: errorCount > 0 ? "destructive" : "default",
+    });
+  };
+
+  const clearBatch = () => {
+    setBatchText("");
+    setBatchProcessos([]);
+    setBatchProgress(0);
+  };
+
+  const batchSuccessCount = batchProcessos.filter(p => p.status === "sucesso").length;
+  const batchErrorCount = batchProcessos.filter(p => p.status === "erro").length;
+  const batchPendingCount = batchProcessos.filter(p => p.status === "pendente").length;
+
   const validCount = processos.filter(p => p.status === "valido").length;
   const invalidCount = processos.filter(p => p.status === "invalido").length;
   const successCount = processos.filter(p => p.status === "sucesso").length;
@@ -374,55 +501,231 @@ export default function ImportarProcessos() {
   const totalRejeitados = invalidCount + errorCount;
 
   return (
-    <MainLayout title="Importar Processos" subtitle="Importe processos em lote utilizando uma planilha Excel">
+    <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
-        {/* Instructions Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5" />
-              Instruções
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <h4 className="font-medium mb-2">1. Baixe o modelo</h4>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Utilize o modelo padrão para preencher os dados dos processos.
-                </p>
-                <Button variant="outline" onClick={downloadTemplate}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Baixar Modelo
-                </Button>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">2. Faça upload da planilha</h4>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Após preencher, faça o upload do arquivo para validar e importar.
-                </p>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={handleFileChange}
-                    className="max-w-xs"
+        <Tabs defaultValue="lista" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="lista" className="flex items-center gap-2">
+              <List className="h-4 w-4" />
+              <span className="hidden sm:inline">Lista de Números</span>
+              <span className="sm:hidden">Lista</span>
+            </TabsTrigger>
+            <TabsTrigger value="planilha" className="flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4" />
+              <span className="hidden sm:inline">Planilha Excel</span>
+              <span className="sm:hidden">Planilha</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Tab: Lista de Números */}
+          <TabsContent value="lista" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <List className="h-5 w-5" />
+                  Importação por Lista
+                </CardTitle>
+                <CardDescription>
+                  Cole os números dos processos, um por linha. O sistema cadastrará todos e buscará os andamentos automaticamente.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Textarea
+                    placeholder={"Cole os números dos processos aqui, um por linha:\n\n0001234-56.2024.8.21.0001\n0002345-67.2024.8.21.0002\n0003456-78.2024.8.21.0003"}
+                    value={batchText}
+                    onChange={(e) => setBatchText(e.target.value)}
+                    className="min-h-[200px] font-mono text-sm"
+                    disabled={batchImporting}
                   />
                 </div>
-              </div>
-            </div>
-            
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Campos obrigatórios:</strong> Número do processo. <br />
-                <strong>Áreas válidas:</strong> Civil, Trabalhista, Empresarial. <br />
-                <strong>Situações válidas:</strong> Ativo, Pendente, Urgente, Encerrado, Arquivado. <br />
-                <strong>Formato de data:</strong> DD/MM/AAAA
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={parseBatchNumbers} disabled={batchImporting || !batchText.trim()}>
+                    Carregar Números
+                  </Button>
+                  {batchProcessos.length > 0 && (
+                    <>
+                      <Button 
+                        onClick={handleBatchImport} 
+                        disabled={batchImporting || batchPendingCount === 0}
+                        variant="default"
+                      >
+                        {batchImporting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Importando...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Importar ({batchPendingCount})
+                          </>
+                        )}
+                      </Button>
+                      <Button variant="outline" onClick={clearBatch} disabled={batchImporting}>
+                        Limpar
+                      </Button>
+                    </>
+                  )}
+                </div>
+                
+                {batchImporting && (
+                  <Progress value={batchProgress} className="mt-4" />
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Batch Results */}
+            {batchProcessos.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle>Processos</CardTitle>
+                      <CardDescription>
+                        {batchProcessos.length} número(s) carregado(s)
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm flex-wrap">
+                      {batchPendingCount > 0 && (
+                        <Badge variant="outline" className="bg-muted">
+                          {batchPendingCount} pendentes
+                        </Badge>
+                      )}
+                      {batchSuccessCount > 0 && (
+                        <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                          {batchSuccessCount} importados
+                        </Badge>
+                      )}
+                      {batchErrorCount > 0 && (
+                        <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                          {batchErrorCount} erros
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="max-h-[400px] overflow-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-background">
+                          <TableRow>
+                            <TableHead className="w-[50px]">#</TableHead>
+                            <TableHead className="w-[60px]">Status</TableHead>
+                            <TableHead>Número do Processo</TableHead>
+                            <TableHead>Andamentos</TableHead>
+                            <TableHead>Observação</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {batchProcessos.map((processo, index) => (
+                            <TableRow 
+                              key={index} 
+                              className={
+                                processo.status === "erro" ? "bg-red-50 dark:bg-red-950/20" : 
+                                processo.status === "sucesso" ? "bg-green-50 dark:bg-green-950/20" : ""
+                              }
+                            >
+                              <TableCell className="text-muted-foreground">
+                                {index + 1}
+                              </TableCell>
+                              <TableCell>
+                                {processo.status === "pendente" && (
+                                  <div className="w-3 h-3 rounded-full bg-muted-foreground/30" />
+                                )}
+                                {processo.status === "processando" && (
+                                  <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                                )}
+                                {processo.status === "sucesso" && (
+                                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                )}
+                                {processo.status === "erro" && (
+                                  <XCircle className="h-4 w-4 text-red-500" />
+                                )}
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">
+                                {processo.numero}
+                              </TableCell>
+                              <TableCell>
+                                {processo.status === "sucesso" && processo.andamentosImportados !== undefined && (
+                                  <span className="text-muted-foreground">
+                                    {processo.andamentosImportados} importado(s)
+                                  </span>
+                                )}
+                                {processo.status !== "sucesso" && "-"}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {processo.status === "erro" && (
+                                  <span className="text-red-600">{processo.erroMensagem}</span>
+                                )}
+                                {processo.status === "sucesso" && (
+                                  <span className="text-green-600">Importado com sucesso</span>
+                                )}
+                                {processo.status === "pendente" && "-"}
+                                {processo.status === "processando" && (
+                                  <span className="text-muted-foreground">Processando...</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab: Planilha Excel */}
+          <TabsContent value="planilha" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5" />
+                  Importação por Planilha
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <h4 className="font-medium mb-2">1. Baixe o modelo</h4>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Utilize o modelo padrão para preencher os dados dos processos.
+                    </p>
+                    <Button variant="outline" onClick={downloadTemplate}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Baixar Modelo
+                    </Button>
+                  </div>
+                  <div>
+                    <h4 className="font-medium mb-2">2. Faça upload da planilha</h4>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Após preencher, faça o upload do arquivo para validar e importar.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={handleFileChange}
+                        className="max-w-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Campos obrigatórios:</strong> Número do processo. <br />
+                    <strong>Áreas válidas:</strong> Civil, Trabalhista, Empresarial. <br />
+                    <strong>Situações válidas:</strong> Ativo, Pendente, Urgente, Encerrado, Arquivado. <br />
+                    <strong>Formato de data:</strong> DD/MM/AAAA
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
 
         {/* File Preview */}
         {file && (
@@ -567,6 +870,8 @@ export default function ImportarProcessos() {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
   );
