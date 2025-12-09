@@ -178,6 +178,16 @@ const Administracao = () => {
     setCreating(true);
 
     try {
+      // Store current admin session before creating user
+      const { data: currentSession } = await supabase.auth.getSession();
+      const adminSession = currentSession?.session;
+
+      if (!adminSession) {
+        toast.error("Sessão expirada. Faça login novamente.");
+        setCreating(false);
+        return;
+      }
+
       // Create user via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newUserData.email,
@@ -205,7 +215,15 @@ const Administracao = () => {
         return;
       }
 
-      // Update profile with additional data
+      const newUserId = authData.user.id;
+
+      // Restore admin session immediately
+      await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
+      });
+
+      // Update profile with additional data (now as admin)
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
@@ -213,17 +231,17 @@ const Administracao = () => {
           oab: newUserData.oab || null,
           telefone: newUserData.telefone || null,
         })
-        .eq("id", authData.user.id);
+        .eq("id", newUserId);
 
       if (profileError) {
         console.error("Erro ao atualizar perfil:", profileError);
       }
 
-      // Set user role
+      // Set user role (now as admin)
       const { error: roleError } = await supabase
         .from("user_roles")
         .update({ role: newUserData.role })
-        .eq("user_id", authData.user.id);
+        .eq("user_id", newUserId);
 
       if (roleError) {
         console.error("Erro ao definir role:", roleError);
