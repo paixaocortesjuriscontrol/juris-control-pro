@@ -316,6 +316,7 @@ export default function ImportarProcessos() {
           valor_causa: parseNumber(processo.valorAcao),
           polo_ativo: processo.parteAtiva,
           polo_passivo: processo.partePassiva,
+          coordenacao_id: selectedCoordenacao || null,
         }).select("id").single();
 
         if (error) {
@@ -901,6 +902,33 @@ export default function ImportarProcessos() {
                       />
                     </div>
                   </div>
+                </div>
+                
+                {/* Coordenação Selection for Excel Import */}
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="coordenacao-excel" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Coordenação Responsável
+                  </Label>
+                  <Select 
+                    value={selectedCoordenacao} 
+                    onValueChange={setSelectedCoordenacao}
+                    disabled={importing}
+                  >
+                    <SelectTrigger id="coordenacao-excel" className="max-w-md">
+                      <SelectValue placeholder="Selecione a coordenação (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.nome} ({coord.area})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Todos os processos importados serão atribuídos a esta coordenação para posterior distribuição.
+                  </p>
                 </div>
                 
                 <Alert>
