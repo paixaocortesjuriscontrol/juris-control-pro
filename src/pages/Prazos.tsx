@@ -12,6 +12,8 @@ import {
   Eye,
   Pencil,
   Trash2,
+  List,
+  CalendarDays,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -49,9 +51,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePrazos, useUpdatePrazo, useDeletePrazo, type Prazo } from "@/hooks/usePrazos";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
+import { PrazosCalendar } from "@/components/prazos/PrazosCalendar";
 import { format, parseISO, differenceInDays, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -72,6 +76,7 @@ const statusLabels: Record<string, string> = {
 
 const Prazos = () => {
   const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("all");
@@ -261,6 +266,14 @@ const Prazos = () => {
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || prioridadeFilter !== "all";
 
+  const handleMarkAsCumpridoFromCalendar = async (prazo: Prazo) => {
+    await updatePrazo.mutateAsync({
+      id: prazo.id,
+      status: "cumprido",
+      data_cumprimento: new Date().toISOString(),
+    });
+  };
+
   return (
     <MainLayout
       title="Controle de Prazos"
@@ -325,76 +338,99 @@ const Prazos = () => {
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Buscar por título, processo ou responsável..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+      {/* View Toggle */}
+      <div className="flex items-center justify-between mb-6">
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "list" | "calendar")}>
+          <TabsList>
+            <TabsTrigger value="list" className="flex items-center gap-2">
+              <List className="w-4 h-4" />
+              Lista
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4" />
+              Calendário
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <Button onClick={() => { setSelectedPrazo(null); setDialogOpen(true); }}>
+          <Plus className="w-4 h-4 mr-2" />
+          Novo Prazo
+        </Button>
+      </div>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Status</SelectItem>
-                <SelectItem value="pendente">Pendente</SelectItem>
-                <SelectItem value="atrasado">Atrasado</SelectItem>
-                <SelectItem value="cumprido">Cumprido</SelectItem>
-              </SelectContent>
-            </Select>
+      {viewMode === "calendar" ? (
+        <PrazosCalendar
+          prazos={prazos || []}
+          onEditPrazo={handleEdit}
+          onMarkAsCumprido={handleMarkAsCumpridoFromCalendar}
+        />
+      ) : (
+        <>
+          {/* Filters */}
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    placeholder="Buscar por título, processo ou responsável..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
 
-            <Select value={prioridadeFilter} onValueChange={setPrioridadeFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Prioridade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas Prioridades</SelectItem>
-                <SelectItem value="baixa">Baixa</SelectItem>
-                <SelectItem value="media">Média</SelectItem>
-                <SelectItem value="alta">Alta</SelectItem>
-                <SelectItem value="urgente">Urgente</SelectItem>
-              </SelectContent>
-            </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Status</SelectItem>
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                    <SelectItem value="atrasado">Atrasado</SelectItem>
+                    <SelectItem value="cumprido">Cumprido</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            <Button onClick={() => { setSelectedPrazo(null); setDialogOpen(true); }}>
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Prazo
-            </Button>
-          </div>
+                <Select value={prioridadeFilter} onValueChange={setPrioridadeFilter}>
+                  <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder="Prioridade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Prioridades</SelectItem>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="urgente">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {hasActiveFilters && (
-            <div className="flex items-center gap-2 mt-4">
-              <span className="text-sm text-muted-foreground">Filtros ativos:</span>
-              {searchQuery && (
-                <Badge variant="secondary" className="cursor-pointer" onClick={() => setSearchQuery("")}>
-                  Busca: {searchQuery} ×
-                </Badge>
+              {hasActiveFilters && (
+                <div className="flex items-center gap-2 mt-4">
+                  <span className="text-sm text-muted-foreground">Filtros ativos:</span>
+                  {searchQuery && (
+                    <Badge variant="secondary" className="cursor-pointer" onClick={() => setSearchQuery("")}>
+                      Busca: {searchQuery} ×
+                    </Badge>
+                  )}
+                  {statusFilter !== "all" && (
+                    <Badge variant="secondary" className="cursor-pointer" onClick={() => setStatusFilter("all")}>
+                      {statusLabels[statusFilter]} ×
+                    </Badge>
+                  )}
+                  {prioridadeFilter !== "all" && (
+                    <Badge variant="secondary" className="cursor-pointer" onClick={() => setPrioridadeFilter("all")}>
+                      {prioridadeLabels[prioridadeFilter]} ×
+                    </Badge>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    Limpar todos
+                  </Button>
+                </div>
               )}
-              {statusFilter !== "all" && (
-                <Badge variant="secondary" className="cursor-pointer" onClick={() => setStatusFilter("all")}>
-                  {statusLabels[statusFilter]} ×
-                </Badge>
-              )}
-              {prioridadeFilter !== "all" && (
-                <Badge variant="secondary" className="cursor-pointer" onClick={() => setPrioridadeFilter("all")}>
-                  {prioridadeLabels[prioridadeFilter]} ×
-                </Badge>
-              )}
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Limpar todos
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
       {/* Table */}
       <Card>
@@ -494,6 +530,8 @@ const Prazos = () => {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
 
       {/* Dialog */}
       <PrazoDialog
