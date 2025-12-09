@@ -16,7 +16,8 @@ import {
   Menu,
   X,
   Calendar,
-  Newspaper
+  Newspaper,
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Scale, label: "Processos", path: "/processos" },
   { icon: Calendar, label: "Prazos", path: "/prazos" },
+  { icon: RefreshCw, label: "Redistribuições", path: "/redistribuicoes" },
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },

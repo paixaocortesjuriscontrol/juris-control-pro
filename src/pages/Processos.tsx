@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { cn } from "@/lib/utils";
 import { Calendar, User } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
+import { useProcessosComRedistribuicaoRecente } from "@/hooks/useRedistribuicoes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 type AreaType = "civil" | "trabalhista" | "empresarial";
 type StatusType = "pending" | "active" | "closed" | "urgent";
@@ -61,6 +62,7 @@ const Processos = () => {
   }, [searchParams]);
   
   const { data: processos, isLoading } = useProcessos();
+  const { data: processosRedistribuidos } = useProcessosComRedistribuicaoRecente();
 
   const mapStatus = (status: string): StatusType => {
     const statusMap: Record<string, StatusType> = {
@@ -286,6 +288,7 @@ const Processos = () => {
           {filteredProcessos.map((processo, index) => {
             const isSelected = selectedProcessos.includes(processo.id);
             const status = mapStatus(processo.status);
+            const temRedistribuicaoRecente = processosRedistribuidos?.has(processo.id);
             
             return (
               <div 
@@ -314,13 +317,26 @@ const Processos = () => {
                 )}
 
                 <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Badge className={cn("badge-area-" + processo.area, "text-xs font-medium px-2 py-0.5")}>
                       {areaLabels[processo.area]}
                     </Badge>
                     <Badge className={cn("badge-status-" + status, "text-xs font-medium px-2 py-0.5")}>
                       {statusLabels[status]}
                     </Badge>
+                    {temRedistribuicaoRecente && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="text-xs font-medium px-2 py-0.5 border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950/30">
+                            <ArrowRightLeft className="w-3 h-3 mr-1" />
+                            Redistribuído
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Este processo foi redistribuído nos últimos 7 dias
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                   {isSelectionMode && (
                     <Checkbox 

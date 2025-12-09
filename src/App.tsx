@@ -20,6 +20,7 @@ import Prazos from "./pages/Prazos";
 import Documentos from "./pages/Documentos";
 import BuscarDJEN from "./pages/BuscarDJEN";
 import NotFound from "./pages/NotFound";
+import Redistribuicoes from "./pages/Redistribuicoes";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
             <Route path="/buscar-djen" element={<ProtectedRoute><BuscarDJEN /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
+            <Route path="/redistribuicoes" element={<ProtectedRoute><Redistribuicoes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
