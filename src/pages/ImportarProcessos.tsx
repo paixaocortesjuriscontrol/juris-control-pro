@@ -449,12 +449,43 @@ export default function ImportarProcessos() {
           };
           errorCount++;
         } else {
-          // Fetch movements from external API
           let andamentosImportados = 0;
+          
           if (insertedProcesso?.id) {
-            const andamentosResult = await buscarAndamentosExternos(insertedProcesso.id, processo.numero);
-            andamentosImportados = andamentosResult.movimentosInseridos;
+            // Fetch process details and movements from external API
+            const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
+              body: { numeroProcesso: processo.numero },
+            });
+
+            // Update process with API data if found
+            if (apiData?.found && apiData?.processo) {
+              const processoApi = apiData.processo;
+              await supabase.from("processos").update({
+                tribunal: processoApi.tribunal || null,
+                vara: processoApi.orgaoJulgador || null,
+                classe: processoApi.classe || null,
+                assunto: processoApi.assunto || null,
+                data_distribuicao: processoApi.dataAjuizamento 
+                  ? new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0]
+                  : null,
+              }).eq("id", insertedProcesso.id);
+
+              // Insert movements if available
+              if (apiData.movimentos && apiData.movimentos.length > 0) {
+                const movimentosToInsert = apiData.movimentos.map((mov: any) => ({
+                  processo_id: insertedProcesso.id,
+                  descricao: mov.nome || "Sem descrição",
+                  data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+                  tipo: "API Externa",
+                  fonte: "DataJud/CNJ",
+                }));
+
+                await supabase.from("movimentacoes").insert(movimentosToInsert);
+                andamentosImportados = movimentosToInsert.length;
+              }
+            }
           }
+          
           updatedProcessos[i] = { 
             ...processo, 
             status: "sucesso",
