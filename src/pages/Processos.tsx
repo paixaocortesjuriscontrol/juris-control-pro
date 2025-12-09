@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Search, Filter, Plus, Download, ArrowUpDown } from "lucide-react";
+import { Search, Filter, Plus, Download, ArrowUpDown, Scale } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { ProcessCard, AreaType, StatusType } from "@/components/dashboard/ProcessCard";
+import { ProcessCard } from "@/components/dashboard/ProcessCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -12,73 +13,34 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-
-const allProcesses = [
-  {
-    numero: "0001234-12.2024.8.19.0001",
-    cliente: "Empresa ABC Ltda",
-    area: "civil" as AreaType,
-    status: "active" as StatusType,
-    advogado: "Dr. Silva",
-    dataProximoEvento: "12/12/2025",
-    descricao: "Ação de cobrança - valor R$ 150.000,00",
-  },
-  {
-    numero: "0005678-45.2024.5.01.0034",
-    cliente: "João da Silva",
-    area: "trabalhista" as AreaType,
-    status: "urgent" as StatusType,
-    advogado: "Dra. Santos",
-    dataProximoEvento: "09/12/2025",
-    descricao: "Reclamação trabalhista - horas extras",
-  },
-  {
-    numero: "0009012-78.2024.8.19.0042",
-    cliente: "Tech Solutions S.A.",
-    area: "empresarial" as AreaType,
-    status: "pending" as StatusType,
-    advogado: "Dr. Oliveira",
-    dataProximoEvento: "15/12/2025",
-    descricao: "Dissolução de sociedade",
-  },
-  {
-    numero: "0003456-89.2024.8.19.0015",
-    cliente: "Maria Fernanda Costa",
-    area: "civil" as AreaType,
-    status: "active" as StatusType,
-    advogado: "Dr. Paixão",
-    dataProximoEvento: "20/12/2025",
-    descricao: "Indenização por danos morais",
-  },
-  {
-    numero: "0007890-23.2024.5.01.0056",
-    cliente: "Indústrias Metalúrgicas Beta",
-    area: "trabalhista" as AreaType,
-    status: "active" as StatusType,
-    advogado: "Dra. Cortes",
-    dataProximoEvento: "18/12/2025",
-    descricao: "Ação coletiva - adicional de periculosidade",
-  },
-  {
-    numero: "0002345-67.2024.8.19.0078",
-    cliente: "Startup Innovation Ltda",
-    area: "empresarial" as AreaType,
-    status: "closed" as StatusType,
-    advogado: "Dr. Alves",
-    descricao: "Contrato de investimento - Series A",
-  },
-];
+import { useProcessos } from "@/hooks/useProcessos";
+import { useNavigate } from "react-router-dom";
 
 const Processos = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  
+  const { data: processos, isLoading } = useProcessos();
 
-  const filteredProcesses = allProcesses.filter((processo) => {
+  const mapStatus = (status: string) => {
+    const statusMap: Record<string, "active" | "pending" | "urgent" | "closed"> = {
+      ativo: "active",
+      pendente: "pending",
+      urgente: "urgent",
+      encerrado: "closed",
+      arquivado: "closed",
+    };
+    return statusMap[status] || "active";
+  };
+
+  const filteredProcessos = (processos || []).filter((processo) => {
     const matchesSearch = 
       processo.numero.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      processo.cliente.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      processo.advogado.toLowerCase().includes(searchQuery.toLowerCase());
+      (processo.polo_ativo?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (processo.polo_passivo?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (processo.advogado_responsavel?.nome?.toLowerCase().includes(searchQuery.toLowerCase()));
     
     const matchesArea = areaFilter === "all" || processo.area === areaFilter;
     const matchesStatus = statusFilter === "all" || processo.status === statusFilter;
@@ -89,63 +51,66 @@ const Processos = () => {
   return (
     <MainLayout 
       title="Processos" 
-      subtitle={`${filteredProcesses.length} processos encontrados`}
+      subtitle={`${filteredProcessos.length} processos encontrados`}
     >
       {/* Filters Bar */}
       <div className="bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="Buscar por número, cliente ou advogado..." 
-              className="pl-9"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input 
+                placeholder="Buscar por número, parte ou advogado..." 
+                className="pl-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Select value={areaFilter} onValueChange={setAreaFilter}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Área" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as áreas</SelectItem>
+                  <SelectItem value="civil">Cível</SelectItem>
+                  <SelectItem value="trabalhista">Trabalhista</SelectItem>
+                  <SelectItem value="empresarial">Empresarial</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="urgente">Urgente</SelectItem>
+                  <SelectItem value="encerrado">Encerrado</SelectItem>
+                  <SelectItem value="arquivado">Arquivado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Select value={areaFilter} onValueChange={setAreaFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Área" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as áreas</SelectItem>
-                <SelectItem value="civil">Cível</SelectItem>
-                <SelectItem value="trabalhista">Trabalhista</SelectItem>
-                <SelectItem value="empresarial">Empresarial</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="active">Ativo</SelectItem>
-                <SelectItem value="pending">Pendente</SelectItem>
-                <SelectItem value="urgent">Urgente</SelectItem>
-                <SelectItem value="closed">Encerrado</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="icon">
-              <ArrowUpDown className="w-4 h-4" />
-            </Button>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline">
+          <div className="flex flex-wrap gap-2 justify-end">
+            <Button variant="outline" className="flex-1 sm:flex-none">
               <Download className="w-4 h-4 mr-2" />
-              Exportar
+              <span className="hidden sm:inline">Exportar</span>
             </Button>
-            <Button className="bg-primary hover:bg-primary/90">
+            <Button 
+              className="bg-primary hover:bg-primary/90 flex-1 sm:flex-none"
+              onClick={() => navigate("/importar")}
+            >
               <Plus className="w-4 h-4 mr-2" />
-              Novo Processo
+              <span className="hidden sm:inline">Novo Processo</span>
             </Button>
           </div>
         </div>
 
         {/* Active Filters */}
         {(areaFilter !== "all" || statusFilter !== "all" || searchQuery) && (
-          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border/50">
+          <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border/50">
             <span className="text-sm text-muted-foreground">Filtros ativos:</span>
             {searchQuery && (
               <Badge variant="secondary" className="cursor-pointer" onClick={() => setSearchQuery("")}>
@@ -159,7 +124,7 @@ const Processos = () => {
             )}
             {statusFilter !== "all" && (
               <Badge variant="secondary" className="cursor-pointer" onClick={() => setStatusFilter("all")}>
-                {statusFilter === "active" ? "Ativo" : statusFilter === "pending" ? "Pendente" : statusFilter === "urgent" ? "Urgente" : "Encerrado"} ×
+                {statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} ×
               </Badge>
             )}
             <Button 
@@ -179,17 +144,44 @@ const Processos = () => {
       </div>
 
       {/* Processes Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filteredProcesses.map((processo, index) => (
-          <ProcessCard key={processo.numero} {...processo} delay={index * 50} />
-        ))}
-      </div>
-
-      {filteredProcesses.length === 0 && (
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-48 rounded-xl" />
+          ))}
+        </div>
+      ) : filteredProcessos.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredProcessos.map((processo, index) => (
+            <ProcessCard 
+              key={processo.id} 
+              numero={processo.numero}
+              cliente={processo.polo_ativo || "Não informado"}
+              area={processo.area}
+              status={mapStatus(processo.status)}
+              advogado={processo.advogado_responsavel?.nome || "Não atribuído"}
+              descricao={processo.assunto || "Sem descrição"}
+              delay={index * 50} 
+            />
+          ))}
+        </div>
+      ) : (
         <div className="text-center py-12 animate-fade-in">
-          <Filter className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">Nenhum processo encontrado</h3>
-          <p className="text-muted-foreground">Tente ajustar os filtros ou a busca</p>
+          <Scale className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">
+            {processos?.length === 0 ? "Nenhum processo cadastrado" : "Nenhum processo encontrado"}
+          </h3>
+          <p className="text-muted-foreground mb-4">
+            {processos?.length === 0 
+              ? "Importe processos para começar" 
+              : "Tente ajustar os filtros ou a busca"
+            }
+          </p>
+          {processos?.length === 0 && (
+            <Button onClick={() => navigate("/importar")}>
+              Importar Processos
+            </Button>
+          )}
         </div>
       )}
     </MainLayout>

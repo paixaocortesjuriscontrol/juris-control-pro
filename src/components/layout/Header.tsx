@@ -1,4 +1,4 @@
-import { Bell, Search, User, LogOut } from "lucide-react";
+import { Bell, Search, User, LogOut, Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,23 +44,28 @@ export function Header({ title, subtitle }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
-      <div>
-        <h1 className="font-serif text-xl font-semibold text-foreground">{title}</h1>
+    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
+      <div className="pl-12 lg:pl-0">
+        <h1 className="font-serif text-lg lg:text-xl font-semibold text-foreground truncate">{title}</h1>
         {subtitle && (
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
+          <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">{subtitle}</p>
         )}
       </div>
 
-      <div className="flex items-center gap-4">
-        {/* Search */}
-        <div className="relative hidden md:block">
+      <div className="flex items-center gap-2 lg:gap-4">
+        {/* Search - Hidden on mobile */}
+        <div className="relative hidden lg:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input 
             placeholder="Buscar processo, cliente..." 
             className="w-64 pl-9 bg-secondary/50 border-border/50"
           />
         </div>
+
+        {/* Mobile Search Button */}
+        <Button variant="ghost" size="icon" className="lg:hidden">
+          <Search className="w-5 h-5 text-muted-foreground" />
+        </Button>
 
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
@@ -78,14 +83,14 @@ export function Header({ title, subtitle }: HeaderProps) {
                   {getInitials()}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm font-medium hidden sm:inline">{getDisplayName()}</span>
+              <span className="text-sm font-medium hidden md:inline">{getDisplayName()}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col">
                 <span>{getDisplayName()}</span>
-                <span className="text-xs font-normal text-muted-foreground">{user?.email}</span>
+                <span className="text-xs font-normal text-muted-foreground truncate">{user?.email}</span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

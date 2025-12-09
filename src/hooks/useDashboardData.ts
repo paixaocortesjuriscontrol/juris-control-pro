@@ -1,0 +1,154 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+export function useDashboardStats() {
+  return useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: async () => {
+      const [processosResult, prazosResult, advogadosResult, coordenacoesResult] = await Promise.all([
+        supabase.from("processos").select("id, status", { count: "exact" }),
+        supabase.from("prazos").select("id, status, data_vencimento").eq("status", "pendente"),
+        supabase.from("profiles").select("id", { count: "exact" }),
+        supabase.from("coordenacoes").select("id", { count: "exact" }),
+      ]);
+
+      const totalProcessos = processosResult.count || 0;
+      const processos = processosResult.data || [];
+      const processosAtivos = processos.filter(p => p.status === "ativo" || p.status === "urgente" || p.status === "pendente").length;
+      
+      const prazos = prazosResult.data || [];
+      const hoje = new Date();
+      const seteDias = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const prazosUrgentes = prazos.filter(p => {
+        const dataVencimento = new Date(p.data_vencimento);
+        return dataVencimento <= seteDias;
+      }).length;
+
+      const totalAdvogados = advogadosResult.count || 0;
+      const totalCoordenacoes = coordenacoesResult.count || 0;
+
+      return {
+        totalProcessos,
+        processosAtivos,
+        prazosUrgentes,
+        totalAdvogados,
+        totalCoordenacoes,
+      };
+    },
+  });
+}
+
+export function useRecentProcessos(limit = 3) {
+  return useQuery({
+    queryKey: ["recent-processos", limit],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("processos")
+        .select(`
+          id,
+          numero,
+          assunto,
+          area,
+          status,
+          polo_ativo,
+          polo_passivo,
+          created_at,
+          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(nome)
+        `)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useCoordenacoes() {
+  return useQuery({
+    queryKey: ["coordenacoes-dashboard"],
+    queryFn: async () => {
+      const { data: coordenacoes, error: coordError } = await supabase
+        .from("coordenacoes")
+        .select(`
+          id,
+          nome,
+          area,
+          coordenador:profiles!coordenacoes_coordenador_id_fkey(id, nome, email, telefone)
+        `);
+
+      if (coordError) throw coordError;
+
+      // Get members and process counts for each coordination
+      const coordenacoesWithDetails = await Promise.all(
+        (coordenacoes || []).map(async (coord) => {
+          const [membrosResult, processosResult] = await Promise.all([
+            supabase.from("membros_coordenacao").select(`
+              id,
+              cargo,
+              usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
+            `).eq("coordenacao_id", coord.id),
+            supabase.from("processos").select("id", { count: "exact" }).eq("coordenacao_id", coord.id),
+          ]);
+
+          return {
+            ...coord,
+            membros: membrosResult.data || [],
+            processCount: processosResult.count || 0,
+          };
+        })
+      );
+
+      return coordenacoesWithDetails;
+    },
+  });
+}
+
+export function useRecentMovimentacoes(limit = 4) {
+  return useQuery({
+    queryKey: ["recent-movimentacoes", limit],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("movimentacoes")
+        .select(`
+          id,
+          descricao,
+          tipo,
+          data_movimentacao,
+          processo:processos!movimentacoes_processo_id_fkey(numero)
+        `)
+        .order("data_movimentacao", { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useUpcomingPrazos(limit = 4) {
+  return useQuery({
+    queryKey: ["upcoming-prazos", limit],
+    queryFn: async () => {
+      const hoje = new Date().toISOString().split("T")[0];
+      
+      const { data, error } = await supabase
+        .from("prazos")
+        .select(`
+          id,
+          titulo,
+          data_vencimento,
+          prioridade,
+          status,
+          processo:processos!prazos_processo_id_fkey(numero)
+        `)
+        .eq("status", "pendente")
+        .gte("data_vencimento", hoje)
+        .order("data_vencimento", { ascending: true })
+        .limit(limit);
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
