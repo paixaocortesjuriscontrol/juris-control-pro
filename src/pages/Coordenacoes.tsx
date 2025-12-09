@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,11 +15,29 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { CoordenacaoDialog } from "@/components/coordenacoes/CoordenacaoDialog";
+import { MembroDialog } from "@/components/coordenacoes/MembroDialog";
+import { AtribuirProcessoDialog } from "@/components/coordenacoes/AtribuirProcessoDialog";
+import { DistribuirProcessoDialog } from "@/components/coordenacoes/DistribuirProcessoDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const areaColors = {
   civil: "border-l-area-civil bg-area-civil/5",
@@ -36,12 +54,48 @@ const areaLabels = {
 const Coordenacoes = () => {
   const { data: coordenacoes, isLoading } = useCoordenacoesFull();
   const [selectedCoord, setSelectedCoord] = useState<any>(null);
+  const [coordDialog, setCoordDialog] = useState(false);
+  const [editCoord, setEditCoord] = useState<any>(null);
+  const [membroDialog, setMembroDialog] = useState(false);
+  const [atribuirDialog, setAtribuirDialog] = useState(false);
+  const [distribuirDialog, setDistribuirDialog] = useState(false);
+  const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (coordenacoes && coordenacoes.length > 0 && !selectedCoord) {
       setSelectedCoord(coordenacoes[0]);
+    } else if (selectedCoord && coordenacoes) {
+      // Refresh selected coord data
+      const updated = coordenacoes.find(c => c.id === selectedCoord.id);
+      if (updated) setSelectedCoord(updated);
     }
   }, [coordenacoes, selectedCoord]);
+
+  const handleRemoveMembro = async () => {
+    if (!removeMembroId) return;
+    
+    try {
+      const { error } = await supabase
+        .from("membros_coordenacao")
+        .delete()
+        .eq("id", removeMembroId);
+
+      if (error) throw error;
+
+      toast({ title: "Membro removido da equipe" });
+      queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao remover membro",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setRemoveMembroId(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -64,21 +118,6 @@ const Coordenacoes = () => {
     );
   }
 
-  if (!coordenacoes || coordenacoes.length === 0) {
-    return (
-      <MainLayout 
-        title="Coordenações" 
-        subtitle="Gestão de equipes e distribuição de processos"
-      >
-        <div className="text-center py-12">
-          <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma coordenação cadastrada</h3>
-          <p className="text-muted-foreground">Crie coordenações para organizar sua equipe</p>
-        </div>
-      </MainLayout>
-    );
-  }
-
   const getInitials = (name: string) => {
     return name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "ND";
   };
@@ -93,46 +132,75 @@ const Coordenacoes = () => {
         <div className="lg:col-span-1 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-serif text-lg font-semibold">Equipes</h2>
-            <Button size="sm" className="bg-primary hover:bg-primary/90">
-              <Plus className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Nova</span>
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setDistribuirDialog(true)}
+              >
+                <Share2 className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">Distribuir</span>
+              </Button>
+              <Button 
+                size="sm" 
+                className="bg-primary hover:bg-primary/90"
+                onClick={() => {
+                  setEditCoord(null);
+                  setCoordDialog(true);
+                }}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">Nova</span>
+              </Button>
+            </div>
           </div>
 
-          {coordenacoes.map((coord, index) => (
-            <Card 
-              key={coord.id}
-              className={cn(
-                "cursor-pointer transition-all border-l-4 hover:shadow-medium animate-slide-up",
-                areaColors[coord.area as keyof typeof areaColors],
-                selectedCoord?.id === coord.id && "ring-2 ring-primary/20"
-              )}
-              style={{ animationDelay: `${index * 100}ms` }}
-              onClick={() => setSelectedCoord(coord)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-foreground">{coord.nome}</h3>
-                    <p className="text-sm text-muted-foreground">{coord.coordenador?.nome || "Sem coordenador"}</p>
+          {(!coordenacoes || coordenacoes.length === 0) ? (
+            <div className="text-center py-12 border rounded-xl">
+              <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma coordenação</h3>
+              <p className="text-muted-foreground text-sm mb-4">Crie coordenações para organizar sua equipe</p>
+              <Button onClick={() => setCoordDialog(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Criar Coordenação
+              </Button>
+            </div>
+          ) : (
+            coordenacoes.map((coord, index) => (
+              <Card 
+                key={coord.id}
+                className={cn(
+                  "cursor-pointer transition-all border-l-4 hover:shadow-medium animate-slide-up",
+                  areaColors[coord.area as keyof typeof areaColors],
+                  selectedCoord?.id === coord.id && "ring-2 ring-primary/20"
+                )}
+                style={{ animationDelay: `${index * 100}ms` }}
+                onClick={() => setSelectedCoord(coord)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold text-foreground">{coord.nome}</h3>
+                      <p className="text-sm text-muted-foreground">{coord.coordenador?.nome || "Sem coordenador"}</p>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      {areaLabels[coord.area as keyof typeof areaLabels]}
+                    </Badge>
                   </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {areaLabels[coord.area as keyof typeof areaLabels]}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Briefcase className="w-4 h-4" />
-                    <span className="font-medium text-foreground">{coord.processCount}</span> processos
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Briefcase className="w-4 h-4" />
+                      <span className="font-medium text-foreground">{coord.processCount}</span> processos
+                    </div>
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Users className="w-4 h-4" />
+                      <span className="font-medium text-foreground">{coord.membros.length}</span> membros
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Users className="w-4 h-4" />
-                    <span className="font-medium text-foreground">{coord.membros.length}</span> membros
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
 
         {/* Selected Coordination Details */}
@@ -171,7 +239,14 @@ const Coordenacoes = () => {
                       )}
                     </div>
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setEditCoord(selectedCoord);
+                      setCoordDialog(true);
+                    }}
+                  >
                     Editar
                   </Button>
                 </div>
@@ -183,16 +258,42 @@ const Coordenacoes = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="font-serif text-lg">Membros da Equipe</CardTitle>
-                  <Button size="sm" variant="outline">
-                    <Plus className="w-4 h-4 mr-1" />
-                    <span className="hidden sm:inline">Adicionar</span>
-                  </Button>
+                  <div className="flex gap-2">
+                    {selectedCoord.membros.length > 0 && (
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => setAtribuirDialog(true)}
+                      >
+                        <Briefcase className="w-4 h-4 mr-1" />
+                        <span className="hidden sm:inline">Atribuir Processos</span>
+                      </Button>
+                    )}
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setMembroDialog(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      <span className="hidden sm:inline">Adicionar</span>
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
                 {selectedCoord.membros.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    Nenhum membro cadastrado nesta coordenação
+                    <Users className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                    <p>Nenhum membro cadastrado nesta coordenação</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-4"
+                      onClick={() => setMembroDialog(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Adicionar Membro
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -224,9 +325,18 @@ const Coordenacoes = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>Ver perfil</DropdownMenuItem>
-                              <DropdownMenuItem>Atribuir processo</DropdownMenuItem>
-                              <DropdownMenuItem>Remover da equipe</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setAtribuirDialog(true)}>
+                                <Briefcase className="w-4 h-4 mr-2" />
+                                Atribuir processo
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                className="text-destructive"
+                                onClick={() => setRemoveMembroId(member.id)}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Remover da equipe
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -281,6 +391,54 @@ const Coordenacoes = () => {
           </div>
         )}
       </div>
+
+      {/* Dialogs */}
+      <CoordenacaoDialog 
+        open={coordDialog} 
+        onOpenChange={setCoordDialog} 
+        coordenacao={editCoord}
+      />
+
+      {selectedCoord && (
+        <>
+          <MembroDialog
+            open={membroDialog}
+            onOpenChange={setMembroDialog}
+            coordenacaoId={selectedCoord.id}
+            membrosAtuais={selectedCoord.membros.map((m: any) => m.usuario?.id).filter(Boolean)}
+          />
+
+          <AtribuirProcessoDialog
+            open={atribuirDialog}
+            onOpenChange={setAtribuirDialog}
+            coordenacaoId={selectedCoord.id}
+            membros={selectedCoord.membros}
+          />
+        </>
+      )}
+
+      <DistribuirProcessoDialog
+        open={distribuirDialog}
+        onOpenChange={setDistribuirDialog}
+      />
+
+      {/* Confirm Remove Member Dialog */}
+      <AlertDialog open={!!removeMembroId} onOpenChange={() => setRemoveMembroId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover membro da equipe?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá remover o membro desta coordenação. Os processos atribuídos a ele permanecerão sob sua responsabilidade.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveMembro} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 };
