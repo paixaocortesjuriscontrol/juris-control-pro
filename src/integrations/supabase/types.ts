@@ -405,6 +405,7 @@ export type Database = {
       profiles: {
         Row: {
           area_principal: Database["public"]["Enums"]["area_atuacao"] | null
+          ativo: boolean
           avatar_url: string | null
           created_at: string
           email: string
@@ -416,6 +417,7 @@ export type Database = {
         }
         Insert: {
           area_principal?: Database["public"]["Enums"]["area_atuacao"] | null
+          ativo?: boolean
           avatar_url?: string | null
           created_at?: string
           email: string
@@ -427,6 +429,7 @@ export type Database = {
         }
         Update: {
           area_principal?: Database["public"]["Enums"]["area_atuacao"] | null
+          ativo?: boolean
           avatar_url?: string | null
           created_at?: string
           email?: string
