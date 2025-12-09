@@ -4,15 +4,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List } from "lucide-react";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2 } from "lucide-react";
 import * as XLSX from "xlsx";
 interface ValidationError {
   campo: string;
@@ -182,6 +191,10 @@ export default function ImportarProcessos() {
   const [batchProcessos, setBatchProcessos] = useState<BatchProcesso[]>([]);
   const [batchImporting, setBatchImporting] = useState(false);
   const [batchProgress, setBatchProgress] = useState(0);
+  const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
+
+  // Fetch coordenacoes
+  const { data: coordenacoes = [] } = useCoordenacoesFull();
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -518,6 +531,7 @@ export default function ImportarProcessos() {
           numero: processo.numero,
           area: "civil", // Default area
           status: "ativo",
+          coordenacao_id: selectedCoordenacao || null,
         }).select("id").single();
 
         if (error) {
@@ -632,6 +646,7 @@ export default function ImportarProcessos() {
     setBatchText("");
     setBatchProcessos([]);
     setBatchProgress(0);
+    setSelectedCoordenacao("");
   };
 
   const batchSuccessCount = batchProcessos.filter(p => p.status === "sucesso").length;
@@ -674,12 +689,41 @@ export default function ImportarProcessos() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Coordenação Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="coordenacao" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Coordenação Responsável
+                  </Label>
+                  <Select 
+                    value={selectedCoordenacao} 
+                    onValueChange={setSelectedCoordenacao}
+                    disabled={batchImporting}
+                  >
+                    <SelectTrigger id="coordenacao">
+                      <SelectValue placeholder="Selecione a coordenação (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.nome} ({coord.area})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Os processos serão atribuídos a esta coordenação para posterior distribuição aos membros.
+                  </p>
+                </div>
+
                 <div>
+                  <Label htmlFor="numeros">Números dos Processos</Label>
                   <Textarea
+                    id="numeros"
                     placeholder={"Cole os números dos processos aqui, um por linha:\n\n0001234-56.2024.8.21.0001\n0002345-67.2024.8.21.0002\n0003456-78.2024.8.21.0003"}
                     value={batchText}
                     onChange={(e) => setBatchText(e.target.value)}
-                    className="min-h-[200px] font-mono text-sm"
+                    className="min-h-[200px] font-mono text-sm mt-2"
                     disabled={batchImporting}
                   />
                 </div>
