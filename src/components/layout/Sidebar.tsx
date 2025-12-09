@@ -18,7 +18,8 @@ import {
   Upload,
   Menu,
   X,
-  Calendar
+  Calendar,
+  Newspaper
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -30,6 +31,7 @@ const menuItems = [
   { icon: Calendar, label: "Prazos", path: "/prazos" },
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
+  { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: Upload, label: "Importar Processos", path: "/importar" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
