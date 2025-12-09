@@ -154,7 +154,8 @@ const Processos = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredProcessos.map((processo, index) => (
             <ProcessCard 
-              key={processo.id} 
+              key={processo.id}
+              id={processo.id}
               numero={processo.numero}
               cliente={processo.polo_ativo || "Não informado"}
               area={processo.area}
