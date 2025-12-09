@@ -21,7 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2 } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 interface ValidationError {
   campo: string;
@@ -193,9 +194,23 @@ export default function ImportarProcessos() {
   const [batchProgress, setBatchProgress] = useState(0);
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
   const [selectedMembro, setSelectedMembro] = useState<string>("");
+  const [selectedCliente, setSelectedCliente] = useState<string>("");
 
   // Fetch coordenacoes
   const { data: coordenacoes = [] } = useCoordenacoesFull();
+
+  // Fetch clientes
+  const { data: clientes = [] } = useQuery({
+    queryKey: ["clientes-import"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nome, tipo")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -347,6 +362,7 @@ export default function ImportarProcessos() {
             polo_passivo: processo.partePassiva,
             coordenacao_id: selectedCoordenacao || null,
             advogado_responsavel_id: selectedMembro || null,
+            cliente_id: selectedCliente || null,
           }).select("id").single();
 
           if (error) {
@@ -601,6 +617,7 @@ export default function ImportarProcessos() {
             status: "ativo",
             coordenacao_id: selectedCoordenacao || null,
             advogado_responsavel_id: selectedMembro || null,
+            cliente_id: selectedCliente || null,
           }).select("id").single();
 
           if (error) {
@@ -720,6 +737,7 @@ export default function ImportarProcessos() {
     setBatchProgress(0);
     setSelectedCoordenacao("");
     setSelectedMembro("");
+    setSelectedCliente("");
   };
 
   // Get members of selected coordination
@@ -827,6 +845,33 @@ export default function ImportarProcessos() {
                     </p>
                   </div>
                 )}
+
+                {/* Cliente Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="cliente" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Cliente (opcional)
+                  </Label>
+                  <Select 
+                    value={selectedCliente} 
+                    onValueChange={setSelectedCliente}
+                    disabled={batchImporting}
+                  >
+                    <SelectTrigger id="cliente">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Todos os processos serão vinculados a este cliente.
+                  </p>
+                </div>
 
                 <div>
                   <Label htmlFor="numeros">Números dos Processos</Label>
@@ -1072,6 +1117,33 @@ export default function ImportarProcessos() {
                     </p>
                   </div>
                 )}
+
+                {/* Cliente Selection for Excel Import */}
+                <div className="space-y-2">
+                  <Label htmlFor="cliente-excel" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Cliente (opcional)
+                  </Label>
+                  <Select 
+                    value={selectedCliente} 
+                    onValueChange={setSelectedCliente}
+                    disabled={importing}
+                  >
+                    <SelectTrigger id="cliente-excel" className="max-w-md">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Todos os processos importados serão vinculados a este cliente.
+                  </p>
+                </div>
                 
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
