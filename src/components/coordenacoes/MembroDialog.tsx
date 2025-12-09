@@ -31,9 +31,18 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
+const CARGOS_OPTIONS = [
+  { value: "coordenador", label: "Coordenador" },
+  { value: "advogado_senior", label: "Advogado Sênior" },
+  { value: "advogado", label: "Advogado" },
+  { value: "estagiario", label: "Estagiário" },
+  { value: "assistente", label: "Assistente" },
+  { value: "secretaria", label: "Secretária" },
+] as const;
+
 const formSchema = z.object({
   usuario_id: z.string().min(1, "Selecione um usuário"),
-  cargo: z.string().optional(),
+  cargo: z.string().min(1, "Selecione um cargo"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -144,10 +153,21 @@ export function MembroDialog({ open, onOpenChange, coordenacaoId, membrosAtuais 
               name="cargo"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Cargo (opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ex: Advogado Sênior, Estagiário..." {...field} />
-                  </FormControl>
+                  <FormLabel>Cargo</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o cargo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {CARGOS_OPTIONS.map((cargo) => (
+                        <SelectItem key={cargo.value} value={cargo.value}>
+                          {cargo.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
