@@ -89,6 +89,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "coordenacoes_coordenador_id_fkey"
+            columns: ["coordenador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
         ]
       }
       documentos: {
@@ -137,6 +144,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "documentos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
         ]
       }
       membros_coordenacao: {
@@ -174,6 +188,13 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membros_coordenacao_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
             referencedColumns: ["id"]
           },
         ]
@@ -274,6 +295,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "prazos_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
         ]
       }
       processos: {
@@ -352,6 +380,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "processos_advogado_responsavel_id_fkey"
+            columns: ["advogado_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "processos_cliente_id_fkey"
             columns: ["cliente_id"]
             isOneToOne: false
@@ -426,7 +461,21 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      profiles_basic: {
+        Row: {
+          id: string | null
+          nome: string | null
+        }
+        Insert: {
+          id?: string | null
+          nome?: string | null
+        }
+        Update: {
+          id?: string | null
+          nome?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_access_processo: {
