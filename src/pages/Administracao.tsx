@@ -5,7 +5,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, ShieldCheck, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Loader2, ShieldCheck, Users, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
@@ -41,6 +52,16 @@ const Administracao = () => {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newUserData, setNewUserData] = useState({
+    nome: "",
+    email: "",
+    senha: "",
+    oab: "",
+    telefone: "",
+    role: "advogado" as AppRole,
+  });
   const { isAdmin, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
 
@@ -133,6 +154,91 @@ const Administracao = () => {
     setUpdating(null);
   }
 
+  async function handleCreateUser() {
+    if (!newUserData.nome || !newUserData.email || !newUserData.senha) {
+      toast.error("Preencha nome, email e senha");
+      return;
+    }
+
+    if (newUserData.senha.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+
+    setCreating(true);
+
+    try {
+      // Create user via Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newUserData.email,
+        password: newUserData.senha,
+        options: {
+          data: {
+            nome: newUserData.nome,
+          },
+        },
+      });
+
+      if (authError) {
+        if (authError.message.includes("already registered")) {
+          toast.error("Este email já está cadastrado");
+        } else {
+          toast.error(authError.message);
+        }
+        setCreating(false);
+        return;
+      }
+
+      if (!authData.user) {
+        toast.error("Erro ao criar usuário");
+        setCreating(false);
+        return;
+      }
+
+      // Update profile with additional data
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          nome: newUserData.nome,
+          oab: newUserData.oab || null,
+          telefone: newUserData.telefone || null,
+        })
+        .eq("id", authData.user.id);
+
+      if (profileError) {
+        console.error("Erro ao atualizar perfil:", profileError);
+      }
+
+      // Set user role
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .update({ role: newUserData.role })
+        .eq("user_id", authData.user.id);
+
+      if (roleError) {
+        console.error("Erro ao definir role:", roleError);
+      }
+
+      toast.success(`Usuário ${newUserData.nome} criado com sucesso!`);
+      setCreateDialogOpen(false);
+      setNewUserData({
+        nome: "",
+        email: "",
+        senha: "",
+        oab: "",
+        telefone: "",
+        role: "advogado",
+      });
+      
+      // Refresh users list
+      fetchUsers();
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao criar usuário");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   function getInitials(name: string) {
     return name
       .split(" ")
@@ -159,14 +265,112 @@ const Administracao = () => {
   return (
     <MainLayout title="Administração" subtitle="Gerencie os perfis dos usuários do sistema">
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
-            <ShieldCheck className="w-6 h-6 text-primary-foreground" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
+              <ShieldCheck className="w-6 h-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold">Administração</h1>
+              <p className="text-muted-foreground">Gerencie os perfis dos usuários do sistema</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold">Administração</h1>
-            <p className="text-muted-foreground">Gerencie os perfis dos usuários do sistema</p>
-          </div>
+          
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="w-4 h-4 mr-2" />
+                Novo Usuário
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Cadastrar Novo Usuário</DialogTitle>
+                <DialogDescription>
+                  Preencha os dados para criar um novo usuário no sistema
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nome">Nome Completo *</Label>
+                  <Input
+                    id="nome"
+                    placeholder="Ex: Maria Silva"
+                    value={newUserData.nome}
+                    onChange={(e) => setNewUserData(prev => ({ ...prev, nome: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="email@exemplo.com"
+                    value={newUserData.email}
+                    onChange={(e) => setNewUserData(prev => ({ ...prev, email: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="senha">Senha Inicial *</Label>
+                  <Input
+                    id="senha"
+                    type="password"
+                    placeholder="Mínimo 6 caracteres"
+                    value={newUserData.senha}
+                    onChange={(e) => setNewUserData(prev => ({ ...prev, senha: e.target.value }))}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="oab">OAB</Label>
+                    <Input
+                      id="oab"
+                      placeholder="Ex: 12345/DF"
+                      value={newUserData.oab}
+                      onChange={(e) => setNewUserData(prev => ({ ...prev, oab: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="telefone">Telefone</Label>
+                    <Input
+                      id="telefone"
+                      placeholder="(00) 00000-0000"
+                      value={newUserData.telefone}
+                      onChange={(e) => setNewUserData(prev => ({ ...prev, telefone: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Perfil</Label>
+                  <Select 
+                    value={newUserData.role} 
+                    onValueChange={(value) => setNewUserData(prev => ({ ...prev, role: value as AppRole }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
+                      <SelectItem value="advogado">Advogado</SelectItem>
+                      <SelectItem value="estagiario">Estagiário</SelectItem>
+                      <SelectItem value="assistente">Assistente</SelectItem>
+                      <SelectItem value="secretaria">Secretária</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleCreateUser} disabled={creating}>
+                  {creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Cadastrar
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Card>
