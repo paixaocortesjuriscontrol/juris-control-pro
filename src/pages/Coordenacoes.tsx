@@ -191,7 +191,7 @@ const Coordenacoes = () => {
                       {areaLabels[coord.area as keyof typeof areaLabels]}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-4 text-sm flex-wrap">
                     <div className="flex items-center gap-1.5 text-muted-foreground">
                       <Briefcase className="w-4 h-4" />
                       <span className="font-medium text-foreground">{coord.processCount}</span> processos
@@ -200,6 +200,11 @@ const Coordenacoes = () => {
                       <Users className="w-4 h-4" />
                       <span className="font-medium text-foreground">{coord.membros.length}</span> membros
                     </div>
+                    {coord.unassignedCount > 0 && (
+                      <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-200">
+                        {coord.unassignedCount} não distribuídos
+                      </Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -383,11 +388,29 @@ const Coordenacoes = () => {
                 <CardHeader>
                   <CardTitle className="font-serif text-lg">Distribuição de Processos</CardTitle>
                   <CardDescription>
-                    Visão geral da carga de trabalho da equipe
+                    Visão geral da carga de trabalho da equipe ({selectedCoord.assignedCount} distribuídos de {selectedCoord.processCount} total)
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
+                    {/* Unassigned processes indicator */}
+                    {selectedCoord.unassignedCount > 0 && (
+                      <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-200 dark:border-amber-800">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-amber-700 dark:text-amber-400">Não distribuídos</span>
+                          <span className="text-sm text-amber-600 dark:text-amber-500">
+                            {selectedCoord.unassignedCount} ({((selectedCoord.unassignedCount / selectedCoord.processCount) * 100).toFixed(0)}%)
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-amber-200 dark:bg-amber-900 overflow-hidden">
+                          <div 
+                            className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                            style={{ width: `${(selectedCoord.unassignedCount / selectedCoord.processCount) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    
                     {selectedCoord.membros.map((member: any) => {
                       const percentage = selectedCoord.processCount > 0 
                         ? ((member.processCount || 0) / selectedCoord.processCount) * 100 
