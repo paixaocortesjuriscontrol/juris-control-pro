@@ -1,0 +1,59 @@
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Settings, User, Bell, Shield, Palette } from "lucide-react";
+
+export default function Configuracoes() {
+  return (
+    <MainLayout title="Configurações" subtitle="Gerencie as configurações do sistema">
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <CardHeader className="flex flex-row items-center gap-4">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <User className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Perfil</CardTitle>
+              <CardDescription>Gerencie suas informações pessoais</CardDescription>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <CardHeader className="flex flex-row items-center gap-4">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Bell className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Notificações</CardTitle>
+              <CardDescription>Configure alertas e lembretes</CardDescription>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <CardHeader className="flex flex-row items-center gap-4">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Shield className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Segurança</CardTitle>
+              <CardDescription>Altere sua senha e configurações de acesso</CardDescription>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <CardHeader className="flex flex-row items-center gap-4">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Palette className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Aparência</CardTitle>
+              <CardDescription>Personalize o tema e visual do sistema</CardDescription>
+            </div>
+          </CardHeader>
+        </Card>
+      </div>
+    </MainLayout>
+  );
+}

@@ -35,9 +35,9 @@ const menuItems = [
 ];
 
 const areas = [
-  { icon: Briefcase, label: "Cível", color: "bg-area-civil" },
-  { icon: Gavel, label: "Trabalhista", color: "bg-area-trabalhista" },
-  { icon: Building2, label: "Empresarial", color: "bg-area-empresarial" },
+  { icon: Briefcase, label: "Cível", color: "bg-area-civil", path: "/processos?area=civil" },
+  { icon: Gavel, label: "Trabalhista", color: "bg-area-trabalhista", path: "/processos?area=trabalhista" },
+  { icon: Building2, label: "Empresarial", color: "bg-area-empresarial", path: "/processos?area=empresarial" },
 ];
 
 export function Sidebar() {
@@ -88,13 +88,15 @@ export function Sidebar() {
               Áreas
             </h3>
             {areas.map((area) => (
-              <button
+              <NavLink
                 key={area.label}
+                to={area.path}
+                onClick={() => setMobileOpen(false)}
                 className="nav-item w-full justify-start"
               >
                 <div className={cn("w-2 h-2 rounded-full", area.color)} />
                 <span className="text-sm font-medium">{area.label}</span>
-              </button>
+              </NavLink>
             ))}
           </div>
         )}
