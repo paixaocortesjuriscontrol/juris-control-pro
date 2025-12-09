@@ -1,4 +1,4 @@
-import { Bell, Search, User, LogOut, Menu } from "lucide-react";
+import { Search, User, LogOut, Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { NotificacoesDropdown } from "./NotificacoesDropdown";
 
 interface HeaderProps {
   title: string;
@@ -68,10 +69,7 @@ export function Header({ title, subtitle }: HeaderProps) {
         </Button>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="w-5 h-5 text-muted-foreground" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-status-urgent rounded-full animate-pulse" />
-        </Button>
+        <NotificacoesDropdown />
 
         {/* User Menu */}
         <DropdownMenu>

@@ -199,6 +199,57 @@ export type Database = {
           },
         ]
       }
+      monitoramentos_djen: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          criado_por: string
+          id: string
+          oab: string | null
+          termo_busca: string
+          tipo: string
+          uf: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          criado_por: string
+          id?: string
+          oab?: string | null
+          termo_busca: string
+          tipo: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string
+          id?: string
+          oab?: string | null
+          termo_busca?: string
+          tipo?: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoramentos_djen_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monitoramentos_djen_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       movimentacoes: {
         Row: {
           created_at: string
@@ -233,6 +284,57 @@ export type Database = {
             columns: ["processo_id"]
             isOneToOne: false
             referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notificacoes: {
+        Row: {
+          created_at: string
+          dados: Json | null
+          id: string
+          lida: boolean
+          link: string | null
+          mensagem: string
+          tipo: string
+          titulo: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          dados?: Json | null
+          id?: string
+          lida?: boolean
+          link?: string | null
+          mensagem: string
+          tipo?: string
+          titulo: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          dados?: Json | null
+          id?: string
+          lida?: boolean
+          link?: string | null
+          mensagem?: string
+          tipo?: string
+          titulo?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notificacoes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notificacoes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
             referencedColumns: ["id"]
           },
         ]
@@ -440,6 +542,50 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      publicacoes_djen: {
+        Row: {
+          conteudo: string | null
+          created_at: string
+          data_publicacao: string | null
+          fonte: string | null
+          hash_conteudo: string
+          id: string
+          lida: boolean
+          monitoramento_id: string
+          processo_numero: string | null
+        }
+        Insert: {
+          conteudo?: string | null
+          created_at?: string
+          data_publicacao?: string | null
+          fonte?: string | null
+          hash_conteudo: string
+          id?: string
+          lida?: boolean
+          monitoramento_id: string
+          processo_numero?: string | null
+        }
+        Update: {
+          conteudo?: string | null
+          created_at?: string
+          data_publicacao?: string | null
+          fonte?: string | null
+          hash_conteudo?: string
+          id?: string
+          lida?: boolean
+          monitoramento_id?: string
+          processo_numero?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_djen_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

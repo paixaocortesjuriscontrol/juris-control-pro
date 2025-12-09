@@ -1,16 +1,17 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
   Search,
   FileText,
-  Calendar,
   Download,
-  Filter,
   Loader2,
   AlertCircle,
-  ExternalLink,
-  CheckCircle2,
   User,
   Hash,
+  Plus,
+  Eye,
+  Trash2,
+  Power,
+  PowerOff,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,8 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
+import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 
 type SearchType = "palavra-chave" | "advogado" | "processo";
 
@@ -74,6 +77,14 @@ const BuscarDJEN = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [hasSearched, setHasSearched] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [monitoramentoDialogOpen, setMonitoramentoDialogOpen] = useState(false);
+
+  const { 
+    monitoramentos, 
+    publicacoes: publicacoesMonitoradas,
+    atualizarMonitoramento, 
+    excluirMonitoramento 
+  } = useMonitoramentosDjen();
 
   const handleSearch = async () => {
     setLoading(true);
@@ -465,6 +476,117 @@ const BuscarDJEN = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Monitoramentos Section */}
+      <Card className="mt-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Eye className="w-5 h-5" />
+                Monitoramentos Automáticos
+              </CardTitle>
+              <CardDescription>
+                Configure buscas automáticas no DJEN (verificação 2x ao dia)
+              </CardDescription>
+            </div>
+            <Button onClick={() => setMonitoramentoDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Monitoramento
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {monitoramentos.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Eye className="w-10 h-10 mx-auto mb-3 opacity-50" />
+              <p>Nenhum monitoramento configurado</p>
+              <p className="text-sm mt-1">Crie um monitoramento para receber notificações de novas publicações</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Termo</TableHead>
+                  <TableHead>OAB/UF</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Publicações</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {monitoramentos.map((mon) => {
+                  const pubCount = publicacoesMonitoradas.filter(p => p.monitoramento_id === mon.id).length;
+                  const naoLidas = publicacoesMonitoradas.filter(p => p.monitoramento_id === mon.id && !p.lida).length;
+                  
+                  return (
+                    <TableRow key={mon.id}>
+                      <TableCell>
+                        <Badge variant="outline">{mon.tipo}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{mon.termo_busca}</TableCell>
+                      <TableCell>
+                        {mon.oab && mon.uf ? `${mon.oab}/${mon.uf}` : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={mon.ativo ? "default" : "secondary"}>
+                          {mon.ativo ? "Ativo" : "Pausado"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {pubCount > 0 && (
+                          <span className="flex items-center gap-1">
+                            {pubCount} 
+                            {naoLidas > 0 && (
+                              <Badge variant="destructive" className="text-xs">
+                                {naoLidas} nova{naoLidas > 1 ? 's' : ''}
+                              </Badge>
+                            )}
+                          </span>
+                        )}
+                        {pubCount === 0 && <span className="text-muted-foreground">-</span>}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => atualizarMonitoramento.mutate({ 
+                              id: mon.id, 
+                              ativo: !mon.ativo 
+                            })}
+                            title={mon.ativo ? "Pausar" : "Ativar"}
+                          >
+                            {mon.ativo ? (
+                              <PowerOff className="w-4 h-4" />
+                            ) : (
+                              <Power className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive"
+                            onClick={() => excluirMonitoramento.mutate(mon.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <MonitoramentoDialog
+        open={monitoramentoDialogOpen}
+        onOpenChange={setMonitoramentoDialogOpen}
+      />
     </MainLayout>
   );
 };
