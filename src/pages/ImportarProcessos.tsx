@@ -303,115 +303,152 @@ export default function ImportarProcessos() {
       }
       
       try {
-        const { data: insertedProcesso, error } = await supabase.from("processos").insert({
-          numero: processo.numero.trim(),
-          assunto: processo.assunto,
-          descricao: processo.descricao,
-          area: mapAreaToEnum(processo.area),
-          status: mapStatusToEnum(processo.situacao),
-          tribunal: processo.orgao,
-          vara: processo.orgaoJulgador,
-          comarca: processo.cidade,
-          classe: processo.classeCNJ,
-          data_distribuicao: parseDate(processo.dataDistribuicao),
-          valor_causa: parseNumber(processo.valorAcao),
-          polo_ativo: processo.parteAtiva,
-          polo_passivo: processo.partePassiva,
-          coordenacao_id: selectedCoordenacao || null,
-          advogado_responsavel_id: selectedMembro || null,
-        }).select("id").single();
+        // Check if process already exists
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processo.numero.trim())
+          .maybeSingle();
 
-        if (error) {
-          updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
-          errorCount++;
+        let processoId: string;
+        let isUpdate = false;
+
+        if (existingProcesso) {
+          // Update existing process with coordination and member if selected
+          const updateData: Record<string, any> = {};
+          if (selectedCoordenacao) {
+            updateData.coordenacao_id = selectedCoordenacao;
+          }
+          if (selectedMembro) {
+            updateData.advogado_responsavel_id = selectedMembro;
+          }
+          
+          if (Object.keys(updateData).length > 0) {
+            await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
+          }
+          
+          processoId = existingProcesso.id;
+          isUpdate = true;
         } else {
-          // Buscar dados adicionais da API se campos importantes estiverem vazios
-          if (insertedProcesso?.id) {
-            const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
-              body: { numeroProcesso: processo.numero.trim() },
-            });
+          // Insert new process
+          const { data: insertedProcesso, error } = await supabase.from("processos").insert({
+            numero: processo.numero.trim(),
+            assunto: processo.assunto,
+            descricao: processo.descricao,
+            area: mapAreaToEnum(processo.area),
+            status: mapStatusToEnum(processo.situacao),
+            tribunal: processo.orgao,
+            vara: processo.orgaoJulgador,
+            comarca: processo.cidade,
+            classe: processo.classeCNJ,
+            data_distribuicao: parseDate(processo.dataDistribuicao),
+            valor_causa: parseNumber(processo.valorAcao),
+            polo_ativo: processo.parteAtiva,
+            polo_passivo: processo.partePassiva,
+            coordenacao_id: selectedCoordenacao || null,
+            advogado_responsavel_id: selectedMembro || null,
+          }).select("id").single();
 
-            if (apiData?.found && apiData?.processo) {
-              const processoApi = apiData.processo;
-              
-              // Extract parties (polo ativo e passivo) if not already set
-              let poloAtivo = processo.parteAtiva;
-              let poloPassivo = processo.partePassiva;
-              
-              if ((!poloAtivo || !poloPassivo) && processoApi.partes && processoApi.partes.length > 0) {
-                const partesAtivas = processoApi.partes
-                  .filter((p: any) => p.tipo === 'POLO_ATIVO' || p.tipoParte === 'AUTOR' || p.tipoParte === 'REQUERENTE' || p.tipoParte === 'RECLAMANTE')
-                  .map((p: any) => p.nome)
-                  .filter(Boolean);
-                  
-                const partesPassivas = processoApi.partes
-                  .filter((p: any) => p.tipo === 'POLO_PASSIVO' || p.tipoParte === 'REU' || p.tipoParte === 'REQUERIDO' || p.tipoParte === 'RECLAMADO')
-                  .map((p: any) => p.nome)
-                  .filter(Boolean);
-                  
-                if (!poloAtivo && partesAtivas.length > 0) {
-                  poloAtivo = partesAtivas.join(', ');
-                }
-                if (!poloPassivo && partesPassivas.length > 0) {
-                  poloPassivo = partesPassivas.join(', ');
-                }
-              }
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            errorCount++;
+            continue;
+          }
+          
+          processoId = insertedProcesso.id;
+        }
 
-              // Update with API data for any empty fields
-              const updateData: Record<string, any> = {};
-              
-              if (!processo.orgao && (processoApi.tribunal || apiData.tribunal)) {
-                updateData.tribunal = processoApi.tribunal || apiData.tribunal;
-              }
-              if (!processo.orgaoJulgador && processoApi.orgaoJulgador) {
-                updateData.vara = processoApi.orgaoJulgador;
-              }
-              if (!processo.classeCNJ && processoApi.classe) {
-                updateData.classe = processoApi.classe;
-              }
-              if (!processo.assunto && processoApi.assunto) {
-                updateData.assunto = processoApi.assunto;
-              }
-              if (!processo.parteAtiva && poloAtivo) {
-                updateData.polo_ativo = poloAtivo;
-              }
-              if (!processo.partePassiva && poloPassivo) {
-                updateData.polo_passivo = poloPassivo;
-              }
-              if (!parseDate(processo.dataDistribuicao) && processoApi.dataAjuizamento) {
-                updateData.data_distribuicao = new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0];
-              }
+        // Buscar dados adicionais da API se campos importantes estiverem vazios (only for new processes)
+        if (!isUpdate) {
+          const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
+            body: { numeroProcesso: processo.numero.trim() },
+          });
 
-              // Update area based on tribunal if not set in spreadsheet
-              if (!processo.area) {
-                const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
-                if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
-                  updateData.area = "trabalhista";
-                }
+          if (apiData?.found && apiData?.processo) {
+            const processoApi = apiData.processo;
+            
+            // Extract parties (polo ativo e passivo) if not already set
+            let poloAtivo = processo.parteAtiva;
+            let poloPassivo = processo.partePassiva;
+            
+            if ((!poloAtivo || !poloPassivo) && processoApi.partes && processoApi.partes.length > 0) {
+              const partesAtivas = processoApi.partes
+                .filter((p: any) => p.tipo === 'POLO_ATIVO' || p.tipoParte === 'AUTOR' || p.tipoParte === 'REQUERENTE' || p.tipoParte === 'RECLAMANTE')
+                .map((p: any) => p.nome)
+                .filter(Boolean);
+                
+              const partesPassivas = processoApi.partes
+                .filter((p: any) => p.tipo === 'POLO_PASSIVO' || p.tipoParte === 'REU' || p.tipoParte === 'REQUERIDO' || p.tipoParte === 'RECLAMADO')
+                .map((p: any) => p.nome)
+                .filter(Boolean);
+                
+              if (!poloAtivo && partesAtivas.length > 0) {
+                poloAtivo = partesAtivas.join(', ');
               }
-
-              if (Object.keys(updateData).length > 0) {
-                await supabase.from("processos").update(updateData).eq("id", insertedProcesso.id);
-              }
-
-              // Insert movements
-              if (apiData.movimentos && apiData.movimentos.length > 0) {
-                const movimentosToInsert = apiData.movimentos.map((mov: any) => ({
-                  processo_id: insertedProcesso.id,
-                  descricao: mov.nome || "Sem descrição",
-                  data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-                  tipo: "API Externa",
-                  fonte: "DataJud/CNJ",
-                }));
-
-                await supabase.from("movimentacoes").insert(movimentosToInsert);
-                console.log(`Processo ${processo.numero}: ${movimentosToInsert.length} andamentos importados`);
+              if (!poloPassivo && partesPassivas.length > 0) {
+                poloPassivo = partesPassivas.join(', ');
               }
             }
+
+            // Update with API data for any empty fields
+            const updateData: Record<string, any> = {};
+            
+            if (!processo.orgao && (processoApi.tribunal || apiData.tribunal)) {
+              updateData.tribunal = processoApi.tribunal || apiData.tribunal;
+            }
+            if (!processo.orgaoJulgador && processoApi.orgaoJulgador) {
+              updateData.vara = processoApi.orgaoJulgador;
+            }
+            if (!processo.classeCNJ && processoApi.classe) {
+              updateData.classe = processoApi.classe;
+            }
+            if (!processo.assunto && processoApi.assunto) {
+              updateData.assunto = processoApi.assunto;
+            }
+            if (!processo.parteAtiva && poloAtivo) {
+              updateData.polo_ativo = poloAtivo;
+            }
+            if (!processo.partePassiva && poloPassivo) {
+              updateData.polo_passivo = poloPassivo;
+            }
+            if (!parseDate(processo.dataDistribuicao) && processoApi.dataAjuizamento) {
+              updateData.data_distribuicao = new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0];
+            }
+
+            // Update area based on tribunal if not set in spreadsheet
+            if (!processo.area) {
+              const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
+              if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
+                updateData.area = "trabalhista";
+              }
+            }
+
+            if (Object.keys(updateData).length > 0) {
+              await supabase.from("processos").update(updateData).eq("id", processoId);
+            }
+
+            // Insert movements
+            if (apiData.movimentos && apiData.movimentos.length > 0) {
+              const movimentosToInsert = apiData.movimentos.map((mov: any) => ({
+                processo_id: processoId,
+                descricao: mov.nome || "Sem descrição",
+                data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+                tipo: "API Externa",
+                fonte: "DataJud/CNJ",
+              }));
+
+              await supabase.from("movimentacoes").insert(movimentosToInsert);
+              console.log(`Processo ${processo.numero}: ${movimentosToInsert.length} andamentos importados`);
+            }
           }
-          updatedProcessos[i] = { ...processo, status: "sucesso" };
-          successCount++;
         }
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "sucesso", 
+          erroImport: isUpdate ? "Atualizado (já existia)" : undefined 
+        };
+        successCount++;
       } catch (err: any) {
         updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
         errorCount++;
@@ -529,101 +566,132 @@ export default function ImportarProcessos() {
       setBatchProcessos([...updatedProcessos]);
 
       try {
-        // Insert process with minimal data - system will fetch details from API
-        const { data: insertedProcesso, error } = await supabase.from("processos").insert({
-          numero: processo.numero,
-          area: "civil", // Default area
-          status: "ativo",
-          coordenacao_id: selectedCoordenacao || null,
-          advogado_responsavel_id: selectedMembro || null,
-        }).select("id").single();
+        // Check if process already exists
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processo.numero)
+          .maybeSingle();
 
-        if (error) {
-          updatedProcessos[i] = { 
-            ...processo, 
-            status: "erro", 
-            erroMensagem: error.message.includes("duplicate") ? "Processo já cadastrado" : error.message 
-          };
-          errorCount++;
-        } else {
-          let andamentosImportados = 0;
-          
-          if (insertedProcesso?.id) {
-            // Fetch process details and movements from external API
-            const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
-              body: { numeroProcesso: processo.numero },
-            });
+        let processoId: string;
+        let isUpdate = false;
+        let andamentosImportados = 0;
 
-            // Update process with API data if found
-            if (apiData?.found && apiData?.processo) {
-              const processoApi = apiData.processo;
-              
-              // Extract parties (polo ativo e passivo)
-              let poloAtivo: string | null = null;
-              let poloPassivo: string | null = null;
-              
-              if (processoApi.partes && processoApi.partes.length > 0) {
-                const partesAtivas = processoApi.partes
-                  .filter((p: any) => p.tipo === 'POLO_ATIVO' || p.tipoParte === 'AUTOR' || p.tipoParte === 'REQUERENTE' || p.tipoParte === 'RECLAMANTE')
-                  .map((p: any) => p.nome)
-                  .filter(Boolean);
-                  
-                const partesPassivas = processoApi.partes
-                  .filter((p: any) => p.tipo === 'POLO_PASSIVO' || p.tipoParte === 'REU' || p.tipoParte === 'REQUERIDO' || p.tipoParte === 'RECLAMADO')
-                  .map((p: any) => p.nome)
-                  .filter(Boolean);
-                  
-                if (partesAtivas.length > 0) {
-                  poloAtivo = partesAtivas.join(', ');
-                }
-                if (partesPassivas.length > 0) {
-                  poloPassivo = partesPassivas.join(', ');
-                }
-              }
-
-              // Determine area based on tribunal
-              let area: "civil" | "trabalhista" | "empresarial" = "civil";
-              const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
-              if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
-                area = "trabalhista";
-              }
-              
-              await supabase.from("processos").update({
-                tribunal: processoApi.tribunal || apiData.tribunal || null,
-                vara: processoApi.orgaoJulgador || null,
-                classe: processoApi.classe || null,
-                assunto: processoApi.assunto || null,
-                polo_ativo: poloAtivo,
-                polo_passivo: poloPassivo,
-                area: area,
-                data_distribuicao: processoApi.dataAjuizamento 
-                  ? new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0]
-                  : null,
-              }).eq("id", insertedProcesso.id);
-
-              // Insert movements if available
-              if (apiData.movimentos && apiData.movimentos.length > 0) {
-                const movimentosToInsert = apiData.movimentos.map((mov: any) => ({
-                  processo_id: insertedProcesso.id,
-                  descricao: mov.nome || "Sem descrição",
-                  data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-                  tipo: "API Externa",
-                  fonte: "DataJud/CNJ",
-                }));
-
-                await supabase.from("movimentacoes").insert(movimentosToInsert);
-                andamentosImportados = movimentosToInsert.length;
-              }
-            }
+        if (existingProcesso) {
+          // Update existing process with coordination and member if selected
+          const updateData: Record<string, any> = {};
+          if (selectedCoordenacao) {
+            updateData.coordenacao_id = selectedCoordenacao;
+          }
+          if (selectedMembro) {
+            updateData.advogado_responsavel_id = selectedMembro;
           }
           
-          updatedProcessos[i] = { 
-            ...processo, 
-            status: "sucesso",
-            andamentosImportados,
-          };
-          successCount++;
+          if (Object.keys(updateData).length > 0) {
+            await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
+          }
+          
+          processoId = existingProcesso.id;
+          isUpdate = true;
+        } else {
+          // Insert process with minimal data - system will fetch details from API
+          const { data: insertedProcesso, error } = await supabase.from("processos").insert({
+            numero: processo.numero,
+            area: "civil", // Default area
+            status: "ativo",
+            coordenacao_id: selectedCoordenacao || null,
+            advogado_responsavel_id: selectedMembro || null,
+          }).select("id").single();
+
+          if (error) {
+            updatedProcessos[i] = { 
+              ...processo, 
+              status: "erro", 
+              erroMensagem: error.message 
+            };
+            errorCount++;
+            continue;
+          }
+          
+          processoId = insertedProcesso.id;
         }
+
+        // Fetch process details and movements from external API (only for new processes)
+        if (!isUpdate) {
+          const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
+            body: { numeroProcesso: processo.numero },
+          });
+
+          // Update process with API data if found
+          if (apiData?.found && apiData?.processo) {
+            const processoApi = apiData.processo;
+            
+            // Extract parties (polo ativo e passivo)
+            let poloAtivo: string | null = null;
+            let poloPassivo: string | null = null;
+            
+            if (processoApi.partes && processoApi.partes.length > 0) {
+              const partesAtivas = processoApi.partes
+                .filter((p: any) => p.tipo === 'POLO_ATIVO' || p.tipoParte === 'AUTOR' || p.tipoParte === 'REQUERENTE' || p.tipoParte === 'RECLAMANTE')
+                .map((p: any) => p.nome)
+                .filter(Boolean);
+                
+              const partesPassivas = processoApi.partes
+                .filter((p: any) => p.tipo === 'POLO_PASSIVO' || p.tipoParte === 'REU' || p.tipoParte === 'REQUERIDO' || p.tipoParte === 'RECLAMADO')
+                .map((p: any) => p.nome)
+                .filter(Boolean);
+                
+              if (partesAtivas.length > 0) {
+                poloAtivo = partesAtivas.join(', ');
+              }
+              if (partesPassivas.length > 0) {
+                poloPassivo = partesPassivas.join(', ');
+              }
+            }
+
+            // Determine area based on tribunal
+            let area: "civil" | "trabalhista" | "empresarial" = "civil";
+            const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
+            if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
+              area = "trabalhista";
+            }
+            
+            await supabase.from("processos").update({
+              tribunal: processoApi.tribunal || apiData.tribunal || null,
+              vara: processoApi.orgaoJulgador || null,
+              classe: processoApi.classe || null,
+              assunto: processoApi.assunto || null,
+              polo_ativo: poloAtivo,
+              polo_passivo: poloPassivo,
+              area: area,
+              data_distribuicao: processoApi.dataAjuizamento 
+                ? new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0]
+                : null,
+            }).eq("id", processoId);
+
+            // Insert movements if available
+            if (apiData.movimentos && apiData.movimentos.length > 0) {
+              const movimentosToInsert = apiData.movimentos.map((mov: any) => ({
+                processo_id: processoId,
+                descricao: mov.nome || "Sem descrição",
+                data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+                tipo: "API Externa",
+                fonte: "DataJud/CNJ",
+              }));
+
+              await supabase.from("movimentacoes").insert(movimentosToInsert);
+              andamentosImportados = movimentosToInsert.length;
+            }
+          }
+        }
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "sucesso",
+          andamentosImportados,
+          erroMensagem: isUpdate ? "Atualizado (já existia)" : undefined,
+        };
+        successCount++;
       } catch (err: any) {
         updatedProcessos[i] = { 
           ...processo, 
