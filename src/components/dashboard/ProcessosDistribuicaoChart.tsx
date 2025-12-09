@@ -69,6 +69,13 @@ export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartP
                 name="Distribuídos" 
                 stackId="a"
                 radius={[0, 0, 0, 0]}
+                label={{ 
+                  position: 'center', 
+                  fill: '#fff', 
+                  fontSize: 11, 
+                  fontWeight: 600,
+                  formatter: (value: number) => value > 0 ? value : ''
+                }}
               >
                 {data.map((entry, index) => (
                   <Cell key={`cell-dist-${index}`} fill={areaColors[entry.area]} />
@@ -80,6 +87,13 @@ export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartP
                 stackId="a"
                 radius={[4, 4, 0, 0]}
                 fill={naoDistribuidoColor}
+                label={{ 
+                  position: 'center', 
+                  fill: '#fff', 
+                  fontSize: 11, 
+                  fontWeight: 600,
+                  formatter: (value: number) => value > 0 ? value : ''
+                }}
               />
             </BarChart>
           </ResponsiveContainer>
