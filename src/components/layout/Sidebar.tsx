@@ -15,10 +15,13 @@ import {
   Building2,
   ShieldCheck,
   ExternalLink,
-  Upload
+  Upload,
+  Menu,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
+import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -39,19 +42,15 @@ const areas = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { isAdmin } = useUserRole();
 
-  return (
-    <aside 
-      className={cn(
-        "fixed left-0 top-0 h-screen bg-sidebar flex flex-col transition-all duration-300 z-50",
-        collapsed ? "w-20" : "w-64"
-      )}
-    >
+  const SidebarContent = () => (
+    <>
       {/* Logo */}
-      <div className="p-6 border-b border-sidebar-border">
+      <div className="p-4 lg:p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gold to-gold-light flex items-center justify-center shadow-gold">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gold to-gold-light flex items-center justify-center shadow-gold flex-shrink-0">
             <Scale className="w-5 h-5 text-navy-deep" />
           </div>
           {!collapsed && (
@@ -64,11 +63,12 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 py-4 lg:py-6 px-2 lg:px-3 space-y-1 overflow-y-auto">
         {menuItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={() => setMobileOpen(false)}
             className={({ isActive }) =>
               cn(
                 "nav-item",
@@ -101,10 +101,11 @@ export function Sidebar() {
       </nav>
 
       {/* Settings & Collapse */}
-      <div className="p-3 border-t border-sidebar-border space-y-1">
+      <div className="p-2 lg:p-3 border-t border-sidebar-border space-y-1">
         {isAdmin && (
           <NavLink
             to="/admin"
+            onClick={() => setMobileOpen(false)}
             className={({ isActive }) =>
               cn("nav-item", isActive && "nav-item-active")
             }
@@ -115,6 +116,7 @@ export function Sidebar() {
         )}
         <NavLink
           to="/configuracoes"
+          onClick={() => setMobileOpen(false)}
           className={({ isActive }) =>
             cn("nav-item", isActive && "nav-item-active")
           }
@@ -125,7 +127,7 @@ export function Sidebar() {
         
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="nav-item w-full justify-center"
+          className="nav-item w-full justify-center hidden lg:flex"
         >
           {collapsed ? (
             <ChevronRight className="w-5 h-5" />
@@ -134,6 +136,48 @@ export function Sidebar() {
           )}
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile Menu Button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="fixed top-4 left-4 z-50 lg:hidden bg-card shadow-md"
+        onClick={() => setMobileOpen(!mobileOpen)}
+      >
+        {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </Button>
+
+      {/* Mobile Overlay */}
+      {mobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <aside 
+        className={cn(
+          "fixed left-0 top-0 h-screen bg-sidebar flex flex-col z-50 transition-transform duration-300 lg:hidden w-64",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <SidebarContent />
+      </aside>
+
+      {/* Desktop Sidebar */}
+      <aside 
+        className={cn(
+          "fixed left-0 top-0 h-screen bg-sidebar flex-col transition-all duration-300 z-40 hidden lg:flex",
+          collapsed ? "w-20" : "w-64"
+        )}
+      >
+        <SidebarContent />
+      </aside>
+    </>
   );
 }
