@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Loader2, ShieldCheck, Users, UserPlus } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
@@ -53,7 +53,10 @@ const Administracao = () => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [newUserData, setNewUserData] = useState({
     nome: "",
     email: "",
@@ -61,6 +64,11 @@ const Administracao = () => {
     oab: "",
     telefone: "",
     role: "advogado" as AppRole,
+  });
+  const [editUserData, setEditUserData] = useState({
+    nome: "",
+    oab: "",
+    telefone: "",
   });
   const { isAdmin, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
@@ -248,6 +256,52 @@ const Administracao = () => {
       .toUpperCase();
   }
 
+  function handleEditUser(user: UserWithRole) {
+    setEditingUser(user);
+    setEditUserData({
+      nome: user.nome,
+      oab: user.oab ?? "",
+      telefone: user.telefone ?? "",
+    });
+    setEditDialogOpen(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!editingUser) return;
+    
+    if (!editUserData.nome.trim()) {
+      toast.error("O nome é obrigatório");
+      return;
+    }
+
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        nome: editUserData.nome.trim(),
+        oab: editUserData.oab.trim() || null,
+        telefone: editUserData.telefone.trim() || null,
+      })
+      .eq("id", editingUser.id);
+
+    if (error) {
+      toast.error("Erro ao atualizar dados do usuário");
+      console.error(error);
+    } else {
+      toast.success("Dados atualizados com sucesso!");
+      setUsers(prev => prev.map(u => 
+        u.id === editingUser.id 
+          ? { ...u, nome: editUserData.nome.trim(), oab: editUserData.oab.trim() || null, telefone: editUserData.telefone.trim() || null }
+          : u
+      ));
+      setEditDialogOpen(false);
+      setEditingUser(null);
+    }
+
+    setSaving(false);
+  }
+
   if (roleLoading || loading) {
     return (
       <MainLayout title="Administração">
@@ -390,8 +444,10 @@ const Administracao = () => {
                   <TableHead>Usuário</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>OAB</TableHead>
+                  <TableHead>Telefone</TableHead>
                   <TableHead>Perfil Atual</TableHead>
                   <TableHead>Alterar Perfil</TableHead>
+                  <TableHead className="w-12">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -413,6 +469,9 @@ const Administracao = () => {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {user.oab ?? "-"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {user.telefone ?? "-"}
                     </TableCell>
                     <TableCell>
                       {user.role ? (
@@ -446,12 +505,69 @@ const Administracao = () => {
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" onClick={() => handleEditUser(user)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
+
+        {/* Edit User Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Editar Usuário</DialogTitle>
+              <DialogDescription>
+                Atualize os dados do usuário {editingUser?.nome}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-nome">Nome Completo *</Label>
+                <Input
+                  id="edit-nome"
+                  placeholder="Ex: Maria Silva"
+                  value={editUserData.nome}
+                  onChange={(e) => setEditUserData(prev => ({ ...prev, nome: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-oab">OAB</Label>
+                  <Input
+                    id="edit-oab"
+                    placeholder="Ex: 12345/DF"
+                    value={editUserData.oab}
+                    onChange={(e) => setEditUserData(prev => ({ ...prev, oab: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-telefone">Telefone</Label>
+                  <Input
+                    id="edit-telefone"
+                    placeholder="(00) 00000-0000"
+                    value={editUserData.telefone}
+                    onChange={(e) => setEditUserData(prev => ({ ...prev, telefone: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={saving}>
+                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Salvar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
