@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { AtribuirCoordenacaoLoteDialog } from "@/components/processos/AtribuirCo
 import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { cn } from "@/lib/utils";
 import { Calendar, User } from "lucide-react";
+
 
 type AreaType = "civil" | "trabalhista" | "empresarial";
 type StatusType = "pending" | "active" | "closed" | "urgent";
@@ -46,6 +47,7 @@ const Processos = () => {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showAtribuirDialog, setShowAtribuirDialog] = useState(false);
   const [showFormDialog, setShowFormDialog] = useState(false);
+  const [processoToEdit, setProcessoToEdit] = useState<any>(null);
 
   // Ler parâmetros da URL na inicialização
   useEffect(() => {
@@ -266,11 +268,27 @@ const Processos = () => {
                 key={processo.id}
                 onClick={() => isSelectionMode ? toggleProcessoSelection(processo.id) : navigate(`/processos/${processo.id}`)}
                 className={cn(
-                  "bg-card rounded-xl p-5 border shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up cursor-pointer",
+                  "bg-card rounded-xl p-5 border shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up cursor-pointer group relative",
                   isSelected ? "border-primary ring-2 ring-primary/20" : "border-border/50 hover:border-primary/30"
                 )}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
+                {/* Edit button */}
+                {!isSelectionMode && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setProcessoToEdit(processo);
+                      setShowFormDialog(true);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                )}
+
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Badge className={cn("badge-area-" + processo.area, "text-xs font-medium px-2 py-0.5")}>
@@ -334,7 +352,11 @@ const Processos = () => {
 
       <ProcessoFormDialog
         open={showFormDialog}
-        onOpenChange={setShowFormDialog}
+        onOpenChange={(open) => {
+          setShowFormDialog(open);
+          if (!open) setProcessoToEdit(null);
+        }}
+        processo={processoToEdit}
       />
     </MainLayout>
   );

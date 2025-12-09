@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+
 const formSchema = z.object({
   numero: z.string().min(5, "Número do processo deve ter no mínimo 5 caracteres"),
   assunto: z.string().optional(),
@@ -58,13 +59,35 @@ type FormValues = z.infer<typeof formSchema>;
 interface ProcessoFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  processo?: any;
 }
 
-export function ProcessoFormDialog({ open, onOpenChange }: ProcessoFormDialogProps) {
+// Format CNJ mask: NNNNNNN-DD.AAAA.J.TR.OOOO
+const formatCNJ = (value: string): string => {
+  const numbers = value.replace(/\D/g, "");
+  
+  if (numbers.length <= 7) {
+    return numbers;
+  } else if (numbers.length <= 9) {
+    return `${numbers.slice(0, 7)}-${numbers.slice(7)}`;
+  } else if (numbers.length <= 13) {
+    return `${numbers.slice(0, 7)}-${numbers.slice(7, 9)}.${numbers.slice(9)}`;
+  } else if (numbers.length <= 14) {
+    return `${numbers.slice(0, 7)}-${numbers.slice(7, 9)}.${numbers.slice(9, 13)}.${numbers.slice(13)}`;
+  } else if (numbers.length <= 16) {
+    return `${numbers.slice(0, 7)}-${numbers.slice(7, 9)}.${numbers.slice(9, 13)}.${numbers.slice(13, 14)}.${numbers.slice(14)}`;
+  } else {
+    return `${numbers.slice(0, 7)}-${numbers.slice(7, 9)}.${numbers.slice(9, 13)}.${numbers.slice(13, 14)}.${numbers.slice(14, 16)}.${numbers.slice(16, 20)}`;
+  }
+};
+
+export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFormDialogProps) {
   const [loading, setLoading] = useState(false);
   const [fetchingFromApi, setFetchingFromApi] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const isEditing = !!processo;
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
 
@@ -89,8 +112,56 @@ export function ProcessoFormDialog({ open, onOpenChange }: ProcessoFormDialogPro
     },
   });
 
+  // Reset form when dialog opens or processo changes
+  useEffect(() => {
+    if (open) {
+      if (processo) {
+        form.reset({
+          numero: processo.numero || "",
+          assunto: processo.assunto || "",
+          area: processo.area,
+          status: processo.status,
+          descricao: processo.descricao || "",
+          tribunal: processo.tribunal || "",
+          vara: processo.vara || "",
+          comarca: processo.comarca || "",
+          classe: processo.classe || "",
+          data_distribuicao: processo.data_distribuicao || "",
+          valor_causa: processo.valor_causa?.toString() || "",
+          polo_ativo: processo.polo_ativo || "",
+          polo_passivo: processo.polo_passivo || "",
+          coordenacao_id: processo.coordenacao_id || "",
+          advogado_responsavel_id: processo.advogado_responsavel_id || "",
+        });
+      } else {
+        form.reset({
+          numero: "",
+          assunto: "",
+          area: "civil",
+          status: "ativo",
+          descricao: "",
+          tribunal: "",
+          vara: "",
+          comarca: "",
+          classe: "",
+          data_distribuicao: "",
+          valor_causa: "",
+          polo_ativo: "",
+          polo_passivo: "",
+          coordenacao_id: "",
+          advogado_responsavel_id: "",
+        });
+      }
+    }
+  }, [open, processo, form]);
+
   const selectedCoordenacao = form.watch("coordenacao_id");
   const membros = coordenacoes.find((c) => c.id === selectedCoordenacao)?.membros || [];
+
+  const handleNumeroChange = (e: React.ChangeEvent<HTMLInputElement>, onChange: (value: string) => void) => {
+    const formatted = formatCNJ(e.target.value);
+    onChange(formatted);
+  };
 
   const handleFetchFromApi = async () => {
     const numero = form.getValues("numero");
@@ -180,25 +251,7 @@ export function ProcessoFormDialog({ open, onOpenChange }: ProcessoFormDialogPro
   const onSubmit = async (values: FormValues) => {
     setLoading(true);
     try {
-      // Check if process already exists
-      const { data: existing } = await supabase
-        .from("processos")
-        .select("id")
-        .eq("numero", values.numero.trim())
-        .maybeSingle();
-
-      if (existing) {
-        toast({
-          title: "Processo já existe",
-          description: "Um processo com este número já está cadastrado.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Insert process
-      const { data: newProcesso, error } = await supabase.from("processos").insert({
+      const processData = {
         numero: values.numero.trim(),
         assunto: values.assunto || null,
         area: values.area,
@@ -214,45 +267,81 @@ export function ProcessoFormDialog({ open, onOpenChange }: ProcessoFormDialogPro
         polo_passivo: values.polo_passivo || null,
         coordenacao_id: values.coordenacao_id || null,
         advogado_responsavel_id: values.advogado_responsavel_id || null,
-      }).select("id").single();
+      };
 
-      if (error) throw error;
+      if (isEditing && processo) {
+        // Update existing process
+        const { error } = await supabase
+          .from("processos")
+          .update(processData)
+          .eq("id", processo.id);
 
-      // Fetch and insert movements from API
-      try {
-        const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
-          body: { numeroProcesso: values.numero.trim() },
+        if (error) throw error;
+
+        toast({
+          title: "Processo atualizado",
+          description: "O processo foi atualizado com sucesso.",
         });
+      } else {
+        // Check if process already exists
+        const { data: existing } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", values.numero.trim())
+          .maybeSingle();
 
-        if (apiData?.movimentos && apiData.movimentos.length > 0) {
-          const movimentosToInsert = apiData.movimentos.map((mov: any) => ({
-            processo_id: newProcesso.id,
-            descricao: mov.nome || "Sem descrição",
-            data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-            tipo: "API Externa",
-            fonte: "DataJud/CNJ",
-          }));
-
-          await supabase.from("movimentacoes").insert(movimentosToInsert);
+        if (existing) {
+          toast({
+            title: "Processo já existe",
+            description: "Um processo com este número já está cadastrado.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
         }
-      } catch (apiError) {
-        console.error("Error fetching movements:", apiError);
-        // Continue even if API fails
+
+        // Insert process
+        const { data: newProcesso, error } = await supabase.from("processos").insert(processData).select("id").single();
+
+        if (error) throw error;
+
+        // Fetch and insert movements from API
+        try {
+          const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
+            body: { numeroProcesso: values.numero.trim() },
+          });
+
+          if (apiData?.movimentos && apiData.movimentos.length > 0) {
+            const movimentosToInsert = apiData.movimentos.map((mov: any) => ({
+              processo_id: newProcesso.id,
+              descricao: mov.nome || "Sem descrição",
+              data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+              tipo: "API Externa",
+              fonte: "DataJud/CNJ",
+            }));
+
+            await supabase.from("movimentacoes").insert(movimentosToInsert);
+          }
+        } catch (apiError) {
+          console.error("Error fetching movements:", apiError);
+          // Continue even if API fails
+        }
+
+        toast({
+          title: "Processo cadastrado",
+          description: "O processo foi cadastrado com sucesso.",
+        });
       }
 
-      toast({
-        title: "Processo cadastrado",
-        description: "O processo foi cadastrado com sucesso.",
-      });
-
       queryClient.invalidateQueries({ queryKey: ["processos"] });
+      queryClient.invalidateQueries({ queryKey: ["processo"] });
       form.reset();
       onOpenChange(false);
     } catch (error: any) {
-      console.error("Error creating process:", error);
+      console.error("Error saving process:", error);
       toast({
-        title: "Erro ao cadastrar",
-        description: error.message || "Não foi possível cadastrar o processo.",
+        title: isEditing ? "Erro ao atualizar" : "Erro ao cadastrar",
+        description: error.message || "Não foi possível salvar o processo.",
         variant: "destructive",
       });
     } finally {
@@ -264,9 +353,15 @@ export function ProcessoFormDialog({ open, onOpenChange }: ProcessoFormDialogPro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo Processo</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {isEditing && <Pencil className="w-5 h-5" />}
+            {isEditing ? "Editar Processo" : "Novo Processo"}
+          </DialogTitle>
           <DialogDescription>
-            Preencha as informações do processo ou busque automaticamente pelo número CNJ.
+            {isEditing 
+              ? "Atualize as informações do processo conforme necessário."
+              : "Preencha as informações do processo ou busque automaticamente pelo número CNJ."
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -288,7 +383,13 @@ export function ProcessoFormDialog({ open, onOpenChange }: ProcessoFormDialogPro
                       <FormItem className="flex-1">
                         <FormLabel>Número do Processo *</FormLabel>
                         <FormControl>
-                          <Input placeholder="0000000-00.0000.0.00.0000" {...field} />
+                          <Input 
+                            placeholder="0000000-00.0000.0.00.0000" 
+                            value={field.value}
+                            onChange={(e) => handleNumeroChange(e, field.onChange)}
+                            disabled={isEditing}
+                            maxLength={25}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -571,7 +672,7 @@ export function ProcessoFormDialog({ open, onOpenChange }: ProcessoFormDialogPro
               </Button>
               <Button type="submit" disabled={loading}>
                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Cadastrar Processo
+                {isEditing ? "Salvar Alterações" : "Cadastrar Processo"}
               </Button>
             </DialogFooter>
           </form>
