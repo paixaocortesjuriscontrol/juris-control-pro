@@ -2,3 +2,6 @@ project_id = "bfxahrrvoqxcdmfsvnrk"
 
 [functions.consultar-processo]
 verify_jwt = false
+
+[functions.buscar-djen]
+verify_jwt = false
