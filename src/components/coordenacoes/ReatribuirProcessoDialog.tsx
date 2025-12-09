@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -27,10 +27,11 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
@@ -56,6 +57,8 @@ export function ReatribuirProcessoDialog({
 }: ReatribuirProcessoDialogProps) {
   const [loading, setLoading] = useState(false);
   const [selectedAdvogado, setSelectedAdvogado] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [areaFilter, setAreaFilter] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -67,7 +70,8 @@ export function ReatribuirProcessoDialog({
         .select(`
           id, 
           numero, 
-          polo_ativo, 
+          polo_ativo,
+          area,
           advogado_responsavel_id,
           advogado:profiles!processos_advogado_responsavel_id_fkey(id, nome)
         `)
@@ -125,10 +129,28 @@ export function ReatribuirProcessoDialog({
     .filter(m => m.usuario?.id)
     .map(m => ({ id: m.usuario!.id, nome: m.usuario!.nome }));
 
-  // Filter processes by selected source lawyer
-  const processosFiltrados = selectedAdvogado 
-    ? processosAtribuidos?.filter(p => p.advogado_responsavel_id === selectedAdvogado)
-    : processosAtribuidos;
+  // Filter processes by selected source lawyer, area, and search query
+  const processosFiltrados = useMemo(() => {
+    let filtered = processosAtribuidos || [];
+    
+    if (selectedAdvogado && selectedAdvogado !== "all") {
+      filtered = filtered.filter(p => p.advogado_responsavel_id === selectedAdvogado);
+    }
+    
+    if (areaFilter && areaFilter !== "all") {
+      filtered = filtered.filter(p => p.area === areaFilter);
+    }
+    
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(p => 
+        p.numero.toLowerCase().includes(query) ||
+        p.polo_ativo?.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [processosAtribuidos, selectedAdvogado, areaFilter, searchQuery]);
 
   const getInitials = (name: string) => {
     return name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "ND";
@@ -180,7 +202,7 @@ export function ReatribuirProcessoDialog({
                       </FormControl>
                       <SelectContent>
                         {advogadosDisponiveis
-                          .filter(a => a.id !== selectedAdvogado)
+                          .filter(a => a.id !== selectedAdvogado || selectedAdvogado === "all")
                           .map((a) => (
                             <SelectItem key={a.id} value={a.id}>
                               {a.nome}
@@ -192,6 +214,29 @@ export function ReatribuirProcessoDialog({
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="flex gap-3">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por número ou parte..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={areaFilter} onValueChange={setAreaFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Todas áreas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas áreas</SelectItem>
+                  <SelectItem value="civil">Civil</SelectItem>
+                  <SelectItem value="trabalhista">Trabalhista</SelectItem>
+                  <SelectItem value="empresarial">Empresarial</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <FormField
@@ -251,9 +296,11 @@ export function ReatribuirProcessoDialog({
                   ) : (
                     <div className="text-center py-6 border rounded-md">
                       <p className="text-sm text-muted-foreground">
-                        {selectedAdvogado 
-                          ? "Este advogado não possui processos atribuídos"
-                          : "Nenhum processo atribuído nesta coordenação"
+                        {searchQuery || areaFilter
+                          ? "Nenhum processo encontrado com os filtros aplicados"
+                          : selectedAdvogado && selectedAdvogado !== "all"
+                            ? "Este advogado não possui processos atribuídos"
+                            : "Nenhum processo atribuído nesta coordenação"
                         }
                       </p>
                     </div>
