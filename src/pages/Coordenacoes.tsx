@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2 } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -25,6 +25,8 @@ import { CoordenacaoDialog } from "@/components/coordenacoes/CoordenacaoDialog";
 import { MembroDialog } from "@/components/coordenacoes/MembroDialog";
 import { AtribuirProcessoDialog } from "@/components/coordenacoes/AtribuirProcessoDialog";
 import { DistribuirProcessoDialog } from "@/components/coordenacoes/DistribuirProcessoDialog";
+import { DelegarTarefaDialog } from "@/components/coordenacoes/DelegarTarefaDialog";
+import { ReatribuirProcessoDialog } from "@/components/coordenacoes/ReatribuirProcessoDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -59,6 +61,8 @@ const Coordenacoes = () => {
   const [membroDialog, setMembroDialog] = useState(false);
   const [atribuirDialog, setAtribuirDialog] = useState(false);
   const [distribuirDialog, setDistribuirDialog] = useState(false);
+  const [delegarTarefaDialog, setDelegarTarefaDialog] = useState(false);
+  const [reatribuirDialog, setReatribuirDialog] = useState(false);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -256,18 +260,36 @@ const Coordenacoes = () => {
             {/* Team Members */}
             <Card className="animate-slide-up" style={{ animationDelay: "100ms" }}>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <CardTitle className="font-serif text-lg">Membros da Equipe</CardTitle>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {selectedCoord.membros.length > 0 && (
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => setAtribuirDialog(true)}
-                      >
-                        <Briefcase className="w-4 h-4 mr-1" />
-                        <span className="hidden sm:inline">Atribuir Processos</span>
-                      </Button>
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => setAtribuirDialog(true)}
+                        >
+                          <Briefcase className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Atribuir</span>
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => setReatribuirDialog(true)}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Reatribuir</span>
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => setDelegarTarefaDialog(true)}
+                        >
+                          <ClipboardList className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Delegar Tarefa</span>
+                        </Button>
+                      </>
                     )}
                     <Button 
                       size="sm" 
@@ -328,6 +350,14 @@ const Coordenacoes = () => {
                               <DropdownMenuItem onClick={() => setAtribuirDialog(true)}>
                                 <Briefcase className="w-4 h-4 mr-2" />
                                 Atribuir processo
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setReatribuirDialog(true)}>
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Reatribuir processos
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setDelegarTarefaDialog(true)}>
+                                <ClipboardList className="w-4 h-4 mr-2" />
+                                Delegar tarefa
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 
@@ -411,6 +441,20 @@ const Coordenacoes = () => {
           <AtribuirProcessoDialog
             open={atribuirDialog}
             onOpenChange={setAtribuirDialog}
+            coordenacaoId={selectedCoord.id}
+            membros={selectedCoord.membros}
+          />
+
+          <DelegarTarefaDialog
+            open={delegarTarefaDialog}
+            onOpenChange={setDelegarTarefaDialog}
+            coordenacaoId={selectedCoord.id}
+            membros={selectedCoord.membros}
+          />
+
+          <ReatribuirProcessoDialog
+            open={reatribuirDialog}
+            onOpenChange={setReatribuirDialog}
             coordenacaoId={selectedCoord.id}
             membros={selectedCoord.membros}
           />
