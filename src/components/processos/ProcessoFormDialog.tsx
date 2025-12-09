@@ -52,6 +52,7 @@ const formSchema = z.object({
   polo_passivo: z.string().optional(),
   coordenacao_id: z.string().optional(),
   advogado_responsavel_id: z.string().optional(),
+  cliente_id: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -91,6 +92,20 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
 
+  // Fetch clientes
+  const { data: clientes = [] } = useQuery({
+    queryKey: ["clientes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nome, tipo, cpf_cnpj")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open,
+  });
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -109,6 +124,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       polo_passivo: "",
       coordenacao_id: "",
       advogado_responsavel_id: "",
+      cliente_id: "",
     },
   });
 
@@ -132,6 +148,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           polo_passivo: processo.polo_passivo || "",
           coordenacao_id: processo.coordenacao_id || "",
           advogado_responsavel_id: processo.advogado_responsavel_id || "",
+          cliente_id: processo.cliente_id || "",
         });
       } else {
         form.reset({
@@ -150,6 +167,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           polo_passivo: "",
           coordenacao_id: "",
           advogado_responsavel_id: "",
+          cliente_id: "",
         });
       }
     }
@@ -267,6 +285,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         polo_passivo: values.polo_passivo || null,
         coordenacao_id: values.coordenacao_id || null,
         advogado_responsavel_id: values.advogado_responsavel_id || null,
+        cliente_id: values.cliente_id || null,
       };
 
       if (isEditing && processo) {
@@ -517,6 +536,32 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="cliente_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cliente</FormLabel>
+                      <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o cliente" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {clientes.map((cliente) => (
+                            <SelectItem key={cliente.id} value={cliente.id}>
+                              {cliente.nome} {cliente.cpf_cnpj ? `(${cliente.cpf_cnpj})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
