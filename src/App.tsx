@@ -17,6 +17,7 @@ import ConsultaExterna from "./pages/ConsultaExterna";
 import ImportarProcessos from "./pages/ImportarProcessos";
 import Configuracoes from "./pages/Configuracoes";
 import Prazos from "./pages/Prazos";
+import Documentos from "./pages/Documentos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/admin" element={<ProtectedRoute><Administracao /></ProtectedRoute>} />
             <Route path="/consulta-externa" element={<ProtectedRoute><ConsultaExterna /></ProtectedRoute>} />
             <Route path="/importar" element={<ProtectedRoute><ImportarProcessos /></ProtectedRoute>} />
+            <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
