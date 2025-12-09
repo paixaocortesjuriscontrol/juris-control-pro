@@ -16,7 +16,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, UserCheck, UserX } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
@@ -52,6 +53,7 @@ const Administracao = () => {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [togglingStatus, setTogglingStatus] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
@@ -302,6 +304,27 @@ const Administracao = () => {
     setSaving(false);
   }
 
+  async function handleToggleAtivo(userId: string, currentStatus: boolean) {
+    setTogglingStatus(userId);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ ativo: !currentStatus })
+      .eq("id", userId);
+
+    if (error) {
+      toast.error("Erro ao alterar status do usuário");
+      console.error(error);
+    } else {
+      toast.success(!currentStatus ? "Usuário ativado com sucesso!" : "Usuário desativado com sucesso!");
+      setUsers(prev => prev.map(u => 
+        u.id === userId ? { ...u, ativo: !currentStatus } : u
+      ));
+    }
+
+    setTogglingStatus(null);
+  }
+
   if (roleLoading || loading) {
     return (
       <MainLayout title="Administração">
@@ -445,6 +468,7 @@ const Administracao = () => {
                   <TableHead>Email</TableHead>
                   <TableHead>OAB</TableHead>
                   <TableHead>Telefone</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Perfil Atual</TableHead>
                   <TableHead>Alterar Perfil</TableHead>
                   <TableHead className="w-12">Ações</TableHead>
@@ -452,16 +476,23 @@ const Administracao = () => {
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
-                  <TableRow key={user.id}>
+                  <TableRow key={user.id} className={!user.ativo ? "opacity-50" : ""}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar>
                           <AvatarImage src={user.avatar_url ?? undefined} />
-                          <AvatarFallback className="bg-primary/10 text-primary">
+                          <AvatarFallback className={user.ativo ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}>
                             {getInitials(user.nome)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="font-medium">{user.nome}</span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{user.nome}</span>
+                          {!user.ativo && (
+                            <span className="text-xs text-destructive flex items-center gap-1">
+                              <UserX className="w-3 h-3" /> Desativado
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
@@ -472,6 +503,22 @@ const Administracao = () => {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {user.telefone ?? "-"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={user.ativo ?? true}
+                          onCheckedChange={() => handleToggleAtivo(user.id, user.ativo ?? true)}
+                          disabled={togglingStatus === user.id}
+                        />
+                        {togglingStatus === user.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            {user.ativo ? "Ativo" : "Inativo"}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {user.role ? (
