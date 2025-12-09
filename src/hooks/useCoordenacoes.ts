@@ -40,10 +40,16 @@ export function useCoordenacoesFull() {
             };
           });
 
+          // Calculate unassigned processes (no advogado_responsavel_id)
+          const unassignedCount = processos.filter(p => !p.advogado_responsavel_id).length;
+          const assignedCount = processos.filter(p => p.advogado_responsavel_id).length;
+
           return {
             ...coord,
             membros: membrosWithProcessCount,
             processCount: processos.length,
+            unassignedCount,
+            assignedCount,
           };
         })
       );
