@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -26,6 +26,7 @@ import { MembroDialog } from "@/components/coordenacoes/MembroDialog";
 import { AtribuirProcessoDialog } from "@/components/coordenacoes/AtribuirProcessoDialog";
 import { DistribuirProcessoDialog } from "@/components/coordenacoes/DistribuirProcessoDialog";
 import { DelegarTarefaDialog } from "@/components/coordenacoes/DelegarTarefaDialog";
+import { DelegarTarefaLoteDialog } from "@/components/coordenacoes/DelegarTarefaLoteDialog";
 import { ReatribuirProcessoDialog } from "@/components/coordenacoes/ReatribuirProcessoDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -62,6 +63,7 @@ const Coordenacoes = () => {
   const [atribuirDialog, setAtribuirDialog] = useState(false);
   const [distribuirDialog, setDistribuirDialog] = useState(false);
   const [delegarTarefaDialog, setDelegarTarefaDialog] = useState(false);
+  const [delegarTarefaLoteDialog, setDelegarTarefaLoteDialog] = useState(false);
   const [reatribuirDialog, setReatribuirDialog] = useState(false);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -294,6 +296,14 @@ const Coordenacoes = () => {
                           <ClipboardList className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Delegar Tarefa</span>
                         </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => setDelegarTarefaLoteDialog(true)}
+                        >
+                          <ListChecks className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Tarefa em Lote</span>
+                        </Button>
                       </>
                     )}
                     <Button 
@@ -471,6 +481,13 @@ const Coordenacoes = () => {
           <DelegarTarefaDialog
             open={delegarTarefaDialog}
             onOpenChange={setDelegarTarefaDialog}
+            coordenacaoId={selectedCoord.id}
+            membros={selectedCoord.membros}
+          />
+
+          <DelegarTarefaLoteDialog
+            open={delegarTarefaLoteDialog}
+            onOpenChange={setDelegarTarefaLoteDialog}
             coordenacaoId={selectedCoord.id}
             membros={selectedCoord.membros}
           />

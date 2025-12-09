@@ -53,6 +53,52 @@ export type Database = {
         }
         Relationships: []
       }
+      comentarios_prazos: {
+        Row: {
+          autor_id: string
+          conteudo: string
+          created_at: string
+          id: string
+          prazo_id: string
+        }
+        Insert: {
+          autor_id: string
+          conteudo: string
+          created_at?: string
+          id?: string
+          prazo_id: string
+        }
+        Update: {
+          autor_id?: string
+          conteudo?: string
+          created_at?: string
+          id?: string
+          prazo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comentarios_prazos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comentarios_prazos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comentarios_prazos_prazo_id_fkey"
+            columns: ["prazo_id"]
+            isOneToOne: false
+            referencedRelation: "prazos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coordenacoes: {
         Row: {
           area: Database["public"]["Enums"]["area_atuacao"]
