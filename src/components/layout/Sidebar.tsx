@@ -17,7 +17,8 @@ import {
   ExternalLink,
   Upload,
   Menu,
-  X
+  X,
+  Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Scale, label: "Processos", path: "/processos" },
+  { icon: Calendar, label: "Prazos", path: "/prazos" },
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Upload, label: "Importar Processos", path: "/importar" },
