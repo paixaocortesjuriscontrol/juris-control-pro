@@ -492,17 +492,34 @@ export type Database = {
           comarca: string | null
           coordenacao_id: string | null
           created_at: string
+          data_arquivamento: string | null
+          data_citacao: string | null
           data_distribuicao: string | null
           data_encerramento: string | null
+          data_recebimento: string | null
           descricao: string | null
+          fase: string | null
           id: string
+          identificador_projuris: string | null
+          instancia: string | null
+          justica: string | null
           numero: string
+          pasta_cliente: string | null
+          pasta_fisica: string | null
           polo_ativo: string | null
           polo_passivo: string | null
+          probabilidade: string | null
+          responsaveis_projuris: string | null
+          resultado: string | null
+          risco: string | null
           status: Database["public"]["Enums"]["status_processo"]
+          transitado_julgado: boolean | null
           tribunal: string | null
+          uf: string | null
           updated_at: string
           valor_causa: number | null
+          valor_condenacao: number | null
+          valor_provisionado: number | null
           vara: string | null
         }
         Insert: {
@@ -514,17 +531,34 @@ export type Database = {
           comarca?: string | null
           coordenacao_id?: string | null
           created_at?: string
+          data_arquivamento?: string | null
+          data_citacao?: string | null
           data_distribuicao?: string | null
           data_encerramento?: string | null
+          data_recebimento?: string | null
           descricao?: string | null
+          fase?: string | null
           id?: string
+          identificador_projuris?: string | null
+          instancia?: string | null
+          justica?: string | null
           numero: string
+          pasta_cliente?: string | null
+          pasta_fisica?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
+          probabilidade?: string | null
+          responsaveis_projuris?: string | null
+          resultado?: string | null
+          risco?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
+          transitado_julgado?: boolean | null
           tribunal?: string | null
+          uf?: string | null
           updated_at?: string
           valor_causa?: number | null
+          valor_condenacao?: number | null
+          valor_provisionado?: number | null
           vara?: string | null
         }
         Update: {
@@ -536,17 +570,34 @@ export type Database = {
           comarca?: string | null
           coordenacao_id?: string | null
           created_at?: string
+          data_arquivamento?: string | null
+          data_citacao?: string | null
           data_distribuicao?: string | null
           data_encerramento?: string | null
+          data_recebimento?: string | null
           descricao?: string | null
+          fase?: string | null
           id?: string
+          identificador_projuris?: string | null
+          instancia?: string | null
+          justica?: string | null
           numero?: string
+          pasta_cliente?: string | null
+          pasta_fisica?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
+          probabilidade?: string | null
+          responsaveis_projuris?: string | null
+          resultado?: string | null
+          risco?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
+          transitado_julgado?: boolean | null
           tribunal?: string | null
+          uf?: string | null
           updated_at?: string
           valor_causa?: number | null
+          valor_condenacao?: number | null
+          valor_provisionado?: number | null
           vara?: string | null
         }
         Relationships: [
