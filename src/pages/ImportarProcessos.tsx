@@ -765,42 +765,74 @@ export default function ImportarProcessos() {
 
       const parsed: ProcessoImport[] = jsonData
         .filter((row: any) => {
-          // Skip empty rows and header rows
+          // Skip empty rows and header rows - check for "Número CNJ" column
           const numeroCNJ = row["Número CNJ"] || "";
           return numeroCNJ && numeroCNJ.trim().length >= 5 && !numeroCNJ.includes("Número CNJ");
         })
         .map((row: any, index: number): ProcessoImport => {
-          // Parse Projuris columns - columns from the parsed spreadsheet
+          // Parse Projuris columns exactly as exported
           const numeroCNJ = String(row["Número CNJ"] || "").trim();
           const assunto = row["Assunto"] || null;
-          const situacao = row["Situação"] || null;
-          const justica = row["Justiça"] || null;
-          const orgao = row["Órgao"] || row["Orgao"] || null;
+          const situacao = row["Situação"] || row["Situacao"] || null;
+          const status = row["Status"] || null;
+          const justica = row["Justiça"] || row["Justica"] || null;
+          const instancia = row["Instância"] || row["Instancia"] || null;
+          const orgao = row["Órgao"] || row["Orgao"] || null; // Note: Projuris uses "Órgao" (without accent on second 'a')
           const orgaoJulgador = row["Órgão julgador"] || row["Orgao julgador"] || null;
+          const tipoOrgaoJulgador = row["Tipo órgão julgador"] || row["Tipo orgao julgador"] || null;
+          const complemento = row["Complemento"] || null;
           const area = row["Área"] || row["Area"] || null;
+          const fase = row["Fase"] || null;
           const dataDistribuicao = row["Data distribuição"] || row["Data distribuicao"] || null;
+          const dataCitacao = row["Data citação"] || row["Data citacao"] || null;
+          const dataRecebimento = row["Data recebimento"] || null;
+          const dataArquivamento = row["Data arquivamento"] || null;
+          const dataInclusao = row["Data inclusão"] || row["Data inclusao"] || null;
           const valorAcao = row["Valor ação"] || row["Valor acao"] || null;
+          const valorProvisionado = row["Valor provisionado"] || null;
+          const probabilidade = row["Probabilidade"] || null;
+          const risco = row["Risco"] || null;
+          const dataEncerramento = row["Data encerramento"] || null;
+          const transitadoEmJulgado = row["Transitado em julgado"] || null;
+          const resultado = row["Resultado"] || null;
+          const valorCondenacao = row["Valor da condenação"] || row["Valor da condenacao"] || null;
+          const descricaoEncerramento = row["Descrição do encerramento"] || row["Descricao do encerramento"] || null;
           const partesAtivas = row["Partes ativas"] || null;
           const partesPassivas = row["Partes passivas"] || null;
           const estado = row["Estado"] || null;
           const cidade = row["Cidade"] || null;
           const clientes = row["Clientes"] || null;
+          const responsaveis = row["Responsáveis"] || row["Responsaveis"] || null;
+          const descricao = row["Descrição"] || row["Descricao"] || null;
+          const identificador = row["Identificador"] || null;
+          const pastaFisica = row["Pasta física"] || row["Pasta fisica"] || null;
+          const pastaCliente = row["Pasta cliente"] || null;
+          const unidadeAtual = row["Unidade atual"] || null;
+          const gruposTrabalho = row["Grupos de trabalho"] || null;
+          const marcadores = row["Marcadores"] || null;
+
+          // Map Projuris status to our status
+          const mapProjurisSituacao = (sit: string | null, stat: string | null): string | null => {
+            if (stat?.toLowerCase().includes("habilitado")) return "ativo";
+            if (stat?.toLowerCase().includes("desabilitado")) return "arquivado";
+            return sit;
+          };
 
           const processo: ProcessoImport = {
             numero: numeroCNJ,
             assunto: assunto,
-            situacao: situacao,
-            responsavel: row["Responsáveis"] || row["Responsaveis"] || null,
-            descricao: row["Descrição"] || row["Descricao"] || null,
+            situacao: mapProjurisSituacao(situacao, status),
+            responsavel: responsaveis,
+            descricao: descricao || complemento,
             justica: justica,
             cidade: cidade,
             estado: estado,
-            instancia: row["Instância"] || row["Instancia"] || null,
+            instancia: instancia,
             orgao: orgao,
-            orgaoJulgador: orgaoJulgador,
+            orgaoJulgador: orgaoJulgador || tipoOrgaoJulgador,
             sistema: null,
             area: area,
-            fase: row["Fase"] || null,
+            fase: fase,
             dataDistribuicao: dataDistribuicao,
             classeCNJ: null,
             valorAcao: valorAcao,
