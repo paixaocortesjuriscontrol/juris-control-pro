@@ -38,22 +38,39 @@ export async function buscarAndamentosExternos(
 
     const movimentos: Movimento[] = data.movimentos;
 
-    // Insert movements into the database
-    const movimentosToInsert = movimentos.map((mov) => {
-      // Combine nome with complemento for full description
-      let descricaoCompleta = mov.nome || "Sem descrição";
-      if (mov.complemento) {
-        descricaoCompleta = `${descricaoCompleta} - ${mov.complemento}`;
-      }
-      
-      return {
-        processo_id: processoId,
-        descricao: descricaoCompleta,
-        data_movimentacao: mov.data || new Date().toISOString(),
-        tipo: mov.nome || "Movimentação",
-        fonte: "DataJud/CNJ",
-      };
-    });
+    // Get existing movements to avoid duplicates
+    const { data: existingMovs } = await supabase
+      .from("movimentacoes")
+      .select("data_movimentacao, descricao")
+      .eq("processo_id", processoId);
+
+    const existingSet = new Set(
+      (existingMovs || []).map((m) => `${m.data_movimentacao}|${m.descricao}`)
+    );
+
+    // Filter out duplicates and prepare new movements
+    const movimentosToInsert = movimentos
+      .map((mov) => {
+        let descricaoCompleta = mov.nome || "Sem descrição";
+        if (mov.complemento) {
+          descricaoCompleta = `${descricaoCompleta} - ${mov.complemento}`;
+        }
+        const dataMovimentacao = mov.data || new Date().toISOString();
+        
+        return {
+          processo_id: processoId,
+          descricao: descricaoCompleta,
+          data_movimentacao: dataMovimentacao,
+          tipo: mov.nome || "Movimentação",
+          fonte: "DataJud/CNJ",
+        };
+      })
+      .filter((mov) => !existingSet.has(`${mov.data_movimentacao}|${mov.descricao}`));
+
+    if (movimentosToInsert.length === 0) {
+      console.log("Nenhum andamento novo para inserir");
+      return { success: true, movimentosInseridos: 0 };
+    }
 
     const { error: insertError } = await supabase
       .from("movimentacoes")
