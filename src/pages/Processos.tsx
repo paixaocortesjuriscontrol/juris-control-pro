@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Filter, Plus, Download, ArrowUpDown, Scale } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ProcessCard } from "@/components/dashboard/ProcessCard";
@@ -14,13 +14,22 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useProcessos } from "@/hooks/useProcessos";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const Processos = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  // Ler parâmetros da URL na inicialização
+  useEffect(() => {
+    const areaFromUrl = searchParams.get("area");
+    if (areaFromUrl && ["civil", "trabalhista", "empresarial"].includes(areaFromUrl)) {
+      setAreaFilter(areaFromUrl);
+    }
+  }, [searchParams]);
   
   const { data: processos, isLoading } = useProcessos();
 
