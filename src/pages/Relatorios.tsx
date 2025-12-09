@@ -579,15 +579,15 @@ const Relatorios = () => {
       </div>
 
       {/* Tables Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Processos por Cliente */}
+      <div className="grid grid-cols-1 gap-6 mb-6">
+        {/* Processos por Cliente - Relatório Completo */}
         <Card className="animate-slide-up" style={{ animationDelay: "450ms" }}>
           <CardHeader>
             <CardTitle className="font-serif flex items-center gap-2">
               <Building2 className="w-5 h-5 text-gold" />
-              Processos por Cliente
+              Relatório de Processos por Cliente
             </CardTitle>
-            <CardDescription>Top 10 clientes com mais processos</CardDescription>
+            <CardDescription>Estatísticas detalhadas de processos por cliente</CardDescription>
           </CardHeader>
           <CardContent>
             {processosPorCliente.length === 0 ? (
@@ -595,25 +595,66 @@ const Relatorios = () => {
                 Nenhum cliente com processos
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="text-right">Processos</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {processosPorCliente.map((cliente: any) => (
-                    <TableRow key={cliente.nome}>
-                      <TableCell className="font-medium truncate max-w-[200px]">{cliente.nome}</TableCell>
-                      <TableCell className="text-right">{cliente.total}</TableCell>
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="text-center p-4 rounded-lg bg-blue-500/10">
+                    <p className="text-2xl font-bold text-blue-500">{processosPorCliente.length}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Clientes Ativos</p>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-green-500/10">
+                    <p className="text-2xl font-bold text-green-500">
+                      {processosPorCliente.reduce((acc: number, c: any) => acc + c.ativos, 0)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Processos Ativos</p>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-purple-500/10">
+                    <p className="text-2xl font-bold text-purple-500">
+                      {processosPorCliente.reduce((acc: number, c: any) => acc + c.encerrados, 0)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Encerrados</p>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-amber-500/10">
+                    <p className="text-2xl font-bold text-amber-500">
+                      {processosPorCliente.reduce((acc: number, c: any) => acc + c.prazosPendentes, 0)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Prazos Pendentes</p>
+                  </div>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Ativos</TableHead>
+                      <TableHead className="text-right">Encerrados</TableHead>
+                      <TableHead className="text-right">Prazos Pend.</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {processosPorCliente.map((cliente: any) => (
+                      <TableRow key={cliente.nome}>
+                        <TableCell className="font-medium truncate max-w-[200px]">{cliente.nome}</TableCell>
+                        <TableCell>
+                          <span className={cliente.tipo === "pessoa_fisica" ? "text-blue-500" : "text-purple-500"}>
+                            {cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">{cliente.total}</TableCell>
+                        <TableCell className="text-right text-green-500">{cliente.ativos}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{cliente.encerrados}</TableCell>
+                        <TableCell className="text-right text-amber-500">{cliente.prazosPendentes}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
             )}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 
         {/* Processos por Vara */}
         <Card className="animate-slide-up" style={{ animationDelay: "500ms" }}>
