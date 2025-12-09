@@ -468,7 +468,7 @@ export default function ImportarProcessos() {
   };
 
   const downloadTemplate = () => {
-    window.open("/templates/MODELO_IMPORTACAO_PROCESSO_PADRAO.xlsx", "_blank");
+    window.open("https://bfxahrrvoqxcdmfsvnrk.supabase.co/storage/v1/object/public/projuris_planilhas/MODELO_IMPORTACAO_PROCESSO_PADRAO.xlsx", "_blank");
   };
 
   const downloadRejeitados = () => {
