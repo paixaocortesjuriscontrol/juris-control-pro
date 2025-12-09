@@ -55,6 +55,19 @@ interface ProcessoImport {
   erros: ValidationError[];
   erroImport?: string;
   linhaOriginal: number;
+  // Projuris-specific fields
+  identificadorProjuris?: string | null;
+  pastaFisica?: string | null;
+  pastaCliente?: string | null;
+  dataCitacao?: string | null;
+  dataRecebimento?: string | null;
+  dataArquivamento?: string | null;
+  valorProvisionado?: number | null;
+  probabilidade?: string | null;
+  risco?: string | null;
+  transitadoJulgado?: boolean | null;
+  resultado?: string | null;
+  valorCondenacao?: number | null;
 }
 
 const validAreas = ["civil", "trabalhista", "empresarial", "cível", "civel", "trabalho", "empresa"];
@@ -843,6 +856,19 @@ export default function ImportarProcessos() {
             status: "pendente",
             erros: [],
             linhaOriginal: index + 4, // +4 because we skip 2 header rows and Excel is 1-indexed
+            // Projuris-specific fields
+            identificadorProjuris: identificador,
+            pastaFisica: pastaFisica,
+            pastaCliente: pastaCliente,
+            dataCitacao: dataCitacao,
+            dataRecebimento: dataRecebimento,
+            dataArquivamento: dataArquivamento,
+            valorProvisionado: valorProvisionado,
+            probabilidade: probabilidade,
+            risco: risco,
+            transitadoJulgado: transitadoEmJulgado?.toLowerCase() === "sim" || transitadoEmJulgado === true,
+            resultado: resultado,
+            valorCondenacao: valorCondenacao,
           };
           
           // Validate the processo
@@ -944,7 +970,7 @@ export default function ImportarProcessos() {
           processoId = existingProcesso.id;
           isUpdate = true;
         } else {
-          // Insert new process
+          // Insert new process with all Projuris fields
           const { data: insertedProcesso, error } = await supabase.from("processos").insert({
             numero: processo.numero.trim(),
             assunto: processo.assunto,
@@ -962,6 +988,24 @@ export default function ImportarProcessos() {
             coordenacao_id: selectedCoordenacao || null,
             advogado_responsavel_id: selectedMembro || null,
             cliente_id: selectedCliente || null,
+            // Projuris-specific fields
+            identificador_projuris: processo.identificadorProjuris || null,
+            pasta_fisica: processo.pastaFisica || null,
+            pasta_cliente: processo.pastaCliente || null,
+            justica: processo.justica || null,
+            instancia: processo.instancia || null,
+            fase: processo.fase || null,
+            data_citacao: parseDate(processo.dataCitacao),
+            data_recebimento: parseDate(processo.dataRecebimento),
+            data_arquivamento: parseDate(processo.dataArquivamento),
+            valor_provisionado: parseNumber(processo.valorProvisionado),
+            probabilidade: processo.probabilidade || null,
+            risco: processo.risco || null,
+            transitado_julgado: processo.transitadoJulgado || false,
+            resultado: processo.resultado || null,
+            valor_condenacao: parseNumber(processo.valorCondenacao),
+            uf: processo.estado || null,
+            responsaveis_projuris: processo.responsavel || null,
           }).select("id").single();
 
           if (error) {
