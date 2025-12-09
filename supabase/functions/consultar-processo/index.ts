@@ -4,15 +4,14 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const ALLOWED_ORIGINS = [
   'https://bfxahrrvoqxcdmfsvnrk.supabase.co',
   'https://lovable.dev',
-  'https://id-preview--bfxahrrvoqxcdmfsvnrk.lovable.app',
-  // Add your custom domain here if you have one
 ];
 
-// Check if origin is allowed (also allows localhost for development)
+// Check if origin is allowed (also allows localhost for development and Lovable preview domains)
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
   if (origin.startsWith('http://localhost:')) return true;
   if (origin.endsWith('.lovable.app')) return true;
+  if (origin.endsWith('.lovableproject.com')) return true;
   return ALLOWED_ORIGINS.includes(origin);
 }
 
