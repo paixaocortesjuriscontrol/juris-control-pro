@@ -259,18 +259,21 @@ const BuscarDJEN = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={searchType} onValueChange={(v) => setSearchType(v as SearchType)}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="palavra-chave" className="flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Palavra-chave
+            <TabsList className="mb-4 flex-wrap h-auto gap-1">
+              <TabsTrigger value="palavra-chave" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Palavra-chave</span>
+                <span className="xs:hidden">Palavra</span>
               </TabsTrigger>
-              <TabsTrigger value="advogado" className="flex items-center gap-2">
-                <User className="w-4 h-4" />
-                OAB/Advogado
+              <TabsTrigger value="advogado" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <User className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">OAB/Advogado</span>
+                <span className="xs:hidden">OAB</span>
               </TabsTrigger>
-              <TabsTrigger value="processo" className="flex items-center gap-2">
-                <Hash className="w-4 h-4" />
-                Nº Processo
+              <TabsTrigger value="processo" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <Hash className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Nº Processo</span>
+                <span className="xs:hidden">Processo</span>
               </TabsTrigger>
             </TabsList>
 
@@ -373,16 +376,16 @@ const BuscarDJEN = () => {
 
       {/* Results */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="text-base sm:text-lg">
               {hasSearched 
                 ? `Resultados (${publicacoes.length})` 
                 : "Resultados da Busca"
               }
             </CardTitle>
             {selectedIds.size > 0 && (
-              <Button onClick={handleImportSelected} disabled={importing}>
+              <Button onClick={handleImportSelected} disabled={importing} size="sm" className="w-full sm:w-auto">
                 {importing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -391,7 +394,7 @@ const BuscarDJEN = () => {
                 ) : (
                   <>
                     <Download className="w-4 h-4 mr-2" />
-                    Importar Selecionados ({selectedIds.size})
+                    Importar ({selectedIds.size})
                   </>
                 )}
               </Button>
@@ -479,18 +482,18 @@ const BuscarDJEN = () => {
 
       {/* Monitoramentos Section */}
       <Card className="mt-6">
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Eye className="w-5 h-5" />
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
                 Monitoramentos Automáticos
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Configure buscas automáticas no DJEN (verificação 2x ao dia)
               </CardDescription>
             </div>
-            <Button onClick={() => setMonitoramentoDialogOpen(true)}>
+            <Button onClick={() => setMonitoramentoDialogOpen(true)} size="sm" className="w-full sm:w-auto">
               <Plus className="w-4 h-4 mr-2" />
               Novo Monitoramento
             </Button>
@@ -504,81 +507,83 @@ const BuscarDJEN = () => {
               <p className="text-sm mt-1">Crie um monitoramento para receber notificações de novas publicações</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Termo</TableHead>
-                  <TableHead>OAB/UF</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Publicações</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {monitoramentos.map((mon) => {
-                  const pubCount = publicacoesMonitoradas.filter(p => p.monitoramento_id === mon.id).length;
-                  const naoLidas = publicacoesMonitoradas.filter(p => p.monitoramento_id === mon.id && !p.lida).length;
-                  
-                  return (
-                    <TableRow key={mon.id}>
-                      <TableCell>
-                        <Badge variant="outline">{mon.tipo}</Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">{mon.termo_busca}</TableCell>
-                      <TableCell>
-                        {mon.oab && mon.uf ? `${mon.oab}/${mon.uf}` : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={mon.ativo ? "default" : "secondary"}>
-                          {mon.ativo ? "Ativo" : "Pausado"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {pubCount > 0 && (
-                          <span className="flex items-center gap-1">
-                            {pubCount} 
-                            {naoLidas > 0 && (
-                              <Badge variant="destructive" className="text-xs">
-                                {naoLidas} nova{naoLidas > 1 ? 's' : ''}
-                              </Badge>
-                            )}
-                          </span>
-                        )}
-                        {pubCount === 0 && <span className="text-muted-foreground">-</span>}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => atualizarMonitoramento.mutate({ 
-                              id: mon.id, 
-                              ativo: !mon.ativo 
-                            })}
-                            title={mon.ativo ? "Pausar" : "Ativar"}
-                          >
-                            {mon.ativo ? (
-                              <PowerOff className="w-4 h-4" />
-                            ) : (
-                              <Power className="w-4 h-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive"
-                            onClick={() => excluirMonitoramento.mutate(mon.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto -mx-6">
+              <Table className="min-w-[600px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Tipo</TableHead>
+                    <TableHead>Termo</TableHead>
+                    <TableHead className="hidden sm:table-cell">OAB/UF</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden sm:table-cell">Publicações</TableHead>
+                    <TableHead className="text-right pr-6">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {monitoramentos.map((mon) => {
+                    const pubCount = publicacoesMonitoradas.filter(p => p.monitoramento_id === mon.id).length;
+                    const naoLidas = publicacoesMonitoradas.filter(p => p.monitoramento_id === mon.id && !p.lida).length;
+                    
+                    return (
+                      <TableRow key={mon.id}>
+                        <TableCell className="pl-6">
+                          <Badge variant="outline">{mon.tipo}</Badge>
+                        </TableCell>
+                        <TableCell className="font-medium max-w-[120px] truncate">{mon.termo_busca}</TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          {mon.oab && mon.uf ? `${mon.oab}/${mon.uf}` : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={mon.ativo ? "default" : "secondary"}>
+                            {mon.ativo ? "Ativo" : "Pausado"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          {pubCount > 0 && (
+                            <span className="flex items-center gap-1">
+                              {pubCount} 
+                              {naoLidas > 0 && (
+                                <Badge variant="destructive" className="text-xs">
+                                  {naoLidas} nova{naoLidas > 1 ? 's' : ''}
+                                </Badge>
+                              )}
+                            </span>
+                          )}
+                          {pubCount === 0 && <span className="text-muted-foreground">-</span>}
+                        </TableCell>
+                        <TableCell className="text-right pr-6">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => atualizarMonitoramento.mutate({ 
+                                id: mon.id, 
+                                ativo: !mon.ativo 
+                              })}
+                              title={mon.ativo ? "Pausar" : "Ativar"}
+                            >
+                              {mon.ativo ? (
+                                <PowerOff className="w-4 h-4" />
+                              ) : (
+                                <Power className="w-4 h-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive"
+                              onClick={() => excluirMonitoramento.mutate(mon.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
