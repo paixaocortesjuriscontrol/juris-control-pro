@@ -107,7 +107,9 @@ const BuscarDJEN = () => {
       if (error) throw error;
 
       if (data.success) {
-        const pubs = (data.publicacoes || data.comunicacoes || []).map((p: any, idx: number) => ({
+        // Handle different response formats from the API
+        const rawPubs = data.publicacoes || data.comunicacoes || data.items || [];
+        const pubs = rawPubs.map((p: any, idx: number) => ({
           id: p.id || `pub-${idx}`,
           data: p.data || p.dataDisponibilizacao || p.dataPublicacao,
           tipo: p.tipo || p.tipoComunicacao || "Publicação",
@@ -120,7 +122,7 @@ const BuscarDJEN = () => {
         setPublicacoes(pubs);
         
         if (pubs.length === 0) {
-          toast.info("Nenhuma publicação encontrada");
+          toast.info(data.message || "Nenhuma publicação encontrada para os critérios informados");
         } else {
           toast.success(`${pubs.length} publicação(ões) encontrada(s)`);
         }
