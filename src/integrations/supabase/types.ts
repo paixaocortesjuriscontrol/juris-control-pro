@@ -99,6 +99,36 @@ export type Database = {
           },
         ]
       }
+      configuracoes_monitoramento: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          frequencia: string
+          id: string
+          tipo: string
+          ultima_execucao: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          frequencia?: string
+          id?: string
+          tipo: string
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          frequencia?: string
+          id?: string
+          tipo?: string
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       coordenacoes: {
         Row: {
           area: Database["public"]["Enums"]["area_atuacao"]

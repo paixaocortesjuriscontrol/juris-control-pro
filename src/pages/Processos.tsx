@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,8 @@ import { AtribuirCoordenacaoLoteDialog } from "@/components/processos/AtribuirCo
 import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { cn } from "@/lib/utils";
 import { Calendar, User } from "lucide-react";
-
-
+import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 type AreaType = "civil" | "trabalhista" | "empresarial";
 type StatusType = "pending" | "active" | "closed" | "urgent";
 
@@ -48,6 +48,9 @@ const Processos = () => {
   const [showAtribuirDialog, setShowAtribuirDialog] = useState(false);
   const [showFormDialog, setShowFormDialog] = useState(false);
   const [processoToEdit, setProcessoToEdit] = useState<any>(null);
+  const [monitorandoRedistribuicoes, setMonitorandoRedistribuicoes] = useState(false);
+  
+  const { executarMonitoramento } = useConfiguracoesMonitoramento();
 
   // Ler parâmetros da URL na inicialização
   useEffect(() => {
@@ -152,6 +155,27 @@ const Processos = () => {
           <div className="flex flex-wrap gap-2 justify-end">
             {!isSelectionMode ? (
               <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="flex-none"
+                      disabled={monitorandoRedistribuicoes}
+                      onClick={async () => {
+                        setMonitorandoRedistribuicoes(true);
+                        try {
+                          await executarMonitoramento.mutateAsync('redistribuicoes');
+                        } finally {
+                          setMonitorandoRedistribuicoes(false);
+                        }
+                      }}
+                    >
+                      <RefreshCw className={cn("w-4 h-4", monitorandoRedistribuicoes && "animate-spin")} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Verificar redistribuições</TooltipContent>
+                </Tooltip>
                 <Button 
                   variant="outline" 
                   className="flex-1 sm:flex-none"
