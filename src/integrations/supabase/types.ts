@@ -429,6 +429,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_processo: {
+        Args: { _processo_id: string; _user_id: string }
+        Returns: boolean
+      }
       get_user_coordenacao: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
