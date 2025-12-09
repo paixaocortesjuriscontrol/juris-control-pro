@@ -148,7 +148,7 @@ export default function ProcessoDetalhes() {
     if (processo) {
       setEditStatus(processo.status);
       setEditCoordenacao(processo.coordenacao_id || "");
-      setEditAdvogado(processo.advogado_responsavel_id || "");
+      setEditAdvogado(processo.advogado_responsavel_id || "__none__");
       setEditando(true);
     }
   };
@@ -173,8 +173,10 @@ export default function ProcessoDetalhes() {
       if (editCoordenacao !== (processo.coordenacao_id || "")) {
         updates.coordenacao_id = editCoordenacao || null;
       }
-      if (editAdvogado !== (processo.advogado_responsavel_id || "")) {
-        updates.advogado_responsavel_id = editAdvogado || null;
+      const advogadoValue = editAdvogado === "__none__" ? null : editAdvogado;
+      const originalAdvogado = processo.advogado_responsavel_id || null;
+      if (advogadoValue !== originalAdvogado) {
+        updates.advogado_responsavel_id = advogadoValue;
       }
       
       if (Object.keys(updates).length === 0) {
@@ -422,7 +424,7 @@ export default function ProcessoDetalhes() {
                           } />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Não atribuído</SelectItem>
+                          <SelectItem value="__none__">Não atribuído</SelectItem>
                           {membrosCoordenacao.map((membro) => (
                             <SelectItem key={membro.usuario_id} value={membro.usuario_id}>
                               {membro.profiles?.nome || "Usuário"} {membro.cargo ? `(${membro.cargo})` : ""}
