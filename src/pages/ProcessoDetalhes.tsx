@@ -77,6 +77,7 @@ export default function ProcessoDetalhes() {
   const [editStatus, setEditStatus] = useState<StatusProcesso | "">("");
   const [editCoordenacao, setEditCoordenacao] = useState<string>("");
   const [editAdvogado, setEditAdvogado] = useState<string>("");
+  const [editCliente, setEditCliente] = useState<string>("");
 
   const { data: processo, isLoading: loadingProcesso } = useQuery({
     queryKey: ["processo", id],
@@ -145,11 +146,24 @@ export default function ProcessoDetalhes() {
     enabled: !!(editCoordenacao || processo?.coordenacao_id),
   });
 
+  const { data: clientes = [] } = useQuery({
+    queryKey: ["clientes-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nome, tipo")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const handleIniciarEdicao = () => {
     if (processo) {
       setEditStatus(processo.status);
       setEditCoordenacao(processo.coordenacao_id || "");
       setEditAdvogado(processo.advogado_responsavel_id || "__none__");
+      setEditCliente(processo.cliente_id || "__none__");
       setEditando(true);
     }
   };
@@ -159,6 +173,7 @@ export default function ProcessoDetalhes() {
     setEditStatus("");
     setEditCoordenacao("");
     setEditAdvogado("");
+    setEditCliente("");
   };
 
   const handleSalvarEdicao = async () => {
@@ -178,6 +193,11 @@ export default function ProcessoDetalhes() {
       const originalAdvogado = processo.advogado_responsavel_id || null;
       if (advogadoValue !== originalAdvogado) {
         updates.advogado_responsavel_id = advogadoValue;
+      }
+      const clienteValue = editCliente === "__none__" ? null : editCliente;
+      const originalCliente = processo.cliente_id || null;
+      if (clienteValue !== originalCliente) {
+        updates.cliente_id = clienteValue;
       }
       
       if (Object.keys(updates).length === 0) {
@@ -374,7 +394,7 @@ export default function ProcessoDetalhes() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="space-y-2">
                       <Label>Status</Label>
                       <Select value={editStatus} onValueChange={(v) => setEditStatus(v as StatusProcesso)}>
@@ -385,6 +405,23 @@ export default function ProcessoDetalhes() {
                           {statusOptions.map((status) => (
                             <SelectItem key={status} value={status}>
                               {statusLabels[status]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Cliente</Label>
+                      <Select value={editCliente} onValueChange={setEditCliente}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhum cliente</SelectItem>
+                          {clientes.map((cliente) => (
+                            <SelectItem key={cliente.id} value={cliente.id}>
+                              {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
                             </SelectItem>
                           ))}
                         </SelectContent>

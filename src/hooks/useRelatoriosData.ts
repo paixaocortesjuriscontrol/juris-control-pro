@@ -72,11 +72,26 @@ export function useRelatoriosData() {
         });
       }
 
-      // 5. Total de processos por cliente
+      // 5. Total de processos por cliente com estatísticas detalhadas
       const processosPorCliente = clientes.map(cliente => {
-        const count = processos.filter(p => p.cliente_id === cliente.id).length;
-        return { nome: cliente.nome, total: count };
-      }).filter(c => c.total > 0).sort((a, b) => b.total - a.total).slice(0, 10);
+        const processosCliente = processos.filter(p => p.cliente_id === cliente.id);
+        const ativos = processosCliente.filter(p => p.status === "ativo").length;
+        const encerrados = processosCliente.filter(p => p.status === "encerrado" || p.status === "arquivado").length;
+        const prazosCliente = prazos.filter(p => {
+          const processo = processosCliente.find(proc => proc.id === p.processo_id);
+          return !!processo;
+        });
+        const prazosPendentes = prazosCliente.filter(p => p.status !== "cumprido").length;
+        
+        return { 
+          nome: cliente.nome, 
+          tipo: cliente.tipo,
+          total: processosCliente.length,
+          ativos,
+          encerrados,
+          prazosPendentes
+        };
+      }).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
 
       // 6. Total de processos por tipo de pessoa (física vs jurídica)
       const processosPorTipoPessoa = [
