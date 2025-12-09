@@ -14,6 +14,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +73,7 @@ export default function ProcessoDetalhes() {
   const [atualizando, setAtualizando] = useState(false);
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [editStatus, setEditStatus] = useState<StatusProcesso | "">("");
   const [editCoordenacao, setEditCoordenacao] = useState<string>("");
   const [editAdvogado, setEditAdvogado] = useState<string>("");
@@ -169,6 +180,7 @@ export default function ProcessoDetalhes() {
       if (Object.keys(updates).length === 0) {
         toast({ title: "Nenhuma alteração detectada" });
         setEditando(false);
+        setShowConfirmDialog(false);
         return;
       }
       
@@ -182,6 +194,7 @@ export default function ProcessoDetalhes() {
       toast({ title: "Processo atualizado com sucesso" });
       queryClient.invalidateQueries({ queryKey: ["processo", id] });
       setEditando(false);
+      setShowConfirmDialog(false);
     } catch (error: any) {
       toast({
         title: "Erro ao salvar",
@@ -351,7 +364,7 @@ export default function ProcessoDetalhes() {
                         <X className="w-4 h-4 mr-1" />
                         Cancelar
                       </Button>
-                      <Button size="sm" onClick={handleSalvarEdicao} disabled={salvando}>
+                      <Button size="sm" onClick={() => setShowConfirmDialog(true)} disabled={salvando}>
                         <Save className="w-4 h-4 mr-1" />
                         {salvando ? "Salvando..." : "Salvar"}
                       </Button>
@@ -568,6 +581,39 @@ export default function ProcessoDetalhes() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Alterações</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja salvar as alterações realizadas no processo?
+              {editStatus && editStatus !== processo?.status && (
+                <span className="block mt-2">
+                  • Status: <strong>{statusLabels[processo?.status || ""]}</strong> → <strong>{statusLabels[editStatus]}</strong>
+                </span>
+              )}
+              {editCoordenacao !== (processo?.coordenacao_id || "") && (
+                <span className="block mt-1">
+                  • Coordenação alterada
+                </span>
+              )}
+              {editAdvogado !== (processo?.advogado_responsavel_id || "") && (
+                <span className="block mt-1">
+                  • Advogado responsável alterado
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={salvando}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSalvarEdicao} disabled={salvando}>
+              {salvando ? "Salvando..." : "Confirmar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }
