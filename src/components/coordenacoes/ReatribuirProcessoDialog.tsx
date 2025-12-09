@@ -49,7 +49,13 @@ interface ReatribuirProcessoDialogProps {
   membros: Array<{ id: string; usuario?: { id: string; nome: string } | null }>;
 }
 
-export function ReatribuirProcessoDialog({ 
+const areaLabels: Record<string, string> = {
+  civil: "Civil",
+  trabalhista: "Trabalhista",
+  empresarial: "Empresarial",
+};
+
+export function ReatribuirProcessoDialog({
   open, 
   onOpenChange, 
   coordenacaoId,
@@ -268,8 +274,11 @@ export function ReatribuirProcessoDialog({
                                   />
                                 </FormControl>
                                 <div className="space-y-1 leading-none flex-1">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-mono">{processo.numero}</p>
+                                    <Badge variant="outline" className="text-xs">
+                                      {areaLabels[processo.area] || processo.area}
+                                    </Badge>
                                     {processo.advogado && (
                                       <div className="flex items-center gap-1.5">
                                         <Avatar className="w-5 h-5">
