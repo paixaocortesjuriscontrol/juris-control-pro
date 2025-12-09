@@ -4,6 +4,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const ALLOWED_ORIGINS = [
   'https://bfxahrrvoqxcdmfsvnrk.supabase.co',
   'https://lovable.dev',
+  'https://juriscontrol.adv.br',
+  'https://www.juriscontrol.adv.br',
 ];
 
 function isAllowedOrigin(origin: string | null): boolean {
