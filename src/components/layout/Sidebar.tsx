@@ -10,9 +10,6 @@ import {
   Settings, 
   ChevronLeft,
   ChevronRight,
-  Briefcase,
-  Gavel,
-  Building2,
   ShieldCheck,
   ExternalLink,
   Upload,
@@ -22,7 +19,6 @@ import {
   Newspaper
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
@@ -38,16 +34,9 @@ const menuItems = [
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
 ];
 
-const areas = [
-  { icon: Briefcase, label: "Cível", color: "bg-area-civil", path: "/processos?area=civil" },
-  { icon: Gavel, label: "Trabalhista", color: "bg-area-trabalhista", path: "/processos?area=trabalhista" },
-  { icon: Building2, label: "Empresarial", color: "bg-area-empresarial", path: "/processos?area=empresarial" },
-];
-
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isAdmin } = useUserRole();
 
   const SidebarContent = () => (
     <>
@@ -84,42 +73,20 @@ export function Sidebar() {
             {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
           </NavLink>
         ))}
-
-        {/* Áreas Section */}
-        {!collapsed && (
-          <div className="pt-6">
-            <h3 className="px-4 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-3">
-              Áreas
-            </h3>
-            {areas.map((area) => (
-              <NavLink
-                key={area.label}
-                to={area.path}
-                onClick={() => setMobileOpen(false)}
-                className="nav-item w-full justify-start"
-              >
-                <div className={cn("w-2 h-2 rounded-full", area.color)} />
-                <span className="text-sm font-medium">{area.label}</span>
-              </NavLink>
-            ))}
-          </div>
-        )}
       </nav>
 
       {/* Settings & Collapse */}
       <div className="p-2 lg:p-3 border-t border-sidebar-border space-y-1">
-        {isAdmin && (
-          <NavLink
-            to="/admin"
-            onClick={() => setMobileOpen(false)}
-            className={({ isActive }) =>
-              cn("nav-item", isActive && "nav-item-active")
-            }
-          >
-            <ShieldCheck className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Administração</span>}
-          </NavLink>
-        )}
+        <NavLink
+          to="/admin"
+          onClick={() => setMobileOpen(false)}
+          className={({ isActive }) =>
+            cn("nav-item", isActive && "nav-item-active")
+          }
+        >
+          <ShieldCheck className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span className="text-sm font-medium">Administração</span>}
+        </NavLink>
         <NavLink
           to="/configuracoes"
           onClick={() => setMobileOpen(false)}
