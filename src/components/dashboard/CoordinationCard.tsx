@@ -13,6 +13,7 @@ interface CoordinationCardProps {
   coordinator: string;
   coordinatorInitials: string;
   processCount: number;
+  distributedCount?: number;
   teamMembers: TeamMember[];
   area: "civil" | "trabalhista" | "empresarial";
   delay?: number;
@@ -29,10 +30,12 @@ export function CoordinationCard({
   coordinator,
   coordinatorInitials,
   processCount,
+  distributedCount = 0,
   teamMembers,
   area,
   delay = 0,
 }: CoordinationCardProps) {
+  const notDistributed = processCount - distributedCount;
   return (
     <div 
       className={cn(
@@ -53,9 +56,16 @@ export function CoordinationCard({
             <span className="text-sm text-muted-foreground">{coordinator}</span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 text-muted-foreground">
-          <Briefcase className="w-4 h-4" />
-          <span className="font-semibold text-foreground">{processCount}</span>
+        <div className="text-right">
+          <div className="flex items-center gap-1.5 text-muted-foreground justify-end">
+            <Briefcase className="w-4 h-4" />
+            <span className="font-semibold text-foreground">{processCount}</span>
+          </div>
+          {processCount > 0 && (
+            <div className="text-xs text-muted-foreground mt-0.5">
+              <span className="text-green-600">{distributedCount}</span> / <span className="text-orange-500">{notDistributed}</span>
+            </div>
+          )}
         </div>
       </div>
 
