@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, DragEvent } from "react";
 import { 
   format, 
   startOfMonth, 
@@ -10,14 +10,13 @@ import {
   isToday,
   addMonths,
   subMonths,
-  getDay,
   startOfWeek,
   endOfWeek,
   isAfter,
   startOfDay
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, AlertTriangle, CheckCircle2, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -30,11 +29,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Prazo } from "@/hooks/usePrazos";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 interface PrazosCalendarProps {
   prazos: Prazo[];
   onEditPrazo: (prazo: Prazo) => void;
   onMarkAsCumprido: (prazo: Prazo) => void;
+  onUpdatePrazoDate?: (prazoId: string, newDate: string) => void;
 }
 
 const prioridadeLabels: Record<string, string> = {
@@ -46,10 +47,12 @@ const prioridadeLabels: Record<string, string> = {
 
 const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido }: PrazosCalendarProps) {
+export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido, onUpdatePrazoDate }: PrazosCalendarProps) {
   const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [draggedPrazo, setDraggedPrazo] = useState<Prazo | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   // Get all days to display in the calendar grid
   const calendarDays = useMemo(() => {
@@ -85,6 +88,58 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido }: Prazos
     const dataVencimento = parseISO(prazo.data_vencimento);
     if (isAfter(today, dataVencimento)) return "atrasado";
     return "pendente";
+  };
+
+  // Drag and Drop handlers
+  const handleDragStart = (e: DragEvent<HTMLDivElement>, prazo: Prazo) => {
+    if (prazo.status === "cumprido") {
+      e.preventDefault();
+      return;
+    }
+    setDraggedPrazo(prazo);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", prazo.id);
+    
+    // Add a slight delay to show the drag effect
+    const target = e.currentTarget;
+    setTimeout(() => {
+      target.style.opacity = "0.5";
+    }, 0);
+  };
+
+  const handleDragEnd = (e: DragEvent<HTMLDivElement>) => {
+    e.currentTarget.style.opacity = "1";
+    setDraggedPrazo(null);
+    setDragOverDate(null);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLButtonElement>, dateKey: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverDate(dateKey);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverDate(null);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLButtonElement>, targetDate: Date) => {
+    e.preventDefault();
+    setDragOverDate(null);
+
+    if (!draggedPrazo || !onUpdatePrazoDate) return;
+
+    const newDateStr = format(targetDate, "yyyy-MM-dd");
+    const currentDateStr = format(parseISO(draggedPrazo.data_vencimento), "yyyy-MM-dd");
+
+    if (newDateStr === currentDateStr) {
+      setDraggedPrazo(null);
+      return;
+    }
+
+    onUpdatePrazoDate(draggedPrazo.id, newDateStr);
+    toast.success(`Prazo movido para ${format(targetDate, "dd/MM/yyyy", { locale: ptBR })}`);
+    setDraggedPrazo(null);
   };
 
   const getDayIndicators = (date: Date) => {
@@ -182,6 +237,14 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido }: Prazos
           </div>
         </div>
 
+        {/* Drag hint */}
+        {onUpdatePrazoDate && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3 bg-muted/30 rounded-md p-2">
+            <GripVertical className="w-3 h-3" />
+            <span>Arraste os prazos entre as datas para alterar o vencimento</span>
+          </div>
+        )}
+
         {/* Week days header */}
         <div className="grid grid-cols-7 gap-1 mb-2">
           {weekDays.map((day) => (
@@ -201,6 +264,8 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido }: Prazos
             const isCurrentMonth = isSameMonth(day, currentMonth);
             const isSelected = selectedDate && isSameDay(day, selectedDate);
             const isTodayDate = isToday(day);
+            const dateKey = format(day, "yyyy-MM-dd");
+            const isDragOver = dragOverDate === dateKey;
 
             return (
               <Popover key={day.toISOString()}>
@@ -211,9 +276,13 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido }: Prazos
                       !isCurrentMonth && "text-muted-foreground/40",
                       isSelected && "ring-2 ring-primary",
                       isTodayDate && "bg-primary/10 font-bold",
-                      dayPrazos.length > 0 && "cursor-pointer"
+                      dayPrazos.length > 0 && "cursor-pointer",
+                      isDragOver && "ring-2 ring-primary bg-primary/20 scale-105"
                     )}
                     onClick={() => setSelectedDate(day)}
+                    onDragOver={(e) => handleDragOver(e, dateKey)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, day)}
                   >
                     <span className={cn(
                       "w-7 h-7 flex items-center justify-center mx-auto rounded-full",
@@ -243,16 +312,25 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido }: Prazos
                       <div className="p-2 space-y-2">
                         {dayPrazos.map((prazo) => {
                           const status = getPrazoStatus(prazo);
+                          const isDraggable = status !== "cumprido" && !!onUpdatePrazoDate;
                           return (
                             <div
                               key={prazo.id}
+                              draggable={isDraggable}
+                              onDragStart={(e) => handleDragStart(e, prazo)}
+                              onDragEnd={handleDragEnd}
                               className={cn(
-                                "p-2 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors",
-                                getPrioridadeColor(prazo.prioridade)
+                                "p-2 rounded-lg border transition-all",
+                                getPrioridadeColor(prazo.prioridade),
+                                isDraggable && "cursor-grab active:cursor-grabbing hover:shadow-md",
+                                !isDraggable && "cursor-pointer hover:bg-accent/50"
                               )}
-                              onClick={() => onEditPrazo(prazo)}
+                              onClick={() => !isDraggable && onEditPrazo(prazo)}
                             >
                               <div className="flex items-start gap-2">
+                                {isDraggable && (
+                                  <GripVertical className="w-3 h-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                )}
                                 {getStatusIcon(status)}
                                 <div className="flex-1 min-w-0">
                                   <p className="font-medium text-sm truncate">
@@ -318,6 +396,11 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido }: Prazos
           <div className="text-center py-8 text-muted-foreground">
             <Clock className="w-10 h-10 mx-auto mb-3 opacity-50" />
             <p className="text-sm">Nenhum prazo nesta data</p>
+            {draggedPrazo && (
+              <p className="text-xs mt-2 text-primary animate-pulse">
+                Solte aqui para mover o prazo
+              </p>
+            )}
           </div>
         )}
 
@@ -326,18 +409,26 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido }: Prazos
             <div className="space-y-3 pr-2">
               {selectedDatePrazos.map((prazo) => {
                 const status = getPrazoStatus(prazo);
+                const isDraggable = status !== "cumprido" && !!onUpdatePrazoDate;
                 return (
                   <div
                     key={prazo.id}
+                    draggable={isDraggable}
+                    onDragStart={(e) => handleDragStart(e, prazo)}
+                    onDragEnd={handleDragEnd}
                     className={cn(
-                      "p-3 rounded-lg border",
+                      "p-3 rounded-lg border transition-all",
                       status === "cumprido" && "bg-emerald-500/5 border-emerald-500/20",
                       status === "atrasado" && "bg-destructive/5 border-destructive/20",
-                      status === "pendente" && "bg-amber-500/5 border-amber-500/20"
+                      status === "pendente" && "bg-amber-500/5 border-amber-500/20",
+                      isDraggable && "cursor-grab active:cursor-grabbing hover:shadow-md"
                     )}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2">
+                        {isDraggable && (
+                          <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        )}
                         {getStatusIcon(status)}
                         <span className="font-medium text-sm">{prazo.titulo}</span>
                       </div>

@@ -274,6 +274,13 @@ const Prazos = () => {
     });
   };
 
+  const handleUpdatePrazoDate = async (prazoId: string, newDate: string) => {
+    await updatePrazo.mutateAsync({
+      id: prazoId,
+      data_vencimento: newDate,
+    });
+  };
+
   return (
     <MainLayout
       title="Controle de Prazos"
@@ -363,6 +370,7 @@ const Prazos = () => {
           prazos={prazos || []}
           onEditPrazo={handleEdit}
           onMarkAsCumprido={handleMarkAsCumpridoFromCalendar}
+          onUpdatePrazoDate={handleUpdatePrazoDate}
         />
       ) : (
         <>
