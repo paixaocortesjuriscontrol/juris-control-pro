@@ -192,6 +192,7 @@ export default function ImportarProcessos() {
   const [batchImporting, setBatchImporting] = useState(false);
   const [batchProgress, setBatchProgress] = useState(0);
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
+  const [selectedMembro, setSelectedMembro] = useState<string>("");
 
   // Fetch coordenacoes
   const { data: coordenacoes = [] } = useCoordenacoesFull();
@@ -317,6 +318,7 @@ export default function ImportarProcessos() {
           polo_ativo: processo.parteAtiva,
           polo_passivo: processo.partePassiva,
           coordenacao_id: selectedCoordenacao || null,
+          advogado_responsavel_id: selectedMembro || null,
         }).select("id").single();
 
         if (error) {
@@ -533,6 +535,7 @@ export default function ImportarProcessos() {
           area: "civil", // Default area
           status: "ativo",
           coordenacao_id: selectedCoordenacao || null,
+          advogado_responsavel_id: selectedMembro || null,
         }).select("id").single();
 
         if (error) {
@@ -648,7 +651,16 @@ export default function ImportarProcessos() {
     setBatchProcessos([]);
     setBatchProgress(0);
     setSelectedCoordenacao("");
+    setSelectedMembro("");
   };
+
+  // Get members of selected coordination
+  const membrosDisponiveis = selectedCoordenacao 
+    ? coordenacoes.find(c => c.id === selectedCoordenacao)?.membros?.filter(m => m.usuario?.id).map(m => ({
+        id: m.usuario!.id,
+        nome: m.usuario!.nome,
+      })) || []
+    : [];
 
   const batchSuccessCount = batchProcessos.filter(p => p.status === "sucesso").length;
   const batchErrorCount = batchProcessos.filter(p => p.status === "erro").length;
@@ -698,7 +710,10 @@ export default function ImportarProcessos() {
                   </Label>
                   <Select 
                     value={selectedCoordenacao} 
-                    onValueChange={setSelectedCoordenacao}
+                    onValueChange={(value) => {
+                      setSelectedCoordenacao(value);
+                      setSelectedMembro(""); // Reset member when coordination changes
+                    }}
                     disabled={batchImporting}
                   >
                     <SelectTrigger id="coordenacao">
@@ -716,6 +731,34 @@ export default function ImportarProcessos() {
                     Os processos serão atribuídos a esta coordenação para posterior distribuição aos membros.
                   </p>
                 </div>
+
+                {/* Member Selection */}
+                {selectedCoordenacao && membrosDisponiveis.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="membro" className="flex items-center gap-2">
+                      Advogado Responsável (opcional)
+                    </Label>
+                    <Select 
+                      value={selectedMembro} 
+                      onValueChange={setSelectedMembro}
+                      disabled={batchImporting}
+                    >
+                      <SelectTrigger id="membro">
+                        <SelectValue placeholder="Selecione o advogado responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membrosDisponiveis.map((membro) => (
+                          <SelectItem key={membro.id} value={membro.id}>
+                            {membro.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Se selecionado, os processos já serão atribuídos diretamente a este advogado.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <Label htmlFor="numeros">Números dos Processos</Label>
@@ -912,7 +955,10 @@ export default function ImportarProcessos() {
                   </Label>
                   <Select 
                     value={selectedCoordenacao} 
-                    onValueChange={setSelectedCoordenacao}
+                    onValueChange={(value) => {
+                      setSelectedCoordenacao(value);
+                      setSelectedMembro(""); // Reset member when coordination changes
+                    }}
                     disabled={importing}
                   >
                     <SelectTrigger id="coordenacao-excel" className="max-w-md">
@@ -930,6 +976,34 @@ export default function ImportarProcessos() {
                     Todos os processos importados serão atribuídos a esta coordenação para posterior distribuição.
                   </p>
                 </div>
+
+                {/* Member Selection for Excel Import */}
+                {selectedCoordenacao && membrosDisponiveis.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="membro-excel" className="flex items-center gap-2">
+                      Advogado Responsável (opcional)
+                    </Label>
+                    <Select 
+                      value={selectedMembro} 
+                      onValueChange={setSelectedMembro}
+                      disabled={importing}
+                    >
+                      <SelectTrigger id="membro-excel" className="max-w-md">
+                        <SelectValue placeholder="Selecione o advogado responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membrosDisponiveis.map((membro) => (
+                          <SelectItem key={membro.id} value={membro.id}>
+                            {membro.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Se selecionado, os processos já serão atribuídos diretamente a este advogado.
+                    </p>
+                  </div>
+                )}
                 
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
