@@ -1,0 +1,88 @@
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+interface CoordDistribution {
+  nome: string;
+  total: number;
+  distribuidos: number;
+  naoDistribuidos: number;
+  area: "civil" | "trabalhista" | "empresarial";
+}
+
+interface ProcessosDistribuicaoChartProps {
+  data: CoordDistribution[];
+}
+
+const areaColors = {
+  civil: "hsl(var(--area-civil))",
+  trabalhista: "hsl(var(--area-trabalhista))",
+  empresarial: "hsl(var(--area-empresarial))",
+};
+
+export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartProps) {
+  if (!data || data.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card className="animate-slide-up">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg font-serif">Processos por Coordenação</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-[280px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={data}
+              margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+              barGap={2}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+              <XAxis 
+                dataKey="nome" 
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "hsl(var(--border))" }}
+              />
+              <YAxis 
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "hsl(var(--border))" }}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: "hsl(var(--card))", 
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "8px",
+                  fontSize: "12px"
+                }}
+                labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+              />
+              <Legend 
+                wrapperStyle={{ fontSize: "12px" }}
+                formatter={(value) => <span className="text-muted-foreground">{value}</span>}
+              />
+              <Bar 
+                dataKey="distribuidos" 
+                name="Distribuídos" 
+                stackId="a"
+                radius={[0, 0, 0, 0]}
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-dist-${index}`} fill={areaColors[entry.area]} />
+                ))}
+              </Bar>
+              <Bar 
+                dataKey="naoDistribuidos" 
+                name="Não Distribuídos" 
+                stackId="a"
+                radius={[4, 4, 0, 0]}
+                fill="hsl(var(--muted))"
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

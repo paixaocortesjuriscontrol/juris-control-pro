@@ -1,10 +1,12 @@
-import { Scale, Briefcase, Users, AlertTriangle } from "lucide-react";
+import { Scale, Briefcase, Users, AlertTriangle, UserCheck, FolderX } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ProcessCard } from "@/components/dashboard/ProcessCard";
 import { CoordinationCard } from "@/components/dashboard/CoordinationCard";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { UpcomingDeadlines } from "@/components/dashboard/UpcomingDeadlines";
+import { ProcessosDistribuicaoChart } from "@/components/dashboard/ProcessosDistribuicaoChart";
+import { ProcessosStatusChart } from "@/components/dashboard/ProcessosStatusChart";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardStats, useRecentProcessos, useCoordenacoes } from "@/hooks/useDashboardData";
@@ -27,16 +29,37 @@ const Index = () => {
     return statusMap[status] || "active";
   };
 
+  // Prepare chart data
+  const distribuicaoData = coordenacoes?.map(coord => ({
+    nome: coord.nome.length > 12 ? coord.nome.substring(0, 12) + "..." : coord.nome,
+    total: coord.processCount,
+    distribuidos: coord.processosDistribuidos || 0,
+    naoDistribuidos: coord.processosNaoDistribuidos || 0,
+    area: coord.area as "civil" | "trabalhista" | "empresarial",
+  })) || [];
+
+  const statusData = stats?.statusCount ? [
+    { name: "Ativos", value: stats.statusCount.ativo, color: "hsl(var(--status-active))" },
+    { name: "Pendentes", value: stats.statusCount.pendente, color: "hsl(var(--status-pending))" },
+    { name: "Urgentes", value: stats.statusCount.urgente, color: "hsl(var(--status-urgent))" },
+    { name: "Encerrados", value: stats.statusCount.encerrado, color: "hsl(var(--muted))" },
+    { name: "Arquivados", value: stats.statusCount.arquivado, color: "hsl(var(--border))" },
+  ] : [];
+
+  const taxaDistribuicao = stats?.totalProcessos 
+    ? Math.round((stats.processosDistribuidos / stats.totalProcessos) * 100) 
+    : 0;
+
   return (
     <MainLayout 
       title="Dashboard" 
       subtitle="Visão geral do escritório"
     >
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
         {statsLoading ? (
           <>
-            {[...Array(4)].map((_, i) => (
+            {[...Array(6)].map((_, i) => (
               <Skeleton key={i} className="h-32 rounded-xl" />
             ))}
           </>
@@ -61,13 +84,31 @@ const Index = () => {
               delay={50}
             />
             <StatCard
+              title="Distribuídos"
+              value={String(stats?.processosDistribuidos || 0)}
+              change={`${taxaDistribuicao}% atribuídos`}
+              changeType={taxaDistribuicao >= 80 ? "positive" : taxaDistribuicao >= 50 ? "neutral" : "negative"}
+              icon={UserCheck}
+              iconColor="bg-green-600"
+              delay={100}
+            />
+            <StatCard
+              title="Sem Coordenação"
+              value={String(stats?.processosSemCoordenacao || 0)}
+              change="Aguardando atribuição"
+              changeType={stats?.processosSemCoordenacao && stats.processosSemCoordenacao > 0 ? "negative" : "neutral"}
+              icon={FolderX}
+              iconColor="bg-orange-500"
+              delay={150}
+            />
+            <StatCard
               title="Prazos Urgentes"
               value={String(stats?.prazosUrgentes || 0)}
               change="Próximos 7 dias"
               changeType={stats?.prazosUrgentes && stats.prazosUrgentes > 0 ? "negative" : "neutral"}
               icon={AlertTriangle}
               iconColor="bg-status-urgent"
-              delay={100}
+              delay={200}
             />
             <StatCard
               title="Advogados"
@@ -76,11 +117,19 @@ const Index = () => {
               changeType="neutral"
               icon={Users}
               iconColor="bg-gold"
-              delay={150}
+              delay={250}
             />
           </>
         )}
       </div>
+
+      {/* Charts Row */}
+      {!coordenacoesLoading && !statsLoading && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <ProcessosDistribuicaoChart data={distribuicaoData} />
+          <ProcessosStatusChart data={statusData} />
+        </div>
+      )}
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -157,6 +206,7 @@ const Index = () => {
                     coordinator={coord.coordenador?.nome || "Não definido"}
                     coordinatorInitials={coord.coordenador?.nome?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "ND"}
                     processCount={coord.processCount}
+                    distributedCount={coord.processosDistribuidos || 0}
                     area={coord.area}
                     teamMembers={coord.membros.map((m: any) => ({
                       name: m.usuario?.nome || "Membro",

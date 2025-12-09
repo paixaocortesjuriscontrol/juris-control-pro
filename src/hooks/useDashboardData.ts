@@ -6,7 +6,7 @@ export function useDashboardStats() {
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
       const [processosResult, prazosResult, advogadosResult, coordenacoesResult] = await Promise.all([
-        supabase.from("processos").select("id, status", { count: "exact" }),
+        supabase.from("processos").select("id, status, advogado_responsavel_id, coordenacao_id", { count: "exact" }),
         supabase.from("prazos").select("id, status, data_vencimento").eq("status", "pendente"),
         supabase.from("profiles").select("id", { count: "exact" }),
         supabase.from("coordenacoes").select("id", { count: "exact" }),
@@ -15,6 +15,17 @@ export function useDashboardStats() {
       const totalProcessos = processosResult.count || 0;
       const processos = processosResult.data || [];
       const processosAtivos = processos.filter(p => p.status === "ativo" || p.status === "urgente" || p.status === "pendente").length;
+      const processosDistribuidos = processos.filter(p => p.advogado_responsavel_id !== null).length;
+      const processosSemCoordenacao = processos.filter(p => p.coordenacao_id === null).length;
+      
+      // Count by status
+      const statusCount = {
+        ativo: processos.filter(p => p.status === "ativo").length,
+        pendente: processos.filter(p => p.status === "pendente").length,
+        urgente: processos.filter(p => p.status === "urgente").length,
+        encerrado: processos.filter(p => p.status === "encerrado").length,
+        arquivado: processos.filter(p => p.status === "arquivado").length,
+      };
       
       const prazos = prazosResult.data || [];
       const hoje = new Date();
@@ -30,6 +41,9 @@ export function useDashboardStats() {
       return {
         totalProcessos,
         processosAtivos,
+        processosDistribuidos,
+        processosSemCoordenacao,
+        statusCount,
         prazosUrgentes,
         totalAdvogados,
         totalCoordenacoes,
@@ -88,13 +102,19 @@ export function useCoordenacoes() {
               cargo,
               usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
             `).eq("coordenacao_id", coord.id),
-            supabase.from("processos").select("id", { count: "exact" }).eq("coordenacao_id", coord.id),
+            supabase.from("processos").select("id, advogado_responsavel_id").eq("coordenacao_id", coord.id),
           ]);
+
+          const processos = processosResult.data || [];
+          const totalProcessos = processos.length;
+          const distribuidos = processos.filter(p => p.advogado_responsavel_id !== null).length;
 
           return {
             ...coord,
             membros: membrosResult.data || [],
-            processCount: processosResult.count || 0,
+            processCount: totalProcessos,
+            processosDistribuidos: distribuidos,
+            processosNaoDistribuidos: totalProcessos - distribuidos,
           };
         })
       );
