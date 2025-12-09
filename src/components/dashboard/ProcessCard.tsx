@@ -1,12 +1,13 @@
-import { Calendar, User, ExternalLink } from "lucide-react";
+import { Calendar, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 export type AreaType = "civil" | "trabalhista" | "empresarial";
 export type StatusType = "pending" | "active" | "closed" | "urgent";
 
 interface ProcessCardProps {
+  id?: string;
   numero: string;
   cliente: string;
   area: AreaType;
@@ -31,6 +32,7 @@ const statusLabels: Record<StatusType, string> = {
 };
 
 export function ProcessCard({
+  id,
   numero,
   cliente,
   area,
@@ -40,9 +42,21 @@ export function ProcessCard({
   descricao,
   delay = 0,
 }: ProcessCardProps) {
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    if (id) {
+      navigate(`/processos/${id}`);
+    }
+  };
+
   return (
     <div 
-      className="bg-card rounded-xl p-5 border border-border/50 shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up"
+      onClick={handleClick}
+      className={cn(
+        "bg-card rounded-xl p-5 border border-border/50 shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up",
+        id && "cursor-pointer hover:border-primary/30"
+      )}
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="flex items-start justify-between mb-3">
@@ -54,9 +68,6 @@ export function ProcessCard({
             {statusLabels[status]}
           </Badge>
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <ExternalLink className="w-4 h-4 text-muted-foreground" />
-        </Button>
       </div>
 
       <h3 className="font-mono text-sm font-semibold text-foreground mb-1">{numero}</h3>
