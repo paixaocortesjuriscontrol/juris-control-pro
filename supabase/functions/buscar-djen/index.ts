@@ -117,7 +117,9 @@ async function searchDJEN(params: SearchParams): Promise<any> {
     if (response.status === 422) {
       console.log("DJEN returned 422 (not found), returning empty results");
       return { 
-        items: [], 
+        publicacoes: [], 
+        items: [],
+        comunicacoes: [],
         totalElements: 0, 
         totalPages: 0,
         message: "Nenhuma comunicação encontrada para os critérios informados"
