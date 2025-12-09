@@ -583,14 +583,14 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Coordenação</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione a coordenação" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="">Nenhuma</SelectItem>
+                            <SelectItem value="none">Nenhuma</SelectItem>
                             {coordenacoes.map((coord) => (
                               <SelectItem key={coord.id} value={coord.id}>
                                 {coord.nome}
@@ -610,17 +610,17 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                       <FormItem>
                         <FormLabel>Advogado Responsável</FormLabel>
                         <Select 
-                          onValueChange={field.onChange} 
-                          value={field.value}
-                          disabled={!selectedCoordenacao}
+                          onValueChange={(val) => field.onChange(val === "none" ? "" : val)} 
+                          value={field.value || "none"}
+                          disabled={!selectedCoordenacao || selectedCoordenacao === "none"}
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder={selectedCoordenacao ? "Selecione o advogado" : "Selecione coordenação primeiro"} />
+                              <SelectValue placeholder={selectedCoordenacao && selectedCoordenacao !== "none" ? "Selecione o advogado" : "Selecione coordenação primeiro"} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="">Nenhum</SelectItem>
+                            <SelectItem value="none">Nenhum</SelectItem>
                             {membros.map((membro) => (
                               <SelectItem key={membro.usuario.id} value={membro.usuario.id}>
                                 {membro.usuario.nome || "Sem nome"}
