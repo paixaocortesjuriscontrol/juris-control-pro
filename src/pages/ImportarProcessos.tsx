@@ -9,9 +9,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown } from "lucide-react";
 import * as XLSX from "xlsx";
-
 interface ValidationError {
   campo: string;
   mensagem: string;
@@ -274,7 +274,7 @@ export default function ImportarProcessos() {
       }
       
       try {
-        const { error } = await supabase.from("processos").insert({
+        const { data: insertedProcesso, error } = await supabase.from("processos").insert({
           numero: processo.numero.trim(),
           assunto: processo.assunto,
           descricao: processo.descricao,
@@ -288,12 +288,17 @@ export default function ImportarProcessos() {
           valor_causa: parseNumber(processo.valorAcao),
           polo_ativo: processo.parteAtiva,
           polo_passivo: processo.partePassiva,
-        });
+        }).select("id").single();
 
         if (error) {
           updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
           errorCount++;
         } else {
+          // Buscar andamentos externos da API do DataJud/CNJ
+          if (insertedProcesso?.id) {
+            const andamentosResult = await buscarAndamentosExternos(insertedProcesso.id, processo.numero.trim());
+            console.log(`Processo ${processo.numero}: ${andamentosResult.movimentosInseridos} andamentos importados`);
+          }
           updatedProcessos[i] = { ...processo, status: "sucesso" };
           successCount++;
         }
