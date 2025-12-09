@@ -54,14 +54,14 @@ export function MembroDialog({ open, onOpenChange, coordenacaoId, membrosAtuais 
     queryKey: ["usuarios-disponiveis", coordenacaoId],
     queryFn: async () => {
       const { data: profiles, error } = await supabase
-        .from("profiles")
+        .from("profiles_basic")
         .select("id, nome")
         .order("nome");
 
       if (error) throw error;
       
-      // Filter out users already in this coordination
-      return (profiles || []).filter(p => !membrosAtuais.includes(p.id));
+      // Filter out users already in this coordination and null values
+      return (profiles || []).filter(p => p.id && !membrosAtuais.includes(p.id));
     },
     enabled: open,
   });
