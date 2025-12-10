@@ -482,6 +482,42 @@ export type Database = {
           },
         ]
       }
+      monitoramentos_pje: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          criado_por: string
+          id: string
+          oab: string | null
+          termo_busca: string
+          tipo: string
+          uf: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          criado_por: string
+          id?: string
+          oab?: string | null
+          termo_busca: string
+          tipo: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string
+          id?: string
+          oab?: string | null
+          termo_busca?: string
+          tipo?: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       movimentacoes: {
         Row: {
           created_at: string
@@ -872,6 +908,50 @@ export type Database = {
             columns: ["monitoramento_id"]
             isOneToOne: false
             referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publicacoes_pje: {
+        Row: {
+          conteudo: string | null
+          created_at: string
+          data_publicacao: string | null
+          fonte: string | null
+          hash_conteudo: string
+          id: string
+          lida: boolean
+          monitoramento_id: string
+          processo_numero: string | null
+        }
+        Insert: {
+          conteudo?: string | null
+          created_at?: string
+          data_publicacao?: string | null
+          fonte?: string | null
+          hash_conteudo: string
+          id?: string
+          lida?: boolean
+          monitoramento_id: string
+          processo_numero?: string | null
+        }
+        Update: {
+          conteudo?: string | null
+          created_at?: string
+          data_publicacao?: string | null
+          fonte?: string | null
+          hash_conteudo?: string
+          id?: string
+          lida?: boolean
+          monitoramento_id?: string
+          processo_numero?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_pje_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_pje"
             referencedColumns: ["id"]
           },
         ]

@@ -19,6 +19,7 @@ import Configuracoes from "./pages/Configuracoes";
 import Prazos from "./pages/Prazos";
 import Documentos from "./pages/Documentos";
 import BuscarDJEN from "./pages/BuscarDJEN";
+import BuscarPJE from "./pages/BuscarPJE";
 import NotFound from "./pages/NotFound";
 import Redistribuicoes from "./pages/Redistribuicoes";
 import Clientes from "./pages/Clientes";
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/importar" element={<ProtectedRoute><ImportarProcessos /></ProtectedRoute>} />
             <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
             <Route path="/buscar-djen" element={<ProtectedRoute><BuscarDJEN /></ProtectedRoute>} />
+            <Route path="/buscar-pje" element={<ProtectedRoute><BuscarPJE /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="/redistribuicoes" element={<ProtectedRoute><Redistribuicoes /></ProtectedRoute>} />
             <Route path="/monitoramento-distribuicao" element={<ProtectedRoute><MonitoramentoDistribuicao /></ProtectedRoute>} />
