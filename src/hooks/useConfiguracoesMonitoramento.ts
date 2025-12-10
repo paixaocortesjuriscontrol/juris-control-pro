@@ -70,12 +70,20 @@ export function useConfiguracoesMonitoramento() {
         if (error) throw error;
         return data;
       }
+      if (tipo === 'distribuicoes') {
+        const { data, error } = await supabase.functions.invoke('monitorar-distribuicoes');
+        if (error) throw error;
+        return data;
+      }
       throw new Error("Tipo de monitoramento não suportado");
     },
     onSuccess: (data, tipo) => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
       
-      if (data?.isComplete) {
+      if (tipo === 'distribuicoes') {
+        const found = data?.results?.found || 0;
+        toast.success(`Monitoramento concluído: ${found} novas distribuições encontradas`);
+      } else if (data?.isComplete) {
         const message = tipo === 'andamentos' 
           ? `Monitoramento completo: ${data?.results?.checked || 0} processos verificados, ${data?.results?.newMovements || 0} andamentos encontrados`
           : `Monitoramento completo: ${data?.results?.checked || 0} processos verificados`;
@@ -93,11 +101,13 @@ export function useConfiguracoesMonitoramento() {
 
   const configuracaoRedistribuicoes = configuracoes.find(c => c.tipo === 'redistribuicoes');
   const configuracaoAndamentos = configuracoes.find(c => c.tipo === 'andamentos');
+  const configuracaoDistribuicoes = configuracoes.find(c => c.tipo === 'distribuicoes');
 
   return {
     configuracoes,
     configuracaoRedistribuicoes,
     configuracaoAndamentos,
+    configuracaoDistribuicoes,
     isLoading,
     atualizarConfiguracao,
     executarMonitoramento,

@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { User, Bell, Shield, Palette } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
+import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
 
@@ -13,9 +14,10 @@ export default function Configuracoes() {
         {/* Seção de Monitoramento */}
         <div>
           <h2 className="text-lg font-semibold mb-4">Monitoramento Automático</h2>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <MonitoramentoRedistribuicoesCard />
             <MonitoramentoAndamentosCard />
+            <MonitoramentoDistribuicoesCard />
           </div>
         </div>
 
