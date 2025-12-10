@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, UserCheck, UserX } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, UserCheck, UserX, Upload, Building2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -59,6 +59,7 @@ const Administracao = () => {
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importando, setImportando] = useState(false);
   const [newUserData, setNewUserData] = useState({
     nome: "",
     email: "",
@@ -343,6 +344,22 @@ const Administracao = () => {
     setTogglingStatus(null);
   }
 
+  async function handleImportarEquipe() {
+    setImportando(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('cadastrar-equipe');
+      
+      if (error) throw error;
+      
+      toast.success(`Importação concluída: ${data.created} usuários criados, ${data.errors} erros`);
+      fetchUsers();
+    } catch (error: any) {
+      toast.error(`Erro na importação: ${error.message || 'Erro desconhecido'}`);
+    } finally {
+      setImportando(false);
+    }
+  }
+
   if (roleLoading || loading) {
     return (
       <MainLayout title="Administração">
@@ -371,13 +388,22 @@ const Administracao = () => {
             </div>
           </div>
           
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <UserPlus className="w-4 h-4 mr-2" />
-                Novo Usuário
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleImportarEquipe} disabled={importando}>
+              {importando ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4 mr-2" />
+              )}
+              Importar Equipe
+            </Button>
+            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Novo Usuário
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Cadastrar Novo Usuário</DialogTitle>
@@ -466,6 +492,7 @@ const Administracao = () => {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         <Card>
@@ -484,6 +511,7 @@ const Administracao = () => {
                 <TableRow>
                   <TableHead>Usuário</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Filial</TableHead>
                   <TableHead>OAB</TableHead>
                   <TableHead>Telefone</TableHead>
                   <TableHead>Status</TableHead>
@@ -515,6 +543,16 @@ const Administracao = () => {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {user.email}
+                    </TableCell>
+                    <TableCell>
+                      {(user as any).filial ? (
+                        <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                          <Building2 className="w-3 h-3" />
+                          {(user as any).filial}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {user.oab ?? "-"}
