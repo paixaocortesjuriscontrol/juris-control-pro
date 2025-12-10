@@ -9,6 +9,12 @@ verify_jwt = false
 [functions.monitorar-djen]
 verify_jwt = false
 
+[functions.buscar-pje]
+verify_jwt = false
+
+[functions.monitorar-pje]
+verify_jwt = false
+
 [functions.monitorar-redistribuicoes]
 verify_jwt = false
 
