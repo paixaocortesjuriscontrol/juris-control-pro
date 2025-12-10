@@ -99,7 +99,6 @@ const tribunaisOpcoes = [
 ];
 
 const ufOpcoes = [
-  { value: "", label: "Selecione a UF" },
   { value: "AC", label: "AC - Acre" },
   { value: "AL", label: "AL - Alagoas" },
   { value: "AP", label: "AP - Amapá" },
