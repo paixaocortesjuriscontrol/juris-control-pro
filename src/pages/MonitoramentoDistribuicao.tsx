@@ -12,6 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { format } from "date-fns";
@@ -136,7 +139,7 @@ export default function MonitoramentoDistribuicao() {
   const [tipo, setTipo] = useState<string>("nome");
   const [termoBusca, setTermoBusca] = useState("");
   const [uf, setUf] = useState<string>("");
-  const [tribunal, setTribunal] = useState<string>("");
+  const [tribunaisSelecionados, setTribunaisSelecionados] = useState<string[]>([]);
 
   const handleCreate = async () => {
     if (!termoBusca.trim()) return;
@@ -147,14 +150,14 @@ export default function MonitoramentoDistribuicao() {
         tipo: tipo as any,
         termo_busca: termoBusca.trim(),
         uf: uf || null,
-        tribunal: tribunal || null,
+        tribunal: tribunaisSelecionados.length > 0 ? tribunaisSelecionados.join(',') : null,
       });
     } else {
       await criarMonitoramento.mutateAsync({
         tipo: tipo as any,
         termo_busca: termoBusca.trim(),
         uf: uf || null,
-        tribunal: tribunal || null,
+        tribunal: tribunaisSelecionados.length > 0 ? tribunaisSelecionados.join(',') : null,
       });
     }
     
@@ -167,7 +170,7 @@ export default function MonitoramentoDistribuicao() {
     setTipo("nome");
     setTermoBusca("");
     setUf("");
-    setTribunal("");
+    setTribunaisSelecionados([]);
   };
 
   const handleEdit = (mon: any) => {
@@ -175,7 +178,7 @@ export default function MonitoramentoDistribuicao() {
     setTipo(mon.tipo);
     setTermoBusca(mon.termo_busca);
     setUf(mon.uf || "");
-    setTribunal(mon.tribunal || "");
+    setTribunaisSelecionados(mon.tribunal ? mon.tribunal.split(',') : []);
     setDialogOpen(true);
   };
 
@@ -280,18 +283,77 @@ export default function MonitoramentoDistribuicao() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Tribunal (opcional)</Label>
-                    <Select value={tribunal || "all"} onValueChange={(val) => setTribunal(val === "all" ? "" : val)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todos os tribunais" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos os tribunais</SelectItem>
-                        {tribunais.map((trib) => (
-                          <SelectItem key={trib.value} value={trib.value}>{trib.label}</SelectItem>
+                    <Label>Tribunais (opcional - selecione um ou mais)</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start font-normal">
+                          {tribunaisSelecionados.length === 0 
+                            ? "Todos os tribunais" 
+                            : tribunaisSelecionados.length === 1 
+                              ? tribunaisSelecionados[0]
+                              : `${tribunaisSelecionados.length} tribunais selecionados`}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0" align="start">
+                        <div className="p-2 border-b flex justify-between items-center">
+                          <span className="text-sm font-medium">Selecionar tribunais</span>
+                          {tribunaisSelecionados.length > 0 && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => setTribunaisSelecionados([])}
+                              className="h-6 text-xs"
+                            >
+                              Limpar
+                            </Button>
+                          )}
+                        </div>
+                        <ScrollArea className="h-[300px]">
+                          <div className="p-2 space-y-1">
+                            {tribunais.map((trib) => (
+                              <div 
+                                key={trib.value}
+                                className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
+                                onClick={() => {
+                                  setTribunaisSelecionados(prev => 
+                                    prev.includes(trib.value)
+                                      ? prev.filter(t => t !== trib.value)
+                                      : [...prev, trib.value]
+                                  );
+                                }}
+                              >
+                                <Checkbox 
+                                  checked={tribunaisSelecionados.includes(trib.value)}
+                                  onCheckedChange={(checked) => {
+                                    setTribunaisSelecionados(prev => 
+                                      checked 
+                                        ? [...prev, trib.value]
+                                        : prev.filter(t => t !== trib.value)
+                                    );
+                                  }}
+                                />
+                                <span className="text-sm">{trib.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </PopoverContent>
+                    </Popover>
+                    {tribunaisSelecionados.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {tribunaisSelecionados.map(t => (
+                          <Badge key={t} variant="secondary" className="text-xs">
+                            {t}
+                            <button 
+                              className="ml-1 hover:text-destructive"
+                              onClick={() => setTribunaisSelecionados(prev => prev.filter(x => x !== t))}
+                            >
+                              ×
+                            </button>
+                          </Badge>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <DialogFooter>
