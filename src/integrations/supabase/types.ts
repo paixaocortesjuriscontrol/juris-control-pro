@@ -677,6 +677,7 @@ export type Database = {
           filial: string | null
           id: string
           nome: string
+          notificacoes_email: boolean
           oab: string | null
           telefone: string | null
           updated_at: string
@@ -690,6 +691,7 @@ export type Database = {
           filial?: string | null
           id: string
           nome: string
+          notificacoes_email?: boolean
           oab?: string | null
           telefone?: string | null
           updated_at?: string
@@ -703,6 +705,7 @@ export type Database = {
           filial?: string | null
           id?: string
           nome?: string
+          notificacoes_email?: boolean
           oab?: string | null
           telefone?: string | null
           updated_at?: string
