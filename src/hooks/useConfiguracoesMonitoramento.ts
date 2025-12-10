@@ -69,7 +69,14 @@ export function useConfiguracoesMonitoramento() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
-      toast.success(`Monitoramento concluído: ${data?.processados || 0} processos verificados`);
+      
+      if (data?.isComplete) {
+        toast.success(`Monitoramento completo: ${data?.results?.checked || 0} processos verificados`);
+      } else if (data?.progress) {
+        toast.success(`Lote processado: ${data.progress.current} de ${data.progress.total} (${data.progress.percentage}%)`);
+      } else {
+        toast.success(`Monitoramento concluído: ${data?.results?.checked || 0} processos verificados`);
+      }
     },
     onError: (error) => {
       toast.error(`Erro no monitoramento: ${error.message}`);

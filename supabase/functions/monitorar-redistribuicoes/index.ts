@@ -165,30 +165,71 @@ serve(async (req) => {
 
     console.log("Starting redistribution monitoring...");
 
-    // Get all active processes
+    // Limit to 50 processes per invocation to avoid timeout
+    const PROCESSES_PER_RUN = 50;
+    
+    // Get count of active processes for pagination
+    const { count: totalCount } = await supabase
+      .from('processos')
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['ativo', 'pendente', 'urgente']);
+
+    // Get current offset from config or start from 0
+    const { data: configData } = await supabase
+      .from('configuracoes_monitoramento')
+      .select('ultima_execucao')
+      .eq('tipo', 'redistribuicoes')
+      .single();
+
+    // Parse offset from ultima_execucao metadata or default to 0
+    let currentOffset = 0;
+    try {
+      if (configData?.ultima_execucao) {
+        const meta = JSON.parse(configData.ultima_execucao);
+        if (meta.next_offset !== undefined) {
+          currentOffset = meta.next_offset;
+        }
+      }
+    } catch {
+      currentOffset = 0;
+    }
+
+    // Reset offset if we've processed all
+    if (currentOffset >= (totalCount || 0)) {
+      currentOffset = 0;
+    }
+
+    console.log(`Processing offset ${currentOffset} to ${currentOffset + PROCESSES_PER_RUN} of ${totalCount} total processes`);
+
+    // Get batch of active processes with pagination
     const { data: processos, error: processosError } = await supabase
       .from('processos')
       .select('id, numero, vara, advogado_responsavel_id, coordenacao_id')
-      .in('status', ['ativo', 'pendente', 'urgente']);
+      .in('status', ['ativo', 'pendente', 'urgente'])
+      .order('id')
+      .range(currentOffset, currentOffset + PROCESSES_PER_RUN - 1);
 
     if (processosError) {
       console.error("Error fetching processes:", processosError);
       throw processosError;
     }
 
-    console.log(`Found ${processos?.length || 0} active processes to monitor`);
+    console.log(`Found ${processos?.length || 0} processes to check in this batch`);
 
     const results = {
       checked: 0,
       redistributions: 0,
       newMovements: 0,
       errors: 0,
+      totalProcesses: totalCount || 0,
+      currentOffset,
+      nextOffset: currentOffset + (processos?.length || 0),
       details: [] as any[]
     };
 
-    // Process in batches to avoid rate limiting
-    const batchSize = 10;
-    const delayBetweenBatches = 2000; // 2 seconds
+    // Process in smaller batches to avoid rate limiting
+    const batchSize = 5;
+    const delayBetweenBatches = 1000; // 1 second
 
     for (let i = 0; i < (processos?.length || 0); i += batchSize) {
       const batch = processos!.slice(i, i + batchSize);
@@ -330,13 +371,36 @@ serve(async (req) => {
       }
     }
 
-    console.log("Monitoring completed:", results);
+    // Update config with next offset for pagination
+    const nextOffset = currentOffset + (processos?.length || 0);
+    await supabase
+      .from('configuracoes_monitoramento')
+      .update({ 
+        ultima_execucao: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          next_offset: nextOffset >= (totalCount || 0) ? 0 : nextOffset,
+          last_batch_size: processos?.length || 0
+        })
+      })
+      .eq('tipo', 'redistribuicoes');
 
+    console.log("Batch monitoring completed:", results);
+
+    const isComplete = nextOffset >= (totalCount || 0);
+    
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Monitoramento de redistribuições concluído",
-        results
+        message: isComplete 
+          ? "Monitoramento completo de todos os processos" 
+          : `Lote processado: ${currentOffset + 1} a ${nextOffset} de ${totalCount}`,
+        results,
+        isComplete,
+        progress: {
+          current: nextOffset,
+          total: totalCount,
+          percentage: Math.round((nextOffset / (totalCount || 1)) * 100)
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

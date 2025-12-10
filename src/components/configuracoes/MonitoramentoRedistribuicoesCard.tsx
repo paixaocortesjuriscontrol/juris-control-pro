@@ -112,11 +112,39 @@ export function MonitoramentoRedistribuicoesCard() {
 
         {/* Última execução */}
         {configuracaoRedistribuicoes?.ultima_execucao && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>
-              Última execução: {format(new Date(configuracaoRedistribuicoes.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-            </span>
+          <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <span>
+                {(() => {
+                  try {
+                    const meta = JSON.parse(configuracaoRedistribuicoes.ultima_execucao);
+                    if (meta.timestamp) {
+                      return `Última execução: ${format(new Date(meta.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`;
+                    }
+                  } catch {
+                    // Old format - direct date string
+                    return `Última execução: ${format(new Date(configuracaoRedistribuicoes.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`;
+                  }
+                  return null;
+                })()}
+              </span>
+            </div>
+            {(() => {
+              try {
+                const meta = JSON.parse(configuracaoRedistribuicoes.ultima_execucao);
+                if (meta.next_offset !== undefined && meta.next_offset > 0) {
+                  return (
+                    <span className="text-xs">
+                      Progresso: próximo lote a partir do processo #{meta.next_offset + 1}
+                    </span>
+                  );
+                }
+              } catch {
+                // Ignore
+              }
+              return null;
+            })()}
           </div>
         )}
 
