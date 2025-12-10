@@ -56,7 +56,7 @@ async function searchPJE(monitoramento: Monitoramento): Promise<any[]> {
   queryParams.append("pagina", "0");
   queryParams.append("itensPorPagina", "50");
   
-  const fullUrl = `${PJE_API_BASE}/api/consulta?${queryParams.toString()}`;
+  const fullUrl = `${PJE_API_BASE}/consulta?${queryParams.toString()}`;
   
   console.log(`Searching PJE for monitoramento ${monitoramento.id}: ${fullUrl}`);
   

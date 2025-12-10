@@ -97,7 +97,7 @@ async function searchPJE(params: SearchParams): Promise<any> {
   queryParams.append("pagina", pagina.toString());
   queryParams.append("itensPorPagina", tamanhoPagina.toString());
   
-  const fullUrl = `${PJE_API_BASE}/api/consulta?${queryParams.toString()}`;
+  const fullUrl = `${PJE_API_BASE}/consulta?${queryParams.toString()}`;
   
   console.log("Fetching PJE API:", fullUrl);
   
