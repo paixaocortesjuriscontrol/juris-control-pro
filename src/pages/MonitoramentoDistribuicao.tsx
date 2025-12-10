@@ -190,7 +190,7 @@ export default function MonitoramentoDistribuicao() {
               <Play className="w-4 h-4 mr-2" />
               {executarMonitoramento.isPending ? "Executando..." : "Executar Agora"}
             </Button>
-            <Dialog open={dialogOpen} onOpenChange={(open) => !open && handleCloseDialog()}>
+            <Dialog open={dialogOpen} onOpenChange={(open) => open ? setDialogOpen(true) : handleCloseDialog()}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="w-4 h-4 mr-2" />
