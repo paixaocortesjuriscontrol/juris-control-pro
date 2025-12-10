@@ -71,9 +71,12 @@ const Administracao = () => {
   });
   const [editUserData, setEditUserData] = useState({
     nome: "",
+    email: "",
     oab: "",
     telefone: "",
     filial: "",
+    role: "advogado" as AppRole,
+    senha: "",
   });
   const { isAdmin, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
@@ -290,9 +293,12 @@ const Administracao = () => {
     setEditingUser(user);
     setEditUserData({
       nome: user.nome,
+      email: user.email,
       oab: user.oab ?? "",
       telefone: user.telefone ?? "",
       filial: (user as any).filial ?? "",
+      role: user.role ?? "advogado",
+      senha: "",
     });
     setEditDialogOpen(true);
   }
@@ -305,30 +311,91 @@ const Administracao = () => {
       return;
     }
 
+    if (!editUserData.email.trim()) {
+      toast.error("O email é obrigatório");
+      return;
+    }
+
+    if (editUserData.senha && editUserData.senha.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+
     setSaving(true);
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        nome: editUserData.nome.trim(),
-        oab: editUserData.oab.trim() || null,
-        telefone: editUserData.telefone.trim() || null,
-        filial: editUserData.filial.trim() || null,
-      })
-      .eq("id", editingUser.id);
+    try {
+      // Update profile data
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          nome: editUserData.nome.trim(),
+          oab: editUserData.oab.trim() || null,
+          telefone: editUserData.telefone.trim() || null,
+          filial: editUserData.filial.trim() || null,
+        })
+        .eq("id", editingUser.id);
 
-    if (error) {
-      toast.error("Erro ao atualizar dados do usuário");
-      console.error(error);
-    } else {
-      toast.success("Dados atualizados com sucesso!");
+      if (profileError) {
+        throw new Error("Erro ao atualizar perfil");
+      }
+
+      // Update role if changed
+      if (editUserData.role !== editingUser.role) {
+        const { data: existingRole } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", editingUser.id)
+          .maybeSingle();
+
+        if (existingRole) {
+          await supabase
+            .from("user_roles")
+            .update({ role: editUserData.role })
+            .eq("user_id", editingUser.id);
+        } else {
+          await supabase
+            .from("user_roles")
+            .insert({ user_id: editingUser.id, role: editUserData.role });
+        }
+      }
+
+      // Update email and/or password via edge function if needed
+      const emailChanged = editUserData.email.trim() !== editingUser.email;
+      const passwordChanged = editUserData.senha.trim().length > 0;
+
+      if (emailChanged || passwordChanged) {
+        const { error: authError } = await supabase.functions.invoke('atualizar-usuario', {
+          body: {
+            userId: editingUser.id,
+            email: emailChanged ? editUserData.email.trim() : undefined,
+            password: passwordChanged ? editUserData.senha.trim() : undefined,
+          }
+        });
+
+        if (authError) {
+          throw new Error(authError.message || "Erro ao atualizar credenciais");
+        }
+      }
+
+      toast.success("Usuário atualizado com sucesso!");
       setUsers(prev => prev.map(u => 
         u.id === editingUser.id 
-          ? { ...u, nome: editUserData.nome.trim(), oab: editUserData.oab.trim() || null, telefone: editUserData.telefone.trim() || null, filial: editUserData.filial.trim() || null } as any
+          ? { 
+              ...u, 
+              nome: editUserData.nome.trim(), 
+              email: emailChanged ? editUserData.email.trim() : u.email,
+              oab: editUserData.oab.trim() || null, 
+              telefone: editUserData.telefone.trim() || null, 
+              filial: editUserData.filial.trim() || null,
+              role: editUserData.role,
+            } as any
           : u
       ));
       setEditDialogOpen(false);
       setEditingUser(null);
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar usuário");
+      console.error(error);
     }
 
     setSaving(false);
@@ -645,14 +712,14 @@ const Administracao = () => {
 
         {/* Edit User Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Editar Usuário</DialogTitle>
               <DialogDescription>
                 Atualize os dados do usuário {editingUser?.nome}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
               <div className="space-y-2">
                 <Label htmlFor="edit-nome">Nome Completo *</Label>
                 <Input
@@ -663,21 +730,62 @@ const Administracao = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-filial">Filial</Label>
-                <Select 
-                  value={editUserData.filial || "sem_filial"} 
-                  onValueChange={(value) => setEditUserData(prev => ({ ...prev, filial: value === "sem_filial" ? "" : value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a filial" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sem_filial">Sem filial</SelectItem>
-                    <SelectItem value="Matriz DF">Matriz DF</SelectItem>
-                    <SelectItem value="filial GO">filial GO</SelectItem>
-                    <SelectItem value="filial SP">filial SP</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="edit-email">Email *</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={editUserData.email}
+                  onChange={(e) => setEditUserData(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-senha">Nova Senha (deixe em branco para manter)</Label>
+                <Input
+                  id="edit-senha"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={editUserData.senha}
+                  onChange={(e) => setEditUserData(prev => ({ ...prev, senha: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-filial">Filial</Label>
+                  <Select 
+                    value={editUserData.filial || "sem_filial"} 
+                    onValueChange={(value) => setEditUserData(prev => ({ ...prev, filial: value === "sem_filial" ? "" : value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a filial" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sem_filial">Sem filial</SelectItem>
+                      <SelectItem value="Matriz DF">Matriz DF</SelectItem>
+                      <SelectItem value="filial GO">filial GO</SelectItem>
+                      <SelectItem value="filial SP">filial SP</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-role">Perfil</Label>
+                  <Select 
+                    value={editUserData.role} 
+                    onValueChange={(value) => setEditUserData(prev => ({ ...prev, role: value as AppRole }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
+                      <SelectItem value="advogado">Advogado</SelectItem>
+                      <SelectItem value="estagiario">Estagiário</SelectItem>
+                      <SelectItem value="assistente">Assistente</SelectItem>
+                      <SelectItem value="secretaria">Secretária</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

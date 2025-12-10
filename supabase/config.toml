@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.cadastrar-equipe]
 verify_jwt = true
+
+[functions.atualizar-usuario]
+verify_jwt = true
