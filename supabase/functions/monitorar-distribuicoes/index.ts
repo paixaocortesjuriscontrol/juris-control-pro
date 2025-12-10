@@ -251,36 +251,124 @@ Deno.serve(async (req) => {
         // Determinar quais tribunais consultar
         const endpointsToSearch: { endpoint: string; nome: string }[] = [];
         
-        // Por enquanto, buscar em tribunais estaduais principais (TJSP, TJRJ, TJMG, TJDF)
-        const principaisTribunais = [
+        // Todos os tribunais estaduais
+        const todosEstadual = [
           { endpoint: 'api_publica_tjsp', nome: 'TJSP' },
           { endpoint: 'api_publica_tjrj', nome: 'TJRJ' },
           { endpoint: 'api_publica_tjmg', nome: 'TJMG' },
           { endpoint: 'api_publica_tjdft', nome: 'TJDFT' },
           { endpoint: 'api_publica_tjgo', nome: 'TJGO' },
+          { endpoint: 'api_publica_tjba', nome: 'TJBA' },
+          { endpoint: 'api_publica_tjpr', nome: 'TJPR' },
+          { endpoint: 'api_publica_tjrs', nome: 'TJRS' },
+          { endpoint: 'api_publica_tjsc', nome: 'TJSC' },
+          { endpoint: 'api_publica_tjpe', nome: 'TJPE' },
+          { endpoint: 'api_publica_tjce', nome: 'TJCE' },
+          { endpoint: 'api_publica_tjal', nome: 'TJAL' },
+          { endpoint: 'api_publica_tjam', nome: 'TJAM' },
+          { endpoint: 'api_publica_tjap', nome: 'TJAP' },
+          { endpoint: 'api_publica_tjes', nome: 'TJES' },
+          { endpoint: 'api_publica_tjma', nome: 'TJMA' },
+          { endpoint: 'api_publica_tjms', nome: 'TJMS' },
+          { endpoint: 'api_publica_tjmt', nome: 'TJMT' },
+          { endpoint: 'api_publica_tjpa', nome: 'TJPA' },
+          { endpoint: 'api_publica_tjpb', nome: 'TJPB' },
+          { endpoint: 'api_publica_tjpi', nome: 'TJPI' },
+          { endpoint: 'api_publica_tjrn', nome: 'TJRN' },
+          { endpoint: 'api_publica_tjro', nome: 'TJRO' },
+          { endpoint: 'api_publica_tjrr', nome: 'TJRR' },
+          { endpoint: 'api_publica_tjse', nome: 'TJSE' },
+          { endpoint: 'api_publica_tjto', nome: 'TJTO' },
         ];
 
-        // Se UF específica, filtrar
-        if (monitoramento.uf) {
-          const ufMap: Record<string, string> = {
-            'SP': 'api_publica_tjsp',
-            'RJ': 'api_publica_tjrj',
-            'MG': 'api_publica_tjmg',
-            'DF': 'api_publica_tjdft',
-            'GO': 'api_publica_tjgo',
-            'BA': 'api_publica_tjba',
-            'PR': 'api_publica_tjpr',
-            'RS': 'api_publica_tjrs',
-            'SC': 'api_publica_tjsc',
-            'PE': 'api_publica_tjpe',
-            'CE': 'api_publica_tjce',
+        // Tribunais Regionais Federais
+        const todosRegionaisFederais = [
+          { endpoint: 'api_publica_trf1', nome: 'TRF1' },
+          { endpoint: 'api_publica_trf2', nome: 'TRF2' },
+          { endpoint: 'api_publica_trf3', nome: 'TRF3' },
+          { endpoint: 'api_publica_trf4', nome: 'TRF4' },
+          { endpoint: 'api_publica_trf5', nome: 'TRF5' },
+          { endpoint: 'api_publica_trf6', nome: 'TRF6' },
+        ];
+
+        // Tribunais Regionais do Trabalho
+        const todosRegionaisTrabalho = [
+          { endpoint: 'api_publica_trt1', nome: 'TRT1 (RJ)' },
+          { endpoint: 'api_publica_trt2', nome: 'TRT2 (SP)' },
+          { endpoint: 'api_publica_trt3', nome: 'TRT3 (MG)' },
+          { endpoint: 'api_publica_trt4', nome: 'TRT4 (RS)' },
+          { endpoint: 'api_publica_trt5', nome: 'TRT5 (BA)' },
+          { endpoint: 'api_publica_trt6', nome: 'TRT6 (PE)' },
+          { endpoint: 'api_publica_trt7', nome: 'TRT7 (CE)' },
+          { endpoint: 'api_publica_trt8', nome: 'TRT8 (PA/AP)' },
+          { endpoint: 'api_publica_trt9', nome: 'TRT9 (PR)' },
+          { endpoint: 'api_publica_trt10', nome: 'TRT10 (DF/TO)' },
+          { endpoint: 'api_publica_trt11', nome: 'TRT11 (AM/RR)' },
+          { endpoint: 'api_publica_trt12', nome: 'TRT12 (SC)' },
+          { endpoint: 'api_publica_trt13', nome: 'TRT13 (PB)' },
+          { endpoint: 'api_publica_trt14', nome: 'TRT14 (RO/AC)' },
+          { endpoint: 'api_publica_trt15', nome: 'TRT15 (Campinas)' },
+          { endpoint: 'api_publica_trt16', nome: 'TRT16 (MA)' },
+          { endpoint: 'api_publica_trt17', nome: 'TRT17 (ES)' },
+          { endpoint: 'api_publica_trt18', nome: 'TRT18 (GO)' },
+          { endpoint: 'api_publica_trt19', nome: 'TRT19 (AL)' },
+          { endpoint: 'api_publica_trt20', nome: 'TRT20 (SE)' },
+          { endpoint: 'api_publica_trt21', nome: 'TRT21 (RN)' },
+          { endpoint: 'api_publica_trt22', nome: 'TRT22 (PI)' },
+          { endpoint: 'api_publica_trt23', nome: 'TRT23 (MT)' },
+          { endpoint: 'api_publica_trt24', nome: 'TRT24 (MS)' },
+        ];
+
+        // Se tribunal específico foi selecionado
+        if (monitoramento.tribunal) {
+          const tribunalLower = monitoramento.tribunal.toLowerCase();
+          // Buscar no mapeamento completo
+          const allTribunais = [...todosEstadual, ...todosRegionaisFederais, ...todosRegionaisTrabalho];
+          const found = allTribunais.find(t => t.nome.toLowerCase() === tribunalLower || t.endpoint.includes(tribunalLower.replace(/\s/g, '')));
+          if (found) {
+            endpointsToSearch.push(found);
+          }
+        } else if (monitoramento.uf) {
+          // Se UF específica, filtrar tribunais estaduais e trabalhistas
+          const ufMap: Record<string, { estadual: string; trabalho?: string }> = {
+            'SP': { estadual: 'api_publica_tjsp', trabalho: 'api_publica_trt2' },
+            'RJ': { estadual: 'api_publica_tjrj', trabalho: 'api_publica_trt1' },
+            'MG': { estadual: 'api_publica_tjmg', trabalho: 'api_publica_trt3' },
+            'DF': { estadual: 'api_publica_tjdft', trabalho: 'api_publica_trt10' },
+            'GO': { estadual: 'api_publica_tjgo', trabalho: 'api_publica_trt18' },
+            'BA': { estadual: 'api_publica_tjba', trabalho: 'api_publica_trt5' },
+            'PR': { estadual: 'api_publica_tjpr', trabalho: 'api_publica_trt9' },
+            'RS': { estadual: 'api_publica_tjrs', trabalho: 'api_publica_trt4' },
+            'SC': { estadual: 'api_publica_tjsc', trabalho: 'api_publica_trt12' },
+            'PE': { estadual: 'api_publica_tjpe', trabalho: 'api_publica_trt6' },
+            'CE': { estadual: 'api_publica_tjce', trabalho: 'api_publica_trt7' },
+            'AL': { estadual: 'api_publica_tjal', trabalho: 'api_publica_trt19' },
+            'AM': { estadual: 'api_publica_tjam', trabalho: 'api_publica_trt11' },
+            'AP': { estadual: 'api_publica_tjap', trabalho: 'api_publica_trt8' },
+            'ES': { estadual: 'api_publica_tjes', trabalho: 'api_publica_trt17' },
+            'MA': { estadual: 'api_publica_tjma', trabalho: 'api_publica_trt16' },
+            'MS': { estadual: 'api_publica_tjms', trabalho: 'api_publica_trt24' },
+            'MT': { estadual: 'api_publica_tjmt', trabalho: 'api_publica_trt23' },
+            'PA': { estadual: 'api_publica_tjpa', trabalho: 'api_publica_trt8' },
+            'PB': { estadual: 'api_publica_tjpb', trabalho: 'api_publica_trt13' },
+            'PI': { estadual: 'api_publica_tjpi', trabalho: 'api_publica_trt22' },
+            'RN': { estadual: 'api_publica_tjrn', trabalho: 'api_publica_trt21' },
+            'RO': { estadual: 'api_publica_tjro', trabalho: 'api_publica_trt14' },
+            'RR': { estadual: 'api_publica_tjrr', trabalho: 'api_publica_trt11' },
+            'SE': { estadual: 'api_publica_tjse', trabalho: 'api_publica_trt20' },
+            'TO': { estadual: 'api_publica_tjto', trabalho: 'api_publica_trt10' },
           };
-          const endpoint = ufMap[monitoramento.uf];
-          if (endpoint) {
-            endpointsToSearch.push({ endpoint, nome: `TJ${monitoramento.uf}` });
+          const tribunaisUF = ufMap[monitoramento.uf];
+          if (tribunaisUF) {
+            endpointsToSearch.push({ endpoint: tribunaisUF.estadual, nome: `TJ${monitoramento.uf}` });
+            if (tribunaisUF.trabalho) {
+              const trt = todosRegionaisTrabalho.find(t => t.endpoint === tribunaisUF.trabalho);
+              if (trt) endpointsToSearch.push(trt);
+            }
           }
         } else {
-          endpointsToSearch.push(...principaisTribunais);
+          // Sem filtro: buscar em TODOS os tribunais (estaduais, federais e trabalhistas)
+          endpointsToSearch.push(...todosEstadual, ...todosRegionaisFederais, ...todosRegionaisTrabalho);
         }
 
         // Buscar em cada tribunal
