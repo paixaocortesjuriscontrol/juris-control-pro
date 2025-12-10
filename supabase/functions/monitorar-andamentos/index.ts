@@ -225,6 +225,18 @@ serve(async (req) => {
           const movimentos = apiData.movimentos || [];
           if (movimentos.length === 0) return;
 
+          // Filter movements from the last 30 days only for performance
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          
+          const recentMovimentos = movimentos.filter((mov: any) => {
+            if (!mov.dataHora) return true; // Include if no date
+            const movDate = new Date(mov.dataHora);
+            return movDate >= thirtyDaysAgo;
+          });
+
+          if (recentMovimentos.length === 0) return;
+
           // Get existing movements to avoid duplicates
           const { data: existingMovs } = await supabase
             .from('movimentacoes')
@@ -238,7 +250,7 @@ serve(async (req) => {
           let insertedCount = 0;
           const newMovementDetails: string[] = [];
 
-          for (const mov of movimentos) {
+          for (const mov of recentMovimentos) {
             const movName = mov.nome || mov.movimentoNacional?.nome || 'Movimento';
             let descricaoCompleta = movName;
             
