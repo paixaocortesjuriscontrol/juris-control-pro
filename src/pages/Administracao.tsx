@@ -66,6 +66,7 @@ const Administracao = () => {
     senha: "",
     oab: "",
     telefone: "",
+    filial: "",
     role: "advogado" as AppRole,
   });
   const [editUserData, setEditUserData] = useState({
@@ -237,6 +238,7 @@ const Administracao = () => {
           nome: newUserData.nome,
           oab: newUserData.oab || null,
           telefone: newUserData.telefone || null,
+          filial: newUserData.filial || null,
         })
         .eq("id", newUserId);
 
@@ -262,6 +264,7 @@ const Administracao = () => {
         senha: "",
         oab: "",
         telefone: "",
+        filial: "",
         role: "advogado",
       });
       
@@ -445,24 +448,43 @@ const Administracao = () => {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Perfil</Label>
-                  <Select 
-                    value={newUserData.role} 
-                    onValueChange={(value) => setNewUserData(prev => ({ ...prev, role: value as AppRole }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                      <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
-                      <SelectItem value="advogado">Advogado</SelectItem>
-                      <SelectItem value="estagiario">Estagiário</SelectItem>
-                      <SelectItem value="assistente">Assistente</SelectItem>
-                      <SelectItem value="secretaria">Secretária</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="filial">Filial</Label>
+                    <Select 
+                      value={newUserData.filial || "sem_filial"} 
+                      onValueChange={(value) => setNewUserData(prev => ({ ...prev, filial: value === "sem_filial" ? "" : value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a filial" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sem_filial">Sem filial</SelectItem>
+                        <SelectItem value="Matriz DF">Matriz DF</SelectItem>
+                        <SelectItem value="filial GO">filial GO</SelectItem>
+                        <SelectItem value="filial SP">filial SP</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Perfil</Label>
+                    <Select 
+                      value={newUserData.role} 
+                      onValueChange={(value) => setNewUserData(prev => ({ ...prev, role: value as AppRole }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Administrador</SelectItem>
+                        <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
+                        <SelectItem value="advogado">Advogado</SelectItem>
+                        <SelectItem value="estagiario">Estagiário</SelectItem>
+                        <SelectItem value="assistente">Assistente</SelectItem>
+                        <SelectItem value="secretaria">Secretária</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-3">
