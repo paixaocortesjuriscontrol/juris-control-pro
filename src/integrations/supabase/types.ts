@@ -229,6 +229,42 @@ export type Database = {
           },
         ]
       }
+      historico_monitoramento: {
+        Row: {
+          created_at: string
+          detalhes: Json | null
+          erros: number
+          executado_em: string
+          id: string
+          novos_andamentos: number
+          processos_com_novos: number
+          processos_verificados: number
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          detalhes?: Json | null
+          erros?: number
+          executado_em?: string
+          id?: string
+          novos_andamentos?: number
+          processos_com_novos?: number
+          processos_verificados?: number
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          detalhes?: Json | null
+          erros?: number
+          executado_em?: string
+          id?: string
+          novos_andamentos?: number
+          processos_com_novos?: number
+          processos_verificados?: number
+          tipo?: string
+        }
+        Relationships: []
+      }
       membros_coordenacao: {
         Row: {
           cargo: string | null
