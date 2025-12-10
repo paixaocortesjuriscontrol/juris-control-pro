@@ -30,7 +30,8 @@ import {
   Clock,
   Building2,
   User,
-  FileText
+  FileText,
+  Pencil
 } from "lucide-react";
 
 const tipoLabels: Record<string, string> = {
@@ -43,6 +44,30 @@ const tipoLabels: Record<string, string> = {
 const ufs = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", 
   "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+];
+
+const tribunais = [
+  { value: "TJSP", label: "TJSP - Tribunal de Justiça de São Paulo" },
+  { value: "TJRJ", label: "TJRJ - Tribunal de Justiça do Rio de Janeiro" },
+  { value: "TJMG", label: "TJMG - Tribunal de Justiça de Minas Gerais" },
+  { value: "TJRS", label: "TJRS - Tribunal de Justiça do Rio Grande do Sul" },
+  { value: "TJPR", label: "TJPR - Tribunal de Justiça do Paraná" },
+  { value: "TJSC", label: "TJSC - Tribunal de Justiça de Santa Catarina" },
+  { value: "TJBA", label: "TJBA - Tribunal de Justiça da Bahia" },
+  { value: "TJPE", label: "TJPE - Tribunal de Justiça de Pernambuco" },
+  { value: "TJCE", label: "TJCE - Tribunal de Justiça do Ceará" },
+  { value: "TJGO", label: "TJGO - Tribunal de Justiça de Goiás" },
+  { value: "TJDF", label: "TJDFT - Tribunal de Justiça do DF e Territórios" },
+  { value: "TRF1", label: "TRF1 - Tribunal Regional Federal 1ª Região" },
+  { value: "TRF2", label: "TRF2 - Tribunal Regional Federal 2ª Região" },
+  { value: "TRF3", label: "TRF3 - Tribunal Regional Federal 3ª Região" },
+  { value: "TRF4", label: "TRF4 - Tribunal Regional Federal 4ª Região" },
+  { value: "TRF5", label: "TRF5 - Tribunal Regional Federal 5ª Região" },
+  { value: "TRT1", label: "TRT1 - Tribunal Regional do Trabalho 1ª Região" },
+  { value: "TRT2", label: "TRT2 - Tribunal Regional do Trabalho 2ª Região" },
+  { value: "TRT3", label: "TRT3 - Tribunal Regional do Trabalho 3ª Região" },
+  { value: "TRT4", label: "TRT4 - Tribunal Regional do Trabalho 4ª Região" },
+  { value: "TRT15", label: "TRT15 - Tribunal Regional do Trabalho 15ª Região" },
 ];
 
 export default function MonitoramentoDistribuicao() {
@@ -63,6 +88,7 @@ export default function MonitoramentoDistribuicao() {
   const { data: coordenacoes = [] } = useCoordenacoesFull();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingMonitoramento, setEditingMonitoramento] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [importDialog, setImportDialog] = useState<string | null>(null);
   const [selectedCoord, setSelectedCoord] = useState<string>("");
@@ -72,21 +98,47 @@ export default function MonitoramentoDistribuicao() {
   const [tipo, setTipo] = useState<string>("nome");
   const [termoBusca, setTermoBusca] = useState("");
   const [uf, setUf] = useState<string>("");
+  const [tribunal, setTribunal] = useState<string>("");
 
   const handleCreate = async () => {
     if (!termoBusca.trim()) return;
     
-    await criarMonitoramento.mutateAsync({
-      tipo: tipo as any,
-      termo_busca: termoBusca.trim(),
-      uf: uf || null,
-      tribunal: null,
-    });
+    if (editingMonitoramento) {
+      await atualizarMonitoramento.mutateAsync({
+        id: editingMonitoramento.id,
+        tipo: tipo as any,
+        termo_busca: termoBusca.trim(),
+        uf: uf || null,
+        tribunal: tribunal || null,
+      });
+    } else {
+      await criarMonitoramento.mutateAsync({
+        tipo: tipo as any,
+        termo_busca: termoBusca.trim(),
+        uf: uf || null,
+        tribunal: tribunal || null,
+      });
+    }
     
+    handleCloseDialog();
+  };
+
+  const handleCloseDialog = () => {
     setDialogOpen(false);
+    setEditingMonitoramento(null);
     setTipo("nome");
     setTermoBusca("");
     setUf("");
+    setTribunal("");
+  };
+
+  const handleEdit = (mon: any) => {
+    setEditingMonitoramento(mon);
+    setTipo(mon.tipo);
+    setTermoBusca(mon.termo_busca);
+    setUf(mon.uf || "");
+    setTribunal(mon.tribunal || "");
+    setDialogOpen(true);
   };
 
   const handleToggleAtivo = async (id: string, ativo: boolean) => {
@@ -104,7 +156,7 @@ export default function MonitoramentoDistribuicao() {
     if (importDialog) {
       await importarDistribuicao.mutateAsync({ 
         distribuicaoId: importDialog, 
-        coordenacaoId: selectedCoord || undefined 
+        coordenacaoId: selectedCoord && selectedCoord !== "none" ? selectedCoord : undefined 
       });
       setImportDialog(null);
       setSelectedCoord("");
@@ -138,7 +190,7 @@ export default function MonitoramentoDistribuicao() {
               <Play className="w-4 h-4 mr-2" />
               {executarMonitoramento.isPending ? "Executando..." : "Executar Agora"}
             </Button>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={(open) => !open && handleCloseDialog()}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="w-4 h-4 mr-2" />
@@ -147,9 +199,9 @@ export default function MonitoramentoDistribuicao() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Criar Monitoramento</DialogTitle>
+                  <DialogTitle>{editingMonitoramento ? "Editar Monitoramento" : "Criar Monitoramento"}</DialogTitle>
                   <DialogDescription>
-                    Configure um novo monitoramento de distribuição
+                    {editingMonitoramento ? "Atualize os parâmetros do monitoramento" : "Configure um novo monitoramento de distribuição"}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -189,13 +241,29 @@ export default function MonitoramentoDistribuicao() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label>Tribunal (opcional)</Label>
+                    <Select value={tribunal || "all"} onValueChange={(val) => setTribunal(val === "all" ? "" : val)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos os tribunais" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os tribunais</SelectItem>
+                        {tribunais.map((trib) => (
+                          <SelectItem key={trib.value} value={trib.value}>{trib.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  <Button variant="outline" onClick={handleCloseDialog}>
                     Cancelar
                   </Button>
-                  <Button onClick={handleCreate} disabled={!termoBusca.trim() || criarMonitoramento.isPending}>
-                    {criarMonitoramento.isPending ? "Criando..." : "Criar"}
+                  <Button onClick={handleCreate} disabled={!termoBusca.trim() || criarMonitoramento.isPending || atualizarMonitoramento.isPending}>
+                    {(criarMonitoramento.isPending || atualizarMonitoramento.isPending) 
+                      ? (editingMonitoramento ? "Salvando..." : "Criando...") 
+                      : (editingMonitoramento ? "Salvar" : "Criar")}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -415,6 +483,7 @@ export default function MonitoramentoDistribuicao() {
                         <TableHead>Tipo</TableHead>
                         <TableHead>Termo de Busca</TableHead>
                         <TableHead>UF</TableHead>
+                        <TableHead>Tribunal</TableHead>
                         <TableHead>Última Execução</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
@@ -428,6 +497,7 @@ export default function MonitoramentoDistribuicao() {
                           </TableCell>
                           <TableCell className="font-medium">{mon.termo_busca}</TableCell>
                           <TableCell>{mon.uf || "Todos"}</TableCell>
+                          <TableCell>{mon.tribunal || "Todos"}</TableCell>
                           <TableCell>
                             {mon.ultima_execucao 
                               ? format(new Date(mon.ultima_execucao), "dd/MM/yyyy HH:mm", { locale: ptBR })
@@ -445,14 +515,23 @@ export default function MonitoramentoDistribuicao() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => setDeleteId(mon.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <div className="flex justify-end gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => handleEdit(mon)}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setDeleteId(mon.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -493,12 +572,12 @@ export default function MonitoramentoDistribuicao() {
             </DialogHeader>
             <div className="py-4">
               <Label>Coordenação (opcional)</Label>
-              <Select value={selectedCoord} onValueChange={setSelectedCoord}>
+              <Select value={selectedCoord || "none"} onValueChange={(val) => setSelectedCoord(val === "none" ? "" : val)}>
                 <SelectTrigger className="mt-2">
                   <SelectValue placeholder="Selecionar coordenação..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhuma</SelectItem>
+                  <SelectItem value="none">Nenhuma</SelectItem>
                   {coordenacoes.map((coord) => (
                     <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
                   ))}
