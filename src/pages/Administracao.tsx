@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, UserCheck, UserX, Upload, Building2 } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, UserX, Building2, Filter } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -59,7 +59,7 @@ const Administracao = () => {
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [importando, setImportando] = useState(false);
+  const [filialFilter, setFilialFilter] = useState<string>("todas");
   const [newUserData, setNewUserData] = useState({
     nome: "",
     email: "",
@@ -72,9 +72,15 @@ const Administracao = () => {
     nome: "",
     oab: "",
     telefone: "",
+    filial: "",
   });
   const { isAdmin, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
+
+  const filiais = [...new Set(users.map(u => (u as any).filial).filter(Boolean))].sort();
+  const filteredUsers = filialFilter === "todas" 
+    ? users 
+    : users.filter(u => (u as any).filial === filialFilter);
 
   useEffect(() => {
     if (!roleLoading && !isAdmin) {
@@ -283,6 +289,7 @@ const Administracao = () => {
       nome: user.nome,
       oab: user.oab ?? "",
       telefone: user.telefone ?? "",
+      filial: (user as any).filial ?? "",
     });
     setEditDialogOpen(true);
   }
@@ -303,6 +310,7 @@ const Administracao = () => {
         nome: editUserData.nome.trim(),
         oab: editUserData.oab.trim() || null,
         telefone: editUserData.telefone.trim() || null,
+        filial: editUserData.filial.trim() || null,
       })
       .eq("id", editingUser.id);
 
@@ -313,7 +321,7 @@ const Administracao = () => {
       toast.success("Dados atualizados com sucesso!");
       setUsers(prev => prev.map(u => 
         u.id === editingUser.id 
-          ? { ...u, nome: editUserData.nome.trim(), oab: editUserData.oab.trim() || null, telefone: editUserData.telefone.trim() || null }
+          ? { ...u, nome: editUserData.nome.trim(), oab: editUserData.oab.trim() || null, telefone: editUserData.telefone.trim() || null, filial: editUserData.filial.trim() || null } as any
           : u
       ));
       setEditDialogOpen(false);
@@ -344,21 +352,6 @@ const Administracao = () => {
     setTogglingStatus(null);
   }
 
-  async function handleImportarEquipe() {
-    setImportando(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('cadastrar-equipe');
-      
-      if (error) throw error;
-      
-      toast.success(`Importação concluída: ${data.created} usuários criados, ${data.errors} erros`);
-      fetchUsers();
-    } catch (error: any) {
-      toast.error(`Erro na importação: ${error.message || 'Erro desconhecido'}`);
-    } finally {
-      setImportando(false);
-    }
-  }
 
   if (roleLoading || loading) {
     return (
@@ -388,16 +381,7 @@ const Administracao = () => {
             </div>
           </div>
           
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleImportarEquipe} disabled={importando}>
-              {importando ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Upload className="w-4 h-4 mr-2" />
-              )}
-              Importar Equipe
-            </Button>
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <UserPlus className="w-4 h-4 mr-2" />
@@ -492,18 +476,35 @@ const Administracao = () => {
               </div>
             </DialogContent>
           </Dialog>
-          </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Usuários do Sistema
-            </CardTitle>
-            <CardDescription>
-              {users.length} usuário(s) cadastrado(s)
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Usuários do Sistema
+                </CardTitle>
+                <CardDescription>
+                  {filteredUsers.length} de {users.length} usuário(s) cadastrado(s)
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-muted-foreground" />
+                <Select value={filialFilter} onValueChange={setFilialFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Filtrar por filial" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as filiais</SelectItem>
+                    {filiais.map((filial) => (
+                      <SelectItem key={filial} value={filial}>{filial}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -521,7 +522,7 @@ const Administracao = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <TableRow key={user.id} className={!user.ativo ? "opacity-50" : ""}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -638,6 +639,23 @@ const Administracao = () => {
                   value={editUserData.nome}
                   onChange={(e) => setEditUserData(prev => ({ ...prev, nome: e.target.value }))}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-filial">Filial</Label>
+                <Select 
+                  value={editUserData.filial || "sem_filial"} 
+                  onValueChange={(value) => setEditUserData(prev => ({ ...prev, filial: value === "sem_filial" ? "" : value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a filial" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sem_filial">Sem filial</SelectItem>
+                    <SelectItem value="Matriz DF">Matriz DF</SelectItem>
+                    <SelectItem value="filial GO">filial GO</SelectItem>
+                    <SelectItem value="filial SP">filial SP</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
