@@ -1,10 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 // API Key pública do DataJud/CNJ
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
@@ -373,6 +376,72 @@ serve(async (req) => {
         })
       })
       .eq('tipo', 'andamentos');
+
+    // Save execution history
+    await supabase
+      .from('historico_monitoramento')
+      .insert({
+        tipo: 'andamentos',
+        processos_verificados: results.checked,
+        novos_andamentos: results.newMovements,
+        processos_com_novos: results.processesWithNewMovements,
+        erros: results.errors,
+        detalhes: { details: results.details },
+        executado_em: new Date().toISOString()
+      });
+
+    // Send email notification if new movements were found
+    if (results.newMovements > 0) {
+      try {
+        // Get admin emails to notify
+        const { data: admins } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .in('role', ['admin', 'coordenador']);
+
+        if (admins && admins.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('email')
+            .in('id', admins.map(a => a.user_id))
+            .eq('ativo', true);
+
+          const emails = profiles?.map(p => p.email).filter(Boolean) || [];
+          
+          if (emails.length > 0) {
+            const processosResumo = results.details.slice(0, 10).map((d: any) => 
+              `• ${d.processo}: ${d.novosAndamentos} andamento(s)`
+            ).join('\n');
+
+            await resend.emails.send({
+              from: 'Juris Control <noreply@juriscontrol.adv.br>',
+              to: emails,
+              subject: `[Juris Control] ${results.newMovements} novo(s) andamento(s) encontrado(s)`,
+              html: `
+                <h2>Monitoramento de Andamentos</h2>
+                <p>O monitoramento automático encontrou <strong>${results.newMovements}</strong> novo(s) andamento(s) em <strong>${results.processesWithNewMovements}</strong> processo(s).</p>
+                
+                <h3>Resumo:</h3>
+                <ul>
+                  <li>Processos verificados: ${results.checked}</li>
+                  <li>Novos andamentos: ${results.newMovements}</li>
+                  <li>Processos com novidades: ${results.processesWithNewMovements}</li>
+                </ul>
+                
+                <h3>Processos atualizados:</h3>
+                <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">${processosResumo}</pre>
+                ${results.details.length > 10 ? `<p><em>...e mais ${results.details.length - 10} processos</em></p>` : ''}
+                
+                <p><a href="https://juriscontrol.adv.br/configuracoes">Ver detalhes no sistema</a></p>
+              `,
+            });
+            console.log(`Email notification sent to ${emails.length} users`);
+          }
+        }
+      } catch (emailError) {
+        console.error("Error sending email notification:", emailError);
+      }
+    }
 
     console.log("Batch andamentos monitoring completed:", results);
 
