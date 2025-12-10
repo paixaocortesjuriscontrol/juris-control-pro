@@ -177,12 +177,12 @@ export default function MonitoramentoDistribuicao() {
                   </div>
                   <div className="space-y-2">
                     <Label>UF (opcional)</Label>
-                    <Select value={uf} onValueChange={setUf}>
+                    <Select value={uf || "all"} onValueChange={(val) => setUf(val === "all" ? "" : val)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Todos os estados" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Todos os estados</SelectItem>
+                        <SelectItem value="all">Todos os estados</SelectItem>
                         {ufs.map((estado) => (
                           <SelectItem key={estado} value={estado}>{estado}</SelectItem>
                         ))}
