@@ -2,6 +2,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { User, Bell, Shield, Palette } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
+import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 
 export default function Configuracoes() {
   return (
@@ -12,6 +13,7 @@ export default function Configuracoes() {
           <h2 className="text-lg font-semibold mb-4">Monitoramento Automático</h2>
           <div className="grid gap-6 md:grid-cols-2">
             <MonitoramentoRedistribuicoesCard />
+            <MonitoramentoAndamentosCard />
           </div>
         </div>
 

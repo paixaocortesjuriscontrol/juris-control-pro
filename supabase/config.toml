@@ -12,6 +12,9 @@ verify_jwt = false
 [functions.monitorar-redistribuicoes]
 verify_jwt = false
 
+[functions.monitorar-andamentos]
+verify_jwt = false
+
 [functions.atualizar-cron-monitoramento]
 verify_jwt = true
 
