@@ -24,7 +24,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-// API endpoint for PJE Comunica - same as DJEN
+// API endpoint - same as DJEN (PJE Comunica)
 const PJE_API_BASE = "https://comunicaapi.pje.jus.br/api/v1";
 
 // Types of searches available
@@ -129,16 +129,12 @@ async function searchPJE(params: SearchParams): Promise<any> {
       };
     }
     
-    // 404 also means "not found"
-    if (response.status === 404) {
-      return { 
-        publicacoes: [], 
-        items: [],
-        comunicacoes: [],
-        totalElements: 0, 
-        totalPages: 0,
-        message: "Nenhuma comunicação encontrada para os critérios informados"
-      };
+    // Try fallback to DataJud for 404/403
+    if (response.status === 404 || response.status === 403) {
+      if (tipo === "processo" && numeroProcesso) {
+        console.log("Trying DataJud fallback for process search");
+        return await searchDataJudPublicacoes(numeroProcesso);
+      }
     }
     
     throw new Error(`Erro na API do PJE: ${response.status}`);
@@ -148,6 +144,115 @@ async function searchPJE(params: SearchParams): Promise<any> {
   console.log("PJE API response data keys:", Object.keys(data));
   
   return data;
+}
+
+// Fallback to DataJud API for process publications
+async function searchDataJudPublicacoes(numeroProcesso: string): Promise<any> {
+  const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
+  const cleanedNumber = numeroProcesso.replace(/\D/g, '').padStart(20, '0');
+  
+  // Detect tribunal from CNJ number
+  const tribunalCode = cleanedNumber.substring(13, 16);
+  let tribunalEndpoint = "trt10"; // default
+  
+  // Map tribunal codes
+  const tribunalMap: Record<string, string> = {
+    "510": "trt10", // TRT10
+    "501": "trt1",  // TRT1
+    "502": "trt2",  // TRT2
+    // State courts (8.XX)
+    "801": "tjac", "802": "tjal", "803": "tjap", "804": "tjam",
+    "805": "tjba", "806": "tjce", "807": "tjdf", "808": "tjes",
+    "809": "tjgo", "810": "tjma", "811": "tjmt", "812": "tjms",
+    "813": "tjmg", "814": "tjpa", "815": "tjpb", "816": "tjpr",
+    "817": "tjpe", "818": "tjpi", "819": "tjrj", "820": "tjrn",
+    "821": "tjrs", "822": "tjro", "823": "tjrr", "824": "tjsc",
+    "825": "tjsp", "826": "tjse", "827": "tjto",
+  };
+  
+  if (tribunalMap[tribunalCode]) {
+    tribunalEndpoint = tribunalMap[tribunalCode];
+  }
+  
+  const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${tribunalEndpoint}/_search`;
+  
+  console.log("DataJud fallback URL:", url);
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `APIKey ${DATAJUD_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      query: {
+        bool: {
+          should: [
+            { match_phrase: { "movimentos.nome": "Publicação" } },
+            { match_phrase: { "movimentos.complemento": "Diário" } }
+          ],
+          must: [
+            { match: { numeroProcesso: cleanedNumber } }
+          ]
+        }
+      },
+      size: 50
+    })
+  });
+
+  if (!response.ok) {
+    console.error("DataJud fallback error:", response.status);
+    return { 
+      publicacoes: [], 
+      items: [],
+      comunicacoes: [],
+      totalElements: 0, 
+      totalPages: 0,
+      message: "Nenhuma publicação encontrada"
+    };
+  }
+
+  const data = await response.json();
+  const hits = data.hits?.hits || [];
+  
+  console.log("DataJud fallback hits:", hits.length);
+  
+  if (hits.length === 0) {
+    return { 
+      publicacoes: [], 
+      items: [],
+      comunicacoes: [],
+      totalElements: 0, 
+      totalPages: 0,
+      message: "Nenhuma publicação encontrada para este processo"
+    };
+  }
+
+  const processo = hits[0]._source;
+  const publicacoes = (processo.movimentos || [])
+    .filter((m: any) => 
+      m.nome?.toLowerCase().includes('publicação') ||
+      m.nome?.toLowerCase().includes('diário') ||
+      m.complemento?.toLowerCase().includes('dje') ||
+      m.complemento?.toLowerCase().includes('intimação')
+    )
+    .map((m: any) => ({
+      dataPublicacao: m.dataHora,
+      tipo: m.nome,
+      conteudo: m.complemento || m.nome,
+      numeroProcesso: processo.numeroProcesso,
+      fonte: "DataJud"
+    }));
+
+  return {
+    publicacoes,
+    items: publicacoes,
+    comunicacoes: publicacoes,
+    totalElements: publicacoes.length,
+    totalPages: 1,
+    fonte: "DataJud",
+    success: true
+  };
 }
 
 serve(async (req) => {
