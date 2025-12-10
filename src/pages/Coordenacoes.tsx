@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -66,8 +66,42 @@ const Coordenacoes = () => {
   const [delegarTarefaLoteDialog, setDelegarTarefaLoteDialog] = useState(false);
   const [reatribuirDialog, setReatribuirDialog] = useState(false);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
+  const [editingCargoId, setEditingCargoId] = useState<string | null>(null);
+  const [editingCargoValue, setEditingCargoValue] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const cargoOptions = [
+    "Coordenador",
+    "Advogado Sênior",
+    "Advogado",
+    "Estagiário",
+    "Assistente",
+    "Secretária",
+  ];
+
+  const handleUpdateCargo = async (membroId: string) => {
+    try {
+      const { error } = await supabase
+        .from("membros_coordenacao")
+        .update({ cargo: editingCargoValue })
+        .eq("id", membroId);
+
+      if (error) throw error;
+
+      toast({ title: "Cargo atualizado com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar cargo",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setEditingCargoId(null);
+      setEditingCargoValue("");
+    }
+  };
 
   useEffect(() => {
     if (coordenacoes && coordenacoes.length > 0 && !selectedCoord) {
@@ -347,7 +381,50 @@ const Coordenacoes = () => {
                           </Avatar>
                           <div>
                             <p className="font-medium text-foreground">{member.usuario?.nome || "Membro"}</p>
-                            <p className="text-sm text-muted-foreground">{member.cargo || "Advogado"}</p>
+                            {editingCargoId === member.id ? (
+                              <div className="flex items-center gap-1 mt-1">
+                                <select
+                                  value={editingCargoValue}
+                                  onChange={(e) => setEditingCargoValue(e.target.value)}
+                                  className="text-sm border rounded px-2 py-1 bg-background"
+                                  autoFocus
+                                >
+                                  {cargoOptions.map((cargo) => (
+                                    <option key={cargo} value={cargo}>{cargo}</option>
+                                  ))}
+                                </select>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-green-600"
+                                  onClick={() => handleUpdateCargo(member.id)}
+                                >
+                                  <Check className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-destructive"
+                                  onClick={() => {
+                                    setEditingCargoId(null);
+                                    setEditingCargoValue("");
+                                  }}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <button
+                                className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 group"
+                                onClick={() => {
+                                  setEditingCargoId(member.id);
+                                  setEditingCargoValue(member.cargo || "Advogado");
+                                }}
+                              >
+                                {member.cargo || "Advogado"}
+                                <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </button>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
