@@ -18,7 +18,8 @@ import {
   Calendar,
   Newspaper,
   RefreshCw,
-  UserCircle
+  UserCircle,
+  Radar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ const menuItems = [
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: Calendar, label: "Prazos", path: "/prazos" },
   { icon: RefreshCw, label: "Redistribuições", path: "/redistribuicoes" },
+  { icon: Radar, label: "Monit. Distribuição", path: "/monitoramento-distribuicao" },
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },

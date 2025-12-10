@@ -174,6 +174,72 @@ export type Database = {
           },
         ]
       }
+      distribuicoes_encontradas: {
+        Row: {
+          assunto: string | null
+          classe: string | null
+          created_at: string
+          dados_completos: Json | null
+          data_distribuicao: string | null
+          id: string
+          monitoramento_id: string
+          numero_processo: string
+          polo_ativo: string | null
+          polo_passivo: string | null
+          processo_id: string | null
+          status: string
+          tribunal: string | null
+          vara: string | null
+        }
+        Insert: {
+          assunto?: string | null
+          classe?: string | null
+          created_at?: string
+          dados_completos?: Json | null
+          data_distribuicao?: string | null
+          id?: string
+          monitoramento_id: string
+          numero_processo: string
+          polo_ativo?: string | null
+          polo_passivo?: string | null
+          processo_id?: string | null
+          status?: string
+          tribunal?: string | null
+          vara?: string | null
+        }
+        Update: {
+          assunto?: string | null
+          classe?: string | null
+          created_at?: string
+          dados_completos?: Json | null
+          data_distribuicao?: string | null
+          id?: string
+          monitoramento_id?: string
+          numero_processo?: string
+          polo_ativo?: string | null
+          polo_passivo?: string | null
+          processo_id?: string | null
+          status?: string
+          tribunal?: string | null
+          vara?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distribuicoes_encontradas_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_distribuicao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distribuicoes_encontradas_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documentos: {
         Row: {
           created_at: string
@@ -305,6 +371,60 @@ export type Database = {
           {
             foreignKeyName: "membros_coordenacao_usuario_id_fkey"
             columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitoramentos_distribuicao: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          criado_por: string
+          id: string
+          termo_busca: string
+          tipo: string
+          tribunal: string | null
+          uf: string | null
+          ultima_execucao: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          criado_por: string
+          id?: string
+          termo_busca: string
+          tipo: string
+          tribunal?: string | null
+          uf?: string | null
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string
+          id?: string
+          termo_busca?: string
+          tipo?: string
+          tribunal?: string | null
+          uf?: string | null
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoramentos_distribuicao_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monitoramentos_distribuicao_criado_por_fkey"
+            columns: ["criado_por"]
             isOneToOne: false
             referencedRelation: "profiles_basic"
             referencedColumns: ["id"]

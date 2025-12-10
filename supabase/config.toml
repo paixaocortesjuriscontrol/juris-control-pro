@@ -23,3 +23,6 @@ verify_jwt = true
 
 [functions.atualizar-usuario]
 verify_jwt = true
+
+[functions.monitorar-distribuicoes]
+verify_jwt = false
