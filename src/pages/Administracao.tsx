@@ -599,14 +599,11 @@ const Administracao = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Usuário</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Filial</TableHead>
+                  <TableHead>Nome</TableHead>
                   <TableHead>OAB</TableHead>
-                  <TableHead>Telefone</TableHead>
+                  <TableHead>Filial</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Perfil Atual</TableHead>
-                  <TableHead>Alterar Perfil</TableHead>
+                  <TableHead>Perfil</TableHead>
                   <TableHead className="w-12">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -614,41 +611,27 @@ const Administracao = () => {
                 {filteredUsers.map((user) => (
                   <TableRow key={user.id} className={!user.ativo ? "opacity-50" : ""}>
                     <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
                           <AvatarImage src={user.avatar_url ?? undefined} />
-                          <AvatarFallback className={user.ativo ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}>
+                          <AvatarFallback className={`text-xs ${user.ativo ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                             {getInitials(user.nome)}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{user.nome}</span>
-                          {!user.ativo && (
-                            <span className="text-xs text-destructive flex items-center gap-1">
-                              <UserX className="w-3 h-3" /> Desativado
-                            </span>
-                          )}
-                        </div>
+                        <span className="font-medium">{user.nome}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {user.email}
+                      {user.oab ?? "-"}
                     </TableCell>
                     <TableCell>
                       {(user as any).filial ? (
-                        <Badge variant="outline" className="flex items-center gap-1 w-fit">
-                          <Building2 className="w-3 h-3" />
+                        <Badge variant="outline" className="text-xs">
                           {(user as any).filial}
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.oab ?? "-"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.telefone ?? "-"}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -657,46 +640,19 @@ const Administracao = () => {
                           onCheckedChange={() => handleToggleAtivo(user.id, user.ativo ?? true)}
                           disabled={togglingStatus === user.id}
                         />
-                        {togglingStatus === user.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            {user.ativo ? "Ativo" : "Inativo"}
-                          </span>
+                        {togglingStatus === user.id && (
+                          <Loader2 className="w-3 h-3 animate-spin" />
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
                       {user.role ? (
-                        <Badge className={roleBadgeColors[user.role]}>
+                        <Badge className={`text-xs ${roleBadgeColors[user.role]}`}>
                           {roleLabels[user.role]}
                         </Badge>
                       ) : (
-                        <Badge variant="outline">Sem perfil</Badge>
+                        <Badge variant="outline" className="text-xs">Sem perfil</Badge>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={user.role ?? ""}
-                        onValueChange={(value) => handleRoleChange(user.id, value as AppRole)}
-                        disabled={updating === user.id}
-                      >
-                        <SelectTrigger className="w-48">
-                          {updating === user.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <SelectValue placeholder="Selecione um perfil" />
-                          )}
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Administrador</SelectItem>
-                          <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
-                          <SelectItem value="advogado">Advogado</SelectItem>
-                          <SelectItem value="estagiario">Estagiário</SelectItem>
-                          <SelectItem value="assistente">Assistente</SelectItem>
-                          <SelectItem value="secretaria">Secretária</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </TableCell>
                     <TableCell>
                       <Button variant="ghost" size="icon" onClick={() => handleEditUser(user)}>
