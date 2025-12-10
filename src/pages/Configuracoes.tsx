@@ -4,6 +4,7 @@ import { User, Bell, Shield, Palette } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
+import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
 
 export default function Configuracoes() {
   return (
@@ -22,6 +23,14 @@ export default function Configuracoes() {
         <div>
           <h2 className="text-lg font-semibold mb-4">Relatórios de Monitoramento</h2>
           <RelatorioMonitoramentoCard />
+        </div>
+
+        {/* Seção de Preferências Pessoais */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Preferências Pessoais</h2>
+          <div className="grid gap-6 md:grid-cols-2">
+            <NotificacoesEmailCard />
+          </div>
         </div>
 
         {/* Seção de Configurações Gerais */}

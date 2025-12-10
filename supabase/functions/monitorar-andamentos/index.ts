@@ -393,7 +393,7 @@ serve(async (req) => {
     // Send email notification if new movements were found
     if (results.newMovements > 0) {
       try {
-        // Get admin emails to notify
+        // Get admin/coordenador emails to notify (only those with email notifications enabled)
         const { data: admins } = await supabase
           .from('user_roles')
           .select('user_id')
@@ -404,7 +404,8 @@ serve(async (req) => {
             .from('profiles')
             .select('email')
             .in('id', admins.map(a => a.user_id))
-            .eq('ativo', true);
+            .eq('ativo', true)
+            .eq('notificacoes_email', true);
 
           const emails = profiles?.map(p => p.email).filter(Boolean) || [];
           
@@ -435,7 +436,7 @@ serve(async (req) => {
                 <p><a href="https://juriscontrol.adv.br/configuracoes">Ver detalhes no sistema</a></p>
               `,
             });
-            console.log(`Email notification sent to ${emails.length} users`);
+            console.log(`Email notification sent to ${emails.length} users with email notifications enabled`);
           }
         }
       } catch (emailError) {
