@@ -319,14 +319,20 @@ Deno.serve(async (req) => {
           { endpoint: 'api_publica_trt24', nome: 'TRT24 (MS)' },
         ];
 
-        // Se tribunal específico foi selecionado
+        // Se tribunais específicos foram selecionados (pode ser múltiplos separados por vírgula)
         if (monitoramento.tribunal) {
-          const tribunalLower = monitoramento.tribunal.toLowerCase();
-          // Buscar no mapeamento completo
+          const tribunaisSelecionados = monitoramento.tribunal.split(',').map((t: string) => t.trim().toUpperCase());
           const allTribunais = [...todosEstadual, ...todosRegionaisFederais, ...todosRegionaisTrabalho];
-          const found = allTribunais.find(t => t.nome.toLowerCase() === tribunalLower || t.endpoint.includes(tribunalLower.replace(/\s/g, '')));
-          if (found) {
-            endpointsToSearch.push(found);
+          
+          for (const tribunalSelecionado of tribunaisSelecionados) {
+            const found = allTribunais.find(t => {
+              const nomeNormalizado = t.nome.split(' ')[0].toUpperCase(); // Pega só sigla (ex: TRT1 de "TRT1 (RJ)")
+              return nomeNormalizado === tribunalSelecionado || 
+                     t.endpoint.toUpperCase().includes(tribunalSelecionado.replace(/\s/g, ''));
+            });
+            if (found && !endpointsToSearch.find(e => e.endpoint === found.endpoint)) {
+              endpointsToSearch.push(found);
+            }
           }
         } else if (monitoramento.uf) {
           // Se UF específica, filtrar tribunais estaduais e trabalhistas
@@ -370,6 +376,8 @@ Deno.serve(async (req) => {
           // Sem filtro: buscar em TODOS os tribunais (estaduais, federais e trabalhistas)
           endpointsToSearch.push(...todosEstadual, ...todosRegionaisFederais, ...todosRegionaisTrabalho);
         }
+
+        console.log(`  Buscando em ${endpointsToSearch.length} tribunais`);
 
         // Buscar em cada tribunal
         for (const tribunal of endpointsToSearch) {
