@@ -24,8 +24,8 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-// API endpoint for PJE Comunica - using the correct API path
-const PJE_API_BASE = "https://comunica.pje.jus.br";
+// API endpoint for PJE Comunica - same as DJEN
+const PJE_API_BASE = "https://comunicaapi.pje.jus.br/api/v1";
 
 // Types of searches available
 type SearchType = "advogado" | "palavra-chave" | "processo";
@@ -55,49 +55,51 @@ async function searchPJE(params: SearchParams): Promise<any> {
     tamanhoPagina = 20
   } = params;
 
-  // Build query parameters based on search type
-  const queryParams = new URLSearchParams();
+  let url: string;
   
+  // Build URL based on search type - same structure as DJEN
   switch (tipo) {
     case "advogado":
       if (!oab || !uf) {
         throw new Error("OAB e UF são obrigatórios para busca por advogado");
       }
-      queryParams.append("numeroOAB", oab);
-      queryParams.append("siglaUFOAB", uf.toUpperCase());
+      url = `${PJE_API_BASE}/comunicacao/advogado/${oab}/${uf.toUpperCase()}`;
       break;
       
     case "palavra-chave":
       if (!palavraChave) {
         throw new Error("Palavra-chave é obrigatória");
       }
-      queryParams.append("texto", palavraChave);
+      const encodedKeyword = encodeURIComponent(palavraChave);
+      url = `${PJE_API_BASE}/comunicacao/pesquisa?texto=${encodedKeyword}`;
       break;
       
     case "processo":
       if (!numeroProcesso) {
         throw new Error("Número do processo é obrigatório");
       }
-      queryParams.append("numeroProcesso", numeroProcesso.replace(/\D/g, ''));
+      const cleanedNumber = numeroProcesso.replace(/\D/g, '');
+      url = `${PJE_API_BASE}/comunicacao/processo/${cleanedNumber}`;
       break;
       
     default:
       throw new Error("Tipo de busca inválido");
   }
 
-  // Add date filters
+  // Add pagination and date filters
+  const queryParams = new URLSearchParams();
+  queryParams.append("pagina", pagina.toString());
+  queryParams.append("tamanhoPagina", tamanhoPagina.toString());
+  
   if (dataInicio) {
-    queryParams.append("dataDisponibilizacaoInicio", dataInicio);
+    queryParams.append("dataInicio", dataInicio);
   }
   if (dataFim) {
-    queryParams.append("dataDisponibilizacaoFim", dataFim);
+    queryParams.append("dataFim", dataFim);
   }
-
-  // Add pagination
-  queryParams.append("pagina", pagina.toString());
-  queryParams.append("itensPorPagina", tamanhoPagina.toString());
   
-  const fullUrl = `${PJE_API_BASE}/consulta?${queryParams.toString()}`;
+  const separator = url.includes("?") ? "&" : "?";
+  const fullUrl = `${url}${separator}${queryParams.toString()}`;
   
   console.log("Fetching PJE API:", fullUrl);
   
@@ -105,7 +107,6 @@ async function searchPJE(params: SearchParams): Promise<any> {
     method: "GET",
     headers: {
       "Accept": "application/json",
-      "User-Agent": "JurisControl/1.0",
     },
   });
 
@@ -115,11 +116,25 @@ async function searchPJE(params: SearchParams): Promise<any> {
     const errorText = await response.text();
     console.error("PJE API error:", response.status, errorText.substring(0, 500));
     
-    // 404 or 422 means "not found" - return empty results
-    if (response.status === 404 || response.status === 422) {
+    // 422 means "not found" - return empty results instead of error
+    if (response.status === 422) {
+      console.log("PJE returned 422 (not found), returning empty results");
       return { 
-        comunicacoes: [], 
+        publicacoes: [], 
         items: [],
+        comunicacoes: [],
+        totalElements: 0, 
+        totalPages: 0,
+        message: "Nenhuma comunicação encontrada para os critérios informados"
+      };
+    }
+    
+    // 404 also means "not found"
+    if (response.status === 404) {
+      return { 
+        publicacoes: [], 
+        items: [],
+        comunicacoes: [],
         totalElements: 0, 
         totalPages: 0,
         message: "Nenhuma comunicação encontrada para os critérios informados"
