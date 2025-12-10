@@ -9,6 +9,7 @@ import { Search, Play, Clock, PlayCircle, RefreshCw } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -112,7 +113,7 @@ export function MonitoramentoDistribuicoesCard() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="h-4 w-4" />
             <span>
-              Última execução: {format(new Date(configuracaoDistribuicoes.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              Última execução: {format(toZonedTime(new Date(configuracaoDistribuicoes.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
             </span>
           </div>
         )}
