@@ -4,6 +4,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const ALLOWED_ORIGINS = [
   'https://bfxahrrvoqxcdmfsvnrk.supabase.co',
   'https://lovable.dev',
+  'https://juriscontrol.adv.br',
+  'https://www.juriscontrol.adv.br',
 ];
 
 // Check if origin is allowed (also allows localhost for development and Lovable preview domains)
@@ -137,6 +139,45 @@ function getTribunalInfo(numeroProcesso: string): { endpoint: string; nome: stri
   return jurisdicao[info.tr] || null;
 }
 
+// Extrair partes separando em polo ativo e passivo
+function extrairPartes(partes: any[]): { poloAtivo: string[]; poloPassivo: string[] } {
+  const poloAtivo: string[] = [];
+  const poloPassivo: string[] = [];
+  
+  if (!partes || !Array.isArray(partes)) {
+    return { poloAtivo, poloPassivo };
+  }
+  
+  for (const parte of partes) {
+    const nome = parte.nome || parte.pessoa?.nome || '';
+    if (!nome) continue;
+    
+    const polo = (parte.polo || parte.tipoParte || '').toUpperCase();
+    
+    // AT, ATIVO, AUTOR, REQUERENTE, RECLAMANTE = polo ativo
+    if (polo.includes('AT') || polo.includes('ATIVO') || polo.includes('AUTOR') || 
+        polo.includes('REQUERENTE') || polo.includes('RECLAMANTE') || polo.includes('EXEQUENTE')) {
+      poloAtivo.push(nome);
+    } 
+    // PA, PASSIVO, REU, REQUERIDO, RECLAMADO = polo passivo
+    else if (polo.includes('PA') || polo.includes('PASSIVO') || polo.includes('REU') || 
+             polo.includes('REQUERIDO') || polo.includes('RECLAMADO') || polo.includes('EXECUTADO')) {
+      poloPassivo.push(nome);
+    }
+    // Se não conseguir identificar o polo, tenta pelo tipoParte
+    else {
+      const tipoParte = (parte.tipoParte || '').toLowerCase();
+      if (tipoParte.includes('autor') || tipoParte.includes('requerente') || tipoParte.includes('reclamante')) {
+        poloAtivo.push(nome);
+      } else if (tipoParte.includes('reu') || tipoParte.includes('réu') || tipoParte.includes('requerido') || tipoParte.includes('reclamado')) {
+        poloPassivo.push(nome);
+      }
+    }
+  }
+  
+  return { poloAtivo, poloPassivo };
+}
+
 serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -188,7 +229,7 @@ serve(async (req) => {
     let tribunalNome: string;
     
     if (tribunal) {
-      endpoint = tribunal;
+      endpoint = `api_publica_${tribunal}`;
       tribunalNome = tribunal.toUpperCase();
     } else {
       const tribunalInfo = getTribunalInfo(numeroProcesso);
@@ -236,7 +277,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log("Resposta da API:", JSON.stringify(data).substring(0, 500));
+    console.log("Resposta da API - hits:", data.hits?.total?.value || 0);
     
     const hits = data.hits?.hits || [];
     
@@ -254,6 +295,12 @@ serve(async (req) => {
     const processo = hits[0]._source;
     const movimentos = processo.movimentos || [];
     
+    // Log partes para debug
+    console.log("Partes encontradas:", JSON.stringify(processo.partes || []).substring(0, 500));
+    
+    // Extrair partes separando por polo
+    const { poloAtivo, poloPassivo } = extrairPartes(processo.partes);
+    
     return new Response(
       JSON.stringify({
         found: true,
@@ -263,20 +310,19 @@ serve(async (req) => {
           classe: processo.classe?.nome || processo.classeProcessual,
           assunto: processo.assuntos?.[0]?.nome || processo.assunto,
           orgaoJulgador: processo.orgaoJulgador?.nome,
+          dataDistribuicao: processo.dataAjuizamento,
           dataAjuizamento: processo.dataAjuizamento,
           grau: processo.grau,
           nivelSigilo: processo.nivelSigilo,
           formato: processo.formato?.nome,
           sistema: processo.sistema?.nome,
           tribunal: processo.tribunal,
-          partes: processo.partes?.map((p: any) => ({
-            tipo: p.tipo,
-            nome: p.nome,
-            tipoParte: p.tipoParte
-          })) || []
+          valorCausa: processo.valorCausa,
+          poloAtivo,
+          poloPassivo
         },
-        movimentos: movimentos.slice(0, 100).map((m: any) => ({
-          data: m.dataHora,
+        movimentacoes: movimentos.slice(0, 100).map((m: any) => ({
+          dataHora: m.dataHora,
           nome: m.nome || m.movimentoNacional?.nome,
           codigo: m.codigo || m.movimentoNacional?.codigo,
           codigoNacional: m.movimentoNacional?.codigoNacional || m.codigoNacional,
