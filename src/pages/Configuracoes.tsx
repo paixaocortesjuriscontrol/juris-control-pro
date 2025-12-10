@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { User, Bell, Shield, Palette } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
+import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 
 export default function Configuracoes() {
   return (
@@ -15,6 +16,12 @@ export default function Configuracoes() {
             <MonitoramentoRedistribuicoesCard />
             <MonitoramentoAndamentosCard />
           </div>
+        </div>
+
+        {/* Seção de Relatório de Monitoramento */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Relatórios de Monitoramento</h2>
+          <RelatorioMonitoramentoCard />
         </div>
 
         {/* Seção de Configurações Gerais */}
