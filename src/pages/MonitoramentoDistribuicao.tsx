@@ -308,6 +308,59 @@ export default function MonitoramentoDistribuicao() {
                             </Button>
                           )}
                         </div>
+                        <div className="p-2 border-b flex flex-wrap gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              const tjs = tribunais.filter(t => t.value.startsWith('TJ')).map(t => t.value);
+                              setTribunaisSelecionados(prev => {
+                                const allSelected = tjs.every(tj => prev.includes(tj));
+                                if (allSelected) {
+                                  return prev.filter(t => !t.startsWith('TJ'));
+                                }
+                                return [...new Set([...prev, ...tjs])];
+                              });
+                            }}
+                          >
+                            Todos TJs
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              const trfs = tribunais.filter(t => t.value.startsWith('TRF')).map(t => t.value);
+                              setTribunaisSelecionados(prev => {
+                                const allSelected = trfs.every(trf => prev.includes(trf));
+                                if (allSelected) {
+                                  return prev.filter(t => !t.startsWith('TRF'));
+                                }
+                                return [...new Set([...prev, ...trfs])];
+                              });
+                            }}
+                          >
+                            Todos TRFs
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              const trts = tribunais.filter(t => t.value.startsWith('TRT')).map(t => t.value);
+                              setTribunaisSelecionados(prev => {
+                                const allSelected = trts.every(trt => prev.includes(trt));
+                                if (allSelected) {
+                                  return prev.filter(t => !t.startsWith('TRT'));
+                                }
+                                return [...new Set([...prev, ...trts])];
+                              });
+                            }}
+                          >
+                            Todos TRTs
+                          </Button>
+                        </div>
                         <ScrollArea className="h-[300px]">
                           <div className="p-2 space-y-1">
                             {tribunais.map((trib) => (
