@@ -8,7 +8,6 @@ const ALLOWED_ORIGINS = [
   'https://www.juriscontrol.adv.br',
 ];
 
-// Check if origin is allowed (also allows localhost for development and Lovable preview domains)
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
   if (origin.startsWith('http://localhost:')) return true;
@@ -23,17 +22,6 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
     'Access-Control-Allow-Origin': allowedOrigin || ALLOWED_ORIGINS[0],
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   };
-}
-
-// Input validation for process number (CNJ format: 20 digits)
-function isValidProcessNumber(numero: string): boolean {
-  const cleaned = numero.replace(/\D/g, '');
-  return cleaned.length >= 15 && cleaned.length <= 25;
-}
-
-// Input validation for tribunal (alphanumeric with underscores only)
-function isValidTribunal(tribunal: string): boolean {
-  return /^[a-zA-Z0-9_]+$/.test(tribunal) && tribunal.length <= 50;
 }
 
 // API Key pública do DataJud/CNJ
@@ -139,7 +127,6 @@ function getTribunalInfo(numeroProcesso: string): { endpoint: string; nome: stri
   return jurisdicao[info.tr] || null;
 }
 
-// Extrair partes separando em polo ativo e passivo
 function extrairPartes(partes: any[]): { poloAtivo: string[]; poloPassivo: string[] } {
   const poloAtivo: string[] = [];
   const poloPassivo: string[] = [];
@@ -154,17 +141,14 @@ function extrairPartes(partes: any[]): { poloAtivo: string[]; poloPassivo: strin
     
     const polo = (parte.polo || parte.tipoParte || '').toUpperCase();
     
-    // AT, ATIVO, AUTOR, REQUERENTE, RECLAMANTE = polo ativo
     if (polo.includes('AT') || polo.includes('ATIVO') || polo.includes('AUTOR') || 
         polo.includes('REQUERENTE') || polo.includes('RECLAMANTE') || polo.includes('EXEQUENTE')) {
       poloAtivo.push(nome);
     } 
-    // PA, PASSIVO, REU, REQUERIDO, RECLAMADO = polo passivo
     else if (polo.includes('PA') || polo.includes('PASSIVO') || polo.includes('REU') || 
              polo.includes('REQUERIDO') || polo.includes('RECLAMADO') || polo.includes('EXECUTADO')) {
       poloPassivo.push(nome);
     }
-    // Se não conseguir identificar o polo, tenta pelo tipoParte
     else {
       const tipoParte = (parte.tipoParte || '').toLowerCase();
       if (tipoParte.includes('autor') || tipoParte.includes('requerente') || tipoParte.includes('reclamante')) {
@@ -178,6 +162,122 @@ function extrairPartes(partes: any[]): { poloAtivo: string[]; poloPassivo: strin
   return { poloAtivo, poloPassivo };
 }
 
+// Build Elasticsearch query based on filters
+function buildElasticsearchQuery(params: {
+  numeroProcesso?: string;
+  nomeParte?: string;
+  classeJudicial?: string;
+  cpfCnpj?: string;
+  oab?: string;
+  dataInicio?: string;
+  dataFim?: string;
+}): any {
+  const must: any[] = [];
+  const should: any[] = [];
+  
+  // Número do processo (exact or partial match)
+  if (params.numeroProcesso) {
+    const numeroLimpo = params.numeroProcesso.replace(/\D/g, '');
+    if (numeroLimpo.length >= 15) {
+      must.push({ match: { numeroProcesso: numeroLimpo.padStart(20, '0') } });
+    } else if (numeroLimpo.length >= 5) {
+      must.push({ wildcard: { numeroProcesso: `*${numeroLimpo}*` } });
+    }
+  }
+  
+  // Nome da parte
+  if (params.nomeParte) {
+    must.push({
+      nested: {
+        path: "partes",
+        query: {
+          match_phrase_prefix: { "partes.nome": params.nomeParte }
+        }
+      }
+    });
+  }
+  
+  // Classe Judicial
+  if (params.classeJudicial) {
+    should.push({ match_phrase_prefix: { "classe.nome": params.classeJudicial } });
+    should.push({ match_phrase_prefix: { classeProcessual: params.classeJudicial } });
+  }
+  
+  // CPF ou CNPJ
+  if (params.cpfCnpj) {
+    const documento = params.cpfCnpj.replace(/\D/g, '');
+    must.push({
+      nested: {
+        path: "partes",
+        query: {
+          bool: {
+            should: [
+              { match: { "partes.cpf": documento } },
+              { match: { "partes.cnpj": documento } },
+              { match: { "partes.documento": documento } },
+              { match: { "partes.pessoa.cpf": documento } },
+              { match: { "partes.pessoa.cnpj": documento } }
+            ]
+          }
+        }
+      }
+    });
+  }
+  
+  // OAB
+  if (params.oab) {
+    must.push({
+      nested: {
+        path: "partes",
+        query: {
+          nested: {
+            path: "partes.advogados",
+            query: {
+              bool: {
+                should: [
+                  { match: { "partes.advogados.inscricao": params.oab } },
+                  { match: { "partes.advogados.numeroOAB": params.oab } }
+                ]
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  
+  // Data de Autuação (range)
+  if (params.dataInicio || params.dataFim) {
+    const range: any = {};
+    if (params.dataInicio) {
+      range.gte = params.dataInicio;
+    }
+    if (params.dataFim) {
+      range.lte = params.dataFim;
+    }
+    must.push({ range: { dataAjuizamento: range } });
+  }
+  
+  // Build final query
+  const query: any = { bool: {} };
+  
+  if (must.length > 0) {
+    query.bool.must = must;
+  }
+  
+  if (should.length > 0) {
+    query.bool.should = should;
+    query.bool.minimum_should_match = should.length > 0 && must.length === 0 ? 1 : 0;
+  }
+  
+  // If no filters provided, match all
+  if (must.length === 0 && should.length === 0) {
+    return { match_all: {} };
+  }
+  
+  return query;
+}
+
 serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -186,7 +286,6 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Reject requests from disallowed origins
   if (!isAllowedOrigin(origin)) {
     console.warn("Blocked request from unauthorized origin:", origin);
     return new Response(
@@ -196,58 +295,82 @@ serve(async (req) => {
   }
 
   try {
-    const { numeroProcesso, tribunal } = await req.json();
+    const body = await req.json();
+    const { 
+      numeroProcesso, 
+      tribunal,
+      nomeParte,
+      classeJudicial,
+      cpfCnpj,
+      oab,
+      uf,
+      dataInicio,
+      dataFim,
+      size = 20
+    } = body;
     
-    console.log("Consultando processo:", numeroProcesso, "Tribunal:", tribunal);
+    console.log("Consulta com filtros:", JSON.stringify({ numeroProcesso, tribunal, nomeParte, classeJudicial, cpfCnpj, oab, uf, dataInicio, dataFim }));
 
-    // Validate process number
-    if (!numeroProcesso || typeof numeroProcesso !== 'string') {
-      return new Response(
-        JSON.stringify({ error: "Número do processo é obrigatório" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!isValidProcessNumber(numeroProcesso)) {
-      return new Response(
-        JSON.stringify({ error: "Formato de número de processo inválido" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Validate tribunal if provided
-    if (tribunal && !isValidTribunal(tribunal)) {
-      return new Response(
-        JSON.stringify({ error: "Tribunal inválido" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const numeroLimpo = limparNumeroProcesso(numeroProcesso);
-    
+    // Determine endpoint
     let endpoint: string;
     let tribunalNome: string;
     
-    if (tribunal) {
+    if (tribunal && tribunal !== 'auto') {
       endpoint = `api_publica_${tribunal}`;
       tribunalNome = tribunal.toUpperCase();
-    } else {
-      const tribunalInfo = getTribunalInfo(numeroProcesso);
-      if (!tribunalInfo) {
+    } else if (numeroProcesso) {
+      const numeroLimpo = numeroProcesso.replace(/\D/g, '');
+      if (numeroLimpo.length >= 15) {
+        const tribunalInfo = getTribunalInfo(numeroProcesso);
+        if (tribunalInfo) {
+          endpoint = tribunalInfo.endpoint;
+          tribunalNome = tribunalInfo.nome;
+        } else {
+          return new Response(
+            JSON.stringify({ error: "Não foi possível identificar o tribunal pelo número. Por favor, selecione manualmente." }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } else {
         return new Response(
-          JSON.stringify({ 
-            error: "Não foi possível identificar o tribunal. Por favor, selecione manualmente." 
-          }),
+          JSON.stringify({ error: "Por favor, selecione o tribunal para buscas com número parcial ou outros filtros." }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      endpoint = tribunalInfo.endpoint;
-      tribunalNome = tribunalInfo.nome;
+    } else if (uf) {
+      // Map UF to tribunal endpoint
+      const ufToTribunal: Record<string, string> = {
+        'AC': 'tjac', 'AL': 'tjal', 'AP': 'tjap', 'AM': 'tjam', 'BA': 'tjba',
+        'CE': 'tjce', 'DF': 'tjdft', 'ES': 'tjes', 'GO': 'tjgo', 'MA': 'tjma',
+        'MT': 'tjmt', 'MS': 'tjms', 'MG': 'tjmg', 'PA': 'tjpa', 'PB': 'tjpb',
+        'PR': 'tjpr', 'PE': 'tjpe', 'PI': 'tjpi', 'RJ': 'tjrj', 'RN': 'tjrn',
+        'RS': 'tjrs', 'RO': 'tjro', 'RR': 'tjrr', 'SC': 'tjsc', 'SP': 'tjsp',
+        'SE': 'tjse', 'TO': 'tjto'
+      };
+      endpoint = `api_publica_${ufToTribunal[uf] || 'tjsp'}`;
+      tribunalNome = `TJ${uf}`;
+    } else {
+      return new Response(
+        JSON.stringify({ error: "Por favor, informe o número do processo, selecione o tribunal ou a UF." }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
-    
     console.log("URL da API:", url);
+    
+    // Build query
+    const query = buildElasticsearchQuery({
+      numeroProcesso,
+      nomeParte,
+      classeJudicial,
+      cpfCnpj,
+      oab,
+      dataInicio,
+      dataFim
+    });
+    
+    console.log("Query Elasticsearch:", JSON.stringify(query));
     
     const response = await fetch(url, {
       method: 'POST',
@@ -256,11 +379,9 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query: {
-          match: {
-            numeroProcesso: numeroLimpo
-          }
-        }
+        query,
+        size: Math.min(size, 100),
+        sort: [{ dataAjuizamento: { order: "desc" } }]
       })
     });
 
@@ -268,16 +389,14 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error("Erro na API DataJud:", response.status, errorText);
       return new Response(
-        JSON.stringify({ 
-          error: `Erro ao consultar API do tribunal: ${response.status}`,
-          details: errorText
-        }),
+        JSON.stringify({ error: `Erro ao consultar API do tribunal: ${response.status}` }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
-    console.log("Resposta da API - hits:", data.hits?.total?.value || 0);
+    const totalHits = data.hits?.total?.value || 0;
+    console.log("Resposta da API - hits:", totalHits);
     
     const hits = data.hits?.hits || [];
     
@@ -286,50 +405,79 @@ serve(async (req) => {
         JSON.stringify({ 
           found: false, 
           tribunal: tribunalNome,
-          message: "Processo não encontrado no tribunal consultado" 
+          total: 0,
+          processos: [],
+          message: "Nenhum processo encontrado com os critérios informados" 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const processo = hits[0]._source;
-    const movimentos = processo.movimentos || [];
-    
-    // Log partes para debug
-    console.log("Partes encontradas:", JSON.stringify(processo.partes || []).substring(0, 500));
-    
-    // Extrair partes separando por polo
-    const { poloAtivo, poloPassivo } = extrairPartes(processo.partes);
-    
+    // If single result (searching by number), return full details
+    if (hits.length === 1 && numeroProcesso && numeroProcesso.replace(/\D/g, '').length >= 15) {
+      const processo = hits[0]._source;
+      const movimentos = processo.movimentos || [];
+      const { poloAtivo, poloPassivo } = extrairPartes(processo.partes);
+      
+      return new Response(
+        JSON.stringify({
+          found: true,
+          tribunal: tribunalNome,
+          total: 1,
+          processo: {
+            numero: processo.numeroProcesso,
+            classe: processo.classe?.nome || processo.classeProcessual,
+            assunto: processo.assuntos?.[0]?.nome || processo.assunto,
+            orgaoJulgador: processo.orgaoJulgador?.nome,
+            dataDistribuicao: processo.dataAjuizamento,
+            dataAjuizamento: processo.dataAjuizamento,
+            grau: processo.grau,
+            nivelSigilo: processo.nivelSigilo,
+            formato: processo.formato?.nome,
+            sistema: processo.sistema?.nome,
+            tribunal: processo.tribunal,
+            valorCausa: processo.valorCausa,
+            poloAtivo,
+            poloPassivo
+          },
+          movimentacoes: movimentos.slice(0, 100).map((m: any) => ({
+            dataHora: m.dataHora,
+            nome: m.nome || m.movimentoNacional?.nome,
+            codigo: m.codigo || m.movimentoNacional?.codigo,
+            codigoNacional: m.movimentoNacional?.codigoNacional || m.codigoNacional,
+            complemento: m.complementosTabelados?.map((c: any) => 
+              `${c.nome}: ${c.valor}`
+            ).join(' | ') || m.complemento || ''
+          }))
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Multiple results - return list
+    const processos = hits.map((hit: any) => {
+      const p = hit._source;
+      const { poloAtivo, poloPassivo } = extrairPartes(p.partes);
+      
+      return {
+        numero: p.numeroProcesso,
+        classe: p.classe?.nome || p.classeProcessual,
+        assunto: p.assuntos?.[0]?.nome || p.assunto,
+        orgaoJulgador: p.orgaoJulgador?.nome,
+        dataDistribuicao: p.dataAjuizamento,
+        tribunal: p.tribunal,
+        valorCausa: p.valorCausa,
+        poloAtivo,
+        poloPassivo
+      };
+    });
+
     return new Response(
       JSON.stringify({
         found: true,
         tribunal: tribunalNome,
-        processo: {
-          numero: processo.numeroProcesso,
-          classe: processo.classe?.nome || processo.classeProcessual,
-          assunto: processo.assuntos?.[0]?.nome || processo.assunto,
-          orgaoJulgador: processo.orgaoJulgador?.nome,
-          dataDistribuicao: processo.dataAjuizamento,
-          dataAjuizamento: processo.dataAjuizamento,
-          grau: processo.grau,
-          nivelSigilo: processo.nivelSigilo,
-          formato: processo.formato?.nome,
-          sistema: processo.sistema?.nome,
-          tribunal: processo.tribunal,
-          valorCausa: processo.valorCausa,
-          poloAtivo,
-          poloPassivo
-        },
-        movimentacoes: movimentos.slice(0, 100).map((m: any) => ({
-          dataHora: m.dataHora,
-          nome: m.nome || m.movimentoNacional?.nome,
-          codigo: m.codigo || m.movimentoNacional?.codigo,
-          codigoNacional: m.movimentoNacional?.codigoNacional || m.codigoNacional,
-          complemento: m.complementosTabelados?.map((c: any) => 
-            `${c.nome}: ${c.valor}`
-          ).join(' | ') || m.complemento || ''
-        }))
+        total: totalHits,
+        processos
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
