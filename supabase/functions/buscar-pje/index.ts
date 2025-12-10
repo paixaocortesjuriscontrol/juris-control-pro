@@ -24,8 +24,8 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-// API endpoint for PJE Comunica
-const PJE_API_BASE = "https://comunica.pje.jus.br/api/v1";
+// API endpoint for PJE Comunica - using the correct API path
+const PJE_API_BASE = "https://comunica.pje.jus.br";
 
 // Types of searches available
 type SearchType = "advogado" | "palavra-chave" | "processo";
@@ -55,51 +55,49 @@ async function searchPJE(params: SearchParams): Promise<any> {
     tamanhoPagina = 20
   } = params;
 
-  let url: string;
+  // Build query parameters based on search type
+  const queryParams = new URLSearchParams();
   
-  // Build URL based on search type
   switch (tipo) {
     case "advogado":
       if (!oab || !uf) {
         throw new Error("OAB e UF são obrigatórios para busca por advogado");
       }
-      url = `${PJE_API_BASE}/comunicacao/advogado/${oab}/${uf.toUpperCase()}`;
+      queryParams.append("numeroOAB", oab);
+      queryParams.append("siglaUFOAB", uf.toUpperCase());
       break;
       
     case "palavra-chave":
       if (!palavraChave) {
         throw new Error("Palavra-chave é obrigatória");
       }
-      const encodedKeyword = encodeURIComponent(palavraChave);
-      url = `${PJE_API_BASE}/comunicacao/pesquisa?texto=${encodedKeyword}`;
+      queryParams.append("texto", palavraChave);
       break;
       
     case "processo":
       if (!numeroProcesso) {
         throw new Error("Número do processo é obrigatório");
       }
-      const cleanedNumber = numeroProcesso.replace(/\D/g, '');
-      url = `${PJE_API_BASE}/comunicacao/processo/${cleanedNumber}`;
+      queryParams.append("numeroProcesso", numeroProcesso.replace(/\D/g, ''));
       break;
       
     default:
       throw new Error("Tipo de busca inválido");
   }
 
-  // Add pagination and date filters
-  const queryParams = new URLSearchParams();
-  queryParams.append("pagina", pagina.toString());
-  queryParams.append("tamanhoPagina", tamanhoPagina.toString());
-  
+  // Add date filters
   if (dataInicio) {
-    queryParams.append("dataInicio", dataInicio);
+    queryParams.append("dataDisponibilizacaoInicio", dataInicio);
   }
   if (dataFim) {
-    queryParams.append("dataFim", dataFim);
+    queryParams.append("dataDisponibilizacaoFim", dataFim);
   }
+
+  // Add pagination
+  queryParams.append("pagina", pagina.toString());
+  queryParams.append("itensPorPagina", tamanhoPagina.toString());
   
-  const separator = url.includes("?") ? "&" : "?";
-  const fullUrl = `${url}${separator}${queryParams.toString()}`;
+  const fullUrl = `${PJE_API_BASE}/api/consulta?${queryParams.toString()}`;
   
   console.log("Fetching PJE API:", fullUrl);
   
@@ -107,20 +105,21 @@ async function searchPJE(params: SearchParams): Promise<any> {
     method: "GET",
     headers: {
       "Accept": "application/json",
+      "User-Agent": "JurisControl/1.0",
     },
   });
 
+  console.log("PJE API response status:", response.status);
+
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("PJE API error:", response.status, errorText);
+    console.error("PJE API error:", response.status, errorText.substring(0, 500));
     
-    // 422 means "not found" - return empty results instead of error
-    if (response.status === 422 || response.status === 404) {
-      console.log("PJE returned not found, returning empty results");
+    // 404 or 422 means "not found" - return empty results
+    if (response.status === 404 || response.status === 422) {
       return { 
-        publicacoes: [], 
+        comunicacoes: [], 
         items: [],
-        comunicacoes: [],
         totalElements: 0, 
         totalPages: 0,
         message: "Nenhuma comunicação encontrada para os critérios informados"
@@ -130,7 +129,10 @@ async function searchPJE(params: SearchParams): Promise<any> {
     throw new Error(`Erro na API do PJE: ${response.status}`);
   }
 
-  return await response.json();
+  const data = await response.json();
+  console.log("PJE API response data keys:", Object.keys(data));
+  
+  return data;
 }
 
 serve(async (req) => {

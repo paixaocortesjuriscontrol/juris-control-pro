@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const PJE_API_BASE = "https://comunica.pje.jus.br/api/v1";
+const PJE_API_BASE = "https://comunica.pje.jus.br";
 
 interface Monitoramento {
   id: string;
@@ -29,20 +29,19 @@ function generateHash(content: string): string {
 }
 
 async function searchPJE(monitoramento: Monitoramento): Promise<any[]> {
-  let url: string;
+  const queryParams = new URLSearchParams();
   
   switch (monitoramento.tipo) {
     case "advogado":
       if (!monitoramento.oab || !monitoramento.uf) return [];
-      url = `${PJE_API_BASE}/comunicacao/advogado/${monitoramento.oab}/${monitoramento.uf.toUpperCase()}`;
+      queryParams.append("numeroOAB", monitoramento.oab);
+      queryParams.append("siglaUFOAB", monitoramento.uf.toUpperCase());
       break;
     case "palavra-chave":
-      const encodedKeyword = encodeURIComponent(monitoramento.termo_busca);
-      url = `${PJE_API_BASE}/comunicacao/pesquisa?texto=${encodedKeyword}`;
+      queryParams.append("texto", monitoramento.termo_busca);
       break;
     case "processo":
-      const cleanedNumber = monitoramento.termo_busca.replace(/\D/g, '');
-      url = `${PJE_API_BASE}/comunicacao/processo/${cleanedNumber}`;
+      queryParams.append("numeroProcesso", monitoramento.termo_busca.replace(/\D/g, ''));
       break;
     default:
       return [];
@@ -52,25 +51,26 @@ async function searchPJE(monitoramento: Monitoramento): Promise<any[]> {
   const dataFim = new Date().toISOString().split('T')[0];
   const dataInicio = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   
-  const queryParams = new URLSearchParams();
+  queryParams.append("dataDisponibilizacaoInicio", dataInicio);
+  queryParams.append("dataDisponibilizacaoFim", dataFim);
   queryParams.append("pagina", "0");
-  queryParams.append("tamanhoPagina", "50");
-  queryParams.append("dataInicio", dataInicio);
-  queryParams.append("dataFim", dataFim);
+  queryParams.append("itensPorPagina", "50");
   
-  const separator = url.includes("?") ? "&" : "?";
-  const fullUrl = `${url}${separator}${queryParams.toString()}`;
+  const fullUrl = `${PJE_API_BASE}/api/consulta?${queryParams.toString()}`;
   
   console.log(`Searching PJE for monitoramento ${monitoramento.id}: ${fullUrl}`);
   
   try {
     const response = await fetch(fullUrl, {
       method: "GET",
-      headers: { "Accept": "application/json" },
+      headers: { 
+        "Accept": "application/json",
+        "User-Agent": "JurisControl/1.0",
+      },
     });
 
     if (!response.ok) {
-      if (response.status === 422 || response.status === 404) {
+      if (response.status === 404 || response.status === 422) {
         console.log(`No results for monitoramento ${monitoramento.id}`);
         return [];
       }
@@ -79,7 +79,7 @@ async function searchPJE(monitoramento: Monitoramento): Promise<any[]> {
     }
 
     const data = await response.json();
-    return data.items || data.content || data.comunicacoes || [];
+    return data.comunicacoes || data.items || data.content || [];
   } catch (error) {
     console.error(`Error searching PJE for ${monitoramento.id}:`, error);
     return [];
@@ -118,8 +118,8 @@ serve(async (req) => {
       console.log(`Found ${publications.length} publications for monitoramento ${monitoramento.id}`);
 
       for (const pub of publications) {
-        const conteudo = pub.conteudo || pub.texto || pub.descricao || JSON.stringify(pub);
-        const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.data || ''));
+        const conteudo = pub.texto || pub.conteudo || pub.descricao || JSON.stringify(pub);
+        const hashConteudo = generateHash(conteudo + (pub.dataDisponibilizacao || pub.dataPublicacao || pub.data || ''));
 
         // Try to insert (will fail if duplicate due to unique constraint)
         const { error: insertError } = await supabase
@@ -127,10 +127,10 @@ serve(async (req) => {
           .insert({
             monitoramento_id: monitoramento.id,
             hash_conteudo: hashConteudo,
-            data_publicacao: pub.dataPublicacao || pub.data || null,
+            data_publicacao: pub.dataDisponibilizacao || pub.dataPublicacao || pub.data || null,
             processo_numero: pub.numeroProcesso || pub.processo || null,
             conteudo: conteudo.substring(0, 10000),
-            fonte: pub.fonte || pub.tribunal || 'PJE',
+            fonte: pub.orgaoJulgador || pub.tribunal || 'PJE',
           });
 
         if (!insertError) {
