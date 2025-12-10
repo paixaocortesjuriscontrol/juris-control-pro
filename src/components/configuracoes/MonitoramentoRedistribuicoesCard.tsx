@@ -4,10 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { RefreshCw, Settings, Play, Clock } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { RefreshCw, Settings, Play, Clock, PlayCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const frequenciaLabels: Record<string, string> = {
   diario: "Diário (7h)",
@@ -24,6 +27,8 @@ export function MonitoramentoRedistribuicoesCard() {
   } = useConfiguracoesMonitoramento();
 
   const [executando, setExecutando] = useState(false);
+  const [executandoCompleto, setExecutandoCompleto] = useState(false);
+  const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number } | null>(null);
 
   const handleExecutarManual = async () => {
     setExecutando(true);
@@ -31,6 +36,45 @@ export function MonitoramentoRedistribuicoesCard() {
       await executarMonitoramento.mutateAsync('redistribuicoes');
     } finally {
       setExecutando(false);
+    }
+  };
+
+  const handleExecutarCompleto = async () => {
+    setExecutandoCompleto(true);
+    setProgresso({ current: 0, total: 0, percentage: 0 });
+    
+    try {
+      let isComplete = false;
+      let totalRedistribuicoes = 0;
+      let totalChecked = 0;
+      
+      while (!isComplete) {
+        const { data, error } = await supabase.functions.invoke('monitorar-redistribuicoes');
+        
+        if (error) {
+          throw error;
+        }
+        
+        if (data?.progress) {
+          setProgresso(data.progress);
+        }
+        
+        totalChecked += data?.results?.checked || 0;
+        totalRedistribuicoes += data?.results?.redistributions || 0;
+        isComplete = data?.isComplete || false;
+        
+        // Small delay between batches
+        if (!isComplete) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      toast.success(`Monitoramento completo: ${totalChecked} processos verificados, ${totalRedistribuicoes} redistribuições detectadas`);
+    } catch (error) {
+      toast.error(`Erro no monitoramento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
+      setExecutandoCompleto(false);
+      setProgresso(null);
     }
   };
 
@@ -148,25 +192,56 @@ export function MonitoramentoRedistribuicoesCard() {
           </div>
         )}
 
-        {/* Botão de execução manual */}
-        <Button 
-          onClick={handleExecutarManual} 
-          disabled={executando}
-          className="w-full"
-          variant="outline"
-        >
-          {executando ? (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              Verificando processos...
-            </>
-          ) : (
-            <>
-              <Play className="h-4 w-4 mr-2" />
-              Executar Agora
-            </>
-          )}
-        </Button>
+        {/* Progresso do monitoramento completo */}
+        {executandoCompleto && progresso && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span>Verificando processos...</span>
+              <span>{progresso.current} de {progresso.total} ({progresso.percentage}%)</span>
+            </div>
+            <Progress value={progresso.percentage} className="h-2" />
+          </div>
+        )}
+
+        {/* Botões de execução */}
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleExecutarManual} 
+            disabled={executando || executandoCompleto}
+            className="flex-1"
+            variant="outline"
+          >
+            {executando ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Verificando lote...
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4 mr-2" />
+                Executar Lote
+              </>
+            )}
+          </Button>
+          
+          <Button 
+            onClick={handleExecutarCompleto} 
+            disabled={executando || executandoCompleto}
+            className="flex-1"
+          >
+            {executandoCompleto ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Executando...
+              </>
+            ) : (
+              <>
+                <PlayCircle className="h-4 w-4 mr-2" />
+                Executar Completo
+              </>
+            )}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
