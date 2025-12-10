@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -97,12 +97,24 @@ export function CoordenacaoDialog({ open, onOpenChange, coordenacao }: Coordenac
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      nome: coordenacao?.nome || "",
-      area: (coordenacao?.area as "civil" | "trabalhista" | "empresarial") || "civil",
-      descricao: coordenacao?.descricao || "",
-      coordenador_id: coordenacao?.coordenador?.id || "",
+      nome: "",
+      area: "civil",
+      descricao: "",
+      coordenador_id: "",
     },
   });
+
+  // Reset form when coordenacao changes (for edit mode)
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        nome: coordenacao?.nome || "",
+        area: (coordenacao?.area as "civil" | "trabalhista" | "empresarial") || "civil",
+        descricao: coordenacao?.descricao || "",
+        coordenador_id: coordenacao?.coordenador?.id || "",
+      });
+    }
+  }, [open, coordenacao, form]);
 
   async function onSubmit(values: FormValues) {
     setLoading(true);
