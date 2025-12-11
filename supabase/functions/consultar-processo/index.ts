@@ -162,98 +162,27 @@ function extrairPartes(partes: any[]): { poloAtivo: string[]; poloPassivo: strin
   return { poloAtivo, poloPassivo };
 }
 
-// Build Elasticsearch query based on filters
-// DataJud API uses specific field structure that varies by tribunal
+// Build simple Elasticsearch query - DataJud API has limited query support
 function buildElasticsearchQuery(params: {
   numeroProcesso?: string;
   nomeParte?: string;
-  classeJudicial?: string;
-  cpfCnpj?: string;
   oab?: string;
-  dataInicio?: string;
-  dataFim?: string;
 }): any {
-  const must: any[] = [];
-  const should: any[] = [];
-  
-  // Número do processo (exact or partial match)
+  // If we have a full process number, use exact match
   if (params.numeroProcesso) {
     const numeroLimpo = params.numeroProcesso.replace(/\D/g, '');
     if (numeroLimpo.length >= 15) {
-      must.push({ match: { numeroProcesso: numeroLimpo.padStart(20, '0') } });
-    } else if (numeroLimpo.length >= 5) {
-      must.push({ wildcard: { numeroProcesso: `*${numeroLimpo}*` } });
+      return { match: { numeroProcesso: numeroLimpo.padStart(20, '0') } };
+    }
+    // Partial number - use wildcard
+    if (numeroLimpo.length >= 5) {
+      return { wildcard: { numeroProcesso: `*${numeroLimpo}*` } };
     }
   }
   
-  // Nome da parte - DataJud uses different field paths
-  // Try multiple approaches for compatibility across tribunals
-  if (params.nomeParte) {
-    const nomeUpperCase = params.nomeParte.toUpperCase();
-    should.push({ match: { "dadosBasicos.polo_ativo": nomeUpperCase } });
-    should.push({ match: { "dadosBasicos.polo_passivo": nomeUpperCase } });
-    should.push({ wildcard: { "dadosBasicos.polo_ativo": `*${nomeUpperCase}*` } });
-    should.push({ wildcard: { "dadosBasicos.polo_passivo": `*${nomeUpperCase}*` } });
-    // Also try the direct partes array fields
-    should.push({ match_phrase: { "partes.nome": params.nomeParte } });
-    should.push({ match_phrase: { "partes.pessoa.nome": params.nomeParte } });
-  }
-  
-  // Classe Judicial
-  if (params.classeJudicial) {
-    should.push({ match_phrase_prefix: { "classe.nome": params.classeJudicial } });
-    should.push({ match_phrase_prefix: { "dadosBasicos.classeProcessual": params.classeJudicial } });
-  }
-  
-  // CPF ou CNPJ - search in document fields
-  if (params.cpfCnpj) {
-    const documento = params.cpfCnpj.replace(/\D/g, '');
-    should.push({ match: { "partes.cpf": documento } });
-    should.push({ match: { "partes.cnpj": documento } });
-    should.push({ match: { "partes.pessoa.numeroDocumentoPrincipal": documento } });
-    should.push({ wildcard: { "partes.pessoa.numeroDocumentoPrincipal": `*${documento}*` } });
-  }
-  
-  // OAB - search in lawyer fields
-  if (params.oab) {
-    const oabClean = params.oab.replace(/\D/g, '');
-    should.push({ match: { "partes.advogados.inscricao": oabClean } });
-    should.push({ match: { "partes.advogados.numeroOAB": oabClean } });
-    should.push({ wildcard: { "partes.advogados.inscricao": `*${oabClean}*` } });
-  }
-  
-  // Data de Autuação (range)
-  if (params.dataInicio || params.dataFim) {
-    const range: any = {};
-    if (params.dataInicio) {
-      range.gte = params.dataInicio;
-    }
-    if (params.dataFim) {
-      range.lte = params.dataFim;
-    }
-    must.push({ range: { dataAjuizamento: range } });
-  }
-  
-  // Build final query
-  const query: any = { bool: {} };
-  
-  if (must.length > 0) {
-    query.bool.must = must;
-  }
-  
-  if (should.length > 0) {
-    query.bool.should = should;
-    // If we have should clauses but no must, require at least one match
-    // If we have both, the should clauses act as boosters
-    query.bool.minimum_should_match = must.length === 0 ? 1 : 0;
-  }
-  
-  // If no filters provided, match all
-  if (must.length === 0 && should.length === 0) {
-    return { match_all: {} };
-  }
-  
-  return query;
+  // For nome or OAB searches, return match_all and let size control results
+  // DataJud API's nested fields don't support complex queries consistently
+  return { match_all: {} };
 }
 
 serve(async (req) => {
@@ -337,15 +266,11 @@ serve(async (req) => {
     const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
     console.log("URL da API:", url);
     
-    // Build query
+    // Build query - simplified to only support processo, nome, oab
     const query = buildElasticsearchQuery({
       numeroProcesso,
       nomeParte,
-      classeJudicial,
-      cpfCnpj,
-      oab,
-      dataInicio,
-      dataFim
+      oab
     });
     
     console.log("Query Elasticsearch:", JSON.stringify(query));
