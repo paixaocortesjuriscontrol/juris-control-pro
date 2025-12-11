@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { FileText, Play, Clock, PlayCircle, RefreshCw } from "lucide-react";
+import { FileText, Play, Clock, PlayCircle, RefreshCw, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -23,6 +23,7 @@ export function MonitoramentoAndamentosCard() {
   const [executando, setExecutando] = useState(false);
   const [executandoCompleto, setExecutandoCompleto] = useState(false);
   const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number } | null>(null);
+  const canceladoRef = useRef(false);
 
   const handleExecutarManual = async () => {
     setExecutando(true);
@@ -33,16 +34,22 @@ export function MonitoramentoAndamentosCard() {
     }
   };
 
+  const handleCancelar = () => {
+    canceladoRef.current = true;
+    toast.info("Cancelando após o lote atual...");
+  };
+
   const handleExecutarCompleto = async () => {
     setExecutandoCompleto(true);
     setProgresso({ current: 0, total: 0, percentage: 0 });
+    canceladoRef.current = false;
     
     try {
       let isComplete = false;
       let totalAndamentos = 0;
       let totalChecked = 0;
       
-      while (!isComplete) {
+      while (!isComplete && !canceladoRef.current) {
         const { data, error } = await supabase.functions.invoke('monitorar-andamentos');
         
         if (error) {
@@ -56,18 +63,19 @@ export function MonitoramentoAndamentosCard() {
         totalChecked += data?.results?.checked || 0;
         totalAndamentos += data?.results?.newMovements || 0;
         isComplete = data?.isComplete || false;
-        
-        if (!isComplete) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
       }
       
-      toast.success(`Monitoramento completo: ${totalChecked} processos verificados, ${totalAndamentos} novos andamentos encontrados`);
+      if (canceladoRef.current) {
+        toast.info(`Monitoramento cancelado: ${totalChecked} processos verificados até o momento`);
+      } else {
+        toast.success(`Monitoramento completo: ${totalChecked} processos verificados, ${totalAndamentos} novos andamentos encontrados`);
+      }
     } catch (error) {
       toast.error(`Erro no monitoramento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setExecutandoCompleto(false);
       setProgresso(null);
+      canceladoRef.current = false;
     }
   };
 
@@ -169,17 +177,23 @@ export function MonitoramentoAndamentosCard() {
             {(() => {
               try {
                 const meta = JSON.parse(configuracaoAndamentos.ultima_execucao);
-                if (meta.next_offset !== undefined && meta.next_offset > 0) {
-                  return (
-                    <span className="text-xs">
-                      Progresso: próximo lote a partir do processo #{meta.next_offset + 1}
-                    </span>
-                  );
-                }
+                return (
+                  <>
+                    {meta.next_offset !== undefined && meta.next_offset > 0 && (
+                      <span className="text-xs">
+                        Progresso: próximo lote a partir do processo #{meta.next_offset + 1}
+                      </span>
+                    )}
+                    {meta.last_complete_run && (
+                      <span className="text-xs text-green-600">
+                        Última execução completa: {format(new Date(meta.last_complete_run), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </span>
+                    )}
+                  </>
+                );
               } catch {
-                // Ignore
+                return null;
               }
-              return null;
             })()}
           </div>
         )}
@@ -197,42 +211,46 @@ export function MonitoramentoAndamentosCard() {
 
         {/* Botões de execução */}
         <div className="flex gap-2">
-          <Button 
-            onClick={handleExecutarManual} 
-            disabled={executando || executandoCompleto}
-            className="flex-1"
-            variant="outline"
-          >
-            {executando ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Buscando lote...
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 mr-2" />
-                Executar Lote
-              </>
-            )}
-          </Button>
-          
-          <Button 
-            onClick={handleExecutarCompleto} 
-            disabled={executando || executandoCompleto}
-            className="flex-1"
-          >
-            {executandoCompleto ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Executando...
-              </>
-            ) : (
-              <>
+          {executandoCompleto ? (
+            <Button 
+              onClick={handleCancelar} 
+              variant="destructive"
+              className="flex-1"
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
+          ) : (
+            <>
+              <Button 
+                onClick={handleExecutarManual} 
+                disabled={executando || executandoCompleto}
+                className="flex-1"
+                variant="outline"
+              >
+                {executando ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Buscando lote...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Executar Lote
+                  </>
+                )}
+              </Button>
+              
+              <Button 
+                onClick={handleExecutarCompleto} 
+                disabled={executando || executandoCompleto}
+                className="flex-1"
+              >
                 <PlayCircle className="h-4 w-4 mr-2" />
                 Executar Completo
-              </>
-            )}
-          </Button>
+              </Button>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>
