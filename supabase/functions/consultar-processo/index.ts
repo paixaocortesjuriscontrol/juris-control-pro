@@ -163,8 +163,7 @@ function extrairPartes(partes: any[]): { poloAtivo: string[]; poloPassivo: strin
 }
 
 // Build Elasticsearch query based on filters
-// Note: DataJud API doesn't support nested queries on all tribunals,
-// so we use simple match queries for better compatibility
+// DataJud API uses specific field structure that varies by tribunal
 function buildElasticsearchQuery(params: {
   numeroProcesso?: string;
   nomeParte?: string;
@@ -187,51 +186,40 @@ function buildElasticsearchQuery(params: {
     }
   }
   
-  // Nome da parte - use simple match query for compatibility
+  // Nome da parte - DataJud uses different field paths
+  // Try multiple approaches for compatibility across tribunals
   if (params.nomeParte) {
-    must.push({
-      query_string: {
-        query: `*${params.nomeParte}*`,
-        fields: ["partes.nome", "partes.pessoa.nome"],
-        default_operator: "AND"
-      }
-    });
+    const nomeUpperCase = params.nomeParte.toUpperCase();
+    should.push({ match: { "dadosBasicos.polo_ativo": nomeUpperCase } });
+    should.push({ match: { "dadosBasicos.polo_passivo": nomeUpperCase } });
+    should.push({ wildcard: { "dadosBasicos.polo_ativo": `*${nomeUpperCase}*` } });
+    should.push({ wildcard: { "dadosBasicos.polo_passivo": `*${nomeUpperCase}*` } });
+    // Also try the direct partes array fields
+    should.push({ match_phrase: { "partes.nome": params.nomeParte } });
+    should.push({ match_phrase: { "partes.pessoa.nome": params.nomeParte } });
   }
   
   // Classe Judicial
   if (params.classeJudicial) {
     should.push({ match_phrase_prefix: { "classe.nome": params.classeJudicial } });
-    should.push({ match_phrase_prefix: { classeProcessual: params.classeJudicial } });
+    should.push({ match_phrase_prefix: { "dadosBasicos.classeProcessual": params.classeJudicial } });
   }
   
-  // CPF ou CNPJ - use simple query_string for compatibility
+  // CPF ou CNPJ - search in document fields
   if (params.cpfCnpj) {
     const documento = params.cpfCnpj.replace(/\D/g, '');
-    must.push({
-      query_string: {
-        query: documento,
-        fields: [
-          "partes.cpf", 
-          "partes.cnpj", 
-          "partes.documento",
-          "partes.pessoa.cpf",
-          "partes.pessoa.cnpj"
-        ]
-      }
-    });
+    should.push({ match: { "partes.cpf": documento } });
+    should.push({ match: { "partes.cnpj": documento } });
+    should.push({ match: { "partes.pessoa.numeroDocumentoPrincipal": documento } });
+    should.push({ wildcard: { "partes.pessoa.numeroDocumentoPrincipal": `*${documento}*` } });
   }
   
-  // OAB - use simple query for compatibility
+  // OAB - search in lawyer fields
   if (params.oab) {
-    must.push({
-      query_string: {
-        query: params.oab,
-        fields: [
-          "partes.advogados.inscricao",
-          "partes.advogados.numeroOAB"
-        ]
-      }
-    });
+    const oabClean = params.oab.replace(/\D/g, '');
+    should.push({ match: { "partes.advogados.inscricao": oabClean } });
+    should.push({ match: { "partes.advogados.numeroOAB": oabClean } });
+    should.push({ wildcard: { "partes.advogados.inscricao": `*${oabClean}*` } });
   }
   
   // Data de Autuação (range)
@@ -255,7 +243,9 @@ function buildElasticsearchQuery(params: {
   
   if (should.length > 0) {
     query.bool.should = should;
-    query.bool.minimum_should_match = should.length > 0 && must.length === 0 ? 1 : 0;
+    // If we have should clauses but no must, require at least one match
+    // If we have both, the should clauses act as boosters
+    query.bool.minimum_should_match = must.length === 0 ? 1 : 0;
   }
   
   // If no filters provided, match all
