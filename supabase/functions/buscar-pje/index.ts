@@ -135,6 +135,17 @@ async function searchPJE(params: SearchParams): Promise<any> {
         console.log("Trying DataJud fallback for process search");
         return await searchDataJudPublicacoes(numeroProcesso);
       }
+      
+      // For advogado/palavra-chave, return empty results (API limitation)
+      console.log(`PJE API returned ${response.status} for ${tipo} search, returning empty results`);
+      return { 
+        publicacoes: [], 
+        items: [],
+        comunicacoes: [],
+        totalElements: 0, 
+        totalPages: 0,
+        message: `A API do PJE Comunica não retornou resultados para esta busca. Tente buscar pelo número do processo ou consulte diretamente o portal do tribunal.`
+      };
     }
     
     throw new Error(`Erro na API do PJE: ${response.status}`);
