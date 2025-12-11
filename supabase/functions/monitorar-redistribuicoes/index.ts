@@ -165,8 +165,8 @@ serve(async (req) => {
 
     console.log("Starting redistribution monitoring...");
 
-    // Increased batch size for faster processing
-    const PROCESSES_PER_RUN = 100;
+    // Reduced batch size to avoid WORKER_LIMIT errors
+    const PROCESSES_PER_RUN = 50;
     
     // Get count of active processes for pagination
     const { count: totalCount } = await supabase
@@ -228,8 +228,8 @@ serve(async (req) => {
       details: [] as any[]
     };
 
-    // Process in parallel batches (10 concurrent requests)
-    const PARALLEL_BATCH_SIZE = 10;
+    // Process in parallel batches (5 concurrent requests to avoid resource limits)
+    const PARALLEL_BATCH_SIZE = 5;
 
     for (let i = 0; i < (processos?.length || 0); i += PARALLEL_BATCH_SIZE) {
       const batch = processos!.slice(i, i + PARALLEL_BATCH_SIZE);
