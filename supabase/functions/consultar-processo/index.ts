@@ -163,6 +163,8 @@ function extrairPartes(partes: any[]): { poloAtivo: string[]; poloPassivo: strin
 }
 
 // Build Elasticsearch query based on filters
+// Note: DataJud API doesn't support nested queries on all tribunals,
+// so we use simple match queries for better compatibility
 function buildElasticsearchQuery(params: {
   numeroProcesso?: string;
   nomeParte?: string;
@@ -185,14 +187,13 @@ function buildElasticsearchQuery(params: {
     }
   }
   
-  // Nome da parte
+  // Nome da parte - use simple match query for compatibility
   if (params.nomeParte) {
     must.push({
-      nested: {
-        path: "partes",
-        query: {
-          match_phrase_prefix: { "partes.nome": params.nomeParte }
-        }
+      query_string: {
+        query: `*${params.nomeParte}*`,
+        fields: ["partes.nome", "partes.pessoa.nome"],
+        default_operator: "AND"
       }
     });
   }
@@ -203,45 +204,32 @@ function buildElasticsearchQuery(params: {
     should.push({ match_phrase_prefix: { classeProcessual: params.classeJudicial } });
   }
   
-  // CPF ou CNPJ
+  // CPF ou CNPJ - use simple query_string for compatibility
   if (params.cpfCnpj) {
     const documento = params.cpfCnpj.replace(/\D/g, '');
     must.push({
-      nested: {
-        path: "partes",
-        query: {
-          bool: {
-            should: [
-              { match: { "partes.cpf": documento } },
-              { match: { "partes.cnpj": documento } },
-              { match: { "partes.documento": documento } },
-              { match: { "partes.pessoa.cpf": documento } },
-              { match: { "partes.pessoa.cnpj": documento } }
-            ]
-          }
-        }
+      query_string: {
+        query: documento,
+        fields: [
+          "partes.cpf", 
+          "partes.cnpj", 
+          "partes.documento",
+          "partes.pessoa.cpf",
+          "partes.pessoa.cnpj"
+        ]
       }
     });
   }
   
-  // OAB
+  // OAB - use simple query for compatibility
   if (params.oab) {
     must.push({
-      nested: {
-        path: "partes",
-        query: {
-          nested: {
-            path: "partes.advogados",
-            query: {
-              bool: {
-                should: [
-                  { match: { "partes.advogados.inscricao": params.oab } },
-                  { match: { "partes.advogados.numeroOAB": params.oab } }
-                ]
-              }
-            }
-          }
-        }
+      query_string: {
+        query: params.oab,
+        fields: [
+          "partes.advogados.inscricao",
+          "partes.advogados.numeroOAB"
+        ]
       }
     });
   }
