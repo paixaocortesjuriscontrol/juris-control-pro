@@ -252,10 +252,12 @@ const BuscarProcessos = () => {
       return;
     }
     
-    // If searching by anything other than full process number, require tribunal/UF
+    // If searching without process number, require tribunal/UF for name/class/doc searches
     const numeroLimpo = numeroProcesso.replace(/\D/g, '');
-    if (numeroLimpo.length < 15 && !hasTribunal) {
-      toast.error("Selecione o tribunal ou UF para buscas com filtros");
+    const hasFullNumber = numeroLimpo.length >= 15;
+    
+    if (!hasFullNumber && !hasTribunal && (nomeParte || classeJudicial || cpfCnpj || oab)) {
+      toast.error("Selecione o tribunal ou UF para buscas por nome, classe, CPF/CNPJ ou OAB");
       return;
     }
 
