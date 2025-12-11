@@ -244,7 +244,15 @@ const BuscarProcessos = () => {
 
       if (error) {
         console.error("Erro na consulta:", error);
-        toast.error("Erro ao consultar processo. Tente novamente.");
+        // Try to extract error message from FunctionsHttpError
+        let errorMessage = "Erro ao consultar processo. Tente novamente.";
+        if (error.context?.body) {
+          try {
+            const body = typeof error.context.body === 'string' ? JSON.parse(error.context.body) : error.context.body;
+            if (body?.error) errorMessage = body.error;
+          } catch (e) {}
+        }
+        toast.error(errorMessage);
         return;
       }
 
