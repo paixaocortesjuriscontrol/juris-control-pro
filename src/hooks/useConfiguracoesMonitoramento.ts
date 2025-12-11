@@ -8,6 +8,11 @@ export interface ConfiguracaoMonitoramento {
   frequencia: string;
   ativo: boolean;
   ultima_execucao: string | null;
+  metadata: {
+    next_offset?: number;
+    last_batch_size?: number;
+    last_complete_run?: string;
+  } | null;
   created_at: string;
   updated_at: string;
 }
@@ -20,7 +25,7 @@ export function useConfiguracoesMonitoramento() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('configuracoes_monitoramento')
-        .select('*')
+        .select('id, tipo, frequencia, ativo, ultima_execucao, metadata, created_at, updated_at')
         .order('tipo');
 
       if (error) throw error;

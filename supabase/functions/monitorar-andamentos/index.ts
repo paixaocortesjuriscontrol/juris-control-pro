@@ -157,28 +157,22 @@ serve(async (req) => {
       .select('*', { count: 'exact', head: true })
       .in('status', ['ativo', 'pendente', 'urgente']);
 
-    // Get current config with last execution timestamp
+    // Get current config with metadata
     const { data: configData } = await supabase
       .from('configuracoes_monitoramento')
-      .select('ultima_execucao')
+      .select('metadata')
       .eq('tipo', 'andamentos')
       .maybeSingle();
 
     let currentOffset = 0;
     let lastCompleteRun: Date | null = null;
+    const metadata = configData?.metadata || {};
     
-    try {
-      if (configData?.ultima_execucao) {
-        const meta = JSON.parse(configData.ultima_execucao);
-        if (meta.next_offset !== undefined) {
-          currentOffset = meta.next_offset;
-        }
-        if (meta.last_complete_run) {
-          lastCompleteRun = new Date(meta.last_complete_run);
-        }
-      }
-    } catch {
-      currentOffset = 0;
+    if (metadata.next_offset !== undefined) {
+      currentOffset = metadata.next_offset;
+    }
+    if (metadata.last_complete_run) {
+      lastCompleteRun = new Date(metadata.last_complete_run);
     }
 
     // Reset offset if we've processed all
@@ -365,22 +359,28 @@ serve(async (req) => {
       await Promise.all(batchPromises);
     }
 
-    // Update config with next offset for pagination
+    // Calculate next offset and check if complete
     const nextOffset = currentOffset + (processos?.length || 0);
     const isComplete = nextOffset >= (totalCount || 0);
     
-    await supabase
+    // Update metadata and ultima_execucao
+    const newMetadata = {
+      next_offset: isComplete ? 0 : nextOffset,
+      last_batch_size: processos?.length || 0,
+      last_complete_run: isComplete ? new Date().toISOString() : (lastCompleteRun?.toISOString() || null)
+    };
+    
+    const { error: updateError } = await supabase
       .from('configuracoes_monitoramento')
       .update({ 
-        ultima_execucao: JSON.stringify({
-          timestamp: new Date().toISOString(),
-          next_offset: isComplete ? 0 : nextOffset,
-          last_batch_size: processos?.length || 0,
-          // Store last complete run timestamp when we finish all processes
-          last_complete_run: isComplete ? new Date().toISOString() : (lastCompleteRun?.toISOString() || null)
-        })
+        ultima_execucao: new Date().toISOString(),
+        metadata: newMetadata
       })
       .eq('tipo', 'andamentos');
+
+    if (updateError) {
+      console.error("Error updating config:", updateError);
+    }
 
     // Save execution history
     await supabase
@@ -398,7 +398,6 @@ serve(async (req) => {
     // Send email notification if new movements were found and run is complete
     if (results.newMovements > 0 && isComplete) {
       try {
-        // Get admin/coordenador emails to notify (only those with email notifications enabled)
         const { data: admins } = await supabase
           .from('user_roles')
           .select('user_id')

@@ -174,28 +174,22 @@ serve(async (req) => {
       .select('*', { count: 'exact', head: true })
       .in('status', ['ativo', 'pendente', 'urgente']);
 
-    // Get current config with last execution timestamp
+    // Get current config with metadata
     const { data: configData } = await supabase
       .from('configuracoes_monitoramento')
-      .select('ultima_execucao')
+      .select('metadata')
       .eq('tipo', 'redistribuicoes')
       .single();
 
     let currentOffset = 0;
-    let lastExecutionTimestamp: Date | null = null;
+    let lastCompleteRun: Date | null = null;
+    const metadata = configData?.metadata || {};
     
-    try {
-      if (configData?.ultima_execucao) {
-        const meta = JSON.parse(configData.ultima_execucao);
-        if (meta.next_offset !== undefined) {
-          currentOffset = meta.next_offset;
-        }
-        if (meta.last_complete_run) {
-          lastExecutionTimestamp = new Date(meta.last_complete_run);
-        }
-      }
-    } catch {
-      currentOffset = 0;
+    if (metadata.next_offset !== undefined) {
+      currentOffset = metadata.next_offset;
+    }
+    if (metadata.last_complete_run) {
+      lastCompleteRun = new Date(metadata.last_complete_run);
     }
 
     // Reset offset if we've processed all
@@ -204,8 +198,8 @@ serve(async (req) => {
     }
 
     console.log(`Processing offset ${currentOffset} to ${currentOffset + PROCESSES_PER_RUN} of ${totalCount} total processes`);
-    if (lastExecutionTimestamp) {
-      console.log(`Filtering movements since: ${lastExecutionTimestamp.toISOString()}`);
+    if (lastCompleteRun) {
+      console.log(`Filtering movements since: ${lastCompleteRun.toISOString()}`);
     }
 
     // Get batch of active processes with pagination
@@ -328,10 +322,10 @@ serve(async (req) => {
               const movName = m.nome || m.movimentoNacional?.nome || '';
               if (!isRedistributionMovement(movName)) return false;
               
-              // Filter by last execution timestamp if available
-              if (lastExecutionTimestamp && m.dataHora) {
+              // Filter by last complete run timestamp if available
+              if (lastCompleteRun && m.dataHora) {
                 const movDate = new Date(m.dataHora);
-                return movDate > lastExecutionTimestamp;
+                return movDate > lastCompleteRun;
               }
               return true;
             })
@@ -378,22 +372,28 @@ serve(async (req) => {
       await Promise.all(batchPromises);
     }
 
-    // Update config with next offset for pagination
+    // Calculate next offset and check if complete
     const nextOffset = currentOffset + (processos?.length || 0);
     const isComplete = nextOffset >= (totalCount || 0);
     
-    await supabase
+    // Update metadata and ultima_execucao
+    const newMetadata = {
+      next_offset: isComplete ? 0 : nextOffset,
+      last_batch_size: processos?.length || 0,
+      last_complete_run: isComplete ? new Date().toISOString() : (lastCompleteRun?.toISOString() || null)
+    };
+    
+    const { error: updateError } = await supabase
       .from('configuracoes_monitoramento')
       .update({ 
-        ultima_execucao: JSON.stringify({
-          timestamp: new Date().toISOString(),
-          next_offset: isComplete ? 0 : nextOffset,
-          last_batch_size: processos?.length || 0,
-          // Store last complete run timestamp when we finish all processes
-          last_complete_run: isComplete ? new Date().toISOString() : (lastExecutionTimestamp?.toISOString() || null)
-        })
+        ultima_execucao: new Date().toISOString(),
+        metadata: newMetadata
       })
       .eq('tipo', 'redistribuicoes');
+
+    if (updateError) {
+      console.error("Error updating config:", updateError);
+    }
 
     console.log("Batch monitoring completed:", results);
     

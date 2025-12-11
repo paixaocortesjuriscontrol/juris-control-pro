@@ -161,40 +161,19 @@ export function MonitoramentoAndamentosCard() {
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               <span>
-                {(() => {
-                  try {
-                    const meta = JSON.parse(configuracaoAndamentos.ultima_execucao);
-                    if (meta.timestamp) {
-                      return `Última execução: ${format(new Date(meta.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`;
-                    }
-                  } catch {
-                    return `Última execução: ${format(new Date(configuracaoAndamentos.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`;
-                  }
-                  return null;
-                })()}
+                Última execução: {format(new Date(configuracaoAndamentos.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
             </div>
-            {(() => {
-              try {
-                const meta = JSON.parse(configuracaoAndamentos.ultima_execucao);
-                return (
-                  <>
-                    {meta.next_offset !== undefined && meta.next_offset > 0 && (
-                      <span className="text-xs">
-                        Progresso: próximo lote a partir do processo #{meta.next_offset + 1}
-                      </span>
-                    )}
-                    {meta.last_complete_run && (
-                      <span className="text-xs text-green-600">
-                        Última execução completa: {format(new Date(meta.last_complete_run), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                      </span>
-                    )}
-                  </>
-                );
-              } catch {
-                return null;
-              }
-            })()}
+            {configuracaoAndamentos.metadata?.next_offset !== undefined && configuracaoAndamentos.metadata.next_offset > 0 && (
+              <span className="text-xs">
+                Progresso: próximo lote a partir do processo #{configuracaoAndamentos.metadata.next_offset + 1}
+              </span>
+            )}
+            {configuracaoAndamentos.metadata?.last_complete_run && (
+              <span className="text-xs text-green-600">
+                Última execução completa: {format(new Date(configuracaoAndamentos.metadata.last_complete_run), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              </span>
+            )}
           </div>
         )}
 
