@@ -29,6 +29,13 @@ const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGR
 
 // Mapa de tribunais baseado na numeração única de processos
 const tribunais: Record<string, Record<string, { endpoint: string; nome: string }>> = {
+  "1": {
+    "0": { endpoint: "api_publica_stf", nome: "Supremo Tribunal Federal" }
+  },
+  "2": {
+    // CNJ não tem API pública no DataJud - processos administrativos
+    // Quando detectado, usar fallback para TJDFT ou retornar erro específico
+  },
   "3": {
     "0": { endpoint: "api_publica_stj", nome: "Superior Tribunal de Justiça" }
   },
@@ -115,16 +122,32 @@ function extrairInfoTribunal(numeroLimpo: string): { j: string; tr: string } | n
   return { j, tr };
 }
 
-function getTribunalInfo(numeroProcesso: string): { endpoint: string; nome: string } | null {
+function getTribunalInfo(numeroProcesso: string): { endpoint: string; nome: string; error?: string } | null {
   const numeroLimpo = limparNumeroProcesso(numeroProcesso);
   const info = extrairInfoTribunal(numeroLimpo);
   
+  console.log("Extraído do número:", info, "numeroLimpo:", numeroLimpo);
+  
   if (!info) return null;
   
-  const jurisdicao = tribunais[info.j];
-  if (!jurisdicao) return null;
+  // Segmento 2 é CNJ - não possui API pública
+  if (info.j === "2") {
+    return { endpoint: "", nome: "CNJ", error: "Processos do CNJ (Conselho Nacional de Justiça) são administrativos e não estão disponíveis na API pública do DataJud." };
+  }
   
-  return jurisdicao[info.tr] || null;
+  const jurisdicao = tribunais[info.j];
+  if (!jurisdicao) {
+    console.log("Jurisdição não encontrada para segmento:", info.j);
+    return null;
+  }
+  
+  const tribunal = jurisdicao[info.tr];
+  if (!tribunal) {
+    console.log("Tribunal não encontrado para região:", info.tr, "na jurisdição:", info.j);
+    return null;
+  }
+  
+  return tribunal;
 }
 
 function extrairPartes(partes: any[]): { poloAtivo: string[]; poloPassivo: string[] } {
@@ -227,14 +250,27 @@ serve(async (req) => {
       tribunalNome = tribunal.toUpperCase();
     } else if (numeroProcesso) {
       const numeroLimpo = numeroProcesso.replace(/\D/g, '');
+      console.log("Número limpo:", numeroLimpo, "length:", numeroLimpo.length);
+      
       if (numeroLimpo.length >= 15) {
         const tribunalInfo = getTribunalInfo(numeroProcesso);
-        if (tribunalInfo) {
+        console.log("Tribunal info:", tribunalInfo);
+        
+        if (tribunalInfo?.error) {
+          return new Response(
+            JSON.stringify({ error: tribunalInfo.error }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        if (tribunalInfo && tribunalInfo.endpoint) {
           endpoint = tribunalInfo.endpoint;
           tribunalNome = tribunalInfo.nome;
         } else {
+          // Extract segment info for better error message
+          const info = extrairInfoTribunal(numeroLimpo.padStart(20, '0'));
           return new Response(
-            JSON.stringify({ error: "Não foi possível identificar o tribunal pelo número. Por favor, selecione manualmente." }),
+            JSON.stringify({ error: `Não foi possível identificar o tribunal pelo número (segmento J=${info?.j}, TR=${info?.tr}). Por favor, selecione o tribunal manualmente.` }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
