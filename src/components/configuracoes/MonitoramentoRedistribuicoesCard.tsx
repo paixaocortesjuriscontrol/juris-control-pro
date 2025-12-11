@@ -1,22 +1,16 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { RefreshCw, Settings, Play, Clock, PlayCircle } from "lucide-react";
+import { RefreshCw, Play, Clock, PlayCircle, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
-const frequenciaLabels: Record<string, string> = {
-  diario: "Diário (7h)",
-  "2x_dia": "2x ao dia (7h e 18h)",
-  semanal: "Semanal (Segunda 7h)",
-};
 
 export function MonitoramentoRedistribuicoesCard() {
   const { 
@@ -29,6 +23,7 @@ export function MonitoramentoRedistribuicoesCard() {
   const [executando, setExecutando] = useState(false);
   const [executandoCompleto, setExecutandoCompleto] = useState(false);
   const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number } | null>(null);
+  const canceladoRef = useRef(false);
 
   const handleExecutarManual = async () => {
     setExecutando(true);
@@ -39,16 +34,22 @@ export function MonitoramentoRedistribuicoesCard() {
     }
   };
 
+  const handleCancelar = () => {
+    canceladoRef.current = true;
+    toast.info("Cancelando após o lote atual...");
+  };
+
   const handleExecutarCompleto = async () => {
     setExecutandoCompleto(true);
     setProgresso({ current: 0, total: 0, percentage: 0 });
+    canceladoRef.current = false;
     
     try {
       let isComplete = false;
       let totalRedistribuicoes = 0;
       let totalChecked = 0;
       
-      while (!isComplete) {
+      while (!isComplete && !canceladoRef.current) {
         const { data, error } = await supabase.functions.invoke('monitorar-redistribuicoes');
         
         if (error) {
@@ -62,19 +63,19 @@ export function MonitoramentoRedistribuicoesCard() {
         totalChecked += data?.results?.checked || 0;
         totalRedistribuicoes += data?.results?.redistributions || 0;
         isComplete = data?.isComplete || false;
-        
-        // Small delay between batches
-        if (!isComplete) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
       }
       
-      toast.success(`Monitoramento completo: ${totalChecked} processos verificados, ${totalRedistribuicoes} redistribuições detectadas`);
+      if (canceladoRef.current) {
+        toast.info(`Monitoramento cancelado: ${totalChecked} processos verificados até o momento`);
+      } else {
+        toast.success(`Monitoramento completo: ${totalChecked} processos verificados, ${totalRedistribuicoes} redistribuições detectadas`);
+      }
     } catch (error) {
       toast.error(`Erro no monitoramento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setExecutandoCompleto(false);
       setProgresso(null);
+      canceladoRef.current = false;
     }
   };
 
@@ -167,7 +168,6 @@ export function MonitoramentoRedistribuicoesCard() {
                       return `Última execução: ${format(new Date(meta.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`;
                     }
                   } catch {
-                    // Old format - direct date string
                     return `Última execução: ${format(new Date(configuracaoRedistribuicoes.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`;
                   }
                   return null;
@@ -177,17 +177,23 @@ export function MonitoramentoRedistribuicoesCard() {
             {(() => {
               try {
                 const meta = JSON.parse(configuracaoRedistribuicoes.ultima_execucao);
-                if (meta.next_offset !== undefined && meta.next_offset > 0) {
-                  return (
-                    <span className="text-xs">
-                      Progresso: próximo lote a partir do processo #{meta.next_offset + 1}
-                    </span>
-                  );
-                }
+                return (
+                  <>
+                    {meta.next_offset !== undefined && meta.next_offset > 0 && (
+                      <span className="text-xs">
+                        Progresso: próximo lote a partir do processo #{meta.next_offset + 1}
+                      </span>
+                    )}
+                    {meta.last_complete_run && (
+                      <span className="text-xs text-green-600">
+                        Última execução completa: {format(new Date(meta.last_complete_run), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </span>
+                    )}
+                  </>
+                );
               } catch {
-                // Ignore
+                return null;
               }
-              return null;
             })()}
           </div>
         )}
@@ -205,42 +211,46 @@ export function MonitoramentoRedistribuicoesCard() {
 
         {/* Botões de execução */}
         <div className="flex gap-2">
-          <Button 
-            onClick={handleExecutarManual} 
-            disabled={executando || executandoCompleto}
-            className="flex-1"
-            variant="outline"
-          >
-            {executando ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Verificando lote...
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 mr-2" />
-                Executar Lote
-              </>
-            )}
-          </Button>
-          
-          <Button 
-            onClick={handleExecutarCompleto} 
-            disabled={executando || executandoCompleto}
-            className="flex-1"
-          >
-            {executandoCompleto ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Executando...
-              </>
-            ) : (
-              <>
+          {executandoCompleto ? (
+            <Button 
+              onClick={handleCancelar} 
+              variant="destructive"
+              className="flex-1"
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
+          ) : (
+            <>
+              <Button 
+                onClick={handleExecutarManual} 
+                disabled={executando || executandoCompleto}
+                className="flex-1"
+                variant="outline"
+              >
+                {executando ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Verificando lote...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Executar Lote
+                  </>
+                )}
+              </Button>
+              
+              <Button 
+                onClick={handleExecutarCompleto} 
+                disabled={executando || executandoCompleto}
+                className="flex-1"
+              >
                 <PlayCircle className="h-4 w-4 mr-2" />
                 Executar Completo
-              </>
-            )}
-          </Button>
+              </Button>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>

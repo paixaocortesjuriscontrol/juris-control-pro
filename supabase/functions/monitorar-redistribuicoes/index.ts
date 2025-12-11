@@ -165,8 +165,8 @@ serve(async (req) => {
 
     console.log("Starting redistribution monitoring...");
 
-    // Limit to 50 processes per invocation to avoid timeout
-    const PROCESSES_PER_RUN = 50;
+    // Increased batch size for faster processing
+    const PROCESSES_PER_RUN = 100;
     
     // Get count of active processes for pagination
     const { count: totalCount } = await supabase
@@ -174,20 +174,24 @@ serve(async (req) => {
       .select('*', { count: 'exact', head: true })
       .in('status', ['ativo', 'pendente', 'urgente']);
 
-    // Get current offset from config or start from 0
+    // Get current config with last execution timestamp
     const { data: configData } = await supabase
       .from('configuracoes_monitoramento')
       .select('ultima_execucao')
       .eq('tipo', 'redistribuicoes')
       .single();
 
-    // Parse offset from ultima_execucao metadata or default to 0
     let currentOffset = 0;
+    let lastExecutionTimestamp: Date | null = null;
+    
     try {
       if (configData?.ultima_execucao) {
         const meta = JSON.parse(configData.ultima_execucao);
         if (meta.next_offset !== undefined) {
           currentOffset = meta.next_offset;
+        }
+        if (meta.last_complete_run) {
+          lastExecutionTimestamp = new Date(meta.last_complete_run);
         }
       }
     } catch {
@@ -200,6 +204,9 @@ serve(async (req) => {
     }
 
     console.log(`Processing offset ${currentOffset} to ${currentOffset + PROCESSES_PER_RUN} of ${totalCount} total processes`);
+    if (lastExecutionTimestamp) {
+      console.log(`Filtering movements since: ${lastExecutionTimestamp.toISOString()}`);
+    }
 
     // Get batch of active processes with pagination
     const { data: processos, error: processosError } = await supabase
@@ -227,12 +234,11 @@ serve(async (req) => {
       details: [] as any[]
     };
 
-    // Process in smaller batches to avoid rate limiting
-    const batchSize = 5;
-    const delayBetweenBatches = 1000; // 1 second
+    // Process in parallel batches (10 concurrent requests)
+    const PARALLEL_BATCH_SIZE = 10;
 
-    for (let i = 0; i < (processos?.length || 0); i += batchSize) {
-      const batch = processos!.slice(i, i + batchSize);
+    for (let i = 0; i < (processos?.length || 0); i += PARALLEL_BATCH_SIZE) {
+      const batch = processos!.slice(i, i + PARALLEL_BATCH_SIZE);
       
       const batchPromises = batch.map(async (processo) => {
         try {
@@ -240,7 +246,6 @@ serve(async (req) => {
           
           const apiData = await consultarProcessoAPI(processo.numero);
           if (!apiData) {
-            console.log(`No data found for process ${processo.numero}`);
             return;
           }
 
@@ -316,12 +321,19 @@ serve(async (req) => {
             });
           }
 
-          // Check for new redistribution movements
+          // Check for new redistribution movements - filter by last execution
           const movimentos = apiData.movimentos || [];
           const recentRedistributions = movimentos
             .filter((m: any) => {
               const movName = m.nome || m.movimentoNacional?.nome || '';
-              return isRedistributionMovement(movName);
+              if (!isRedistributionMovement(movName)) return false;
+              
+              // Filter by last execution timestamp if available
+              if (lastExecutionTimestamp && m.dataHora) {
+                const movDate = new Date(m.dataHora);
+                return movDate > lastExecutionTimestamp;
+              }
+              return true;
             })
             .slice(0, 5);
 
@@ -364,29 +376,26 @@ serve(async (req) => {
       });
 
       await Promise.all(batchPromises);
-      
-      // Delay between batches
-      if (i + batchSize < (processos?.length || 0)) {
-        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
-      }
     }
 
     // Update config with next offset for pagination
     const nextOffset = currentOffset + (processos?.length || 0);
+    const isComplete = nextOffset >= (totalCount || 0);
+    
     await supabase
       .from('configuracoes_monitoramento')
       .update({ 
         ultima_execucao: JSON.stringify({
           timestamp: new Date().toISOString(),
-          next_offset: nextOffset >= (totalCount || 0) ? 0 : nextOffset,
-          last_batch_size: processos?.length || 0
+          next_offset: isComplete ? 0 : nextOffset,
+          last_batch_size: processos?.length || 0,
+          // Store last complete run timestamp when we finish all processes
+          last_complete_run: isComplete ? new Date().toISOString() : (lastExecutionTimestamp?.toISOString() || null)
         })
       })
       .eq('tipo', 'redistribuicoes');
 
     console.log("Batch monitoring completed:", results);
-
-    const isComplete = nextOffset >= (totalCount || 0);
     
     return new Response(
       JSON.stringify({

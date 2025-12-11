@@ -148,7 +148,8 @@ serve(async (req) => {
 
     console.log("Starting andamentos monitoring...");
 
-    const PROCESSES_PER_RUN = 50;
+    // Increased batch size for faster processing
+    const PROCESSES_PER_RUN = 100;
     
     // Get count of active processes for pagination
     const { count: totalCount } = await supabase
@@ -156,7 +157,7 @@ serve(async (req) => {
       .select('*', { count: 'exact', head: true })
       .in('status', ['ativo', 'pendente', 'urgente']);
 
-    // Get current offset from config or start from 0
+    // Get current config with last execution timestamp
     const { data: configData } = await supabase
       .from('configuracoes_monitoramento')
       .select('ultima_execucao')
@@ -164,11 +165,16 @@ serve(async (req) => {
       .maybeSingle();
 
     let currentOffset = 0;
+    let lastCompleteRun: Date | null = null;
+    
     try {
       if (configData?.ultima_execucao) {
         const meta = JSON.parse(configData.ultima_execucao);
         if (meta.next_offset !== undefined) {
           currentOffset = meta.next_offset;
+        }
+        if (meta.last_complete_run) {
+          lastCompleteRun = new Date(meta.last_complete_run);
         }
       }
     } catch {
@@ -181,6 +187,9 @@ serve(async (req) => {
     }
 
     console.log(`Processing offset ${currentOffset} to ${currentOffset + PROCESSES_PER_RUN} of ${totalCount} total processes`);
+    if (lastCompleteRun) {
+      console.log(`Filtering movements since last complete run: ${lastCompleteRun.toISOString()}`);
+    }
 
     // Get batch of active processes with pagination
     const { data: processos, error: processosError } = await supabase
@@ -208,12 +217,11 @@ serve(async (req) => {
       details: [] as any[]
     };
 
-    // Process in smaller batches to avoid rate limiting
-    const batchSize = 5;
-    const delayBetweenBatches = 1000;
+    // Process in parallel batches (10 concurrent requests)
+    const PARALLEL_BATCH_SIZE = 10;
 
-    for (let i = 0; i < (processos?.length || 0); i += batchSize) {
-      const batch = processos!.slice(i, i + batchSize);
+    for (let i = 0; i < (processos?.length || 0); i += PARALLEL_BATCH_SIZE) {
+      const batch = processos!.slice(i, i + PARALLEL_BATCH_SIZE);
       
       const batchPromises = batch.map(async (processo) => {
         try {
@@ -221,21 +229,19 @@ serve(async (req) => {
           
           const apiData = await consultarProcessoAPI(processo.numero);
           if (!apiData) {
-            console.log(`No data found for process ${processo.numero}`);
             return;
           }
 
           const movimentos = apiData.movimentos || [];
           if (movimentos.length === 0) return;
 
-          // Filter movements from the last 30 days only for performance
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          // Filter movements since last complete run (or 30 days if no previous run)
+          const filterDate = lastCompleteRun || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
           
           const recentMovimentos = movimentos.filter((mov: any) => {
-            if (!mov.dataHora) return true; // Include if no date
+            if (!mov.dataHora) return true;
             const movDate = new Date(mov.dataHora);
-            return movDate >= thirtyDaysAgo;
+            return movDate > filterDate;
           });
 
           if (recentMovimentos.length === 0) return;
@@ -357,22 +363,21 @@ serve(async (req) => {
       });
 
       await Promise.all(batchPromises);
-      
-      // Delay between batches
-      if (i + batchSize < (processos?.length || 0)) {
-        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
-      }
     }
 
     // Update config with next offset for pagination
     const nextOffset = currentOffset + (processos?.length || 0);
+    const isComplete = nextOffset >= (totalCount || 0);
+    
     await supabase
       .from('configuracoes_monitoramento')
       .update({ 
         ultima_execucao: JSON.stringify({
           timestamp: new Date().toISOString(),
-          next_offset: nextOffset >= (totalCount || 0) ? 0 : nextOffset,
-          last_batch_size: processos?.length || 0
+          next_offset: isComplete ? 0 : nextOffset,
+          last_batch_size: processos?.length || 0,
+          // Store last complete run timestamp when we finish all processes
+          last_complete_run: isComplete ? new Date().toISOString() : (lastCompleteRun?.toISOString() || null)
         })
       })
       .eq('tipo', 'andamentos');
@@ -390,8 +395,8 @@ serve(async (req) => {
         executado_em: new Date().toISOString()
       });
 
-    // Send email notification if new movements were found
-    if (results.newMovements > 0) {
+    // Send email notification if new movements were found and run is complete
+    if (results.newMovements > 0 && isComplete) {
       try {
         // Get admin/coordenador emails to notify (only those with email notifications enabled)
         const { data: admins } = await supabase
@@ -445,8 +450,6 @@ serve(async (req) => {
     }
 
     console.log("Batch andamentos monitoring completed:", results);
-
-    const isComplete = nextOffset >= (totalCount || 0);
     
     return new Response(
       JSON.stringify({
@@ -466,7 +469,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("Error in andamentos monitoring function:", error);
+    console.error("Error in monitoring function:", error);
     return new Response(
       JSON.stringify({ 
         success: false, 
