@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Search, Globe, FileSearch, Loader2, ExternalLink, CheckCircle, Calendar, Filter } from "lucide-react";
-import { format } from "date-fns";
+import { Search, Globe, FileSearch, Loader2, ExternalLink, CheckCircle, Filter } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +21,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -159,16 +155,12 @@ interface SearchResult {
 }
 
 const BuscarProcessos = () => {
-  // Filter states
+  // Filter states - simplified to only processo, nome, oab
   const [numeroProcesso, setNumeroProcesso] = useState("");
   const [tribunal, setTribunal] = useState("auto");
   const [nomeParte, setNomeParte] = useState("");
-  const [classeJudicial, setClasseJudicial] = useState("");
-  const [cpfCnpj, setCpfCnpj] = useState("");
   const [oab, setOab] = useState("");
   const [uf, setUf] = useState("");
-  const [dataInicio, setDataInicio] = useState<Date | undefined>();
-  const [dataFim, setDataFim] = useState<Date | undefined>();
   
   // Results states
   const [isSearching, setIsSearching] = useState(false);
@@ -194,29 +186,6 @@ const BuscarProcessos = () => {
     setNumeroProcesso(formatted);
   };
 
-  const formatarCpfCnpj = (valor: string) => {
-    const numeros = valor.replace(/\D/g, '');
-    if (numeros.length <= 11) {
-      // CPF: 000.000.000-00
-      return numeros
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-    } else {
-      // CNPJ: 00.000.000/0000-00
-      return numeros
-        .replace(/(\d{2})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1/$2')
-        .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-    }
-  };
-
-  const handleCpfCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatarCpfCnpj(e.target.value);
-    setCpfCnpj(formatted);
-  };
-
   const formatarData = (dataString: string | null) => {
     if (!dataString) return '-';
     try {
@@ -231,12 +200,8 @@ const BuscarProcessos = () => {
     setNumeroProcesso("");
     setTribunal("auto");
     setNomeParte("");
-    setClasseJudicial("");
-    setCpfCnpj("");
     setOab("");
     setUf("");
-    setDataInicio(undefined);
-    setDataFim(undefined);
     setSearchResult(null);
     setProcessosList([]);
     setTotalResults(0);
@@ -244,7 +209,7 @@ const BuscarProcessos = () => {
 
   const handleSearch = async () => {
     // Validate that at least one filter is filled
-    const hasFilters = numeroProcesso || nomeParte || classeJudicial || cpfCnpj || oab || dataInicio || dataFim;
+    const hasFilters = numeroProcesso || nomeParte || oab;
     const hasTribunal = tribunal !== "auto" || uf;
     
     if (!hasFilters) {
@@ -252,12 +217,12 @@ const BuscarProcessos = () => {
       return;
     }
     
-    // If searching without process number, require tribunal/UF for name/class/doc searches
+    // If searching without full process number, require tribunal/UF
     const numeroLimpo = numeroProcesso.replace(/\D/g, '');
     const hasFullNumber = numeroLimpo.length >= 15;
     
-    if (!hasFullNumber && !hasTribunal && (nomeParte || classeJudicial || cpfCnpj || oab)) {
-      toast.error("Selecione o tribunal ou UF para buscas por nome, classe, CPF/CNPJ ou OAB");
+    if (!hasFullNumber && !hasTribunal) {
+      toast.error("Selecione o tribunal ou UF para realizar a busca");
       return;
     }
 
@@ -271,12 +236,8 @@ const BuscarProcessos = () => {
           numeroProcesso: numeroProcesso || undefined,
           tribunal: tribunal === "auto" ? undefined : tribunal,
           nomeParte: nomeParte || undefined,
-          classeJudicial: classeJudicial || undefined,
-          cpfCnpj: cpfCnpj ? cpfCnpj.replace(/\D/g, '') : undefined,
           oab: oab || undefined,
           uf: uf || undefined,
-          dataInicio: dataInicio ? format(dataInicio, 'yyyy-MM-dd') : undefined,
-          dataFim: dataFim ? format(dataFim, 'yyyy-MM-dd') : undefined,
           size: 50
         }
       });
@@ -387,7 +348,7 @@ const BuscarProcessos = () => {
               Filtros de Busca
             </CardTitle>
             <CardDescription>
-              Preencha os filtros desejados. Para buscas por nome, classe, CPF/CNPJ ou OAB, selecione o tribunal ou UF.
+              Busque por número do processo, nome da parte ou OAB. Para buscas por nome ou OAB, selecione o tribunal ou UF.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -448,28 +409,6 @@ const BuscarProcessos = () => {
                 />
               </div>
 
-              {/* Classe Judicial */}
-              <div className="space-y-2">
-                <Label>Classe Judicial</Label>
-                <Input
-                  placeholder="Ex: Ação Civil Pública"
-                  value={classeJudicial}
-                  onChange={(e) => setClasseJudicial(e.target.value)}
-                  maxLength={100}
-                />
-              </div>
-
-              {/* CPF ou CNPJ */}
-              <div className="space-y-2">
-                <Label>CPF ou CNPJ</Label>
-                <Input
-                  placeholder="000.000.000-00"
-                  value={cpfCnpj}
-                  onChange={handleCpfCnpjChange}
-                  maxLength={18}
-                />
-              </div>
-
               {/* OAB */}
               <div className="space-y-2">
                 <Label>OAB</Label>
@@ -479,62 +418,6 @@ const BuscarProcessos = () => {
                   onChange={(e) => setOab(e.target.value)}
                   maxLength={20}
                 />
-              </div>
-
-              {/* Data de Autuação - De */}
-              <div className="space-y-2">
-                <Label>Data Autuação - De</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dataInicio && "text-muted-foreground"
-                      )}
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {dataInicio ? format(dataInicio, "dd/MM/yyyy") : "Selecione"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={dataInicio}
-                      onSelect={setDataInicio}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {/* Data de Autuação - Até */}
-              <div className="space-y-2">
-                <Label>Data Autuação - Até</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dataFim && "text-muted-foreground"
-                      )}
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {dataFim ? format(dataFim, "dd/MM/yyyy") : "Selecione"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={dataFim}
-                      onSelect={setDataFim}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
               </div>
             </div>
 
