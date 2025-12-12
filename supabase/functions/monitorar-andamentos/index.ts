@@ -164,11 +164,75 @@ async function scanMovementForTerms(
             });
 
           console.log(`Alert created for term "${termo.termo}" in movement ${movimentacaoId}`);
+
+          // Enviar notificação para a coordenação
+          await notifyCoordinationFor360Alert(supabase, processoId, termo.termo, termo.prioridade, contexto);
         }
       }
     }
   } catch (error) {
     console.error('Error scanning movement for terms:', error);
+  }
+}
+
+async function notifyCoordinationFor360Alert(
+  supabase: any,
+  processoId: string,
+  termo: string,
+  prioridade: string,
+  contexto: string
+) {
+  try {
+    const { data: processo } = await supabase
+      .from('processos')
+      .select('numero, advogado_responsavel_id, coordenacao_id')
+      .eq('id', processoId)
+      .single();
+
+    if (!processo) return;
+
+    const usersToNotify: string[] = [];
+
+    if (processo.advogado_responsavel_id) {
+      usersToNotify.push(processo.advogado_responsavel_id);
+    }
+
+    if (processo.coordenacao_id) {
+      const { data: membros } = await supabase
+        .from('membros_coordenacao')
+        .select('usuario_id')
+        .eq('coordenacao_id', processo.coordenacao_id);
+
+      membros?.forEach((m: any) => {
+        if (!usersToNotify.includes(m.usuario_id)) {
+          usersToNotify.push(m.usuario_id);
+        }
+      });
+    }
+
+    const prioridadeEmoji = prioridade === 'urgente' ? '🚨' : prioridade === 'alta' ? '⚠️' : 'ℹ️';
+    
+    for (const userId of usersToNotify) {
+      await supabase
+        .from('notificacoes')
+        .insert({
+          usuario_id: userId,
+          titulo: `${prioridadeEmoji} Alerta 360º: "${termo}"`,
+          mensagem: `Termo "${termo}" encontrado no processo ${processo.numero}. ${contexto}`,
+          tipo: prioridade === 'urgente' || prioridade === 'alta' ? 'warning' : 'info',
+          link: `/monitoramento-360`,
+          dados: {
+            processo_id: processoId,
+            numero: processo.numero,
+            termo,
+            prioridade,
+          }
+        });
+    }
+
+    console.log(`Notified ${usersToNotify.length} users about 360 alert for term "${termo}"`);
+  } catch (error) {
+    console.error('Error notifying coordination for 360 alert:', error);
   }
 }
 

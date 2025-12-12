@@ -12,6 +12,71 @@ interface TermoMonitoramento {
   prioridade: string;
 }
 
+async function notifyCoordination(
+  supabase: any,
+  processoId: string,
+  termo: string,
+  prioridade: string,
+  contexto: string
+) {
+  try {
+    // Buscar dados do processo incluindo coordenação e responsável
+    const { data: processo } = await supabase
+      .from('processos')
+      .select('numero, advogado_responsavel_id, coordenacao_id')
+      .eq('id', processoId)
+      .single();
+
+    if (!processo) return;
+
+    const usersToNotify: string[] = [];
+
+    // Adicionar advogado responsável
+    if (processo.advogado_responsavel_id) {
+      usersToNotify.push(processo.advogado_responsavel_id);
+    }
+
+    // Buscar membros da coordenação
+    if (processo.coordenacao_id) {
+      const { data: membros } = await supabase
+        .from('membros_coordenacao')
+        .select('usuario_id')
+        .eq('coordenacao_id', processo.coordenacao_id);
+
+      membros?.forEach((m: any) => {
+        if (!usersToNotify.includes(m.usuario_id)) {
+          usersToNotify.push(m.usuario_id);
+        }
+      });
+    }
+
+    // Criar notificações
+    const prioridadeEmoji = prioridade === 'urgente' ? '🚨' : prioridade === 'alta' ? '⚠️' : 'ℹ️';
+    
+    for (const userId of usersToNotify) {
+      await supabase
+        .from('notificacoes')
+        .insert({
+          usuario_id: userId,
+          titulo: `${prioridadeEmoji} Alerta 360º: "${termo}"`,
+          mensagem: `Termo "${termo}" encontrado no processo ${processo.numero}. ${contexto}`,
+          tipo: prioridade === 'urgente' || prioridade === 'alta' ? 'warning' : 'info',
+          link: `/monitoramento-360`,
+          dados: {
+            processo_id: processoId,
+            numero: processo.numero,
+            termo,
+            prioridade,
+          }
+        });
+    }
+
+    console.log(`Notified ${usersToNotify.length} users about alert for term "${termo}"`);
+  } catch (error) {
+    console.error('Error notifying coordination:', error);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -43,7 +108,6 @@ Deno.serve(async (req) => {
     console.log(`Found ${termos.length} active terms`);
 
     // Buscar TODAS as movimentações que ainda não têm alertas para esses termos
-    // Usamos paginação para processar grandes volumes
     const { data: movimentacoes, error: movError } = await supabase
       .from('movimentacoes')
       .select('id, processo_id, descricao, data_movimentacao')
@@ -64,7 +128,9 @@ Deno.serve(async (req) => {
     );
 
     let alertasGerados = 0;
+    let notificacoesEnviadas = 0;
     const novosAlertas: any[] = [];
+    const alertasParaNotificar: Array<{ processoId: string; termo: string; prioridade: string; contexto: string }> = [];
 
     // Varrer movimentações buscando termos
     for (const mov of movimentacoes || []) {
@@ -97,6 +163,14 @@ Deno.serve(async (req) => {
               status: 'pendente',
             });
 
+            // Guardar para notificação
+            alertasParaNotificar.push({
+              processoId: mov.processo_id,
+              termo: termo.termo,
+              prioridade: termo.prioridade,
+              contexto,
+            });
+
             alertasSet.add(key);
             alertasGerados++;
           }
@@ -119,12 +193,26 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Scan complete. Generated ${alertasGerados} alerts`);
+    // Enviar notificações para a coordenação (limitar a 20 para não sobrecarregar)
+    const alertasParaNotificarLimitados = alertasParaNotificar.slice(0, 20);
+    for (const alerta of alertasParaNotificarLimitados) {
+      await notifyCoordination(
+        supabase,
+        alerta.processoId,
+        alerta.termo,
+        alerta.prioridade,
+        alerta.contexto
+      );
+      notificacoesEnviadas++;
+    }
+
+    console.log(`Scan complete. Generated ${alertasGerados} alerts, sent ${notificacoesEnviadas} notifications`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         alertasGerados,
+        notificacoesEnviadas,
         movimentacoesVerificadas: movimentacoes?.length || 0,
         termosAtivos: termos.length,
       }),
