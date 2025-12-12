@@ -227,10 +227,70 @@ export function useMonitoramento360() {
     },
   });
 
+  // Criar carteira
+  const criarCarteira = useMutation({
+    mutationFn: async (carteira: { nome: string; descricao?: string; tipo: string; criterios: Record<string, any>; cor: string; criado_por: string }) => {
+      const { data, error } = await supabase
+        .from('carteiras_processos')
+        .insert(carteira)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['carteiras-processos'] });
+      toast.success('Carteira criada com sucesso!');
+    },
+    onError: (error) => {
+      toast.error(`Erro ao criar carteira: ${error.message}`);
+    },
+  });
+
+  // Atualizar carteira
+  const atualizarCarteira = useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<CarteiraProcessos> & { id: string }) => {
+      const { error } = await supabase
+        .from('carteiras_processos')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['carteiras-processos'] });
+      toast.success('Carteira atualizada!');
+    },
+    onError: (error) => {
+      toast.error(`Erro ao atualizar carteira: ${error.message}`);
+    },
+  });
+
+  // Excluir carteira
+  const excluirCarteira = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('carteiras_processos')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['carteiras-processos'] });
+      toast.success('Carteira excluída!');
+    },
+    onError: (error) => {
+      toast.error(`Erro ao excluir carteira: ${error.message}`);
+    },
+  });
+
   // Estatísticas
   const alertasPendentes = alertas.filter(a => a.status === 'pendente').length;
   const alertasUrgentes = alertas.filter(a => a.status === 'pendente' && a.prioridade === 'urgente').length;
   const termosAtivos = termos.filter(t => t.ativo).length;
+  const carteirasAtivas = carteiras.filter(c => c.ativo).length;
 
   return {
     termos,
@@ -242,11 +302,15 @@ export function useMonitoramento360() {
     criarTermo,
     atualizarTermo,
     excluirTermo,
+    criarCarteira,
+    atualizarCarteira,
+    excluirCarteira,
     atualizarAlerta,
     executarVarredura,
     alertasPendentes,
     alertasUrgentes,
     termosAtivos,
+    carteirasAtivas,
     CATEGORIAS,
     PRIORIDADES,
   };
