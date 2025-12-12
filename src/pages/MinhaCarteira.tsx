@@ -82,6 +82,12 @@ const statusLabels: Record<string, string> = {
   arquivado: "Arquivado",
 };
 
+const statusTarefaLabels: Record<string, string> = {
+  pendente: "Pendente",
+  cumprido: "Cumprido",
+  atrasado: "Atrasado",
+};
+
 const MinhaCarteira = () => {
   const navigate = useNavigate();
   const { processos, tarefas, stats, isLoading, refetch } = useMinhaCarteira();
@@ -405,6 +411,7 @@ const MinhaCarteira = () => {
                     <TableRow>
                       <TableHead>Tarefa</TableHead>
                       <TableHead>Processo</TableHead>
+                      <TableHead>Situação</TableHead>
                       <TableHead>Vencimento</TableHead>
                       <TableHead>Prazo</TableHead>
                       <TableHead>Prioridade</TableHead>
@@ -441,6 +448,18 @@ const MinhaCarteira = () => {
                           ) : (
                             "-"
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            className={cn(
+                              "font-medium",
+                              tarefa.status === "cumprido" && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                              tarefa.status === "pendente" && "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                              tarefa.status === "atrasado" && "bg-destructive/10 text-destructive"
+                            )}
+                          >
+                            {statusTarefaLabels[tarefa.status] || tarefa.status}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           {format(parseISO(tarefa.data_vencimento), "dd/MM/yyyy", { locale: ptBR })}
