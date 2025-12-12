@@ -312,18 +312,18 @@ export default function CarteirasConfig() {
 
                 <div className="space-y-2">
                   <Label>Filtrar por Coordenação</Label>
-                  <Select
-                    value={formData.criterios.coordenacao_id || ''}
+                <Select
+                    value={formData.criterios.coordenacao_id || '_all'}
                     onValueChange={(value) => setFormData({
                       ...formData,
-                      criterios: { ...formData.criterios, coordenacao_id: value || undefined },
+                      criterios: { ...formData.criterios, coordenacao_id: value === '_all' ? undefined : value },
                     })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todas as coordenações" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todas as coordenações</SelectItem>
+                      <SelectItem value="_all">Todas as coordenações</SelectItem>
                       {coordenacoes.map((coord) => (
                         <SelectItem key={coord.id} value={coord.id}>
                           {coord.nome}
@@ -335,18 +335,18 @@ export default function CarteirasConfig() {
 
                 <div className="space-y-2">
                   <Label>Filtrar por Cliente</Label>
-                  <Select
-                    value={formData.criterios.cliente_id || ''}
+                <Select
+                    value={formData.criterios.cliente_id || '_all'}
                     onValueChange={(value) => setFormData({
                       ...formData,
-                      criterios: { ...formData.criterios, cliente_id: value || undefined },
+                      criterios: { ...formData.criterios, cliente_id: value === '_all' ? undefined : value },
                     })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todos os clientes" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos os clientes</SelectItem>
+                      <SelectItem value="_all">Todos os clientes</SelectItem>
                       {clientes.map((cliente) => (
                         <SelectItem key={cliente.id} value={cliente.id}>
                           {cliente.nome}
