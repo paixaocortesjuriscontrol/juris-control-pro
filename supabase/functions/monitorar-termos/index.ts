@@ -42,16 +42,13 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${termos.length} active terms`);
 
-    // Buscar movimentações dos últimos 30 dias que ainda não têm alertas
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
+    // Buscar TODAS as movimentações que ainda não têm alertas para esses termos
+    // Usamos paginação para processar grandes volumes
     const { data: movimentacoes, error: movError } = await supabase
       .from('movimentacoes')
       .select('id, processo_id, descricao, data_movimentacao')
-      .gte('data_movimentacao', thirtyDaysAgo.toISOString())
       .order('data_movimentacao', { ascending: false })
-      .limit(1000);
+      .limit(2000);
 
     if (movError) throw movError;
 
