@@ -19,13 +19,15 @@ import {
   Newspaper,
   RefreshCw,
   UserCircle,
-  Radar
+  Radar,
+  FolderKanban
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: FolderKanban, label: "Minha Carteira", path: "/minha-carteira" },
   { icon: Scale, label: "Processos", path: "/processos" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: Calendar, label: "Prazos", path: "/prazos" },
