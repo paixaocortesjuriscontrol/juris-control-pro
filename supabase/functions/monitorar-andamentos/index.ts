@@ -103,6 +103,75 @@ function getTribunalInfo(numeroProcesso: string): { endpoint: string; nome: stri
   return jurisdicao[info.tr] || null;
 }
 
+// Cache de termos ativos para varredura
+let termosCache: Array<{ id: string; termo: string; prioridade: string }> | null = null;
+
+async function getActiveTermos(supabase: any) {
+  if (termosCache) return termosCache;
+  
+  const { data: termos } = await supabase
+    .from('termos_monitoramento')
+    .select('id, termo, prioridade')
+    .eq('ativo', true);
+  
+  termosCache = termos || [];
+  return termosCache;
+}
+
+async function scanMovementForTerms(
+  supabase: any, 
+  movimentacaoId: string, 
+  processoId: string, 
+  descricao: string
+) {
+  try {
+    const termos = await getActiveTermos(supabase);
+    if (!termos || termos.length === 0) return;
+
+    const descricaoLower = descricao.toLowerCase();
+
+    for (const termo of termos!) {
+      const termoLower = termo.termo.toLowerCase();
+      
+      if (descricaoLower.includes(termoLower)) {
+        // Extrair contexto (100 caracteres ao redor do termo)
+        const index = descricaoLower.indexOf(termoLower);
+        const start = Math.max(0, index - 50);
+        const end = Math.min(descricao.length, index + termo.termo.length + 50);
+        const contexto = (start > 0 ? '...' : '') + 
+                        descricao.slice(start, end) + 
+                        (end < descricao.length ? '...' : '');
+
+        // Verificar se alerta já existe
+        const { data: existing } = await supabase
+          .from('alertas_monitoramento')
+          .select('id')
+          .eq('movimentacao_id', movimentacaoId)
+          .eq('termo_id', termo.id)
+          .maybeSingle();
+
+        if (!existing) {
+          await supabase
+            .from('alertas_monitoramento')
+            .insert({
+              termo_id: termo.id,
+              processo_id: processoId,
+              movimentacao_id: movimentacaoId,
+              termo_encontrado: termo.termo,
+              contexto,
+              prioridade: termo.prioridade,
+              status: 'pendente',
+            });
+
+          console.log(`Alert created for term "${termo.termo}" in movement ${movimentacaoId}`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error scanning movement for terms:', error);
+  }
+}
+
 async function consultarProcessoAPI(numeroProcesso: string): Promise<any> {
   const tribunalInfo = getTribunalInfo(numeroProcesso);
   if (!tribunalInfo) return null;
@@ -278,23 +347,28 @@ serve(async (req) => {
             
             const key = `${movDate.split('T')[0]}|${descricaoCompleta}`;
 
-            if (!existingSet.has(key)) {
-              const { error: insertError } = await supabase
-                .from('movimentacoes')
-                .insert({
-                  processo_id: processo.id,
-                  descricao: descricaoCompleta,
-                  data_movimentacao: movDate,
-                  tipo: movName,
-                  fonte: 'DataJud/CNJ'
-                });
+              if (!existingSet.has(key)) {
+                const { data: insertedMov, error: insertError } = await supabase
+                  .from('movimentacoes')
+                  .insert({
+                    processo_id: processo.id,
+                    descricao: descricaoCompleta,
+                    data_movimentacao: movDate,
+                    tipo: movName,
+                    fonte: 'DataJud/CNJ'
+                  })
+                  .select('id')
+                  .single();
 
-              if (!insertError) {
-                insertedCount++;
-                existingSet.add(key);
-                newMovementDetails.push(descricaoCompleta.substring(0, 50));
+                if (!insertError && insertedMov) {
+                  insertedCount++;
+                  existingSet.add(key);
+                  newMovementDetails.push(descricaoCompleta.substring(0, 50));
+
+                  // Varredura automática de termos no novo andamento
+                  await scanMovementForTerms(supabase, insertedMov.id, processo.id, descricaoCompleta);
+                }
               }
-            }
           }
 
           if (insertedCount > 0) {
