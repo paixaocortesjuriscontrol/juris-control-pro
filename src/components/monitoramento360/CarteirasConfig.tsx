@@ -49,6 +49,7 @@ interface CarteiraFormData {
     area?: string[];
     coordenacao_id?: string;
     cliente_id?: string;
+    advogado_responsavel_id?: string;
     tribunal?: string;
     termo_busca?: string;
   };
@@ -91,6 +92,19 @@ export default function CarteirasConfig() {
         .select('id, nome')
         .order('nome')
         .limit(100);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Buscar advogados (profiles)
+  const { data: advogados = [] } = useQuery({
+    queryKey: ['profiles-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles_basic')
+        .select('id, nome')
+        .order('nome');
       if (error) throw error;
       return data;
     },
@@ -204,6 +218,10 @@ export default function CarteirasConfig() {
     if (criterios.cliente_id) {
       const cliente = clientes.find(c => c.id === criterios.cliente_id);
       if (cliente) labels.push(`Cliente: ${cliente.nome}`);
+    }
+    if (criterios.advogado_responsavel_id) {
+      const advogado = advogados.find(a => a.id === criterios.advogado_responsavel_id);
+      if (advogado) labels.push(`Responsável: ${advogado.nome}`);
     }
     if (criterios.tribunal) labels.push(`Tribunal: ${criterios.tribunal}`);
     if (criterios.termo_busca) labels.push(`Termo: ${criterios.termo_busca}`);
@@ -357,6 +375,29 @@ export default function CarteirasConfig() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label>Filtrar por Responsável</Label>
+                  <Select
+                    value={formData.criterios.advogado_responsavel_id || '_all'}
+                    onValueChange={(value) => setFormData({
+                      ...formData,
+                      criterios: { ...formData.criterios, advogado_responsavel_id: value === '_all' ? undefined : value },
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os responsáveis" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_all">Todos os responsáveis</SelectItem>
+                      {advogados.map((adv) => (
+                        <SelectItem key={adv.id} value={adv.id || ''}>
+                          {adv.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Filtrar por Tribunal</Label>
                   <Input
                     value={formData.criterios.tribunal || ''}
@@ -484,6 +525,9 @@ function CarteiraCard({
       if (criterios.cliente_id) {
         query = query.eq('cliente_id', criterios.cliente_id);
       }
+      if (criterios.advogado_responsavel_id) {
+        query = query.eq('advogado_responsavel_id', criterios.advogado_responsavel_id);
+      }
       if (criterios.tribunal) {
         query = query.ilike('tribunal', `%${criterios.tribunal}%`);
       }
@@ -513,6 +557,9 @@ function CarteiraCard({
     }
     if (carteira.criterios.cliente_id) {
       params.set('cliente', carteira.criterios.cliente_id);
+    }
+    if (carteira.criterios.advogado_responsavel_id) {
+      params.set('responsavel', carteira.criterios.advogado_responsavel_id);
     }
     if (carteira.criterios.termo_busca) {
       params.set('busca', carteira.criterios.termo_busca);
