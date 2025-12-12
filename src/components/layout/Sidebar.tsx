@@ -31,6 +31,7 @@ const menuItems = [
   { icon: Calendar, label: "Prazos", path: "/prazos" },
   { icon: RefreshCw, label: "Redistribuições", path: "/redistribuicoes" },
   { icon: Radar, label: "Monit. Distribuição", path: "/monitoramento-distribuicao" },
+  { icon: Radar, label: "Monitoração 360º", path: "/monitoramento-360" },
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },

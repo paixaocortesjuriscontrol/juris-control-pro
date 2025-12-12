@@ -14,6 +14,126 @@ export type Database = {
   }
   public: {
     Tables: {
+      alertas_monitoramento: {
+        Row: {
+          contexto: string | null
+          created_at: string
+          id: string
+          movimentacao_id: string | null
+          observacoes: string | null
+          prioridade: string
+          processo_id: string
+          status: string
+          termo_encontrado: string
+          termo_id: string
+          tratado_em: string | null
+          tratado_por: string | null
+        }
+        Insert: {
+          contexto?: string | null
+          created_at?: string
+          id?: string
+          movimentacao_id?: string | null
+          observacoes?: string | null
+          prioridade?: string
+          processo_id: string
+          status?: string
+          termo_encontrado: string
+          termo_id: string
+          tratado_em?: string | null
+          tratado_por?: string | null
+        }
+        Update: {
+          contexto?: string | null
+          created_at?: string
+          id?: string
+          movimentacao_id?: string | null
+          observacoes?: string | null
+          prioridade?: string
+          processo_id?: string
+          status?: string
+          termo_encontrado?: string
+          termo_id?: string
+          tratado_em?: string | null
+          tratado_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_monitoramento_movimentacao_id_fkey"
+            columns: ["movimentacao_id"]
+            isOneToOne: false
+            referencedRelation: "movimentacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_monitoramento_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_monitoramento_termo_id_fkey"
+            columns: ["termo_id"]
+            isOneToOne: false
+            referencedRelation: "termos_monitoramento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_monitoramento_tratado_por_fkey"
+            columns: ["tratado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_monitoramento_tratado_por_fkey"
+            columns: ["tratado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      carteiras_processos: {
+        Row: {
+          ativo: boolean
+          cor: string | null
+          created_at: string
+          criado_por: string
+          criterios: Json | null
+          descricao: string | null
+          id: string
+          nome: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string | null
+          created_at?: string
+          criado_por: string
+          criterios?: Json | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string | null
+          created_at?: string
+          criado_por?: string
+          criterios?: Json | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clientes: {
         Row: {
           cpf_cnpj: string | null
@@ -958,6 +1078,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      termos_monitoramento: {
+        Row: {
+          ativo: boolean
+          categoria: string
+          created_at: string
+          criado_por: string
+          descricao: string | null
+          id: string
+          prioridade: string
+          termo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria?: string
+          created_at?: string
+          criado_por: string
+          descricao?: string | null
+          id?: string
+          prioridade?: string
+          termo: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string
+          created_at?: string
+          criado_por?: string
+          descricao?: string | null
+          id?: string
+          prioridade?: string
+          termo?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
