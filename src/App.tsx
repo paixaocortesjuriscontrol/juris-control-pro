@@ -26,6 +26,7 @@ import Clientes from "./pages/Clientes";
 import ClienteDetalhes from "./pages/ClienteDetalhes";
 import MonitoramentoDistribuicao from "./pages/MonitoramentoDistribuicao";
 import Monitoramento360 from "./pages/Monitoramento360";
+import MinhaCarteira from "./pages/MinhaCarteira";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/minha-carteira" element={<ProtectedRoute><MinhaCarteira /></ProtectedRoute>} />
             <Route path="/processos" element={<ProtectedRoute><Processos /></ProtectedRoute>} />
             <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
             <Route path="/clientes/:id" element={<ProtectedRoute><ClienteDetalhes /></ProtectedRoute>} />
