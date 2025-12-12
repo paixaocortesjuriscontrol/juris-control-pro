@@ -136,7 +136,6 @@ export function useMinhaCarteira() {
           processo:processos!prazos_processo_id_fkey(id, numero, assunto)
         `)
         .eq("responsavel_id", user.id)
-        .neq("status", "cumprido")
         .order("data_vencimento", { ascending: true });
 
       if (error) throw error;
