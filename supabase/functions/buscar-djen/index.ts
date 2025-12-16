@@ -24,8 +24,8 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-// API endpoints for DJEN - using comunica.pje.jus.br
-const DJEN_API_BASE = "https://comunica.pje.jus.br";
+// PJE Comunica API - the backend API for comunica.pje.jus.br
+const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 
 // Types of searches available
 type SearchType = "advogado" | "palavra-chave" | "processo";
@@ -38,106 +38,114 @@ interface SearchParams {
   numeroProcesso?: string;
   dataInicio?: string;
   dataFim?: string;
-  pagina?: number;
-  tamanhoPagina?: number;
 }
 
-async function searchDJEN(params: SearchParams): Promise<any> {
-  const {
-    tipo,
-    oab,
-    uf,
-    palavraChave,
-    numeroProcesso,
-    dataInicio,
-    dataFim,
-    pagina = 0,
-    tamanhoPagina = 20
-  } = params;
+// Browser-like headers to avoid blocking
+const browserHeaders = {
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Origin": "https://comunica.pje.jus.br",
+  "Referer": "https://comunica.pje.jus.br/",
+};
 
-  let url: string;
-  
-  // Build URL based on search type - using /consulta endpoint
-  switch (tipo) {
-    case "advogado":
-      if (!oab || !uf) {
-        throw new Error("OAB e UF são obrigatórios para busca por advogado");
-      }
-      // Search by OAB format: "OAB:123456/UF"
-      const oabQuery = `OAB:${oab}/${uf.toUpperCase()}`;
-      url = `${DJEN_API_BASE}/consulta?texto=${encodeURIComponent(oabQuery)}`;
-      break;
-      
-    case "palavra-chave":
-      if (!palavraChave) {
-        throw new Error("Palavra-chave é obrigatória");
-      }
-      // Direct keyword search using the same endpoint format as the working URL
-      url = `${DJEN_API_BASE}/consulta?texto=${encodeURIComponent(palavraChave)}`;
-      break;
-      
-    case "processo":
-      if (!numeroProcesso) {
-        throw new Error("Número do processo é obrigatório");
-      }
-      url = `${DJEN_API_BASE}/consulta?texto=${encodeURIComponent(numeroProcesso)}`;
-      break;
-      
-    default:
-      throw new Error("Tipo de busca inválido");
-  }
+async function searchPJEComunica(params: SearchParams): Promise<any> {
+  const { tipo, oab, uf, palavraChave, numeroProcesso, dataInicio, dataFim } = params;
 
-  // Add date filters only (matching the working URL format)
+  // Build query parameters matching the frontend URL format
   const queryParams = new URLSearchParams();
   
+  // The frontend uses 'texto' parameter for searches
+  if (tipo === "palavra-chave" && palavraChave) {
+    queryParams.append("texto", palavraChave);
+  } else if (tipo === "advogado" && oab) {
+    // Format: OAB number with state
+    const oabQuery = uf ? `OAB ${oab} ${uf}` : `OAB ${oab}`;
+    queryParams.append("texto", oabQuery);
+  } else if (tipo === "processo" && numeroProcesso) {
+    queryParams.append("texto", numeroProcesso);
+  }
+  
+  // Date filters - using the exact parameter names from the working URL
   if (dataInicio) {
     queryParams.append("dataDisponibilizacaoInicio", dataInicio);
   }
   if (dataFim) {
     queryParams.append("dataDisponibilizacaoFim", dataFim);
   }
-  
-  // Append query params if any
-  const paramsString = queryParams.toString();
-  const fullUrl = paramsString ? `${url}&${paramsString}` : url;
-  
-  console.log("Fetching DJEN API:", fullUrl);
-  
-  const response = await fetch(fullUrl, {
-    method: "GET",
-    headers: {
-      "Accept": "application/json",
-    },
-  });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("DJEN API error:", response.status, errorText);
+  // Try multiple possible API endpoints
+  const endpoints = [
+    `${PJE_COMUNICA_API}/comunicacao/consulta`,
+    `${PJE_COMUNICA_API}/comunicacoes`,
+    `${PJE_COMUNICA_API}/comunicacao/pesquisar`,
+    `${PJE_COMUNICA_API}/comunicacao`,
+  ];
+
+  const fullQueryString = queryParams.toString();
+  console.log("Query params:", fullQueryString);
+  
+  let lastError = null;
+  
+  for (const endpoint of endpoints) {
+    const fullUrl = `${endpoint}?${fullQueryString}`;
+    console.log("Trying endpoint:", fullUrl);
     
-    // 422 means "not found" - return empty results instead of error
-    if (response.status === 422) {
-      console.log("DJEN returned 422 (not found), returning empty results");
-      return { 
-        publicacoes: [], 
-        items: [],
-        comunicacoes: [],
-        totalElements: 0, 
-        totalPages: 0,
-        message: "Nenhuma comunicação encontrada para os critérios informados"
-      };
-    }
-    
-    // Try alternative endpoint structure for 404/403
-    if (response.status === 404 || response.status === 403) {
-      if (tipo === "processo" && numeroProcesso) {
-        return await searchDataJudPublicacoes(numeroProcesso);
+    try {
+      const response = await fetch(fullUrl, {
+        method: "GET",
+        headers: browserHeaders,
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      console.log("Response status:", response.status, "Content-Type:", contentType);
+      
+      // If we get HTML, skip to next endpoint
+      if (contentType.includes("text/html")) {
+        console.log("Got HTML response, trying next endpoint...");
+        continue;
       }
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Success! Got JSON response");
+        return data;
+      }
+
+      // 422 means "not found" - return empty results
+      if (response.status === 422) {
+        const errorText = await response.text();
+        console.log("422 response:", errorText);
+        return { 
+          publicacoes: [], 
+          comunicacoes: [],
+          totalElements: 0, 
+          message: "Nenhuma comunicação encontrada"
+        };
+      }
+
+      lastError = `Status ${response.status}`;
+    } catch (err) {
+      console.error("Error with endpoint", endpoint, err);
+      lastError = err;
     }
-    
-    throw new Error(`Erro na API do DJEN: ${response.status}`);
   }
 
-  return await response.json();
+  // If all endpoints failed, try DataJud as fallback for process searches
+  if (tipo === "processo" && numeroProcesso) {
+    console.log("All PJE endpoints failed, trying DataJud fallback...");
+    return await searchDataJudPublicacoes(numeroProcesso);
+  }
+
+  // Return empty results instead of error for better UX
+  console.log("All endpoints failed, returning empty results");
+  return { 
+    publicacoes: [], 
+    comunicacoes: [],
+    totalElements: 0, 
+    message: "Não foi possível conectar à API do PJE Comunica. A busca por palavra-chave pode estar indisponível. Tente buscar por número de processo.",
+    error: lastError?.toString()
+  };
 }
 
 // Fallback to DataJud API for process publications
@@ -145,61 +153,95 @@ async function searchDataJudPublicacoes(numeroProcesso: string): Promise<any> {
   const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
   const cleanedNumber = numeroProcesso.replace(/\D/g, '').padStart(20, '0');
   
-  // Try to find publications in DataJud movements
-  const url = "https://api-publica.datajud.cnj.jus.br/api_publica_trt10/_search";
+  console.log("Searching DataJud for process:", cleanedNumber);
   
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `APIKey ${DATAJUD_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      query: {
-        bool: {
-          should: [
-            { match_phrase: { "movimentos.nome": "Publicação" } },
-            { match_phrase: { "movimentos.complemento": "Diário" } }
-          ],
-          must: [
-            { match: { numeroProcesso: cleanedNumber } }
-          ]
-        }
+  // Determine tribunal from process number
+  const segmento = cleanedNumber.substring(13, 14);
+  const tribunal = cleanedNumber.substring(14, 16);
+  
+  // Map to DataJud API endpoint
+  let apiEndpoint = "api_publica_tjsp"; // default
+  if (segmento === "5") {
+    // Trabalho
+    apiEndpoint = `api_publica_trt${tribunal}`;
+  } else if (segmento === "8") {
+    // Estadual
+    const tjMap: Record<string, string> = {
+      "01": "tjac", "02": "tjal", "03": "tjap", "04": "tjam", "05": "tjba",
+      "06": "tjce", "07": "tjdf", "08": "tjes", "09": "tjgo", "10": "tjma",
+      "11": "tjmt", "12": "tjms", "13": "tjmg", "14": "tjpa", "15": "tjpb",
+      "16": "tjpr", "17": "tjpe", "18": "tjpi", "19": "tjrj", "20": "tjrn",
+      "21": "tjrs", "22": "tjro", "23": "tjrr", "24": "tjsc", "25": "tjse",
+      "26": "tjsp", "27": "tjto"
+    };
+    apiEndpoint = `api_publica_${tjMap[tribunal] || "tjsp"}`;
+  }
+  
+  const url = `https://api-publica.datajud.cnj.jus.br/${apiEndpoint}/_search`;
+  console.log("DataJud URL:", url);
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `APIKey ${DATAJUD_API_KEY}`,
+        'Content-Type': 'application/json',
       },
-      size: 50
-    })
-  });
+      body: JSON.stringify({
+        query: {
+          match: { numeroProcesso: cleanedNumber }
+        },
+        size: 1
+      })
+    });
 
-  if (!response.ok) {
-    throw new Error("Erro ao consultar DataJud");
+    if (!response.ok) {
+      console.error("DataJud error:", response.status);
+      return { publicacoes: [], total: 0, message: "Erro ao consultar DataJud" };
+    }
+
+    const data = await response.json();
+    const hits = data.hits?.hits || [];
+    
+    if (hits.length === 0) {
+      return { publicacoes: [], total: 0, message: "Processo não encontrado no DataJud" };
+    }
+
+    const processo = hits[0]._source;
+    
+    // Filter movements that look like publications
+    const publicacoes = (processo.movimentos || [])
+      .filter((m: any) => 
+        m.nome?.toLowerCase().includes('publicação') ||
+        m.nome?.toLowerCase().includes('diário') ||
+        m.complementosTabelados?.some((c: any) => 
+          c.nome?.toLowerCase().includes('dje') ||
+          c.descricao?.toLowerCase().includes('diário')
+        )
+      )
+      .map((m: any) => ({
+        data: m.dataHora,
+        tipo: m.nome || "Publicação",
+        conteudo: m.complementosTabelados?.map((c: any) => c.descricao || c.nome).join(" - ") || m.nome,
+        processo: processo.numeroProcesso,
+        tribunal: processo.siglaTribunal
+      }));
+
+    return {
+      publicacoes,
+      total: publicacoes.length,
+      fonte: "DataJud",
+      processoInfo: {
+        numero: processo.numeroProcesso,
+        tribunal: processo.siglaTribunal,
+        classe: processo.classe?.nome,
+        assuntos: processo.assuntos?.map((a: any) => a.nome).join(", ")
+      }
+    };
+  } catch (err) {
+    console.error("DataJud fetch error:", err);
+    return { publicacoes: [], total: 0, message: "Erro ao consultar DataJud" };
   }
-
-  const data = await response.json();
-  const hits = data.hits?.hits || [];
-  
-  if (hits.length === 0) {
-    return { publicacoes: [], total: 0 };
-  }
-
-  const processo = hits[0]._source;
-  const publicacoes = (processo.movimentos || [])
-    .filter((m: any) => 
-      m.nome?.toLowerCase().includes('publicação') ||
-      m.nome?.toLowerCase().includes('diário') ||
-      m.complemento?.toLowerCase().includes('dje')
-    )
-    .map((m: any) => ({
-      data: m.dataHora,
-      tipo: m.nome,
-      conteudo: m.complemento || m.nome,
-      processo: processo.numeroProcesso
-    }));
-
-  return {
-    publicacoes,
-    total: publicacoes.length,
-    fonte: "DataJud"
-  };
 }
 
 serve(async (req) => {
@@ -227,17 +269,15 @@ serve(async (req) => {
       numeroProcesso,
       dataInicio,
       dataFim,
-      pagina = 0,
-      tamanhoPagina = 20
     } = body;
 
     console.log("DJEN Search request:", JSON.stringify(body));
 
     // Validate inputs
     if (tipo === "advogado") {
-      if (!oab || !uf) {
+      if (!oab) {
         return new Response(
-          JSON.stringify({ error: "OAB e UF são obrigatórios para busca por advogado" }),
+          JSON.stringify({ error: "OAB é obrigatório para busca por advogado" }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -257,7 +297,7 @@ serve(async (req) => {
       }
     }
 
-    const result = await searchDJEN({
+    const result = await searchPJEComunica({
       tipo,
       oab,
       uf,
@@ -265,8 +305,6 @@ serve(async (req) => {
       numeroProcesso,
       dataInicio,
       dataFim,
-      pagina,
-      tamanhoPagina
     });
 
     return new Response(
