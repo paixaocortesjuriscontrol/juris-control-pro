@@ -102,6 +102,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isInactive: true 
         };
       }
+
+      // Record login history
+      try {
+        await supabase.from("historico_login").insert({
+          user_id: data.user.id,
+          email: data.user.email,
+        });
+      } catch (e) {
+        console.error("Error recording login history:", e);
+      }
     }
 
     return { error: null };
