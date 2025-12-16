@@ -50,6 +50,18 @@ async function notifyCoordination(
       });
     }
 
+    // Adicionar todos os admins e coordenadores
+    const { data: adminUsers } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .in('role', ['admin', 'coordenador']);
+    
+    adminUsers?.forEach((u: any) => {
+      if (!usersToNotify.includes(u.user_id)) {
+        usersToNotify.push(u.user_id);
+      }
+    });
+
     // Criar notificações
     const prioridadeEmoji = prioridade === 'urgente' ? '🚨' : prioridade === 'alta' ? '⚠️' : 'ℹ️';
     
