@@ -8,6 +8,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -17,15 +19,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, UserX, Building2, Filter, Clock, History } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
+import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -75,6 +78,9 @@ const Administracao = () => {
   const [saving, setSaving] = useState(false);
   const [filialFilter, setFilialFilter] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("usuarios");
+  const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(undefined);
+  const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(undefined);
+  const [historyUserFilter, setHistoryUserFilter] = useState<string>("todos");
   const [newUserData, setNewUserData] = useState({
     nome: "",
     email: "",
@@ -116,7 +122,7 @@ const Administracao = () => {
     if (activeTab === "historico") {
       fetchLoginHistory();
     }
-  }, [activeTab]);
+  }, [activeTab, historyStartDate, historyEndDate, historyUserFilter, users]);
 
   async function fetchUsers() {
     setLoading(true);
@@ -158,11 +164,24 @@ const Administracao = () => {
   async function fetchLoginHistory() {
     setLoadingHistory(true);
     
-    const { data: history, error: historyError } = await supabase
+    let query = supabase
       .from("historico_login")
       .select("*")
       .order("logged_in_at", { ascending: false })
       .limit(500);
+
+    // Apply date filters
+    if (historyStartDate) {
+      query = query.gte("logged_in_at", startOfDay(historyStartDate).toISOString());
+    }
+    if (historyEndDate) {
+      query = query.lte("logged_in_at", endOfDay(historyEndDate).toISOString());
+    }
+    if (historyUserFilter && historyUserFilter !== "todos") {
+      query = query.eq("user_id", historyUserFilter);
+    }
+
+    const { data: history, error: historyError } = await query;
 
     if (historyError) {
       toast.error("Erro ao carregar histórico de login");
@@ -730,13 +749,95 @@ const Administracao = () => {
           <TabsContent value="historico" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Histórico de Acesso
-                </CardTitle>
-                <CardDescription>
-                  Registro de login dos usuários no sistema
-                </CardDescription>
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Clock className="w-5 h-5" />
+                      Histórico de Acesso
+                    </CardTitle>
+                    <CardDescription>
+                      {loginHistory.length} registro(s) encontrado(s)
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* User Filter */}
+                    <Select value={historyUserFilter} onValueChange={setHistoryUserFilter}>
+                      <SelectTrigger className="w-48">
+                        <SelectValue placeholder="Filtrar por usuário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos os usuários</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>{user.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Start Date */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-[140px] justify-start text-left font-normal",
+                            !historyStartDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {historyStartDate ? format(historyStartDate, "dd/MM/yyyy") : "Data início"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={historyStartDate}
+                          onSelect={setHistoryStartDate}
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* End Date */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-[140px] justify-start text-left font-normal",
+                            !historyEndDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {historyEndDate ? format(historyEndDate, "dd/MM/yyyy") : "Data fim"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={historyEndDate}
+                          onSelect={setHistoryEndDate}
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Clear Filters */}
+                    {(historyStartDate || historyEndDate || historyUserFilter !== "todos") && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setHistoryStartDate(undefined);
+                          setHistoryEndDate(undefined);
+                          setHistoryUserFilter("todos");
+                        }}
+                        title="Limpar filtros"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingHistory ? (
