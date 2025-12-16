@@ -136,19 +136,35 @@ serve(async (req) => {
         if (!insertError) {
           totalNewPublications++;
           
-          // Create notification for the user
-          await supabase.from('notificacoes').insert({
-            usuario_id: monitoramento.criado_por,
-            titulo: 'Nova publicação no PJE',
-            mensagem: `Encontrada publicação para: "${monitoramento.termo_busca}"`,
-            tipo: 'pje',
-            link: '/buscar-pje',
-            dados: {
-              monitoramento_id: monitoramento.id,
-              processo: pub.numeroProcesso || pub.processo,
-              preview: conteudo.substring(0, 200),
-            },
+          // Get users to notify (creator + admins + coordinators)
+          const usersToNotify: string[] = [monitoramento.criado_por];
+          
+          const { data: adminUsers } = await supabase
+            .from('user_roles')
+            .select('user_id')
+            .in('role', ['admin', 'coordenador']);
+          
+          adminUsers?.forEach((u: any) => {
+            if (!usersToNotify.includes(u.user_id)) {
+              usersToNotify.push(u.user_id);
+            }
           });
+
+          // Create notifications for all users
+          for (const userId of usersToNotify) {
+            await supabase.from('notificacoes').insert({
+              usuario_id: userId,
+              titulo: 'Nova publicação no PJE',
+              mensagem: `Encontrada publicação para: "${monitoramento.termo_busca}"`,
+              tipo: 'info',
+              link: '/buscar-pje',
+              dados: {
+                monitoramento_id: monitoramento.id,
+                processo: pub.numeroProcesso || pub.processo,
+                preview: conteudo.substring(0, 200),
+              },
+            });
+          }
         }
       }
     }

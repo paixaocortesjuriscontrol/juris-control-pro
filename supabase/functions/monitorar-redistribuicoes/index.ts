@@ -288,6 +288,18 @@ serve(async (req) => {
               });
             }
 
+            // Get all admins and coordinators to notify
+            const { data: adminUsers } = await supabase
+              .from('user_roles')
+              .select('user_id')
+              .in('role', ['admin', 'coordenador']);
+            
+            adminUsers?.forEach(u => {
+              if (!usersToNotify.includes(u.user_id)) {
+                usersToNotify.push(u.user_id);
+              }
+            });
+
             // Create notifications
             for (const userId of usersToNotify) {
               await supabase
@@ -296,7 +308,7 @@ serve(async (req) => {
                   usuario_id: userId,
                   titulo: 'Redistribuição de Processo',
                   mensagem: `O processo ${processo.numero} foi redistribuído de "${storedVara}" para "${currentVara}"`,
-                  tipo: 'redistribuicao',
+                  tipo: 'warning',
                   link: `/processos/${processo.id}`,
                   dados: {
                     processo_id: processo.id,

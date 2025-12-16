@@ -444,14 +444,30 @@ Deno.serve(async (req) => {
               } else {
                 novasDistribuicoes++;
 
-                // Criar notificação com tipo válido ('warning')
-                await supabase.from('notificacoes').insert({
-                  usuario_id: monitoramento.criado_por,
-                  tipo: 'warning',
-                  titulo: 'Nova distribuição detectada',
-                  mensagem: `Processo ${numeroProcesso} encontrado no ${tribunal.nome} - ${monitoramento.termo_busca}`,
-                  link: '/monitoramento-distribuicao',
+                // Get all users to notify (creator + admins + coordinators)
+                const usersToNotify: string[] = [monitoramento.criado_por];
+                
+                const { data: adminUsers } = await supabase
+                  .from('user_roles')
+                  .select('user_id')
+                  .in('role', ['admin', 'coordenador']);
+                
+                adminUsers?.forEach((u: any) => {
+                  if (!usersToNotify.includes(u.user_id)) {
+                    usersToNotify.push(u.user_id);
+                  }
                 });
+
+                // Criar notificações para todos
+                for (const userId of usersToNotify) {
+                  await supabase.from('notificacoes').insert({
+                    usuario_id: userId,
+                    tipo: 'warning',
+                    titulo: 'Nova distribuição detectada',
+                    mensagem: `Processo ${numeroProcesso} encontrado no ${tribunal.nome} - ${monitoramento.termo_busca}`,
+                    link: '/monitoramento-distribuicao',
+                  });
+                }
               }
             }
             
