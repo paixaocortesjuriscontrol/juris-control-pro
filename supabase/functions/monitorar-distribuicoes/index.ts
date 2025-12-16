@@ -78,107 +78,102 @@ const TODOS_TRIBUNAIS = {
 };
 
 // Buscar processos por termo na API do DataJud
+function escapeQueryString(value: string): string {
+  // Escapa caracteres especiais do query_string do Elasticsearch
+  // https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html#_reserved_characters
+  return value.replace(/([+\-=&|><!(){}\[\]^"~*?:\\/])/g, "\\$1");
+}
+
+function buildDistribuicaoQuery(searchTerm: string, tipo: string, dataInicioISO: string) {
+  const term = (searchTerm || '').trim();
+  const safeTerm = escapeQueryString(term);
+
+  // Observação: DataJud é inconsistente com campos aninhados entre tribunais.
+  // Para reduzir falsos negativos ("sempre zero"), usamos query_string em campos prováveis
+  // e como fallback em "*".
+  let mustQuery: any = { match_all: {} };
+
+  if (term) {
+    if (tipo === 'cpf_cnpj') {
+      const digits = term.replace(/\D/g, '');
+      const safeDigits = escapeQueryString(digits);
+      mustQuery = {
+        query_string: {
+          query: safeDigits,
+          fields: [
+            'partes.pessoa.numeroDocumentoPrincipal',
+            'partes.pessoa.cpf',
+            'partes.pessoa.cnpj',
+            '*',
+          ],
+          default_operator: 'AND',
+        },
+      };
+    } else if (tipo === 'oab') {
+      const oabParts = term.match(/(\d+)/);
+      const oabNumero = oabParts ? oabParts[1] : term;
+      const safeOab = escapeQueryString(oabNumero);
+      mustQuery = {
+        query_string: {
+          query: safeOab,
+          fields: [
+            'partes.advogados.inscricao',
+            'partes.advogado.inscricao',
+            '*',
+          ],
+          default_operator: 'AND',
+        },
+      };
+    } else {
+      // nome / termo_chave
+      mustQuery = {
+        query_string: {
+          query: `\"${safeTerm}\" OR (${safeTerm})`,
+          fields: [
+            'partes.nome',
+            'partes.pessoa.nome',
+            '*',
+          ],
+          default_operator: 'AND',
+        },
+      };
+    }
+  }
+
+  return {
+    size: 30,
+    query: {
+      bool: {
+        must: [mustQuery],
+        filter: [{ range: { dataAjuizamento: { gte: dataInicioISO } } }],
+      },
+    },
+    sort: [{ dataAjuizamento: { order: 'desc' } }],
+  };
+}
+
 async function searchProcessos(endpoint: string, searchTerm: string, tipo: string): Promise<any[]> {
   const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
-  
+
   const dataInicio = new Date();
   dataInicio.setDate(dataInicio.getDate() - 30);
-  
-  let query: any;
-  
-  if (tipo === 'cpf_cnpj') {
-    query = {
-      size: 30,
-      query: {
-        bool: {
-          must: [{
-            nested: {
-              path: "dadosBasicos.polo",
-              query: {
-                nested: {
-                  path: "dadosBasicos.polo.parte",
-                  query: {
-                    bool: {
-                      should: [
-                        { match: { "dadosBasicos.polo.parte.pessoa.cpf": searchTerm.replace(/\D/g, '') } },
-                        { match: { "dadosBasicos.polo.parte.pessoa.cnpj": searchTerm.replace(/\D/g, '') } },
-                        { match: { "dadosBasicos.polo.parte.pessoa.numeroDocumentoPrincipal": searchTerm.replace(/\D/g, '') } }
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          }],
-          filter: [{ range: { "dadosBasicos.dataAjuizamento": { gte: dataInicio.toISOString().split('T')[0] } } }]
-        }
-      }
-    };
-  } else if (tipo === 'oab') {
-    const oabParts = searchTerm.match(/(\d+)/);
-    const oabNumero = oabParts ? oabParts[1] : searchTerm;
-    
-    query = {
-      size: 30,
-      query: {
-        bool: {
-          must: [{
-            nested: {
-              path: "dadosBasicos.polo",
-              query: {
-                nested: {
-                  path: "dadosBasicos.polo.parte",
-                  query: {
-                    nested: {
-                      path: "dadosBasicos.polo.parte.advogado",
-                      query: {
-                        match: { "dadosBasicos.polo.parte.advogado.inscricao": oabNumero }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }],
-          filter: [{ range: { "dadosBasicos.dataAjuizamento": { gte: dataInicio.toISOString().split('T')[0] } } }]
-        }
-      }
-    };
-  } else {
-    query = {
-      size: 30,
-      query: {
-        bool: {
-          must: [{
-            nested: {
-              path: "dadosBasicos.polo",
-              query: {
-                nested: {
-                  path: "dadosBasicos.polo.parte",
-                  query: {
-                    match: { "dadosBasicos.polo.parte.pessoa.nome": searchTerm }
-                  }
-                }
-              }
-            }
-          }],
-          filter: [{ range: { "dadosBasicos.dataAjuizamento": { gte: dataInicio.toISOString().split('T')[0] } } }]
-        }
-      }
-    };
-  }
+  const dataInicioISO = dataInicio.toISOString().split('T')[0];
+
+  const body = buildDistribuicaoQuery(searchTerm, tipo, dataInicioISO);
 
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': DATAJUD_API_KEY,
+        Authorization: DATAJUD_API_KEY,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(query),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.error(`DataJud error (${endpoint}):`, response.status, errorText);
       return [];
     }
 
@@ -190,22 +185,69 @@ async function searchProcessos(endpoint: string, searchTerm: string, tipo: strin
   }
 }
 
-function extrairPartes(polos: any[]): { poloAtivo: string; poloPassivo: string } {
-  let poloAtivo = '';
-  let poloPassivo = '';
+function extrairPartes(input: any): { poloAtivo: string; poloPassivo: string } {
+  // Suporta dois formatos:
+  // 1) dadosBasicos.polo[] (com { polo, parte[] })
+  // 2) partes[] (com { nome/pessoa.nome + polo/tipoParte })
+  const unique = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
 
-  for (const polo of polos || []) {
-    const partes = polo.parte || [];
-    const nomes = partes.map((p: any) => p.pessoa?.nome).filter(Boolean).join(', ');
-    
-    if (polo.polo === 'AT' || polo.polo === 'ATIVO') {
-      poloAtivo = nomes;
-    } else if (polo.polo === 'PA' || polo.polo === 'PASSIVO') {
-      poloPassivo = nomes;
+  // Formato 1: polos
+  if (Array.isArray(input) && input.length > 0 && typeof input[0] === 'object' && 'parte' in input[0]) {
+    let poloAtivo = '';
+    let poloPassivo = '';
+
+    for (const polo of input || []) {
+      const partes = (polo as any).parte || [];
+      const nomes = partes.map((p: any) => p.pessoa?.nome).filter(Boolean).join(', ');
+
+      if ((polo as any).polo === 'AT' || (polo as any).polo === 'ATIVO') {
+        poloAtivo = nomes;
+      } else if ((polo as any).polo === 'PA' || (polo as any).polo === 'PASSIVO') {
+        poloPassivo = nomes;
+      }
+    }
+
+    return { poloAtivo, poloPassivo };
+  }
+
+  // Formato 2: partes
+  const poloAtivoArr: string[] = [];
+  const poloPassivoArr: string[] = [];
+
+  if (!Array.isArray(input)) return { poloAtivo: '', poloPassivo: '' };
+
+  for (const parte of input) {
+    const nome = parte?.nome || parte?.pessoa?.nome || '';
+    if (!nome) continue;
+
+    const polo = String(parte?.polo || parte?.tipoParte || '').toUpperCase();
+
+    if (
+      polo.includes('AT') ||
+      polo.includes('ATIVO') ||
+      polo.includes('AUTOR') ||
+      polo.includes('REQUERENTE') ||
+      polo.includes('RECLAMANTE') ||
+      polo.includes('EXEQUENTE')
+    ) {
+      poloAtivoArr.push(nome);
+    } else if (
+      polo.includes('PA') ||
+      polo.includes('PASSIVO') ||
+      polo.includes('REU') ||
+      polo.includes('RÉU') ||
+      polo.includes('REQUERIDO') ||
+      polo.includes('RECLAMADO') ||
+      polo.includes('EXECUTADO')
+    ) {
+      poloPassivoArr.push(nome);
     }
   }
 
-  return { poloAtivo, poloPassivo };
+  return {
+    poloAtivo: unique(poloAtivoArr).join(', '),
+    poloPassivo: unique(poloPassivoArr).join(', '),
+  };
 }
 
 function getTribunaisParaMonitoramento(monitoramento: any): { endpoint: string; nome: string }[] {
@@ -347,10 +389,10 @@ Deno.serve(async (req) => {
             let novasDistribuicoes = 0;
             
             for (const hit of resultados) {
-              const source = hit._source;
-              const dadosBasicos = source?.dadosBasicos || {};
-              const numeroProcesso = dadosBasicos.numero || source?.numeroProcesso;
+              const source = hit?._source || {};
+              const dadosBasicos = (source as any)?.dadosBasicos || {};
 
+              const numeroProcesso = (source as any)?.numeroProcesso || dadosBasicos.numero || (source as any)?.numero;
               if (!numeroProcesso) continue;
 
               // Verificar se já existe na tabela de distribuições
@@ -372,7 +414,13 @@ Deno.serve(async (req) => {
 
               if (processoExistente) continue;
 
-              const { poloAtivo, poloPassivo } = extrairPartes(dadosBasicos.polo);
+              const partesInput = (source as any)?.partes ?? dadosBasicos.polo ?? [];
+              const { poloAtivo, poloPassivo } = extrairPartes(partesInput);
+
+              const vara = (source as any)?.orgaoJulgador?.nome || dadosBasicos.orgaoJulgador?.nomeOrgao || null;
+              const classe = (source as any)?.classe?.nome || dadosBasicos.classeProcessual?.nome || null;
+              const assunto = (source as any)?.assuntos?.[0]?.nome || dadosBasicos.assunto?.[0]?.nome || null;
+              const dataDistribuicao = (source as any)?.dataAjuizamento || dadosBasicos.dataAjuizamento || null;
 
               // Inserir nova distribuição
               const { error: insertError } = await supabase
@@ -381,12 +429,12 @@ Deno.serve(async (req) => {
                   monitoramento_id: monitoramento.id,
                   numero_processo: numeroProcesso,
                   tribunal: tribunal.nome,
-                  vara: dadosBasicos.orgaoJulgador?.nomeOrgao || null,
-                  classe: dadosBasicos.classeProcessual?.nome || null,
-                  assunto: dadosBasicos.assunto?.[0]?.nome || null,
+                  vara,
+                  classe,
+                  assunto,
                   polo_ativo: poloAtivo || null,
                   polo_passivo: poloPassivo || null,
-                  data_distribuicao: dadosBasicos.dataAjuizamento || null,
+                  data_distribuicao: dataDistribuicao,
                   dados_completos: source,
                   status: 'pendente',
                 });
