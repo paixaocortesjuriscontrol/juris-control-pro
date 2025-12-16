@@ -16,12 +16,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, UserX, Building2, Filter } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, UserX, Building2, Filter, Clock, History } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { toZonedTime } from "date-fns-tz";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -29,6 +33,14 @@ type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 interface UserWithRole extends Profile {
   role: AppRole | null;
+}
+
+interface LoginHistory {
+  id: string;
+  user_id: string;
+  email: string | null;
+  logged_in_at: string;
+  user_name?: string;
 }
 
 const roleLabels: Record<AppRole, string> = {
@@ -51,7 +63,9 @@ const roleBadgeColors: Record<AppRole, string> = {
 
 const Administracao = () => {
   const [users, setUsers] = useState<UserWithRole[]>([]);
+  const [loginHistory, setLoginHistory] = useState<LoginHistory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -60,6 +74,7 @@ const Administracao = () => {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filialFilter, setFilialFilter] = useState<string>("todas");
+  const [activeTab, setActiveTab] = useState("usuarios");
   const [newUserData, setNewUserData] = useState({
     nome: "",
     email: "",
@@ -97,6 +112,12 @@ const Administracao = () => {
     fetchUsers();
   }, []);
 
+  useEffect(() => {
+    if (activeTab === "historico") {
+      fetchLoginHistory();
+    }
+  }, [activeTab]);
+
   async function fetchUsers() {
     setLoading(true);
     
@@ -132,6 +153,32 @@ const Administracao = () => {
 
     setUsers(usersWithRoles);
     setLoading(false);
+  }
+
+  async function fetchLoginHistory() {
+    setLoadingHistory(true);
+    
+    const { data: history, error: historyError } = await supabase
+      .from("historico_login")
+      .select("*")
+      .order("logged_in_at", { ascending: false })
+      .limit(500);
+
+    if (historyError) {
+      toast.error("Erro ao carregar histórico de login");
+      console.error(historyError);
+      setLoadingHistory(false);
+      return;
+    }
+
+    // Map user names from the users list
+    const historyWithNames: LoginHistory[] = (history ?? []).map(h => ({
+      ...h,
+      user_name: users.find(u => u.id === h.user_id)?.nome || h.email || "Desconhecido",
+    }));
+
+    setLoginHistory(historyWithNames);
+    setLoadingHistory(false);
   }
 
   async function handleRoleChange(userId: string, newRole: AppRole) {
@@ -567,104 +614,175 @@ const Administracao = () => {
           </Dialog>
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="usuarios" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Usuários
+            </TabsTrigger>
+            <TabsTrigger value="historico" className="flex items-center gap-2">
+              <History className="w-4 h-4" />
+              Histórico de Acesso
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="usuarios" className="mt-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5" />
+                      Usuários do Sistema
+                    </CardTitle>
+                    <CardDescription>
+                      {filteredUsers.length} de {users.length} usuário(s) cadastrado(s)
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-muted-foreground" />
+                    <Select value={filialFilter} onValueChange={setFilialFilter}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Filtrar por filial" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todas">Todas as filiais</SelectItem>
+                        {filiais.map((filial) => (
+                          <SelectItem key={filial} value={filial}>{filial}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>OAB</TableHead>
+                      <TableHead>Filial</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Perfil</TableHead>
+                      <TableHead className="w-12">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map((user) => (
+                      <TableRow key={user.id} className={!user.ativo ? "opacity-50" : ""}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={user.avatar_url ?? undefined} />
+                              <AvatarFallback className={`text-xs ${user.ativo ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                                {getInitials(user.nome)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{user.nome}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {user.oab ?? "-"}
+                        </TableCell>
+                        <TableCell>
+                          {(user as any).filial ? (
+                            <Badge variant="outline" className="text-xs">
+                              {(user as any).filial}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={user.ativo ?? true}
+                              onCheckedChange={() => handleToggleAtivo(user.id, user.ativo ?? true)}
+                              disabled={togglingStatus === user.id}
+                            />
+                            {togglingStatus === user.id && (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {user.role ? (
+                            <Badge className={`text-xs ${roleBadgeColors[user.role]}`}>
+                              {roleLabels[user.role]}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">Sem perfil</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => handleEditUser(user)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="historico" className="mt-6">
+            <Card>
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Usuários do Sistema
+                  <Clock className="w-5 h-5" />
+                  Histórico de Acesso
                 </CardTitle>
                 <CardDescription>
-                  {filteredUsers.length} de {users.length} usuário(s) cadastrado(s)
+                  Registro de login dos usuários no sistema
                 </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-muted-foreground" />
-                <Select value={filialFilter} onValueChange={setFilialFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Filtrar por filial" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas as filiais</SelectItem>
-                    {filiais.map((filial) => (
-                      <SelectItem key={filial} value={filial}>{filial}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>OAB</TableHead>
-                  <TableHead>Filial</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Perfil</TableHead>
-                  <TableHead className="w-12">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id} className={!user.ativo ? "opacity-50" : ""}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.avatar_url ?? undefined} />
-                          <AvatarFallback className={`text-xs ${user.ativo ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-                            {getInitials(user.nome)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{user.nome}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.oab ?? "-"}
-                    </TableCell>
-                    <TableCell>
-                      {(user as any).filial ? (
-                        <Badge variant="outline" className="text-xs">
-                          {(user as any).filial}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={user.ativo ?? true}
-                          onCheckedChange={() => handleToggleAtivo(user.id, user.ativo ?? true)}
-                          disabled={togglingStatus === user.id}
-                        />
-                        {togglingStatus === user.id && (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {user.role ? (
-                        <Badge className={`text-xs ${roleBadgeColors[user.role]}`}>
-                          {roleLabels[user.role]}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs">Sem perfil</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => handleEditUser(user)}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+              </CardHeader>
+              <CardContent>
+                {loadingHistory ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : loginHistory.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Nenhum registro de login encontrado
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Usuário</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Data e Hora</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loginHistory.map((log) => {
+                        const zonedDate = toZonedTime(new Date(log.logged_in_at), "America/Sao_Paulo");
+                        return (
+                          <TableRow key={log.id}>
+                            <TableCell className="font-medium">
+                              {log.user_name}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {log.email || "-"}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-muted-foreground" />
+                                {format(zonedDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Edit User Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
