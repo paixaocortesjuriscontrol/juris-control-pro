@@ -93,10 +93,10 @@ async function searchDJEN(params: SearchParams): Promise<any> {
   queryParams.append("tamanhoPagina", tamanhoPagina.toString());
   
   if (dataInicio) {
-    queryParams.append("dataInicio", dataInicio);
+    queryParams.append("dataDisponibilizacaoInicio", dataInicio);
   }
   if (dataFim) {
-    queryParams.append("dataFim", dataFim);
+    queryParams.append("dataDisponibilizacaoFim", dataFim);
   }
   
   const separator = url.includes("?") ? "&" : "?";
