@@ -1186,6 +1186,16 @@ export type Database = {
         Args: { _processo_id: string; _user_id: string }
         Returns: boolean
       }
+      get_coordenacao_stats: {
+        Args: never
+        Returns: {
+          coordenacao_id: string
+          coordenacao_nome: string
+          processos_distribuidos: number
+          processos_nao_distribuidos: number
+          total_processos: number
+        }[]
+      }
       get_user_coordenacao: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {

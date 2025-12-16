@@ -82,39 +82,45 @@ export function useCoordenacoes() {
   return useQuery({
     queryKey: ["coordenacoes-dashboard"],
     queryFn: async () => {
-      const { data: coordenacoes, error: coordError } = await supabase
-        .from("coordenacoes")
-        .select(`
+      // Use security definer function for process counts (accessible to all users)
+      const [coordenacoesResult, statsResult] = await Promise.all([
+        supabase.from("coordenacoes").select(`
           id,
           nome,
           area,
           coordenador:profiles!coordenacoes_coordenador_id_fkey(id, nome, email, telefone)
-        `);
+        `),
+        supabase.rpc('get_coordenacao_stats'),
+      ]);
 
-      if (coordError) throw coordError;
+      if (coordenacoesResult.error) throw coordenacoesResult.error;
+      
+      const coordenacoes = coordenacoesResult.data || [];
+      const stats = statsResult.data || [];
 
-      // Get members and process counts for each coordination
+      // Create a map of stats by coordination id
+      const statsMap = new Map(stats.map(s => [s.coordenacao_id, s]));
+
+      // Get members for each coordination
       const coordenacoesWithDetails = await Promise.all(
-        (coordenacoes || []).map(async (coord) => {
-          const [membrosResult, processosResult] = await Promise.all([
-            supabase.from("membros_coordenacao").select(`
+        coordenacoes.map(async (coord) => {
+          const membrosResult = await supabase
+            .from("membros_coordenacao")
+            .select(`
               id,
               cargo,
               usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
-            `).eq("coordenacao_id", coord.id),
-            supabase.from("processos").select("id, advogado_responsavel_id").eq("coordenacao_id", coord.id),
-          ]);
+            `)
+            .eq("coordenacao_id", coord.id);
 
-          const processos = processosResult.data || [];
-          const totalProcessos = processos.length;
-          const distribuidos = processos.filter(p => p.advogado_responsavel_id !== null).length;
+          const coordStats = statsMap.get(coord.id);
 
           return {
             ...coord,
             membros: membrosResult.data || [],
-            processCount: totalProcessos,
-            processosDistribuidos: distribuidos,
-            processosNaoDistribuidos: totalProcessos - distribuidos,
+            processCount: Number(coordStats?.total_processos || 0),
+            processosDistribuidos: Number(coordStats?.processos_distribuidos || 0),
+            processosNaoDistribuidos: Number(coordStats?.processos_nao_distribuidos || 0),
           };
         })
       );
