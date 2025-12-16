@@ -81,13 +81,13 @@ export function MonitoramentoRedistribuicoesCard() {
 
   const handleFrequenciaChange = (frequencia: string) => {
     if (configuracaoRedistribuicoes) {
-      atualizarConfiguracao.mutate({ id: configuracaoRedistribuicoes.id, frequencia });
+      atualizarConfiguracao.mutate({ id: configuracaoRedistribuicoes.id, frequencia, tipo: 'redistribuicoes' });
     }
   };
 
   const handleAtivoChange = (ativo: boolean) => {
     if (configuracaoRedistribuicoes) {
-      atualizarConfiguracao.mutate({ id: configuracaoRedistribuicoes.id, ativo });
+      atualizarConfiguracao.mutate({ id: configuracaoRedistribuicoes.id, ativo, tipo: 'redistribuicoes' });
     }
   };
 

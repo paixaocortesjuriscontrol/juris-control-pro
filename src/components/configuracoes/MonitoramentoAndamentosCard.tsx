@@ -81,13 +81,13 @@ export function MonitoramentoAndamentosCard() {
 
   const handleFrequenciaChange = (frequencia: string) => {
     if (configuracaoAndamentos) {
-      atualizarConfiguracao.mutate({ id: configuracaoAndamentos.id, frequencia });
+      atualizarConfiguracao.mutate({ id: configuracaoAndamentos.id, frequencia, tipo: 'andamentos' });
     }
   };
 
   const handleAtivoChange = (ativo: boolean) => {
     if (configuracaoAndamentos) {
-      atualizarConfiguracao.mutate({ id: configuracaoAndamentos.id, ativo });
+      atualizarConfiguracao.mutate({ id: configuracaoAndamentos.id, ativo, tipo: 'andamentos' });
     }
   };
 
