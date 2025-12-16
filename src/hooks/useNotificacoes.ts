@@ -15,6 +15,19 @@ export interface Notificacao {
   created_at: string;
 }
 
+export interface PrazoPendente {
+  id: string;
+  titulo: string;
+  data_vencimento: string;
+  prioridade: 'baixa' | 'media' | 'alta' | 'urgente';
+  processo: {
+    id: string;
+    numero: string;
+  } | null;
+  dias_restantes: number;
+  is_atrasado: boolean;
+}
+
 export function useNotificacoes() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -33,6 +46,46 @@ export function useNotificacoes() {
 
       if (error) throw error;
       return data as Notificacao[];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Query for pending prazos where user is responsible
+  const { data: prazosPendentes = [], isLoading: isLoadingPrazos } = useQuery({
+    queryKey: ['prazos-pendentes', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('prazos')
+        .select(`
+          id,
+          titulo,
+          data_vencimento,
+          prioridade,
+          processo:processos!prazos_processo_id_fkey(id, numero)
+        `)
+        .eq('responsavel_id', user.id)
+        .eq('status', 'pendente')
+        .order('data_vencimento', { ascending: true })
+        .limit(20);
+
+      if (error) throw error;
+      
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      
+      return (data || []).map(prazo => {
+        const vencimento = new Date(prazo.data_vencimento + 'T00:00:00');
+        const diffTime = vencimento.getTime() - hoje.getTime();
+        const dias_restantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        return {
+          ...prazo,
+          dias_restantes,
+          is_atrasado: dias_restantes < 0,
+        } as PrazoPendente;
+      });
     },
     enabled: !!user?.id,
   });
@@ -86,7 +139,37 @@ export function useNotificacoes() {
     };
   }, [user?.id, queryClient]);
 
+  // Realtime subscription for prazos changes
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('prazos-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'prazos',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['prazos-pendentes', user.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
+
   const naoLidas = notificacoes.filter(n => !n.lida);
+  
+  // Count prazos that are overdue or due within 3 days as "urgent"
+  const prazosUrgentes = prazosPendentes.filter(p => p.dias_restantes <= 3);
+  
+  // Total count for badge
+  const totalPendentes = naoLidas.length + prazosUrgentes.length;
 
   const marcarComoLida = useMutation({
     mutationFn: async (id: string) => {
@@ -132,7 +215,10 @@ export function useNotificacoes() {
   return {
     notificacoes,
     naoLidas,
-    isLoading,
+    prazosPendentes,
+    prazosUrgentes,
+    totalPendentes,
+    isLoading: isLoading || isLoadingPrazos,
     refetch,
     marcarComoLida,
     marcarTodasComoLidas,
