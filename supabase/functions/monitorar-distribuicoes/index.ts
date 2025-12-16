@@ -7,173 +7,162 @@ const corsHeaders = {
 
 const DATAJUD_API_KEY = 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
 
-// Mapeamento de tribunais para endpoints da API
-const tribunais: Record<string, Record<string, { endpoint: string; nome: string }>> = {
-  '8': {
-    '02': { endpoint: 'api_publica_tjal', nome: 'TJAL' },
-    '03': { endpoint: 'api_publica_tjap', nome: 'TJAP' },
-    '04': { endpoint: 'api_publica_tjam', nome: 'TJAM' },
-    '05': { endpoint: 'api_publica_tjba', nome: 'TJBA' },
-    '06': { endpoint: 'api_publica_tjce', nome: 'TJCE' },
-    '07': { endpoint: 'api_publica_tjdft', nome: 'TJDFT' },
-    '08': { endpoint: 'api_publica_tjes', nome: 'TJES' },
-    '09': { endpoint: 'api_publica_tjgo', nome: 'TJGO' },
-    '10': { endpoint: 'api_publica_tjma', nome: 'TJMA' },
-    '11': { endpoint: 'api_publica_tjmt', nome: 'TJMT' },
-    '12': { endpoint: 'api_publica_tjms', nome: 'TJMS' },
-    '13': { endpoint: 'api_publica_tjmg', nome: 'TJMG' },
-    '14': { endpoint: 'api_publica_tjpa', nome: 'TJPA' },
-    '15': { endpoint: 'api_publica_tjpb', nome: 'TJPB' },
-    '16': { endpoint: 'api_publica_tjpr', nome: 'TJPR' },
-    '17': { endpoint: 'api_publica_tjpe', nome: 'TJPE' },
-    '18': { endpoint: 'api_publica_tjpi', nome: 'TJPI' },
-    '19': { endpoint: 'api_publica_tjrj', nome: 'TJRJ' },
-    '20': { endpoint: 'api_publica_tjrn', nome: 'TJRN' },
-    '21': { endpoint: 'api_publica_tjrs', nome: 'TJRS' },
-    '22': { endpoint: 'api_publica_tjro', nome: 'TJRO' },
-    '23': { endpoint: 'api_publica_tjrr', nome: 'TJRR' },
-    '24': { endpoint: 'api_publica_tjsc', nome: 'TJSC' },
-    '25': { endpoint: 'api_publica_tjse', nome: 'TJSE' },
-    '26': { endpoint: 'api_publica_tjsp', nome: 'TJSP' },
-    '27': { endpoint: 'api_publica_tjto', nome: 'TJTO' },
-  },
-  '5': {
-    '01': { endpoint: 'api_publica_trt1', nome: 'TRT1' },
-    '02': { endpoint: 'api_publica_trt2', nome: 'TRT2' },
-    '03': { endpoint: 'api_publica_trt3', nome: 'TRT3' },
-    '04': { endpoint: 'api_publica_trt4', nome: 'TRT4' },
-    '05': { endpoint: 'api_publica_trt5', nome: 'TRT5' },
-    '06': { endpoint: 'api_publica_trt6', nome: 'TRT6' },
-    '07': { endpoint: 'api_publica_trt7', nome: 'TRT7' },
-    '08': { endpoint: 'api_publica_trt8', nome: 'TRT8' },
-    '09': { endpoint: 'api_publica_trt9', nome: 'TRT9' },
-    '10': { endpoint: 'api_publica_trt10', nome: 'TRT10' },
-    '11': { endpoint: 'api_publica_trt11', nome: 'TRT11' },
-    '12': { endpoint: 'api_publica_trt12', nome: 'TRT12' },
-    '13': { endpoint: 'api_publica_trt13', nome: 'TRT13' },
-    '14': { endpoint: 'api_publica_trt14', nome: 'TRT14' },
-    '15': { endpoint: 'api_publica_trt15', nome: 'TRT15' },
-    '16': { endpoint: 'api_publica_trt16', nome: 'TRT16' },
-    '17': { endpoint: 'api_publica_trt17', nome: 'TRT17' },
-    '18': { endpoint: 'api_publica_trt18', nome: 'TRT18' },
-    '19': { endpoint: 'api_publica_trt19', nome: 'TRT19' },
-    '20': { endpoint: 'api_publica_trt20', nome: 'TRT20' },
-    '21': { endpoint: 'api_publica_trt21', nome: 'TRT21' },
-    '22': { endpoint: 'api_publica_trt22', nome: 'TRT22' },
-    '23': { endpoint: 'api_publica_trt23', nome: 'TRT23' },
-    '24': { endpoint: 'api_publica_trt24', nome: 'TRT24' },
-  },
-  '4': {
-    '01': { endpoint: 'api_publica_trf1', nome: 'TRF1' },
-    '02': { endpoint: 'api_publica_trf2', nome: 'TRF2' },
-    '03': { endpoint: 'api_publica_trf3', nome: 'TRF3' },
-    '04': { endpoint: 'api_publica_trf4', nome: 'TRF4' },
-    '05': { endpoint: 'api_publica_trf5', nome: 'TRF5' },
-    '06': { endpoint: 'api_publica_trf6', nome: 'TRF6' },
-  },
+// Configuração de batch
+const TRIBUNAIS_PER_BATCH = 10; // Processar 10 tribunais por execução
+const MAX_PARALLEL_REQUESTS = 3; // Máximo de requisições paralelas
+
+// Todos os tribunais disponíveis
+const TODOS_TRIBUNAIS = {
+  estaduais: [
+    { endpoint: 'api_publica_tjsp', nome: 'TJSP' },
+    { endpoint: 'api_publica_tjrj', nome: 'TJRJ' },
+    { endpoint: 'api_publica_tjmg', nome: 'TJMG' },
+    { endpoint: 'api_publica_tjdft', nome: 'TJDFT' },
+    { endpoint: 'api_publica_tjgo', nome: 'TJGO' },
+    { endpoint: 'api_publica_tjba', nome: 'TJBA' },
+    { endpoint: 'api_publica_tjpr', nome: 'TJPR' },
+    { endpoint: 'api_publica_tjrs', nome: 'TJRS' },
+    { endpoint: 'api_publica_tjsc', nome: 'TJSC' },
+    { endpoint: 'api_publica_tjpe', nome: 'TJPE' },
+    { endpoint: 'api_publica_tjce', nome: 'TJCE' },
+    { endpoint: 'api_publica_tjal', nome: 'TJAL' },
+    { endpoint: 'api_publica_tjam', nome: 'TJAM' },
+    { endpoint: 'api_publica_tjap', nome: 'TJAP' },
+    { endpoint: 'api_publica_tjes', nome: 'TJES' },
+    { endpoint: 'api_publica_tjma', nome: 'TJMA' },
+    { endpoint: 'api_publica_tjms', nome: 'TJMS' },
+    { endpoint: 'api_publica_tjmt', nome: 'TJMT' },
+    { endpoint: 'api_publica_tjpa', nome: 'TJPA' },
+    { endpoint: 'api_publica_tjpb', nome: 'TJPB' },
+    { endpoint: 'api_publica_tjpi', nome: 'TJPI' },
+    { endpoint: 'api_publica_tjrn', nome: 'TJRN' },
+    { endpoint: 'api_publica_tjro', nome: 'TJRO' },
+    { endpoint: 'api_publica_tjrr', nome: 'TJRR' },
+    { endpoint: 'api_publica_tjse', nome: 'TJSE' },
+    { endpoint: 'api_publica_tjto', nome: 'TJTO' },
+  ],
+  federais: [
+    { endpoint: 'api_publica_trf1', nome: 'TRF1' },
+    { endpoint: 'api_publica_trf2', nome: 'TRF2' },
+    { endpoint: 'api_publica_trf3', nome: 'TRF3' },
+    { endpoint: 'api_publica_trf4', nome: 'TRF4' },
+    { endpoint: 'api_publica_trf5', nome: 'TRF5' },
+    { endpoint: 'api_publica_trf6', nome: 'TRF6' },
+  ],
+  trabalhistas: [
+    { endpoint: 'api_publica_trt1', nome: 'TRT1' },
+    { endpoint: 'api_publica_trt2', nome: 'TRT2' },
+    { endpoint: 'api_publica_trt3', nome: 'TRT3' },
+    { endpoint: 'api_publica_trt4', nome: 'TRT4' },
+    { endpoint: 'api_publica_trt5', nome: 'TRT5' },
+    { endpoint: 'api_publica_trt6', nome: 'TRT6' },
+    { endpoint: 'api_publica_trt7', nome: 'TRT7' },
+    { endpoint: 'api_publica_trt8', nome: 'TRT8' },
+    { endpoint: 'api_publica_trt9', nome: 'TRT9' },
+    { endpoint: 'api_publica_trt10', nome: 'TRT10' },
+    { endpoint: 'api_publica_trt11', nome: 'TRT11' },
+    { endpoint: 'api_publica_trt12', nome: 'TRT12' },
+    { endpoint: 'api_publica_trt13', nome: 'TRT13' },
+    { endpoint: 'api_publica_trt14', nome: 'TRT14' },
+    { endpoint: 'api_publica_trt15', nome: 'TRT15' },
+    { endpoint: 'api_publica_trt16', nome: 'TRT16' },
+    { endpoint: 'api_publica_trt17', nome: 'TRT17' },
+    { endpoint: 'api_publica_trt18', nome: 'TRT18' },
+    { endpoint: 'api_publica_trt19', nome: 'TRT19' },
+    { endpoint: 'api_publica_trt20', nome: 'TRT20' },
+    { endpoint: 'api_publica_trt21', nome: 'TRT21' },
+    { endpoint: 'api_publica_trt22', nome: 'TRT22' },
+    { endpoint: 'api_publica_trt23', nome: 'TRT23' },
+    { endpoint: 'api_publica_trt24', nome: 'TRT24' },
+  ],
 };
 
 // Buscar processos por termo na API do DataJud
 async function searchProcessos(endpoint: string, searchTerm: string, tipo: string): Promise<any[]> {
   const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
   
-  // Construir query baseada no tipo
-  let query: any;
   const dataInicio = new Date();
-  dataInicio.setDate(dataInicio.getDate() - 30); // Últimos 30 dias
+  dataInicio.setDate(dataInicio.getDate() - 30);
+  
+  let query: any;
   
   if (tipo === 'cpf_cnpj') {
-    // Buscar por CPF/CNPJ nas partes
     query = {
-      size: 50,
+      size: 30,
       query: {
         bool: {
-          must: [
-            {
-              nested: {
-                path: "dadosBasicos.polo",
-                query: {
-                  nested: {
-                    path: "dadosBasicos.polo.parte",
-                    query: {
-                      bool: {
-                        should: [
-                          { match: { "dadosBasicos.polo.parte.pessoa.cpf": searchTerm.replace(/\D/g, '') } },
-                          { match: { "dadosBasicos.polo.parte.pessoa.cnpj": searchTerm.replace(/\D/g, '') } },
-                          { match: { "dadosBasicos.polo.parte.pessoa.numeroDocumentoPrincipal": searchTerm.replace(/\D/g, '') } }
-                        ]
-                      }
+          must: [{
+            nested: {
+              path: "dadosBasicos.polo",
+              query: {
+                nested: {
+                  path: "dadosBasicos.polo.parte",
+                  query: {
+                    bool: {
+                      should: [
+                        { match: { "dadosBasicos.polo.parte.pessoa.cpf": searchTerm.replace(/\D/g, '') } },
+                        { match: { "dadosBasicos.polo.parte.pessoa.cnpj": searchTerm.replace(/\D/g, '') } },
+                        { match: { "dadosBasicos.polo.parte.pessoa.numeroDocumentoPrincipal": searchTerm.replace(/\D/g, '') } }
+                      ]
                     }
                   }
                 }
               }
             }
-          ],
-          filter: [
-            { range: { "dadosBasicos.dataAjuizamento": { gte: dataInicio.toISOString().split('T')[0] } } }
-          ]
+          }],
+          filter: [{ range: { "dadosBasicos.dataAjuizamento": { gte: dataInicio.toISOString().split('T')[0] } } }]
         }
       }
     };
   } else if (tipo === 'oab') {
-    // Buscar por OAB nos advogados
     const oabParts = searchTerm.match(/(\d+)/);
     const oabNumero = oabParts ? oabParts[1] : searchTerm;
     
     query = {
-      size: 50,
+      size: 30,
       query: {
         bool: {
-          must: [
-            {
-              nested: {
-                path: "dadosBasicos.polo",
-                query: {
-                  nested: {
-                    path: "dadosBasicos.polo.parte",
-                    query: {
-                      nested: {
-                        path: "dadosBasicos.polo.parte.advogado",
-                        query: {
-                          match: { "dadosBasicos.polo.parte.advogado.inscricao": oabNumero }
-                        }
+          must: [{
+            nested: {
+              path: "dadosBasicos.polo",
+              query: {
+                nested: {
+                  path: "dadosBasicos.polo.parte",
+                  query: {
+                    nested: {
+                      path: "dadosBasicos.polo.parte.advogado",
+                      query: {
+                        match: { "dadosBasicos.polo.parte.advogado.inscricao": oabNumero }
                       }
                     }
                   }
                 }
               }
             }
-          ],
-          filter: [
-            { range: { "dadosBasicos.dataAjuizamento": { gte: dataInicio.toISOString().split('T')[0] } } }
-          ]
+          }],
+          filter: [{ range: { "dadosBasicos.dataAjuizamento": { gte: dataInicio.toISOString().split('T')[0] } } }]
         }
       }
     };
   } else {
-    // Buscar por nome ou termo-chave
     query = {
-      size: 50,
+      size: 30,
       query: {
         bool: {
-          must: [
-            {
-              nested: {
-                path: "dadosBasicos.polo",
-                query: {
-                  nested: {
-                    path: "dadosBasicos.polo.parte",
-                    query: {
-                      match: { "dadosBasicos.polo.parte.pessoa.nome": searchTerm }
-                    }
+          must: [{
+            nested: {
+              path: "dadosBasicos.polo",
+              query: {
+                nested: {
+                  path: "dadosBasicos.polo.parte",
+                  query: {
+                    match: { "dadosBasicos.polo.parte.pessoa.nome": searchTerm }
                   }
                 }
               }
             }
-          ],
-          filter: [
-            { range: { "dadosBasicos.dataAjuizamento": { gte: dataInicio.toISOString().split('T')[0] } } }
-          ]
+          }],
+          filter: [{ range: { "dadosBasicos.dataAjuizamento": { gte: dataInicio.toISOString().split('T')[0] } } }]
         }
       }
     };
@@ -190,7 +179,6 @@ async function searchProcessos(endpoint: string, searchTerm: string, tipo: strin
     });
 
     if (!response.ok) {
-      console.log(`Erro na busca ${endpoint}: ${response.status}`);
       return [];
     }
 
@@ -202,7 +190,6 @@ async function searchProcessos(endpoint: string, searchTerm: string, tipo: strin
   }
 }
 
-// Extrair partes do processo
 function extrairPartes(polos: any[]): { poloAtivo: string; poloPassivo: string } {
   let poloAtivo = '';
   let poloPassivo = '';
@@ -221,6 +208,66 @@ function extrairPartes(polos: any[]): { poloAtivo: string; poloPassivo: string }
   return { poloAtivo, poloPassivo };
 }
 
+function getTribunaisParaMonitoramento(monitoramento: any): { endpoint: string; nome: string }[] {
+  const allTribunais = [
+    ...TODOS_TRIBUNAIS.estaduais,
+    ...TODOS_TRIBUNAIS.federais,
+    ...TODOS_TRIBUNAIS.trabalhistas,
+  ];
+
+  if (monitoramento.tribunal) {
+    const tribunaisSelecionados = monitoramento.tribunal.split(',').map((t: string) => t.trim().toUpperCase());
+    const result: { endpoint: string; nome: string }[] = [];
+    
+    for (const tribunalSelecionado of tribunaisSelecionados) {
+      const found = allTribunais.find(t => {
+        const nomeNormalizado = t.nome.toUpperCase();
+        return nomeNormalizado === tribunalSelecionado || 
+               t.endpoint.toUpperCase().includes(tribunalSelecionado.replace(/\s/g, ''));
+      });
+      if (found && !result.find(e => e.endpoint === found.endpoint)) {
+        result.push(found);
+      }
+    }
+    return result;
+  }
+  
+  if (monitoramento.uf) {
+    const ufMap: Record<string, string[]> = {
+      'SP': ['api_publica_tjsp', 'api_publica_trt2'],
+      'RJ': ['api_publica_tjrj', 'api_publica_trt1'],
+      'MG': ['api_publica_tjmg', 'api_publica_trt3'],
+      'DF': ['api_publica_tjdft', 'api_publica_trt10'],
+      'GO': ['api_publica_tjgo', 'api_publica_trt18'],
+      'BA': ['api_publica_tjba', 'api_publica_trt5'],
+      'PR': ['api_publica_tjpr', 'api_publica_trt9'],
+      'RS': ['api_publica_tjrs', 'api_publica_trt4'],
+      'SC': ['api_publica_tjsc', 'api_publica_trt12'],
+      'PE': ['api_publica_tjpe', 'api_publica_trt6'],
+      'CE': ['api_publica_tjce', 'api_publica_trt7'],
+      'AL': ['api_publica_tjal', 'api_publica_trt19'],
+      'AM': ['api_publica_tjam', 'api_publica_trt11'],
+      'AP': ['api_publica_tjap', 'api_publica_trt8'],
+      'ES': ['api_publica_tjes', 'api_publica_trt17'],
+      'MA': ['api_publica_tjma', 'api_publica_trt16'],
+      'MS': ['api_publica_tjms', 'api_publica_trt24'],
+      'MT': ['api_publica_tjmt', 'api_publica_trt23'],
+      'PA': ['api_publica_tjpa', 'api_publica_trt8'],
+      'PB': ['api_publica_tjpb', 'api_publica_trt13'],
+      'PI': ['api_publica_tjpi', 'api_publica_trt22'],
+      'RN': ['api_publica_tjrn', 'api_publica_trt21'],
+      'RO': ['api_publica_tjro', 'api_publica_trt14'],
+      'RR': ['api_publica_tjrr', 'api_publica_trt11'],
+      'SE': ['api_publica_tjse', 'api_publica_trt20'],
+      'TO': ['api_publica_tjto', 'api_publica_trt10'],
+    };
+    const endpoints = ufMap[monitoramento.uf] || [];
+    return allTribunais.filter(t => endpoints.includes(t.endpoint));
+  }
+  
+  return allTribunais;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -231,261 +278,213 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    console.log('Starting distribution monitoring...');
+
+    // Buscar configuração atual e metadata de progresso
+    const { data: config } = await supabase
+      .from('configuracoes_monitoramento')
+      .select('*')
+      .eq('tipo', 'distribuicoes')
+      .single();
+
+    const metadata = config?.metadata || {};
+    let currentMonitoramentoIndex = metadata.current_monitoramento_index || 0;
+    let currentTribunalOffset = metadata.current_tribunal_offset || 0;
+
     // Buscar monitoramentos ativos
     const { data: monitoramentos, error: monitoramentosError } = await supabase
       .from('monitoramentos_distribuicao')
       .select('*')
-      .eq('ativo', true);
+      .eq('ativo', true)
+      .order('created_at', { ascending: true });
 
     if (monitoramentosError) throw monitoramentosError;
 
-    console.log(`Processando ${monitoramentos?.length || 0} monitoramentos`);
+    if (!monitoramentos || monitoramentos.length === 0) {
+      console.log('No active monitorings found');
+      return new Response(
+        JSON.stringify({ success: true, message: 'Nenhum monitoramento ativo' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
+    console.log(`Total monitoramentos: ${monitoramentos.length}, Current index: ${currentMonitoramentoIndex}`);
+
+    // Resetar índice se exceder
+    if (currentMonitoramentoIndex >= monitoramentos.length) {
+      currentMonitoramentoIndex = 0;
+      currentTribunalOffset = 0;
+    }
+
+    const monitoramento = monitoramentos[currentMonitoramentoIndex];
+    const tribunais = getTribunaisParaMonitoramento(monitoramento);
+    
+    console.log(`Processing: ${monitoramento.tipo} - ${monitoramento.termo_busca}`);
+    console.log(`Tribunais: ${tribunais.length}, Offset: ${currentTribunalOffset}`);
+
+    // Pegar batch de tribunais para processar
+    const tribunaisBatch = tribunais.slice(currentTribunalOffset, currentTribunalOffset + TRIBUNAIS_PER_BATCH);
+    
     let totalNovasDistribuicoes = 0;
     const errors: string[] = [];
+    const details: any[] = [];
 
-    for (const monitoramento of monitoramentos || []) {
-      console.log(`Monitoramento: ${monitoramento.tipo} - ${monitoramento.termo_busca}`);
+    // Processar tribunais em paralelo (limitado)
+    for (let i = 0; i < tribunaisBatch.length; i += MAX_PARALLEL_REQUESTS) {
+      const chunk = tribunaisBatch.slice(i, i + MAX_PARALLEL_REQUESTS);
       
-      try {
-        // Determinar quais tribunais consultar
-        const endpointsToSearch: { endpoint: string; nome: string }[] = [];
-        
-        // Todos os tribunais estaduais
-        const todosEstadual = [
-          { endpoint: 'api_publica_tjsp', nome: 'TJSP' },
-          { endpoint: 'api_publica_tjrj', nome: 'TJRJ' },
-          { endpoint: 'api_publica_tjmg', nome: 'TJMG' },
-          { endpoint: 'api_publica_tjdft', nome: 'TJDFT' },
-          { endpoint: 'api_publica_tjgo', nome: 'TJGO' },
-          { endpoint: 'api_publica_tjba', nome: 'TJBA' },
-          { endpoint: 'api_publica_tjpr', nome: 'TJPR' },
-          { endpoint: 'api_publica_tjrs', nome: 'TJRS' },
-          { endpoint: 'api_publica_tjsc', nome: 'TJSC' },
-          { endpoint: 'api_publica_tjpe', nome: 'TJPE' },
-          { endpoint: 'api_publica_tjce', nome: 'TJCE' },
-          { endpoint: 'api_publica_tjal', nome: 'TJAL' },
-          { endpoint: 'api_publica_tjam', nome: 'TJAM' },
-          { endpoint: 'api_publica_tjap', nome: 'TJAP' },
-          { endpoint: 'api_publica_tjes', nome: 'TJES' },
-          { endpoint: 'api_publica_tjma', nome: 'TJMA' },
-          { endpoint: 'api_publica_tjms', nome: 'TJMS' },
-          { endpoint: 'api_publica_tjmt', nome: 'TJMT' },
-          { endpoint: 'api_publica_tjpa', nome: 'TJPA' },
-          { endpoint: 'api_publica_tjpb', nome: 'TJPB' },
-          { endpoint: 'api_publica_tjpi', nome: 'TJPI' },
-          { endpoint: 'api_publica_tjrn', nome: 'TJRN' },
-          { endpoint: 'api_publica_tjro', nome: 'TJRO' },
-          { endpoint: 'api_publica_tjrr', nome: 'TJRR' },
-          { endpoint: 'api_publica_tjse', nome: 'TJSE' },
-          { endpoint: 'api_publica_tjto', nome: 'TJTO' },
-        ];
+      const results = await Promise.all(
+        chunk.map(async (tribunal) => {
+          try {
+            const resultados = await searchProcessos(
+              tribunal.endpoint,
+              monitoramento.termo_busca,
+              monitoramento.tipo
+            );
+            
+            console.log(`  ${tribunal.nome}: ${resultados.length} resultados`);
+            
+            let novasDistribuicoes = 0;
+            
+            for (const hit of resultados) {
+              const source = hit._source;
+              const dadosBasicos = source?.dadosBasicos || {};
+              const numeroProcesso = dadosBasicos.numero || source?.numeroProcesso;
 
-        // Tribunais Regionais Federais
-        const todosRegionaisFederais = [
-          { endpoint: 'api_publica_trf1', nome: 'TRF1' },
-          { endpoint: 'api_publica_trf2', nome: 'TRF2' },
-          { endpoint: 'api_publica_trf3', nome: 'TRF3' },
-          { endpoint: 'api_publica_trf4', nome: 'TRF4' },
-          { endpoint: 'api_publica_trf5', nome: 'TRF5' },
-          { endpoint: 'api_publica_trf6', nome: 'TRF6' },
-        ];
+              if (!numeroProcesso) continue;
 
-        // Tribunais Regionais do Trabalho
-        const todosRegionaisTrabalho = [
-          { endpoint: 'api_publica_trt1', nome: 'TRT1 (RJ)' },
-          { endpoint: 'api_publica_trt2', nome: 'TRT2 (SP)' },
-          { endpoint: 'api_publica_trt3', nome: 'TRT3 (MG)' },
-          { endpoint: 'api_publica_trt4', nome: 'TRT4 (RS)' },
-          { endpoint: 'api_publica_trt5', nome: 'TRT5 (BA)' },
-          { endpoint: 'api_publica_trt6', nome: 'TRT6 (PE)' },
-          { endpoint: 'api_publica_trt7', nome: 'TRT7 (CE)' },
-          { endpoint: 'api_publica_trt8', nome: 'TRT8 (PA/AP)' },
-          { endpoint: 'api_publica_trt9', nome: 'TRT9 (PR)' },
-          { endpoint: 'api_publica_trt10', nome: 'TRT10 (DF/TO)' },
-          { endpoint: 'api_publica_trt11', nome: 'TRT11 (AM/RR)' },
-          { endpoint: 'api_publica_trt12', nome: 'TRT12 (SC)' },
-          { endpoint: 'api_publica_trt13', nome: 'TRT13 (PB)' },
-          { endpoint: 'api_publica_trt14', nome: 'TRT14 (RO/AC)' },
-          { endpoint: 'api_publica_trt15', nome: 'TRT15 (Campinas)' },
-          { endpoint: 'api_publica_trt16', nome: 'TRT16 (MA)' },
-          { endpoint: 'api_publica_trt17', nome: 'TRT17 (ES)' },
-          { endpoint: 'api_publica_trt18', nome: 'TRT18 (GO)' },
-          { endpoint: 'api_publica_trt19', nome: 'TRT19 (AL)' },
-          { endpoint: 'api_publica_trt20', nome: 'TRT20 (SE)' },
-          { endpoint: 'api_publica_trt21', nome: 'TRT21 (RN)' },
-          { endpoint: 'api_publica_trt22', nome: 'TRT22 (PI)' },
-          { endpoint: 'api_publica_trt23', nome: 'TRT23 (MT)' },
-          { endpoint: 'api_publica_trt24', nome: 'TRT24 (MS)' },
-        ];
+              // Verificar se já existe na tabela de distribuições
+              const { data: existing } = await supabase
+                .from('distribuicoes_encontradas')
+                .select('id')
+                .eq('numero_processo', numeroProcesso)
+                .eq('monitoramento_id', monitoramento.id)
+                .maybeSingle();
 
-        // Se tribunais específicos foram selecionados (pode ser múltiplos separados por vírgula)
-        if (monitoramento.tribunal) {
-          const tribunaisSelecionados = monitoramento.tribunal.split(',').map((t: string) => t.trim().toUpperCase());
-          const allTribunais = [...todosEstadual, ...todosRegionaisFederais, ...todosRegionaisTrabalho];
-          
-          for (const tribunalSelecionado of tribunaisSelecionados) {
-            const found = allTribunais.find(t => {
-              const nomeNormalizado = t.nome.split(' ')[0].toUpperCase(); // Pega só sigla (ex: TRT1 de "TRT1 (RJ)")
-              return nomeNormalizado === tribunalSelecionado || 
-                     t.endpoint.toUpperCase().includes(tribunalSelecionado.replace(/\s/g, ''));
-            });
-            if (found && !endpointsToSearch.find(e => e.endpoint === found.endpoint)) {
-              endpointsToSearch.push(found);
+              if (existing) continue;
+
+              // Verificar se já existe como processo no sistema
+              const { data: processoExistente } = await supabase
+                .from('processos')
+                .select('id')
+                .eq('numero', numeroProcesso)
+                .maybeSingle();
+
+              if (processoExistente) continue;
+
+              const { poloAtivo, poloPassivo } = extrairPartes(dadosBasicos.polo);
+
+              // Inserir nova distribuição
+              const { error: insertError } = await supabase
+                .from('distribuicoes_encontradas')
+                .insert({
+                  monitoramento_id: monitoramento.id,
+                  numero_processo: numeroProcesso,
+                  tribunal: tribunal.nome,
+                  vara: dadosBasicos.orgaoJulgador?.nomeOrgao || null,
+                  classe: dadosBasicos.classeProcessual?.nome || null,
+                  assunto: dadosBasicos.assunto?.[0]?.nome || null,
+                  polo_ativo: poloAtivo || null,
+                  polo_passivo: poloPassivo || null,
+                  data_distribuicao: dadosBasicos.dataAjuizamento || null,
+                  dados_completos: source,
+                  status: 'pendente',
+                });
+
+              if (insertError) {
+                console.error('Insert error:', insertError);
+              } else {
+                novasDistribuicoes++;
+
+                // Criar notificação com tipo válido ('warning')
+                await supabase.from('notificacoes').insert({
+                  usuario_id: monitoramento.criado_por,
+                  tipo: 'warning',
+                  titulo: 'Nova distribuição detectada',
+                  mensagem: `Processo ${numeroProcesso} encontrado no ${tribunal.nome} - ${monitoramento.termo_busca}`,
+                  link: '/monitoramento-distribuicao',
+                });
+              }
             }
+            
+            return { tribunal: tribunal.nome, novasDistribuicoes };
+          } catch (error) {
+            console.error(`Error in ${tribunal.nome}:`, error);
+            return { tribunal: tribunal.nome, error: String(error) };
           }
-        } else if (monitoramento.uf) {
-          // Se UF específica, filtrar tribunais estaduais e trabalhistas
-          const ufMap: Record<string, { estadual: string; trabalho?: string }> = {
-            'SP': { estadual: 'api_publica_tjsp', trabalho: 'api_publica_trt2' },
-            'RJ': { estadual: 'api_publica_tjrj', trabalho: 'api_publica_trt1' },
-            'MG': { estadual: 'api_publica_tjmg', trabalho: 'api_publica_trt3' },
-            'DF': { estadual: 'api_publica_tjdft', trabalho: 'api_publica_trt10' },
-            'GO': { estadual: 'api_publica_tjgo', trabalho: 'api_publica_trt18' },
-            'BA': { estadual: 'api_publica_tjba', trabalho: 'api_publica_trt5' },
-            'PR': { estadual: 'api_publica_tjpr', trabalho: 'api_publica_trt9' },
-            'RS': { estadual: 'api_publica_tjrs', trabalho: 'api_publica_trt4' },
-            'SC': { estadual: 'api_publica_tjsc', trabalho: 'api_publica_trt12' },
-            'PE': { estadual: 'api_publica_tjpe', trabalho: 'api_publica_trt6' },
-            'CE': { estadual: 'api_publica_tjce', trabalho: 'api_publica_trt7' },
-            'AL': { estadual: 'api_publica_tjal', trabalho: 'api_publica_trt19' },
-            'AM': { estadual: 'api_publica_tjam', trabalho: 'api_publica_trt11' },
-            'AP': { estadual: 'api_publica_tjap', trabalho: 'api_publica_trt8' },
-            'ES': { estadual: 'api_publica_tjes', trabalho: 'api_publica_trt17' },
-            'MA': { estadual: 'api_publica_tjma', trabalho: 'api_publica_trt16' },
-            'MS': { estadual: 'api_publica_tjms', trabalho: 'api_publica_trt24' },
-            'MT': { estadual: 'api_publica_tjmt', trabalho: 'api_publica_trt23' },
-            'PA': { estadual: 'api_publica_tjpa', trabalho: 'api_publica_trt8' },
-            'PB': { estadual: 'api_publica_tjpb', trabalho: 'api_publica_trt13' },
-            'PI': { estadual: 'api_publica_tjpi', trabalho: 'api_publica_trt22' },
-            'RN': { estadual: 'api_publica_tjrn', trabalho: 'api_publica_trt21' },
-            'RO': { estadual: 'api_publica_tjro', trabalho: 'api_publica_trt14' },
-            'RR': { estadual: 'api_publica_tjrr', trabalho: 'api_publica_trt11' },
-            'SE': { estadual: 'api_publica_tjse', trabalho: 'api_publica_trt20' },
-            'TO': { estadual: 'api_publica_tjto', trabalho: 'api_publica_trt10' },
-          };
-          const tribunaisUF = ufMap[monitoramento.uf];
-          if (tribunaisUF) {
-            endpointsToSearch.push({ endpoint: tribunaisUF.estadual, nome: `TJ${monitoramento.uf}` });
-            if (tribunaisUF.trabalho) {
-              const trt = todosRegionaisTrabalho.find(t => t.endpoint === tribunaisUF.trabalho);
-              if (trt) endpointsToSearch.push(trt);
-            }
-          }
-        } else {
-          // Sem filtro: buscar em TODOS os tribunais (estaduais, federais e trabalhistas)
-          endpointsToSearch.push(...todosEstadual, ...todosRegionaisFederais, ...todosRegionaisTrabalho);
+        })
+      );
+      
+      for (const result of results) {
+        if ('error' in result) {
+          errors.push(`${result.tribunal}: ${result.error}`);
+        } else if (result.novasDistribuicoes > 0) {
+          totalNovasDistribuicoes += result.novasDistribuicoes;
+          details.push(result);
         }
-
-        console.log(`  Buscando em ${endpointsToSearch.length} tribunais`);
-
-        // Buscar em cada tribunal
-        for (const tribunal of endpointsToSearch) {
-          const resultados = await searchProcessos(
-            tribunal.endpoint, 
-            monitoramento.termo_busca,
-            monitoramento.tipo
-          );
-
-          console.log(`  ${tribunal.nome}: ${resultados.length} resultados`);
-
-          for (const hit of resultados) {
-            const source = hit._source;
-            const dadosBasicos = source?.dadosBasicos || {};
-            const numeroProcesso = dadosBasicos.numero || source?.numeroProcesso;
-
-            if (!numeroProcesso) continue;
-
-            // Verificar se já existe
-            const { data: existing } = await supabase
-              .from('distribuicoes_encontradas')
-              .select('id')
-              .eq('numero_processo', numeroProcesso)
-              .eq('monitoramento_id', monitoramento.id)
-              .single();
-
-            if (existing) continue;
-
-            // Verificar se já existe como processo no sistema
-            const { data: processoExistente } = await supabase
-              .from('processos')
-              .select('id')
-              .eq('numero', numeroProcesso)
-              .single();
-
-            if (processoExistente) continue;
-
-            // Extrair partes
-            const { poloAtivo, poloPassivo } = extrairPartes(dadosBasicos.polo);
-
-            // Inserir nova distribuição
-            const { error: insertError } = await supabase
-              .from('distribuicoes_encontradas')
-              .insert({
-                monitoramento_id: monitoramento.id,
-                numero_processo: numeroProcesso,
-                tribunal: tribunal.nome,
-                vara: dadosBasicos.orgaoJulgador?.nomeOrgao || null,
-                classe: dadosBasicos.classeProcessual?.nome || null,
-                assunto: dadosBasicos.assunto?.[0]?.nome || null,
-                polo_ativo: poloAtivo || null,
-                polo_passivo: poloPassivo || null,
-                data_distribuicao: dadosBasicos.dataAjuizamento || null,
-                dados_completos: source,
-                status: 'pendente',
-              });
-
-            if (insertError) {
-              console.error('Erro ao inserir distribuição:', insertError);
-            } else {
-              totalNovasDistribuicoes++;
-
-              // Criar notificação
-              await supabase.from('notificacoes').insert({
-                usuario_id: monitoramento.criado_por,
-                tipo: 'alerta',
-                titulo: 'Nova distribuição detectada',
-                mensagem: `Processo ${numeroProcesso} encontrado no ${tribunal.nome} - ${monitoramento.termo_busca}`,
-                link: '/monitoramento-distribuicao',
-              });
-            }
-          }
-
-          // Pequeno delay entre requisições
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        // Atualizar última execução
-        await supabase
-          .from('monitoramentos_distribuicao')
-          .update({ ultima_execucao: new Date().toISOString() })
-          .eq('id', monitoramento.id);
-
-      } catch (error) {
-        console.error(`Erro no monitoramento ${monitoramento.id}:`, error);
-        errors.push(`${monitoramento.termo_busca}: ${error}`);
       }
     }
 
-    // Atualizar configuração de monitoramento
+    // Calcular próximo estado
+    let nextMonitoramentoIndex = currentMonitoramentoIndex;
+    let nextTribunalOffset = currentTribunalOffset + TRIBUNAIS_PER_BATCH;
+    let completedRun = false;
+
+    // Se terminamos todos os tribunais deste monitoramento
+    if (nextTribunalOffset >= tribunais.length) {
+      nextTribunalOffset = 0;
+      nextMonitoramentoIndex++;
+      
+      // Atualizar última execução do monitoramento
+      await supabase
+        .from('monitoramentos_distribuicao')
+        .update({ ultima_execucao: new Date().toISOString() })
+        .eq('id', monitoramento.id);
+    }
+
+    // Se terminamos todos os monitoramentos
+    if (nextMonitoramentoIndex >= monitoramentos.length) {
+      nextMonitoramentoIndex = 0;
+      completedRun = true;
+    }
+
+    // Atualizar metadata de progresso
     await supabase
       .from('configuracoes_monitoramento')
-      .update({ ultima_execucao: new Date().toISOString() })
+      .update({
+        ultima_execucao: new Date().toISOString(),
+        metadata: {
+          current_monitoramento_index: nextMonitoramentoIndex,
+          current_tribunal_offset: nextTribunalOffset,
+          last_complete_run: completedRun ? new Date().toISOString() : metadata.last_complete_run,
+          last_batch_size: tribunaisBatch.length,
+        },
+      })
       .eq('tipo', 'distribuicoes');
 
+    const response = {
+      success: true,
+      monitoramento: monitoramento.termo_busca,
+      tribunaisProcessados: tribunaisBatch.length,
+      totalTribunais: tribunais.length,
+      novasDistribuicoes: totalNovasDistribuicoes,
+      nextOffset: nextTribunalOffset,
+      nextMonitoramentoIndex,
+      completedRun,
+      errors: errors.length > 0 ? errors : undefined,
+      details: details.length > 0 ? details : undefined,
+    };
+
+    console.log('Batch completed:', response);
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        monitoramentosProcessados: monitoramentos?.length || 0,
-        novasDistribuicoes: totalNovasDistribuicoes,
-        errors: errors.length > 0 ? errors : undefined,
-      }),
+      JSON.stringify(response),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Erro no monitoramento de distribuições:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    console.error('Error in distribution monitoring:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -12,6 +12,8 @@ export interface ConfiguracaoMonitoramento {
     next_offset?: number;
     last_batch_size?: number;
     last_complete_run?: string;
+    current_monitoramento_index?: number;
+    current_tribunal_offset?: number;
   } | null;
   created_at: string;
   updated_at: string;
@@ -34,7 +36,7 @@ export function useConfiguracoesMonitoramento() {
   });
 
   const atualizarConfiguracao = useMutation({
-    mutationFn: async ({ id, frequencia, ativo }: { id: string; frequencia?: string; ativo?: boolean }) => {
+    mutationFn: async ({ id, frequencia, ativo, tipo }: { id: string; frequencia?: string; ativo?: boolean; tipo?: string }) => {
       const updates: any = {};
       if (frequencia !== undefined) updates.frequencia = frequencia;
       if (ativo !== undefined) updates.ativo = ativo;
@@ -46,12 +48,14 @@ export function useConfiguracoesMonitoramento() {
 
       if (error) throw error;
 
-      // Se a frequência foi alterada, atualizar o cron job
-      if (frequencia !== undefined) {
+      // Se a frequência foi alterada, atualizar o cron job com o tipo
+      if (frequencia !== undefined && tipo) {
         const { error: cronError } = await supabase.functions.invoke('atualizar-cron-monitoramento', {
-          body: { frequencia }
+          body: { frequencia, tipo }
         });
-        if (cronError) throw cronError;
+        if (cronError) {
+          console.error('Erro ao atualizar cron:', cronError);
+        }
       }
     },
     onSuccess: () => {
@@ -86,8 +90,13 @@ export function useConfiguracoesMonitoramento() {
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
       
       if (tipo === 'distribuicoes') {
-        const found = data?.results?.found || 0;
-        toast.success(`Monitoramento concluído: ${found} novas distribuições encontradas`);
+        const found = data?.novasDistribuicoes || 0;
+        const tribunais = data?.tribunaisProcessados || 0;
+        if (data?.completedRun) {
+          toast.success(`Monitoramento completo: ${found} novas distribuições encontradas`);
+        } else {
+          toast.success(`Lote processado: ${tribunais} tribunais verificados, ${found} distribuições encontradas`);
+        }
       } else if (data?.isComplete) {
         const message = tipo === 'andamentos' 
           ? `Monitoramento completo: ${data?.results?.checked || 0} processos verificados, ${data?.results?.newMovements || 0} andamentos encontrados`

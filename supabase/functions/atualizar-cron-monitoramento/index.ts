@@ -12,13 +12,16 @@ const frequenciaCron: Record<string, string> = {
   'semanal': '0 10 * * 1', // Segunda 7h BRT (10h UTC)
 };
 
+// Tipos válidos de monitoramento
+const tiposValidos = ['redistribuicoes', 'andamentos', 'distribuicoes'];
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { frequencia } = await req.json();
+    const { frequencia, tipo } = await req.json();
     
     if (!frequencia || !frequenciaCron[frequencia]) {
       return new Response(
@@ -27,38 +30,36 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Se tipo não for especificado, usar 'redistribuicoes' por compatibilidade
+    const tipoMonitoramento = tipo && tiposValidos.includes(tipo) ? tipo : 'redistribuicoes';
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     const cronExpression = frequenciaCron[frequencia];
-    const projectUrl = Deno.env.get('SUPABASE_URL');
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
 
-    // Atualizar configuração no banco
+    // Atualizar configuração no banco para o tipo especificado
     const { error: updateError } = await supabase
       .from('configuracoes_monitoramento')
       .update({ frequencia })
-      .eq('tipo', 'redistribuicoes');
+      .eq('tipo', tipoMonitoramento);
 
     if (updateError) {
       console.error('Erro ao atualizar configuração:', updateError);
+      throw updateError;
     }
 
-    // Nota: A atualização do cron job precisa ser feita manualmente pelo admin
-    // via SQL no dashboard do Supabase, pois não há RPC para cron.schedule/unschedule
-    console.log(`Configuração atualizada para frequência: ${frequencia} (${cronExpression})`);
-    console.log('Para aplicar a nova frequência no cron, execute no SQL Editor:');
-    console.log(`SELECT cron.unschedule('monitorar-redistribuicoes-diario');`);
-    console.log(`SELECT cron.schedule('monitorar-redistribuicoes-diario', '${cronExpression}', ...);`);
+    console.log(`Configuração de ${tipoMonitoramento} atualizada para frequência: ${frequencia} (${cronExpression})`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
+        tipo: tipoMonitoramento,
         frequencia, 
         cronExpression,
-        message: 'Configuração atualizada. A nova frequência será aplicada na próxima execução.' 
+        message: `Configuração de ${tipoMonitoramento} atualizada. A nova frequência será aplicada na próxima execução.` 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
