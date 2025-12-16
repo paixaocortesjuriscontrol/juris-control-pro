@@ -12,6 +12,7 @@ import {
   Trash2,
   Power,
   PowerOff,
+  Import,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -44,6 +53,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
+import { useCoordenacoes } from "@/hooks/useDashboardData";
 
 type SearchType = "palavra-chave" | "advogado" | "processo";
 
@@ -78,6 +88,11 @@ const BuscarDJEN = () => {
   const [hasSearched, setHasSearched] = useState(false);
   const [importing, setImporting] = useState(false);
   const [monitoramentoDialogOpen, setMonitoramentoDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [selectedPublicacao, setSelectedPublicacao] = useState<Publicacao | null>(null);
+  const [importCoordenacaoId, setImportCoordenacaoId] = useState<string>("");
+  const [importingOne, setImportingOne] = useState(false);
 
   const { 
     monitoramentos, 
@@ -85,6 +100,86 @@ const BuscarDJEN = () => {
     atualizarMonitoramento, 
     excluirMonitoramento 
   } = useMonitoramentosDjen();
+
+  const { data: coordenacoes } = useCoordenacoes();
+
+  const handleViewContent = (pub: Publicacao) => {
+    setSelectedPublicacao(pub);
+    setViewDialogOpen(true);
+  };
+
+  const handleOpenImportDialog = (pub: Publicacao) => {
+    setSelectedPublicacao(pub);
+    setImportCoordenacaoId("");
+    setImportDialogOpen(true);
+  };
+
+  const handleImportOne = async () => {
+    if (!selectedPublicacao) return;
+    if (!importCoordenacaoId) {
+      toast.error("Selecione uma coordenação");
+      return;
+    }
+
+    setImportingOne(true);
+    
+    try {
+      const pub = selectedPublicacao;
+
+      // Check if process already exists
+      const { data: existingProcess } = await supabase
+        .from("processos")
+        .select("id")
+        .eq("numero", pub.processo || "")
+        .maybeSingle();
+
+      if (existingProcess) {
+        // Add as movimentacao
+        const { error } = await supabase
+          .from("movimentacoes")
+          .insert({
+            processo_id: existingProcess.id,
+            descricao: pub.conteudo.substring(0, 500),
+            tipo: "publicacao_djen",
+            fonte: "DJEN",
+            data_movimentacao: pub.data || new Date().toISOString(),
+          });
+
+        if (error) throw error;
+        
+        // Update coordination
+        await supabase
+          .from("processos")
+          .update({ coordenacao_id: importCoordenacaoId })
+          .eq("id", existingProcess.id);
+
+        toast.success("Movimentação adicionada ao processo existente");
+      } else {
+        // Create new process
+        const { error } = await supabase
+          .from("processos")
+          .insert({
+            numero: pub.processo || `DJEN-${Date.now()}`,
+            area: "civil",
+            status: "ativo",
+            tribunal: pub.tribunal || "Não identificado",
+            assunto: pub.conteudo.substring(0, 200),
+            polo_ativo: pub.partes || "A identificar",
+            coordenacao_id: importCoordenacaoId,
+          });
+
+        if (error) throw error;
+        toast.success("Processo importado com sucesso");
+      }
+
+      setImportDialogOpen(false);
+      setSelectedPublicacao(null);
+    } catch (error: any) {
+      toast.error("Erro ao importar: " + error.message);
+    } finally {
+      setImportingOne(false);
+    }
+  };
 
   const handleSearch = async () => {
     setLoading(true);
@@ -434,8 +529,9 @@ const BuscarDJEN = () => {
                     <TableHead>Data</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Processo</TableHead>
-                    <TableHead className="max-w-[300px]">Conteúdo</TableHead>
+                    <TableHead className="max-w-[200px]">Conteúdo</TableHead>
                     <TableHead>Tribunal</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -465,13 +561,33 @@ const BuscarDJEN = () => {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="max-w-[300px]">
+                      <TableCell className="max-w-[200px]">
                         <p className="text-sm text-muted-foreground line-clamp-2">
-                          {truncateText(pub.conteudo)}
+                          {truncateText(pub.conteudo, 100)}
                         </p>
                       </TableCell>
                       <TableCell>
                         {pub.tribunal || "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleViewContent(pub)}
+                            title="Visualizar conteúdo"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOpenImportDialog(pub)}
+                            title="Importar processo"
+                          >
+                            <Import className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -594,6 +710,103 @@ const BuscarDJEN = () => {
         open={monitoramentoDialogOpen}
         onOpenChange={setMonitoramentoDialogOpen}
       />
+
+      {/* View Content Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Conteúdo da Publicação</DialogTitle>
+            <DialogDescription>
+              {selectedPublicacao?.processo && (
+                <span className="font-mono">{selectedPublicacao.processo}</span>
+              )}
+              {selectedPublicacao?.data && ` - ${formatDate(selectedPublicacao.data)}`}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[50vh]">
+            <div className="space-y-4 p-1">
+              {selectedPublicacao?.tribunal && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Tribunal</Label>
+                  <p className="text-sm">{selectedPublicacao.tribunal}</p>
+                </div>
+              )}
+              {selectedPublicacao?.partes && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Partes</Label>
+                  <p className="text-sm">{selectedPublicacao.partes}</p>
+                </div>
+              )}
+              <div>
+                <Label className="text-xs text-muted-foreground">Conteúdo</Label>
+                <p className="text-sm whitespace-pre-wrap">{selectedPublicacao?.conteudo}</p>
+              </div>
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+              Fechar
+            </Button>
+            <Button onClick={() => {
+              setViewDialogOpen(false);
+              if (selectedPublicacao) handleOpenImportDialog(selectedPublicacao);
+            }}>
+              <Import className="w-4 h-4 mr-2" />
+              Importar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Dialog */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Importar Publicação</DialogTitle>
+            <DialogDescription>
+              {selectedPublicacao?.processo 
+                ? `Processo: ${selectedPublicacao.processo}`
+                : "Será criado um novo processo com os dados da publicação"
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="coordenacao">Coordenação *</Label>
+              <Select value={importCoordenacaoId} onValueChange={setImportCoordenacaoId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  {coordenacoes?.map((coord) => (
+                    <SelectItem key={coord.id} value={coord.id}>
+                      {coord.nome} ({coord.area})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleImportOne} disabled={importingOne || !importCoordenacaoId}>
+              {importingOne ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Importando...
+                </>
+              ) : (
+                <>
+                  <Import className="w-4 h-4 mr-2" />
+                  Importar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 };
