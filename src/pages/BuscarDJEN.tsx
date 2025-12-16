@@ -182,6 +182,20 @@ const BuscarDJEN = () => {
   };
 
   const handleSearch = async () => {
+    // Frontend validation
+    if (searchType === "palavra-chave" && (!palavraChave || palavraChave.trim().length < 3)) {
+      toast.error("Digite uma palavra-chave com pelo menos 3 caracteres");
+      return;
+    }
+    if (searchType === "advogado" && (!oab || oab.trim().length < 3)) {
+      toast.error("Digite um número OAB válido");
+      return;
+    }
+    if (searchType === "processo" && (!numeroProcesso || numeroProcesso.trim().length < 10)) {
+      toast.error("Digite um número de processo válido");
+      return;
+    }
+
     setLoading(true);
     setHasSearched(true);
     setSelectedIds(new Set());
@@ -190,10 +204,10 @@ const BuscarDJEN = () => {
       const { data, error } = await supabase.functions.invoke('buscar-djen', {
         body: {
           tipo: searchType,
-          palavraChave: searchType === "palavra-chave" ? palavraChave : undefined,
-          oab: searchType === "advogado" ? oab : undefined,
+          palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
+          oab: searchType === "advogado" ? oab.trim() : undefined,
           uf: searchType === "advogado" ? uf : undefined,
-          numeroProcesso: searchType === "processo" ? numeroProcesso : undefined,
+          numeroProcesso: searchType === "processo" ? numeroProcesso.trim() : undefined,
           dataInicio: dataInicio || undefined,
           dataFim: dataFim || undefined,
         }
