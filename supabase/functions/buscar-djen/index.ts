@@ -24,8 +24,8 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-// API endpoints for DJEN
-const DJEN_API_BASE = "https://comunicaapi.pje.jus.br/api/v1";
+// API endpoints for DJEN - using comunica.pje.jus.br
+const DJEN_API_BASE = "https://comunica.pje.jus.br";
 
 // Types of searches available
 type SearchType = "advogado" | "palavra-chave" | "processo";
@@ -57,40 +57,38 @@ async function searchDJEN(params: SearchParams): Promise<any> {
 
   let url: string;
   
-  // Build URL based on search type
+  // Build URL based on search type - using /consulta endpoint
   switch (tipo) {
     case "advogado":
       if (!oab || !uf) {
         throw new Error("OAB e UF são obrigatórios para busca por advogado");
       }
-      url = `${DJEN_API_BASE}/comunicacao/advogado/${oab}/${uf.toUpperCase()}`;
+      // Search by OAB format: "OAB:123456/UF"
+      const oabQuery = `OAB:${oab}/${uf.toUpperCase()}`;
+      url = `${DJEN_API_BASE}/consulta?texto=${encodeURIComponent(oabQuery)}`;
       break;
       
     case "palavra-chave":
       if (!palavraChave) {
         throw new Error("Palavra-chave é obrigatória");
       }
-      // The DJEN API may require specific encoding
-      const encodedKeyword = encodeURIComponent(palavraChave);
-      url = `${DJEN_API_BASE}/comunicacao/pesquisa?texto=${encodedKeyword}`;
+      // Direct keyword search using the same endpoint format as the working URL
+      url = `${DJEN_API_BASE}/consulta?texto=${encodeURIComponent(palavraChave)}`;
       break;
       
     case "processo":
       if (!numeroProcesso) {
         throw new Error("Número do processo é obrigatório");
       }
-      const cleanedNumber = numeroProcesso.replace(/\D/g, '');
-      url = `${DJEN_API_BASE}/comunicacao/processo/${cleanedNumber}`;
+      url = `${DJEN_API_BASE}/consulta?texto=${encodeURIComponent(numeroProcesso)}`;
       break;
       
     default:
       throw new Error("Tipo de busca inválido");
   }
 
-  // Add pagination and date filters
+  // Add date filters only (matching the working URL format)
   const queryParams = new URLSearchParams();
-  queryParams.append("pagina", pagina.toString());
-  queryParams.append("tamanhoPagina", tamanhoPagina.toString());
   
   if (dataInicio) {
     queryParams.append("dataDisponibilizacaoInicio", dataInicio);
@@ -99,8 +97,9 @@ async function searchDJEN(params: SearchParams): Promise<any> {
     queryParams.append("dataDisponibilizacaoFim", dataFim);
   }
   
-  const separator = url.includes("?") ? "&" : "?";
-  const fullUrl = `${url}${separator}${queryParams.toString()}`;
+  // Append query params if any
+  const paramsString = queryParams.toString();
+  const fullUrl = paramsString ? `${url}&${paramsString}` : url;
   
   console.log("Fetching DJEN API:", fullUrl);
   
