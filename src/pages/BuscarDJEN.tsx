@@ -114,6 +114,15 @@ const BuscarDJEN = () => {
     setImportDialogOpen(true);
   };
 
+  // Extract CNJ process numbers from text
+  const extractProcessNumbers = (text: string): string[] => {
+    // CNJ format: NNNNNNN-DD.AAAA.J.TR.OOOO
+    const cnjRegex = /\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g;
+    const matches = text.match(cnjRegex) || [];
+    // Remove duplicates
+    return [...new Set(matches)];
+  };
+
   const handleImportOne = async () => {
     if (!selectedPublicacao) return;
     if (!importCoordenacaoId) {
@@ -125,51 +134,129 @@ const BuscarDJEN = () => {
     
     try {
       const pub = selectedPublicacao;
+      
+      // Extract all process numbers from the content
+      const processNumbers = extractProcessNumbers(pub.conteudo);
+      
+      // If there's also a main process number in the publication, add it
+      if (pub.processo && !processNumbers.includes(pub.processo)) {
+        processNumbers.unshift(pub.processo);
+      }
 
-      // Check if process already exists
-      const { data: existingProcess } = await supabase
-        .from("processos")
-        .select("id")
-        .eq("numero", pub.processo || "")
-        .maybeSingle();
+      if (processNumbers.length === 0) {
+        toast.error("Nenhum número de processo encontrado na publicação");
+        setImportingOne(false);
+        return;
+      }
 
-      if (existingProcess) {
-        // Add as movimentacao
-        const { error } = await supabase
-          .from("movimentacoes")
-          .insert({
-            processo_id: existingProcess.id,
-            descricao: pub.conteudo.substring(0, 500),
-            tipo: "publicacao_djen",
-            fonte: "DJEN",
-            data_movimentacao: pub.data || new Date().toISOString(),
-          });
+      toast.info(`Encontrado(s) ${processNumbers.length} processo(s). Importando...`);
 
-        if (error) throw error;
-        
-        // Update coordination
-        await supabase
-          .from("processos")
-          .update({ coordenacao_id: importCoordenacaoId })
-          .eq("id", existingProcess.id);
+      let imported = 0;
+      let errors = 0;
 
-        toast.success("Movimentação adicionada ao processo existente");
-      } else {
-        // Create new process
-        const { error } = await supabase
-          .from("processos")
-          .insert({
-            numero: pub.processo || `DJEN-${Date.now()}`,
-            area: "civil",
-            status: "ativo",
-            tribunal: pub.tribunal || "Não identificado",
-            assunto: pub.conteudo.substring(0, 200),
-            polo_ativo: pub.partes || "A identificar",
-            coordenacao_id: importCoordenacaoId,
-          });
+      for (const numero of processNumbers) {
+        try {
+          // Check if process already exists
+          const { data: existingProcess } = await supabase
+            .from("processos")
+            .select("id")
+            .eq("numero", numero)
+            .maybeSingle();
 
-        if (error) throw error;
-        toast.success("Processo importado com sucesso");
+          if (existingProcess) {
+            // Add publication as movement
+            await supabase
+              .from("movimentacoes")
+              .insert({
+                processo_id: existingProcess.id,
+                descricao: `Publicação DJEN: ${pub.conteudo.substring(0, 400)}`,
+                tipo: "publicacao_djen",
+                fonte: "DJEN",
+                data_movimentacao: pub.data || new Date().toISOString(),
+              });
+            
+            // Update coordination
+            await supabase
+              .from("processos")
+              .update({ coordenacao_id: importCoordenacaoId })
+              .eq("id", existingProcess.id);
+
+            imported++;
+          } else {
+            // Fetch process data from external API
+            let processData: any = null;
+            try {
+              const { data: apiData } = await supabase.functions.invoke('consultar-processo', {
+                body: { numeroProcesso: numero }
+              });
+              if (apiData?.success && apiData?.processo) {
+                processData = apiData.processo;
+              }
+            } catch (apiError) {
+              console.log(`API error for ${numero}:`, apiError);
+            }
+
+            // Create new process
+            const { data: newProcess, error: insertError } = await supabase
+              .from("processos")
+              .insert({
+                numero,
+                area: processData?.area || "civil",
+                status: "ativo",
+                tribunal: processData?.tribunal || pub.tribunal || "Não identificado",
+                vara: processData?.vara,
+                comarca: processData?.comarca,
+                classe: processData?.classe,
+                assunto: processData?.assunto || pub.conteudo.substring(0, 200),
+                polo_ativo: processData?.polo_ativo || pub.partes || "A identificar",
+                polo_passivo: processData?.polo_passivo,
+                data_distribuicao: processData?.data_distribuicao,
+                coordenacao_id: importCoordenacaoId,
+              })
+              .select("id")
+              .single();
+
+            if (insertError) throw insertError;
+
+            // Add publication as first movement
+            await supabase
+              .from("movimentacoes")
+              .insert({
+                processo_id: newProcess.id,
+                descricao: `Publicação DJEN: ${pub.conteudo.substring(0, 400)}`,
+                tipo: "publicacao_djen",
+                fonte: "DJEN",
+                data_movimentacao: pub.data || new Date().toISOString(),
+              });
+
+            // Import movements from API if available
+            if (processData?.movimentacoes?.length > 0) {
+              const movimentacoes = processData.movimentacoes.map((mov: any) => ({
+                processo_id: newProcess.id,
+                descricao: mov.descricao || mov.nome || "Movimentação",
+                tipo: mov.tipo || "andamento",
+                fonte: "DataJud/CNJ",
+                data_movimentacao: mov.data || new Date().toISOString(),
+              }));
+
+              await supabase
+                .from("movimentacoes")
+                .insert(movimentacoes);
+            }
+
+            imported++;
+          }
+        } catch (procError: any) {
+          console.error(`Error importing ${numero}:`, procError);
+          errors++;
+        }
+      }
+
+      if (imported > 0) {
+        toast.success(`${imported} processo(s) importado(s) com sucesso`);
+      }
+      if (errors > 0) {
+        toast.warning(`${errors} processo(s) não puderam ser importados`);
       }
 
       setImportDialogOpen(false);
