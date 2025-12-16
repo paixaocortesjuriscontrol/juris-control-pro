@@ -9,6 +9,7 @@ import { FileText, Play, Clock, PlayCircle, RefreshCw, XCircle } from "lucide-re
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -161,7 +162,7 @@ export function MonitoramentoAndamentosCard() {
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               <span>
-                Última execução: {format(new Date(configuracaoAndamentos.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                Última execução: {format(toZonedTime(new Date(configuracaoAndamentos.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
             </div>
             {configuracaoAndamentos.metadata?.next_offset !== undefined && configuracaoAndamentos.metadata.next_offset > 0 && (
@@ -171,7 +172,7 @@ export function MonitoramentoAndamentosCard() {
             )}
             {configuracaoAndamentos.metadata?.last_complete_run && (
               <span className="text-xs text-green-600">
-                Última execução completa: {format(new Date(configuracaoAndamentos.metadata.last_complete_run), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                Última execução completa: {format(toZonedTime(new Date(configuracaoAndamentos.metadata.last_complete_run), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
             )}
           </div>

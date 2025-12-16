@@ -9,6 +9,7 @@ import { RefreshCw, Play, Clock, PlayCircle, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -161,7 +162,7 @@ export function MonitoramentoRedistribuicoesCard() {
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               <span>
-                Última execução: {format(new Date(configuracaoRedistribuicoes.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                Última execução: {format(toZonedTime(new Date(configuracaoRedistribuicoes.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
             </div>
             {configuracaoRedistribuicoes.metadata?.next_offset !== undefined && configuracaoRedistribuicoes.metadata.next_offset > 0 && (
@@ -171,7 +172,7 @@ export function MonitoramentoRedistribuicoesCard() {
             )}
             {configuracaoRedistribuicoes.metadata?.last_complete_run && (
               <span className="text-xs text-green-600">
-                Última execução completa: {format(new Date(configuracaoRedistribuicoes.metadata.last_complete_run), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                Última execução completa: {format(toZonedTime(new Date(configuracaoRedistribuicoes.metadata.last_complete_run), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
             )}
           </div>
