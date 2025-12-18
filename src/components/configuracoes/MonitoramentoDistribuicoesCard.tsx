@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export function MonitoramentoDistribuicoesCard() {
+  const queryClient = useQueryClient();
   const { 
     configuracaoDistribuicoes, 
     isLoading, 
@@ -87,6 +89,8 @@ export function MonitoramentoDistribuicoesCard() {
       setExecutandoCompleto(false);
       setProgresso(null);
       canceladoRef.current = false;
+      // Invalidar query para atualizar dados de última execução
+      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
     }
   };
 
