@@ -8,8 +8,8 @@ const corsHeaders = {
 const DATAJUD_API_KEY = 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
 
 // Configuração de batch
-const TRIBUNAIS_PER_BATCH = 10; // Processar 10 tribunais por execução
-const MAX_PARALLEL_REQUESTS = 3; // Máximo de requisições paralelas
+const TRIBUNAIS_PER_BATCH = 10;
+const MAX_PARALLEL_REQUESTS = 3;
 
 // Todos os tribunais disponíveis
 const TODOS_TRIBUNAIS = {
@@ -77,10 +77,7 @@ const TODOS_TRIBUNAIS = {
   ],
 };
 
-// Buscar processos por termo na API do DataJud
 function escapeQueryString(value: string): string {
-  // Escapa caracteres especiais do query_string do Elasticsearch
-  // https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html#_reserved_characters
   return value.replace(/([+\-=&|><!(){}\[\]^"~*?:\\/])/g, "\\$1");
 }
 
@@ -88,9 +85,6 @@ function buildDistribuicaoQuery(searchTerm: string, tipo: string, dataInicioISO:
   const term = (searchTerm || '').trim();
   const safeTerm = escapeQueryString(term);
 
-  // Observação: DataJud é inconsistente com campos aninhados entre tribunais.
-  // Para reduzir falsos negativos ("sempre zero"), usamos query_string em campos prováveis
-  // e como fallback em "*".
   let mustQuery: any = { match_all: {} };
 
   if (term) {
@@ -125,7 +119,6 @@ function buildDistribuicaoQuery(searchTerm: string, tipo: string, dataInicioISO:
         },
       };
     } else {
-      // nome / termo_chave
       mustQuery = {
         query_string: {
           query: `\"${safeTerm}\" OR (${safeTerm})`,
@@ -186,12 +179,8 @@ async function searchProcessos(endpoint: string, searchTerm: string, tipo: strin
 }
 
 function extrairPartes(input: any): { poloAtivo: string; poloPassivo: string } {
-  // Suporta dois formatos:
-  // 1) dadosBasicos.polo[] (com { polo, parte[] })
-  // 2) partes[] (com { nome/pessoa.nome + polo/tipoParte })
   const unique = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
 
-  // Formato 1: polos
   if (Array.isArray(input) && input.length > 0 && typeof input[0] === 'object' && 'parte' in input[0]) {
     let poloAtivo = '';
     let poloPassivo = '';
@@ -210,7 +199,6 @@ function extrairPartes(input: any): { poloAtivo: string; poloPassivo: string } {
     return { poloAtivo, poloPassivo };
   }
 
-  // Formato 2: partes
   const poloAtivoArr: string[] = [];
   const poloPassivoArr: string[] = [];
 
@@ -310,6 +298,219 @@ function getTribunaisParaMonitoramento(monitoramento: any): { endpoint: string; 
   return allTribunais;
 }
 
+// Processa um único lote
+async function processBatch(supabase: any): Promise<{
+  isComplete: boolean;
+  novasDistribuicoes: number;
+  tribunaisProcessados: number;
+  errors: string[];
+}> {
+  // Buscar configuração atual e metadata de progresso
+  const { data: config } = await supabase
+    .from('configuracoes_monitoramento')
+    .select('*')
+    .eq('tipo', 'distribuicoes')
+    .single();
+
+  const metadata = config?.metadata || {};
+  let currentMonitoramentoIndex = metadata.current_monitoramento_index || 0;
+  let currentTribunalOffset = metadata.current_tribunal_offset || 0;
+
+  // Buscar monitoramentos ativos
+  const { data: monitoramentos, error: monitoramentosError } = await supabase
+    .from('monitoramentos_distribuicao')
+    .select('*')
+    .eq('ativo', true)
+    .order('created_at', { ascending: true });
+
+  if (monitoramentosError) throw monitoramentosError;
+
+  if (!monitoramentos || monitoramentos.length === 0) {
+    console.log('No active monitorings found');
+    return { isComplete: true, novasDistribuicoes: 0, tribunaisProcessados: 0, errors: [] };
+  }
+
+  // Resetar índice se exceder
+  if (currentMonitoramentoIndex >= monitoramentos.length) {
+    currentMonitoramentoIndex = 0;
+    currentTribunalOffset = 0;
+  }
+
+  const monitoramento = monitoramentos[currentMonitoramentoIndex];
+  const tribunais = getTribunaisParaMonitoramento(monitoramento);
+  
+  console.log(`Processing: ${monitoramento.tipo} - ${monitoramento.termo_busca}`);
+  console.log(`Tribunais: ${tribunais.length}, Offset: ${currentTribunalOffset}`);
+
+  const tribunaisBatch = tribunais.slice(currentTribunalOffset, currentTribunalOffset + TRIBUNAIS_PER_BATCH);
+  
+  let totalNovasDistribuicoes = 0;
+  const errors: string[] = [];
+
+  // Processar tribunais em paralelo (limitado)
+  for (let i = 0; i < tribunaisBatch.length; i += MAX_PARALLEL_REQUESTS) {
+    const chunk = tribunaisBatch.slice(i, i + MAX_PARALLEL_REQUESTS);
+    
+    const results = await Promise.all(
+      chunk.map(async (tribunal) => {
+        try {
+          const resultados = await searchProcessos(
+            tribunal.endpoint,
+            monitoramento.termo_busca,
+            monitoramento.tipo
+          );
+          
+          console.log(`  ${tribunal.nome}: ${resultados.length} resultados`);
+          
+          let novasDistribuicoes = 0;
+          
+          for (const hit of resultados) {
+            const source = hit?._source || {};
+            const dadosBasicos = (source as any)?.dadosBasicos || {};
+
+            const numeroProcesso = (source as any)?.numeroProcesso || dadosBasicos.numero || (source as any)?.numero;
+            if (!numeroProcesso) continue;
+
+            // Verificar se já existe na tabela de distribuições
+            const { data: existing } = await supabase
+              .from('distribuicoes_encontradas')
+              .select('id')
+              .eq('numero_processo', numeroProcesso)
+              .eq('monitoramento_id', monitoramento.id)
+              .maybeSingle();
+
+            if (existing) continue;
+
+            // Verificar se já existe como processo no sistema
+            const { data: processoExistente } = await supabase
+              .from('processos')
+              .select('id')
+              .eq('numero', numeroProcesso)
+              .maybeSingle();
+
+            if (processoExistente) continue;
+
+            const partesInput = (source as any)?.partes ?? dadosBasicos.polo ?? [];
+            const { poloAtivo, poloPassivo } = extrairPartes(partesInput);
+
+            const vara = (source as any)?.orgaoJulgador?.nome || dadosBasicos.orgaoJulgador?.nomeOrgao || null;
+            const classe = (source as any)?.classe?.nome || dadosBasicos.classeProcessual?.nome || null;
+            const assunto = (source as any)?.assuntos?.[0]?.nome || dadosBasicos.assunto?.[0]?.nome || null;
+            const dataDistribuicao = (source as any)?.dataAjuizamento || dadosBasicos.dataAjuizamento || null;
+
+            // Inserir nova distribuição
+            const { error: insertError } = await supabase
+              .from('distribuicoes_encontradas')
+              .insert({
+                monitoramento_id: monitoramento.id,
+                numero_processo: numeroProcesso,
+                tribunal: tribunal.nome,
+                vara,
+                classe,
+                assunto,
+                polo_ativo: poloAtivo || null,
+                polo_passivo: poloPassivo || null,
+                data_distribuicao: dataDistribuicao,
+                dados_completos: source,
+                status: 'pendente',
+              });
+
+            if (insertError) {
+              console.error('Insert error:', insertError);
+            } else {
+              novasDistribuicoes++;
+
+              // Get all users to notify (creator + admins + coordinators)
+              const usersToNotify: string[] = [monitoramento.criado_por];
+              
+              const { data: adminUsers } = await supabase
+                .from('user_roles')
+                .select('user_id')
+                .in('role', ['admin', 'coordenador']);
+              
+              adminUsers?.forEach((u: any) => {
+                if (!usersToNotify.includes(u.user_id)) {
+                  usersToNotify.push(u.user_id);
+                }
+              });
+
+              // Criar notificações para todos
+              for (const userId of usersToNotify) {
+                await supabase.from('notificacoes').insert({
+                  usuario_id: userId,
+                  tipo: 'warning',
+                  titulo: 'Nova distribuição detectada',
+                  mensagem: `Processo ${numeroProcesso} encontrado no ${tribunal.nome} - ${monitoramento.termo_busca}`,
+                  link: '/monitoramento-distribuicao',
+                });
+              }
+            }
+          }
+          
+          return { tribunal: tribunal.nome, novasDistribuicoes };
+        } catch (error) {
+          console.error(`Error in ${tribunal.nome}:`, error);
+          return { tribunal: tribunal.nome, error: String(error) };
+        }
+      })
+    );
+    
+    for (const result of results) {
+      if ('error' in result) {
+        errors.push(`${result.tribunal}: ${result.error}`);
+      } else if (result.novasDistribuicoes > 0) {
+        totalNovasDistribuicoes += result.novasDistribuicoes;
+      }
+    }
+  }
+
+  // Calcular próximo estado
+  let nextMonitoramentoIndex = currentMonitoramentoIndex;
+  let nextTribunalOffset = currentTribunalOffset + TRIBUNAIS_PER_BATCH;
+  let completedRun = false;
+
+  // Se terminamos todos os tribunais deste monitoramento
+  if (nextTribunalOffset >= tribunais.length) {
+    nextTribunalOffset = 0;
+    nextMonitoramentoIndex++;
+    
+    // Atualizar última execução do monitoramento
+    await supabase
+      .from('monitoramentos_distribuicao')
+      .update({ ultima_execucao: new Date().toISOString() })
+      .eq('id', monitoramento.id);
+  }
+
+  // Se terminamos todos os monitoramentos
+  if (nextMonitoramentoIndex >= monitoramentos.length) {
+    nextMonitoramentoIndex = 0;
+    completedRun = true;
+  }
+
+  // Atualizar metadata de progresso
+  await supabase
+    .from('configuracoes_monitoramento')
+    .update({
+      ultima_execucao: new Date().toISOString(),
+      metadata: {
+        current_monitoramento_index: nextMonitoramentoIndex,
+        current_tribunal_offset: nextTribunalOffset,
+        last_complete_run: completedRun ? new Date().toISOString() : metadata.last_complete_run,
+        last_batch_size: tribunaisBatch.length,
+      },
+    })
+    .eq('tipo', 'distribuicoes');
+
+  console.log(`Batch completed: ${tribunaisBatch.length} tribunais, ${totalNovasDistribuicoes} novas distribuições`);
+
+  return {
+    isComplete: completedRun,
+    novasDistribuicoes: totalNovasDistribuicoes,
+    tribunaisProcessados: tribunaisBatch.length,
+    errors,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -320,231 +521,70 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('Starting distribution monitoring...');
+    // Check for completeRun parameter
+    let completeRun = false;
+    try {
+      const body = await req.json();
+      completeRun = body?.completeRun === true;
+    } catch {
+      // No body or invalid JSON, proceed with single batch
+    }
 
-    // Buscar configuração atual e metadata de progresso
-    const { data: config } = await supabase
-      .from('configuracoes_monitoramento')
-      .select('*')
-      .eq('tipo', 'distribuicoes')
-      .single();
+    console.log(`Starting distribution monitoring... (completeRun: ${completeRun})`);
 
-    const metadata = config?.metadata || {};
-    let currentMonitoramentoIndex = metadata.current_monitoramento_index || 0;
-    let currentTribunalOffset = metadata.current_tribunal_offset || 0;
+    if (completeRun) {
+      // Execute complete run - process all batches until done
+      let totalNovasDistribuicoes = 0;
+      let totalTribunaisProcessados = 0;
+      let allErrors: string[] = [];
+      let batchCount = 0;
 
-    // Buscar monitoramentos ativos
-    const { data: monitoramentos, error: monitoramentosError } = await supabase
-      .from('monitoramentos_distribuicao')
-      .select('*')
-      .eq('ativo', true)
-      .order('created_at', { ascending: true });
+      while (true) {
+        batchCount++;
+        console.log(`Processing batch ${batchCount}...`);
+        
+        const { isComplete, novasDistribuicoes, tribunaisProcessados, errors } = await processBatch(supabase);
+        
+        totalNovasDistribuicoes += novasDistribuicoes;
+        totalTribunaisProcessados += tribunaisProcessados;
+        allErrors = [...allErrors, ...errors];
 
-    if (monitoramentosError) throw monitoramentosError;
+        if (isComplete) {
+          console.log(`Complete run finished after ${batchCount} batches`);
+          break;
+        }
 
-    if (!monitoramentos || monitoramentos.length === 0) {
-      console.log('No active monitorings found');
+        // Small delay between batches to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
       return new Response(
-        JSON.stringify({ success: true, message: 'Nenhum monitoramento ativo' }),
+        JSON.stringify({
+          success: true,
+          message: `Monitoramento completo: ${totalNovasDistribuicoes} novas distribuições encontradas`,
+          novasDistribuicoes: totalNovasDistribuicoes,
+          tribunaisProcessados: totalTribunaisProcessados,
+          completedRun: true,
+          batchCount,
+          errors: allErrors.length > 0 ? allErrors : undefined,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      // Single batch execution
+      const { isComplete, novasDistribuicoes, tribunaisProcessados, errors } = await processBatch(supabase);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          novasDistribuicoes,
+          tribunaisProcessados,
+          completedRun: isComplete,
+          errors: errors.length > 0 ? errors : undefined,
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    console.log(`Total monitoramentos: ${monitoramentos.length}, Current index: ${currentMonitoramentoIndex}`);
-
-    // Resetar índice se exceder
-    if (currentMonitoramentoIndex >= monitoramentos.length) {
-      currentMonitoramentoIndex = 0;
-      currentTribunalOffset = 0;
-    }
-
-    const monitoramento = monitoramentos[currentMonitoramentoIndex];
-    const tribunais = getTribunaisParaMonitoramento(monitoramento);
-    
-    console.log(`Processing: ${monitoramento.tipo} - ${monitoramento.termo_busca}`);
-    console.log(`Tribunais: ${tribunais.length}, Offset: ${currentTribunalOffset}`);
-
-    // Pegar batch de tribunais para processar
-    const tribunaisBatch = tribunais.slice(currentTribunalOffset, currentTribunalOffset + TRIBUNAIS_PER_BATCH);
-    
-    let totalNovasDistribuicoes = 0;
-    const errors: string[] = [];
-    const details: any[] = [];
-
-    // Processar tribunais em paralelo (limitado)
-    for (let i = 0; i < tribunaisBatch.length; i += MAX_PARALLEL_REQUESTS) {
-      const chunk = tribunaisBatch.slice(i, i + MAX_PARALLEL_REQUESTS);
-      
-      const results = await Promise.all(
-        chunk.map(async (tribunal) => {
-          try {
-            const resultados = await searchProcessos(
-              tribunal.endpoint,
-              monitoramento.termo_busca,
-              monitoramento.tipo
-            );
-            
-            console.log(`  ${tribunal.nome}: ${resultados.length} resultados`);
-            
-            let novasDistribuicoes = 0;
-            
-            for (const hit of resultados) {
-              const source = hit?._source || {};
-              const dadosBasicos = (source as any)?.dadosBasicos || {};
-
-              const numeroProcesso = (source as any)?.numeroProcesso || dadosBasicos.numero || (source as any)?.numero;
-              if (!numeroProcesso) continue;
-
-              // Verificar se já existe na tabela de distribuições
-              const { data: existing } = await supabase
-                .from('distribuicoes_encontradas')
-                .select('id')
-                .eq('numero_processo', numeroProcesso)
-                .eq('monitoramento_id', monitoramento.id)
-                .maybeSingle();
-
-              if (existing) continue;
-
-              // Verificar se já existe como processo no sistema
-              const { data: processoExistente } = await supabase
-                .from('processos')
-                .select('id')
-                .eq('numero', numeroProcesso)
-                .maybeSingle();
-
-              if (processoExistente) continue;
-
-              const partesInput = (source as any)?.partes ?? dadosBasicos.polo ?? [];
-              const { poloAtivo, poloPassivo } = extrairPartes(partesInput);
-
-              const vara = (source as any)?.orgaoJulgador?.nome || dadosBasicos.orgaoJulgador?.nomeOrgao || null;
-              const classe = (source as any)?.classe?.nome || dadosBasicos.classeProcessual?.nome || null;
-              const assunto = (source as any)?.assuntos?.[0]?.nome || dadosBasicos.assunto?.[0]?.nome || null;
-              const dataDistribuicao = (source as any)?.dataAjuizamento || dadosBasicos.dataAjuizamento || null;
-
-              // Inserir nova distribuição
-              const { error: insertError } = await supabase
-                .from('distribuicoes_encontradas')
-                .insert({
-                  monitoramento_id: monitoramento.id,
-                  numero_processo: numeroProcesso,
-                  tribunal: tribunal.nome,
-                  vara,
-                  classe,
-                  assunto,
-                  polo_ativo: poloAtivo || null,
-                  polo_passivo: poloPassivo || null,
-                  data_distribuicao: dataDistribuicao,
-                  dados_completos: source,
-                  status: 'pendente',
-                });
-
-              if (insertError) {
-                console.error('Insert error:', insertError);
-              } else {
-                novasDistribuicoes++;
-
-                // Get all users to notify (creator + admins + coordinators)
-                const usersToNotify: string[] = [monitoramento.criado_por];
-                
-                const { data: adminUsers } = await supabase
-                  .from('user_roles')
-                  .select('user_id')
-                  .in('role', ['admin', 'coordenador']);
-                
-                adminUsers?.forEach((u: any) => {
-                  if (!usersToNotify.includes(u.user_id)) {
-                    usersToNotify.push(u.user_id);
-                  }
-                });
-
-                // Criar notificações para todos
-                for (const userId of usersToNotify) {
-                  await supabase.from('notificacoes').insert({
-                    usuario_id: userId,
-                    tipo: 'warning',
-                    titulo: 'Nova distribuição detectada',
-                    mensagem: `Processo ${numeroProcesso} encontrado no ${tribunal.nome} - ${monitoramento.termo_busca}`,
-                    link: '/monitoramento-distribuicao',
-                  });
-                }
-              }
-            }
-            
-            return { tribunal: tribunal.nome, novasDistribuicoes };
-          } catch (error) {
-            console.error(`Error in ${tribunal.nome}:`, error);
-            return { tribunal: tribunal.nome, error: String(error) };
-          }
-        })
-      );
-      
-      for (const result of results) {
-        if ('error' in result) {
-          errors.push(`${result.tribunal}: ${result.error}`);
-        } else if (result.novasDistribuicoes > 0) {
-          totalNovasDistribuicoes += result.novasDistribuicoes;
-          details.push(result);
-        }
-      }
-    }
-
-    // Calcular próximo estado
-    let nextMonitoramentoIndex = currentMonitoramentoIndex;
-    let nextTribunalOffset = currentTribunalOffset + TRIBUNAIS_PER_BATCH;
-    let completedRun = false;
-
-    // Se terminamos todos os tribunais deste monitoramento
-    if (nextTribunalOffset >= tribunais.length) {
-      nextTribunalOffset = 0;
-      nextMonitoramentoIndex++;
-      
-      // Atualizar última execução do monitoramento
-      await supabase
-        .from('monitoramentos_distribuicao')
-        .update({ ultima_execucao: new Date().toISOString() })
-        .eq('id', monitoramento.id);
-    }
-
-    // Se terminamos todos os monitoramentos
-    if (nextMonitoramentoIndex >= monitoramentos.length) {
-      nextMonitoramentoIndex = 0;
-      completedRun = true;
-    }
-
-    // Atualizar metadata de progresso
-    await supabase
-      .from('configuracoes_monitoramento')
-      .update({
-        ultima_execucao: new Date().toISOString(),
-        metadata: {
-          current_monitoramento_index: nextMonitoramentoIndex,
-          current_tribunal_offset: nextTribunalOffset,
-          last_complete_run: completedRun ? new Date().toISOString() : metadata.last_complete_run,
-          last_batch_size: tribunaisBatch.length,
-        },
-      })
-      .eq('tipo', 'distribuicoes');
-
-    const response = {
-      success: true,
-      monitoramento: monitoramento.termo_busca,
-      tribunaisProcessados: tribunaisBatch.length,
-      totalTribunais: tribunais.length,
-      novasDistribuicoes: totalNovasDistribuicoes,
-      nextOffset: nextTribunalOffset,
-      nextMonitoramentoIndex,
-      completedRun,
-      errors: errors.length > 0 ? errors : undefined,
-      details: details.length > 0 ? details : undefined,
-    };
-
-    console.log('Batch completed:', response);
-
-    return new Response(
-      JSON.stringify(response),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
 
   } catch (error) {
     console.error('Error in distribution monitoring:', error);
