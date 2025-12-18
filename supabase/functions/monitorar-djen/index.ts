@@ -156,7 +156,7 @@ serve(async (req) => {
               usuario_id: userId,
               titulo: 'Nova publicação no DJEN',
               mensagem: `Encontrada publicação para: "${monitoramento.termo_busca}"`,
-              tipo: 'djen',
+              tipo: 'info',
               link: '/buscar-djen',
               dados: {
                 monitoramento_id: monitoramento.id,
@@ -168,6 +168,19 @@ serve(async (req) => {
         }
       }
     }
+
+    // Atualizar configuração de monitoramento
+    await supabase
+      .from('configuracoes_monitoramento')
+      .update({ 
+        ultima_execucao: new Date().toISOString(),
+        metadata: {
+          last_complete_run: new Date().toISOString(),
+          monitoramentos_processados: monitoramentos?.length || 0,
+          novas_publicacoes: totalNewPublications,
+        }
+      })
+      .eq('tipo', 'djen');
 
     console.log(`Monitoring complete. ${totalNewPublications} new publications found.`);
 
