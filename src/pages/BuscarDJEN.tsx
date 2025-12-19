@@ -13,6 +13,7 @@ import {
   Power,
   PowerOff,
   Import,
+  Sparkles,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,8 @@ const BuscarDJEN = () => {
   const [selectedPublicacao, setSelectedPublicacao] = useState<Publicacao | null>(null);
   const [importCoordenacaoId, setImportCoordenacaoId] = useState<string>("");
   const [importingOne, setImportingOne] = useState(false);
+  const [resumo, setResumo] = useState<string>("");
+  const [loadingResumo, setLoadingResumo] = useState(false);
 
   const { 
     monitoramentos, 
@@ -331,6 +334,36 @@ const BuscarDJEN = () => {
       setPublicacoes([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResumir = async () => {
+    if (publicacoes.length === 0) {
+      toast.error("Não há publicações para resumir");
+      return;
+    }
+
+    setLoadingResumo(true);
+    setResumo("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke('resumir-publicacoes', {
+        body: { publicacoes }
+      });
+
+      if (error) throw error;
+
+      if (data.resumo) {
+        setResumo(data.resumo);
+        toast.success("Resumo gerado com sucesso!");
+      } else if (data.error) {
+        throw new Error(data.error);
+      }
+    } catch (error: any) {
+      console.error("Erro ao resumir:", error);
+      toast.error(error.message || "Erro ao gerar resumo com IA");
+    } finally {
+      setLoadingResumo(false);
     }
   };
 
@@ -582,21 +615,44 @@ const BuscarDJEN = () => {
                 : "Resultados da Busca"
               }
             </CardTitle>
-            {selectedIds.size > 0 && (
-              <Button onClick={handleImportSelected} disabled={importing} size="sm" className="w-full sm:w-auto">
-                {importing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Importando...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4 mr-2" />
-                    Importar ({selectedIds.size})
-                  </>
-                )}
-              </Button>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {publicacoes.length > 0 && (
+                <Button 
+                  onClick={handleResumir} 
+                  disabled={loadingResumo} 
+                  size="sm" 
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                >
+                  {loadingResumo ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando resumo...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Resumir com IA
+                    </>
+                  )}
+                </Button>
+              )}
+              {selectedIds.size > 0 && (
+                <Button onClick={handleImportSelected} disabled={importing} size="sm" className="w-full sm:w-auto">
+                  {importing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Importando...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Importar ({selectedIds.size})
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -695,6 +751,19 @@ const BuscarDJEN = () => {
                 </TableBody>
               </Table>
             </ScrollArea>
+          )}
+
+          {/* Resumo IA */}
+          {resumo && (
+            <div className="mt-6 p-4 bg-muted/50 rounded-lg border">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <h4 className="font-semibold">Resumo das Publicações (IA)</h4>
+              </div>
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                <pre className="whitespace-pre-wrap text-sm font-sans">{resumo}</pre>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
