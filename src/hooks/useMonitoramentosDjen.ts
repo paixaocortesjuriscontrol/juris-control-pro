@@ -9,6 +9,7 @@ export interface MonitoramentoDjen {
   termo_busca: string;
   oab?: string;
   uf?: string;
+  coordenacao_id?: string;
   ativo: boolean;
   criado_por: string;
   created_at: string;
