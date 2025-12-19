@@ -222,6 +222,7 @@ export type Database = {
       configuracoes_monitoramento: {
         Row: {
           ativo: boolean
+          coordenacao_id: string | null
           created_at: string
           frequencia: string
           id: string
@@ -232,6 +233,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          coordenacao_id?: string | null
           created_at?: string
           frequencia?: string
           id?: string
@@ -242,6 +244,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          coordenacao_id?: string | null
           created_at?: string
           frequencia?: string
           id?: string
@@ -250,7 +253,15 @@ export type Database = {
           ultima_execucao?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "configuracoes_monitoramento_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       coordenacoes: {
         Row: {

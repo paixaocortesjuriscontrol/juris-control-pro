@@ -14,14 +14,18 @@ import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export function MonitoramentoDistribuicoesCard() {
+interface Props {
+  coordenacaoId: string;
+}
+
+export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
   const { 
     configuracaoDistribuicoes, 
     isLoading, 
     atualizarConfiguracao, 
     executarMonitoramento 
-  } = useConfiguracoesMonitoramento();
+  } = useConfiguracoesMonitoramento(coordenacaoId);
 
   const [executando, setExecutando] = useState(false);
   const [executandoCompleto, setExecutandoCompleto] = useState(false);
@@ -51,7 +55,7 @@ export function MonitoramentoDistribuicoesCard() {
       let isComplete = false;
       let totalDistribuicoes = 0;
       let iterations = 0;
-      const maxIterations = 100; // Limite de segurança
+      const maxIterations = 100;
       
       while (!isComplete && !canceladoRef.current && iterations < maxIterations) {
         iterations++;
@@ -62,7 +66,6 @@ export function MonitoramentoDistribuicoesCard() {
           throw error;
         }
         
-        // Atualizar progresso com base nos dados retornados
         if (data?.tribunaisProcessados !== undefined && data?.totalTribunais) {
           const tribunaisFeitos = data.nextOffset || data.tribunaisProcessados;
           const percentage = Math.round((tribunaisFeitos / data.totalTribunais) * 100);
@@ -89,7 +92,6 @@ export function MonitoramentoDistribuicoesCard() {
       setExecutandoCompleto(false);
       setProgresso(null);
       canceladoRef.current = false;
-      // Invalidar query para atualizar dados de última execução
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
     }
   };

@@ -14,14 +14,18 @@ import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export function MonitoramentoRedistribuicoesCard() {
+interface Props {
+  coordenacaoId: string;
+}
+
+export function MonitoramentoRedistribuicoesCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
   const { 
     configuracaoRedistribuicoes, 
     isLoading, 
     atualizarConfiguracao, 
     executarMonitoramento 
-  } = useConfiguracoesMonitoramento();
+  } = useConfiguracoesMonitoramento(coordenacaoId);
 
   const [executando, setExecutando] = useState(false);
   const [executandoCompleto, setExecutandoCompleto] = useState(false);
@@ -79,7 +83,6 @@ export function MonitoramentoRedistribuicoesCard() {
       setExecutandoCompleto(false);
       setProgresso(null);
       canceladoRef.current = false;
-      // Invalidar query para atualizar dados de última execução
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
     }
   };
