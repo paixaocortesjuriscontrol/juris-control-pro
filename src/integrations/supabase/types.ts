@@ -595,6 +595,7 @@ export type Database = {
       monitoramentos_djen: {
         Row: {
           ativo: boolean
+          coordenacao_id: string | null
           created_at: string
           criado_por: string
           id: string
@@ -606,6 +607,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          coordenacao_id?: string | null
           created_at?: string
           criado_por: string
           id?: string
@@ -617,6 +619,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          coordenacao_id?: string | null
           created_at?: string
           criado_por?: string
           id?: string
@@ -627,6 +630,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "monitoramentos_djen_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "monitoramentos_djen_criado_por_fkey"
             columns: ["criado_por"]

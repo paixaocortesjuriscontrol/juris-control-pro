@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMonitoramentosDjen, MonitoramentoDjen } from "@/hooks/useMonitoramentosDjen";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 
 const UFS = [
   'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 
@@ -22,6 +23,7 @@ interface MonitoramentoDialogProps {
 
 export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: MonitoramentoDialogProps) {
   const { criarMonitoramento, atualizarMonitoramento } = useMonitoramentosDjen();
+  const { data: coordenacoes = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
   
   const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo'>(
     monitoramento?.tipo || 'palavra-chave'
@@ -30,15 +32,19 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
   const [oab, setOab] = useState(monitoramento?.oab || '');
   const [selectedUfs, setSelectedUfs] = useState<string[]>([]);
   const [todasRegioes, setTodasRegioes] = useState(false);
+  const [coordenacaoId, setCoordenacaoId] = useState<string>(monitoramento?.coordenacao_id || '');
 
   useEffect(() => {
-    if (monitoramento?.uf) {
-      if (monitoramento.uf === 'TODAS') {
-        setTodasRegioes(true);
-        setSelectedUfs([]);
-      } else {
-        setTodasRegioes(false);
-        setSelectedUfs(monitoramento.uf.split(','));
+    if (monitoramento) {
+      setCoordenacaoId(monitoramento.coordenacao_id || '');
+      if (monitoramento.uf) {
+        if (monitoramento.uf === 'TODAS') {
+          setTodasRegioes(true);
+          setSelectedUfs([]);
+        } else {
+          setTodasRegioes(false);
+          setSelectedUfs(monitoramento.uf.split(','));
+        }
       }
     }
   }, [monitoramento]);
@@ -70,6 +76,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       termo_busca: termoBusca,
       oab: tipo === 'advogado' ? oab : undefined,
       uf: ufValue,
+      coordenacao_id: coordenacaoId || undefined,
     };
 
     if (monitoramento) {
@@ -83,6 +90,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
     setOab('');
     setSelectedUfs([]);
     setTodasRegioes(false);
+    setCoordenacaoId('');
   };
 
   const isUfValid = tipo !== 'advogado' || todasRegioes || selectedUfs.length > 0;
@@ -97,6 +105,26 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="coordenacao">Coordenação</Label>
+            <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                {loadingCoordenacoes ? (
+                  <SelectItem value="" disabled>Carregando...</SelectItem>
+                ) : (
+                  coordenacoes.map((coord) => (
+                    <SelectItem key={coord.id} value={coord.id}>
+                      {coord.nome}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="tipo">Tipo de Busca</Label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as typeof tipo)}>
@@ -198,7 +226,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
             </Button>
             <Button 
               type="submit" 
-              disabled={criarMonitoramento.isPending || atualizarMonitoramento.isPending || !isUfValid}
+              disabled={criarMonitoramento.isPending || atualizarMonitoramento.isPending || !isUfValid || !coordenacaoId}
             >
               {monitoramento ? 'Salvar' : 'Criar Monitoramento'}
             </Button>
