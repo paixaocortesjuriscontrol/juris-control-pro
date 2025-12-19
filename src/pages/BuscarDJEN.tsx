@@ -96,6 +96,8 @@ const BuscarDJEN = () => {
   const [importingOne, setImportingOne] = useState(false);
   const [resumo, setResumo] = useState<string>("");
   const [loadingResumo, setLoadingResumo] = useState(false);
+  const [importLoteDialogOpen, setImportLoteDialogOpen] = useState(false);
+  const [importLoteCoordenacaoId, setImportLoteCoordenacaoId] = useState<string>("");
 
   const { 
     monitoramentos, 
@@ -385,9 +387,23 @@ const BuscarDJEN = () => {
     }
   };
 
+  const handleOpenImportLoteDialog = () => {
+    if (selectedIds.size === 0) {
+      toast.error("Selecione ao menos uma publicação para importar");
+      return;
+    }
+    setImportLoteCoordenacaoId("");
+    setImportLoteDialogOpen(true);
+  };
+
   const handleImportSelected = async () => {
     if (selectedIds.size === 0) {
       toast.error("Selecione ao menos uma publicação para importar");
+      return;
+    }
+
+    if (!importLoteCoordenacaoId) {
+      toast.error("Selecione uma coordenação para importar");
       return;
     }
 
@@ -426,7 +442,7 @@ const BuscarDJEN = () => {
           if (!error) imported++;
           else errors++;
         } else {
-          // Create new process
+          // Create new process with coordination
           const { error } = await supabase
             .from("processos")
             .insert({
@@ -436,6 +452,7 @@ const BuscarDJEN = () => {
               tribunal: pub.tribunal || "Não identificado",
               assunto: pub.conteudo.substring(0, 200),
               polo_ativo: pub.partes || "A identificar",
+              coordenacao_id: importLoteCoordenacaoId,
             });
 
           if (!error) imported++;
@@ -450,6 +467,8 @@ const BuscarDJEN = () => {
       if (errors > 0) {
         toast.warning(`${errors} publicação(ões) não puderam ser importadas`);
       }
+      
+      setImportLoteDialogOpen(false);
     } catch (error: any) {
       toast.error("Erro ao importar publicações: " + error.message);
     } finally {
@@ -636,7 +655,7 @@ const BuscarDJEN = () => {
                 )}
               </Button>
               {selectedIds.size > 0 && (
-                <Button onClick={handleImportSelected} disabled={importing} size="sm" className="w-full sm:w-auto">
+                <Button onClick={handleOpenImportLoteDialog} disabled={importing} size="sm" className="w-full sm:w-auto">
                   {importing ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1049,6 +1068,57 @@ const BuscarDJEN = () => {
                 <>
                   <Import className="w-4 h-4 mr-2" />
                   Importar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Lote Dialog */}
+      <Dialog open={importLoteDialogOpen} onOpenChange={setImportLoteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Importar {selectedIds.size} Publicações</DialogTitle>
+            <DialogDescription>
+              Selecione a coordenação para onde os processos serão importados
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="coordenacao-lote">Coordenação *</Label>
+              <Select value={importLoteCoordenacaoId} onValueChange={setImportLoteCoordenacaoId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  {coordenacoes?.map((coord) => (
+                    <SelectItem key={coord.id} value={coord.id}>
+                      {coord.nome} ({coord.area})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+              <p>• Processos já existentes terão movimentação adicionada</p>
+              <p>• Novos processos serão criados na coordenação selecionada</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportLoteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleImportSelected} disabled={importing || !importLoteCoordenacaoId}>
+              {importing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Importando...
+                </>
+              ) : (
+                <>
+                  <Import className="w-4 h-4 mr-2" />
+                  Importar {selectedIds.size} selecionados
                 </>
               )}
             </Button>
