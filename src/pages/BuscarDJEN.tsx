@@ -413,59 +413,101 @@ const BuscarDJEN = () => {
       const selectedPubs = publicacoes.filter(p => selectedIds.has(p.id));
       let imported = 0;
       let errors = 0;
+      let movimentacoesAdded = 0;
 
       for (const pub of selectedPubs) {
-        if (!pub.processo) {
+        try {
+          // Try to get process number from pub.processo or extract from content
+          let processNumbers: string[] = [];
+          
+          if (pub.processo) {
+            processNumbers = [pub.processo];
+          } else {
+            // Extract process numbers from content
+            processNumbers = extractProcessNumbers(pub.conteudo);
+          }
+
+          if (processNumbers.length === 0) {
+            console.log("Nenhum número de processo encontrado na publicação:", pub.id);
+            errors++;
+            continue;
+          }
+
+          for (const numero of processNumbers) {
+            // Check if process already exists
+            const { data: existingProcess } = await supabase
+              .from("processos")
+              .select("id")
+              .eq("numero", numero)
+              .maybeSingle();
+
+            if (existingProcess) {
+              // Add as movimentacao (intimação)
+              const { error } = await supabase
+                .from("movimentacoes")
+                .insert({
+                  processo_id: existingProcess.id,
+                  descricao: `Intimação DJEN: ${pub.conteudo.substring(0, 500)}`,
+                  tipo: "intimacao",
+                  fonte: "DJEN",
+                  data_movimentacao: pub.data || new Date().toISOString(),
+                });
+
+              if (!error) {
+                movimentacoesAdded++;
+              } else {
+                console.error("Erro ao adicionar movimentação:", error);
+              }
+            } else {
+              // Create new process with coordination
+              const { data: newProcess, error: createError } = await supabase
+                .from("processos")
+                .insert({
+                  numero: numero,
+                  area: "civil",
+                  status: "ativo",
+                  tribunal: pub.tribunal || "Não identificado",
+                  assunto: pub.conteudo.substring(0, 200),
+                  polo_ativo: pub.partes || "A identificar",
+                  coordenacao_id: importLoteCoordenacaoId,
+                })
+                .select("id")
+                .single();
+
+              if (!createError && newProcess) {
+                // Add the publication as first movement (intimação)
+                await supabase
+                  .from("movimentacoes")
+                  .insert({
+                    processo_id: newProcess.id,
+                    descricao: `Intimação DJEN: ${pub.conteudo.substring(0, 500)}`,
+                    tipo: "intimacao",
+                    fonte: "DJEN",
+                    data_movimentacao: pub.data || new Date().toISOString(),
+                  });
+                
+                imported++;
+              } else {
+                console.error("Erro ao criar processo:", createError);
+                errors++;
+              }
+            }
+          }
+        } catch (pubError: any) {
+          console.error("Erro ao processar publicação:", pubError);
           errors++;
-          continue;
-        }
-
-        // Check if process already exists
-        const { data: existingProcess } = await supabase
-          .from("processos")
-          .select("id")
-          .eq("numero", pub.processo)
-          .maybeSingle();
-
-        if (existingProcess) {
-          // Add as movimentacao
-          const { error } = await supabase
-            .from("movimentacoes")
-            .insert({
-              processo_id: existingProcess.id,
-              descricao: pub.conteudo.substring(0, 500),
-              tipo: "publicacao_djen",
-              fonte: "DJEN",
-              data_movimentacao: pub.data || new Date().toISOString(),
-            });
-
-          if (!error) imported++;
-          else errors++;
-        } else {
-          // Create new process with coordination
-          const { error } = await supabase
-            .from("processos")
-            .insert({
-              numero: pub.processo,
-              area: "civil", // Default
-              status: "ativo",
-              tribunal: pub.tribunal || "Não identificado",
-              assunto: pub.conteudo.substring(0, 200),
-              polo_ativo: pub.partes || "A identificar",
-              coordenacao_id: importLoteCoordenacaoId,
-            });
-
-          if (!error) imported++;
-          else errors++;
         }
       }
 
-      if (imported > 0) {
-        toast.success(`${imported} publicação(ões) importada(s) com sucesso`);
+      if (imported > 0 || movimentacoesAdded > 0) {
+        const msgs = [];
+        if (imported > 0) msgs.push(`${imported} processo(s) criado(s)`);
+        if (movimentacoesAdded > 0) msgs.push(`${movimentacoesAdded} intimação(ões) adicionada(s)`);
+        toast.success(msgs.join(", "));
         setSelectedIds(new Set());
       }
       if (errors > 0) {
-        toast.warning(`${errors} publicação(ões) não puderam ser importadas`);
+        toast.warning(`${errors} publicação(ões) não puderam ser importadas (sem número de processo)`);
       }
       
       setImportLoteDialogOpen(false);
