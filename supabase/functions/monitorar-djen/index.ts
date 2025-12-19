@@ -29,13 +29,27 @@ function generateHash(content: string): string {
 }
 
 async function searchDJEN(monitoramento: Monitoramento): Promise<any[]> {
+  const results: any[] = [];
+  
+  // Handle multiple UFs for advogado type
+  if (monitoramento.tipo === "advogado") {
+    if (!monitoramento.oab) return [];
+    
+    const ufsToSearch = monitoramento.uf === 'TODAS' 
+      ? ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO']
+      : (monitoramento.uf?.split(',') || []);
+    
+    for (const uf of ufsToSearch) {
+      const ufResults = await searchDJENByAdvogado(monitoramento.oab, uf.trim(), monitoramento.id);
+      results.push(...ufResults);
+    }
+    return results;
+  }
+  
+  // Other types (palavra-chave, processo)
   let url: string;
   
   switch (monitoramento.tipo) {
-    case "advogado":
-      if (!monitoramento.oab || !monitoramento.uf) return [];
-      url = `${DJEN_API_BASE}/comunicacao/advogado/${monitoramento.oab}/${monitoramento.uf.toUpperCase()}`;
-      break;
     case "palavra-chave":
       const encodedKeyword = encodeURIComponent(monitoramento.termo_busca);
       url = `${DJEN_API_BASE}/comunicacao/pesquisa?texto=${encodedKeyword}`;
@@ -48,6 +62,15 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<any[]> {
       return [];
   }
 
+  return await fetchDJENResults(url, monitoramento.id);
+}
+
+async function searchDJENByAdvogado(oab: string, uf: string, monitoramentoId: string): Promise<any[]> {
+  const url = `${DJEN_API_BASE}/comunicacao/advogado/${oab}/${uf.toUpperCase()}`;
+  return await fetchDJENResults(url, monitoramentoId);
+}
+
+async function fetchDJENResults(url: string, monitoramentoId: string): Promise<any[]> {
   // Add date filter for last 30 days
   const dataFim = new Date().toISOString().split('T')[0];
   const dataInicio = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -61,7 +84,7 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<any[]> {
   const separator = url.includes("?") ? "&" : "?";
   const fullUrl = `${url}${separator}${queryParams.toString()}`;
   
-  console.log(`Searching DJEN for monitoramento ${monitoramento.id}: ${fullUrl}`);
+  console.log(`Searching DJEN: ${fullUrl}`);
   
   try {
     const response = await fetch(fullUrl, {
@@ -71,17 +94,17 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<any[]> {
 
     if (!response.ok) {
       if (response.status === 422) {
-        console.log(`No results for monitoramento ${monitoramento.id}`);
+        console.log(`No results for URL: ${fullUrl}`);
         return [];
       }
-      console.error(`DJEN API error for ${monitoramento.id}: ${response.status}`);
+      console.error(`DJEN API error: ${response.status}`);
       return [];
     }
 
     const data = await response.json();
     return data.items || data.content || [];
   } catch (error) {
-    console.error(`Error searching DJEN for ${monitoramento.id}:`, error);
+    console.error(`Error searching DJEN:`, error);
     return [];
   }
 }
