@@ -616,27 +616,25 @@ const BuscarDJEN = () => {
               }
             </CardTitle>
             <div className="flex flex-wrap gap-2">
-              {publicacoes.length > 0 && (
-                <Button 
-                  onClick={handleResumir} 
-                  disabled={loadingResumo} 
-                  size="sm" 
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                >
-                  {loadingResumo ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Gerando resumo...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Resumir com IA
-                    </>
-                  )}
-                </Button>
-              )}
+              <Button 
+                onClick={handleResumir} 
+                disabled={loadingResumo || publicacoes.length === 0} 
+                size="sm" 
+                variant="outline"
+                className="w-full sm:w-auto"
+              >
+                {loadingResumo ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Gerando resumo...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Resumir com IA
+                  </>
+                )}
+              </Button>
               {selectedIds.size > 0 && (
                 <Button onClick={handleImportSelected} disabled={importing} size="sm" className="w-full sm:w-auto">
                   {importing ? (
