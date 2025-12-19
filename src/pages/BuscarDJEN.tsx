@@ -671,84 +671,164 @@ const BuscarDJEN = () => {
               <p className="text-sm mt-2">Tente ajustar os filtros de busca</p>
             </div>
           ) : (
-            <ScrollArea className="h-[500px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={selectedIds.size === publicacoes.length && publicacoes.length > 0}
-                        onCheckedChange={toggleSelectAll}
-                      />
-                    </TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Processo</TableHead>
-                    <TableHead className="max-w-[200px]">Conteúdo</TableHead>
-                    <TableHead>Tribunal</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {publicacoes.map((pub) => (
-                    <TableRow 
-                      key={pub.id}
-                      className={cn(
-                        selectedIds.has(pub.id) && "bg-primary/5"
-                      )}
-                    >
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedIds.has(pub.id)}
-                          onCheckedChange={() => toggleSelect(pub.id)}
-                        />
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {formatDate(pub.data)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{pub.tipo}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {pub.processo ? (
-                          <span className="font-mono text-xs">{pub.processo}</span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
+            <>
+              {/* Mobile View - Cards */}
+              <div className="md:hidden space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b">
+                  <Checkbox
+                    checked={selectedIds.size === publicacoes.length && publicacoes.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <span className="text-sm text-muted-foreground">Selecionar todos</span>
+                </div>
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-3 pr-2">
+                    {publicacoes.map((pub) => (
+                      <div 
+                        key={pub.id}
+                        className={cn(
+                          "p-3 border rounded-lg space-y-2",
+                          selectedIds.has(pub.id) && "bg-primary/5 border-primary/30"
                         )}
-                      </TableCell>
-                      <TableCell className="max-w-[200px]">
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {truncateText(pub.conteudo, 100)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              checked={selectedIds.has(pub.id)}
+                              onCheckedChange={() => toggleSelect(pub.id)}
+                            />
+                            <Badge variant="outline" className="text-xs">{pub.tipo}</Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {formatDate(pub.data)}
+                          </span>
+                        </div>
+                        
+                        {pub.processo && (
+                          <div className="flex items-center gap-1.5">
+                            <Hash className="w-3 h-3 text-muted-foreground" />
+                            <span className="font-mono text-xs break-all">{pub.processo}</span>
+                          </div>
+                        )}
+                        
+                        {pub.tribunal && (
+                          <div className="text-xs text-muted-foreground">
+                            📍 {pub.tribunal}
+                          </div>
+                        )}
+                        
+                        <p className="text-sm text-muted-foreground line-clamp-3">
+                          {truncateText(pub.conteudo, 150)}
                         </p>
-                      </TableCell>
-                      <TableCell>
-                        {pub.tribunal || "-"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        
+                        <div className="flex items-center gap-2 pt-2 border-t">
                           <Button
-                            variant="ghost"
-                            size="icon"
+                            variant="outline"
+                            size="sm"
                             onClick={() => handleViewContent(pub)}
-                            title="Visualizar conteúdo"
+                            className="flex-1"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5 mr-1.5" />
+                            Ver
                           </Button>
                           <Button
-                            variant="ghost"
-                            size="icon"
+                            variant="outline"
+                            size="sm"
                             onClick={() => handleOpenImportDialog(pub)}
-                            title="Importar processo"
+                            className="flex-1"
                           >
-                            <Import className="w-4 h-4" />
+                            <Import className="w-3.5 h-3.5 mr-1.5" />
+                            Importar
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {/* Desktop View - Table */}
+              <div className="hidden md:block">
+                <ScrollArea className="h-[500px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={selectedIds.size === publicacoes.length && publicacoes.length > 0}
+                            onCheckedChange={toggleSelectAll}
+                          />
+                        </TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Processo</TableHead>
+                        <TableHead className="max-w-[200px]">Conteúdo</TableHead>
+                        <TableHead>Tribunal</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {publicacoes.map((pub) => (
+                        <TableRow 
+                          key={pub.id}
+                          className={cn(
+                            selectedIds.has(pub.id) && "bg-primary/5"
+                          )}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedIds.has(pub.id)}
+                              onCheckedChange={() => toggleSelect(pub.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {formatDate(pub.data)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{pub.tipo}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {pub.processo ? (
+                              <span className="font-mono text-xs">{pub.processo}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="max-w-[200px]">
+                            <p className="text-sm text-muted-foreground line-clamp-2">
+                              {truncateText(pub.conteudo, 100)}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            {pub.tribunal || "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleViewContent(pub)}
+                                title="Visualizar conteúdo"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleOpenImportDialog(pub)}
+                                title="Importar processo"
+                              >
+                                <Import className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
+            </>
           )}
 
           {/* Resumo IA */}
