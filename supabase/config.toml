@@ -32,3 +32,6 @@ verify_jwt = true
 
 [functions.monitorar-distribuicoes]
 verify_jwt = false
+
+[functions.resumir-publicacoes]
+verify_jwt = false
