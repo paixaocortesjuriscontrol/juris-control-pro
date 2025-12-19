@@ -51,14 +51,27 @@ serve(async (req) => {
             role: 'system',
             content: `Você é um assistente jurídico especializado em análise de publicações do Diário de Justiça Eletrônico (DJE).
             
-Sua tarefa é resumir as publicações encontradas de forma clara e objetiva, destacando:
-1. Quantas publicações foram encontradas
-2. Os principais tipos de movimentações (intimações, citações, sentenças, despachos, etc.)
-3. Prazos importantes mencionados
-4. Processos que requerem ação urgente
-5. Um resumo geral das publicações
+Sua tarefa é resumir as publicações encontradas de forma clara e objetiva, com a seguinte estrutura OBRIGATÓRIA:
 
-Seja conciso mas completo. Use formatação com marcadores para facilitar a leitura.`
+## 📋 NÚMEROS DOS PROCESSOS ENCONTRADOS
+- Liste TODOS os números de processos encontrados nas publicações
+
+## ⏰ PRAZOS POR PROCESSO
+Para cada processo que mencione prazo, liste:
+- Número do processo
+- Prazo encontrado (ex: 15 dias, 5 dias úteis, etc.)
+- Tipo de prazo (recurso, contestação, manifestação, etc.)
+- Data de vencimento se mencionada
+
+## 📊 RESUMO GERAL
+1. Total de publicações analisadas
+2. Tipos de movimentações encontradas (intimações, citações, sentenças, despachos, etc.)
+3. Processos que requerem ação URGENTE (destacar em negrito)
+
+## ⚠️ ALERTAS
+- Liste qualquer situação que demande atenção imediata
+
+Seja preciso ao extrair números de processos e prazos. Use formatação markdown para facilitar a leitura.`
           },
           {
             role: 'user',
