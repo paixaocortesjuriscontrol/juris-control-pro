@@ -1,14 +1,11 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { Newspaper, Play, Clock, RefreshCw
-
- } from "lucide-react";
+import { Newspaper, Play, Clock, RefreshCw } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -16,15 +13,17 @@ import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export function MonitoramentoDjenCard() {
+interface Props {
+  coordenacaoId: string;
+}
+
+export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
   const { 
-    configuracoes,
+    configuracaoDjen,
     isLoading, 
     atualizarConfiguracao 
-  } = useConfiguracoesMonitoramento();
-
-  const configuracaoDjen = configuracoes.find(c => c.tipo === 'djen');
+  } = useConfiguracoesMonitoramento(coordenacaoId);
 
   const [executando, setExecutando] = useState(false);
 

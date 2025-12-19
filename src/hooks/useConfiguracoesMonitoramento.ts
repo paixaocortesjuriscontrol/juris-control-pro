@@ -8,27 +8,38 @@ export interface ConfiguracaoMonitoramento {
   frequencia: string;
   ativo: boolean;
   ultima_execucao: string | null;
+  coordenacao_id: string | null;
   metadata: {
     next_offset?: number;
     last_batch_size?: number;
     last_complete_run?: string;
     current_monitoramento_index?: number;
     current_tribunal_offset?: number;
+    monitoramentos_processados?: number;
+    novas_publicacoes?: number;
   } | null;
   created_at: string;
   updated_at: string;
 }
 
-export function useConfiguracoesMonitoramento() {
+export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
   const queryClient = useQueryClient();
 
   const { data: configuracoes = [], isLoading } = useQuery({
-    queryKey: ['configuracoes-monitoramento'],
+    queryKey: ['configuracoes-monitoramento', coordenacaoId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('configuracoes_monitoramento')
-        .select('id, tipo, frequencia, ativo, ultima_execucao, metadata, created_at, updated_at')
+        .select('id, tipo, frequencia, ativo, ultima_execucao, coordenacao_id, metadata, created_at, updated_at')
         .order('tipo');
+
+      if (coordenacaoId) {
+        query = query.eq('coordenacao_id', coordenacaoId);
+      } else {
+        query = query.is('coordenacao_id', null);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as ConfiguracaoMonitoramento[];
@@ -84,6 +95,11 @@ export function useConfiguracoesMonitoramento() {
         if (error) throw error;
         return data;
       }
+      if (tipo === 'djen') {
+        const { data, error } = await supabase.functions.invoke('monitorar-djen');
+        if (error) throw error;
+        return data;
+      }
       throw new Error("Tipo de monitoramento não suportado");
     },
     onSuccess: (data, tipo) => {
@@ -97,6 +113,10 @@ export function useConfiguracoesMonitoramento() {
         } else {
           toast.success(`Lote processado: ${tribunais} tribunais verificados, ${found} distribuições encontradas`);
         }
+      } else if (tipo === 'djen') {
+        const novas = data?.novasPublicacoes || 0;
+        const processados = data?.monitoramentosProcessados || 0;
+        toast.success(`Monitoramento concluído: ${processados} monitoramentos verificados, ${novas} novas publicações`);
       } else if (data?.isComplete) {
         const message = tipo === 'andamentos' 
           ? `Monitoramento completo: ${data?.results?.checked || 0} processos verificados, ${data?.results?.newMovements || 0} andamentos encontrados`
@@ -116,12 +136,14 @@ export function useConfiguracoesMonitoramento() {
   const configuracaoRedistribuicoes = configuracoes.find(c => c.tipo === 'redistribuicoes');
   const configuracaoAndamentos = configuracoes.find(c => c.tipo === 'andamentos');
   const configuracaoDistribuicoes = configuracoes.find(c => c.tipo === 'distribuicoes');
+  const configuracaoDjen = configuracoes.find(c => c.tipo === 'djen');
 
   return {
     configuracoes,
     configuracaoRedistribuicoes,
     configuracaoAndamentos,
     configuracaoDistribuicoes,
+    configuracaoDjen,
     isLoading,
     atualizarConfiguracao,
     executarMonitoramento,
