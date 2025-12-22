@@ -368,60 +368,63 @@ const AnaliseDjen = () => {
           </CardContent>
         </Card>
 
-        {/* Resumo IA - Exibido ANTES das publicações quando há monitoramento selecionado */}
-        {monitoramentoId && (
-          <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2 text-green-800 dark:text-green-200">
-                  <Sparkles className="w-5 h-5" />
-                  Resumo IA - {getMonitoramentoLabel()}
-                </CardTitle>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleGerarResumo}
-                  disabled={gerarResumoIA.isPending || publicacoes.length === 0}
-                  className="border-green-300 text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-300"
-                >
-                  {gerarResumoIA.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  )}
-                  {ultimoResumo ? "Atualizar Resumo" : "Gerar Resumo"}
-                </Button>
+        {/* Resumo IA - Sempre visível */}
+        <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2 text-green-800 dark:text-green-200">
+                <Sparkles className="w-5 h-5" />
+                Resumo IA {monitoramentoId && `- ${getMonitoramentoLabel()}`}
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleGerarResumo}
+                disabled={!monitoramentoId || gerarResumoIA.isPending || publicacoes.length === 0}
+                className="border-green-300 text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-300"
+              >
+                {gerarResumoIA.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Sparkles className="w-4 h-4 mr-2" />
+                )}
+                {ultimoResumo ? "Atualizar Resumo" : "Gerar Resumo"}
+              </Button>
+            </div>
+            {ultimoResumo && (
+              <CardDescription className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                Gerado em: {formatDate(ultimoResumo.data_busca)}
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            {!monitoramentoId ? (
+              <div className="text-center py-6 text-green-600 dark:text-green-400">
+                <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>Selecione uma coordenação e um monitoramento para gerar o resumo de IA.</p>
               </div>
-              {ultimoResumo && (
-                <CardDescription className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  Gerado em: {formatDate(ultimoResumo.data_busca)}
-                </CardDescription>
-              )}
-            </CardHeader>
-            <CardContent>
-              {loadingResumo ? (
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+            ) : loadingResumo ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+              </div>
+            ) : ultimoResumo ? (
+              <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-green-800 dark:prose-headings:text-green-200">
+                <div className="whitespace-pre-wrap text-green-700 dark:text-green-300">
+                  {ultimoResumo.resumo}
                 </div>
-              ) : ultimoResumo ? (
-                <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-green-800 dark:prose-headings:text-green-200">
-                  <div className="whitespace-pre-wrap text-green-700 dark:text-green-300">
-                    {ultimoResumo.resumo}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-6 text-green-600 dark:text-green-400">
-                  <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>Nenhum resumo gerado ainda para este monitoramento.</p>
-                  <p className="text-sm mt-1">
-                    Clique em "Gerar Resumo" para analisar as {publicacoes.length} publicação(ões) com IA.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-green-600 dark:text-green-400">
+                <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>Nenhum resumo gerado ainda para este monitoramento.</p>
+                <p className="text-sm mt-1">
+                  Clique em "Gerar Resumo" para analisar as {publicacoes.length} publicação(ões) com IA.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2">
