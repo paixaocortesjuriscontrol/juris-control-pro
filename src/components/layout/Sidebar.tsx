@@ -30,7 +30,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
-  { icon: FolderKanban, label: "Minha Carteira", path: "/minha-carteira" },
+  { icon: FolderKanban, label: "Minhas Tarefas", path: "/minha-carteira" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
