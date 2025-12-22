@@ -316,11 +316,21 @@ export default function ProcessoDetalhes() {
       subtitle={processo.assunto || "Sem assunto definido"}
     >
       <div className="space-y-6">
-        {/* Back Button */}
-        <Button variant="ghost" onClick={() => navigate("/processos")} className="mb-2">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Voltar para Processos
-        </Button>
+        {/* Back Button & Quick Actions */}
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar
+          </Button>
+          
+          {/* Quick Assign Button - visible when not assigned or not editing */}
+          {!editando && (!processo.advogado_responsavel_id || !processo.coordenacao_id) && (
+            <Button onClick={handleIniciarEdicao} className="bg-primary hover:bg-primary/90">
+              <Users className="w-4 h-4 mr-2" />
+              Atribuir Processo
+            </Button>
+          )}
+        </div>
 
         {/* Process Info Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
