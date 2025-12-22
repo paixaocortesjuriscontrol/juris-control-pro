@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const DJEN_API_BASE = "https://comunicaapi.pje.jus.br/api/v1";
+const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 
 interface Monitoramento {
   id: string;
@@ -16,6 +16,15 @@ interface Monitoramento {
   uf?: string;
   criado_por: string;
 }
+
+// Browser-like headers to avoid blocking
+const browserHeaders = {
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Origin": "https://comunica.pje.jus.br",
+  "Referer": "https://comunica.pje.jus.br/",
+};
 
 // Generate hash for publication content to detect duplicates
 function generateHash(content: string): string {
@@ -47,66 +56,95 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<any[]> {
   }
   
   // Other types (palavra-chave, processo)
-  let url: string;
+  let searchText: string;
   
   switch (monitoramento.tipo) {
     case "palavra-chave":
-      const encodedKeyword = encodeURIComponent(monitoramento.termo_busca);
-      url = `${DJEN_API_BASE}/comunicacao/pesquisa?texto=${encodedKeyword}`;
+      searchText = monitoramento.termo_busca;
       break;
     case "processo":
-      const cleanedNumber = monitoramento.termo_busca.replace(/\D/g, '');
-      url = `${DJEN_API_BASE}/comunicacao/processo/${cleanedNumber}`;
+      searchText = monitoramento.termo_busca.replace(/\D/g, '');
       break;
     default:
       return [];
   }
 
-  return await fetchDJENResults(url, monitoramento.id);
+  return await fetchDJENResults(searchText, monitoramento.id);
 }
 
 async function searchDJENByAdvogado(oab: string, uf: string, monitoramentoId: string): Promise<any[]> {
-  const url = `${DJEN_API_BASE}/comunicacao/advogado/${oab}/${uf.toUpperCase()}`;
-  return await fetchDJENResults(url, monitoramentoId);
+  // Use the same format as buscar-djen: "OAB {number} {uf}"
+  const searchText = `OAB ${oab} ${uf.toUpperCase()}`;
+  return await fetchDJENResults(searchText, monitoramentoId);
 }
 
-async function fetchDJENResults(url: string, monitoramentoId: string): Promise<any[]> {
+async function fetchDJENResults(searchText: string, monitoramentoId: string): Promise<any[]> {
   // Add date filter for last 30 days
   const dataFim = new Date().toISOString().split('T')[0];
   const dataInicio = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   
   const queryParams = new URLSearchParams();
-  queryParams.append("pagina", "0");
-  queryParams.append("tamanhoPagina", "50");
-  queryParams.append("dataInicio", dataInicio);
-  queryParams.append("dataFim", dataFim);
+  queryParams.append("texto", searchText);
+  queryParams.append("dataDisponibilizacaoInicio", dataInicio);
+  queryParams.append("dataDisponibilizacaoFim", dataFim);
   
-  const separator = url.includes("?") ? "&" : "?";
-  const fullUrl = `${url}${separator}${queryParams.toString()}`;
-  
-  console.log(`Searching DJEN: ${fullUrl}`);
-  
-  try {
-    const response = await fetch(fullUrl, {
-      method: "GET",
-      headers: { "Accept": "application/json" },
-    });
+  // Try multiple possible API endpoints (same as buscar-djen)
+  const endpoints = [
+    `${PJE_COMUNICA_API}/comunicacao/consulta`,
+    `${PJE_COMUNICA_API}/comunicacoes`,
+    `${PJE_COMUNICA_API}/comunicacao/pesquisar`,
+    `${PJE_COMUNICA_API}/comunicacao`,
+  ];
 
-    if (!response.ok) {
-      if (response.status === 422) {
-        console.log(`No results for URL: ${fullUrl}`);
+  const fullQueryString = queryParams.toString();
+  
+  for (const endpoint of endpoints) {
+    const fullUrl = `${endpoint}?${fullQueryString}`;
+    console.log(`Searching DJEN: ${fullUrl}`);
+    
+    try {
+      const response = await fetch(fullUrl, {
+        method: "GET",
+        headers: browserHeaders,
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      console.log("Response status:", response.status, "Content-Type:", contentType);
+      
+      // If we get HTML, skip to next endpoint
+      if (contentType.includes("text/html")) {
+        console.log("Got HTML response, trying next endpoint...");
+        continue;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Success! Got JSON response");
+        
+        // Handle different response formats
+        const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
+        
+        if (Array.isArray(items)) {
+          return items;
+        }
+        
         return [];
       }
-      console.error(`DJEN API error: ${response.status}`);
-      return [];
-    }
 
-    const data = await response.json();
-    return data.items || data.content || [];
-  } catch (error) {
-    console.error(`Error searching DJEN:`, error);
-    return [];
+      // 422 means "not found" - return empty results
+      if (response.status === 422) {
+        console.log("No results for this search");
+        return [];
+      }
+
+      console.error(`DJEN API error: ${response.status}`);
+    } catch (error) {
+      console.error(`Error with endpoint ${endpoint}:`, error);
+    }
   }
+
+  console.log("All endpoints failed, returning empty results");
+  return [];
 }
 
 serve(async (req) => {
@@ -141,8 +179,8 @@ serve(async (req) => {
       console.log(`Found ${publications.length} publications for monitoramento ${monitoramento.id}`);
 
       for (const pub of publications) {
-        const conteudo = pub.conteudo || pub.texto || pub.descricao || JSON.stringify(pub);
-        const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.data || ''));
+        const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
+        const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
 
         // Try to insert (will fail if duplicate due to unique constraint)
         const { error: insertError } = await supabase
@@ -150,10 +188,10 @@ serve(async (req) => {
           .insert({
             monitoramento_id: monitoramento.id,
             hash_conteudo: hashConteudo,
-            data_publicacao: pub.dataPublicacao || pub.data || null,
+            data_publicacao: pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || null,
             processo_numero: pub.numeroProcesso || pub.processo || null,
             conteudo: conteudo.substring(0, 10000),
-            fonte: pub.fonte || pub.tribunal || 'DJEN',
+            fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
           });
 
         if (!insertError) {
@@ -180,7 +218,7 @@ serve(async (req) => {
               titulo: 'Nova publicação no DJEN',
               mensagem: `Encontrada publicação para: "${monitoramento.termo_busca}"`,
               tipo: 'info',
-              link: '/buscar-djen',
+              link: '/analise-djen',
               dados: {
                 monitoramento_id: monitoramento.id,
                 processo: pub.numeroProcesso || pub.processo,
