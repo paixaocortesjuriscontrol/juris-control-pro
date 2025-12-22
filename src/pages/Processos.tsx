@@ -22,6 +22,8 @@ import { Calendar, User } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useProcessosComRedistribuicaoRecente } from "@/hooks/useRedistribuicoes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useCoordenacoes } from "@/hooks/useDashboardData";
+
 type AreaType = "civil" | "trabalhista" | "empresarial";
 type StatusType = "pending" | "active" | "closed" | "urgent";
 
@@ -44,6 +46,7 @@ const Processos = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("all");
   const [selectedProcessos, setSelectedProcessos] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showAtribuirDialog, setShowAtribuirDialog] = useState(false);
@@ -52,6 +55,7 @@ const Processos = () => {
   const [monitorandoRedistribuicoes, setMonitorandoRedistribuicoes] = useState(false);
   
   const { executarMonitoramento } = useConfiguracoesMonitoramento();
+  const { data: coordenacoes } = useCoordenacoes();
 
   // Ler parâmetros da URL na inicialização
   useEffect(() => {
@@ -107,8 +111,9 @@ const Processos = () => {
     
     const matchesArea = areaFilter === "all" || processo.area === areaFilter;
     const matchesStatus = statusFilter === "all" || processo.status === statusFilter;
+    const matchesCoordenacao = coordenacaoFilter === "all" || processo.coordenacao_id === coordenacaoFilter;
 
-    return matchesSearch && matchesArea && matchesStatus;
+    return matchesSearch && matchesArea && matchesStatus && matchesCoordenacao;
   });
 
   return (
@@ -130,6 +135,19 @@ const Processos = () => {
               />
             </div>
             <div className="flex flex-wrap gap-3">
+              <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="Coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as coordenações</SelectItem>
+                  {coordenacoes?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={areaFilter} onValueChange={setAreaFilter}>
                 <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Área" />
@@ -231,12 +249,17 @@ const Processos = () => {
         </div>
 
         {/* Active Filters */}
-        {(areaFilter !== "all" || statusFilter !== "all" || searchQuery) && (
+        {(areaFilter !== "all" || statusFilter !== "all" || coordenacaoFilter !== "all" || searchQuery) && (
           <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border/50">
             <span className="text-sm text-muted-foreground">Filtros ativos:</span>
             {searchQuery && (
               <Badge variant="secondary" className="cursor-pointer" onClick={() => setSearchQuery("")}>
                 Busca: {searchQuery} ×
+              </Badge>
+            )}
+            {coordenacaoFilter !== "all" && (
+              <Badge variant="secondary" className="cursor-pointer" onClick={() => setCoordenacaoFilter("all")}>
+                {coordenacoes?.find(c => c.id === coordenacaoFilter)?.nome || "Coordenação"} ×
               </Badge>
             )}
             {areaFilter !== "all" && (
@@ -257,6 +280,7 @@ const Processos = () => {
                 setSearchQuery("");
                 setAreaFilter("all");
                 setStatusFilter("all");
+                setCoordenacaoFilter("all");
               }}
             >
               Limpar filtros
