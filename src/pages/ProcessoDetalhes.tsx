@@ -387,105 +387,112 @@ export default function ProcessoDetalhes() {
                 </div>
               )}
 
-              {/* Edit Section */}
-              {editando && (
-                <div className="pt-4 border-t space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-sm">Editar Processo</h4>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" onClick={handleCancelarEdicao} disabled={salvando}>
-                        <X className="w-4 h-4 mr-1" />
-                        Cancelar
-                      </Button>
-                      <Button size="sm" onClick={() => setShowConfirmDialog(true)} disabled={salvando}>
-                        <Save className="w-4 h-4 mr-1" />
-                        {salvando ? "Salvando..." : "Salvar"}
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label>Status</Label>
-                      <Select value={editStatus} onValueChange={(v) => setEditStatus(v as StatusProcesso)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {statusOptions.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {statusLabels[status]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label>Cliente</Label>
-                      <Select value={editCliente} onValueChange={setEditCliente}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o cliente" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Nenhum cliente</SelectItem>
-                          {clientes.map((cliente) => (
-                            <SelectItem key={cliente.id} value={cliente.id}>
-                              {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label>Coordenação Responsável</Label>
-                      <Select value={editCoordenacao} onValueChange={(v) => {
-                        setEditCoordenacao(v);
-                        setEditAdvogado(""); // Reset advogado when coordination changes
-                      }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a coordenação" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {coordenacoes.map((coord) => (
-                            <SelectItem key={coord.id} value={coord.id}>
-                              {coord.nome} ({areaLabels[coord.area] || coord.area})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label>Distribuir para Advogado</Label>
-                      <Select 
-                        value={editAdvogado} 
-                        onValueChange={setEditAdvogado}
-                        disabled={!editCoordenacao && !processo.coordenacao_id}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={
-                            !editCoordenacao && !processo.coordenacao_id 
-                              ? "Selecione coordenação primeiro" 
-                              : "Selecione o advogado"
-                          } />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Não atribuído</SelectItem>
-                          {membrosCoordenacao.map((membro) => (
-                            <SelectItem key={membro.usuario_id} value={membro.usuario_id}>
-                              {membro.profiles?.nome || "Usuário"} {membro.cargo ? `(${membro.cargo})` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
+
+          {/* Attribution Card - Separate highlighted card */}
+          {editando && (
+            <Card className="lg:col-span-3 border-2 border-primary/30 bg-primary/5">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-primary">
+                    <Users className="w-5 h-5" />
+                    Atribuição do Processo
+                  </CardTitle>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={handleCancelarEdicao} disabled={salvando}>
+                      <X className="w-4 h-4 mr-1" />
+                      Cancelar
+                    </Button>
+                    <Button size="sm" onClick={() => setShowConfirmDialog(true)} disabled={salvando}>
+                      <Save className="w-4 h-4 mr-1" />
+                      {salvando ? "Salvando..." : "Salvar Alterações"}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Status do Processo</Label>
+                    <Select value={editStatus} onValueChange={(v) => setEditStatus(v as StatusProcesso)}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Selecione o status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {statusLabels[status]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Cliente</Label>
+                    <Select value={editCliente} onValueChange={setEditCliente}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Selecione o cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Nenhum cliente</SelectItem>
+                        {clientes.map((cliente) => (
+                          <SelectItem key={cliente.id} value={cliente.id}>
+                            {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Coordenação Responsável</Label>
+                    <Select value={editCoordenacao} onValueChange={(v) => {
+                      setEditCoordenacao(v);
+                      setEditAdvogado(""); // Reset advogado when coordination changes
+                    }}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Selecione a coordenação" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {coordenacoes.map((coord) => (
+                          <SelectItem key={coord.id} value={coord.id}>
+                            {coord.nome} ({areaLabels[coord.area] || coord.area})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Advogado Responsável</Label>
+                    <Select 
+                      value={editAdvogado} 
+                      onValueChange={setEditAdvogado}
+                      disabled={!editCoordenacao && !processo.coordenacao_id}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder={
+                          !editCoordenacao && !processo.coordenacao_id 
+                            ? "Selecione coordenação primeiro" 
+                            : "Selecione o advogado"
+                        } />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Não atribuído</SelectItem>
+                        {membrosCoordenacao.map((membro) => (
+                          <SelectItem key={membro.usuario_id} value={membro.usuario_id}>
+                            {membro.profiles?.nome || "Usuário"} {membro.cargo ? `(${membro.cargo})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Location & Responsible */}
           <Card>
