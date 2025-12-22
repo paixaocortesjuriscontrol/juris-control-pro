@@ -79,14 +79,13 @@ async function searchDJENByAdvogado(oab: string, uf: string, monitoramentoId: st
 }
 
 async function fetchDJENResults(searchText: string, monitoramentoId: string): Promise<any[]> {
-  // Add date filter for last 30 days
-  const dataFim = new Date().toISOString().split('T')[0];
-  const dataInicio = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Use current date as both start and end date
+  const dataAtual = new Date().toISOString().split('T')[0];
   
   const queryParams = new URLSearchParams();
   queryParams.append("texto", searchText);
-  queryParams.append("dataDisponibilizacaoInicio", dataInicio);
-  queryParams.append("dataDisponibilizacaoFim", dataFim);
+  queryParams.append("dataDisponibilizacaoInicio", dataAtual);
+  queryParams.append("dataDisponibilizacaoFim", dataAtual);
   
   // Try multiple possible API endpoints (same as buscar-djen)
   const endpoints = [
