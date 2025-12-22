@@ -451,16 +451,14 @@ const AnaliseDjen = () => {
                           </div>
                         )}
 
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          {pub.data_publicacao && (
-                            <span>
-                              <strong className="text-foreground">Diário:</strong> {formatDate(pub.data_publicacao)}
-                            </span>
-                          )}
+                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                          <span>
+                            <strong className="text-foreground">Diário:</strong> {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
+                          </span>
                           <span>
                             <strong className="text-foreground">Capturado:</strong> {formatDate(pub.created_at)}
                           </span>
-                          {pub.fonte && <span>Fonte: {pub.fonte}</span>}
+                          {pub.fonte && <span><strong className="text-foreground">Fonte:</strong> {pub.fonte}</span>}
                         </div>
                       </div>
 
