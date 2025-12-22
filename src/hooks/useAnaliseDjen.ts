@@ -31,6 +31,7 @@ export interface PublicacaoAnalise {
 
 export interface FiltrosAnalise {
   coordenacaoId?: string;
+  monitoramentoId?: string;
   dataInicio?: string;
   dataFim?: string;
   termoBusca?: string;
@@ -85,6 +86,12 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
       if (filtros.coordenacaoId) {
         filtered = filtered.filter(p => 
           p.monitoramento?.coordenacao_id === filtros.coordenacaoId
+        );
+      }
+
+      if (filtros.monitoramentoId) {
+        filtered = filtered.filter(p => 
+          p.monitoramento_id === filtros.monitoramentoId
         );
       }
 
