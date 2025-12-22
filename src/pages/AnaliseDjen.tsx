@@ -257,12 +257,12 @@ const AnaliseDjen = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label>Coordenação</Label>
-                <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
+                <Select value={coordenacaoId || "__all__"} onValueChange={(val) => setCoordenacaoId(val === "__all__" ? "" : val)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todas" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todas</SelectItem>
+                    <SelectItem value="__all__">Todas</SelectItem>
                     {coordenacoes?.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.nome}
