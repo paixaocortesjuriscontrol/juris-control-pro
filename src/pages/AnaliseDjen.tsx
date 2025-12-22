@@ -40,10 +40,12 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useAnaliseDjen, PublicacaoAnalise } from "@/hooks/useAnaliseDjen";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
+import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 
 const AnaliseDjen = () => {
   // Filtros
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const [monitoramentoId, setMonitoramentoId] = useState<string>("");
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
@@ -59,6 +61,7 @@ const AnaliseDjen = () => {
   
   const { publicacoes, isLoading, gerarResumoIA, marcarComoLida } = useAnaliseDjen({
     coordenacaoId: coordenacaoId || undefined,
+    monitoramentoId: monitoramentoId || undefined,
     dataInicio: dataInicio || undefined,
     dataFim: dataFim || undefined,
     termoBusca: termoBusca || undefined,
@@ -66,6 +69,9 @@ const AnaliseDjen = () => {
   });
 
   const { data: coordenacoes } = useCoordenacoes();
+  
+  // Buscar monitoramentos para o filtro
+  const { monitoramentos } = useMonitoramentosDjen();
 
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds);
@@ -254,7 +260,27 @@ const AnaliseDjen = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="space-y-2">
+                <Label>Monitoramento</Label>
+                <Select value={monitoramentoId || "__all__"} onValueChange={(val) => setMonitoramentoId(val === "__all__" ? "" : val)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos</SelectItem>
+                    {monitoramentos?.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.tipo === 'advogado' 
+                          ? `OAB ${m.oab || ''} ${m.uf || ''}`
+                          : m.termo_busca
+                        }
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label>Coordenação</Label>
                 <Select value={coordenacaoId || "__all__"} onValueChange={(val) => setCoordenacaoId(val === "__all__" ? "" : val)}>
