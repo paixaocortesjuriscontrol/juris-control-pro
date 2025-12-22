@@ -9,12 +9,19 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, Search, Scale } from "lucide-react";
 import { useProcessos } from "@/hooks/useProcessos";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -33,15 +40,24 @@ export function VincularProcessoDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("all");
   const { data: processos, isLoading } = useProcessos();
+  const { data: coordenacoes } = useCoordenacoesFull();
   const queryClient = useQueryClient();
 
   // Filter processes not already linked to any folder
-  const availableProcessos = processos?.filter(
-    (p) => !p.pasta_id && 
-    (p.numero.toLowerCase().includes(searchQuery.toLowerCase()) ||
-     p.assunto?.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const availableProcessos = processos?.filter((p) => {
+    if (p.pasta_id) return false;
+    
+    const matchesSearch =
+      p.numero.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.assunto?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesCoordenacao =
+      coordenacaoFilter === "all" || p.coordenacao_id === coordenacaoFilter;
+    
+    return matchesSearch && matchesCoordenacao;
+  });
 
   const handleToggleSelect = (processoId: string) => {
     setSelectedIds((prev) =>
@@ -116,30 +132,48 @@ export function VincularProcessoDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 flex-1 min-h-0">
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por número ou assunto..."
-                className="pl-9"
-              />
+        <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-hidden">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por número ou assunto..."
+                  className="pl-9"
+                />
+              </div>
+              <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {coordenacoes?.map((coord) => (
+                    <SelectItem key={coord.id} value={coord.id}>
+                      {coord.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {availableProcessos && availableProcessos.length > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleSelectAll}
-              >
-                {allSelected ? "Desmarcar todos" : "Selecionar todos"}
-              </Button>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectAll}
+                >
+                  {allSelected ? "Desmarcar todos" : "Selecionar todos"}
+                </Button>
+              </div>
             )}
           </div>
 
-          <ScrollArea className="flex-1 min-h-0 max-h-[300px] border rounded-lg">
+          <div className="flex-1 min-h-0 border rounded-lg overflow-hidden">
+            <ScrollArea className="h-[280px]">
             {isLoading ? (
               <div className="flex items-center justify-center h-[200px]">
                 <Loader2 className="h-6 w-6 animate-spin" />
@@ -186,7 +220,8 @@ export function VincularProcessoDialog({
                 ))}
               </div>
             )}
-          </ScrollArea>
+            </ScrollArea>
+          </div>
 
           {selectedIds.length > 0 && (
             <p className="text-sm text-muted-foreground">
