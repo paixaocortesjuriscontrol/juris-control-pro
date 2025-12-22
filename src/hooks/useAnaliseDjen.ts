@@ -12,8 +12,6 @@ export interface PublicacaoAnalise {
   conteudo: string | null;
   fonte: string | null;
   lida: boolean;
-  resumo_ia: string | null;
-  resumo_gerado_em: string | null;
   created_at: string;
   monitoramento?: {
     id: string;
@@ -29,6 +27,15 @@ export interface PublicacaoAnalise {
   };
 }
 
+export interface ResumoMonitoramento {
+  id: string;
+  monitoramento_id: string;
+  resumo: string;
+  data_busca: string;
+  publicacoes_incluidas: string[];
+  created_at: string;
+}
+
 export interface FiltrosAnalise {
   coordenacaoId?: string;
   monitoramentoId?: string;
@@ -42,6 +49,7 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // Buscar publicações
   const { data: publicacoes = [], isLoading } = useQuery({
     queryKey: ['analise-djen', user?.id, filtros],
     queryFn: async () => {
@@ -50,7 +58,15 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
       let query = supabase
         .from('publicacoes_djen')
         .select(`
-          *,
+          id,
+          monitoramento_id,
+          hash_conteudo,
+          data_publicacao,
+          processo_numero,
+          conteudo,
+          fonte,
+          lida,
+          created_at,
           monitoramento:monitoramentos_djen(
             id,
             tipo,
@@ -109,16 +125,38 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
     enabled: !!user?.id,
   });
 
+  // Buscar último resumo do monitoramento selecionado
+  const { data: ultimoResumo, isLoading: loadingResumo } = useQuery({
+    queryKey: ['resumo-monitoramento', filtros.monitoramentoId],
+    queryFn: async () => {
+      if (!filtros.monitoramentoId) return null;
+      
+      const { data, error } = await supabase
+        .from('resumos_monitoramento_djen')
+        .select('*')
+        .eq('monitoramento_id', filtros.monitoramentoId)
+        .order('data_busca', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as ResumoMonitoramento | null;
+    },
+    enabled: !!filtros.monitoramentoId,
+  });
+
   const gerarResumoIA = useMutation({
-    mutationFn: async (publicacaoIds: string[]) => {
-      const pubsParaResumir = publicacoes.filter(p => publicacaoIds.includes(p.id));
+    mutationFn: async (monitoramentoId: string) => {
+      // Pegar todas as publicações do monitoramento selecionado
+      const pubsParaResumir = publicacoes.filter(p => p.monitoramento_id === monitoramentoId);
       
       if (pubsParaResumir.length === 0) {
-        throw new Error("Nenhuma publicação selecionada");
+        throw new Error("Nenhuma publicação encontrada para este monitoramento");
       }
 
       const { data, error } = await supabase.functions.invoke('resumir-publicacoes', {
         body: { 
+          monitoramentoId,
           publicacoes: pubsParaResumir.map(p => ({
             id: p.id,
             conteudo: p.conteudo,
@@ -131,21 +169,10 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
       if (error) throw error;
       if (!data.resumo) throw new Error("Erro ao gerar resumo");
 
-      // Save resumo to each publication
-      for (const pubId of publicacaoIds) {
-        await supabase
-          .from('publicacoes_djen')
-          .update({ 
-            resumo_ia: data.resumo,
-            resumo_gerado_em: new Date().toISOString()
-          })
-          .eq('id', pubId);
-      }
-
       return data.resumo;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['analise-djen'] });
+      queryClient.invalidateQueries({ queryKey: ['resumo-monitoramento'] });
       toast.success("Resumo gerado e salvo com sucesso!");
     },
     onError: (error) => {
@@ -171,6 +198,8 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
   return {
     publicacoes,
     isLoading,
+    ultimoResumo,
+    loadingResumo,
     gerarResumoIA,
     marcarComoLida,
   };

@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
@@ -18,13 +19,17 @@ serve(async (req) => {
       throw new Error('OPENAI_API_KEY não configurada');
     }
 
-    const { publicacoes } = await req.json();
+    const { publicacoes, monitoramentoId } = await req.json();
 
     if (!publicacoes || publicacoes.length === 0) {
       return new Response(
         JSON.stringify({ resumo: 'Nenhuma publicação para resumir.' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    if (!monitoramentoId) {
+      throw new Error('ID do monitoramento é obrigatório');
     }
 
     // Prepare content for summarization
@@ -36,7 +41,7 @@ serve(async (req) => {
 `;
     }).join('\n---\n');
 
-    console.log('Resumindo', publicacoes.length, 'publicações');
+    console.log('Resumindo', publicacoes.length, 'publicações para monitoramento:', monitoramentoId);
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -93,6 +98,29 @@ Seja preciso ao extrair números de processos e prazos. Use formatação markdow
     const resumo = data.choices[0].message.content;
 
     console.log('Resumo gerado com sucesso');
+
+    // Salvar resumo na nova tabela
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+    const publicacaoIds = publicacoes.map((p: any) => p.id).filter(Boolean);
+
+    const { error: insertError } = await supabaseClient
+      .from('resumos_monitoramento_djen')
+      .insert({
+        monitoramento_id: monitoramentoId,
+        resumo: resumo,
+        data_busca: new Date().toISOString(),
+        publicacoes_incluidas: publicacaoIds,
+      });
+
+    if (insertError) {
+      console.error('Erro ao salvar resumo:', insertError);
+      throw new Error('Erro ao salvar resumo no banco');
+    }
+
+    console.log('Resumo salvo na tabela resumos_monitoramento_djen');
 
     return new Response(
       JSON.stringify({ resumo, totalPublicacoes: publicacoes.length }),
