@@ -25,21 +25,16 @@ export interface ConfiguracaoMonitoramento {
 export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
   const queryClient = useQueryClient();
 
+  // Monitoramentos são globais (coordenacao_id = null), não por coordenação
+  // O parâmetro coordenacaoId é mantido para compatibilidade futura
   const { data: configuracoes = [], isLoading } = useQuery({
-    queryKey: ['configuracoes-monitoramento', coordenacaoId],
+    queryKey: ['configuracoes-monitoramento'],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from('configuracoes_monitoramento')
         .select('id, tipo, frequencia, ativo, ultima_execucao, coordenacao_id, metadata, created_at, updated_at')
+        .is('coordenacao_id', null)
         .order('tipo');
-
-      if (coordenacaoId) {
-        query = query.eq('coordenacao_id', coordenacaoId);
-      } else {
-        query = query.is('coordenacao_id', null);
-      }
-
-      const { data, error } = await query;
 
       if (error) throw error;
       return data as ConfiguracaoMonitoramento[];
