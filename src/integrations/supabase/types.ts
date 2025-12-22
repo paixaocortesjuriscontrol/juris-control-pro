@@ -1050,6 +1050,8 @@ export type Database = {
           lida: boolean
           monitoramento_id: string
           processo_numero: string | null
+          resumo_gerado_em: string | null
+          resumo_ia: string | null
         }
         Insert: {
           conteudo?: string | null
@@ -1061,6 +1063,8 @@ export type Database = {
           lida?: boolean
           monitoramento_id: string
           processo_numero?: string | null
+          resumo_gerado_em?: string | null
+          resumo_ia?: string | null
         }
         Update: {
           conteudo?: string | null
@@ -1072,6 +1076,8 @@ export type Database = {
           lida?: boolean
           monitoramento_id?: string
           processo_numero?: string | null
+          resumo_gerado_em?: string | null
+          resumo_ia?: string | null
         }
         Relationships: [
           {

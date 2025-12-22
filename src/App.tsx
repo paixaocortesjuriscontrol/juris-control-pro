@@ -27,6 +27,7 @@ import ClienteDetalhes from "./pages/ClienteDetalhes";
 import MonitoramentoDistribuicao from "./pages/MonitoramentoDistribuicao";
 import Monitoramento360 from "./pages/Monitoramento360";
 import MinhaCarteira from "./pages/MinhaCarteira";
+import AnaliseDjen from "./pages/AnaliseDjen";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +55,7 @@ const App = () => (
             <Route path="/importar" element={<ProtectedRoute><ImportarProcessos /></ProtectedRoute>} />
             <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
             <Route path="/buscar-djen" element={<ProtectedRoute><BuscarDJEN /></ProtectedRoute>} />
+            <Route path="/analise-djen" element={<ProtectedRoute><AnaliseDjen /></ProtectedRoute>} />
             <Route path="/buscar-pje" element={<ProtectedRoute><BuscarPJE /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="/redistribuicoes" element={<ProtectedRoute><Redistribuicoes /></ProtectedRoute>} />
