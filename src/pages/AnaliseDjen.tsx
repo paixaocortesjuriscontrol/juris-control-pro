@@ -407,18 +407,19 @@ const AnaliseDjen = () => {
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-2">
+                          {/* Monitoramento que encontrou */}
+                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                            {pub.monitoramento?.tipo === 'advogado' 
+                              ? `OAB ${pub.monitoramento?.oab || ''} ${pub.monitoramento?.uf || ''}`
+                              : pub.monitoramento?.tipo === 'processo'
+                                ? `Processo: ${pub.monitoramento?.termo_busca}`
+                                : pub.monitoramento?.termo_busca || "Monitoramento"
+                            }
+                          </Badge>
                           {pub.monitoramento?.coordenacao?.nome && (
                             <Badge variant="outline">
                               {pub.monitoramento.coordenacao.nome}
                             </Badge>
-                          )}
-                          <Badge variant="secondary">
-                            {pub.monitoramento?.tipo || "Monitoramento"}
-                          </Badge>
-                          {pub.monitoramento?.termo_busca && (
-                            <span className="text-sm text-muted-foreground">
-                              "{pub.monitoramento.termo_busca}"
-                            </span>
                           )}
                           {!pub.lida && (
                             <Badge variant="default" className="bg-primary">
