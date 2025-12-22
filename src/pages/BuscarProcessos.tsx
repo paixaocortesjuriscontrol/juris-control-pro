@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Search, Globe, FileSearch, Loader2, ExternalLink, CheckCircle, Filter } from "lucide-react";
+import { Search, Globe, FileSearch, Loader2, ExternalLink, CheckCircle, Filter, Building2 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCoordenacoes } from "@/hooks/useDashboardData";
 import {
   Select,
   SelectContent,
@@ -161,12 +162,16 @@ const BuscarProcessos = () => {
   const [nomeParte, setNomeParte] = useState("");
   const [oab, setOab] = useState("");
   const [uf, setUf] = useState("");
+  const [coordenacaoId, setCoordenacaoId] = useState("");
   
   // Results states
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [processosList, setProcessosList] = useState<ProcessoResult[]>([]);
   const [totalResults, setTotalResults] = useState(0);
+
+  // Coordenações para o filtro
+  const { data: coordenacoes } = useCoordenacoes();
 
   // Formatar número do processo no padrão CNJ
   const formatarNumeroProcesso = (valor: string) => {
@@ -202,6 +207,7 @@ const BuscarProcessos = () => {
     setNomeParte("");
     setOab("");
     setUf("");
+    setCoordenacaoId("");
     setSearchResult(null);
     setProcessosList([]);
     setTotalResults(0);
@@ -361,6 +367,24 @@ const BuscarProcessos = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {/* Coordenação */}
+              <div className="space-y-2">
+                <Label>Coordenação</Label>
+                <Select value={coordenacaoId || "__all__"} onValueChange={(val) => setCoordenacaoId(val === "__all__" ? "" : val)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a coordenação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todas</SelectItem>
+                    {coordenacoes?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Tribunal */}
               <div className="space-y-2">
                 <Label>Tribunal</Label>
