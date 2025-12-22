@@ -71,7 +71,12 @@ const AnaliseDjen = () => {
   const { data: coordenacoes } = useCoordenacoes();
   
   // Buscar monitoramentos para o filtro
-  const { monitoramentos } = useMonitoramentosDjen();
+  const { monitoramentos: todosMonitoramentos } = useMonitoramentosDjen();
+  
+  // Filtrar monitoramentos pela coordenação selecionada
+  const monitoramentos = coordenacaoId 
+    ? todosMonitoramentos?.filter(m => m.coordenacao_id === coordenacaoId)
+    : todosMonitoramentos;
 
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds);
@@ -262,10 +267,37 @@ const AnaliseDjen = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="space-y-2">
-                <Label>Monitoramento</Label>
-                <Select value={monitoramentoId || "__all__"} onValueChange={(val) => setMonitoramentoId(val === "__all__" ? "" : val)}>
+                <Label>Coordenação</Label>
+                <Select 
+                  value={coordenacaoId || "__all__"} 
+                  onValueChange={(val) => {
+                    setCoordenacaoId(val === "__all__" ? "" : val);
+                    setMonitoramentoId(""); // Limpar monitoramento ao mudar coordenação
+                  }}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
+                    <SelectValue placeholder="Selecione primeiro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todas</SelectItem>
+                    {coordenacoes?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Monitoramento</Label>
+                <Select 
+                  value={monitoramentoId || "__all__"} 
+                  onValueChange={(val) => setMonitoramentoId(val === "__all__" ? "" : val)}
+                  disabled={!coordenacaoId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={coordenacaoId ? "Todos" : "Selecione coordenação"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">Todos</SelectItem>
@@ -275,23 +307,6 @@ const AnaliseDjen = () => {
                           ? `OAB ${m.oab || ''} ${m.uf || ''}`
                           : m.termo_busca
                         }
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Coordenação</Label>
-                <Select value={coordenacaoId || "__all__"} onValueChange={(val) => setCoordenacaoId(val === "__all__" ? "" : val)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Todas</SelectItem>
-                    {coordenacoes?.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
