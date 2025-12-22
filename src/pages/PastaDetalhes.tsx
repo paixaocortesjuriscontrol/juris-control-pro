@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { useParams, useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,28 @@ export default function PastaDetalhes() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
+
+  const handleDownload = useCallback(async (url: string, fileName: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Erro ao baixar arquivo");
+      
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Erro ao baixar:", error);
+      toast.error("Erro ao baixar o arquivo. Tente novamente.");
+    }
+  }, []);
 
   if (isLoading) {
     return (
@@ -320,7 +343,7 @@ export default function PastaDetalhes() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => window.open(doc.url!, "_blank")}
+                                onClick={() => handleDownload(doc.url!, doc.nome)}
                               >
                                 <Download className="h-4 w-4" />
                               </Button>
