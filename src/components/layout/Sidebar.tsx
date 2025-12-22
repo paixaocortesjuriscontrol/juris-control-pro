@@ -37,6 +37,7 @@ const menuItems = [
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
+  { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Newspaper, label: "Buscar PJE", path: "/buscar-pje" },
   { icon: Upload, label: "Importar Processos", path: "/importar" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
