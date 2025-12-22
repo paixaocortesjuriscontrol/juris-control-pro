@@ -37,12 +37,13 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
-async function searchDJEN(monitoramento: Monitoramento): Promise<any[]> {
+async function searchDJEN(monitoramento: Monitoramento): Promise<{ items: any[], dataAtual: string }> {
   const results: any[] = [];
+  const dataAtual = new Date().toISOString().split('T')[0];
   
   // Handle multiple UFs for advogado type
   if (monitoramento.tipo === "advogado") {
-    if (!monitoramento.oab) return [];
+    if (!monitoramento.oab) return { items: [], dataAtual };
     
     const ufsToSearch = monitoramento.uf === 'TODAS' 
       ? ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO']
@@ -52,7 +53,7 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<any[]> {
       const ufResults = await searchDJENByAdvogado(monitoramento.oab, uf.trim(), monitoramento.id);
       results.push(...ufResults);
     }
-    return results;
+    return { items: results, dataAtual };
   }
   
   // Other types (palavra-chave, processo)
@@ -66,10 +67,11 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<any[]> {
       searchText = monitoramento.termo_busca.replace(/\D/g, '');
       break;
     default:
-      return [];
+      return { items: [], dataAtual };
   }
 
-  return await fetchDJENResults(searchText, monitoramento.id);
+  const items = await fetchDJENResults(searchText, monitoramento.id);
+  return { items, dataAtual };
 }
 
 async function searchDJENByAdvogado(oab: string, uf: string, monitoramentoId: string): Promise<any[]> {
@@ -174,12 +176,18 @@ serve(async (req) => {
     let totalNewPublications = 0;
 
     for (const monitoramento of monitoramentos || []) {
-      const publications = await searchDJEN(monitoramento);
+      const { items: publications, dataAtual } = await searchDJEN(monitoramento);
       console.log(`Found ${publications.length} publications for monitoramento ${monitoramento.id}`);
 
       for (const pub of publications) {
         const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
         const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
+
+        // Extract date from various possible field names in the API response
+        // Also use the current date as fallback (date we searched for)
+        const dataPublicacao = pub.dataPublicacao || pub.dataDisponibilizacao || pub.dataDJe || pub.dataJornal || pub.data || dataAtual;
+        
+        console.log(`Processing publication - date fields: dataPublicacao=${pub.dataPublicacao}, dataDisponibilizacao=${pub.dataDisponibilizacao}, dataDJe=${pub.dataDJe}, using: ${dataPublicacao}`);
 
         // Try to insert (will fail if duplicate due to unique constraint)
         const { error: insertError } = await supabase
@@ -187,7 +195,7 @@ serve(async (req) => {
           .insert({
             monitoramento_id: monitoramento.id,
             hash_conteudo: hashConteudo,
-            data_publicacao: pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || null,
+            data_publicacao: dataPublicacao,
             processo_numero: pub.numeroProcesso || pub.processo || null,
             conteudo: conteudo.substring(0, 10000),
             fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
