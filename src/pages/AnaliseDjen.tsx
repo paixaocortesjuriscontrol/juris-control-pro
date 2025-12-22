@@ -452,10 +452,12 @@ const AnaliseDjen = () => {
                         )}
 
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>Capturado: {formatDate(pub.created_at)}</span>
                           {pub.data_publicacao && (
-                            <span>Publicado: {formatDate(pub.data_publicacao)}</span>
+                            <span className="font-medium text-foreground">
+                              DJEN: {formatDate(pub.data_publicacao)}
+                            </span>
                           )}
+                          <span>Capturado: {formatDate(pub.created_at)}</span>
                           {pub.fonte && <span>Fonte: {pub.fonte}</span>}
                         </div>
                       </div>
