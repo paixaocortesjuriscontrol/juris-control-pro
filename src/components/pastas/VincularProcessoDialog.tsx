@@ -3,6 +3,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -11,9 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Search, Scale } from "lucide-react";
 import { useProcessos } from "@/hooks/useProcessos";
-import { useVincularProcessoPasta } from "@/hooks/usePastas";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 interface VincularProcessoDialogProps {
   open: boolean;
@@ -27,8 +31,10 @@ export function VincularProcessoDialog({
   pastaId,
 }: VincularProcessoDialogProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: processos, isLoading } = useProcessos();
-  const vincularProcesso = useVincularProcessoPasta();
+  const queryClient = useQueryClient();
 
   // Filter processes not already linked to any folder
   const availableProcessos = processos?.filter(
@@ -37,26 +43,82 @@ export function VincularProcessoDialog({
      p.assunto?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const handleVincular = async (processoId: string) => {
-    await vincularProcesso.mutateAsync({ processoId, pastaId });
-    onOpenChange(false);
-    setSearchQuery("");
+  const handleToggleSelect = (processoId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(processoId)
+        ? prev.filter((id) => id !== processoId)
+        : [...prev, processoId]
+    );
   };
 
+  const handleSelectAll = () => {
+    if (!availableProcessos) return;
+    
+    const allIds = availableProcessos.map((p) => p.id);
+    const allSelected = allIds.every((id) => selectedIds.includes(id));
+    
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(allIds);
+    }
+  };
+
+  const handleVincular = async () => {
+    if (selectedIds.length === 0) {
+      toast.error("Selecione pelo menos um processo");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from("processos")
+        .update({ pasta_id: pastaId })
+        .in("id", selectedIds);
+
+      if (error) throw error;
+
+      toast.success(`${selectedIds.length} processo(s) vinculado(s) com sucesso`);
+      queryClient.invalidateQueries({ queryKey: ["pastas"] });
+      queryClient.invalidateQueries({ queryKey: ["processos"] });
+      queryClient.invalidateQueries({ queryKey: ["pasta", pastaId] });
+      onOpenChange(false);
+      setSelectedIds([]);
+      setSearchQuery("");
+    } catch (error) {
+      console.error("Erro ao vincular processos:", error);
+      toast.error("Erro ao vincular processos");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleClose = (isOpen: boolean) => {
+    if (!isOpen) {
+      setSelectedIds([]);
+      setSearchQuery("");
+    }
+    onOpenChange(isOpen);
+  };
+
+  const allSelected = availableProcessos?.length 
+    ? availableProcessos.every((p) => selectedIds.includes(p.id))
+    : false;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Vincular Processo</DialogTitle>
+          <DialogTitle>Vincular Processos</DialogTitle>
           <DialogDescription>
-            Selecione um processo disponível para vincular a esta pasta.
+            Selecione os processos que deseja vincular a esta pasta.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 flex-1 min-h-0">
-          <div className="space-y-2">
-            <Label>Buscar processo</Label>
-            <div className="relative">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={searchQuery}
@@ -65,9 +127,19 @@ export function VincularProcessoDialog({
                 className="pl-9"
               />
             </div>
+            {availableProcessos && availableProcessos.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAll}
+              >
+                {allSelected ? "Desmarcar todos" : "Selecionar todos"}
+              </Button>
+            )}
           </div>
 
-          <ScrollArea className="flex-1 min-h-0 border rounded-lg">
+          <ScrollArea className="flex-1 min-h-0 max-h-[300px] border rounded-lg">
             {isLoading ? (
               <div className="flex items-center justify-center h-[200px]">
                 <Loader2 className="h-6 w-6 animate-spin" />
@@ -86,8 +158,14 @@ export function VincularProcessoDialog({
                 {availableProcessos?.map((processo) => (
                   <div
                     key={processo.id}
-                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors gap-3"
+                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => handleToggleSelect(processo.id)}
                   >
+                    <Checkbox
+                      checked={selectedIds.includes(processo.id)}
+                      onCheckedChange={() => handleToggleSelect(processo.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="font-mono text-sm font-medium truncate">
                         {processo.numero}
@@ -104,24 +182,41 @@ export function VincularProcessoDialog({
                         </Badge>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => handleVincular(processo.id)}
-                      disabled={vincularProcesso.isPending}
-                      className="shrink-0"
-                    >
-                      {vincularProcesso.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        "Vincular"
-                      )}
-                    </Button>
                   </div>
                 ))}
               </div>
             )}
           </ScrollArea>
+
+          {selectedIds.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {selectedIds.length} processo(s) selecionado(s)
+            </p>
+          )}
         </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => handleClose(false)}
+            disabled={isSubmitting}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleVincular}
+            disabled={isSubmitting || selectedIds.length === 0}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Vinculando...
+              </>
+            ) : (
+              `Vincular ${selectedIds.length > 0 ? `(${selectedIds.length})` : ""}`
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
