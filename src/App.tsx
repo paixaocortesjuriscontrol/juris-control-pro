@@ -28,6 +28,8 @@ import MonitoramentoDistribuicao from "./pages/MonitoramentoDistribuicao";
 import Monitoramento360 from "./pages/Monitoramento360";
 import MinhaCarteira from "./pages/MinhaCarteira";
 import AnaliseDjen from "./pages/AnaliseDjen";
+import Pastas from "./pages/Pastas";
+import PastaDetalhes from "./pages/PastaDetalhes";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +63,8 @@ const App = () => (
             <Route path="/redistribuicoes" element={<ProtectedRoute><Redistribuicoes /></ProtectedRoute>} />
             <Route path="/monitoramento-distribuicao" element={<ProtectedRoute><MonitoramentoDistribuicao /></ProtectedRoute>} />
             <Route path="/monitoramento-360" element={<ProtectedRoute><Monitoramento360 /></ProtectedRoute>} />
+            <Route path="/pastas" element={<ProtectedRoute><Pastas /></ProtectedRoute>} />
+            <Route path="/pastas/:id" element={<ProtectedRoute><PastaDetalhes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

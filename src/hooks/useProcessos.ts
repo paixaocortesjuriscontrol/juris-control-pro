@@ -21,6 +21,7 @@ export function useProcessos() {
           valor_causa,
           data_distribuicao,
           coordenacao_id,
+          pasta_id,
           created_at,
           advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
           cliente:clientes!processos_cliente_id_fkey(id, nome, tipo)
