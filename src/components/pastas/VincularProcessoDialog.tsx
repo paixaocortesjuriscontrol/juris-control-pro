@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -44,12 +45,15 @@ export function VincularProcessoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Vincular Processo</DialogTitle>
+          <DialogDescription>
+            Selecione um processo disponível para vincular a esta pasta.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4 flex-1 min-h-0">
           <div className="space-y-2">
             <Label>Buscar processo</Label>
             <div className="relative">
@@ -63,13 +67,13 @@ export function VincularProcessoDialog({
             </div>
           </div>
 
-          <ScrollArea className="h-[300px] border rounded-lg">
+          <ScrollArea className="flex-1 min-h-0 border rounded-lg">
             {isLoading ? (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex items-center justify-center h-[200px]">
                 <Loader2 className="h-6 w-6 animate-spin" />
               </div>
             ) : availableProcessos?.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center p-4">
+              <div className="flex flex-col items-center justify-center h-[200px] text-center p-4">
                 <Scale className="h-12 w-12 text-muted-foreground mb-2" />
                 <p className="text-muted-foreground">
                   {searchQuery
@@ -82,7 +86,7 @@ export function VincularProcessoDialog({
                 {availableProcessos?.map((processo) => (
                   <div
                     key={processo.id}
-                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors gap-3"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-mono text-sm font-medium truncate">
@@ -91,7 +95,7 @@ export function VincularProcessoDialog({
                       <p className="text-sm text-muted-foreground truncate">
                         {processo.assunto || "Sem assunto"}
                       </p>
-                      <div className="flex gap-2 mt-1">
+                      <div className="flex flex-wrap gap-1 mt-1">
                         <Badge variant="outline" className="text-xs">
                           {processo.area}
                         </Badge>
@@ -104,6 +108,7 @@ export function VincularProcessoDialog({
                       size="sm"
                       onClick={() => handleVincular(processo.id)}
                       disabled={vincularProcesso.isPending}
+                      className="shrink-0"
                     >
                       {vincularProcesso.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
