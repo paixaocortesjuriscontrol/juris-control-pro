@@ -1,21 +1,14 @@
-import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { User, Bell, Shield, Palette, Building2 } from "lucide-react";
+import { User, Bell, Shield, Palette } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
 import { MonitoramentoDjenCard } from "@/components/configuracoes/MonitoramentoDjenCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
-import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 
 export default function Configuracoes() {
-  const { data: coordenacoes = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
-  const [coordenacaoSelecionada, setCoordenacaoSelecionada] = useState<string | null>(null);
-
   return (
     <MainLayout title="Configurações" subtitle="Gerencie as configurações do sistema">
       <div className="space-y-8">
@@ -23,63 +16,13 @@ export default function Configuracoes() {
         <div>
           <h2 className="text-lg font-semibold mb-4">Monitoramento Automático</h2>
           
-          {/* Seletor de Coordenação */}
-          <Card className="mb-6">
-            <CardHeader className="flex flex-row items-center gap-4">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Building2 className="h-6 w-6 text-primary" />
-              </div>
-              <div className="flex-1">
-                <CardTitle className="text-lg">Coordenação</CardTitle>
-                <CardDescription>
-                  Selecione a coordenação para configurar o monitoramento
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Label htmlFor="coordenacao">Coordenação</Label>
-                <Select 
-                  value={coordenacaoSelecionada || ''} 
-                  onValueChange={(value) => setCoordenacaoSelecionada(value || null)}
-                  disabled={loadingCoordenacoes}
-                >
-                  <SelectTrigger id="coordenacao">
-                    <SelectValue placeholder="Selecione uma coordenação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {coordenacoes.map((coord) => (
-                      <SelectItem key={coord.id} value={coord.id}>
-                        {coord.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Cards de Monitoramento */}
-          {coordenacaoSelecionada ? (
-            <div className="grid gap-6 md:grid-cols-2">
-              <MonitoramentoRedistribuicoesCard coordenacaoId={coordenacaoSelecionada} />
-              <MonitoramentoAndamentosCard coordenacaoId={coordenacaoSelecionada} />
-              <MonitoramentoDistribuicoesCard coordenacaoId={coordenacaoSelecionada} />
-              <MonitoramentoDjenCard coordenacaoId={coordenacaoSelecionada} />
-            </div>
-          ) : (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium text-muted-foreground">
-                  Selecione uma coordenação
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Escolha uma coordenação acima para configurar o monitoramento
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          {/* Cards de Monitoramento - sempre visíveis */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <MonitoramentoRedistribuicoesCard coordenacaoId="" />
+            <MonitoramentoAndamentosCard coordenacaoId="" />
+            <MonitoramentoDistribuicoesCard coordenacaoId="" />
+            <MonitoramentoDjenCard coordenacaoId="" />
+          </div>
         </div>
 
         {/* Seção de Relatório de Monitoramento */}
