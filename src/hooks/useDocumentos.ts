@@ -9,6 +9,7 @@ export type Documento = {
   url: string | null;
   tamanho_bytes: number | null;
   processo_id: string | null;
+  pasta_id: string | null;
   uploaded_by: string | null;
   created_at: string;
   processo: {
@@ -35,6 +36,7 @@ export function useDocumentos() {
           url,
           tamanho_bytes,
           processo_id,
+          pasta_id,
           uploaded_by,
           created_at,
           processo:processos!documentos_processo_id_fkey(id, numero, assunto),

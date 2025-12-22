@@ -379,6 +379,7 @@ export type Database = {
           created_at: string
           id: string
           nome: string
+          pasta_id: string | null
           processo_id: string | null
           tamanho_bytes: number | null
           tipo: string | null
@@ -389,6 +390,7 @@ export type Database = {
           created_at?: string
           id?: string
           nome: string
+          pasta_id?: string | null
           processo_id?: string | null
           tamanho_bytes?: number | null
           tipo?: string | null
@@ -399,6 +401,7 @@ export type Database = {
           created_at?: string
           id?: string
           nome?: string
+          pasta_id?: string | null
           processo_id?: string | null
           tamanho_bytes?: number | null
           tipo?: string | null
@@ -406,6 +409,13 @@ export type Database = {
           url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "documentos_pasta_id_fkey"
+            columns: ["pasta_id"]
+            isOneToOne: false
+            referencedRelation: "pastas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "documentos_processo_id_fkey"
             columns: ["processo_id"]
@@ -778,6 +788,57 @@ export type Database = {
           },
         ]
       }
+      pastas: {
+        Row: {
+          cliente_id: string | null
+          coordenacao_id: string | null
+          created_at: string
+          criado_por: string
+          descricao: string | null
+          id: string
+          nome: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cliente_id?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          criado_por: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cliente_id?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          criado_por?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pastas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pastas_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prazos: {
         Row: {
           created_at: string
@@ -869,6 +930,7 @@ export type Database = {
           numero: string
           pasta_cliente: string | null
           pasta_fisica: string | null
+          pasta_id: string | null
           polo_ativo: string | null
           polo_passivo: string | null
           probabilidade: string | null
@@ -908,6 +970,7 @@ export type Database = {
           numero: string
           pasta_cliente?: string | null
           pasta_fisica?: string | null
+          pasta_id?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
           probabilidade?: string | null
@@ -947,6 +1010,7 @@ export type Database = {
           numero?: string
           pasta_cliente?: string | null
           pasta_fisica?: string | null
+          pasta_id?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
           probabilidade?: string | null
@@ -990,6 +1054,13 @@ export type Database = {
             columns: ["coordenacao_id"]
             isOneToOne: false
             referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processos_pasta_id_fkey"
+            columns: ["pasta_id"]
+            isOneToOne: false
+            referencedRelation: "pastas"
             referencedColumns: ["id"]
           },
         ]
