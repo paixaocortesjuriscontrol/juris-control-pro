@@ -1133,6 +1133,41 @@ export type Database = {
           },
         ]
       }
+      resumos_monitoramento_djen: {
+        Row: {
+          created_at: string
+          data_busca: string
+          id: string
+          monitoramento_id: string
+          publicacoes_incluidas: string[] | null
+          resumo: string
+        }
+        Insert: {
+          created_at?: string
+          data_busca?: string
+          id?: string
+          monitoramento_id: string
+          publicacoes_incluidas?: string[] | null
+          resumo: string
+        }
+        Update: {
+          created_at?: string
+          data_busca?: string
+          id?: string
+          monitoramento_id?: string
+          publicacoes_incluidas?: string[] | null
+          resumo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resumos_monitoramento_djen_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       termos_monitoramento: {
         Row: {
           ativo: boolean

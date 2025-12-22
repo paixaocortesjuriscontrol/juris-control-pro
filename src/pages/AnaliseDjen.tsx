@@ -2,13 +2,13 @@ import { useState } from "react";
 import {
   FileText,
   Filter,
-  Download,
   Eye,
   Import,
   Sparkles,
   CheckCircle,
   Loader2,
   Search,
+  Calendar,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,7 @@ const AnaliseDjen = () => {
   const [importCoordenacaoId, setImportCoordenacaoId] = useState<string>("");
   const [importing, setImporting] = useState(false);
   
-  const { publicacoes, isLoading, gerarResumoIA, marcarComoLida } = useAnaliseDjen({
+  const { publicacoes, isLoading, ultimoResumo, loadingResumo, gerarResumoIA, marcarComoLida } = useAnaliseDjen({
     coordenacaoId: coordenacaoId || undefined,
     monitoramentoId: monitoramentoId || undefined,
     dataInicio: dataInicio || undefined,
@@ -77,6 +77,9 @@ const AnaliseDjen = () => {
   const monitoramentos = coordenacaoId 
     ? todosMonitoramentos?.filter(m => m.coordenacao_id === coordenacaoId)
     : todosMonitoramentos;
+
+  // Encontrar o monitoramento selecionado para exibir nome
+  const monitoramentoSelecionado = monitoramentos?.find(m => m.id === monitoramentoId);
 
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds);
@@ -102,11 +105,11 @@ const AnaliseDjen = () => {
   };
 
   const handleGerarResumo = async () => {
-    if (selectedIds.size === 0) {
-      toast.error("Selecione ao menos uma publicação");
+    if (!monitoramentoId) {
+      toast.error("Selecione um monitoramento para gerar o resumo");
       return;
     }
-    await gerarResumoIA.mutateAsync(Array.from(selectedIds));
+    await gerarResumoIA.mutateAsync(monitoramentoId);
   };
 
   const handleMarcarLidas = async () => {
@@ -253,6 +256,13 @@ const AnaliseDjen = () => {
     }
   };
 
+  const getMonitoramentoLabel = () => {
+    if (!monitoramentoSelecionado) return "";
+    return monitoramentoSelecionado.tipo === 'advogado' 
+      ? `OAB ${monitoramentoSelecionado.oab || ''} ${monitoramentoSelecionado.uf || ''}`
+      : monitoramentoSelecionado.termo_busca;
+  };
+
   return (
     <MainLayout title="Análise DJEN" subtitle="Resultados dos monitoramentos com análise de IA">
       <div className="space-y-6">
@@ -358,6 +368,61 @@ const AnaliseDjen = () => {
           </CardContent>
         </Card>
 
+        {/* Resumo IA - Exibido ANTES das publicações quando há monitoramento selecionado */}
+        {monitoramentoId && (
+          <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2 text-green-800 dark:text-green-200">
+                  <Sparkles className="w-5 h-5" />
+                  Resumo IA - {getMonitoramentoLabel()}
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleGerarResumo}
+                  disabled={gerarResumoIA.isPending || publicacoes.length === 0}
+                  className="border-green-300 text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-300"
+                >
+                  {gerarResumoIA.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-2" />
+                  )}
+                  {ultimoResumo ? "Atualizar Resumo" : "Gerar Resumo"}
+                </Button>
+              </div>
+              {ultimoResumo && (
+                <CardDescription className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  Gerado em: {formatDate(ultimoResumo.data_busca)}
+                </CardDescription>
+              )}
+            </CardHeader>
+            <CardContent>
+              {loadingResumo ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+                </div>
+              ) : ultimoResumo ? (
+                <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-green-800 dark:prose-headings:text-green-200">
+                  <div className="whitespace-pre-wrap text-green-700 dark:text-green-300">
+                    {ultimoResumo.resumo}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-green-600 dark:text-green-400">
+                  <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>Nenhum resumo gerado ainda para este monitoramento.</p>
+                  <p className="text-sm mt-1">
+                    Clique em "Gerar Resumo" para analisar as {publicacoes.length} publicação(ões) com IA.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Actions */}
         <div className="flex flex-wrap gap-2">
           <Button
@@ -369,20 +434,6 @@ const AnaliseDjen = () => {
             {selectedIds.size === publicacoes.length && publicacoes.length > 0
               ? "Desmarcar Todos"
               : "Selecionar Todos"}
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleGerarResumo}
-            disabled={selectedIds.size === 0 || gerarResumoIA.isPending}
-          >
-            {gerarResumoIA.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <Sparkles className="w-4 h-4 mr-2" />
-            )}
-            Gerar Resumo IA
           </Button>
 
           <Button
@@ -467,12 +518,6 @@ const AnaliseDjen = () => {
                               Nova
                             </Badge>
                           )}
-                          {pub.resumo_ia && (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                              <Sparkles className="w-3 h-3 mr-1" />
-                              Resumo IA
-                            </Badge>
-                          )}
                         </div>
 
                         {pub.processo_numero && (
@@ -484,14 +529,6 @@ const AnaliseDjen = () => {
                         <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                           {pub.conteudo?.substring(0, 200) || "Sem conteúdo"}...
                         </p>
-
-                        {pub.resumo_ia && (
-                          <div className="bg-green-50 dark:bg-green-950/20 rounded p-2 mb-2">
-                            <p className="text-sm text-green-800 dark:text-green-200 line-clamp-2">
-                              <strong>Resumo IA:</strong> {pub.resumo_ia.substring(0, 150)}...
-                            </p>
-                          </div>
-                        )}
 
                         <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                           <span>
@@ -545,21 +582,6 @@ const AnaliseDjen = () => {
                     <Badge variant="secondary">{selectedPublicacao.fonte}</Badge>
                   )}
                 </div>
-
-                {selectedPublicacao?.resumo_ia && (
-                  <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-4">
-                    <h4 className="font-medium text-green-800 dark:text-green-200 flex items-center gap-2 mb-2">
-                      <Sparkles className="w-4 h-4" />
-                      Resumo da IA
-                    </h4>
-                    <p className="text-sm text-green-700 dark:text-green-300 whitespace-pre-wrap">
-                      {selectedPublicacao.resumo_ia}
-                    </p>
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                      Gerado em: {formatDate(selectedPublicacao.resumo_gerado_em)}
-                    </p>
-                  </div>
-                )}
 
                 <div>
                   <h4 className="font-medium mb-2">Conteúdo Original</h4>
