@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
 interface Movimento {
-  data: string;
+  dataHora?: string;
+  data?: string;
   nome: string;
   complemento?: string;
   codigo?: number;
@@ -31,12 +32,13 @@ export async function buscarAndamentosExternos(
       return { success: false, movimentosInseridos: 0, error: error.message };
     }
 
-    if (!data?.found || !data?.movimentos || data.movimentos.length === 0) {
+    // API returns 'movimentacoes', not 'movimentos'
+    const movimentos: Movimento[] = data?.movimentacoes || data?.movimentos || [];
+    
+    if (!data?.found || movimentos.length === 0) {
       console.log("Nenhum andamento encontrado na API externa");
       return { success: true, movimentosInseridos: 0 };
     }
-
-    const movimentos: Movimento[] = data.movimentos;
 
     // Get existing movements to avoid duplicates
     const { data: existingMovs } = await supabase
@@ -55,8 +57,10 @@ export async function buscarAndamentosExternos(
         if (mov.complemento) {
           descricaoCompleta = `${descricaoCompleta} - ${mov.complemento}`;
         }
-        const dataMovimentacao = mov.data || new Date().toISOString();
-        
+        // API returns dataHora (preferred) or data field
+        const dataMovimentacao = mov.dataHora 
+          ? new Date(mov.dataHora).toISOString().split("T")[0] 
+          : (mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]);
         return {
           processo_id: processoId,
           descricao: descricaoCompleta,
