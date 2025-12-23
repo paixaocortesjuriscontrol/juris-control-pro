@@ -27,16 +27,28 @@ export async function buscarAndamentosExternos(
       body: { numeroProcesso },
     });
 
+    // When edge function returns 4xx/5xx, the error contains the response
     if (error) {
-      console.error("Erro ao consultar API externa:", error);
-      return { success: false, movimentosInseridos: 0, error: error.message };
+      // Extract error message from the response if available
+      let errorMessage = error.message;
+      try {
+        // For FunctionsHttpError, the context contains the response body
+        if (error.context) {
+          const errorBody = await error.context.json();
+          errorMessage = errorBody?.error || error.message;
+        }
+      } catch {
+        // If we can't parse the error, use the default message
+      }
+      
+      console.warn("API retornou erro (continuando importação):", errorMessage);
+      // Return success: true but 0 movements - allows import to continue without blocking
+      return { success: true, movimentosInseridos: 0, error: errorMessage };
     }
 
-    // Check if the API returned an error in the response body
+    // Check if the API returned an error in the response body (for 200 responses with error)
     if (data?.error) {
-      console.warn("API retornou erro:", data.error);
-      // Return success: true but 0 movements - the process was found but tribunal couldn't be identified
-      // This allows the import to continue without blocking
+      console.warn("API retornou erro no body:", data.error);
       return { success: true, movimentosInseridos: 0, error: data.error };
     }
 
