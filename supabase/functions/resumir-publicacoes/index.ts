@@ -28,10 +28,6 @@ serve(async (req) => {
       );
     }
 
-    if (!monitoramentoId) {
-      throw new Error('ID do monitoramento é obrigatório');
-    }
-
     // Prepare content for summarization
     const publicacoesText = publicacoes.map((pub: any, index: number) => {
       return `Publicação ${index + 1}:
@@ -99,28 +95,32 @@ Seja preciso ao extrair números de processos e prazos. Use formatação markdow
 
     console.log('Resumo gerado com sucesso');
 
-    // Salvar resumo na nova tabela
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseClient = createClient(supabaseUrl, supabaseKey);
+    // Salvar resumo na tabela apenas se monitoramentoId foi fornecido
+    if (monitoramentoId) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
-    const publicacaoIds = publicacoes.map((p: any) => p.id).filter(Boolean);
+      const publicacaoIds = publicacoes.map((p: any) => p.id).filter(Boolean);
 
-    const { error: insertError } = await supabaseClient
-      .from('resumos_monitoramento_djen')
-      .insert({
-        monitoramento_id: monitoramentoId,
-        resumo: resumo,
-        data_busca: new Date().toISOString(),
-        publicacoes_incluidas: publicacaoIds,
-      });
+      const { error: insertError } = await supabaseClient
+        .from('resumos_monitoramento_djen')
+        .insert({
+          monitoramento_id: monitoramentoId,
+          resumo: resumo,
+          data_busca: new Date().toISOString(),
+          publicacoes_incluidas: publicacaoIds,
+        });
 
-    if (insertError) {
-      console.error('Erro ao salvar resumo:', insertError);
-      throw new Error('Erro ao salvar resumo no banco');
+      if (insertError) {
+        console.error('Erro ao salvar resumo:', insertError);
+        throw new Error('Erro ao salvar resumo no banco');
+      }
+
+      console.log('Resumo salvo na tabela resumos_monitoramento_djen');
+    } else {
+      console.log('Resumo gerado sem salvar (busca manual sem monitoramento)');
     }
-
-    console.log('Resumo salvo na tabela resumos_monitoramento_djen');
 
     return new Response(
       JSON.stringify({ resumo, totalPublicacoes: publicacoes.length }),
