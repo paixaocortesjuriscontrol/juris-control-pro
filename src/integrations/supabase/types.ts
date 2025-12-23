@@ -605,37 +605,49 @@ export type Database = {
       monitoramentos_djen: {
         Row: {
           ativo: boolean
+          condicao_concomitante: string | null
           coordenacao_id: string | null
           created_at: string
           criado_por: string
+          descricao: string | null
+          exclusoes: string[] | null
           id: string
           oab: string | null
           termo_busca: string
           tipo: string
+          tribunais: string[] | null
           uf: string | null
           updated_at: string
         }
         Insert: {
           ativo?: boolean
+          condicao_concomitante?: string | null
           coordenacao_id?: string | null
           created_at?: string
           criado_por: string
+          descricao?: string | null
+          exclusoes?: string[] | null
           id?: string
           oab?: string | null
           termo_busca: string
           tipo: string
+          tribunais?: string[] | null
           uf?: string | null
           updated_at?: string
         }
         Update: {
           ativo?: boolean
+          condicao_concomitante?: string | null
           coordenacao_id?: string | null
           created_at?: string
           criado_por?: string
+          descricao?: string | null
+          exclusoes?: string[] | null
           id?: string
           oab?: string | null
           termo_busca?: string
           tipo?: string
+          tribunais?: string[] | null
           uf?: string | null
           updated_at?: string
         }
@@ -1118,6 +1130,7 @@ export type Database = {
           fonte: string | null
           hash_conteudo: string
           id: string
+          importada_de_descartada: boolean | null
           lida: boolean
           monitoramento_id: string
           processo_numero: string | null
@@ -1131,6 +1144,7 @@ export type Database = {
           fonte?: string | null
           hash_conteudo: string
           id?: string
+          importada_de_descartada?: boolean | null
           lida?: boolean
           monitoramento_id: string
           processo_numero?: string | null
@@ -1144,6 +1158,7 @@ export type Database = {
           fonte?: string | null
           hash_conteudo?: string
           id?: string
+          importada_de_descartada?: boolean | null
           lida?: boolean
           monitoramento_id?: string
           processo_numero?: string | null
@@ -1156,6 +1171,89 @@ export type Database = {
             columns: ["monitoramento_id"]
             isOneToOne: false
             referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publicacoes_djen_descartadas: {
+        Row: {
+          conteudo: string | null
+          created_at: string
+          data_publicacao: string | null
+          fonte: string | null
+          hash_conteudo: string
+          id: string
+          monitoramento_id: string
+          motivo_descarte: string
+          processo_numero: string | null
+        }
+        Insert: {
+          conteudo?: string | null
+          created_at?: string
+          data_publicacao?: string | null
+          fonte?: string | null
+          hash_conteudo: string
+          id?: string
+          monitoramento_id: string
+          motivo_descarte: string
+          processo_numero?: string | null
+        }
+        Update: {
+          conteudo?: string | null
+          created_at?: string
+          data_publicacao?: string | null
+          fonte?: string | null
+          hash_conteudo?: string
+          id?: string
+          monitoramento_id?: string
+          motivo_descarte?: string
+          processo_numero?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_djen_descartadas_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publicacoes_djen_global_hash: {
+        Row: {
+          created_at: string
+          hash_global: string
+          id: string
+          primeiro_monitoramento_id: string
+          publicacao_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          hash_global: string
+          id?: string
+          primeiro_monitoramento_id: string
+          publicacao_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          hash_global?: string
+          id?: string
+          primeiro_monitoramento_id?: string
+          publicacao_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_djen_global_hash_primeiro_monitoramento_id_fkey"
+            columns: ["primeiro_monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publicacoes_djen_global_hash_publicacao_id_fkey"
+            columns: ["publicacao_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_djen"
             referencedColumns: ["id"]
           },
         ]
