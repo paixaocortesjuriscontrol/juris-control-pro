@@ -15,6 +15,12 @@ interface Monitoramento {
   oab?: string;
   uf?: string;
   criado_por: string;
+  coordenacao_id?: string;
+  // Novos campos avançados
+  exclusoes?: string[];
+  condicao_concomitante?: string;
+  tribunais?: string[];
+  descricao?: string;
 }
 
 // Browser-like headers to avoid blocking
@@ -37,22 +43,64 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
+// Generate global hash for deduplication across monitoramentos
+function generateGlobalHash(conteudo: string, dataPublicacao: string): string {
+  // Use content + date to create unique global identifier
+  const normalized = (conteudo + dataPublicacao).toLowerCase().replace(/\s+/g, ' ').trim();
+  return generateHash(normalized);
+}
+
+// Check if content should be excluded based on exclusion criteria
+function shouldExclude(conteudo: string, exclusoes: string[]): string | null {
+  if (!exclusoes || exclusoes.length === 0) return null;
+  
+  const conteudoUpper = conteudo.toUpperCase();
+  for (const termo of exclusoes) {
+    if (conteudoUpper.includes(termo.toUpperCase())) {
+      return termo;
+    }
+  }
+  return null;
+}
+
+// Check if content matches concomitant condition
+function matchesCondicaoConcomitante(conteudo: string, condicao: string | undefined): boolean {
+  if (!condicao) return true; // No condition = always match
+  
+  const conteudoUpper = conteudo.toUpperCase();
+  // Condition can have multiple terms separated by comma - ALL must match
+  const termos = condicao.split(',').map(t => t.trim().toUpperCase());
+  
+  return termos.every(termo => conteudoUpper.includes(termo));
+}
+
 async function searchDJEN(monitoramento: Monitoramento): Promise<{ items: any[], dataAtual: string }> {
   const results: any[] = [];
   const dataAtual = new Date().toISOString().split('T')[0];
   
   // Handle multiple UFs for advogado type
   if (monitoramento.tipo === "advogado") {
-    if (!monitoramento.oab) return { items: [], dataAtual };
+    // Can search by OAB or by name
+    const searchTerms: string[] = [];
     
-    const ufsToSearch = monitoramento.uf === 'TODAS' 
-      ? ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO']
-      : (monitoramento.uf?.split(',') || []);
-    
-    for (const uf of ufsToSearch) {
-      const ufResults = await searchDJENByAdvogado(monitoramento.oab, uf.trim(), monitoramento.id);
-      results.push(...ufResults);
+    if (monitoramento.oab) {
+      const ufsToSearch = monitoramento.uf === 'TODAS' 
+        ? ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO']
+        : (monitoramento.uf?.split(',') || ['DF']);
+      
+      for (const uf of ufsToSearch) {
+        const searchText = `OAB ${monitoramento.oab} ${uf.toUpperCase()}`;
+        const ufResults = await fetchDJENResults(searchText, monitoramento.id);
+        results.push(...ufResults);
+      }
     }
+    
+    // Also search by name if provided (in addition to OAB)
+    if (monitoramento.termo_busca && monitoramento.termo_busca !== monitoramento.oab) {
+      const nameResults = await fetchDJENResults(monitoramento.termo_busca, monitoramento.id);
+      results.push(...nameResults);
+    }
+    
     return { items: results, dataAtual };
   }
   
@@ -74,12 +122,6 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<{ items: any[],
   return { items, dataAtual };
 }
 
-async function searchDJENByAdvogado(oab: string, uf: string, monitoramentoId: string): Promise<any[]> {
-  // Use the same format as buscar-djen: "OAB {number} {uf}"
-  const searchText = `OAB ${oab} ${uf.toUpperCase()}`;
-  return await fetchDJENResults(searchText, monitoramentoId);
-}
-
 async function fetchDJENResults(searchText: string, monitoramentoId: string): Promise<any[]> {
   // Use current date as both start and end date
   const dataAtual = new Date().toISOString().split('T')[0];
@@ -89,7 +131,7 @@ async function fetchDJENResults(searchText: string, monitoramentoId: string): Pr
   queryParams.append("dataDisponibilizacaoInicio", dataAtual);
   queryParams.append("dataDisponibilizacaoFim", dataAtual);
   
-  // Try multiple possible API endpoints (same as buscar-djen)
+  // Try multiple possible API endpoints
   const endpoints = [
     `${PJE_COMUNICA_API}/comunicacao/consulta`,
     `${PJE_COMUNICA_API}/comunicacoes`,
@@ -158,7 +200,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Starting DJEN monitoring job...");
+    console.log("Starting DJEN monitoring job with advanced filters...");
 
     // Fetch all active monitoramentos
     const { data: monitoramentos, error: fetchError } = await supabase
@@ -174,23 +216,72 @@ serve(async (req) => {
     console.log(`Found ${monitoramentos?.length || 0} active monitoramentos`);
 
     let totalNewPublications = 0;
+    let totalDescartadas = 0;
+    let totalDuplicatasGlobais = 0;
 
     for (const monitoramento of monitoramentos || []) {
       const { items: publications, dataAtual } = await searchDJEN(monitoramento);
-      console.log(`Found ${publications.length} publications for monitoramento ${monitoramento.id}`);
+      console.log(`Found ${publications.length} publications for monitoramento ${monitoramento.id} (${monitoramento.termo_busca})`);
 
       for (const pub of publications) {
         const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
         const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
-
-        // Extract date from various possible field names in the API response
-        // Also use the current date as fallback (date we searched for)
         const dataPublicacao = pub.dataPublicacao || pub.dataDisponibilizacao || pub.dataDJe || pub.dataJornal || pub.data || dataAtual;
-        
-        console.log(`Processing publication - date fields: dataPublicacao=${pub.dataPublicacao}, dataDisponibilizacao=${pub.dataDisponibilizacao}, dataDJe=${pub.dataDJe}, using: ${dataPublicacao}`);
 
-        // Try to insert (will fail if duplicate due to unique constraint)
-        const { error: insertError } = await supabase
+        // 1. Check global deduplication first
+        const globalHash = generateGlobalHash(conteudo, dataPublicacao);
+        const { data: existingGlobal } = await supabase
+          .from('publicacoes_djen_global_hash')
+          .select('id')
+          .eq('hash_global', globalHash)
+          .maybeSingle();
+
+        if (existingGlobal) {
+          console.log(`Skipping duplicate publication (already captured by another monitoramento)`);
+          totalDuplicatasGlobais++;
+          continue;
+        }
+
+        // 2. Check concomitant condition
+        if (!matchesCondicaoConcomitante(conteudo, monitoramento.condicao_concomitante)) {
+          console.log(`Publication does not match concomitant condition: ${monitoramento.condicao_concomitante}`);
+          continue;
+        }
+
+        // 3. Check exclusion criteria
+        const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
+        
+        if (motivoExclusao) {
+          console.log(`Publication excluded by term: ${motivoExclusao}`);
+          
+          // Insert into descartadas table
+          const { error: descartadaError } = await supabase
+            .from('publicacoes_djen_descartadas')
+            .insert({
+              monitoramento_id: monitoramento.id,
+              hash_conteudo: hashConteudo,
+              data_publicacao: dataPublicacao,
+              processo_numero: pub.numeroProcesso || pub.processo || null,
+              conteudo: conteudo.substring(0, 10000),
+              fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
+              motivo_descarte: `Termo de exclusão encontrado: ${motivoExclusao}`,
+            });
+
+          if (!descartadaError) {
+            totalDescartadas++;
+            
+            // Register in global hash to avoid duplicates (ignore if exists)
+            await supabase.from('publicacoes_djen_global_hash').upsert({
+              hash_global: globalHash,
+              primeiro_monitoramento_id: monitoramento.id,
+            }, { onConflict: 'hash_global', ignoreDuplicates: true });
+          }
+          
+          continue;
+        }
+
+        // 4. Insert valid publication
+        const { data: insertedPub, error: insertError } = await supabase
           .from('publicacoes_djen')
           .insert({
             monitoramento_id: monitoramento.id,
@@ -199,10 +290,19 @@ serve(async (req) => {
             processo_numero: pub.numeroProcesso || pub.processo || null,
             conteudo: conteudo.substring(0, 10000),
             fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
-          });
+          })
+          .select('id')
+          .single();
 
-        if (!insertError) {
+        if (!insertError && insertedPub) {
           totalNewPublications++;
+          
+          // Register in global hash (ignore if exists)
+          await supabase.from('publicacoes_djen_global_hash').upsert({
+            hash_global: globalHash,
+            primeiro_monitoramento_id: monitoramento.id,
+            publicacao_id: insertedPub.id,
+          }, { onConflict: 'hash_global', ignoreDuplicates: true });
           
           // Get users to notify (creator + admins + coordinators)
           const usersToNotify: string[] = [monitoramento.criado_por];
@@ -217,6 +317,20 @@ serve(async (req) => {
               usersToNotify.push(u.user_id);
             }
           });
+
+          // If has coordenacao, notify members
+          if (monitoramento.coordenacao_id) {
+            const { data: membros } = await supabase
+              .from('membros_coordenacao')
+              .select('usuario_id')
+              .eq('coordenacao_id', monitoramento.coordenacao_id);
+            
+            membros?.forEach((m: any) => {
+              if (!usersToNotify.includes(m.usuario_id)) {
+                usersToNotify.push(m.usuario_id);
+              }
+            });
+          }
 
           // Create notifications for all users
           for (const userId of usersToNotify) {
@@ -246,17 +360,21 @@ serve(async (req) => {
           last_complete_run: new Date().toISOString(),
           monitoramentos_processados: monitoramentos?.length || 0,
           novas_publicacoes: totalNewPublications,
+          descartadas: totalDescartadas,
+          duplicatas_globais: totalDuplicatasGlobais,
         }
       })
       .eq('tipo', 'djen');
 
-    console.log(`Monitoring complete. ${totalNewPublications} new publications found.`);
+    console.log(`Monitoring complete. ${totalNewPublications} new, ${totalDescartadas} discarded, ${totalDuplicatasGlobais} global duplicates.`);
 
     return new Response(
       JSON.stringify({
         success: true,
         monitoramentosProcessados: monitoramentos?.length || 0,
         novasPublicacoes: totalNewPublications,
+        descartadas: totalDescartadas,
+        duplicatasGlobais: totalDuplicatasGlobais,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

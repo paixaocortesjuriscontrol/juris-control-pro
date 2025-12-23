@@ -14,6 +14,11 @@ export interface MonitoramentoDjen {
   criado_por: string;
   created_at: string;
   updated_at: string;
+  // Novos campos avançados
+  descricao?: string;
+  exclusoes?: string[];
+  condicao_concomitante?: string;
+  tribunais?: string[];
 }
 
 export interface PublicacaoDjen {
@@ -25,6 +30,19 @@ export interface PublicacaoDjen {
   conteudo: string | null;
   fonte: string | null;
   lida: boolean;
+  created_at: string;
+  importada_de_descartada?: boolean;
+}
+
+export interface PublicacaoDescartada {
+  id: string;
+  monitoramento_id: string;
+  hash_conteudo: string;
+  data_publicacao: string | null;
+  processo_numero: string | null;
+  conteudo: string | null;
+  fonte: string | null;
+  motivo_descarte: string;
   created_at: string;
 }
 
@@ -61,6 +79,23 @@ export function useMonitoramentosDjen() {
 
       if (error) throw error;
       return data as PublicacaoDjen[];
+    },
+    enabled: !!user?.id,
+  });
+
+  const { data: descartadas = [], isLoading: loadingDescartadas } = useQuery({
+    queryKey: ['publicacoes-djen-descartadas', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('publicacoes_djen_descartadas')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      return data as PublicacaoDescartada[];
     },
     enabled: !!user?.id,
   });
@@ -118,6 +153,7 @@ export function useMonitoramentosDjen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['monitoramentos-djen'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-descartadas'] });
       toast.success("Monitoramento excluído!");
     },
   });
@@ -136,14 +172,77 @@ export function useMonitoramentosDjen() {
     },
   });
 
+  const importarDescartada = useMutation({
+    mutationFn: async (descartadaId: string) => {
+      // Buscar a publicação descartada
+      const { data: descartada, error: fetchError } = await supabase
+        .from('publicacoes_djen_descartadas')
+        .select('*')
+        .eq('id', descartadaId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Inserir na tabela principal
+      const { error: insertError } = await supabase
+        .from('publicacoes_djen')
+        .insert({
+          monitoramento_id: descartada.monitoramento_id,
+          hash_conteudo: descartada.hash_conteudo,
+          data_publicacao: descartada.data_publicacao,
+          processo_numero: descartada.processo_numero,
+          conteudo: descartada.conteudo,
+          fonte: descartada.fonte,
+          importada_de_descartada: true,
+        });
+
+      if (insertError) throw insertError;
+
+      // Remover das descartadas
+      const { error: deleteError } = await supabase
+        .from('publicacoes_djen_descartadas')
+        .delete()
+        .eq('id', descartadaId);
+
+      if (deleteError) throw deleteError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-descartadas'] });
+      toast.success("Publicação importada com sucesso!");
+    },
+    onError: (error) => {
+      toast.error(`Erro ao importar: ${error.message}`);
+    },
+  });
+
+  const descartarDefinitivamente = useMutation({
+    mutationFn: async (descartadaId: string) => {
+      const { error } = await supabase
+        .from('publicacoes_djen_descartadas')
+        .delete()
+        .eq('id', descartadaId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-descartadas'] });
+      toast.success("Publicação descartada definitivamente!");
+    },
+  });
+
   return {
     monitoramentos,
     publicacoes,
+    descartadas,
     isLoading,
     loadingPublicacoes,
+    loadingDescartadas,
     criarMonitoramento,
     atualizarMonitoramento,
     excluirMonitoramento,
     marcarPublicacaoLida,
+    importarDescartada,
+    descartarDefinitivamente,
   };
 }
