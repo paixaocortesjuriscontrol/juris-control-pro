@@ -462,12 +462,13 @@ export default function ImportarProcessos() {
               await supabase.from("processos").update(updateData).eq("id", processoId);
             }
 
-            // Insert movements
-            if (apiData.movimentos && apiData.movimentos.length > 0) {
-              const movimentosToInsert = apiData.movimentos.map((mov: any) => ({
+            // Insert movements - API returns as 'movimentacoes', not 'movimentos'
+            const movimentacoesApi = apiData.movimentacoes || apiData.movimentos || [];
+            if (movimentacoesApi.length > 0) {
+              const movimentosToInsert = movimentacoesApi.map((mov: any) => ({
                 processo_id: processoId,
-                descricao: mov.nome || "Sem descrição",
-                data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+                descricao: mov.nome ? (mov.complemento ? `${mov.nome} - ${mov.complemento}` : mov.nome) : "Sem descrição",
+                data_movimentacao: mov.dataHora ? new Date(mov.dataHora).toISOString().split("T")[0] : (mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]),
                 tipo: "API Externa",
                 fonte: "DataJud/CNJ",
               }));
@@ -705,12 +706,13 @@ export default function ImportarProcessos() {
                 : null,
             }).eq("id", processoId);
 
-            // Insert movements if available
-            if (apiData.movimentos && apiData.movimentos.length > 0) {
-              const movimentosToInsert = apiData.movimentos.map((mov: any) => ({
+            // Insert movements if available - API returns as 'movimentacoes', not 'movimentos'
+            const movimentacoesApi = apiData.movimentacoes || apiData.movimentos || [];
+            if (movimentacoesApi.length > 0) {
+              const movimentosToInsert = movimentacoesApi.map((mov: any) => ({
                 processo_id: processoId,
-                descricao: mov.nome || "Sem descrição",
-                data_movimentacao: mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+                descricao: mov.nome ? (mov.complemento ? `${mov.nome} - ${mov.complemento}` : mov.nome) : "Sem descrição",
+                data_movimentacao: mov.dataHora ? new Date(mov.dataHora).toISOString().split("T")[0] : (mov.data ? new Date(mov.data).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]),
                 tipo: "API Externa",
                 fonte: "DataJud/CNJ",
               }));
