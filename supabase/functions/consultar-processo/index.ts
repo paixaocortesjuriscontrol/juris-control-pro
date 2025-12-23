@@ -48,7 +48,9 @@ const tribunais: Record<string, Record<string, { endpoint: string; nome: string 
     "6": { endpoint: "api_publica_trf6", nome: "TRF da 6ª Região" }
   },
   "5": {
+    // Observação: alguns números podem vir com TR=90 (ex.: TST). Mantemos mapeamento extra.
     "0": { endpoint: "api_publica_tst", nome: "Tribunal Superior do Trabalho" },
+    "90": { endpoint: "api_publica_tst", nome: "Tribunal Superior do Trabalho" },
     "1": { endpoint: "api_publica_trt1", nome: "TRT da 1ª Região" },
     "2": { endpoint: "api_publica_trt2", nome: "TRT da 2ª Região" },
     "3": { endpoint: "api_publica_trt3", nome: "TRT da 3ª Região" },
@@ -295,27 +297,48 @@ serve(async (req) => {
         console.log("Tribunal info:", tribunalInfo);
         
         if (tribunalInfo?.error) {
+          // Evita retornar 4xx aqui para não “quebrar” importações em lote.
+          // O front trata `found:false`/`error` e segue o fluxo normalmente.
           return new Response(
-            JSON.stringify({ error: tribunalInfo.error }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({
+              found: false,
+              tribunal: tribunalInfo.nome,
+              total: 0,
+              processos: [],
+              error: tribunalInfo.error,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        
+
         if (tribunalInfo && tribunalInfo.endpoint) {
           endpoint = tribunalInfo.endpoint;
           tribunalNome = tribunalInfo.nome;
         } else {
           // Extract segment info for better error message
-          const info = extrairInfoTribunal(numeroLimpo.padStart(20, '0'));
+          const info = extrairInfoTribunal(numeroLimpo.padStart(20, "0"));
           return new Response(
-            JSON.stringify({ error: `Não foi possível identificar o tribunal pelo número (segmento J=${info?.j}, TR=${info?.tr}). Por favor, selecione o tribunal manualmente.` }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({
+              found: false,
+              total: 0,
+              processos: [],
+              error: `Não foi possível identificar o tribunal pelo número (segmento J=${info?.j}, TR=${info?.tr}). Por favor, selecione o tribunal manualmente.`,
+              requiresTribunal: true,
+              segmento: { j: info?.j, tr: info?.tr },
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
       } else {
         return new Response(
-          JSON.stringify({ error: "Por favor, selecione o tribunal para buscas com número parcial ou outros filtros." }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({
+            found: false,
+            total: 0,
+            processos: [],
+            error: "Por favor, selecione o tribunal para buscas com número parcial ou outros filtros.",
+            requiresTribunal: true,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     } else if (uf) {
@@ -332,8 +355,14 @@ serve(async (req) => {
       tribunalNome = `TJ${uf}`;
     } else {
       return new Response(
-        JSON.stringify({ error: "Por favor, informe o número do processo, selecione o tribunal ou a UF." }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          found: false,
+          total: 0,
+          processos: [],
+          error: "Por favor, informe o número do processo, selecione o tribunal ou a UF.",
+          requiresTribunal: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -365,9 +394,17 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Erro na API DataJud:", response.status, errorText);
+      // Retorna 200 com payload de erro para o front conseguir seguir (ex.: importação em lote)
       return new Response(
-        JSON.stringify({ error: `Erro ao consultar API do tribunal: ${response.status}` }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          found: false,
+          tribunal: tribunalNome,
+          total: 0,
+          processos: [],
+          error: `Erro ao consultar API do tribunal: ${response.status}`,
+          status: response.status,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
