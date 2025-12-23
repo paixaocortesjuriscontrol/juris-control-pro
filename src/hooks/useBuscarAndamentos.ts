@@ -32,6 +32,14 @@ export async function buscarAndamentosExternos(
       return { success: false, movimentosInseridos: 0, error: error.message };
     }
 
+    // Check if the API returned an error in the response body
+    if (data?.error) {
+      console.warn("API retornou erro:", data.error);
+      // Return success: true but 0 movements - the process was found but tribunal couldn't be identified
+      // This allows the import to continue without blocking
+      return { success: true, movimentosInseridos: 0, error: data.error };
+    }
+
     // API returns 'movimentacoes', not 'movimentos'
     const movimentos: Movimento[] = data?.movimentacoes || data?.movimentos || [];
     

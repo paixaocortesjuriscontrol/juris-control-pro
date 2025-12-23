@@ -28,13 +28,13 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
 
 // Mapa de tribunais baseado na numeração única de processos
+// J = segmento de justiça (posição 13), TR = tribunal (posições 14-15)
 const tribunais: Record<string, Record<string, { endpoint: string; nome: string }>> = {
   "1": {
     "0": { endpoint: "api_publica_stf", nome: "Supremo Tribunal Federal" }
   },
   "2": {
     // CNJ não tem API pública no DataJud - processos administrativos
-    // Quando detectado, usar fallback para TJDFT ou retornar erro específico
   },
   "3": {
     "0": { endpoint: "api_publica_stj", nome: "Superior Tribunal de Justiça" }
@@ -108,17 +108,40 @@ const tribunais: Record<string, Record<string, { endpoint: string; nome: string 
     "25": { endpoint: "api_publica_tjse", nome: "TJSE" },
     "26": { endpoint: "api_publica_tjsp", nome: "TJSP" },
     "27": { endpoint: "api_publica_tjto", nome: "TJTO" }
+  },
+  // Justiça Militar Estadual (segmento 9)
+  "9": {
+    "13": { endpoint: "api_publica_tjmmg", nome: "TJM-MG" },
+    "21": { endpoint: "api_publica_tjmrs", nome: "TJM-RS" },
+    "26": { endpoint: "api_publica_tjmsp", nome: "TJM-SP" }
   }
 };
+
+// Fallback: tentar descobrir tribunal pelo código do estado na origem do processo
+function getTribunalByOrigem(numeroLimpo: string): { endpoint: string; nome: string } | null {
+  // Origem são os últimos 4 dígitos (posições 16-19)
+  // Muitas vezes a vara/origem começa com dígitos que indicam o estado
+  const origem = numeroLimpo.substring(16, 20);
+  console.log("Tentando fallback por origem:", origem);
+  
+  // Para justiça do trabalho (J=5), a origem não segue padrão UF
+  // Retornar null para forçar seleção manual
+  return null;
+}
 
 function limparNumeroProcesso(numero: string): string {
   return numero.replace(/\D/g, '').padStart(20, '0');
 }
 
 function extrairInfoTribunal(numeroLimpo: string): { j: string; tr: string } | null {
+  // Formato CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO (20 dígitos sem pontuação)
+  // Posições: 0-6 = sequencial, 7-8 = dígito verificador, 9-12 = ano, 13 = justiça, 14-15 = tribunal, 16-19 = origem
   if (numeroLimpo.length !== 20) return null;
   const j = numeroLimpo.charAt(13);
-  const tr = numeroLimpo.substring(14, 16).replace(/^0+/, '') || "0";
+  // TR são 2 dígitos nas posições 14-15, remover zeros à esquerda para comparar com o mapa
+  const trRaw = numeroLimpo.substring(14, 16);
+  const tr = trRaw.replace(/^0+/, '') || "0";
+  console.log("extrairInfoTribunal - numero:", numeroLimpo, "j:", j, "trRaw:", trRaw, "tr:", tr);
   return { j, tr };
 }
 
@@ -126,24 +149,39 @@ function getTribunalInfo(numeroProcesso: string): { endpoint: string; nome: stri
   const numeroLimpo = limparNumeroProcesso(numeroProcesso);
   const info = extrairInfoTribunal(numeroLimpo);
   
-  console.log("Extraído do número:", info, "numeroLimpo:", numeroLimpo);
+  console.log("getTribunalInfo - Extraído do número:", JSON.stringify(info), "numeroLimpo:", numeroLimpo);
   
-  if (!info) return null;
+  if (!info) {
+    console.log("getTribunalInfo - Não foi possível extrair info do número");
+    return null;
+  }
   
   // Segmento 2 é CNJ - não possui API pública
   if (info.j === "2") {
     return { endpoint: "", nome: "CNJ", error: "Processos do CNJ (Conselho Nacional de Justiça) são administrativos e não estão disponíveis na API pública do DataJud." };
   }
   
+  // Segmento 0 não existe - pode ser número inválido ou formato antigo
+  if (info.j === "0") {
+    console.log("getTribunalInfo - Segmento J=0 inválido, número pode estar incorreto");
+    return null;
+  }
+  
   const jurisdicao = tribunais[info.j];
   if (!jurisdicao) {
-    console.log("Jurisdição não encontrada para segmento:", info.j);
+    console.log("getTribunalInfo - Jurisdição não encontrada para segmento:", info.j);
     return null;
   }
   
   const tribunal = jurisdicao[info.tr];
   if (!tribunal) {
-    console.log("Tribunal não encontrado para região:", info.tr, "na jurisdição:", info.j);
+    console.log("getTribunalInfo - Tribunal não encontrado para região:", info.tr, "na jurisdição:", info.j);
+    // Tentar fallback pela origem
+    const fallback = getTribunalByOrigem(numeroLimpo);
+    if (fallback) {
+      console.log("getTribunalInfo - Usando fallback:", fallback);
+      return fallback;
+    }
     return null;
   }
   
