@@ -28,16 +28,31 @@ serve(async (req) => {
       );
     }
 
-    // Prepare content for summarization
-    const publicacoesText = publicacoes.map((pub: any, index: number) => {
+    // Limitar quantidade de publicações e tamanho do conteúdo para evitar exceder limites de tokens
+    const MAX_PUBLICACOES = 50;
+    const MAX_CONTEUDO_LENGTH = 2000; // caracteres por publicação
+    
+    const publicacoesLimitadas = publicacoes.slice(0, MAX_PUBLICACOES);
+    const totalOriginal = publicacoes.length;
+    
+    // Prepare content for summarization with truncation
+    const publicacoesText = publicacoesLimitadas.map((pub: any, index: number) => {
+      let conteudo = pub.texto || pub.conteudo || pub.teor || 'N/A';
+      if (conteudo.length > MAX_CONTEUDO_LENGTH) {
+        conteudo = conteudo.substring(0, MAX_CONTEUDO_LENGTH) + '... [truncado]';
+      }
       return `Publicação ${index + 1}:
 - Data: ${pub.data || pub.dataDisponibilizacao || 'N/A'}
 - Processo: ${pub.numeroProcesso || pub.processo || 'N/A'}
-- Conteúdo: ${pub.texto || pub.conteudo || pub.teor || 'N/A'}
+- Conteúdo: ${conteudo}
 `;
     }).join('\n---\n');
 
-    console.log('Resumindo', publicacoes.length, 'publicações para monitoramento:', monitoramentoId);
+    const avisoTruncamento = totalOriginal > MAX_PUBLICACOES 
+      ? `\n\n**AVISO:** Foram analisadas ${MAX_PUBLICACOES} de ${totalOriginal} publicações. Considere filtrar por período menor para análise completa.`
+      : '';
+
+    console.log(`Resumindo ${publicacoesLimitadas.length} de ${totalOriginal} publicações para monitoramento:`, monitoramentoId);
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -93,6 +108,8 @@ Seja preciso ao extrair números de processos e prazos. Use formatação markdow
     const data = await response.json();
     const resumo = data.choices[0].message.content;
 
+    const resumoComAviso = resumo + avisoTruncamento;
+
     console.log('Resumo gerado com sucesso');
 
     // Salvar resumo na tabela apenas se monitoramentoId foi fornecido
@@ -101,13 +118,13 @@ Seja preciso ao extrair números de processos e prazos. Use formatação markdow
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
-      const publicacaoIds = publicacoes.map((p: any) => p.id).filter(Boolean);
+      const publicacaoIds = publicacoesLimitadas.map((p: any) => p.id).filter(Boolean);
 
       const { error: insertError } = await supabaseClient
         .from('resumos_monitoramento_djen')
         .insert({
           monitoramento_id: monitoramentoId,
-          resumo: resumo,
+          resumo: resumoComAviso,
           data_busca: new Date().toISOString(),
           publicacoes_incluidas: publicacaoIds,
         });
@@ -123,7 +140,7 @@ Seja preciso ao extrair números de processos e prazos. Use formatação markdow
     }
 
     return new Response(
-      JSON.stringify({ resumo, totalPublicacoes: publicacoes.length }),
+      JSON.stringify({ resumo: resumoComAviso, totalPublicacoes: publicacoesLimitadas.length, totalOriginal }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
