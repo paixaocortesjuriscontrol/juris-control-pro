@@ -9,6 +9,8 @@ import {
   Loader2,
   Search,
   Calendar,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -33,12 +35,14 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useAnaliseDjen, PublicacaoAnalise } from "@/hooks/useAnaliseDjen";
+import { useDescartadasDjen, PublicacaoDescartada } from "@/hooks/useDescartadasDjen";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 
@@ -50,11 +54,15 @@ const AnaliseDjen = () => {
   const [dataFim, setDataFim] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [apenasNaoLidas, setApenasNaoLidas] = useState(false);
+  const [activeTab, setActiveTab] = useState("publicacoes");
   
   // States
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedDescartadasIds, setSelectedDescartadasIds] = useState<Set<string>>(new Set());
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoAnalise | null>(null);
+  const [viewDescartadaDialogOpen, setViewDescartadaDialogOpen] = useState(false);
+  const [selectedDescartada, setSelectedDescartada] = useState<PublicacaoDescartada | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importCoordenacaoId, setImportCoordenacaoId] = useState<string>("");
   const [importing, setImporting] = useState(false);
@@ -68,17 +76,22 @@ const AnaliseDjen = () => {
     apenasNaoLidas,
   });
 
+  const { descartadas, isLoading: loadingDescartadas, importarDescartada, descartarDefinitivamente } = useDescartadasDjen({
+    coordenacaoId: coordenacaoId || undefined,
+    monitoramentoId: monitoramentoId || undefined,
+    dataInicio: dataInicio || undefined,
+    dataFim: dataFim || undefined,
+    termoBusca: termoBusca || undefined,
+  });
+
   const { data: coordenacoes } = useCoordenacoes();
   
-  // Buscar monitoramentos para o filtro
   const { monitoramentos: todosMonitoramentos } = useMonitoramentosDjen();
   
-  // Filtrar monitoramentos pela coordenação selecionada
   const monitoramentos = coordenacaoId 
     ? todosMonitoramentos?.filter(m => m.coordenacao_id === coordenacaoId)
     : todosMonitoramentos;
 
-  // Encontrar o monitoramento selecionado para exibir nome
   const monitoramentoSelecionado = monitoramentos?.find(m => m.id === monitoramentoId);
 
   const toggleSelect = (id: string) => {
@@ -99,9 +112,32 @@ const AnaliseDjen = () => {
     }
   };
 
+  const toggleSelectDescartada = (id: string) => {
+    const newSelected = new Set(selectedDescartadasIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedDescartadasIds(newSelected);
+  };
+
+  const toggleSelectAllDescartadas = () => {
+    if (selectedDescartadasIds.size === descartadas.length) {
+      setSelectedDescartadasIds(new Set());
+    } else {
+      setSelectedDescartadasIds(new Set(descartadas.map(d => d.id)));
+    }
+  };
+
   const handleView = (pub: PublicacaoAnalise) => {
     setSelectedPublicacao(pub);
     setViewDialogOpen(true);
+  };
+
+  const handleViewDescartada = (pub: PublicacaoDescartada) => {
+    setSelectedDescartada(pub);
+    setViewDescartadaDialogOpen(true);
   };
 
   const handleGerarResumo = async () => {
@@ -130,7 +166,27 @@ const AnaliseDjen = () => {
     setImportDialogOpen(true);
   };
 
-  // Extract CNJ process numbers from text
+  const handleImportarDescartadas = async () => {
+    if (selectedDescartadasIds.size === 0) {
+      toast.error("Selecione ao menos uma publicação");
+      return;
+    }
+    
+    for (const id of selectedDescartadasIds) {
+      await importarDescartada.mutateAsync(id);
+    }
+    setSelectedDescartadasIds(new Set());
+  };
+
+  const handleDescartarDefinitivamente = async () => {
+    if (selectedDescartadasIds.size === 0) {
+      toast.error("Selecione ao menos uma publicação");
+      return;
+    }
+    await descartarDefinitivamente.mutateAsync(Array.from(selectedDescartadasIds));
+    setSelectedDescartadasIds(new Set());
+  };
+
   const extractProcessNumbers = (text: string): string[] => {
     const cnjRegex = /\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g;
     const matches = text.match(cnjRegex) || [];
@@ -216,7 +272,6 @@ const AnaliseDjen = () => {
             }
           }
 
-          // Marcar como lida
           await supabase
             .from('publicacoes_djen')
             .update({ lida: true })
@@ -282,7 +337,7 @@ const AnaliseDjen = () => {
                   value={coordenacaoId || "__all__"} 
                   onValueChange={(val) => {
                     setCoordenacaoId(val === "__all__" ? "" : val);
-                    setMonitoramentoId(""); // Limpar monitoramento ao mudar coordenação
+                    setMonitoramentoId("");
                   }}
                 >
                   <SelectTrigger>
@@ -368,7 +423,7 @@ const AnaliseDjen = () => {
           </CardContent>
         </Card>
 
-        {/* Resumo IA - Sempre visível */}
+        {/* Resumo IA */}
         <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
@@ -426,138 +481,280 @@ const AnaliseDjen = () => {
           </CardContent>
         </Card>
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleSelectAll}
-            disabled={publicacoes.length === 0}
-          >
-            {selectedIds.size === publicacoes.length && publicacoes.length > 0
-              ? "Desmarcar Todos"
-              : "Selecionar Todos"}
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleMarcarLidas}
-            disabled={selectedIds.size === 0 || marcarComoLida.isPending}
-          >
-            <CheckCircle className="w-4 h-4 mr-2" />
-            Marcar como Lida
-          </Button>
-
-          <Button
-            size="sm"
-            onClick={handleOpenImportDialog}
-            disabled={selectedIds.size === 0}
-          >
-            <Import className="w-4 h-4 mr-2" />
-            Importar ({selectedIds.size})
-          </Button>
-        </div>
-
-        {/* Results */}
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="w-5 h-5" />
+        {/* Tabs for Publicacoes and Descartadas */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="publicacoes" className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
               Publicações ({publicacoes.length})
-            </CardTitle>
-            <CardDescription>
-              Resultados dos monitoramentos DJEN configurados
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : publicacoes.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma publicação encontrada</p>
-                <p className="text-sm mt-1">
-                  Configure monitoramentos DJEN em "Buscar DJEN" para receber publicações
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {publicacoes.map((pub) => (
-                  <div
-                    key={pub.id}
-                    className={cn(
-                      "border rounded-lg p-4 transition-colors",
-                      selectedIds.has(pub.id) && "bg-primary/5 border-primary/30",
-                      !pub.lida && "border-l-4 border-l-primary"
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        checked={selectedIds.has(pub.id)}
-                        onCheckedChange={() => toggleSelect(pub.id)}
-                      />
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          {/* Monitoramento que encontrou */}
-                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                            {pub.monitoramento?.tipo === 'advogado' 
-                              ? `OAB ${pub.monitoramento?.oab || ''} ${pub.monitoramento?.uf || ''}`
-                              : pub.monitoramento?.tipo === 'processo'
-                                ? `Processo: ${pub.monitoramento?.termo_busca}`
-                                : pub.monitoramento?.termo_busca || "Monitoramento"
-                            }
-                          </Badge>
-                          {pub.monitoramento?.coordenacao?.nome && (
-                            <Badge variant="outline">
-                              {pub.monitoramento.coordenacao.nome}
-                            </Badge>
-                          )}
-                          {!pub.lida && (
-                            <Badge variant="default" className="bg-primary">
-                              Nova
-                            </Badge>
-                          )}
-                        </div>
+            </TabsTrigger>
+            <TabsTrigger value="descartadas" className="flex items-center gap-2">
+              <Trash2 className="w-4 h-4" />
+              Descartadas ({descartadas.length})
+            </TabsTrigger>
+          </TabsList>
 
-                        {pub.processo_numero && (
-                          <p className="text-sm font-medium text-primary mb-1">
-                            Processo: {pub.processo_numero}
-                          </p>
+          <TabsContent value="publicacoes" className="space-y-4">
+            {/* Actions */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSelectAll}
+                disabled={publicacoes.length === 0}
+              >
+                {selectedIds.size === publicacoes.length && publicacoes.length > 0
+                  ? "Desmarcar Todos"
+                  : "Selecionar Todos"}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleMarcarLidas}
+                disabled={selectedIds.size === 0 || marcarComoLida.isPending}
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Marcar como Lida
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={handleOpenImportDialog}
+                disabled={selectedIds.size === 0}
+              >
+                <Import className="w-4 h-4 mr-2" />
+                Importar ({selectedIds.size})
+              </Button>
+            </div>
+
+            {/* Results */}
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Publicações ({publicacoes.length})
+                </CardTitle>
+                <CardDescription>
+                  Resultados dos monitoramentos DJEN configurados
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : publicacoes.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhuma publicação encontrada</p>
+                    <p className="text-sm mt-1">
+                      Configure monitoramentos DJEN em "Buscar DJEN" para receber publicações
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {publicacoes.map((pub) => (
+                      <div
+                        key={pub.id}
+                        className={cn(
+                          "border rounded-lg p-4 transition-colors",
+                          selectedIds.has(pub.id) && "bg-primary/5 border-primary/30",
+                          !pub.lida && "border-l-4 border-l-primary"
                         )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={selectedIds.has(pub.id)}
+                            onCheckedChange={() => toggleSelect(pub.id)}
+                          />
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                                {pub.monitoramento?.tipo === 'advogado' 
+                                  ? `OAB ${pub.monitoramento?.oab || ''} ${pub.monitoramento?.uf || ''}`
+                                  : pub.monitoramento?.tipo === 'processo'
+                                    ? `Processo: ${pub.monitoramento?.termo_busca}`
+                                    : pub.monitoramento?.termo_busca || "Monitoramento"
+                                }
+                              </Badge>
+                              {pub.monitoramento?.coordenacao?.nome && (
+                                <Badge variant="outline">
+                                  {pub.monitoramento.coordenacao.nome}
+                                </Badge>
+                              )}
+                              {!pub.lida && (
+                                <Badge variant="default" className="bg-primary">
+                                  Nova
+                                </Badge>
+                              )}
+                            </div>
 
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                          {pub.conteudo?.substring(0, 200) || "Sem conteúdo"}...
-                        </p>
+                            {pub.processo_numero && (
+                              <p className="text-sm font-medium text-primary mb-1">
+                                Processo: {pub.processo_numero}
+                              </p>
+                            )}
 
-                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                          <span>
-                            <strong className="text-foreground">Diário:</strong> {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
-                          </span>
-                          <span>
-                            <strong className="text-foreground">Capturado:</strong> {formatDate(pub.created_at)}
-                          </span>
-                          {pub.fonte && <span><strong className="text-foreground">Fonte:</strong> {pub.fonte}</span>}
+                            <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                              {pub.conteudo?.substring(0, 200) || "Sem conteúdo"}...
+                            </p>
+
+                            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              <span>
+                                <strong className="text-foreground">Diário:</strong> {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
+                              </span>
+                              <span>
+                                <strong className="text-foreground">Capturado:</strong> {formatDate(pub.created_at)}
+                              </span>
+                              {pub.fonte && <span><strong className="text-foreground">Fonte:</strong> {pub.fonte}</span>}
+                            </div>
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleView(pub)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleView(pub)}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="descartadas" className="space-y-4">
+            {/* Actions for Descartadas */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSelectAllDescartadas}
+                disabled={descartadas.length === 0}
+              >
+                {selectedDescartadasIds.size === descartadas.length && descartadas.length > 0
+                  ? "Desmarcar Todos"
+                  : "Selecionar Todos"}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleImportarDescartadas}
+                disabled={selectedDescartadasIds.size === 0 || importarDescartada.isPending}
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Restaurar ({selectedDescartadasIds.size})
+              </Button>
+
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDescartarDefinitivamente}
+                disabled={selectedDescartadasIds.size === 0 || descartarDefinitivamente.isPending}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir Definitivamente
+              </Button>
+            </div>
+
+            {/* Descartadas Results */}
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Trash2 className="w-5 h-5" />
+                  Publicações Descartadas ({descartadas.length})
+                </CardTitle>
+                <CardDescription>
+                  Publicações excluídas pelos critérios de exclusão configurados
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingDescartadas ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : descartadas.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Trash2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhuma publicação descartada</p>
+                    <p className="text-sm mt-1">
+                      Publicações que contiverem os termos de exclusão aparecerão aqui
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {descartadas.map((pub) => (
+                      <div
+                        key={pub.id}
+                        className={cn(
+                          "border rounded-lg p-4 transition-colors border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-800",
+                          selectedDescartadasIds.has(pub.id) && "bg-orange-100 border-orange-400"
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={selectedDescartadasIds.has(pub.id)}
+                            onCheckedChange={() => toggleSelectDescartada(pub.id)}
+                          />
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-300">
+                                Descartada: {pub.motivo_descarte}
+                              </Badge>
+                              <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                                {pub.monitoramento?.tipo === 'advogado' 
+                                  ? `OAB ${pub.monitoramento?.oab || ''} ${pub.monitoramento?.uf || ''}`
+                                  : pub.monitoramento?.termo_busca || "Monitoramento"
+                                }
+                              </Badge>
+                              {pub.monitoramento?.coordenacao?.nome && (
+                                <Badge variant="outline">
+                                  {pub.monitoramento.coordenacao.nome}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {pub.processo_numero && (
+                              <p className="text-sm font-medium text-orange-700 mb-1">
+                                Processo: {pub.processo_numero}
+                              </p>
+                            )}
+
+                            <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                              {pub.conteudo?.substring(0, 200) || "Sem conteúdo"}...
+                            </p>
+
+                            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              <span>
+                                <strong className="text-foreground">Capturado:</strong> {formatDate(pub.created_at)}
+                              </span>
+                              {pub.fonte && <span><strong className="text-foreground">Fonte:</strong> {pub.fonte}</span>}
+                            </div>
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewDescartada(pub)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* View Dialog */}
         <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
@@ -606,6 +803,73 @@ const AnaliseDjen = () => {
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+                Fechar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* View Descartada Dialog */}
+        <Dialog open={viewDescartadaDialogOpen} onOpenChange={setViewDescartadaDialogOpen}>
+          <DialogContent className="max-w-3xl max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle>Publicação Descartada</DialogTitle>
+              <DialogDescription>
+                <Badge variant="secondary" className="bg-orange-100 text-orange-700 mt-2">
+                  Motivo: {selectedDescartada?.motivo_descarte}
+                </Badge>
+              </DialogDescription>
+            </DialogHeader>
+            
+            <ScrollArea className="max-h-[60vh]">
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {selectedDescartada?.monitoramento?.coordenacao?.nome && (
+                    <Badge variant="outline">
+                      {selectedDescartada.monitoramento.coordenacao.nome}
+                    </Badge>
+                  )}
+                  {selectedDescartada?.fonte && (
+                    <Badge variant="secondary">{selectedDescartada.fonte}</Badge>
+                  )}
+                </div>
+
+                {selectedDescartada?.processo_numero && (
+                  <p className="text-sm font-medium text-orange-700">
+                    Processo: {selectedDescartada.processo_numero}
+                  </p>
+                )}
+
+                <div>
+                  <h4 className="font-medium mb-2">Conteúdo Original</h4>
+                  <div className="bg-muted/50 rounded-lg p-4">
+                    <p className="text-sm whitespace-pre-wrap">
+                      {selectedDescartada?.conteudo || "Sem conteúdo"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>Capturado em: {formatDate(selectedDescartada?.created_at || null)}</p>
+                </div>
+              </div>
+            </ScrollArea>
+
+            <DialogFooter className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={async () => {
+                  if (selectedDescartada) {
+                    await importarDescartada.mutateAsync(selectedDescartada.id);
+                    setViewDescartadaDialogOpen(false);
+                  }
+                }}
+                disabled={importarDescartada.isPending}
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Restaurar
+              </Button>
+              <Button variant="outline" onClick={() => setViewDescartadaDialogOpen(false)}>
                 Fechar
               </Button>
             </DialogFooter>
