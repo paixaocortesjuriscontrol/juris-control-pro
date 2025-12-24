@@ -11,6 +11,7 @@ import {
   Calendar,
   Trash2,
   RotateCcw,
+  Pencil,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,8 @@ import { cn } from "@/lib/utils";
 import { useAnaliseDjen, PublicacaoAnalise } from "@/hooks/useAnaliseDjen";
 import { useDescartadasDjen, PublicacaoDescartada } from "@/hooks/useDescartadasDjen";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
-import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
+import { useMonitoramentosDjen, MonitoramentoDjen } from "@/hooks/useMonitoramentosDjen";
+import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
 
 const AnaliseDjen = () => {
   // Filtros
@@ -66,6 +68,7 @@ const AnaliseDjen = () => {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importCoordenacaoId, setImportCoordenacaoId] = useState<string>("");
   const [importing, setImporting] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   
   const { publicacoes, isLoading, ultimoResumo, loadingResumo, gerarResumoIA, marcarComoLida } = useAnaliseDjen({
     coordenacaoId: coordenacaoId || undefined,
@@ -356,26 +359,38 @@ const AnaliseDjen = () => {
 
               <div className="space-y-2">
                 <Label>Monitoramento</Label>
-                <Select 
-                  value={monitoramentoId || "__all__"} 
-                  onValueChange={(val) => setMonitoramentoId(val === "__all__" ? "" : val)}
-                  disabled={!coordenacaoId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={coordenacaoId ? "Todos" : "Selecione coordenação"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Todos</SelectItem>
-                    {monitoramentos?.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.tipo === 'advogado' 
-                          ? `OAB ${m.oab || ''} ${m.uf || ''}`
-                          : m.termo_busca
-                        }
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select 
+                    value={monitoramentoId || "__all__"} 
+                    onValueChange={(val) => setMonitoramentoId(val === "__all__" ? "" : val)}
+                    disabled={!coordenacaoId}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder={coordenacaoId ? "Todos" : "Selecione coordenação"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Todos</SelectItem>
+                      {monitoramentos?.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.tipo === 'advogado' 
+                            ? `OAB ${m.oab || ''} ${m.uf || ''}`
+                            : m.termo_busca
+                          }
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {monitoramentoSelecionado && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setEditDialogOpen(true)}
+                      title="Editar monitoramento"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -918,6 +933,13 @@ const AnaliseDjen = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Edit Monitoramento Dialog */}
+        <MonitoramentoDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          monitoramento={monitoramentoSelecionado as MonitoramentoDjen | undefined}
+        />
       </div>
     </MainLayout>
   );

@@ -14,6 +14,7 @@ import {
   PowerOff,
   Import,
   Sparkles,
+  Pencil,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,7 @@ const BuscarDJEN = () => {
   const [hasSearched, setHasSearched] = useState(false);
   const [importing, setImporting] = useState(false);
   const [monitoramentoDialogOpen, setMonitoramentoDialogOpen] = useState(false);
+  const [monitoramentoParaEditar, setMonitoramentoParaEditar] = useState<typeof monitoramentos[0] | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<Publicacao | null>(null);
@@ -983,6 +985,17 @@ const BuscarDJEN = () => {
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={() => {
+                                setMonitoramentoParaEditar(mon);
+                                setMonitoramentoDialogOpen(true);
+                              }}
+                              title="Editar"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => atualizarMonitoramento.mutate({ 
                                 id: mon.id, 
                                 ativo: !mon.ativo 
@@ -1017,7 +1030,11 @@ const BuscarDJEN = () => {
 
       <MonitoramentoDialog
         open={monitoramentoDialogOpen}
-        onOpenChange={setMonitoramentoDialogOpen}
+        onOpenChange={(open) => {
+          setMonitoramentoDialogOpen(open);
+          if (!open) setMonitoramentoParaEditar(null);
+        }}
+        monitoramento={monitoramentoParaEditar}
       />
 
       {/* View Content Dialog */}
