@@ -958,7 +958,9 @@ const BuscarDJEN = () => {
                         <TableCell className="pl-6">
                           <Badge variant="outline">{mon.tipo}</Badge>
                         </TableCell>
-                        <TableCell className="font-medium max-w-[120px] truncate">{mon.termo_busca}</TableCell>
+                        <TableCell className="font-medium max-w-[200px] truncate" title={mon.descricao || mon.termo_busca}>
+                          {mon.descricao || mon.termo_busca}
+                        </TableCell>
                         <TableCell className="hidden sm:table-cell">
                           {mon.oab && mon.uf ? `${mon.oab}/${mon.uf}` : '-'}
                         </TableCell>
