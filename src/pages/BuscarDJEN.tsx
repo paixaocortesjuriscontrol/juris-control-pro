@@ -57,7 +57,7 @@ import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 
-type SearchType = "palavra-chave" | "advogado" | "processo";
+type SearchType = "palavra-chave" | "advogado" | "processo" | "monitoramento";
 
 interface Publicacao {
   id: string;
@@ -84,6 +84,10 @@ const BuscarDJEN = () => {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   
+  // Filtros de monitoramento pré-cadastrado
+  const [filtroCoordId, setFiltroCoordId] = useState<string>("");
+  const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>("todos");
+  
   const [loading, setLoading] = useState(false);
   const [publicacoes, setPublicacoes] = useState<Publicacao[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -109,6 +113,11 @@ const BuscarDJEN = () => {
   } = useMonitoramentosDjen();
 
   const { data: coordenacoes } = useCoordenacoes();
+
+  // Filtrar monitoramentos por coordenação selecionada
+  const monitoramentosFiltrados = filtroCoordId 
+    ? monitoramentos?.filter(m => m.coordenacao_id === filtroCoordId)
+    : monitoramentos;
 
   const handleViewContent = (pub: Publicacao) => {
     setSelectedPublicacao(pub);
@@ -276,7 +285,79 @@ const BuscarDJEN = () => {
   };
 
   const handleSearch = async () => {
-    // Frontend validation
+    // Busca por monitoramento pré-cadastrado
+    if (searchType === "monitoramento") {
+      if (!filtroCoordId) {
+        toast.error("Selecione uma coordenação");
+        return;
+      }
+      
+      setLoading(true);
+      setHasSearched(true);
+      setSelectedIds(new Set());
+      
+      try {
+        // Determina quais monitoramentos usar
+        const monsParaBuscar = filtroMonitoramentoId === "todos" 
+          ? monitoramentosFiltrados?.filter(m => m.ativo) 
+          : monitoramentosFiltrados?.filter(m => m.id === filtroMonitoramentoId && m.ativo);
+        
+        if (!monsParaBuscar || monsParaBuscar.length === 0) {
+          toast.info("Nenhum monitoramento ativo encontrado");
+          setPublicacoes([]);
+          setLoading(false);
+          return;
+        }
+        
+        const allPubs: Publicacao[] = [];
+        
+        for (const mon of monsParaBuscar) {
+          const { data, error } = await supabase.functions.invoke('buscar-djen', {
+            body: {
+              tipo: mon.tipo === 'advogado' ? 'advogado' : 'palavra-chave',
+              palavraChave: mon.tipo !== 'advogado' ? mon.termo_busca : undefined,
+              oab: mon.tipo === 'advogado' ? mon.oab : undefined,
+              uf: mon.tipo === 'advogado' ? mon.uf : undefined,
+              dataInicio: dataInicio || undefined,
+              dataFim: dataFim || undefined,
+            }
+          });
+          
+          if (!error && data?.success) {
+            const rawPubs = data.publicacoes || data.comunicacoes || data.items || [];
+            rawPubs.forEach((p: any, idx: number) => {
+              allPubs.push({
+                id: `${mon.id}-${p.id || idx}`,
+                data: p.data || p.dataDisponibilizacao || p.dataPublicacao,
+                tipo: p.tipo || p.tipoComunicacao || "Publicação",
+                conteudo: p.conteudo || p.texto || p.teor || "",
+                processo: p.processo || p.numeroProcesso,
+                tribunal: p.tribunal || p.orgao,
+                advogado: p.advogado,
+                partes: p.partes || p.destinatario,
+              });
+            });
+          }
+        }
+        
+        setPublicacoes(allPubs);
+        
+        if (allPubs.length === 0) {
+          toast.info("Nenhuma publicação encontrada para os monitoramentos selecionados");
+        } else {
+          toast.success(`${allPubs.length} publicação(ões) encontrada(s)`);
+        }
+      } catch (error: any) {
+        console.error("Search error:", error);
+        toast.error(error.message || "Erro ao buscar publicações");
+        setPublicacoes([]);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    
+    // Frontend validation para buscas manuais
     if (searchType === "palavra-chave" && (!palavraChave || palavraChave.trim().length < 3)) {
       toast.error("Digite uma palavra-chave com pelo menos 3 caracteres");
       return;
@@ -554,6 +635,11 @@ const BuscarDJEN = () => {
         <CardContent>
           <Tabs value={searchType} onValueChange={(v) => setSearchType(v as SearchType)}>
             <TabsList className="mb-4 flex-wrap h-auto gap-1">
+              <TabsTrigger value="monitoramento" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Monitoramento</span>
+                <span className="xs:hidden">Monitor.</span>
+              </TabsTrigger>
               <TabsTrigger value="palavra-chave" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
                 <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden xs:inline">Palavra-chave</span>
@@ -572,6 +658,54 @@ const BuscarDJEN = () => {
             </TabsList>
 
             <div className="grid gap-4">
+              <TabsContent value="monitoramento" className="mt-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="filtroCoord">Coordenação</Label>
+                    <Select value={filtroCoordId} onValueChange={(v) => {
+                      setFiltroCoordId(v);
+                      setFiltroMonitoramentoId("todos");
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a coordenação" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {coordenacoes?.map((coord) => (
+                          <SelectItem key={coord.id} value={coord.id}>
+                            {coord.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="filtroMonitoramento">Monitoramento</Label>
+                    <Select 
+                      value={filtroMonitoramentoId} 
+                      onValueChange={setFiltroMonitoramentoId}
+                      disabled={!filtroCoordId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o monitoramento" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos os monitoramentos</SelectItem>
+                        {monitoramentosFiltrados?.map((mon) => (
+                          <SelectItem key={mon.id} value={mon.id}>
+                            {mon.descricao || mon.termo_busca}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {filtroCoordId && monitoramentosFiltrados && monitoramentosFiltrados.length === 0 && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Nenhum monitoramento cadastrado para esta coordenação
+                  </p>
+                )}
+              </TabsContent>
+
               <TabsContent value="palavra-chave" className="mt-0">
                 <div className="space-y-2">
                   <Label htmlFor="palavraChave">Palavra-chave</Label>
