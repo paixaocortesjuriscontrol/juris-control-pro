@@ -5,31 +5,49 @@ export function useProcessos() {
   return useQuery({
     queryKey: ["processos"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("processos")
-        .select(`
-          id,
-          numero,
-          assunto,
-          area,
-          status,
-          polo_ativo,
-          polo_passivo,
-          tribunal,
-          vara,
-          comarca,
-          valor_causa,
-          data_distribuicao,
-          coordenacao_id,
-          pasta_id,
-          created_at,
-          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
-          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo)
-        `)
-        .order("created_at", { ascending: false });
+      // Fetch all processos in batches to bypass 1000 limit
+      let allProcessos: any[] = [];
+      const batchSize = 1000;
+      let from = 0;
+      let hasMore = true;
 
-      if (error) throw error;
-      return data || [];
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("processos")
+          .select(`
+            id,
+            numero,
+            assunto,
+            area,
+            status,
+            polo_ativo,
+            polo_passivo,
+            tribunal,
+            vara,
+            comarca,
+            valor_causa,
+            data_distribuicao,
+            coordenacao_id,
+            pasta_id,
+            created_at,
+            advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
+            cliente:clientes!processos_cliente_id_fkey(id, nome, tipo)
+          `)
+          .order("created_at", { ascending: false })
+          .range(from, from + batchSize - 1);
+
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allProcessos = [...allProcessos, ...data];
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      return allProcessos;
     },
   });
 }
@@ -38,13 +56,30 @@ export function useProcessoStats() {
   return useQuery({
     queryKey: ["processo-stats"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("processos")
-        .select("area, status");
+      // Fetch all processos in batches
+      let allProcessos: any[] = [];
+      const batchSize = 1000;
+      let from = 0;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("processos")
+          .select("area, status")
+          .range(from, from + batchSize - 1);
 
-      const processos = data || [];
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allProcessos = [...allProcessos, ...data];
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const processos = allProcessos;
       
       const porArea = {
         civil: processos.filter(p => p.area === "civil").length,

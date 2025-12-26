@@ -146,17 +146,14 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
   });
 
   const gerarResumoIA = useMutation({
-    mutationFn: async (monitoramentoId: string) => {
-      // Pegar todas as publicações do monitoramento selecionado
-      const pubsParaResumir = publicacoes.filter(p => p.monitoramento_id === monitoramentoId);
-      
+    mutationFn: async ({ publicacoes: pubsParaResumir, monitoramentoId }: { publicacoes: PublicacaoAnalise[], monitoramentoId?: string }) => {
       if (pubsParaResumir.length === 0) {
-        throw new Error("Nenhuma publicação encontrada para este monitoramento");
+        throw new Error("Nenhuma publicação selecionada para resumir");
       }
 
       const { data, error } = await supabase.functions.invoke('resumir-publicacoes', {
         body: { 
-          monitoramentoId,
+          monitoramentoId: monitoramentoId || null,
           publicacoes: pubsParaResumir.map(p => ({
             id: p.id,
             conteudo: p.conteudo,
@@ -173,7 +170,7 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['resumo-monitoramento'] });
-      toast.success("Resumo gerado e salvo com sucesso!");
+      toast.success("Resumo gerado com sucesso!");
     },
     onError: (error) => {
       toast.error(`Erro ao gerar resumo: ${error.message}`);

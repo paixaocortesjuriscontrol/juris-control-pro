@@ -144,11 +144,12 @@ const AnaliseDjen = () => {
   };
 
   const handleGerarResumo = async () => {
-    if (!monitoramentoId) {
-      toast.error("Selecione um monitoramento para gerar o resumo");
+    if (selectedIds.size === 0) {
+      toast.error("Selecione ao menos uma publicação para gerar o resumo");
       return;
     }
-    await gerarResumoIA.mutateAsync(monitoramentoId);
+    const selectedPubs = publicacoes.filter(p => selectedIds.has(p.id));
+    await gerarResumoIA.mutateAsync({ publicacoes: selectedPubs, monitoramentoId: monitoramentoId || undefined });
   };
 
   const handleMarcarLidas = async () => {
@@ -372,9 +373,9 @@ const AnaliseDjen = () => {
                       <SelectItem value="__all__">Todos</SelectItem>
                       {monitoramentos?.map((m) => (
                         <SelectItem key={m.id} value={m.id}>
-                          {m.tipo === 'advogado' 
+                          {m.descricao || (m.tipo === 'advogado' 
                             ? `OAB ${m.oab || ''} ${m.uf || ''}`
-                            : m.termo_busca
+                            : m.termo_busca)
                           }
                         </SelectItem>
                       ))}
@@ -450,7 +451,7 @@ const AnaliseDjen = () => {
                 size="sm"
                 variant="outline"
                 onClick={handleGerarResumo}
-                disabled={!monitoramentoId || gerarResumoIA.isPending || publicacoes.length === 0}
+                disabled={selectedIds.size === 0 || gerarResumoIA.isPending}
                 className="border-green-300 text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-300"
               >
                 {gerarResumoIA.isPending ? (
@@ -458,7 +459,7 @@ const AnaliseDjen = () => {
                 ) : (
                   <Sparkles className="w-4 h-4 mr-2" />
                 )}
-                {ultimoResumo ? "Atualizar Resumo" : "Gerar Resumo"}
+                Resumir Selecionados ({selectedIds.size})
               </Button>
             </div>
             {ultimoResumo && (
