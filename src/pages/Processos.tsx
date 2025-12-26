@@ -23,6 +23,8 @@ import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoram
 import { useProcessosComRedistribuicaoRecente } from "@/hooks/useRedistribuicoes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
+import { CacheIndicator } from "@/components/ui/cache-indicator";
+import { useQueryClient } from "@tanstack/react-query";
 
 type AreaType = "civil" | "trabalhista" | "empresarial";
 type StatusType = "pending" | "active" | "closed" | "urgent";
@@ -56,6 +58,7 @@ const Processos = () => {
   
   const { executarMonitoramento } = useConfiguracoesMonitoramento();
   const { data: coordenacoes } = useCoordenacoes();
+  const queryClient = useQueryClient();
 
   // Ler parâmetros da URL na inicialização
   useEffect(() => {
@@ -65,8 +68,13 @@ const Processos = () => {
     }
   }, [searchParams]);
   
-  const { data: processos, isLoading } = useProcessos();
+  const { data: processos, isLoading, isFetching, isStale, dataUpdatedAt, refetch } = useProcessos();
   const { data: processosRedistribuidos } = useProcessosComRedistribuicaoRecente();
+
+  const handleForceRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["processos"] });
+    refetch();
+  };
 
   const mapStatus = (status: string): StatusType => {
     const statusMap: Record<string, StatusType> = {
@@ -134,6 +142,12 @@ const Processos = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+            <CacheIndicator
+              isFetching={isFetching}
+              isStale={isStale}
+              dataUpdatedAt={dataUpdatedAt}
+              onRefresh={handleForceRefresh}
+            />
             <div className="flex flex-wrap gap-3">
               <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
                 <SelectTrigger className="w-full sm:w-48">

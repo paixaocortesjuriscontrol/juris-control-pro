@@ -34,6 +34,8 @@ async function fetchAllRecords(
 export function useRelatoriosData() {
   return useQuery({
     queryKey: ["relatorios-data"],
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 60 * 60 * 1000, // 1 hour cache
     queryFn: async () => {
       // Fetch all data in parallel with pagination support
       const [processos, prazos, profiles, clientes, movimentacoes] = await Promise.all([
