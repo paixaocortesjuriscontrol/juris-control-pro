@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 export function useProcessos() {
   return useQuery({
     queryKey: ["processos"],
+    staleTime: 10 * 60 * 1000, // 10 minutes for processos
+    gcTime: 60 * 60 * 1000, // 1 hour cache
     queryFn: async () => {
       // Fetch all processos in batches to bypass 1000 limit
       let allProcessos: any[] = [];
@@ -55,6 +57,8 @@ export function useProcessos() {
 export function useProcessoStats() {
   return useQuery({
     queryKey: ["processo-stats"],
+    staleTime: 10 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     queryFn: async () => {
       // Fetch all processos in batches
       let allProcessos: any[] = [];
