@@ -31,7 +31,16 @@ import AnaliseDjen from "./pages/AnaliseDjen";
 import Pastas from "./pages/Pastas";
 import PastaDetalhes from "./pages/PastaDetalhes";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh
+      gcTime: 30 * 60 * 1000, // 30 minutes - cache time
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
