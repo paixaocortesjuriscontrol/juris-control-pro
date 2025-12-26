@@ -1,23 +1,48 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+// Helper function to fetch all records bypassing the 1000 limit
+async function fetchAllRecords(
+  table: "processos" | "prazos" | "profiles" | "clientes" | "movimentacoes",
+  selectQuery: string
+): Promise<any[]> {
+  let allRecords: any[] = [];
+  const batchSize = 1000;
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(selectQuery)
+      .range(from, from + batchSize - 1);
+
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      allRecords = [...allRecords, ...data];
+      from += batchSize;
+      hasMore = data.length === batchSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRecords;
+}
+
 export function useRelatoriosData() {
   return useQuery({
     queryKey: ["relatorios-data"],
     queryFn: async () => {
-      const [processosResult, prazosResult, profilesResult, clientesResult, movimentacoesResult] = await Promise.all([
-        supabase.from("processos").select("id, area, status, created_at, advogado_responsavel_id, cliente_id, vara, polo_ativo, polo_passivo, data_distribuicao, data_encerramento"),
-        supabase.from("prazos").select("id, status, titulo, processo_id, data_vencimento, data_cumprimento"),
-        supabase.from("profiles").select("id, nome"),
-        supabase.from("clientes").select("id, nome, tipo"),
-        supabase.from("movimentacoes").select("id, processo_id, data_movimentacao, tipo"),
+      // Fetch all data in parallel with pagination support
+      const [processos, prazos, profiles, clientes, movimentacoes] = await Promise.all([
+        fetchAllRecords("processos", "id, area, status, created_at, advogado_responsavel_id, cliente_id, vara, polo_ativo, polo_passivo, data_distribuicao, data_encerramento"),
+        fetchAllRecords("prazos", "id, status, titulo, processo_id, data_vencimento, data_cumprimento"),
+        fetchAllRecords("profiles", "id, nome"),
+        fetchAllRecords("clientes", "id, nome, tipo"),
+        fetchAllRecords("movimentacoes", "id, processo_id, data_movimentacao, tipo"),
       ]);
-
-      const processos = processosResult.data || [];
-      const prazos = prazosResult.data || [];
-      const profiles = profilesResult.data || [];
-      const clientes = clientesResult.data || [];
-      const movimentacoes = movimentacoesResult.data || [];
 
       const anoAtual = new Date().getFullYear();
 

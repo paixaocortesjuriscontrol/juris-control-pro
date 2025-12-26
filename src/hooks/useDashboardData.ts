@@ -5,15 +5,39 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const [processosResult, prazosResult, advogadosResult, coordenacoesResult] = await Promise.all([
-        supabase.from("processos").select("id, status, advogado_responsavel_id, coordenacao_id", { count: "exact" }),
+      // Fetch total count first
+      const { count: totalProcessos } = await supabase
+        .from("processos")
+        .select("*", { count: "exact", head: true });
+
+      // Fetch all processos in batches if needed
+      let allProcessos: any[] = [];
+      const batchSize = 1000;
+      let from = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data } = await supabase
+          .from("processos")
+          .select("id, status, advogado_responsavel_id, coordenacao_id")
+          .range(from, from + batchSize - 1);
+        
+        if (data && data.length > 0) {
+          allProcessos = [...allProcessos, ...data];
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const [prazosResult, advogadosResult, coordenacoesResult] = await Promise.all([
         supabase.from("prazos").select("id, status, data_vencimento").eq("status", "pendente"),
         supabase.from("profiles").select("id", { count: "exact" }),
         supabase.from("coordenacoes").select("id", { count: "exact" }),
       ]);
 
-      const totalProcessos = processosResult.count || 0;
-      const processos = processosResult.data || [];
+      const processos = allProcessos;
       const processosAtivos = processos.filter(p => p.status === "ativo" || p.status === "urgente" || p.status === "pendente").length;
       const processosDistribuidos = processos.filter(p => p.advogado_responsavel_id !== null).length;
       const processosSemCoordenacao = processos.filter(p => p.coordenacao_id === null).length;
@@ -39,7 +63,7 @@ export function useDashboardStats() {
       const totalCoordenacoes = coordenacoesResult.count || 0;
 
       return {
-        totalProcessos,
+        totalProcessos: totalProcessos || processos.length,
         processosAtivos,
         processosDistribuidos,
         processosSemCoordenacao,
