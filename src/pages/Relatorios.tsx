@@ -58,10 +58,18 @@ import {
   Line
 } from "recharts";
 import { useRelatoriosData } from "@/hooks/useRelatoriosData";
+import { CacheIndicator } from "@/components/ui/cache-indicator";
+import { useQueryClient } from "@tanstack/react-query";
 
 const Relatorios = () => {
   const [periodo, setPeriodo] = useState("ultimo-mes");
-  const { data, isLoading } = useRelatoriosData();
+  const { data, isLoading, isFetching, isStale, dataUpdatedAt, refetch } = useRelatoriosData();
+  const queryClient = useQueryClient();
+
+  const handleForceRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["relatorios-data"] });
+    refetch();
+  };
 
   if (isLoading) {
     return (
@@ -117,6 +125,12 @@ const Relatorios = () => {
       <Card className="mb-6 animate-fade-in">
         <CardContent className="pt-6">
           <div className="flex flex-wrap items-center gap-4">
+            <CacheIndicator
+              isFetching={isFetching}
+              isStale={isStale}
+              dataUpdatedAt={dataUpdatedAt}
+              onRefresh={handleForceRefresh}
+            />
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-muted-foreground" />
               <Select value={periodo} onValueChange={setPeriodo}>
