@@ -48,10 +48,10 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
 
       // Apply filters
       if (filters.area && filters.area !== "all") {
-        query = query.eq("area", filters.area);
+        query = query.eq("area", filters.area as "civil" | "trabalhista" | "empresarial");
       }
       if (filters.status && filters.status !== "all") {
-        query = query.eq("status", filters.status);
+        query = query.eq("status", filters.status as "ativo" | "pendente" | "urgente" | "encerrado" | "arquivado");
       }
       if (filters.coordenacao_id && filters.coordenacao_id !== "all") {
         query = query.eq("coordenacao_id", filters.coordenacao_id);
