@@ -1427,6 +1427,9 @@ export type Database = {
           total_processos: number
         }[]
       }
+      get_relatorio_atividades: { Args: never; Returns: Json }
+      get_relatorio_clientes: { Args: never; Returns: Json }
+      get_relatorio_resumo: { Args: never; Returns: Json }
       get_user_coordenacao: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
