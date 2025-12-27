@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 export function useCoordenacoesFull() {
   return useQuery({
-    queryKey: ["coordenacoes-full"],
+    queryKey: ["coordenacoes-full", "v2"],
+    refetchOnMount: "always",
     queryFn: async () => {
       // Buscar coordenações com coordenador
       const { data: coordenacoes, error: coordError } = await supabase
