@@ -28,8 +28,6 @@ export default function Monitoramento360() {
     alertas,
     loadingTermos,
     loadingAlertas,
-    alertasPendentes,
-    alertasUrgentes,
     termosAtivos,
     executarVarredura,
   } = useMonitoramento360();
@@ -37,6 +35,19 @@ export default function Monitoramento360() {
   const { data: coordenacoes } = useCoordenacoes();
   const [activeTab, setActiveTab] = useState("alertas");
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
+
+  // Filtrar alertas por coordenação selecionada
+  const alertasFiltradosPorCoordenacao = alertas.filter((alerta) => {
+    if (coordenacaoId === "todas") return true;
+    // Se processo não tem coordenacao_id ou é null, incluir apenas quando "todas"
+    if (!alerta.processo?.coordenacao_id) return false;
+    return alerta.processo.coordenacao_id === coordenacaoId;
+  });
+
+  // Calcular estatísticas baseadas nos alertas filtrados
+  const alertasPendentes = alertasFiltradosPorCoordenacao.filter(a => a.status === 'pendente').length;
+  const alertasUrgentes = alertasFiltradosPorCoordenacao.filter(a => a.status === 'pendente' && a.prioridade === 'urgente').length;
+  const totalAlertas = alertasFiltradosPorCoordenacao.length;
 
   return (
     <MainLayout title="Monitoração 360º" subtitle="Monitoramento inteligente de termos estratégicos">
@@ -122,11 +133,11 @@ export default function Monitoramento360() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total de Alertas</CardDescription>
-              <CardTitle className="text-3xl">{alertas.length}</CardTitle>
+              <CardTitle className="text-3xl">{totalAlertas}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">
-                Últimos 100 registros
+                {coordenacaoId === "todas" ? "Todas as coordenações" : "Coordenação selecionada"}
               </p>
             </CardContent>
           </Card>
