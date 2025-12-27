@@ -26,9 +26,18 @@ export default function AlertasList({ coordenacaoId }: AlertasListProps) {
   const [selectedAlerta, setSelectedAlerta] = useState<AlertaMonitoramento | null>(null);
   const [observacoes, setObservacoes] = useState('');
 
-  const alertasFiltrados = alertas.filter(alerta => {
+  const alertasFiltrados = alertas.filter((alerta) => {
     // Filtro por coordenação
-    if (coordenacaoId && alerta.processo?.coordenacao_id !== coordenacaoId) return false;
+    // Observação: dependendo das permissões (RLS), o objeto `processo` pode vir null;
+    // nesse caso, não removemos o alerta do resultado para evitar lista vazia indevida.
+    if (
+      coordenacaoId &&
+      alerta.processo?.coordenacao_id &&
+      alerta.processo.coordenacao_id !== coordenacaoId
+    ) {
+      return false;
+    }
+
     if (filtroStatus !== 'todos' && alerta.status !== filtroStatus) return false;
     if (filtroPrioridade !== 'todas' && alerta.prioridade !== filtroPrioridade) return false;
     if (busca) {
