@@ -20,7 +20,7 @@ interface AlertasListProps {
 
 export default function AlertasList({ coordenacaoId }: AlertasListProps) {
   const { alertas, atualizarAlerta, PRIORIDADES } = useMonitoramento360();
-  const [filtroStatus, setFiltroStatus] = useState<string>('pendente');
+  const [filtroStatus, setFiltroStatus] = useState<string>('todos');
   const [filtroPrioridade, setFiltroPrioridade] = useState<string>('todas');
   const [busca, setBusca] = useState('');
   const [selectedAlerta, setSelectedAlerta] = useState<AlertaMonitoramento | null>(null);
