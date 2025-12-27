@@ -22,22 +22,37 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useRelatorioClientesData } from "@/hooks/useRelatorioClientesData";
 
 interface RelatorioClientesProps {
-  processosPorCliente: any[];
-  processosPorVara: any[];
-  duracaoClientes: any[];
-  atividadesPorTarefa: any[];
-  produtividadeAdvogados: any[];
+  isActive: boolean;
 }
 
-export function RelatorioClientes({
-  processosPorCliente,
-  processosPorVara,
-  duracaoClientes,
-  atividadesPorTarefa,
-  produtividadeAdvogados,
-}: RelatorioClientesProps) {
+export function RelatorioClientes({ isActive }: RelatorioClientesProps) {
+  const { data, isLoading } = useRelatorioClientesData(isActive);
+
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-80 rounded-xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-64 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    processosPorCliente,
+    processosPorVara,
+    duracaoClientes,
+    atividadesPorTarefa,
+    produtividadeAdvogados,
+  } = data;
+
   return (
     <div className="space-y-6">
       {/* Processos por Cliente - Relatório Completo */}
