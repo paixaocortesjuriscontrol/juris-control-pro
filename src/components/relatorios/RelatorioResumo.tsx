@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -26,26 +27,42 @@ import {
   CartesianGrid,
   Legend
 } from "recharts";
+import { useRelatorioResumoData } from "@/hooks/useRelatorioResumoData";
 
 interface RelatorioResumoProps {
-  totalProcessos: number;
-  processosAtivosAnoAtual: number;
-  mediaEnvolvidos: string;
-  totalMovimentacoes: number;
-  processosPerArea: any[];
-  processosPorTipoPessoa: any[];
-  processosMensais: any[];
+  isActive: boolean;
 }
 
-export function RelatorioResumo({
-  totalProcessos,
-  processosAtivosAnoAtual,
-  mediaEnvolvidos,
-  totalMovimentacoes,
-  processosPerArea,
-  processosPorTipoPessoa,
-  processosMensais,
-}: RelatorioResumoProps) {
+export function RelatorioResumo({ isActive }: RelatorioResumoProps) {
+  const { data, isLoading } = useRelatorioResumoData(isActive);
+
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-80 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    totalProcessos,
+    processosAtivosAnoAtual,
+    mediaEnvolvidos,
+    totalMovimentacoes,
+    processosPerArea,
+    processosPorTipoPessoa,
+    processosMensais,
+  } = data;
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}

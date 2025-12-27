@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -27,26 +28,37 @@ import {
   LineChart,
   Line
 } from "recharts";
+import { useRelatorioAtividadesData } from "@/hooks/useRelatorioAtividadesData";
 
 interface RelatorioAtividadesProps {
-  totalPrazos: number;
-  prazosStatus: any[];
-  atividadesConcluidas: number;
-  atividadesNaoConcluidas: number;
-  atividadesPorArea: any[];
-  evolucaoAndamentos: any[];
-  andamentosPorArea: any[];
+  isActive: boolean;
 }
 
-export function RelatorioAtividades({
-  totalPrazos,
-  prazosStatus,
-  atividadesConcluidas,
-  atividadesNaoConcluidas,
-  atividadesPorArea,
-  evolucaoAndamentos,
-  andamentosPorArea,
-}: RelatorioAtividadesProps) {
+export function RelatorioAtividades({ isActive }: RelatorioAtividadesProps) {
+  const { data, isLoading } = useRelatorioAtividadesData(isActive);
+
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-80 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    totalPrazos,
+    prazosStatus,
+    atividadesConcluidas,
+    atividadesNaoConcluidas,
+    atividadesPorArea,
+    evolucaoAndamentos,
+    andamentosPorArea,
+  } = data;
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
