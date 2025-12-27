@@ -33,6 +33,7 @@ export interface AlertaMonitoramento {
     polo_ativo: string | null;
     polo_passivo: string | null;
     vara: string | null;
+    coordenacao_id: string | null;
   };
   movimentacao?: {
     descricao: string;
@@ -96,7 +97,7 @@ export function useMonitoramento360() {
         .select(`
           *,
           termo:termos_monitoramento(*),
-          processo:processos(numero, polo_ativo, polo_passivo, vara),
+          processo:processos(numero, polo_ativo, polo_passivo, vara, coordenacao_id),
           movimentacao:movimentacoes(descricao, data_movimentacao)
         `)
         .order('created_at', { ascending: false })

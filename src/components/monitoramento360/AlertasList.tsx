@@ -14,7 +14,11 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 
-export default function AlertasList() {
+interface AlertasListProps {
+  coordenacaoId?: string;
+}
+
+export default function AlertasList({ coordenacaoId }: AlertasListProps) {
   const { alertas, atualizarAlerta, PRIORIDADES } = useMonitoramento360();
   const [filtroStatus, setFiltroStatus] = useState<string>('pendente');
   const [filtroPrioridade, setFiltroPrioridade] = useState<string>('todas');
@@ -23,6 +27,8 @@ export default function AlertasList() {
   const [observacoes, setObservacoes] = useState('');
 
   const alertasFiltrados = alertas.filter(alerta => {
+    // Filtro por coordenação
+    if (coordenacaoId && alerta.processo?.coordenacao_id !== coordenacaoId) return false;
     if (filtroStatus !== 'todos' && alerta.status !== filtroStatus) return false;
     if (filtroPrioridade !== 'todas' && alerta.prioridade !== filtroPrioridade) return false;
     if (busca) {

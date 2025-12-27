@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Radar, 
   AlertTriangle, 
@@ -12,9 +13,11 @@ import {
   Loader2,
   Bell,
   Filter,
-  Search
+  Search,
+  Building2
 } from "lucide-react";
 import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
+import { useCoordenacoes } from "@/hooks/useDashboardData";
 import TermosConfig from "@/components/monitoramento360/TermosConfig";
 import AlertasList from "@/components/monitoramento360/AlertasList";
 import CarteirasConfig from "@/components/monitoramento360/CarteirasConfig";
@@ -31,7 +34,9 @@ export default function Monitoramento360() {
     executarVarredura,
   } = useMonitoramento360();
 
+  const { data: coordenacoes } = useCoordenacoes();
   const [activeTab, setActiveTab] = useState("alertas");
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
 
   return (
     <MainLayout title="Monitoração 360º" subtitle="Monitoramento inteligente de termos estratégicos">
@@ -47,17 +52,33 @@ export default function Monitoramento360() {
               Monitoramento inteligente de termos estratégicos nos andamentos processuais
             </p>
           </div>
-          <Button
-            onClick={() => executarVarredura.mutate()}
-            disabled={executarVarredura.isPending}
-          >
-            {executarVarredura.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4 mr-2" />
-            )}
-            Executar Varredura
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
+              <SelectTrigger className="w-[200px]">
+                <Building2 className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as Coordenações</SelectItem>
+                {coordenacoes?.map((coord) => (
+                  <SelectItem key={coord.id} value={coord.id}>
+                    {coord.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={() => executarVarredura.mutate()}
+              disabled={executarVarredura.isPending}
+            >
+              {executarVarredura.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-2" />
+              )}
+              Executar Varredura
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -134,7 +155,7 @@ export default function Monitoramento360() {
           </TabsList>
 
           <TabsContent value="alertas" className="mt-6">
-            <AlertasList />
+            <AlertasList coordenacaoId={coordenacaoId !== "todas" ? coordenacaoId : undefined} />
           </TabsContent>
 
           <TabsContent value="termos" className="mt-6">
