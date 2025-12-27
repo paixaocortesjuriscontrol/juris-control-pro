@@ -3,7 +3,9 @@ import {
   BarChart3,
   Clock,
   Activity,
-  PieChart
+  PieChart,
+  RefreshCw,
+  AlertCircle
 } from "lucide-react";
 import {
   Card,
@@ -13,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { 
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -35,9 +38,9 @@ interface RelatorioAtividadesProps {
 }
 
 export function RelatorioAtividades({ isActive }: RelatorioAtividadesProps) {
-  const { data, isLoading } = useRelatorioAtividadesData(isActive);
+  const { data, isLoading, isError, refetch, isFetching } = useRelatorioAtividadesData(isActive);
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -46,6 +49,28 @@ export function RelatorioAtividades({ isActive }: RelatorioAtividadesProps) {
           ))}
         </div>
       </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <Card className="animate-fade-in">
+        <CardContent className="py-12">
+          <div className="flex flex-col items-center justify-center gap-4 text-center">
+            <AlertCircle className="w-12 h-12 text-destructive" />
+            <div>
+              <p className="font-medium text-lg">Erro ao carregar relatório</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                O relatório está demorando mais que o esperado. Tente novamente.
+              </p>
+            </div>
+            <Button onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              {isFetching ? 'Carregando...' : 'Tentar Novamente'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 

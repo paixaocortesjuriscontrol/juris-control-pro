@@ -5,7 +5,9 @@ import {
   FileText,
   CheckCircle,
   AlertTriangle,
-  Users
+  Users,
+  RefreshCw,
+  AlertCircle
 } from "lucide-react";
 import {
   Card,
@@ -23,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { useRelatorioClientesData } from "@/hooks/useRelatorioClientesData";
 
 interface RelatorioClientesProps {
@@ -30,9 +33,9 @@ interface RelatorioClientesProps {
 }
 
 export function RelatorioClientes({ isActive }: RelatorioClientesProps) {
-  const { data, isLoading } = useRelatorioClientesData(isActive);
+  const { data, isLoading, isError, refetch, isFetching } = useRelatorioClientesData(isActive);
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-80 rounded-xl" />
@@ -42,6 +45,28 @@ export function RelatorioClientes({ isActive }: RelatorioClientesProps) {
           ))}
         </div>
       </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <Card className="animate-fade-in">
+        <CardContent className="py-12">
+          <div className="flex flex-col items-center justify-center gap-4 text-center">
+            <AlertCircle className="w-12 h-12 text-destructive" />
+            <div>
+              <p className="font-medium text-lg">Erro ao carregar relatório</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                O relatório está demorando mais que o esperado. Tente novamente.
+              </p>
+            </div>
+            <Button onClick={() => refetch()} disabled={isFetching}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              {isFetching ? 'Carregando...' : 'Tentar Novamente'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
