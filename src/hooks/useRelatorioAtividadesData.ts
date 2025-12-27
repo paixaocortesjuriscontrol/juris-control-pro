@@ -4,8 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 export function useRelatorioAtividadesData(enabled: boolean) {
   return useQuery({
     queryKey: ["relatorio-atividades-data"],
-    staleTime: 10 * 60 * 1000,
-    gcTime: 60 * 60 * 1000,
+    staleTime: 30 * 60 * 1000, // 30 minutos
+    gcTime: 2 * 60 * 60 * 1000, // 2 horas
     enabled,
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_relatorio_atividades');
