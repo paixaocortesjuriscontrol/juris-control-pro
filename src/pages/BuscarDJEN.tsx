@@ -117,6 +117,7 @@ const BuscarDJEN = () => {
   const [backfillDataFim, setBackfillDataFim] = useState("");
   const [backfillStats, setBackfillStats] = useState<{ novas: number; descartadas: number; duplicatas: number; erros: number } | null>(null);
   const backfillCancelledRef = useRef(false);
+  const backfillAbortRef = useRef<AbortController | null>(null);
 
   const { 
     monitoramentos, 
@@ -635,6 +636,9 @@ const BuscarDJEN = () => {
       return;
     }
 
+    // Cancel any previous in-flight request
+    backfillAbortRef.current?.abort();
+
     backfillCancelledRef.current = false;
     setBackfillLoading(true);
     setBackfillProgress(0);
@@ -642,54 +646,69 @@ const BuscarDJEN = () => {
     setBackfillStats(null);
 
     const totalStats = { novas: 0, descartadas: 0, duplicatas: 0, erros: 0 };
-    
+
+    // Public (safe) constants for direct fetch with AbortController
+    const FUNCTIONS_BASE_URL = "https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1";
+    const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM";
+
     try {
       let currentDataInicio = backfillDataInicio;
       let offset = 0;
       let iteration = 0;
-      const maxIterations = 100; // Safety limit
-      
+      const maxIterations = 500; // Safety limit
+
       while (iteration < maxIterations) {
-        // Check if cancelled
         if (backfillCancelledRef.current) {
           setBackfillStatus("Backfill cancelado pelo usuário");
-          toast.info("Backfill cancelado");
           break;
         }
 
         iteration++;
         setBackfillStatus(`Processando lote ${iteration}... (${currentDataInicio})`);
-        
-        const { data, error } = await supabase.functions.invoke('backfill-djen-jina', {
-          body: {
-            dataInicio: currentDataInicio,
-            dataFim: backfillDataFim,
-            offset,
-          }
-        });
 
-        // Check again after async call
+        const controller = new AbortController();
+        backfillAbortRef.current = controller;
+        const timeoutId = window.setTimeout(() => controller.abort(), 25_000);
+
+        let data: any;
+        try {
+          const resp = await fetch(`${FUNCTIONS_BASE_URL}/backfill-djen-jina`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: SUPABASE_PUBLISHABLE_KEY,
+              Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({
+              dataInicio: currentDataInicio,
+              dataFim: backfillDataFim,
+              offset,
+            }),
+            signal: controller.signal,
+          });
+
+          if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(`HTTP ${resp.status}: ${text.slice(0, 200)}`);
+          }
+
+          data = await resp.json();
+        } finally {
+          window.clearTimeout(timeoutId);
+          backfillAbortRef.current = null;
+        }
+
         if (backfillCancelledRef.current) {
           setBackfillStatus("Backfill cancelado pelo usuário");
-          toast.info("Backfill cancelado");
           break;
         }
 
-        if (error) {
-          console.error("Backfill error:", error);
+        if (!data?.success) {
           totalStats.erros++;
-          toast.error(`Erro no lote ${iteration}: ${error.message}`);
+          toast.error(`Erro: ${data?.error || "Falha no backfill"}`);
           break;
         }
 
-        if (!data.success) {
-          console.error("Backfill failed:", data.error);
-          totalStats.erros++;
-          toast.error(`Erro: ${data.error}`);
-          break;
-        }
-
-        // Accumulate stats
         if (data.stats) {
           totalStats.novas += data.stats.novas || 0;
           totalStats.descartadas += data.stats.descartadas || 0;
@@ -697,7 +716,6 @@ const BuscarDJEN = () => {
           totalStats.erros += data.stats.erros || 0;
         }
 
-        // Calculate progress
         const startDate = new Date(backfillDataInicio).getTime();
         const endDate = new Date(backfillDataFim).getTime();
         const currentDate = new Date(data.processedDateRange?.fim || currentDataInicio).getTime();
@@ -709,14 +727,12 @@ const BuscarDJEN = () => {
           `Lote ${iteration}: ${data.stats?.novas || 0} novas, ${data.stats?.duplicatas || 0} duplicatas`
         );
 
-        // Check if we need to continue
         if (!data.hasMoreDates && !data.hasMoreMonitoramentos) {
           setBackfillProgress(100);
           setBackfillStatus("Backfill concluído!");
           break;
         }
 
-        // Update for next iteration
         if (data.hasMoreMonitoramentos && data.nextOffset !== null) {
           offset = data.nextOffset;
         } else if (data.hasMoreDates && data.nextDataInicio) {
@@ -726,26 +742,33 @@ const BuscarDJEN = () => {
           break;
         }
 
-        // Small delay between batches
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 250));
       }
 
-      if (!backfillCancelledRef.current) {
+      if (backfillCancelledRef.current) {
+        toast.info("Backfill cancelado");
+      } else {
         toast.success(
           `Backfill concluído! ${totalStats.novas} novas publicações, ${totalStats.duplicatas} duplicatas`
         );
       }
-
     } catch (error: any) {
-      console.error("Backfill error:", error);
-      toast.error("Erro ao executar backfill: " + error.message);
+      if (error?.name === 'AbortError') {
+        setBackfillStatus("Backfill cancelado");
+        toast.info("Backfill cancelado");
+      } else {
+        console.error("Backfill error:", error);
+        toast.error("Erro ao executar backfill: " + (error?.message || "Erro desconhecido"));
+      }
     } finally {
       setBackfillLoading(false);
+      backfillAbortRef.current = null;
     }
   };
 
   const handleCancelBackfill = () => {
     backfillCancelledRef.current = true;
+    backfillAbortRef.current?.abort();
     setBackfillStatus("Cancelando...");
   };
 
