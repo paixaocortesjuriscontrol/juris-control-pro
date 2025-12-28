@@ -489,12 +489,8 @@ const BuscarDJEN = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedPublicacoes = publicacoes.slice(startIndex, endIndex);
-
   // Reset to page 1 when results change
-  const handleSearchWithReset = async () => {
-    setCurrentPage(1);
-    await handleSearch();
-  };
+  // (handled inline on the search button)
 
   const toggleSelectAll = () => {
     if (selectedIds.size === publicacoes.length) {
