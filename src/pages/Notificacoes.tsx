@@ -402,6 +402,62 @@ export default function Notificacoes() {
               </Card>
             )}
 
+            {/* Distribuições resumido */}
+            {stats.distribuicoes > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Scale className="w-4 h-4 text-purple-500" />
+                    Distribuições ({stats.distribuicoes})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[200px]">
+                    {distribuicoesPendentes.slice(0, 5).map((dist) => (
+                      <div key={dist.id} className="py-2 border-b last:border-0">
+                        <p className="text-sm font-medium truncate">{dist.numero_processo}</p>
+                        <p className="text-xs text-muted-foreground">{dist.classe || 'Sem classe'}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {dist.tribunal || 'Tribunal não informado'}
+                        </p>
+                      </div>
+                    ))}
+                  </ScrollArea>
+                  <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setActiveTab("distribuicoes")}>
+                    Ver todas
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Redistribuições resumido */}
+            {stats.redistribuicoes > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-cyan-500" />
+                    Redistribuições ({stats.redistribuicoes})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[200px]">
+                    {redistribuicoesRecentes.slice(0, 5).map((red) => (
+                      <div key={red.id} className="py-2 border-b last:border-0">
+                        <p className="text-sm font-medium truncate">{red.processo_numero}</p>
+                        <p className="text-xs text-muted-foreground">{red.vara_antiga} → {red.vara_nova}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDistanceToNow(new Date(red.data_redistribuicao), { addSuffix: true, locale: ptBR })}
+                        </p>
+                      </div>
+                    ))}
+                  </ScrollArea>
+                  <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setActiveTab("redistribuicoes")}>
+                    Ver todas
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Notificações do sistema */}
             {naoLidas.length > 0 && (
               <Card>
@@ -435,6 +491,9 @@ export default function Notificacoes() {
                       </div>
                     ))}
                   </ScrollArea>
+                  <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => marcarTodasComoLidas.mutate()}>
+                    Marcar todas como lidas
+                  </Button>
                 </CardContent>
               </Card>
             )}
