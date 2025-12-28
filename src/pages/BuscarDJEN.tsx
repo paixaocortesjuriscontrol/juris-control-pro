@@ -803,6 +803,8 @@ const BuscarDJEN = () => {
 
   const handleCancelLoadAll = () => {
     loadAllCancelledRef.current = true;
+    setLoadingAll(false);
+    toast.info("Carregamento cancelado");
   };
 
   const handleResumir = async () => {
