@@ -300,6 +300,21 @@ const BuscarDJEN = () => {
     }
   };
 
+  const resetResultados = () => {
+    setPublicacoes([]);
+    setSelectedIds(new Set());
+    setCurrentPage(1);
+
+    // DJEN server-side pagination
+    setApiPage(0);
+    setApiTotal(null);
+    setApiHasMore(false);
+
+    // "Carregar tudo"
+    setLoadAllProgress({ loaded: 0, total: 0 });
+    loadAllCancelledRef.current = false;
+  };
+
   const handleSearch = async () => {
     // Busca por monitoramento pré-cadastrado
     if (searchType === "monitoramento") {
@@ -307,11 +322,12 @@ const BuscarDJEN = () => {
         toast.error("Selecione uma coordenação");
         return;
       }
-      
+
+      resetResultados();
+
       setLoading(true);
       setHasSearched(true);
-      setSelectedIds(new Set());
-      
+
       try {
         // Determina quais monitoramentos usar
         const monsParaBuscar = filtroMonitoramentoId === "todos" 
@@ -320,7 +336,6 @@ const BuscarDJEN = () => {
         
         if (!monsParaBuscar || monsParaBuscar.length === 0) {
           toast.info("Nenhum monitoramento ativo encontrado");
-          setPublicacoes([]);
           setLoading(false);
           return;
         }
@@ -389,13 +404,10 @@ const BuscarDJEN = () => {
       return;
     }
 
+    resetResultados();
+
     setLoading(true);
     setHasSearched(true);
-    setSelectedIds(new Set());
-    setCurrentPage(1);
-    setApiPage(0);
-    setApiTotal(null);
-    setApiHasMore(false);
 
     try {
       const { data, error } = await supabase.functions.invoke('buscar-djen', {
@@ -1477,7 +1489,7 @@ const BuscarDJEN = () => {
 
       {/* Barra fixa de ações (sempre visível após busca com resultados) */}
       {hasSearched && searchType !== "monitoramento" && publicacoes.length > 0 && (
-        <aside className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:right-6 z-50">
+        <aside className="fixed left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-[60] w-[min(900px,calc(100vw-2rem))]">
           <div className="rounded-lg border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 shadow-sm p-3">
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
               {!loadingAll ? (
