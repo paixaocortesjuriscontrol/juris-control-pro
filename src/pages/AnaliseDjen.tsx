@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,6 +69,7 @@ const AnaliseDjen = () => {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importCoordenacaoId, setImportCoordenacaoId] = useState<string>("");
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, imported: 0, movimentacoes: 0, errors: 0 });
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   
   const { publicacoes, isLoading, ultimoResumo, loadingResumo, gerarResumoIA, marcarComoLida } = useAnaliseDjen({
@@ -204,86 +206,112 @@ const AnaliseDjen = () => {
     }
 
     setImporting(true);
+    const selectedPubs = publicacoes.filter(p => selectedIds.has(p.id));
+    const total = selectedPubs.length;
+    setImportProgress({ current: 0, total, imported: 0, movimentacoes: 0, errors: 0 });
 
     try {
-      const selectedPubs = publicacoes.filter(p => selectedIds.has(p.id));
       let imported = 0;
       let movimentacoesAdded = 0;
       let errors = 0;
 
-      for (const pub of selectedPubs) {
-        try {
-          let processNumbers: string[] = [];
-          
-          if (pub.processo_numero) {
-            processNumbers = [pub.processo_numero];
-          } else if (pub.conteudo) {
-            processNumbers = extractProcessNumbers(pub.conteudo);
-          }
+      // Preparar todos os números de processo antecipadamente
+      const pubsWithNumbers = selectedPubs.map(pub => {
+        let processNumbers: string[] = [];
+        if (pub.processo_numero) {
+          processNumbers = [pub.processo_numero];
+        } else if (pub.conteudo) {
+          processNumbers = extractProcessNumbers(pub.conteudo);
+        }
+        return { pub, processNumbers };
+      });
 
-          if (processNumbers.length === 0) {
-            errors++;
-            continue;
-          }
+      // Buscar todos os processos existentes de uma vez
+      const allNumbers = [...new Set(pubsWithNumbers.flatMap(p => p.processNumbers))];
+      const { data: existingProcesses } = await supabase
+        .from("processos")
+        .select("id, numero")
+        .in("numero", allNumbers.length > 0 ? allNumbers : ['__none__']);
 
-          for (const numero of processNumbers) {
-            const { data: existingProcess } = await supabase
-              .from("processos")
-              .select("id")
-              .eq("numero", numero)
-              .maybeSingle();
+      const existingMap = new Map((existingProcesses || []).map(p => [p.numero, p.id]));
 
-            if (existingProcess) {
-              await supabase
-                .from("movimentacoes")
-                .insert({
-                  processo_id: existingProcess.id,
-                  descricao: `Intimação DJEN: ${pub.conteudo?.substring(0, 500) || ""}`,
-                  tipo: "intimacao",
-                  fonte: "DJEN",
-                  data_movimentacao: pub.data_publicacao || new Date().toISOString(),
-                });
-              movimentacoesAdded++;
-            } else {
-              const { data: newProcess, error: createError } = await supabase
-                .from("processos")
-                .insert({
-                  numero,
-                  area: "civil",
-                  status: "ativo",
-                  tribunal: pub.fonte || "Não identificado",
-                  assunto: pub.conteudo?.substring(0, 200) || "Publicação DJEN",
-                  polo_ativo: "A identificar",
-                  coordenacao_id: importCoordenacaoId,
-                })
-                .select("id")
-                .single();
+      // Processar em lotes de 5 para melhor performance
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < pubsWithNumbers.length; i += BATCH_SIZE) {
+        const batch = pubsWithNumbers.slice(i, i + BATCH_SIZE);
+        
+        await Promise.all(batch.map(async ({ pub, processNumbers }) => {
+          try {
+            if (processNumbers.length === 0) {
+              errors++;
+              return;
+            }
 
-              if (!createError && newProcess) {
+            for (const numero of processNumbers) {
+              const existingId = existingMap.get(numero);
+
+              if (existingId) {
                 await supabase
                   .from("movimentacoes")
                   .insert({
-                    processo_id: newProcess.id,
+                    processo_id: existingId,
                     descricao: `Intimação DJEN: ${pub.conteudo?.substring(0, 500) || ""}`,
                     tipo: "intimacao",
                     fonte: "DJEN",
                     data_movimentacao: pub.data_publicacao || new Date().toISOString(),
                   });
-                imported++;
+                movimentacoesAdded++;
               } else {
-                errors++;
+                const { data: newProcess, error: createError } = await supabase
+                  .from("processos")
+                  .insert({
+                    numero,
+                    area: "civil",
+                    status: "ativo",
+                    tribunal: pub.fonte || "Não identificado",
+                    assunto: pub.conteudo?.substring(0, 200) || "Publicação DJEN",
+                    polo_ativo: "A identificar",
+                    coordenacao_id: importCoordenacaoId,
+                  })
+                  .select("id")
+                  .single();
+
+                if (!createError && newProcess) {
+                  existingMap.set(numero, newProcess.id);
+                  await supabase
+                    .from("movimentacoes")
+                    .insert({
+                      processo_id: newProcess.id,
+                      descricao: `Intimação DJEN: ${pub.conteudo?.substring(0, 500) || ""}`,
+                      tipo: "intimacao",
+                      fonte: "DJEN",
+                      data_movimentacao: pub.data_publicacao || new Date().toISOString(),
+                    });
+                  imported++;
+                } else {
+                  errors++;
+                }
               }
             }
+
+            await supabase
+              .from('publicacoes_djen')
+              .update({ lida: true })
+              .eq('id', pub.id);
+
+          } catch (e) {
+            errors++;
           }
+        }));
 
-          await supabase
-            .from('publicacoes_djen')
-            .update({ lida: true })
-            .eq('id', pub.id);
-
-        } catch (e) {
-          errors++;
-        }
+        // Atualizar progresso
+        setImportProgress({
+          current: Math.min(i + BATCH_SIZE, pubsWithNumbers.length),
+          total,
+          imported,
+          movimentacoes: movimentacoesAdded,
+          errors,
+        });
       }
 
       let msg = "";
@@ -303,6 +331,7 @@ const AnaliseDjen = () => {
       toast.error("Erro ao importar: " + error.message);
     } finally {
       setImporting(false);
+      setImportProgress({ current: 0, total: 0, imported: 0, movimentacoes: 0, errors: 0 });
     }
   };
 
@@ -905,7 +934,7 @@ const AnaliseDjen = () => {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label>Coordenação</Label>
-                <Select value={importCoordenacaoId} onValueChange={setImportCoordenacaoId}>
+                <Select value={importCoordenacaoId} onValueChange={setImportCoordenacaoId} disabled={importing}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma coordenação" />
                   </SelectTrigger>
@@ -918,6 +947,30 @@ const AnaliseDjen = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {importing && importProgress.total > 0 && (
+                <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Progresso</span>
+                    <span className="font-medium">{importProgress.current} / {importProgress.total}</span>
+                  </div>
+                  <Progress value={(importProgress.current / importProgress.total) * 100} className="h-2" />
+                  <div className="grid grid-cols-3 gap-2 text-xs text-center">
+                    <div className="p-2 bg-green-500/10 rounded">
+                      <div className="font-medium text-green-600">{importProgress.imported}</div>
+                      <div className="text-muted-foreground">Criados</div>
+                    </div>
+                    <div className="p-2 bg-blue-500/10 rounded">
+                      <div className="font-medium text-blue-600">{importProgress.movimentacoes}</div>
+                      <div className="text-muted-foreground">Intimações</div>
+                    </div>
+                    <div className="p-2 bg-orange-500/10 rounded">
+                      <div className="font-medium text-orange-600">{importProgress.errors}</div>
+                      <div className="text-muted-foreground">Sem nº</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <DialogFooter>
