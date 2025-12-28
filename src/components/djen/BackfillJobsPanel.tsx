@@ -130,15 +130,15 @@ export function BackfillJobsPanel({ monitoramentos = [] }: BackfillJobsPanelProp
           <div className="space-y-1">
             <Label className="text-xs">Monitoramento (opcional)</Label>
             <Select 
-              value={monitoramentoId} 
-              onValueChange={setMonitoramentoId}
+              value={monitoramentoId || "all"} 
+              onValueChange={(val) => setMonitoramentoId(val === "all" ? "" : val)}
               disabled={creating || !!activeJob}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os monitoramentos</SelectItem>
+                <SelectItem value="all">Todos os monitoramentos</SelectItem>
                 {monitoramentos.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.descricao || m.termo_busca}
