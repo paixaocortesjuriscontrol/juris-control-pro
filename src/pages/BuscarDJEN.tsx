@@ -417,9 +417,9 @@ const BuscarDJEN = () => {
           tipo: p.tipo || p.tipoComunicacao || "Publicação",
           conteudo: p.conteudo || p.texto || p.teor || "",
           processo: p.processo || p.numeroProcesso,
-          tribunal: p.tribunal || p.orgao,
+          tribunal: p.tribunal || p.orgao || p.nomeOrgao,
           advogado: p.advogado,
-          partes: p.partes || p.destinatario,
+          partes: p.partes || p.destinatario || p.destinatarioNome,
         }));
 
         setPublicacoes(pubs);
@@ -431,7 +431,11 @@ const BuscarDJEN = () => {
               ? data.count
               : null;
         setApiTotal(total);
-        setApiHasMore(total !== null ? pubs.length < total : rawPubs.length === DJEN_PAGE_SIZE);
+
+        const serverHasMore = typeof data.hasMore === "boolean" ? data.hasMore : null;
+        setApiHasMore(
+          serverHasMore !== null ? serverHasMore : total !== null ? pubs.length < total : rawPubs.length === DJEN_PAGE_SIZE
+        );
 
         if (pubs.length === 0) {
           toast.info(data.message || "Nenhuma publicação encontrada para os critérios informados");
@@ -482,9 +486,9 @@ const BuscarDJEN = () => {
         tipo: p.tipo || p.tipoComunicacao || "Publicação",
         conteudo: p.conteudo || p.texto || p.teor || "",
         processo: p.processo || p.numeroProcesso,
-        tribunal: p.tribunal || p.orgao,
+        tribunal: p.tribunal || p.orgao || p.nomeOrgao,
         advogado: p.advogado,
-        partes: p.partes || p.destinatario,
+        partes: p.partes || p.destinatario || p.destinatarioNome,
       }));
 
       const currentLoaded = publicacoes.length;
@@ -501,9 +505,14 @@ const BuscarDJEN = () => {
 
       if (typeof total === "number") setApiTotal(total);
 
-      const totalToUse = typeof total === "number" ? total : apiTotal;
-      const loadedAfter = currentLoaded + newPubs.length;
-      setApiHasMore(totalToUse !== null ? loadedAfter < totalToUse : rawPubs.length === DJEN_PAGE_SIZE);
+      const serverHasMore = typeof data.hasMore === "boolean" ? data.hasMore : null;
+      if (serverHasMore !== null) {
+        setApiHasMore(serverHasMore);
+      } else {
+        const totalToUse = typeof total === "number" ? total : apiTotal;
+        const loadedAfter = currentLoaded + newPubs.length;
+        setApiHasMore(totalToUse !== null ? loadedAfter < totalToUse : rawPubs.length === DJEN_PAGE_SIZE);
+      }
 
       toast.success(`${newPubs.length} resultado(s) adicionados`);
     } catch (e: any) {
