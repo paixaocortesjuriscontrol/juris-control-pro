@@ -21,7 +21,8 @@ import {
   UserCircle,
   Radar,
   FolderKanban,
-  FolderOpen
+  FolderOpen,
+  Bell
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ const menuItems = [
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: FolderKanban, label: "Minhas Tarefas", path: "/minha-carteira" },
+  { icon: Bell, label: "Notificações", path: "/notificacoes" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
