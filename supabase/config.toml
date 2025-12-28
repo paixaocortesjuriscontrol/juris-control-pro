@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.resumir-publicacoes]
 verify_jwt = false
+
+[functions.monitorar-termos]
+verify_jwt = false
+
+[functions.backfill-djen]
+verify_jwt = false
