@@ -290,11 +290,12 @@ async function processBatch(supabase: any): Promise<{
   // Reduced batch size to avoid WORKER_LIMIT errors
   const PROCESSES_PER_RUN = 50;
   
-  // Get count of active processes for pagination
+  // Get count of active processes for pagination (only those with monitoring enabled)
   const { count: totalCount } = await supabase
     .from('processos')
     .select('*', { count: 'exact', head: true })
-    .in('status', ['ativo', 'pendente', 'urgente']);
+    .in('status', ['ativo', 'pendente', 'urgente'])
+    .eq('monitorar_andamentos', true);
 
   // Get current config with metadata
   const { data: configData } = await supabase
@@ -321,11 +322,12 @@ async function processBatch(supabase: any): Promise<{
 
   console.log(`Processing offset ${currentOffset} to ${currentOffset + PROCESSES_PER_RUN} of ${totalCount} total processes`);
 
-  // Get batch of active processes with pagination
+  // Get batch of active processes with pagination (only those with monitoring enabled)
   const { data: processos, error: processosError } = await supabase
     .from('processos')
     .select('id, numero, advogado_responsavel_id, coordenacao_id')
     .in('status', ['ativo', 'pendente', 'urgente'])
+    .eq('monitorar_andamentos', true)
     .order('id')
     .range(currentOffset, currentOffset + PROCESSES_PER_RUN - 1);
 
