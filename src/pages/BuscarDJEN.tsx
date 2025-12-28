@@ -17,6 +17,10 @@ import {
   Pencil,
   History,
   Play,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -96,6 +100,10 @@ const BuscarDJEN = () => {
   const [publicacoes, setPublicacoes] = useState<Publicacao[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [hasSearched, setHasSearched] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [importing, setImporting] = useState(false);
   const [monitoramentoDialogOpen, setMonitoramentoDialogOpen] = useState(false);
   const [monitoramentoParaEditar, setMonitoramentoParaEditar] = useState<typeof monitoramentos[0] | null>(null);
@@ -476,12 +484,37 @@ const BuscarDJEN = () => {
     setSelectedIds(newSelected);
   };
 
+  // Pagination calculations
+  const totalPages = Math.ceil(publicacoes.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPublicacoes = publicacoes.slice(startIndex, endIndex);
+
+  // Reset to page 1 when results change
+  const handleSearchWithReset = async () => {
+    setCurrentPage(1);
+    await handleSearch();
+  };
+
   const toggleSelectAll = () => {
     if (selectedIds.size === publicacoes.length) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(publicacoes.map(p => p.id)));
     }
+  };
+
+  const toggleSelectPage = () => {
+    const pageIds = paginatedPublicacoes.map(p => p.id);
+    const allPageSelected = pageIds.every(id => selectedIds.has(id));
+    
+    const newSelected = new Set(selectedIds);
+    if (allPageSelected) {
+      pageIds.forEach(id => newSelected.delete(id));
+    } else {
+      pageIds.forEach(id => newSelected.add(id));
+    }
+    setSelectedIds(newSelected);
   };
 
   const handleOpenImportLoteDialog = () => {
@@ -818,7 +851,7 @@ const BuscarDJEN = () => {
                   />
                 </div>
                 <div className="flex items-end">
-                  <Button onClick={handleSearch} disabled={loading} className="w-full">
+                  <Button onClick={() => { setCurrentPage(1); handleSearch(); }} disabled={loading} className="w-full">
                     {loading ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -905,18 +938,87 @@ const BuscarDJEN = () => {
             </div>
           ) : (
             <>
+              {/* Pagination Controls - Top */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 pb-3 border-b">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Mostrando {startIndex + 1}-{Math.min(endIndex, publicacoes.length)} de {publicacoes.length}</span>
+                  <span className="text-muted-foreground/50">|</span>
+                  <div className="flex items-center gap-1">
+                    <span>Por página:</span>
+                    <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}>
+                      <SelectTrigger className="w-20 h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                        <SelectItem value="200">200</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="px-3 text-sm">
+                    Página {currentPage} de {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
               {/* Mobile View - Cards */}
               <div className="md:hidden space-y-3">
-                <div className="flex items-center gap-2 pb-2 border-b">
-                  <Checkbox
-                    checked={selectedIds.size === publicacoes.length && publicacoes.length > 0}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                  <span className="text-sm text-muted-foreground">Selecionar todos</span>
+                <div className="flex items-center justify-between gap-2 pb-2 border-b">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={paginatedPublicacoes.every(p => selectedIds.has(p.id)) && paginatedPublicacoes.length > 0}
+                      onCheckedChange={toggleSelectPage}
+                    />
+                    <span className="text-sm text-muted-foreground">Selecionar página</span>
+                  </div>
+                  <Button variant="link" size="sm" onClick={toggleSelectAll} className="text-xs p-0 h-auto">
+                    {selectedIds.size === publicacoes.length ? "Desmarcar todos" : "Selecionar todos"}
+                  </Button>
                 </div>
                 <ScrollArea className="h-[500px]">
                   <div className="space-y-3 pr-2">
-                    {publicacoes.map((pub) => (
+                    {paginatedPublicacoes.map((pub) => (
                       <div 
                         key={pub.id}
                         className={cn(
@@ -982,16 +1084,28 @@ const BuscarDJEN = () => {
 
               {/* Desktop View - Table */}
               <div className="hidden md:block">
+                <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={paginatedPublicacoes.every(p => selectedIds.has(p.id)) && paginatedPublicacoes.length > 0}
+                        onCheckedChange={toggleSelectPage}
+                      />
+                      <span className="text-sm text-muted-foreground">Selecionar página</span>
+                    </div>
+                    <Button variant="link" size="sm" onClick={toggleSelectAll} className="text-xs p-0 h-auto">
+                      {selectedIds.size === publicacoes.length ? "Desmarcar todos" : `Selecionar todos (${publicacoes.length})`}
+                    </Button>
+                  </div>
+                  {selectedIds.size > 0 && (
+                    <Badge variant="secondary">{selectedIds.size} selecionados</Badge>
+                  )}
+                </div>
                 <ScrollArea className="h-[500px]">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-12">
-                          <Checkbox
-                            checked={selectedIds.size === publicacoes.length && publicacoes.length > 0}
-                            onCheckedChange={toggleSelectAll}
-                          />
-                        </TableHead>
+                        <TableHead className="w-12"></TableHead>
                         <TableHead>Data</TableHead>
                         <TableHead>Tipo</TableHead>
                         <TableHead>Processo</TableHead>
@@ -1001,7 +1115,7 @@ const BuscarDJEN = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {publicacoes.map((pub) => (
+                      {paginatedPublicacoes.map((pub) => (
                         <TableRow 
                           key={pub.id}
                           className={cn(
@@ -1061,6 +1175,33 @@ const BuscarDJEN = () => {
                   </Table>
                 </ScrollArea>
               </div>
+              
+              {/* Pagination Controls - Bottom */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Anterior
+                  </Button>
+                  <span className="px-3 text-sm text-muted-foreground">
+                    Página {currentPage} de {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Próxima
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              )}
             </>
           )}
 
