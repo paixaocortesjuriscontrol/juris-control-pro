@@ -95,6 +95,54 @@ export type Database = {
           },
         ]
       }
+      backfill_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          criado_por: string
+          data_fim: string
+          data_inicio: string
+          erro: string | null
+          id: string
+          logs: string[] | null
+          monitoramento_id: string | null
+          progresso: Json | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          criado_por: string
+          data_fim: string
+          data_inicio: string
+          erro?: string | null
+          id?: string
+          logs?: string[] | null
+          monitoramento_id?: string | null
+          progresso?: Json | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          criado_por?: string
+          data_fim?: string
+          data_inicio?: string
+          erro?: string | null
+          id?: string
+          logs?: string[] | null
+          monitoramento_id?: string | null
+          progresso?: Json | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       carteiras_processos: {
         Row: {
           ativo: boolean

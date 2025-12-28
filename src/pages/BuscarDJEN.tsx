@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   Search,
   FileText,
@@ -57,6 +57,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
+import { BackfillJobsPanel } from "@/components/djen/BackfillJobsPanel";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 
@@ -108,16 +109,8 @@ const BuscarDJEN = () => {
   const [importLoteDialogOpen, setImportLoteDialogOpen] = useState(false);
   const [importLoteCoordenacaoId, setImportLoteCoordenacaoId] = useState<string>("");
 
-  // Backfill states
-  const [backfillDialogOpen, setBackfillDialogOpen] = useState(false);
-  const [backfillLoading, setBackfillLoading] = useState(false);
-  const [backfillProgress, setBackfillProgress] = useState(0);
-  const [backfillStatus, setBackfillStatus] = useState("");
-  const [backfillDataInicio, setBackfillDataInicio] = useState("");
-  const [backfillDataFim, setBackfillDataFim] = useState("");
-  const [backfillStats, setBackfillStats] = useState<{ novas: number; descartadas: number; duplicatas: number; erros: number } | null>(null);
-  const backfillCancelledRef = useRef(false);
-  const backfillAbortRef = useRef<AbortController | null>(null);
+  // Backfill dialog visibility (now uses the new panel)
+  const [backfillPanelOpen, setBackfillPanelOpen] = useState(false);
 
   const { 
     monitoramentos, 
@@ -630,148 +623,6 @@ const BuscarDJEN = () => {
     return text.substring(0, maxLength) + "...";
   };
 
-  const handleBackfillDJEN = async () => {
-    if (!backfillDataInicio || !backfillDataFim) {
-      toast.error("Selecione as datas de início e fim");
-      return;
-    }
-
-    // Cancel any previous in-flight request
-    backfillAbortRef.current?.abort();
-
-    backfillCancelledRef.current = false;
-    setBackfillLoading(true);
-    setBackfillProgress(0);
-    setBackfillStatus("Iniciando backfill...");
-    setBackfillStats(null);
-
-    const totalStats = { novas: 0, descartadas: 0, duplicatas: 0, erros: 0 };
-
-    // Public (safe) constants for direct fetch with AbortController
-    const FUNCTIONS_BASE_URL = "https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1";
-    const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM";
-
-    try {
-      let currentDataInicio = backfillDataInicio;
-      let offset = 0;
-      let iteration = 0;
-      const maxIterations = 500; // Safety limit
-
-      while (iteration < maxIterations) {
-        if (backfillCancelledRef.current) {
-          setBackfillStatus("Backfill cancelado pelo usuário");
-          break;
-        }
-
-        iteration++;
-        setBackfillStatus(`Processando lote ${iteration}... (${currentDataInicio})`);
-
-        const controller = new AbortController();
-        backfillAbortRef.current = controller;
-        const timeoutId = window.setTimeout(() => controller.abort(), 25_000);
-
-        let data: any;
-        try {
-          const resp = await fetch(`${FUNCTIONS_BASE_URL}/backfill-djen-jina`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              apikey: SUPABASE_PUBLISHABLE_KEY,
-              Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({
-              dataInicio: currentDataInicio,
-              dataFim: backfillDataFim,
-              offset,
-            }),
-            signal: controller.signal,
-          });
-
-          if (!resp.ok) {
-            const text = await resp.text();
-            throw new Error(`HTTP ${resp.status}: ${text.slice(0, 200)}`);
-          }
-
-          data = await resp.json();
-        } finally {
-          window.clearTimeout(timeoutId);
-          backfillAbortRef.current = null;
-        }
-
-        if (backfillCancelledRef.current) {
-          setBackfillStatus("Backfill cancelado pelo usuário");
-          break;
-        }
-
-        if (!data?.success) {
-          totalStats.erros++;
-          toast.error(`Erro: ${data?.error || "Falha no backfill"}`);
-          break;
-        }
-
-        if (data.stats) {
-          totalStats.novas += data.stats.novas || 0;
-          totalStats.descartadas += data.stats.descartadas || 0;
-          totalStats.duplicatas += data.stats.duplicatas || 0;
-          totalStats.erros += data.stats.erros || 0;
-        }
-
-        const startDate = new Date(backfillDataInicio).getTime();
-        const endDate = new Date(backfillDataFim).getTime();
-        const currentDate = new Date(data.processedDateRange?.fim || currentDataInicio).getTime();
-        const progress = Math.min(100, ((currentDate - startDate) / (endDate - startDate)) * 100);
-        setBackfillProgress(Math.round(progress));
-
-        setBackfillStats({ ...totalStats });
-        setBackfillStatus(
-          `Lote ${iteration}: ${data.stats?.novas || 0} novas, ${data.stats?.duplicatas || 0} duplicatas`
-        );
-
-        if (!data.hasMoreDates && !data.hasMoreMonitoramentos) {
-          setBackfillProgress(100);
-          setBackfillStatus("Backfill concluído!");
-          break;
-        }
-
-        if (data.hasMoreMonitoramentos && data.nextOffset !== null) {
-          offset = data.nextOffset;
-        } else if (data.hasMoreDates && data.nextDataInicio) {
-          currentDataInicio = data.nextDataInicio;
-          offset = 0;
-        } else {
-          break;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 250));
-      }
-
-      if (backfillCancelledRef.current) {
-        toast.info("Backfill cancelado");
-      } else {
-        toast.success(
-          `Backfill concluído! ${totalStats.novas} novas publicações, ${totalStats.duplicatas} duplicatas`
-        );
-      }
-    } catch (error: any) {
-      if (error?.name === 'AbortError') {
-        setBackfillStatus("Backfill cancelado");
-        toast.info("Backfill cancelado");
-      } else {
-        console.error("Backfill error:", error);
-        toast.error("Erro ao executar backfill: " + (error?.message || "Erro desconhecido"));
-      }
-    } finally {
-      setBackfillLoading(false);
-      backfillAbortRef.current = null;
-    }
-  };
-
-  const handleCancelBackfill = () => {
-    backfillCancelledRef.current = true;
-    backfillAbortRef.current?.abort();
-    setBackfillStatus("Cancelando...");
-  };
-
   return (
     <MainLayout
       title="Buscar no DJEN"
@@ -1214,13 +1065,13 @@ const BuscarDJEN = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <Button 
-                onClick={() => setBackfillDialogOpen(true)} 
+                onClick={() => setBackfillPanelOpen(!backfillPanelOpen)} 
                 variant="outline" 
                 size="sm" 
                 className="w-full sm:w-auto"
               >
                 <History className="w-4 h-4 mr-2" />
-                Backfill Histórico
+                {backfillPanelOpen ? "Ocultar Backfill" : "Backfill Histórico"}
               </Button>
               <Button onClick={() => setMonitoramentoDialogOpen(true)} size="sm" className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
@@ -1488,124 +1339,12 @@ const BuscarDJEN = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Backfill Dialog */}
-      <Dialog open={backfillDialogOpen} onOpenChange={(open) => {
-        if (!backfillLoading) setBackfillDialogOpen(open);
-      }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <History className="w-5 h-5" />
-              Backfill Histórico DJEN
-            </DialogTitle>
-            <DialogDescription>
-              Busque publicações passadas para todos os monitoramentos ativos usando Jina AI
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="backfill-inicio">Data Início</Label>
-                <Input
-                  id="backfill-inicio"
-                  type="date"
-                  value={backfillDataInicio}
-                  onChange={(e) => setBackfillDataInicio(e.target.value)}
-                  disabled={backfillLoading}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="backfill-fim">Data Fim</Label>
-                <Input
-                  id="backfill-fim"
-                  type="date"
-                  value={backfillDataFim}
-                  onChange={(e) => setBackfillDataFim(e.target.value)}
-                  disabled={backfillLoading}
-                />
-              </div>
-            </div>
-
-            {backfillLoading && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{backfillStatus}</span>
-                  <span className="font-medium">{backfillProgress}%</span>
-                </div>
-                <Progress value={backfillProgress} className="h-2" />
-              </div>
-            )}
-
-            {backfillStats && (
-              <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                <p className="text-sm font-medium">Estatísticas:</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Novas:</span>
-                    <span className="font-medium text-green-600">{backfillStats.novas}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Duplicatas:</span>
-                    <span className="font-medium text-yellow-600">{backfillStats.duplicatas}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Descartadas:</span>
-                    <span className="font-medium text-orange-600">{backfillStats.descartadas}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Erros:</span>
-                    <span className="font-medium text-red-600">{backfillStats.erros}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-              <p>• O backfill processa todos os monitoramentos ativos</p>
-              <p>• Publicações duplicadas são automaticamente ignoradas</p>
-              <p>• O processo pode demorar dependendo do período</p>
-            </div>
-          </div>
-
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            {backfillLoading ? (
-              <Button 
-                variant="destructive" 
-                onClick={handleCancelBackfill}
-                className="w-full sm:w-auto"
-              >
-                Cancelar Backfill
-              </Button>
-            ) : (
-              <Button 
-                variant="outline" 
-                onClick={() => setBackfillDialogOpen(false)}
-                className="w-full sm:w-auto"
-              >
-                Fechar
-              </Button>
-            )}
-            <Button 
-              onClick={handleBackfillDJEN} 
-              disabled={backfillLoading || !backfillDataInicio || !backfillDataFim}
-              className="w-full sm:w-auto"
-            >
-              {backfillLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Processando...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4 mr-2" />
-                  Iniciar Backfill
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Backfill Jobs Panel */}
+      {backfillPanelOpen && (
+        <div className="mt-6">
+          <BackfillJobsPanel monitoramentos={monitoramentos} />
+        </div>
+      )}
     </MainLayout>
   );
 };
