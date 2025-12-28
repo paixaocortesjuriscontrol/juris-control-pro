@@ -1189,7 +1189,9 @@ export default function ImportarProcessos() {
   const osmarInvalidCount = osmarProcessos.filter(p => p.status === "invalido").length;
   const osmarSuccessCount = osmarProcessos.filter(p => p.status === "sucesso").length;
   const osmarErrorCount = osmarProcessos.filter(p => p.status === "erro").length;
+  const osmarWarningCount = osmarProcessos.filter(p => (p.status === "valido" || p.status === "sucesso") && p.erros.length > 0).length;
   const osmarTotalRejeitados = osmarInvalidCount + osmarErrorCount;
+  const osmarTotalProblemas = osmarTotalRejeitados + osmarWarningCount;
 
   // Dr. Osmar file handling
   const handleOsmarFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1275,9 +1277,11 @@ export default function ImportarProcessos() {
           observacoes: row["Observações"] || null,
         };
         
-        // Validate the processo
+        // Validate the processo - but now we allow partial imports
         processo.erros = validateProcesso(processo);
-        processo.status = processo.erros.length > 0 ? "invalido" : "valido";
+        // Only mark as invalid if numero is missing (critical error), otherwise mark as valid with warnings
+        const hasCriticalError = !processo.numero || processo.numero.trim() === "" || processo.numero.trim().length < 5;
+        processo.status = hasCriticalError ? "invalido" : "valido";
         
         return processo;
       });
@@ -1311,11 +1315,12 @@ export default function ImportarProcessos() {
   };
 
   const handleOsmarImport = async () => {
-    const validProcessos = osmarProcessos.filter(p => p.status === "valido");
-    if (validProcessos.length === 0) {
+    // Now we import all processes that have a valid numero (not just those without any errors)
+    const importableProcessos = osmarProcessos.filter(p => p.status === "valido");
+    if (importableProcessos.length === 0) {
       toast({
-        title: "Nenhum processo válido",
-        description: "Corrija os erros de validação antes de importar.",
+        title: "Nenhum processo importável",
+        description: "Todos os processos têm número inválido ou ausente.",
         variant: "destructive",
       });
       return;
@@ -1437,17 +1442,33 @@ export default function ImportarProcessos() {
   };
 
   const downloadOsmarRejeitados = () => {
+    // Include both completely rejected (invalid numero) and those with warnings (imported with issues)
     const rejeitados = osmarProcessos.filter(p => p.status === "invalido" || p.status === "erro");
+    const comAvisos = osmarProcessos.filter(p => (p.status === "sucesso" || p.status === "valido") && p.erros.length > 0);
     
-    if (rejeitados.length === 0) {
+    if (rejeitados.length === 0 && comAvisos.length === 0) {
       toast({
-        title: "Nenhum rejeitado",
-        description: "Não há processos rejeitados para exportar.",
+        title: "Nenhum problema encontrado",
+        description: "Não há processos rejeitados ou com avisos para exportar.",
       });
       return;
     }
 
-    const exportData = rejeitados.map(p => ({
+    // Create sheet for rejected (critical errors)
+    const rejeitadosData = rejeitados.map(p => ({
+      "Linha": p.linhaOriginal,
+      "Número do processo": p.numero || "(vazio)",
+      "Unidade": p.parteAtiva,
+      "Parte Contrária": p.partePassiva,
+      "Fase": p.fase,
+      "VARA": p.orgaoJulgador,
+      "STATUS": p.situacao,
+      "Tipo": "REJEITADO",
+      "Motivo": p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; ") || p.erroImport || "Erro crítico",
+    }));
+
+    // Create sheet for warnings (imported with issues)
+    const avisosData = comAvisos.map(p => ({
       "Linha": p.linhaOriginal,
       "Número do processo": p.numero,
       "Unidade": p.parteAtiva,
@@ -1455,24 +1476,26 @@ export default function ImportarProcessos() {
       "Fase": p.fase,
       "VARA": p.orgaoJulgador,
       "STATUS": p.situacao,
-      "Erros de Validação": p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; "),
-      "Erro de Importação": p.erroImport || "",
+      "Tipo": "IMPORTADO COM AVISOS",
+      "Avisos": p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; "),
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    const allData = [...rejeitadosData, ...avisosData];
+
+    const ws = XLSX.utils.json_to_sheet(allData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Rejeitados");
+    XLSX.utils.book_append_sheet(wb, ws, "Problemas");
     
-    const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+    const colWidths = Object.keys(allData[0] || {}).map(key => ({
       wch: Math.max(key.length, 15)
     }));
     ws["!cols"] = colWidths;
     
-    XLSX.writeFile(wb, `osmar_rejeitados_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `osmar_problemas_${new Date().toISOString().split('T')[0]}.xlsx`);
     
     toast({
       title: "Arquivo gerado",
-      description: `${rejeitados.length} processo(s) rejeitado(s) exportado(s).`,
+      description: `${rejeitados.length} rejeitado(s), ${comAvisos.length} com avisos.`,
     });
   };
 
@@ -2439,10 +2462,15 @@ export default function ImportarProcessos() {
                       {osmarProcessos.length > 0 && (
                         <div className="flex items-center gap-2 text-sm flex-wrap">
                           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
-                            {osmarValidCount} válidos
+                            {osmarValidCount} importáveis
                           </Badge>
+                          {osmarWarningCount > 0 && (
+                            <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-200">
+                              {osmarWarningCount} com avisos
+                            </Badge>
+                          )}
                           <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
-                            {osmarInvalidCount} inválidos
+                            {osmarInvalidCount} rejeitados
                           </Badge>
                           {osmarSuccessCount > 0 && (
                             <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
@@ -2457,10 +2485,10 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
-                        {osmarTotalRejeitados > 0 && (
+                        {osmarTotalProblemas > 0 && (
                           <Button variant="outline" onClick={downloadOsmarRejeitados}>
                             <FileDown className="h-4 w-4 mr-2" />
-                            Baixar Rejeitados ({osmarTotalRejeitados})
+                            Baixar Problemas ({osmarTotalProblemas})
                           </Button>
                         )}
                         <Button 
@@ -2507,24 +2535,34 @@ export default function ImportarProcessos() {
                               <TableHead>Parte Contrária</TableHead>
                               <TableHead>Fase</TableHead>
                               <TableHead>Status Proc.</TableHead>
-                              <TableHead className="min-w-[300px]">Erros</TableHead>
+                              <TableHead className="min-w-[300px]">Avisos/Erros</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {osmarProcessos.map((processo, index) => (
-                              <TableRow key={index} className={processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : ""}>
+                              <TableRow key={index} className={
+                                processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : 
+                                processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : 
+                                (processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 ? "bg-yellow-50 dark:bg-yellow-950/20" : ""
+                              }>
                                 <TableCell className="text-muted-foreground">
                                   {processo.linhaOriginal}
                                 </TableCell>
                                 <TableCell>
-                                  {processo.status === "valido" && (
+                                  {processo.status === "valido" && processo.erros.length === 0 && (
                                     <div className="w-3 h-3 rounded-full bg-green-500" />
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length > 0 && (
+                                    <AlertCircle className="h-4 w-4 text-yellow-500" />
                                   )}
                                   {processo.status === "invalido" && (
                                     <XCircle className="h-4 w-4 text-red-500" />
                                   )}
-                                  {processo.status === "sucesso" && (
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && (
                                     <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                                  )}
+                                  {processo.status === "sucesso" && processo.erros.length > 0 && (
+                                    <CheckCircle2 className="h-4 w-4 text-yellow-500" />
                                   )}
                                   {processo.status === "erro" && (
                                     <XCircle className="h-4 w-4 text-orange-500" />
@@ -2542,18 +2580,26 @@ export default function ImportarProcessos() {
                                 <TableCell>{processo.fase || "-"}</TableCell>
                                 <TableCell>{processo.situacao || "-"}</TableCell>
                                 <TableCell className="text-sm">
-                                  {processo.erros.length > 0 && (
+                                  {processo.status === "invalido" && processo.erros.length > 0 && (
                                     <div className="text-red-600 space-y-1">
                                       {processo.erros.map((erro, i) => (
                                         <div key={i}>• {erro.campo}: {erro.mensagem}</div>
                                       ))}
                                     </div>
                                   )}
+                                  {(processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 && (
+                                    <div className="text-yellow-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>⚠ {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
                                   {processo.erroImport && (
                                     <div className="text-orange-600">• Importação: {processo.erroImport}</div>
                                   )}
-                                  {processo.status === "valido" && "-"}
-                                  {processo.status === "sucesso" && <span className="text-blue-600">Importado com sucesso</span>}
+                                  {processo.status === "valido" && processo.erros.length === 0 && "-"}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && <span className="text-blue-600">Importado com sucesso</span>}
+                                  {processo.status === "sucesso" && processo.erros.length > 0 && <span className="text-yellow-600 block mt-1">Importado com avisos</span>}
                                 </TableCell>
                               </TableRow>
                             ))}
