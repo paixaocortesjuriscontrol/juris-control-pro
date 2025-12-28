@@ -129,13 +129,18 @@ function matchesCondicaoConcomitante(conteudo: string, condicao: string | undefi
   return termos.every(termo => conteudoUpper.includes(termo));
 }
 
-async function fetchDJENResults(searchText: string): Promise<any[]> {
+async function fetchDJENResults(searchText: string, siglaTribunal?: string): Promise<any[]> {
   const dataAtual = new Date().toISOString().split('T')[0];
   
   const queryParams = new URLSearchParams();
   queryParams.append("texto", searchText);
   queryParams.append("dataDisponibilizacaoInicio", dataAtual);
   queryParams.append("dataDisponibilizacaoFim", dataAtual);
+  
+  // Add tribunal filter if specified
+  if (siglaTribunal && siglaTribunal !== 'TODOS' && !siglaTribunal.startsWith('TODOS_')) {
+    queryParams.append("siglaTribunal", siglaTribunal);
+  }
   
   const fullUrl = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
   console.log(`Fetching: ${fullUrl}`);
@@ -156,7 +161,7 @@ async function fetchDJENResults(searchText: string): Promise<any[]> {
     if (response.ok) {
       const data = await response.json();
       const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
-      console.log(`Got ${items.length} items`);
+      console.log(`Got ${items.length} items for tribunal ${siglaTribunal || 'TODOS'}`);
       return Array.isArray(items) ? items : [];
     }
 
@@ -179,21 +184,35 @@ async function processMonitoramento(
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
   const dataAtual = new Date().toISOString().split('T')[0];
   
-  let searchTerms: string[] = [];
-  
+  // Build search term based on type
+  let searchText = '';
   if (monitoramento.tipo === "advogado" && monitoramento.oab) {
-    // For advogado, just search by name (simplified to avoid too many requests)
-    if (monitoramento.termo_busca) {
-      searchTerms.push(monitoramento.termo_busca);
-    }
+    // For advogado, search by OAB number with UF
+    const uf = monitoramento.uf || 'DF';
+    searchText = `OAB ${monitoramento.oab} ${uf}`;
+    console.log(`Advogado search: ${searchText}`);
   } else if (monitoramento.tipo === "palavra-chave") {
-    searchTerms.push(monitoramento.termo_busca);
+    searchText = monitoramento.termo_busca;
   } else if (monitoramento.tipo === "processo") {
-    searchTerms.push(monitoramento.termo_busca.replace(/\D/g, ''));
+    searchText = monitoramento.termo_busca.replace(/\D/g, '');
   }
   
-  for (const term of searchTerms) {
-    const publications = await fetchDJENResults(term);
+  if (!searchText) {
+    console.log(`No search text for monitoramento ${monitoramento.id}`);
+    return stats;
+  }
+  
+  // Get list of tribunais to search
+  const tribunais = monitoramento.tribunais && monitoramento.tribunais.length > 0 
+    ? monitoramento.tribunais 
+    : ['TODOS'];
+  
+  console.log(`Searching tribunais: ${tribunais.join(', ')}`);
+  
+  for (const tribunal of tribunais) {
+    // Fetch publications for this tribunal
+    const publications = await fetchDJENResults(searchText, tribunal);
+    console.log(`Found ${publications.length} publications for tribunal ${tribunal}`);
     
     for (const pub of publications) {
       const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
@@ -278,10 +297,13 @@ async function processMonitoramento(
       }
     }
     
-    // Small delay between search terms
-    await delay(800);
+    // Small delay between tribunais
+    if (tribunais.length > 1) {
+      await delay(800);
+    }
   }
   
+  console.log(`Monitoramento ${monitoramento.id}: novas=${stats.novas}, descartadas=${stats.descartadas}, duplicatas=${stats.duplicatas}`);
   return stats;
 }
 
