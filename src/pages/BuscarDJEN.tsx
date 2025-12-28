@@ -341,6 +341,7 @@ const BuscarDJEN = () => {
         }
         
         const allPubs: Publicacao[] = [];
+        let anyFullPage = false;
         
         for (const mon of monsParaBuscar) {
           const { data, error } = await supabase.functions.invoke('buscar-djen', {
@@ -358,9 +359,11 @@ const BuscarDJEN = () => {
           
           if (!error && data?.success) {
             const rawPubs = data.publicacoes || data.comunicacoes || data.items || [];
+            if (rawPubs.length === DJEN_PAGE_SIZE) anyFullPage = true;
+
             rawPubs.forEach((p: any, idx: number) => {
               allPubs.push({
-                id: `${mon.id}-${p.id || idx}`,
+                id: `${mon.id}-${p.id ?? `p0-${idx}`}`,
                 data: p.data || p.dataDisponibilizacao || p.dataPublicacao,
                 tipo: p.tipo || p.tipoComunicacao || "Publicação",
                 conteudo: p.conteudo || p.texto || p.teor || "",
@@ -374,6 +377,9 @@ const BuscarDJEN = () => {
         }
         
         setPublicacoes(allPubs);
+        setApiPage(0);
+        setApiTotal(null);
+        setApiHasMore(anyFullPage);
         
         if (allPubs.length === 0) {
           toast.info("Nenhuma publicação encontrada para os monitoramentos selecionados");
@@ -473,7 +479,6 @@ const BuscarDJEN = () => {
   };
 
   const handleLoadMore = async () => {
-    if (searchType === "monitoramento") return;
     const uiHasMore = apiHasMore || publicacoes.length >= DJEN_PAGE_SIZE;
     if (!uiHasMore || loadingMore) return;
 
@@ -481,6 +486,86 @@ const BuscarDJEN = () => {
     try {
       const nextPage = apiPage + 1;
 
+      // Paginação no modo Monitoramento (busca a próxima página para os monitoramentos selecionados)
+      if (searchType === "monitoramento") {
+        if (!filtroCoordId) {
+          toast.error("Selecione uma coordenação");
+          return;
+        }
+
+        const monsParaBuscar =
+          filtroMonitoramentoId === "todos"
+            ? monitoramentosFiltrados?.filter((m) => m.ativo)
+            : monitoramentosFiltrados?.filter((m) => m.id === filtroMonitoramentoId && m.ativo);
+
+        if (!monsParaBuscar || monsParaBuscar.length === 0) {
+          toast.info("Nenhum monitoramento ativo encontrado");
+          setApiHasMore(false);
+          return;
+        }
+
+        if (monsParaBuscar.length > 1) {
+          toast.warning("Buscando em múltiplos monitoramentos pode consumir mais créditos");
+        }
+
+        const existingIds = new Set(publicacoes.map((p) => p.id));
+        const newPubs: Publicacao[] = [];
+        let anyFullPage = false;
+
+        for (const mon of monsParaBuscar) {
+          const { data, error } = await supabase.functions.invoke("buscar-djen", {
+            body: {
+              tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
+              palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
+              oab: mon.tipo === "advogado" ? mon.oab : undefined,
+              uf: mon.tipo === "advogado" ? mon.uf : undefined,
+              dataInicio: dataInicio || undefined,
+              dataFim: dataFim || undefined,
+              page: nextPage,
+              pageSize: DJEN_PAGE_SIZE,
+            },
+          });
+
+          if (error) throw error;
+          if (!data?.success) throw new Error(data?.error || "Erro ao carregar mais resultados");
+
+          const raw = data.publicacoes || data.comunicacoes || data.items || [];
+          if (raw.length === DJEN_PAGE_SIZE) anyFullPage = true;
+
+          raw.forEach((p: any, idx: number) => {
+            const id = `${mon.id}-${p.id ?? `p${nextPage}-${idx}`}`;
+            if (existingIds.has(id)) return;
+            existingIds.add(id);
+
+            newPubs.push({
+              id,
+              data: p.data || p.dataDisponibilizacao || p.dataPublicacao,
+              tipo: p.tipo || p.tipoComunicacao || "Publicação",
+              conteudo: p.conteudo || p.texto || p.teor || "",
+              processo: p.processo || p.numeroProcesso,
+              tribunal: p.tribunal || p.orgao || p.nomeOrgao,
+              advogado: p.advogado,
+              partes: p.partes || p.destinatario || p.destinatarioNome,
+            });
+          });
+        }
+
+        if (newPubs.length === 0) {
+          setApiHasMore(false);
+          toast.info("Nenhum novo resultado nesta página");
+          return;
+        }
+
+        setPublicacoes((prev) => [...prev, ...newPubs]);
+        setApiPage(nextPage);
+        setApiTotal(null);
+        setApiHasMore(anyFullPage);
+
+        toast.success(`${newPubs.length} resultado(s) adicionados`);
+        return;
+      }
+
+      // Paginação padrão (busca manual)
       const { data, error } = await supabase.functions.invoke('buscar-djen', {
         body: {
           tipo: searchType,
@@ -544,13 +629,14 @@ const BuscarDJEN = () => {
 
   // Carrega todas as páginas automaticamente uma a uma
   const handleLoadAll = async () => {
-    if (searchType === "monitoramento") return;
     if (loadingAll) return;
 
     loadAllCancelledRef.current = false;
     setLoadingAll(true);
-    const targetTotal = Math.min(loadAllLimit, apiTotal ?? loadAllLimit);
-    setLoadAllProgress({ loaded: publicacoes.length, total: targetTotal });
+
+    // Se não houver total conhecido (muito comum), usamos o limite como "total" para o progresso
+    const initialTargetTotal = Math.min(loadAllLimit, apiTotal ?? loadAllLimit);
+    setLoadAllProgress({ loaded: publicacoes.length, total: initialTargetTotal });
 
     let currentPageNum = apiPage;
     let allPubs = [...publicacoes];
@@ -561,6 +647,84 @@ const BuscarDJEN = () => {
       while (hasMore && !loadAllCancelledRef.current && allPubs.length < loadAllLimit) {
         currentPageNum += 1;
 
+        // Modo Monitoramento: paginação por monitoramentos selecionados
+        if (searchType === "monitoramento") {
+          if (!filtroCoordId) {
+            toast.error("Selecione uma coordenação");
+            break;
+          }
+
+          const monsParaBuscar =
+            filtroMonitoramentoId === "todos"
+              ? monitoramentosFiltrados?.filter((m) => m.ativo)
+              : monitoramentosFiltrados?.filter((m) => m.id === filtroMonitoramentoId && m.ativo);
+
+          if (!monsParaBuscar || monsParaBuscar.length === 0) {
+            toast.info("Nenhum monitoramento ativo encontrado");
+            break;
+          }
+
+          const existingIds = new Set(allPubs.map((p) => p.id));
+          const newPubs: Publicacao[] = [];
+          let anyFullPage = false;
+
+          for (const mon of monsParaBuscar) {
+            const { data, error } = await supabase.functions.invoke("buscar-djen", {
+              body: {
+                tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
+                palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
+                oab: mon.tipo === "advogado" ? mon.oab : undefined,
+                uf: mon.tipo === "advogado" ? mon.uf : undefined,
+                dataInicio: dataInicio || undefined,
+                dataFim: dataFim || undefined,
+                page: currentPageNum,
+                pageSize: DJEN_PAGE_SIZE,
+              },
+            });
+
+            if (error) throw error;
+            if (!data?.success) throw new Error(data?.error || "Erro ao carregar resultados");
+
+            const raw = data.publicacoes || data.comunicacoes || data.items || [];
+            if (raw.length === DJEN_PAGE_SIZE) anyFullPage = true;
+
+            raw.forEach((p: any, idx: number) => {
+              const id = `${mon.id}-${p.id ?? `p${currentPageNum}-${idx}`}`;
+              if (existingIds.has(id)) return;
+              existingIds.add(id);
+
+              newPubs.push({
+                id,
+                data: p.data || p.dataDisponibilizacao || p.dataPublicacao,
+                tipo: p.tipo || p.tipoComunicacao || "Publicação",
+                conteudo: p.conteudo || p.texto || p.teor || "",
+                processo: p.processo || p.numeroProcesso,
+                tribunal: p.tribunal || p.orgao || p.nomeOrgao,
+                advogado: p.advogado,
+                partes: p.partes || p.destinatario || p.destinatarioNome,
+              });
+            });
+          }
+
+          allPubs = [...allPubs, ...newPubs];
+          totalKnown = null;
+          hasMore = anyFullPage && newPubs.length > 0;
+
+          // Update state progressively
+          setPublicacoes(allPubs);
+          setApiPage(currentPageNum);
+          setApiTotal(null);
+          setApiHasMore(hasMore);
+          setLoadAllProgress({ loaded: allPubs.length, total: loadAllLimit });
+
+          if (hasMore && !loadAllCancelledRef.current) {
+            await new Promise((r) => setTimeout(r, 350));
+          }
+
+          continue;
+        }
+
+        // Modo padrão (busca manual)
         const { data, error } = await supabase.functions.invoke("buscar-djen", {
           body: {
             tipo: searchType,
@@ -616,7 +780,6 @@ const BuscarDJEN = () => {
         const targetTotal = Math.min(loadAllLimit, totalKnown ?? loadAllLimit);
         setLoadAllProgress({ loaded: allPubs.length, total: targetTotal });
 
-        // Small delay to avoid hammering the API
         if (hasMore && !loadAllCancelledRef.current) {
           await new Promise((r) => setTimeout(r, 300));
         }
@@ -1488,7 +1651,7 @@ const BuscarDJEN = () => {
       </Card>
 
       {/* Barra fixa de ações (sempre visível após busca com resultados) */}
-      {hasSearched && searchType !== "monitoramento" && publicacoes.length > 0 && (
+      {hasSearched && publicacoes.length > 0 && (
         <aside className="fixed left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-[60] w-[min(900px,calc(100vw-2rem))]">
           <div className="rounded-lg border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 shadow-sm p-3">
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
