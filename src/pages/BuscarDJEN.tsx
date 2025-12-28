@@ -1055,7 +1055,7 @@ const BuscarDJEN = () => {
 
       {/* Results */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle className="text-base sm:text-lg">
               {hasSearched 
@@ -1475,6 +1475,63 @@ const BuscarDJEN = () => {
         </CardContent>
       </Card>
 
+      {/* Barra fixa de ações (sempre visível) */}
+      {hasSearched && searchType !== "monitoramento" && (loadingAll || apiHasMore || publicacoes.length >= DJEN_PAGE_SIZE) && (
+        <aside className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:right-6 z-50">
+          <div className="rounded-lg border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 shadow-sm p-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
+              {!loadingAll ? (
+                <>
+                  {apiHasMore && (
+                    <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={loadingMore || loading}>
+                      {loadingMore && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      +100
+                    </Button>
+                  )}
+
+                  <Select value={String(loadAllLimit)} onValueChange={(v) => setLoadAllLimit(Number(v))}>
+                    <SelectTrigger className="w-[110px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="200">Até 200</SelectItem>
+                      <SelectItem value="500">Até 500</SelectItem>
+                      <SelectItem value="1000">Até 1000</SelectItem>
+                      <SelectItem value="2000">Até 2000</SelectItem>
+                      <SelectItem value="99999">Todos</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Button size="sm" variant="default" onClick={handleLoadAll} disabled={loadingMore || loading}>
+                    <ChevronsRight className="w-4 h-4 mr-2" />
+                    Carregar
+                  </Button>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex-1 min-w-[160px]">
+                    <Progress
+                      value={loadAllProgress.total > 0 ? (loadAllProgress.loaded / loadAllProgress.total) * 100 : 0}
+                      className="h-2"
+                    />
+                    <span className="text-xs text-muted-foreground mt-1 block text-center">
+                      {loadAllProgress.loaded} / {loadAllProgress.total}
+                    </span>
+                  </div>
+                  <Button onClick={handleCancelLoadAll} size="sm" variant="destructive">
+                    Cancelar
+                  </Button>
+                </div>
+              )}
+
+              <div className="text-xs text-muted-foreground text-center sm:text-right sm:min-w-[170px]">
+                Carregados {publicacoes.length}
+                {apiTotal ? ` de ${apiTotal}` : ""}
+              </div>
+            </div>
+          </div>
+        </aside>
+      )}
 
       {/* View Content Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
