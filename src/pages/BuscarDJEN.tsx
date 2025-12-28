@@ -1080,7 +1080,12 @@ const BuscarDJEN = () => {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          {/* Backfill Jobs Panel */}
+          {backfillPanelOpen && (
+            <BackfillJobsPanel monitoramentos={monitoramentos} />
+          )}
+
           {monitoramentos.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Eye className="w-10 h-10 mx-auto mb-3 opacity-50" />
@@ -1339,12 +1344,6 @@ const BuscarDJEN = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Backfill Jobs Panel */}
-      {backfillPanelOpen && (
-        <div className="mt-6">
-          <BackfillJobsPanel monitoramentos={monitoramentos} />
-        </div>
-      )}
     </MainLayout>
   );
 };
