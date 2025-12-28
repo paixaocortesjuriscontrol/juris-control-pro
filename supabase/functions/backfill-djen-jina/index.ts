@@ -113,6 +113,7 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
     uf: mon.tipo === "advogado" ? mon.uf : undefined,
     dataInicio,
     dataFim,
+    fetchAll: true,
   };
 
   const { data: buscarData, error: buscarError } = await supabase.functions.invoke("buscar-djen", { body });

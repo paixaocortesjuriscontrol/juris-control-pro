@@ -95,6 +95,13 @@ const BuscarDJEN = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
+
+  // DJEN API pagination (server-side)
+  const DJEN_PAGE_SIZE = 100;
+  const [apiPage, setApiPage] = useState(0);
+  const [apiTotal, setApiTotal] = useState<number | null>(null);
+  const [apiHasMore, setApiHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [importing, setImporting] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -323,6 +330,8 @@ const BuscarDJEN = () => {
               uf: mon.tipo === 'advogado' ? mon.uf : undefined,
               dataInicio: dataInicio || undefined,
               dataFim: dataFim || undefined,
+              page: 0,
+              pageSize: 100,
             }
           });
           
@@ -377,6 +386,10 @@ const BuscarDJEN = () => {
     setLoading(true);
     setHasSearched(true);
     setSelectedIds(new Set());
+    setCurrentPage(1);
+    setApiPage(0);
+    setApiTotal(null);
+    setApiHasMore(false);
 
     try {
       const { data, error } = await supabase.functions.invoke('buscar-djen', {
@@ -388,6 +401,8 @@ const BuscarDJEN = () => {
           numeroProcesso: searchType === "processo" ? numeroProcesso.trim() : undefined,
           dataInicio: dataInicio || undefined,
           dataFim: dataFim || undefined,
+          page: 0,
+          pageSize: DJEN_PAGE_SIZE,
         }
       });
 
@@ -397,7 +412,7 @@ const BuscarDJEN = () => {
         // Handle different response formats from the API
         const rawPubs = data.publicacoes || data.comunicacoes || data.items || [];
         const pubs = rawPubs.map((p: any, idx: number) => ({
-          id: p.id || `pub-${idx}`,
+          id: p.id ? String(p.id) : `pub-0-${idx}`,
           data: p.data || p.dataDisponibilizacao || p.dataPublicacao,
           tipo: p.tipo || p.tipoComunicacao || "Publicação",
           conteudo: p.conteudo || p.texto || p.teor || "",
@@ -406,8 +421,18 @@ const BuscarDJEN = () => {
           advogado: p.advogado,
           partes: p.partes || p.destinatario,
         }));
+
         setPublicacoes(pubs);
-        
+
+        const total =
+          typeof data.totalElements === "number"
+            ? data.totalElements
+            : typeof data.count === "number"
+              ? data.count
+              : null;
+        setApiTotal(total);
+        setApiHasMore(total !== null ? pubs.length < total : rawPubs.length === DJEN_PAGE_SIZE);
+
         if (pubs.length === 0) {
           toast.info(data.message || "Nenhuma publicação encontrada para os critérios informados");
         } else {
@@ -422,6 +447,70 @@ const BuscarDJEN = () => {
       setPublicacoes([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    if (searchType === "monitoramento") return;
+    if (!apiHasMore || loadingMore) return;
+
+    setLoadingMore(true);
+    try {
+      const nextPage = apiPage + 1;
+
+      const { data, error } = await supabase.functions.invoke('buscar-djen', {
+        body: {
+          tipo: searchType,
+          palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
+          oab: searchType === "advogado" ? oab.trim() : undefined,
+          uf: searchType === "advogado" ? uf : undefined,
+          numeroProcesso: searchType === "processo" ? numeroProcesso.trim() : undefined,
+          dataInicio: dataInicio || undefined,
+          dataFim: dataFim || undefined,
+          page: nextPage,
+          pageSize: DJEN_PAGE_SIZE,
+        }
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Erro ao carregar mais resultados");
+
+      const rawPubs = data.publicacoes || data.comunicacoes || data.items || [];
+      const newPubs = rawPubs.map((p: any, idx: number) => ({
+        id: p.id ? String(p.id) : `pub-${nextPage}-${idx}`,
+        data: p.data || p.dataDisponibilizacao || p.dataPublicacao,
+        tipo: p.tipo || p.tipoComunicacao || "Publicação",
+        conteudo: p.conteudo || p.texto || p.teor || "",
+        processo: p.processo || p.numeroProcesso,
+        tribunal: p.tribunal || p.orgao,
+        advogado: p.advogado,
+        partes: p.partes || p.destinatario,
+      }));
+
+      const currentLoaded = publicacoes.length;
+
+      setPublicacoes((prev) => [...prev, ...newPubs]);
+      setApiPage(nextPage);
+
+      const total =
+        typeof data.totalElements === "number"
+          ? data.totalElements
+          : typeof data.count === "number"
+            ? data.count
+            : null;
+
+      if (typeof total === "number") setApiTotal(total);
+
+      const totalToUse = typeof total === "number" ? total : apiTotal;
+      const loadedAfter = currentLoaded + newPubs.length;
+      setApiHasMore(totalToUse !== null ? loadedAfter < totalToUse : rawPubs.length === DJEN_PAGE_SIZE);
+
+      toast.success(`${newPubs.length} resultado(s) adicionados`);
+    } catch (e: any) {
+      console.error("Load more error:", e);
+      toast.error(e.message || "Erro ao carregar mais resultados");
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -1153,6 +1242,24 @@ const BuscarDJEN = () => {
                 </ScrollArea>
               </div>
               
+              {/* Server-side pagination (DJEN) */}
+              {apiHasMore && (
+                <div className="flex flex-col items-center gap-2 mt-4 pt-4 border-t">
+                  <Button
+                    variant="secondary"
+                    onClick={handleLoadMore}
+                    disabled={loadingMore || loading}
+                  >
+                    {loadingMore && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Carregar mais do DJEN
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Carregados {publicacoes.length}
+                    {apiTotal ? ` de ${apiTotal}` : ""} resultados
+                  </span>
+                </div>
+              )}
+
               {/* Pagination Controls - Bottom */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t">
