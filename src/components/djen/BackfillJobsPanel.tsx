@@ -37,10 +37,11 @@ import { cn } from '@/lib/utils';
 
 interface BackfillJobsPanelProps {
   monitoramentos?: { id: string; termo_busca: string; descricao?: string }[];
+  enabled?: boolean;
 }
 
-export function BackfillJobsPanel({ monitoramentos = [] }: BackfillJobsPanelProps) {
-  const { jobs, loading, creating, activeJob, createJob, cancelJob, deleteJob, fetchJobs } = useBackfillJobs();
+export function BackfillJobsPanel({ monitoramentos = [], enabled = true }: BackfillJobsPanelProps) {
+  const { jobs, loading, creating, activeJob, createJob, cancelJob, deleteJob, fetchJobs } = useBackfillJobs(enabled);
   
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
