@@ -1083,7 +1083,7 @@ const BuscarDJEN = () => {
         <CardContent className="space-y-6">
           {/* Backfill Jobs Panel */}
           {backfillPanelOpen && (
-            <BackfillJobsPanel monitoramentos={monitoramentos} />
+            <BackfillJobsPanel monitoramentos={monitoramentos} enabled={backfillPanelOpen} />
           )}
 
           {monitoramentos.length === 0 ? (

@@ -26,14 +26,14 @@ export interface BackfillJob {
   logs: string[];
 }
 
-export function useBackfillJobs() {
+export function useBackfillJobs(enabled: boolean = false) {
   const { user } = useAuth();
   const [jobs, setJobs] = useState<BackfillJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const fetchJobs = useCallback(async () => {
-    if (!user) return;
+    if (!user || !enabled) return;
     
     setLoading(true);
     try {
@@ -50,11 +50,11 @@ export function useBackfillJobs() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, enabled]);
 
-  // Subscribe to realtime updates
+  // Subscribe to realtime updates only when enabled
   useEffect(() => {
-    if (!user) return;
+    if (!user || !enabled) return;
 
     fetchJobs();
 
@@ -84,7 +84,7 @@ export function useBackfillJobs() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchJobs]);
+  }, [user, enabled, fetchJobs]);
 
   const createJob = async (
     dataInicio: string, 
