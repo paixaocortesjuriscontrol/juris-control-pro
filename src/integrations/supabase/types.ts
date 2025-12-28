@@ -995,6 +995,7 @@ export type Database = {
           instancia: string | null
           justica: string | null
           materia: string | null
+          monitorar_andamentos: boolean
           natureza: string | null
           numero: string
           observacoes_processo: string | null
@@ -1057,6 +1058,7 @@ export type Database = {
           instancia?: string | null
           justica?: string | null
           materia?: string | null
+          monitorar_andamentos?: boolean
           natureza?: string | null
           numero: string
           observacoes_processo?: string | null
@@ -1119,6 +1121,7 @@ export type Database = {
           instancia?: string | null
           justica?: string | null
           materia?: string | null
+          monitorar_andamentos?: boolean
           natureza?: string | null
           numero?: string
           observacoes_processo?: string | null

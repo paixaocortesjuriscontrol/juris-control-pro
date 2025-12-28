@@ -52,8 +52,11 @@ import {
   DollarSign,
   Briefcase,
   Info,
-  FileBox
+  FileBox,
+  Bell,
+  BellOff
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState, useEffect } from "react";
@@ -88,6 +91,7 @@ export default function ProcessoDetalhes() {
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [toglingMonitoramento, setToglingMonitoramento] = useState(false);
   
   // Form state for all fields
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -373,6 +377,37 @@ export default function ProcessoDetalhes() {
     }
   };
 
+  const handleToggleMonitoramento = async () => {
+    if (!processo) return;
+    
+    setToglingMonitoramento(true);
+    try {
+      const newValue = !processo.monitorar_andamentos;
+      const { error } = await supabase
+        .from("processos")
+        .update({ monitorar_andamentos: newValue })
+        .eq("id", processo.id);
+      
+      if (error) throw error;
+      
+      toast({
+        title: newValue ? "Monitoramento habilitado" : "Monitoramento desabilitado",
+        description: newValue 
+          ? "Os andamentos serão buscados automaticamente pelo monitoramento." 
+          : "Os andamentos não serão buscados pelo monitoramento automático.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["processo", id] });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setToglingMonitoramento(false);
+    }
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "—";
     try {
@@ -553,13 +588,40 @@ export default function ProcessoDetalhes() {
         </div>
 
         {/* Status Badge Header */}
-        <div className="flex items-center gap-2">
-          <Badge className={`badge-area-${processo.area}`}>
-            {areaLabels[processo.area] || processo.area}
-          </Badge>
-          <Badge className={`badge-status-${processo.status}`}>
-            {statusLabels[processo.status] || processo.status}
-          </Badge>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <Badge className={`badge-area-${processo.area}`}>
+              {areaLabels[processo.area] || processo.area}
+            </Badge>
+            <Badge className={`badge-status-${processo.status}`}>
+              {statusLabels[processo.status] || processo.status}
+            </Badge>
+            {processo.monitorar_andamentos === false && (
+              <Badge variant="outline" className="border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950/30">
+                <BellOff className="w-3 h-3 mr-1" />
+                Monitoramento desativado
+              </Badge>
+            )}
+          </div>
+          
+          {/* Monitoramento Toggle */}
+          <div className="flex items-center gap-3 px-4 py-2 rounded-lg border bg-muted/30">
+            <div className="flex items-center gap-2">
+              {processo.monitorar_andamentos ? (
+                <Bell className="w-4 h-4 text-green-600" />
+              ) : (
+                <BellOff className="w-4 h-4 text-muted-foreground" />
+              )}
+              <span className="text-sm font-medium">
+                {processo.monitorar_andamentos ? "Monitoramento ativo" : "Monitoramento inativo"}
+              </span>
+            </div>
+            <Switch
+              checked={processo.monitorar_andamentos ?? true}
+              onCheckedChange={handleToggleMonitoramento}
+              disabled={toglingMonitoramento}
+            />
+          </div>
         </div>
 
         <Accordion type="multiple" defaultValue={["info-basicas", "localizacao", "partes", "valores", "andamentos"]} className="space-y-4">

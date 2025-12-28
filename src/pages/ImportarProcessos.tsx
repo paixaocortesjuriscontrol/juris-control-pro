@@ -21,7 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 interface ValidationError {
@@ -208,6 +209,7 @@ export default function ImportarProcessos() {
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
   const [selectedMembro, setSelectedMembro] = useState<string>("");
   const [selectedCliente, setSelectedCliente] = useState<string>("");
+  const [buscarAndamentos, setBuscarAndamentos] = useState(true);
 
   // Projuris import states
   const [projurisFile, setProjurisFile] = useState<File | null>(null);
@@ -637,6 +639,7 @@ export default function ImportarProcessos() {
             coordenacao_id: selectedCoordenacao || null,
             advogado_responsavel_id: selectedMembro || null,
             cliente_id: selectedCliente || null,
+            monitorar_andamentos: buscarAndamentos,
           }).select("id").single();
 
           if (error) {
@@ -707,12 +710,14 @@ export default function ImportarProcessos() {
           }
         }
 
-        // Buscar e inserir andamentos (sempre, inclusive para processos já existentes)
-        const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero);
-        if (andamentosRes.success) {
-          andamentosImportados = andamentosRes.movimentosInseridos;
-        } else {
-          console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+        // Buscar e inserir andamentos (somente se a opção estiver habilitada)
+        if (buscarAndamentos) {
+          const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero);
+          if (andamentosRes.success) {
+            andamentosImportados = andamentosRes.movimentosInseridos;
+          } else {
+            console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+          }
         }
         
         updatedProcessos[i] = { 
@@ -1624,6 +1629,27 @@ export default function ImportarProcessos() {
                   <p className="text-xs text-muted-foreground">
                     Todos os processos serão vinculados a este cliente.
                   </p>
+                </div>
+
+                {/* Opção de buscar andamentos */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="buscar-andamentos" className="flex items-center gap-2 font-medium">
+                      <Clock className="h-4 w-4" />
+                      Buscar andamentos na importação
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {buscarAndamentos 
+                        ? "Os andamentos serão buscados durante a importação e o processo ficará habilitado para monitoramento automático."
+                        : "Os andamentos NÃO serão buscados e o processo ficará desabilitado para monitoramento. Você pode habilitar depois na lista de processos."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="buscar-andamentos"
+                    checked={buscarAndamentos}
+                    onCheckedChange={setBuscarAndamentos}
+                    disabled={batchImporting}
+                  />
                 </div>
 
                 <div>
