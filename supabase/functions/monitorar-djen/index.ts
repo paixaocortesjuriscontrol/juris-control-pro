@@ -16,7 +16,6 @@ interface Monitoramento {
   uf?: string;
   criado_por: string;
   coordenacao_id?: string;
-  // Novos campos avançados
   exclusoes?: string[];
   condicao_concomitante?: string;
   tribunais?: string[];
@@ -32,6 +31,44 @@ const browserHeaders = {
   "Referer": "https://comunica.pje.jus.br/",
 };
 
+// Delay helper
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Retry with exponential backoff
+async function fetchWithRetry(
+  url: string, 
+  options: RequestInit, 
+  maxRetries = 3,
+  baseDelay = 2000
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      
+      // If rate limited, wait and retry
+      if (response.status === 429) {
+        const waitTime = baseDelay * Math.pow(2, attempt);
+        console.log(`Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        await delay(waitTime);
+        continue;
+      }
+      
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      const waitTime = baseDelay * Math.pow(2, attempt);
+      console.log(`Fetch error. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}:`, error);
+      await delay(waitTime);
+    }
+  }
+  
+  throw lastError || new Error('Max retries exceeded');
+}
+
 // Generate hash for publication content to detect duplicates
 function generateHash(content: string): string {
   let hash = 0;
@@ -45,7 +82,6 @@ function generateHash(content: string): string {
 
 // Generate global hash for deduplication across monitoramentos
 function generateGlobalHash(conteudo: string, dataPublicacao: string): string {
-  // Use content + date to create unique global identifier
   const normalized = (conteudo + dataPublicacao).toLowerCase().replace(/\s+/g, ' ').trim();
   return generateHash(normalized);
 }
@@ -65,10 +101,9 @@ function shouldExclude(conteudo: string, exclusoes: string[]): string | null {
 
 // Check if content matches concomitant condition
 function matchesCondicaoConcomitante(conteudo: string, condicao: string | undefined): boolean {
-  if (!condicao) return true; // No condition = always match
+  if (!condicao) return true;
   
   const conteudoUpper = conteudo.toUpperCase();
-  // Condition can have multiple terms separated by comma - ALL must match
   const termos = condicao.split(',').map(t => t.trim().toUpperCase());
   
   return termos.every(termo => conteudoUpper.includes(termo));
@@ -78,11 +113,7 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<{ items: any[],
   const results: any[] = [];
   const dataAtual = new Date().toISOString().split('T')[0];
   
-  // Handle multiple UFs for advogado type
   if (monitoramento.tipo === "advogado") {
-    // Can search by OAB or by name
-    const searchTerms: string[] = [];
-    
     if (monitoramento.oab) {
       const ufsToSearch = monitoramento.uf === 'TODAS' 
         ? ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO']
@@ -92,10 +123,11 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<{ items: any[],
         const searchText = `OAB ${monitoramento.oab} ${uf.toUpperCase()}`;
         const ufResults = await fetchDJENResults(searchText, monitoramento.id);
         results.push(...ufResults);
+        // Delay between UF searches to avoid rate limiting
+        await delay(1000);
       }
     }
     
-    // Also search by name if provided (in addition to OAB)
     if (monitoramento.termo_busca && monitoramento.termo_busca !== monitoramento.oab) {
       const nameResults = await fetchDJENResults(monitoramento.termo_busca, monitoramento.id);
       results.push(...nameResults);
@@ -104,7 +136,6 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<{ items: any[],
     return { items: results, dataAtual };
   }
   
-  // Other types (palavra-chave, processo)
   let searchText: string;
   
   switch (monitoramento.tipo) {
@@ -123,7 +154,6 @@ async function searchDJEN(monitoramento: Monitoramento): Promise<{ items: any[],
 }
 
 async function fetchDJENResults(searchText: string, monitoramentoId: string): Promise<any[]> {
-  // Use current date as both start and end date
   const dataAtual = new Date().toISOString().split('T')[0];
   
   const queryParams = new URLSearchParams();
@@ -131,12 +161,10 @@ async function fetchDJENResults(searchText: string, monitoramentoId: string): Pr
   queryParams.append("dataDisponibilizacaoInicio", dataAtual);
   queryParams.append("dataDisponibilizacaoFim", dataAtual);
   
-  // Try multiple possible API endpoints
+  // Try endpoints in order of reliability
   const endpoints = [
-    `${PJE_COMUNICA_API}/comunicacao/consulta`,
-    `${PJE_COMUNICA_API}/comunicacoes`,
-    `${PJE_COMUNICA_API}/comunicacao/pesquisar`,
     `${PJE_COMUNICA_API}/comunicacao`,
+    `${PJE_COMUNICA_API}/comunicacoes`,
   ];
 
   const fullQueryString = queryParams.toString();
@@ -146,7 +174,7 @@ async function fetchDJENResults(searchText: string, monitoramentoId: string): Pr
     console.log(`Searching DJEN: ${fullUrl}`);
     
     try {
-      const response = await fetch(fullUrl, {
+      const response = await fetchWithRetry(fullUrl, {
         method: "GET",
         headers: browserHeaders,
       });
@@ -154,7 +182,6 @@ async function fetchDJENResults(searchText: string, monitoramentoId: string): Pr
       const contentType = response.headers.get("content-type") || "";
       console.log("Response status:", response.status, "Content-Type:", contentType);
       
-      // If we get HTML, skip to next endpoint
       if (contentType.includes("text/html")) {
         console.log("Got HTML response, trying next endpoint...");
         continue;
@@ -162,9 +189,8 @@ async function fetchDJENResults(searchText: string, monitoramentoId: string): Pr
 
       if (response.ok) {
         const data = await response.json();
-        console.log("Success! Got JSON response");
+        console.log("Success! Got JSON response with", data.items?.length || data.content?.length || 0, "items");
         
-        // Handle different response formats
         const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
         
         if (Array.isArray(items)) {
@@ -174,8 +200,7 @@ async function fetchDJENResults(searchText: string, monitoramentoId: string): Pr
         return [];
       }
 
-      // 422 means "not found" - return empty results
-      if (response.status === 422) {
+      if (response.status === 422 || response.status === 404) {
         console.log("No results for this search");
         return [];
       }
@@ -184,6 +209,9 @@ async function fetchDJENResults(searchText: string, monitoramentoId: string): Pr
     } catch (error) {
       console.error(`Error with endpoint ${endpoint}:`, error);
     }
+    
+    // Delay between endpoint attempts
+    await delay(500);
   }
 
   console.log("All endpoints failed, returning empty results");
@@ -200,181 +228,218 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Starting DJEN monitoring job with advanced filters...");
+    console.log("=== Starting DJEN monitoring job ===");
+    const startTime = Date.now();
 
     // Fetch all active monitoramentos
     const { data: monitoramentos, error: fetchError } = await supabase
       .from('monitoramentos_djen')
       .select('*')
-      .eq('ativo', true);
+      .eq('ativo', true)
+      .order('created_at', { ascending: true });
 
     if (fetchError) {
       console.error("Error fetching monitoramentos:", fetchError);
       throw fetchError;
     }
 
-    console.log(`Found ${monitoramentos?.length || 0} active monitoramentos`);
+    const totalMonitoramentos = monitoramentos?.length || 0;
+    console.log(`Found ${totalMonitoramentos} active monitoramentos`);
 
     let totalNewPublications = 0;
     let totalDescartadas = 0;
     let totalDuplicatasGlobais = 0;
+    let processedCount = 0;
+    let errorCount = 0;
 
-    for (const monitoramento of monitoramentos || []) {
-      const { items: publications, dataAtual } = await searchDJEN(monitoramento);
-      console.log(`Found ${publications.length} publications for monitoramento ${monitoramento.id} (${monitoramento.termo_busca})`);
-
-      for (const pub of publications) {
-        const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
-        const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
-        const dataPublicacao = pub.dataPublicacao || pub.dataDisponibilizacao || pub.dataDJe || pub.dataJornal || pub.data || dataAtual;
-
-        // 1. Check global deduplication first
-        const globalHash = generateGlobalHash(conteudo, dataPublicacao);
-        const { data: existingGlobal } = await supabase
-          .from('publicacoes_djen_global_hash')
-          .select('id')
-          .eq('hash_global', globalHash)
-          .maybeSingle();
-
-        if (existingGlobal) {
-          console.log(`Skipping duplicate publication (already captured by another monitoramento)`);
-          totalDuplicatasGlobais++;
-          continue;
-        }
-
-        // 2. Check concomitant condition
-        if (!matchesCondicaoConcomitante(conteudo, monitoramento.condicao_concomitante)) {
-          console.log(`Publication does not match concomitant condition: ${monitoramento.condicao_concomitante}`);
-          continue;
-        }
-
-        // 3. Check exclusion criteria
-        const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
-        
-        if (motivoExclusao) {
-          console.log(`Publication excluded by term: ${motivoExclusao}`);
+    // Process monitoramentos in batches of 5 with delay between batches
+    const BATCH_SIZE = 5;
+    const BATCH_DELAY = 3000; // 3 seconds between batches
+    const ITEM_DELAY = 1500; // 1.5 seconds between items
+    
+    for (let i = 0; i < (monitoramentos?.length || 0); i += BATCH_SIZE) {
+      const batch = monitoramentos!.slice(i, i + BATCH_SIZE);
+      
+      console.log(`\n--- Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(totalMonitoramentos / BATCH_SIZE)} ---`);
+      
+      for (const monitoramento of batch) {
+        try {
+          processedCount++;
+          console.log(`\n[${processedCount}/${totalMonitoramentos}] Processing: ${monitoramento.descricao || monitoramento.termo_busca}`);
           
-          // Insert into descartadas table
-          const { error: descartadaError } = await supabase
-            .from('publicacoes_djen_descartadas')
-            .insert({
-              monitoramento_id: monitoramento.id,
-              hash_conteudo: hashConteudo,
-              data_publicacao: dataPublicacao,
-              processo_numero: pub.numeroProcesso || pub.processo || null,
-              conteudo: conteudo.substring(0, 10000),
-              fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
-              motivo_descarte: `Termo de exclusão encontrado: ${motivoExclusao}`,
-            });
+          const { items: publications, dataAtual } = await searchDJEN(monitoramento);
+          console.log(`Found ${publications.length} publications`);
 
-          if (!descartadaError) {
-            totalDescartadas++;
-            
-            // Register in global hash to avoid duplicates (ignore if exists)
-            await supabase.from('publicacoes_djen_global_hash').upsert({
-              hash_global: globalHash,
-              primeiro_monitoramento_id: monitoramento.id,
-            }, { onConflict: 'hash_global', ignoreDuplicates: true });
-          }
-          
-          continue;
-        }
+          for (const pub of publications) {
+            const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
+            const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
+            const dataPublicacao = pub.dataPublicacao || pub.dataDisponibilizacao || pub.dataDJe || pub.dataJornal || pub.data || dataAtual;
 
-        // 4. Insert valid publication
-        const { data: insertedPub, error: insertError } = await supabase
-          .from('publicacoes_djen')
-          .insert({
-            monitoramento_id: monitoramento.id,
-            hash_conteudo: hashConteudo,
-            data_publicacao: dataPublicacao,
-            processo_numero: pub.numeroProcesso || pub.processo || null,
-            conteudo: conteudo.substring(0, 10000),
-            fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
-          })
-          .select('id')
-          .single();
+            // 1. Check global deduplication first
+            const globalHash = generateGlobalHash(conteudo, dataPublicacao);
+            const { data: existingGlobal } = await supabase
+              .from('publicacoes_djen_global_hash')
+              .select('id')
+              .eq('hash_global', globalHash)
+              .maybeSingle();
 
-        if (!insertError && insertedPub) {
-          totalNewPublications++;
-          
-          // Register in global hash (ignore if exists)
-          await supabase.from('publicacoes_djen_global_hash').upsert({
-            hash_global: globalHash,
-            primeiro_monitoramento_id: monitoramento.id,
-            publicacao_id: insertedPub.id,
-          }, { onConflict: 'hash_global', ignoreDuplicates: true });
-          
-          // Get users to notify (creator + admins + coordinators)
-          const usersToNotify: string[] = [monitoramento.criado_por];
-          
-          const { data: adminUsers } = await supabase
-            .from('user_roles')
-            .select('user_id')
-            .in('role', ['admin', 'coordenador']);
-          
-          adminUsers?.forEach((u: any) => {
-            if (!usersToNotify.includes(u.user_id)) {
-              usersToNotify.push(u.user_id);
+            if (existingGlobal) {
+              totalDuplicatasGlobais++;
+              continue;
             }
-          });
 
-          // If has coordenacao, notify members
-          if (monitoramento.coordenacao_id) {
-            const { data: membros } = await supabase
-              .from('membros_coordenacao')
-              .select('usuario_id')
-              .eq('coordenacao_id', monitoramento.coordenacao_id);
+            // 2. Check concomitant condition
+            if (!matchesCondicaoConcomitante(conteudo, monitoramento.condicao_concomitante)) {
+              continue;
+            }
+
+            // 3. Check exclusion criteria
+            const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
             
-            membros?.forEach((m: any) => {
-              if (!usersToNotify.includes(m.usuario_id)) {
-                usersToNotify.push(m.usuario_id);
-              }
-            });
-          }
+            if (motivoExclusao) {
+              console.log(`Excluded by term: ${motivoExclusao}`);
+              
+              const { error: descartadaError } = await supabase
+                .from('publicacoes_djen_descartadas')
+                .insert({
+                  monitoramento_id: monitoramento.id,
+                  hash_conteudo: hashConteudo,
+                  data_publicacao: dataPublicacao,
+                  processo_numero: pub.numeroProcesso || pub.processo || null,
+                  conteudo: conteudo.substring(0, 10000),
+                  fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
+                  motivo_descarte: `Termo de exclusão: ${motivoExclusao}`,
+                });
 
-          // Create notifications for all users
-          for (const userId of usersToNotify) {
-            await supabase.from('notificacoes').insert({
-              usuario_id: userId,
-              titulo: 'Nova publicação no DJEN',
-              mensagem: `Encontrada publicação para: "${monitoramento.termo_busca}"`,
-              tipo: 'info',
-              link: '/analise-djen',
-              dados: {
+              if (!descartadaError) {
+                totalDescartadas++;
+                await supabase.from('publicacoes_djen_global_hash').upsert({
+                  hash_global: globalHash,
+                  primeiro_monitoramento_id: monitoramento.id,
+                }, { onConflict: 'hash_global', ignoreDuplicates: true });
+              }
+              
+              continue;
+            }
+
+            // 4. Insert valid publication
+            const { data: insertedPub, error: insertError } = await supabase
+              .from('publicacoes_djen')
+              .insert({
                 monitoramento_id: monitoramento.id,
-                processo: pub.numeroProcesso || pub.processo,
-                preview: conteudo.substring(0, 200),
-              },
-            });
+                hash_conteudo: hashConteudo,
+                data_publicacao: dataPublicacao,
+                processo_numero: pub.numeroProcesso || pub.processo || null,
+                conteudo: conteudo.substring(0, 10000),
+                fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
+              })
+              .select('id')
+              .single();
+
+            if (!insertError && insertedPub) {
+              totalNewPublications++;
+              console.log(`✓ New publication saved: ${insertedPub.id}`);
+              
+              await supabase.from('publicacoes_djen_global_hash').upsert({
+                hash_global: globalHash,
+                primeiro_monitoramento_id: monitoramento.id,
+                publicacao_id: insertedPub.id,
+              }, { onConflict: 'hash_global', ignoreDuplicates: true });
+              
+              // Notify users
+              const usersToNotify: string[] = [monitoramento.criado_por];
+              
+              const { data: adminUsers } = await supabase
+                .from('user_roles')
+                .select('user_id')
+                .in('role', ['admin', 'coordenador']);
+              
+              adminUsers?.forEach((u: any) => {
+                if (!usersToNotify.includes(u.user_id)) {
+                  usersToNotify.push(u.user_id);
+                }
+              });
+
+              if (monitoramento.coordenacao_id) {
+                const { data: membros } = await supabase
+                  .from('membros_coordenacao')
+                  .select('usuario_id')
+                  .eq('coordenacao_id', monitoramento.coordenacao_id);
+                
+                membros?.forEach((m: any) => {
+                  if (!usersToNotify.includes(m.usuario_id)) {
+                    usersToNotify.push(m.usuario_id);
+                  }
+                });
+              }
+
+              for (const userId of usersToNotify) {
+                await supabase.from('notificacoes').insert({
+                  usuario_id: userId,
+                  titulo: 'Nova publicação no DJEN',
+                  mensagem: `Encontrada publicação para: "${monitoramento.descricao || monitoramento.termo_busca}"`,
+                  tipo: 'info',
+                  link: '/analise-djen',
+                  dados: {
+                    monitoramento_id: monitoramento.id,
+                    processo: pub.numeroProcesso || pub.processo,
+                    preview: conteudo.substring(0, 200),
+                  },
+                });
+              }
+            }
           }
+          
+          // Delay between monitoramentos
+          await delay(ITEM_DELAY);
+          
+        } catch (monError) {
+          errorCount++;
+          console.error(`Error processing monitoramento ${monitoramento.id}:`, monError);
         }
+      }
+      
+      // Delay between batches
+      if (i + BATCH_SIZE < (monitoramentos?.length || 0)) {
+        console.log(`Waiting ${BATCH_DELAY}ms before next batch...`);
+        await delay(BATCH_DELAY);
       }
     }
 
-    // Atualizar configuração de monitoramento
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    
+    // Update monitoring configuration
     await supabase
       .from('configuracoes_monitoramento')
       .update({ 
         ultima_execucao: new Date().toISOString(),
         metadata: {
           last_complete_run: new Date().toISOString(),
-          monitoramentos_processados: monitoramentos?.length || 0,
+          monitoramentos_processados: processedCount,
           novas_publicacoes: totalNewPublications,
           descartadas: totalDescartadas,
           duplicatas_globais: totalDuplicatasGlobais,
+          erros: errorCount,
+          duracao_segundos: duration,
         }
       })
       .eq('tipo', 'djen');
 
-    console.log(`Monitoring complete. ${totalNewPublications} new, ${totalDescartadas} discarded, ${totalDuplicatasGlobais} global duplicates.`);
+    console.log(`\n=== Monitoring complete ===`);
+    console.log(`Duration: ${duration}s`);
+    console.log(`Processed: ${processedCount}/${totalMonitoramentos}`);
+    console.log(`New: ${totalNewPublications}, Discarded: ${totalDescartadas}, Duplicates: ${totalDuplicatasGlobais}, Errors: ${errorCount}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        monitoramentosProcessados: monitoramentos?.length || 0,
+        monitoramentosProcessados: processedCount,
+        totalMonitoramentos,
         novasPublicacoes: totalNewPublications,
         descartadas: totalDescartadas,
         duplicatasGlobais: totalDuplicatasGlobais,
+        erros: errorCount,
+        duracaoSegundos: duration,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

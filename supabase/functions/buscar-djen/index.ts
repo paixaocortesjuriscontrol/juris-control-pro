@@ -49,6 +49,43 @@ const browserHeaders = {
   "Referer": "https://comunica.pje.jus.br/",
 };
 
+// Delay helper
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Retry with exponential backoff
+async function fetchWithRetry(
+  url: string, 
+  options: RequestInit, 
+  maxRetries = 3,
+  baseDelay = 1500
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      
+      if (response.status === 429) {
+        const waitTime = baseDelay * Math.pow(2, attempt);
+        console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        await delay(waitTime);
+        continue;
+      }
+      
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      const waitTime = baseDelay * Math.pow(2, attempt);
+      console.log(`Fetch error. Waiting ${waitTime}ms before retry:`, error);
+      await delay(waitTime);
+    }
+  }
+  
+  throw lastError || new Error('Max retries exceeded');
+}
+
 async function searchPJEComunica(params: SearchParams): Promise<any> {
   const { tipo, oab, uf, palavraChave, numeroProcesso, dataInicio, dataFim } = params;
 
@@ -92,10 +129,11 @@ async function searchPJEComunica(params: SearchParams): Promise<any> {
     console.log("Trying endpoint:", fullUrl);
     
     try {
-      const response = await fetch(fullUrl, {
+      const response = await fetchWithRetry(fullUrl, {
         method: "GET",
         headers: browserHeaders,
       });
+
 
       const contentType = response.headers.get("content-type") || "";
       console.log("Response status:", response.status, "Content-Type:", contentType);
