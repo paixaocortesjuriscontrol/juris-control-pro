@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Search,
   FileText,
@@ -102,6 +102,11 @@ const BuscarDJEN = () => {
   const [apiTotal, setApiTotal] = useState<number | null>(null);
   const [apiHasMore, setApiHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // "Carregar tudo" state
+  const [loadingAll, setLoadingAll] = useState(false);
+  const [loadAllProgress, setLoadAllProgress] = useState({ loaded: 0, total: 0 });
+  const loadAllCancelledRef = React.useRef(false);
   const [importing, setImporting] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -521,6 +526,102 @@ const BuscarDJEN = () => {
     } finally {
       setLoadingMore(false);
     }
+  };
+
+  // Carrega todas as páginas automaticamente uma a uma
+  const handleLoadAll = async () => {
+    if (searchType === "monitoramento") return;
+    if (loadingAll) return;
+
+    loadAllCancelledRef.current = false;
+    setLoadingAll(true);
+    setLoadAllProgress({ loaded: publicacoes.length, total: apiTotal ?? publicacoes.length });
+
+    let currentPageNum = apiPage;
+    let allPubs = [...publicacoes];
+    let hasMore = apiHasMore;
+    let totalKnown = apiTotal;
+
+    try {
+      while (hasMore && !loadAllCancelledRef.current) {
+        currentPageNum += 1;
+
+        const { data, error } = await supabase.functions.invoke("buscar-djen", {
+          body: {
+            tipo: searchType,
+            palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
+            oab: searchType === "advogado" ? oab.trim() : undefined,
+            uf: searchType === "advogado" ? uf : undefined,
+            numeroProcesso: searchType === "processo" ? numeroProcesso.trim() : undefined,
+            dataInicio: dataInicio || undefined,
+            dataFim: dataFim || undefined,
+            page: currentPageNum,
+            pageSize: DJEN_PAGE_SIZE,
+          },
+        });
+
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || "Erro ao carregar resultados");
+
+        const rawPubs = data.publicacoes || data.comunicacoes || data.items || [];
+        const newPubs: Publicacao[] = rawPubs.map((p: any, idx: number) => ({
+          id: p.id ? String(p.id) : `pub-${currentPageNum}-${idx}`,
+          data: p.data || p.dataDisponibilizacao || p.dataPublicacao,
+          tipo: p.tipo || p.tipoComunicacao || "Publicação",
+          conteudo: p.conteudo || p.texto || p.teor || "",
+          processo: p.processo || p.numeroProcesso,
+          tribunal: p.tribunal || p.orgao || p.nomeOrgao,
+          advogado: p.advogado,
+          partes: p.partes || p.destinatario || p.destinatarioNome,
+        }));
+
+        allPubs = [...allPubs, ...newPubs];
+
+        const total =
+          typeof data.totalElements === "number"
+            ? data.totalElements
+            : typeof data.count === "number"
+              ? data.count
+              : null;
+
+        if (typeof total === "number") totalKnown = total;
+
+        const serverHasMore = typeof data.hasMore === "boolean" ? data.hasMore : null;
+        if (serverHasMore !== null) {
+          hasMore = serverHasMore;
+        } else {
+          hasMore = totalKnown !== null ? allPubs.length < totalKnown : rawPubs.length === DJEN_PAGE_SIZE;
+        }
+
+        // Update state progressively
+        setPublicacoes(allPubs);
+        setApiPage(currentPageNum);
+        setApiTotal(totalKnown);
+        setApiHasMore(hasMore);
+        setLoadAllProgress({ loaded: allPubs.length, total: totalKnown ?? allPubs.length });
+
+        // Small delay to avoid hammering the API
+        if (hasMore && !loadAllCancelledRef.current) {
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
+
+      if (loadAllCancelledRef.current) {
+        toast.info("Carregamento cancelado");
+      } else {
+        toast.success(`Carregamento completo: ${allPubs.length} resultados`);
+      }
+    } catch (e: any) {
+      console.error("Load all error:", e);
+      toast.error(e.message || "Erro ao carregar todos os resultados");
+    } finally {
+      setLoadingAll(false);
+      loadAllCancelledRef.current = false;
+    }
+  };
+
+  const handleCancelLoadAll = () => {
+    loadAllCancelledRef.current = true;
   };
 
   const handleResumir = async () => {
@@ -952,7 +1053,9 @@ const BuscarDJEN = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle className="text-base sm:text-lg">
               {hasSearched 
-                ? `Resultados (${publicacoes.length})` 
+                ? apiTotal !== null
+                  ? `Resultados (${publicacoes.length} de ${apiTotal})`
+                  : `Resultados (${publicacoes.length})` 
                 : "Resultados da Busca"
               }
             </CardTitle>
@@ -977,26 +1080,40 @@ const BuscarDJEN = () => {
                 )}
               </Button>
 
-              {(apiHasMore || (apiTotal !== null && apiTotal > DJEN_PAGE_SIZE)) && (
+              {/* Carregar tudo - aparece quando há mais de 100 resultados */}
+              {apiHasMore && !loadingAll && (
                 <Button
-                  onClick={handleLoadMore}
-                  disabled={loadingMore || loading}
+                  onClick={handleLoadAll}
+                  disabled={loadingMore || loading || loadingAll}
                   size="sm"
                   variant="secondary"
                   className="w-full sm:w-auto"
                 >
-                  {loadingMore ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Carregando...
-                    </>
-                  ) : (
-                    <>
-                      <ChevronsRight className="w-4 h-4 mr-2" />
-                      Carregar mais (+{DJEN_PAGE_SIZE})
-                    </>
-                  )}
+                  <ChevronsRight className="w-4 h-4 mr-2" />
+                  Carregar tudo {apiTotal ? `(${apiTotal})` : ""}
                 </Button>
+              )}
+
+              {/* Progress bar durante o carregamento */}
+              {loadingAll && (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex-1 min-w-[120px]">
+                    <Progress 
+                      value={loadAllProgress.total > 0 ? (loadAllProgress.loaded / loadAllProgress.total) * 100 : 0} 
+                      className="h-2"
+                    />
+                    <span className="text-xs text-muted-foreground mt-1 block text-center">
+                      {loadAllProgress.loaded} / {loadAllProgress.total}
+                    </span>
+                  </div>
+                  <Button
+                    onClick={handleCancelLoadAll}
+                    size="sm"
+                    variant="destructive"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
               )}
 
               {selectedIds.size > 0 && (
