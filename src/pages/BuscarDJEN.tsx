@@ -106,6 +106,7 @@ const BuscarDJEN = () => {
   // "Carregar tudo" state
   const [loadingAll, setLoadingAll] = useState(false);
   const [loadAllProgress, setLoadAllProgress] = useState({ loaded: 0, total: 0 });
+  const [loadAllLimit, setLoadAllLimit] = useState<number>(500); // Limite máximo de itens
   const loadAllCancelledRef = React.useRef(false);
   const [importing, setImporting] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -536,7 +537,8 @@ const BuscarDJEN = () => {
 
     loadAllCancelledRef.current = false;
     setLoadingAll(true);
-    setLoadAllProgress({ loaded: publicacoes.length, total: apiTotal ?? publicacoes.length });
+    const targetTotal = Math.min(loadAllLimit, apiTotal ?? loadAllLimit);
+    setLoadAllProgress({ loaded: publicacoes.length, total: targetTotal });
 
     let currentPageNum = apiPage;
     let allPubs = [...publicacoes];
@@ -544,7 +546,7 @@ const BuscarDJEN = () => {
     let totalKnown = apiTotal;
 
     try {
-      while (hasMore && !loadAllCancelledRef.current) {
+      while (hasMore && !loadAllCancelledRef.current && allPubs.length < loadAllLimit) {
         currentPageNum += 1;
 
         const { data, error } = await supabase.functions.invoke("buscar-djen", {
@@ -599,7 +601,8 @@ const BuscarDJEN = () => {
         setApiPage(currentPageNum);
         setApiTotal(totalKnown);
         setApiHasMore(hasMore);
-        setLoadAllProgress({ loaded: allPubs.length, total: totalKnown ?? allPubs.length });
+        const targetTotal = Math.min(loadAllLimit, totalKnown ?? loadAllLimit);
+        setLoadAllProgress({ loaded: allPubs.length, total: targetTotal });
 
         // Small delay to avoid hammering the API
         if (hasMore && !loadAllCancelledRef.current) {
@@ -609,6 +612,8 @@ const BuscarDJEN = () => {
 
       if (loadAllCancelledRef.current) {
         toast.info("Carregamento cancelado");
+      } else if (allPubs.length >= loadAllLimit) {
+        toast.success(`Limite atingido: ${allPubs.length} resultados carregados`);
       } else {
         toast.success(`Carregamento completo: ${allPubs.length} resultados`);
       }
@@ -1083,16 +1088,32 @@ const BuscarDJEN = () => {
 
               {/* Carregar tudo - aparece quando há mais de 100 resultados */}
               {(apiHasMore || (searchType !== "monitoramento" && publicacoes.length >= DJEN_PAGE_SIZE)) && !loadingAll && (
-                <Button
-                  onClick={handleLoadAll}
-                  disabled={loadingMore || loading || loadingAll}
-                  size="sm"
-                  variant="default"
-                  className="w-full sm:w-auto"
-                >
-                  <ChevronsRight className="w-4 h-4 mr-2" />
-                  Carregar tudo {apiTotal ? `(${apiTotal})` : ""}
-                </Button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Select
+                    value={String(loadAllLimit)}
+                    onValueChange={(v) => setLoadAllLimit(Number(v))}
+                  >
+                    <SelectTrigger className="w-[100px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="200">Até 200</SelectItem>
+                      <SelectItem value="500">Até 500</SelectItem>
+                      <SelectItem value="1000">Até 1000</SelectItem>
+                      <SelectItem value="2000">Até 2000</SelectItem>
+                      <SelectItem value="99999">Todos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={handleLoadAll}
+                    disabled={loadingMore || loading || loadingAll}
+                    size="sm"
+                    variant="default"
+                  >
+                    <ChevronsRight className="w-4 h-4 mr-2" />
+                    Carregar {apiTotal ? `(${Math.min(loadAllLimit, apiTotal)})` : ""}
+                  </Button>
+                </div>
               )}
 
               {/* Progress bar durante o carregamento */}
