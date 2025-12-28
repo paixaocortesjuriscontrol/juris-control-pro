@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Search,
   FileText,
@@ -116,6 +116,7 @@ const BuscarDJEN = () => {
   const [backfillDataInicio, setBackfillDataInicio] = useState("");
   const [backfillDataFim, setBackfillDataFim] = useState("");
   const [backfillStats, setBackfillStats] = useState<{ novas: number; descartadas: number; duplicatas: number; erros: number } | null>(null);
+  const backfillCancelledRef = useRef(false);
 
   const { 
     monitoramentos, 
@@ -634,6 +635,7 @@ const BuscarDJEN = () => {
       return;
     }
 
+    backfillCancelledRef.current = false;
     setBackfillLoading(true);
     setBackfillProgress(0);
     setBackfillStatus("Iniciando backfill...");
@@ -648,6 +650,13 @@ const BuscarDJEN = () => {
       const maxIterations = 100; // Safety limit
       
       while (iteration < maxIterations) {
+        // Check if cancelled
+        if (backfillCancelledRef.current) {
+          setBackfillStatus("Backfill cancelado pelo usuário");
+          toast.info("Backfill cancelado");
+          break;
+        }
+
         iteration++;
         setBackfillStatus(`Processando lote ${iteration}... (${currentDataInicio})`);
         
@@ -658,6 +667,13 @@ const BuscarDJEN = () => {
             offset,
           }
         });
+
+        // Check again after async call
+        if (backfillCancelledRef.current) {
+          setBackfillStatus("Backfill cancelado pelo usuário");
+          toast.info("Backfill cancelado");
+          break;
+        }
 
         if (error) {
           console.error("Backfill error:", error);
@@ -714,9 +730,11 @@ const BuscarDJEN = () => {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      toast.success(
-        `Backfill concluído! ${totalStats.novas} novas publicações, ${totalStats.duplicatas} duplicatas`
-      );
+      if (!backfillCancelledRef.current) {
+        toast.success(
+          `Backfill concluído! ${totalStats.novas} novas publicações, ${totalStats.duplicatas} duplicatas`
+        );
+      }
 
     } catch (error: any) {
       console.error("Backfill error:", error);
@@ -724,6 +742,11 @@ const BuscarDJEN = () => {
     } finally {
       setBackfillLoading(false);
     }
+  };
+
+  const handleCancelBackfill = () => {
+    backfillCancelledRef.current = true;
+    setBackfillStatus("Cancelando...");
   };
 
   return (
@@ -1522,17 +1545,28 @@ const BuscarDJEN = () => {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setBackfillDialogOpen(false)}
-              disabled={backfillLoading}
-            >
-              {backfillLoading ? "Aguarde..." : "Fechar"}
-            </Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {backfillLoading ? (
+              <Button 
+                variant="destructive" 
+                onClick={handleCancelBackfill}
+                className="w-full sm:w-auto"
+              >
+                Cancelar Backfill
+              </Button>
+            ) : (
+              <Button 
+                variant="outline" 
+                onClick={() => setBackfillDialogOpen(false)}
+                className="w-full sm:w-auto"
+              >
+                Fechar
+              </Button>
+            )}
             <Button 
               onClick={handleBackfillDJEN} 
               disabled={backfillLoading || !backfillDataInicio || !backfillDataFim}
+              className="w-full sm:w-auto"
             >
               {backfillLoading ? (
                 <>
