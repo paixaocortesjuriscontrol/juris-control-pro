@@ -166,83 +166,138 @@ async function fetchJsonViaJina(url: string, jinaApiKey: string): Promise<any | 
 async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Promise<any> {
   const { tipo, oab, uf, palavraChave, numeroProcesso, dataInicio, dataFim } = params;
 
-  const queryParams = new URLSearchParams();
+  const baseParams = new URLSearchParams();
 
   if (tipo === "palavra-chave" && palavraChave) {
-    queryParams.append("texto", palavraChave);
+    baseParams.append("texto", palavraChave);
   } else if (tipo === "advogado" && oab) {
     const oabQuery = uf ? `OAB ${oab} ${uf}` : `OAB ${oab}`;
-    queryParams.append("texto", oabQuery);
+    baseParams.append("texto", oabQuery);
   } else if (tipo === "processo" && numeroProcesso) {
-    queryParams.append("texto", numeroProcesso);
+    baseParams.append("texto", numeroProcesso);
   }
 
-  if (dataInicio) queryParams.append("dataDisponibilizacaoInicio", dataInicio);
-  if (dataFim) queryParams.append("dataDisponibilizacaoFim", dataFim);
-  
-  // Request maximum results - no pagination limit
-  queryParams.append("size", "10000");
-  queryParams.append("pagina", "0");
-  queryParams.append("tamanhoPagina", "10000");
+  if (dataInicio) baseParams.append("dataDisponibilizacaoInicio", dataInicio);
+  if (dataFim) baseParams.append("dataDisponibilizacaoFim", dataFim);
+
+  // The PJE Comunica API is paginated and often caps each page at 100 items.
+  // To avoid the "100 results" limit, we fetch pages until we reach the reported count.
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 300; // safety cap
+
+  const extractItems = (data: any): any[] => {
+    const items = data?.items ?? data?.content ?? data?.comunicacoes ?? data?.publicacoes ?? [];
+    return Array.isArray(items) ? items : [];
+  };
+
+  const getTotalCount = (data: any): number | null => {
+    const raw = data?.count ?? data?.totalElements ?? data?.total ?? data?.totalCount;
+    const n = typeof raw === "string" ? Number(raw) : raw;
+    return typeof n === "number" && Number.isFinite(n) ? n : null;
+  };
+
+  const setItemsOnResponse = (data: any, allItems: any[]) => {
+    if (Array.isArray(data?.items)) return { ...data, items: allItems };
+    if (Array.isArray(data?.content)) return { ...data, content: allItems };
+    if (Array.isArray(data?.comunicacoes)) return { ...data, comunicacoes: allItems };
+    if (Array.isArray(data?.publicacoes)) return { ...data, publicacoes: allItems };
+    return { ...data, items: allItems };
+  };
 
   // Prefer the endpoints that actually return JSON fast.
-  // The other endpoints frequently respond with HTML/422 or 404 and add seconds of latency.
-  const endpoints = [
-    `${PJE_COMUNICA_API}/comunicacao`,
-    `${PJE_COMUNICA_API}/comunicacoes`,
-  ];
+  const endpoints = [`${PJE_COMUNICA_API}/comunicacao`, `${PJE_COMUNICA_API}/comunicacoes`];
 
-  const fullQueryString = queryParams.toString();
-  console.log("Query params:", fullQueryString);
+  console.log("Base query params:", baseParams.toString());
 
   let lastError: any = null;
 
   for (const endpoint of endpoints) {
-    const fullUrl = `${endpoint}?${fullQueryString}`;
-    console.log("Trying endpoint:", fullUrl);
+    let totalExpected: number | null = null;
+    let firstPageData: any | null = null;
+    const allItems: any[] = [];
 
-    try {
-      const response = await fetchWithRetry(fullUrl, {
-        method: "GET",
-        headers: browserHeaders,
-      });
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const qp = new URLSearchParams(baseParams);
+      // Try both naming conventions (the API seems to accept 'pagina')
+      qp.set("pagina", String(page));
+      qp.set("tamanhoPagina", String(PAGE_SIZE));
+      qp.set("page", String(page));
+      qp.set("size", String(PAGE_SIZE));
 
-      const contentType = response.headers.get("content-type") || "";
-      console.log("Response status:", response.status, "Content-Type:", contentType);
+      const fullUrl = `${endpoint}?${qp.toString()}`;
+      console.log(`Trying endpoint (page ${page}):`, fullUrl);
 
-      // If blocked (HTML), try proxy via Jina to fetch the same API URL
-      if (contentType.includes("text/html") && jinaApiKey) {
-        console.log("Got HTML response (blocked). Trying Jina proxy...");
-        const data = await fetchJsonViaJina(fullUrl, jinaApiKey);
-        if (data) {
-          console.log("Success via Jina proxy");
-          return data;
+      try {
+        const response = await fetchWithRetry(fullUrl, {
+          method: "GET",
+          headers: browserHeaders,
+        });
+
+        const contentType = response.headers.get("content-type") || "";
+        console.log("Response status:", response.status, "Content-Type:", contentType);
+
+        let data: any | null = null;
+
+        // If blocked (HTML), try proxy via Jina to fetch the same API URL
+        if (contentType.includes("text/html") && jinaApiKey) {
+          console.log("Got HTML response (blocked). Trying Jina proxy...");
+          data = await fetchJsonViaJina(fullUrl, jinaApiKey);
+          if (!data) {
+            console.log("Jina proxy did not return JSON");
+            lastError = "Blocked (HTML)";
+            break; // try next endpoint
+          }
+        } else if (response.ok) {
+          data = await response.json();
+        } else if (response.status === 422) {
+          const errorText = await response.text();
+          console.log("422 response:", errorText);
+          return {
+            publicacoes: [],
+            comunicacoes: [],
+            totalElements: 0,
+            message: "Nenhuma comunicação encontrada",
+          };
+        } else {
+          lastError = `Status ${response.status}`;
+          break; // try next endpoint
         }
-        console.log("Jina proxy did not return JSON, trying next endpoint...");
-        continue;
-      }
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Success! Got JSON response");
-        return data;
-      }
+        if (!data) break;
 
-      if (response.status === 422) {
-        const errorText = await response.text();
-        console.log("422 response:", errorText);
-        return {
-          publicacoes: [],
-          comunicacoes: [],
-          totalElements: 0,
-          message: "Nenhuma comunicação encontrada",
-        };
-      }
+        if (!firstPageData) {
+          firstPageData = data;
+          totalExpected = getTotalCount(data);
+          console.log("First page totalExpected:", totalExpected);
+        }
 
-      lastError = `Status ${response.status}`;
-    } catch (err) {
-      console.error("Error with endpoint", endpoint, err);
-      lastError = err;
+        const pageItems = extractItems(data);
+        allItems.push(...pageItems);
+
+        console.log(
+          `Page ${page}: got ${pageItems.length} items (total so far ${allItems.length}${
+            totalExpected ? `/${totalExpected}` : ""
+          })`
+        );
+
+        // Stop conditions
+        if (pageItems.length === 0) break;
+        if (totalExpected !== null && allItems.length >= totalExpected) break;
+        if (pageItems.length < PAGE_SIZE) break; // likely last page
+
+        // Small delay to reduce the chance of rate limiting
+        await delay(200);
+      } catch (err) {
+        console.error("Error with endpoint", endpoint, err);
+        lastError = err;
+        break;
+      }
+    }
+
+    if (firstPageData) {
+      const merged = setItemsOnResponse(firstPageData, allItems);
+      const finalCount = totalExpected ?? allItems.length;
+      return { ...merged, count: finalCount };
     }
   }
 
