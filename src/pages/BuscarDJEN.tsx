@@ -461,7 +461,8 @@ const BuscarDJEN = () => {
 
   const handleLoadMore = async () => {
     if (searchType === "monitoramento") return;
-    if (!apiHasMore || loadingMore) return;
+    const uiHasMore = apiHasMore || publicacoes.length >= DJEN_PAGE_SIZE;
+    if (!uiHasMore || loadingMore) return;
 
     setLoadingMore(true);
     try {
@@ -539,7 +540,7 @@ const BuscarDJEN = () => {
 
     let currentPageNum = apiPage;
     let allPubs = [...publicacoes];
-    let hasMore = apiHasMore;
+    let hasMore = apiHasMore || allPubs.length >= DJEN_PAGE_SIZE;
     let totalKnown = apiTotal;
 
     try {
@@ -1081,7 +1082,7 @@ const BuscarDJEN = () => {
               </Button>
 
               {/* Carregar tudo - aparece quando há mais de 100 resultados */}
-              {apiHasMore && !loadingAll && (
+              {(apiHasMore || (searchType !== "monitoramento" && publicacoes.length >= DJEN_PAGE_SIZE)) && !loadingAll && (
                 <Button
                   onClick={handleLoadAll}
                   disabled={loadingMore || loading || loadingAll}
