@@ -470,7 +470,16 @@ export default function Notificacoes() {
                 <CardContent>
                   <ScrollArea className="h-[200px]">
                     {naoLidas.slice(0, 5).map((notif) => (
-                      <div key={notif.id} className="py-2 border-b last:border-0 flex items-start justify-between gap-2">
+                      <div 
+                        key={notif.id} 
+                        className="py-2 border-b last:border-0 flex items-start justify-between gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 -mx-2"
+                        onClick={() => {
+                          marcarComoLida.mutate(notif.id);
+                          if (notif.link) {
+                            navigate(notif.link);
+                          }
+                        }}
+                      >
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <div className={cn("p-1 rounded", getColorByType(notif.tipo))}>
@@ -480,14 +489,7 @@ export default function Notificacoes() {
                           </div>
                           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{notif.mensagem}</p>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => marcarComoLida.mutate(notif.id)}
-                        >
-                          <Eye className="w-3 h-3" />
-                        </Button>
+                        <Eye className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
                       </div>
                     ))}
                   </ScrollArea>
