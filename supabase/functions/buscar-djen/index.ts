@@ -179,6 +179,11 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
 
   if (dataInicio) queryParams.append("dataDisponibilizacaoInicio", dataInicio);
   if (dataFim) queryParams.append("dataDisponibilizacaoFim", dataFim);
+  
+  // Request maximum results - no pagination limit
+  queryParams.append("size", "10000");
+  queryParams.append("pagina", "0");
+  queryParams.append("tamanhoPagina", "10000");
 
   // Prefer the endpoints that actually return JSON fast.
   // The other endpoints frequently respond with HTML/422 or 404 and add seconds of latency.
