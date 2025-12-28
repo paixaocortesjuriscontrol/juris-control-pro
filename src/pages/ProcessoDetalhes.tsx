@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -24,6 +26,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useToast } from "@/hooks/use-toast";
@@ -40,14 +48,19 @@ import {
   Users,
   Edit,
   Save,
-  X
+  X,
+  DollarSign,
+  Briefcase,
+  Info,
+  FileBox
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Database } from "@/integrations/supabase/types";
 
 type StatusProcesso = Database["public"]["Enums"]["status_processo"];
+type AreaAtuacao = Database["public"]["Enums"]["area_atuacao"];
 
 const areaLabels: Record<string, string> = {
   civil: "Cível",
@@ -64,6 +77,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusOptions: StatusProcesso[] = ["ativo", "pendente", "urgente", "encerrado", "arquivado"];
+const areaOptions: AreaAtuacao[] = ["civil", "trabalhista", "empresarial"];
 
 export default function ProcessoDetalhes() {
   const { id } = useParams<{ id: string }>();
@@ -74,10 +88,9 @@ export default function ProcessoDetalhes() {
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [editStatus, setEditStatus] = useState<StatusProcesso | "">("");
-  const [editCoordenacao, setEditCoordenacao] = useState<string>("");
-  const [editAdvogado, setEditAdvogado] = useState<string>("");
-  const [editCliente, setEditCliente] = useState<string>("");
+  
+  // Form state for all fields
+  const [formData, setFormData] = useState<Record<string, any>>({});
 
   const { data: processo, isLoading: loadingProcesso } = useQuery({
     queryKey: ["processo", id],
@@ -126,9 +139,9 @@ export default function ProcessoDetalhes() {
   });
 
   const { data: membrosCoordenacao = [] } = useQuery({
-    queryKey: ["membros-coordenacao", editCoordenacao || processo?.coordenacao_id],
+    queryKey: ["membros-coordenacao", formData.coordenacao_id || processo?.coordenacao_id],
     queryFn: async () => {
-      const coordId = editCoordenacao || processo?.coordenacao_id;
+      const coordId = formData.coordenacao_id || processo?.coordenacao_id;
       if (!coordId) return [];
       
       const { data, error } = await supabase
@@ -143,7 +156,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!(editCoordenacao || processo?.coordenacao_id),
+    enabled: !!(formData.coordenacao_id || processo?.coordenacao_id),
   });
 
   const { data: clientes = [] } = useQuery({
@@ -158,22 +171,81 @@ export default function ProcessoDetalhes() {
     },
   });
 
-  const handleIniciarEdicao = () => {
-    if (processo) {
-      setEditStatus(processo.status);
-      setEditCoordenacao(processo.coordenacao_id || "");
-      setEditAdvogado(processo.advogado_responsavel_id || "__none__");
-      setEditCliente(processo.cliente_id || "__none__");
-      setEditando(true);
+  // Initialize form when processo loads or editing starts
+  useEffect(() => {
+    if (processo && editando) {
+      setFormData({
+        numero: processo.numero || "",
+        assunto: processo.assunto || "",
+        area: processo.area || "",
+        status: processo.status || "ativo",
+        classe: processo.classe || "",
+        natureza: processo.natureza || "",
+        materia: processo.materia || "",
+        fase: processo.fase || "",
+        instancia: processo.instancia || "",
+        justica: processo.justica || "",
+        esfera: processo.esfera || "",
+        tribunal: processo.tribunal || "",
+        vara: processo.vara || "",
+        comarca: processo.comarca || "",
+        uf: processo.uf || "",
+        polo_ativo: processo.polo_ativo || "",
+        polo_passivo: processo.polo_passivo || "",
+        terceiro_envolvido: processo.terceiro_envolvido || "",
+        funcao_parte_contraria: processo.funcao_parte_contraria || "",
+        cpf_cnpj_parte_contraria: processo.cpf_cnpj_parte_contraria || "",
+        data_distribuicao: processo.data_distribuicao || "",
+        data_recebimento: processo.data_recebimento || "",
+        data_citacao: processo.data_citacao || "",
+        data_fato_gerador: processo.data_fato_gerador || "",
+        data_encerramento: processo.data_encerramento || "",
+        data_arquivamento: processo.data_arquivamento || "",
+        valor_causa: processo.valor_causa || "",
+        valor_condenacao: processo.valor_condenacao || "",
+        valor_provisionado: processo.valor_provisionado || "",
+        provisionamento_provavel: processo.provisionamento_provavel || "",
+        provisionamento_possivel: processo.provisionamento_possivel || "",
+        provisionamento_remoto: processo.provisionamento_remoto || "",
+        deposito_judicial: processo.deposito_judicial || "",
+        valor_pago: processo.valor_pago || "",
+        valor_pagamento: processo.valor_pagamento || "",
+        tipo_pagamento: processo.tipo_pagamento || "",
+        forma_pagamento: processo.forma_pagamento || "",
+        risco: processo.risco || "",
+        probabilidade: processo.probabilidade || "",
+        resultado: processo.resultado || "",
+        transitado_julgado: processo.transitado_julgado || false,
+        andamento_atual: processo.andamento_atual || "",
+        descricao: processo.descricao || "",
+        observacoes_processo: processo.observacoes_processo || "",
+        pedidos: processo.pedidos || "",
+        periodo_laborado: processo.periodo_laborado || "",
+        coordenacao_id: processo.coordenacao_id || "",
+        advogado_responsavel_id: processo.advogado_responsavel_id || "__none__",
+        cliente_id: processo.cliente_id || "__none__",
+        unidade_cliente: processo.unidade_cliente || "",
+        sigla_unidade: processo.sigla_unidade || "",
+        pasta_cliente: processo.pasta_cliente || "",
+        pasta_fisica: processo.pasta_fisica || "",
+        tipo_controladora: processo.tipo_controladora || "",
+        identificador_projuris: processo.identificador_projuris || "",
+        responsaveis_projuris: processo.responsaveis_projuris || "",
+      });
     }
+  }, [processo, editando]);
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleIniciarEdicao = () => {
+    setEditando(true);
   };
 
   const handleCancelarEdicao = () => {
     setEditando(false);
-    setEditStatus("");
-    setEditCoordenacao("");
-    setEditAdvogado("");
-    setEditCliente("");
+    setFormData({});
   };
 
   const handleSalvarEdicao = async () => {
@@ -183,20 +255,60 @@ export default function ProcessoDetalhes() {
     try {
       const updates: Record<string, any> = {};
       
-      if (editStatus && editStatus !== processo.status) {
-        updates.status = editStatus;
+      // Compare all fields and build update object
+      const fieldsToCheck = [
+        "numero", "assunto", "area", "status", "classe", "natureza", "materia", "fase", 
+        "instancia", "justica", "esfera", "tribunal", "vara", "comarca", "uf",
+        "polo_ativo", "polo_passivo", "terceiro_envolvido", "funcao_parte_contraria", 
+        "cpf_cnpj_parte_contraria", "data_distribuicao", "data_recebimento", "data_citacao",
+        "data_fato_gerador", "data_encerramento", "data_arquivamento", "tipo_pagamento",
+        "forma_pagamento", "risco", "probabilidade", "resultado", "andamento_atual",
+        "descricao", "observacoes_processo", "pedidos", "periodo_laborado",
+        "unidade_cliente", "sigla_unidade", "pasta_cliente", "pasta_fisica",
+        "tipo_controladora", "identificador_projuris", "responsaveis_projuris"
+      ];
+      
+      const numericFields = [
+        "valor_causa", "valor_condenacao", "valor_provisionado", "provisionamento_provavel",
+        "provisionamento_possivel", "provisionamento_remoto", "deposito_judicial",
+        "valor_pago", "valor_pagamento"
+      ];
+      
+      fieldsToCheck.forEach((field) => {
+        const newValue = formData[field] || null;
+        const originalValue = processo[field as keyof typeof processo] || null;
+        if (newValue !== originalValue) {
+          updates[field] = newValue === "" ? null : newValue;
+        }
+      });
+      
+      numericFields.forEach((field) => {
+        const newValue = formData[field] ? parseFloat(formData[field]) : null;
+        const originalValue = processo[field as keyof typeof processo] || null;
+        if (newValue !== originalValue) {
+          updates[field] = newValue;
+        }
+      });
+      
+      // Handle transitado_julgado boolean
+      if (formData.transitado_julgado !== processo.transitado_julgado) {
+        updates.transitado_julgado = formData.transitado_julgado;
       }
-      if (editCoordenacao !== (processo.coordenacao_id || "")) {
-        updates.coordenacao_id = editCoordenacao || null;
+      
+      // Handle coordenacao_id
+      if (formData.coordenacao_id !== (processo.coordenacao_id || "")) {
+        updates.coordenacao_id = formData.coordenacao_id || null;
       }
-      const advogadoValue = editAdvogado === "__none__" ? null : editAdvogado;
-      const originalAdvogado = processo.advogado_responsavel_id || null;
-      if (advogadoValue !== originalAdvogado) {
+      
+      // Handle advogado_responsavel_id
+      const advogadoValue = formData.advogado_responsavel_id === "__none__" ? null : formData.advogado_responsavel_id;
+      if (advogadoValue !== (processo.advogado_responsavel_id || null)) {
         updates.advogado_responsavel_id = advogadoValue;
       }
-      const clienteValue = editCliente === "__none__" ? null : editCliente;
-      const originalCliente = processo.cliente_id || null;
-      if (clienteValue !== originalCliente) {
+      
+      // Handle cliente_id
+      const clienteValue = formData.cliente_id === "__none__" ? null : formData.cliente_id;
+      if (clienteValue !== (processo.cliente_id || null)) {
         updates.cliente_id = clienteValue;
       }
       
@@ -216,6 +328,7 @@ export default function ProcessoDetalhes() {
       
       toast({ title: "Processo atualizado com sucesso" });
       queryClient.invalidateQueries({ queryKey: ["processo", id] });
+      queryClient.invalidateQueries({ queryKey: ["processos"] });
       setEditando(false);
       setShowConfirmDialog(false);
     } catch (error: any) {
@@ -279,11 +392,106 @@ export default function ProcessoDetalhes() {
   };
 
   const formatCurrency = (value: number | null) => {
-    if (!value) return "—";
+    if (value === null || value === undefined) return "—";
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
     }).format(value);
+  };
+
+  // Field display/edit component
+  const FieldItem = ({ label, value, field, type = "text", options }: { 
+    label: string; 
+    value: any; 
+    field?: string; 
+    type?: "text" | "textarea" | "date" | "number" | "select" | "boolean";
+    options?: { value: string; label: string }[];
+  }) => {
+    if (!editando) {
+      let displayValue = value;
+      if (type === "date" && value) {
+        displayValue = formatDate(value);
+      } else if (type === "number" && value !== null && value !== undefined) {
+        displayValue = formatCurrency(value);
+      } else if (type === "boolean") {
+        displayValue = value ? "Sim" : "Não";
+      } else if (type === "select" && options) {
+        displayValue = options.find(o => o.value === value)?.label || value || "—";
+      }
+      
+      return (
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="font-medium">{displayValue || "—"}</p>
+        </div>
+      );
+    }
+    
+    // Editing mode
+    if (!field) return null;
+    
+    if (type === "textarea") {
+      return (
+        <div className="space-y-1">
+          <Label className="text-sm">{label}</Label>
+          <Textarea 
+            value={formData[field] || ""} 
+            onChange={(e) => handleInputChange(field, e.target.value)}
+            className="min-h-[80px]"
+          />
+        </div>
+      );
+    }
+    
+    if (type === "select" && options) {
+      return (
+        <div className="space-y-1">
+          <Label className="text-sm">{label}</Label>
+          <Select value={formData[field] || ""} onValueChange={(v) => handleInputChange(field, v)}>
+            <SelectTrigger>
+              <SelectValue placeholder={`Selecione ${label.toLowerCase()}`} />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+    
+    if (type === "boolean") {
+      return (
+        <div className="space-y-1">
+          <Label className="text-sm">{label}</Label>
+          <Select 
+            value={formData[field] ? "true" : "false"} 
+            onValueChange={(v) => handleInputChange(field, v === "true")}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="true">Sim</SelectItem>
+              <SelectItem value="false">Não</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="space-y-1">
+        <Label className="text-sm">{label}</Label>
+        <Input 
+          type={type === "date" ? "date" : type === "number" ? "number" : "text"}
+          value={formData[field] || ""} 
+          onChange={(e) => handleInputChange(field, e.target.value)}
+          step={type === "number" ? "0.01" : undefined}
+        />
+      </div>
+    );
   };
 
   if (loadingProcesso) {
@@ -323,331 +531,409 @@ export default function ProcessoDetalhes() {
             Voltar
           </Button>
           
-          {/* Quick Assign Button - visible when not assigned or not editing */}
-          {!editando && (!processo.advogado_responsavel_id || !processo.coordenacao_id) && (
-            <Button onClick={handleIniciarEdicao} className="bg-primary hover:bg-primary/90">
-              <Users className="w-4 h-4 mr-2" />
-              Atribuir Processo
-            </Button>
-          )}
-        </div>
-
-        {/* Process Info Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Info */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Scale className="w-5 h-5" />
-                  Informações do Processo
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Badge className={`badge-area-${processo.area}`}>
-                    {areaLabels[processo.area] || processo.area}
-                  </Badge>
-                  <Badge className={`badge-status-${processo.status}`}>
-                    {statusLabels[processo.status] || processo.status}
-                  </Badge>
-                  {!editando && (
-                    <Button variant="outline" size="sm" onClick={handleIniciarEdicao}>
-                      <Edit className="w-4 h-4 mr-1" />
-                      Editar
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Número do Processo</p>
-                  <p className="font-mono font-medium">{processo.numero}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Classe</p>
-                  <p className="font-medium">{processo.classe || "—"}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Calendar className="w-4 h-4" /> Data de Distribuição
-                  </p>
-                  <p className="font-medium">{formatDate(processo.data_distribuicao)}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Valor da Causa</p>
-                  <p className="font-medium">{formatCurrency(processo.valor_causa)}</p>
-                </div>
-              </div>
-
-              {processo.descricao && (
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-muted-foreground mb-1">Descrição</p>
-                  <p>{processo.descricao}</p>
-                </div>
-              )}
-
-            </CardContent>
-          </Card>
-
-          {/* Attribution Card - Separate highlighted card */}
-          {editando && (
-            <Card className="lg:col-span-3 border-2 border-primary/30 bg-primary/5">
-              <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-primary">
-                    <Users className="w-5 h-5" />
-                    Atribuição do Processo
-                  </CardTitle>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={handleCancelarEdicao} disabled={salvando}>
-                      <X className="w-4 h-4 mr-1" />
-                      Cancelar
-                    </Button>
-                    <Button size="sm" onClick={() => setShowConfirmDialog(true)} disabled={salvando}>
-                      <Save className="w-4 h-4 mr-1" />
-                      {salvando ? "Salvando..." : "Salvar Alterações"}
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Status do Processo</Label>
-                    <Select value={editStatus} onValueChange={(v) => setEditStatus(v as StatusProcesso)}>
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Selecione o status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {statusOptions.map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {statusLabels[status]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Cliente</Label>
-                    <Select value={editCliente} onValueChange={setEditCliente}>
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Selecione o cliente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Nenhum cliente</SelectItem>
-                        {clientes.map((cliente) => (
-                          <SelectItem key={cliente.id} value={cliente.id}>
-                            {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Coordenação Responsável</Label>
-                    <Select value={editCoordenacao} onValueChange={(v) => {
-                      setEditCoordenacao(v);
-                      setEditAdvogado(""); // Reset advogado when coordination changes
-                    }}>
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Selecione a coordenação" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {coordenacoes.map((coord) => (
-                          <SelectItem key={coord.id} value={coord.id}>
-                            {coord.nome} ({areaLabels[coord.area] || coord.area})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Advogado Responsável</Label>
-                    <Select 
-                      value={editAdvogado} 
-                      onValueChange={setEditAdvogado}
-                      disabled={!editCoordenacao && !processo.coordenacao_id}
-                    >
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder={
-                          !editCoordenacao && !processo.coordenacao_id 
-                            ? "Selecione coordenação primeiro" 
-                            : "Selecione o advogado"
-                        } />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Não atribuído</SelectItem>
-                        {membrosCoordenacao.map((membro) => (
-                          <SelectItem key={membro.usuario_id} value={membro.usuario_id}>
-                            {membro.profiles?.nome || "Usuário"} {membro.cargo ? `(${membro.cargo})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Location & Responsible */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="w-5 h-5" />
-                Localização
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Tribunal</p>
-                <p className="font-medium">{processo.tribunal || "—"}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Vara</p>
-                <p className="font-medium">{processo.vara || "—"}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  <MapPin className="w-4 h-4" /> Comarca
-                </p>
-                <p className="font-medium">{processo.comarca || "—"}</p>
-              </div>
-              
-              <div className="pt-4 border-t">
-                <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
-                  <User className="w-4 h-4" /> Advogado Responsável
-                </p>
-                <p className="font-medium">
-                  {processo.advogado_responsavel?.nome || "Não atribuído"}
-                </p>
-              </div>
-              
-              {processo.cliente && (
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-muted-foreground mb-1">Cliente</p>
-                  <p className="font-medium">{processo.cliente.nome}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {processo.cliente.tipo === "pessoa_fisica" ? "Pessoa Física" : "Pessoa Jurídica"}
-                    {processo.cliente.cpf_cnpj && ` • ${processo.cliente.cpf_cnpj}`}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Parties */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Partes do Processo
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                <p className="text-sm text-green-600 dark:text-green-400 font-medium mb-1">Polo Ativo</p>
-                <p className="font-medium text-foreground">{processo.polo_ativo || "Não informado"}</p>
-              </div>
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <p className="text-sm text-red-600 dark:text-red-400 font-medium mb-1">Polo Passivo</p>
-                <p className="font-medium text-foreground">{processo.polo_passivo || "Não informado"}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Movements / Andamentos */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Andamentos ({movimentacoes?.length || 0})
-              </CardTitle>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleAtualizarAndamentos}
-                disabled={atualizando}
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
-                {atualizando ? "Atualizando..." : "Atualizar da API"}
+          <div className="flex gap-2">
+            {editando ? (
+              <>
+                <Button variant="outline" onClick={handleCancelarEdicao} disabled={salvando}>
+                  <X className="w-4 h-4 mr-2" />
+                  Cancelar
+                </Button>
+                <Button onClick={() => setShowConfirmDialog(true)} disabled={salvando}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {salvando ? "Salvando..." : "Salvar Alterações"}
+                </Button>
+              </>
+            ) : (
+              <Button onClick={handleIniciarEdicao}>
+                <Edit className="w-4 h-4 mr-2" />
+                Editar Processo
               </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loadingMovimentacoes ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-16 rounded-lg" />
-                ))}
+            )}
+          </div>
+        </div>
+
+        {/* Status Badge Header */}
+        <div className="flex items-center gap-2">
+          <Badge className={`badge-area-${processo.area}`}>
+            {areaLabels[processo.area] || processo.area}
+          </Badge>
+          <Badge className={`badge-status-${processo.status}`}>
+            {statusLabels[processo.status] || processo.status}
+          </Badge>
+        </div>
+
+        <Accordion type="multiple" defaultValue={["info-basicas", "localizacao", "partes", "valores", "andamentos"]} className="space-y-4">
+          {/* Informações Básicas */}
+          <AccordionItem value="info-basicas" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Scale className="w-5 h-5" />
+                <span className="font-semibold">Informações Básicas</span>
               </div>
-            ) : movimentacoes && movimentacoes.length > 0 ? (
-              <ScrollArea className="h-[400px] pr-4">
-                <div className="space-y-3">
-                  {movimentacoes.map((mov) => {
-                    // Parse description to extract nome and complemento if combined
-                    const parts = mov.descricao.split(' - ');
-                    const nomeMovimento = parts[0];
-                    const complemento = parts.length > 1 ? parts.slice(1).join(' - ') : null;
-                    
-                    return (
-                      <div 
-                        key={mov.id}
-                        className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <FieldItem label="Número do Processo" value={processo.numero} field="numero" />
+                <FieldItem label="Assunto" value={processo.assunto} field="assunto" />
+                <FieldItem 
+                  label="Área" 
+                  value={processo.area} 
+                  field="area" 
+                  type="select"
+                  options={areaOptions.map(a => ({ value: a, label: areaLabels[a] }))}
+                />
+                <FieldItem 
+                  label="Status" 
+                  value={processo.status} 
+                  field="status" 
+                  type="select"
+                  options={statusOptions.map(s => ({ value: s, label: statusLabels[s] }))}
+                />
+                <FieldItem label="Classe" value={processo.classe} field="classe" />
+                <FieldItem label="Natureza" value={processo.natureza} field="natureza" />
+                <FieldItem label="Matéria" value={processo.materia} field="materia" />
+                <FieldItem label="Fase" value={processo.fase} field="fase" />
+                <FieldItem label="Instância" value={processo.instancia} field="instancia" />
+                <FieldItem label="Justiça" value={processo.justica} field="justica" />
+                <FieldItem label="Esfera" value={processo.esfera} field="esfera" />
+                <FieldItem label="Andamento Atual" value={processo.andamento_atual} field="andamento_atual" />
+              </div>
+              <div className="grid grid-cols-1 gap-4 mt-4">
+                <FieldItem label="Descrição" value={processo.descricao} field="descricao" type="textarea" />
+                <FieldItem label="Pedidos" value={processo.pedidos} field="pedidos" type="textarea" />
+                <FieldItem label="Observações" value={processo.observacoes_processo} field="observacoes_processo" type="textarea" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Localização e Tribunal */}
+          <AccordionItem value="localizacao" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5" />
+                <span className="font-semibold">Localização e Tribunal</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <FieldItem label="Tribunal" value={processo.tribunal} field="tribunal" />
+                <FieldItem label="Vara" value={processo.vara} field="vara" />
+                <FieldItem label="Comarca" value={processo.comarca} field="comarca" />
+                <FieldItem label="UF" value={processo.uf} field="uf" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Partes */}
+          <AccordionItem value="partes" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                <span className="font-semibold">Partes do Processo</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                  <FieldItem label="Polo Ativo" value={processo.polo_ativo} field="polo_ativo" type="textarea" />
+                </div>
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <FieldItem label="Polo Passivo" value={processo.polo_passivo} field="polo_passivo" type="textarea" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                <FieldItem label="Terceiro Envolvido" value={processo.terceiro_envolvido} field="terceiro_envolvido" />
+                <FieldItem label="Função da Parte Contrária" value={processo.funcao_parte_contraria} field="funcao_parte_contraria" />
+                <FieldItem label="CPF/CNPJ Parte Contrária" value={processo.cpf_cnpj_parte_contraria} field="cpf_cnpj_parte_contraria" />
+                <FieldItem label="Período Laborado" value={processo.periodo_laborado} field="periodo_laborado" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Datas */}
+          <AccordionItem value="datas" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                <span className="font-semibold">Datas</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <FieldItem label="Data de Distribuição" value={processo.data_distribuicao} field="data_distribuicao" type="date" />
+                <FieldItem label="Data de Recebimento" value={processo.data_recebimento} field="data_recebimento" type="date" />
+                <FieldItem label="Data de Citação" value={processo.data_citacao} field="data_citacao" type="date" />
+                <FieldItem label="Data do Fato Gerador" value={processo.data_fato_gerador} field="data_fato_gerador" />
+                <FieldItem label="Data de Encerramento" value={processo.data_encerramento} field="data_encerramento" type="date" />
+                <FieldItem label="Data de Arquivamento" value={processo.data_arquivamento} field="data_arquivamento" type="date" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Valores e Financeiro */}
+          <AccordionItem value="valores" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5" />
+                <span className="font-semibold">Valores e Financeiro</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <FieldItem label="Valor da Causa" value={processo.valor_causa} field="valor_causa" type="number" />
+                <FieldItem label="Valor da Condenação" value={processo.valor_condenacao} field="valor_condenacao" type="number" />
+                <FieldItem label="Valor Provisionado" value={processo.valor_provisionado} field="valor_provisionado" type="number" />
+                <FieldItem label="Provisionamento Provável" value={processo.provisionamento_provavel} field="provisionamento_provavel" type="number" />
+                <FieldItem label="Provisionamento Possível" value={processo.provisionamento_possivel} field="provisionamento_possivel" type="number" />
+                <FieldItem label="Provisionamento Remoto" value={processo.provisionamento_remoto} field="provisionamento_remoto" type="number" />
+                <FieldItem label="Depósito Judicial" value={processo.deposito_judicial} field="deposito_judicial" type="number" />
+                <FieldItem label="Valor Pago" value={processo.valor_pago} field="valor_pago" type="number" />
+                <FieldItem label="Valor do Pagamento" value={processo.valor_pagamento} field="valor_pagamento" type="number" />
+                <FieldItem label="Tipo de Pagamento" value={processo.tipo_pagamento} field="tipo_pagamento" />
+                <FieldItem label="Forma de Pagamento" value={processo.forma_pagamento} field="forma_pagamento" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Risco e Resultado */}
+          <AccordionItem value="risco" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Info className="w-5 h-5" />
+                <span className="font-semibold">Risco e Resultado</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <FieldItem label="Risco" value={processo.risco} field="risco" />
+                <FieldItem label="Probabilidade" value={processo.probabilidade} field="probabilidade" />
+                <FieldItem label="Resultado" value={processo.resultado} field="resultado" />
+                <FieldItem label="Transitado em Julgado" value={processo.transitado_julgado} field="transitado_julgado" type="boolean" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Atribuição */}
+          <AccordionItem value="atribuicao" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                <span className="font-semibold">Atribuição e Responsáveis</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {editando ? (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-sm">Cliente</Label>
+                      <Select value={formData.cliente_id || "__none__"} onValueChange={(v) => handleInputChange("cliente_id", v)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhum cliente</SelectItem>
+                          {clientes.map((cliente) => (
+                            <SelectItem key={cliente.id} value={cliente.id}>
+                              {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-sm">Coordenação</Label>
+                      <Select 
+                        value={formData.coordenacao_id || ""} 
+                        onValueChange={(v) => {
+                          handleInputChange("coordenacao_id", v);
+                          handleInputChange("advogado_responsavel_id", "__none__");
+                        }}
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-foreground">{nomeMovimento}</p>
-                              {mov.tipo && mov.tipo !== nomeMovimento && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {mov.tipo}
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a coordenação" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coordenacoes.map((coord) => (
+                            <SelectItem key={coord.id} value={coord.id}>
+                              {coord.nome} ({areaLabels[coord.area] || coord.area})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-sm">Advogado Responsável</Label>
+                      <Select 
+                        value={formData.advogado_responsavel_id || "__none__"} 
+                        onValueChange={(v) => handleInputChange("advogado_responsavel_id", v)}
+                        disabled={!formData.coordenacao_id && !processo.coordenacao_id}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            !formData.coordenacao_id && !processo.coordenacao_id 
+                              ? "Selecione coordenação primeiro" 
+                              : "Selecione o advogado"
+                          } />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Não atribuído</SelectItem>
+                          {membrosCoordenacao.map((membro) => (
+                            <SelectItem key={membro.usuario_id} value={membro.usuario_id}>
+                              {membro.profiles?.nome || "Usuário"} {membro.cargo ? `(${membro.cargo})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <FieldItem label="Cliente" value={processo.cliente?.nome} />
+                    <FieldItem 
+                      label="Coordenação" 
+                      value={coordenacoes.find(c => c.id === processo.coordenacao_id)?.nome} 
+                    />
+                    <FieldItem label="Advogado Responsável" value={processo.advogado_responsavel?.nome} />
+                  </>
+                )}
+                <FieldItem label="Responsáveis Projuris" value={processo.responsaveis_projuris} field="responsaveis_projuris" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Dados do Cliente / Unidade */}
+          <AccordionItem value="unidade" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5" />
+                <span className="font-semibold">Dados da Unidade / Cliente</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <FieldItem label="Unidade do Cliente" value={processo.unidade_cliente} field="unidade_cliente" />
+                <FieldItem label="Sigla da Unidade" value={processo.sigla_unidade} field="sigla_unidade" />
+                <FieldItem label="Pasta do Cliente" value={processo.pasta_cliente} field="pasta_cliente" />
+                <FieldItem label="Pasta Física" value={processo.pasta_fisica} field="pasta_fisica" />
+                <FieldItem label="Tipo Controladora" value={processo.tipo_controladora} field="tipo_controladora" />
+                <FieldItem label="Identificador Projuris" value={processo.identificador_projuris} field="identificador_projuris" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Andamentos */}
+          <AccordionItem value="andamentos" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                <span className="font-semibold">Andamentos ({movimentacoes?.length || 0})</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="flex justify-end mb-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleAtualizarAndamentos}
+                  disabled={atualizando}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
+                  {atualizando ? "Atualizando..." : "Atualizar da API"}
+                </Button>
+              </div>
+              
+              {loadingMovimentacoes ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-16 rounded-lg" />
+                  ))}
+                </div>
+              ) : movimentacoes && movimentacoes.length > 0 ? (
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-3">
+                    {movimentacoes.map((mov) => {
+                      const parts = mov.descricao.split(' - ');
+                      const nomeMovimento = parts[0];
+                      const complemento = parts.length > 1 ? parts.slice(1).join(' - ') : null;
+                      
+                      return (
+                        <div 
+                          key={mov.id}
+                          className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium text-foreground">{nomeMovimento}</p>
+                                {mov.tipo && mov.tipo !== nomeMovimento && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {mov.tipo}
+                                  </Badge>
+                                )}
+                              </div>
+                              {complemento && (
+                                <p className="text-sm text-muted-foreground mt-1 break-words">
+                                  {complemento}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
+                                <Clock className="w-3 h-3" />
+                                {formatDateTime(mov.data_movimentacao)}
+                              </p>
+                              {mov.fonte && (
+                                <Badge variant="outline" className="text-xs mt-1">
+                                  {mov.fonte}
                                 </Badge>
                               )}
                             </div>
-                            {complemento && (
-                              <p className="text-sm text-muted-foreground mt-1 break-words">
-                                {complemento}
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
-                              <Clock className="w-3 h-3" />
-                              {formatDateTime(mov.data_movimentacao)}
-                            </p>
-                            {mov.fonte && (
-                              <Badge variant="outline" className="text-xs mt-1">
-                                {mov.fonte}
-                              </Badge>
-                            )}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground mb-4">Nenhum andamento registrado</p>
+                  <Button variant="outline" onClick={handleAtualizarAndamentos} disabled={atualizando}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
+                    Buscar Andamentos
+                  </Button>
                 </div>
-              </ScrollArea>
-            ) : (
-              <div className="text-center py-8">
-                <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground mb-4">Nenhum andamento registrado</p>
-                <Button variant="outline" onClick={handleAtualizarAndamentos} disabled={atualizando}>
-                  <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
-                  Buscar Andamentos
-                </Button>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Metadados */}
+          <AccordionItem value="metadados" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <FileBox className="w-5 h-5" />
+                <span className="font-semibold">Metadados do Sistema</span>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">ID do Processo</p>
+                  <p className="font-mono text-sm">{processo.id}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Criado em</p>
+                  <p className="font-medium">{formatDateTime(processo.created_at)}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Atualizado em</p>
+                  <p className="font-medium">{formatDateTime(processo.updated_at)}</p>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
 
       {/* Confirmation Dialog */}
@@ -657,21 +943,6 @@ export default function ProcessoDetalhes() {
             <AlertDialogTitle>Confirmar Alterações</AlertDialogTitle>
             <AlertDialogDescription>
               Deseja salvar as alterações realizadas no processo?
-              {editStatus && editStatus !== processo?.status && (
-                <span className="block mt-2">
-                  • Status: <strong>{statusLabels[processo?.status || ""]}</strong> → <strong>{statusLabels[editStatus]}</strong>
-                </span>
-              )}
-              {editCoordenacao !== (processo?.coordenacao_id || "") && (
-                <span className="block mt-1">
-                  • Coordenação alterada
-                </span>
-              )}
-              {editAdvogado !== (processo?.advogado_responsavel_id || "") && (
-                <span className="block mt-1">
-                  • Advogado responsável alterado
-                </span>
-              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
