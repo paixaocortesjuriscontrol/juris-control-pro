@@ -108,6 +108,13 @@ const BuscarDJEN = () => {
   const [loadingResumo, setLoadingResumo] = useState(false);
   const [importLoteDialogOpen, setImportLoteDialogOpen] = useState(false);
   const [importLoteCoordenacaoId, setImportLoteCoordenacaoId] = useState<string>("");
+  const [importProgress, setImportProgress] = useState({
+    current: 0,
+    total: 0,
+    imported: 0,
+    movimentacoes: 0,
+    errors: 0,
+  });
 
   // Backfill dialog visibility (now uses the new panel)
   const [backfillPanelOpen, setBackfillPanelOpen] = useState(false);
@@ -498,14 +505,31 @@ const BuscarDJEN = () => {
     }
 
     setImporting(true);
+    const selectedPubs = publicacoes.filter(p => selectedIds.has(p.id));
+    
+    // Reset progress
+    setImportProgress({
+      current: 0,
+      total: selectedPubs.length,
+      imported: 0,
+      movimentacoes: 0,
+      errors: 0,
+    });
     
     try {
-      const selectedPubs = publicacoes.filter(p => selectedIds.has(p.id));
       let imported = 0;
       let errors = 0;
       let movimentacoesAdded = 0;
 
-      for (const pub of selectedPubs) {
+      for (let i = 0; i < selectedPubs.length; i++) {
+        const pub = selectedPubs[i];
+        
+        // Update progress
+        setImportProgress(prev => ({
+          ...prev,
+          current: i + 1,
+        }));
+
         try {
           // Try to get process number from pub.processo or extract from content
           let processNumbers: string[] = [];
@@ -520,6 +544,7 @@ const BuscarDJEN = () => {
           if (processNumbers.length === 0) {
             console.log("Nenhum número de processo encontrado na publicação:", pub.id);
             errors++;
+            setImportProgress(prev => ({ ...prev, errors: prev.errors + 1 }));
             continue;
           }
 
@@ -545,6 +570,7 @@ const BuscarDJEN = () => {
 
               if (!error) {
                 movimentacoesAdded++;
+                setImportProgress(prev => ({ ...prev, movimentacoes: prev.movimentacoes + 1 }));
               } else {
                 console.error("Erro ao adicionar movimentação:", error);
               }
@@ -577,15 +603,18 @@ const BuscarDJEN = () => {
                   });
                 
                 imported++;
+                setImportProgress(prev => ({ ...prev, imported: prev.imported + 1 }));
               } else {
                 console.error("Erro ao criar processo:", createError);
                 errors++;
+                setImportProgress(prev => ({ ...prev, errors: prev.errors + 1 }));
               }
             }
           }
         } catch (pubError: any) {
           console.error("Erro ao processar publicação:", pubError);
           errors++;
+          setImportProgress(prev => ({ ...prev, errors: prev.errors + 1 }));
         }
       }
 
@@ -1294,7 +1323,7 @@ const BuscarDJEN = () => {
       </Dialog>
 
       {/* Import Lote Dialog */}
-      <Dialog open={importLoteDialogOpen} onOpenChange={setImportLoteDialogOpen}>
+      <Dialog open={importLoteDialogOpen} onOpenChange={(open) => !importing && setImportLoteDialogOpen(open)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Importar {selectedIds.size} Publicações</DialogTitle>
@@ -1305,7 +1334,11 @@ const BuscarDJEN = () => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="coordenacao-lote">Coordenação *</Label>
-              <Select value={importLoteCoordenacaoId} onValueChange={setImportLoteCoordenacaoId}>
+              <Select 
+                value={importLoteCoordenacaoId} 
+                onValueChange={setImportLoteCoordenacaoId}
+                disabled={importing}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione a coordenação" />
                 </SelectTrigger>
@@ -1318,13 +1351,46 @@ const BuscarDJEN = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-              <p>• Processos já existentes terão movimentação adicionada</p>
-              <p>• Novos processos serão criados na coordenação selecionada</p>
-            </div>
+            
+            {/* Progress indicator */}
+            {importing && importProgress.total > 0 && (
+              <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between text-sm">
+                  <span>Progresso</span>
+                  <span className="font-medium">
+                    {importProgress.current} / {importProgress.total}
+                  </span>
+                </div>
+                <Progress 
+                  value={(importProgress.current / importProgress.total) * 100} 
+                  className="h-2"
+                />
+                <div className="grid grid-cols-3 gap-2 text-xs text-center">
+                  <div className="bg-background p-2 rounded">
+                    <div className="font-semibold text-green-600">{importProgress.imported}</div>
+                    <div className="text-muted-foreground">Importados</div>
+                  </div>
+                  <div className="bg-background p-2 rounded">
+                    <div className="font-semibold text-blue-600">{importProgress.movimentacoes}</div>
+                    <div className="text-muted-foreground">Movimentações</div>
+                  </div>
+                  <div className="bg-background p-2 rounded">
+                    <div className="font-semibold text-red-600">{importProgress.errors}</div>
+                    <div className="text-muted-foreground">Erros</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {!importing && (
+              <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                <p>• Processos já existentes terão movimentação adicionada</p>
+                <p>• Novos processos serão criados na coordenação selecionada</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setImportLoteDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setImportLoteDialogOpen(false)} disabled={importing}>
               Cancelar
             </Button>
             <Button onClick={handleImportSelected} disabled={importing || !importLoteCoordenacaoId}>
