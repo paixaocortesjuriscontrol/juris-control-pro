@@ -103,6 +103,16 @@ export function Sidebar() {
           {!collapsed && <span className="text-sm font-medium">Administração</span>}
         </NavLink>
         <NavLink
+          to="/monitoramento-djen"
+          onClick={() => setMobileOpen(false)}
+          className={({ isActive }) =>
+            cn("nav-item", isActive && "nav-item-active")
+          }
+        >
+          <Radar className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span className="text-sm font-medium">Monit. DJEN</span>}
+        </NavLink>
+        <NavLink
           to="/configuracoes"
           onClick={() => setMobileOpen(false)}
           className={({ isActive }) =>
