@@ -303,16 +303,24 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
         const totalExpected = getTotalCount(data);
         const pageItems = extractItems(data).map(optimizeItem);
 
-        const count = totalExpected ?? pageItems.length;
-        const hasMore =
-          typeof totalExpected === "number"
-            ? (page + 1) * pageSize < totalExpected
-            : pageItems.length === pageSize;
+        // ALWAYS compute totalElements - use API value or estimate based on page size
+        const totalElements = typeof totalExpected === "number" && totalExpected >= 0
+          ? totalExpected
+          : pageItems.length === pageSize
+            ? (page + 1) * pageSize + 1 // Estimate: at least one more page
+            : (page * pageSize) + pageItems.length; // This is the last page
+
+        // ALWAYS compute hasMore reliably
+        const hasMore = typeof totalExpected === "number" && totalExpected >= 0
+          ? (page + 1) * pageSize < totalExpected
+          : pageItems.length === pageSize;
+
+        console.log(`Returning: totalElements=${totalElements}, hasMore=${hasMore}, items=${pageItems.length}, page=${page}`);
 
         return {
           items: pageItems,
-          count,
-          totalElements: count,
+          count: totalElements,
+          totalElements,
           page,
           pageSize,
           hasMore,
