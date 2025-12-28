@@ -23,6 +23,7 @@ export interface PrazoPendente {
   processo: {
     id: string;
     numero: string;
+    coordenacao_id: string | null;
   } | null;
   dias_restantes: number;
   is_atrasado: boolean;
@@ -63,7 +64,7 @@ export function useNotificacoes() {
           titulo,
           data_vencimento,
           prioridade,
-          processo:processos!prazos_processo_id_fkey(id, numero)
+          processo:processos!prazos_processo_id_fkey(id, numero, coordenacao_id)
         `)
         .eq('responsavel_id', user.id)
         .eq('status', 'pendente')
