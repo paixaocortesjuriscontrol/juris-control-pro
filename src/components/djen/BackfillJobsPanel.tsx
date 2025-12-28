@@ -179,48 +179,62 @@ export function BackfillJobsPanel({ monitoramentos = [] }: BackfillJobsPanelProp
                   onOpenChange={(open) => setExpandedJobId(open ? job.id : null)}
                 >
                   <div className="border rounded-lg overflow-hidden">
-                    <CollapsibleTrigger asChild>
-                      <div className="flex items-center justify-between p-3 hover:bg-muted/50 cursor-pointer">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="flex items-center justify-between p-3 hover:bg-muted/50">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                        >
                           {getStatusBadge(job.status)}
-                          <div className="text-sm truncate">
+                          <div className="text-sm truncate w-full">
                             <span className="font-medium">
                               {format(parseISO(job.data_inicio), "dd/MM/yy")} - {format(parseISO(job.data_fim), "dd/MM/yy")}
                             </span>
                             {job.status === 'running' && job.progresso && (
-                              <span className="ml-2 text-muted-foreground">
-                                ({getProgressPercent(job)}%)
-                              </span>
+                              <span className="ml-2 text-muted-foreground">({getProgressPercent(job)}%)</span>
+                            )}
+
+                            {/* Inline progress (visible without expanding) */}
+                            {(job.status === 'running' || job.status === 'completed') && job.progresso && (
+                              <div className="mt-2 pr-3">
+                                <Progress value={getProgressPercent(job)} className="h-2" />
+                              </div>
                             )}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {(job.status === 'running' || job.status === 'pending') && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); cancelJob(job.id); }}
-                            >
-                              <Square className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {(job.status === 'completed' || job.status === 'cancelled' || job.status === 'failed') && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); deleteJob(job.id); }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {expandedJobId === job.id ? (
-                            <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                          )}
-                        </div>
+                        </button>
+                      </CollapsibleTrigger>
+
+                      <div className="flex items-center gap-2">
+                        {(job.status === 'running' || job.status === 'pending') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); cancelJob(job.id); }}
+                          >
+                            <Square className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {(job.status === 'completed' || job.status === 'cancelled' || job.status === 'failed') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); deleteJob(job.id); }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" aria-label="Expandir detalhes">
+                            {expandedJobId === job.id ? (
+                              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </CollapsibleTrigger>
                       </div>
-                    </CollapsibleTrigger>
+                    </div>
                     
                     <CollapsibleContent>
                       <div className="px-3 pb-3 space-y-3 border-t">
