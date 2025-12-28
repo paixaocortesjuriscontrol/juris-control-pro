@@ -1475,8 +1475,8 @@ const BuscarDJEN = () => {
         </CardContent>
       </Card>
 
-      {/* Barra fixa de ações (sempre visível) */}
-      {hasSearched && searchType !== "monitoramento" && (loadingAll || apiHasMore || publicacoes.length >= DJEN_PAGE_SIZE) && (
+      {/* Barra fixa de ações (sempre visível após busca com resultados) */}
+      {hasSearched && searchType !== "monitoramento" && publicacoes.length > 0 && (
         <aside className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:right-6 z-50">
           <div className="rounded-lg border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 shadow-sm p-3">
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
