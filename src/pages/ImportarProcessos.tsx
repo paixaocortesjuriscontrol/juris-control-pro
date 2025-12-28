@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 interface ValidationError {
@@ -214,6 +214,12 @@ export default function ImportarProcessos() {
   const [projurisProcessos, setProjurisProcessos] = useState<ProcessoImport[]>([]);
   const [projurisImporting, setProjurisImporting] = useState(false);
   const [projurisProgress, setProjurisProgress] = useState(0);
+
+  // Dr. Osmar (Rede D'Or) import states
+  const [osmarFile, setOsmarFile] = useState<File | null>(null);
+  const [osmarProcessos, setOsmarProcessos] = useState<ProcessoImport[]>([]);
+  const [osmarImporting, setOsmarImporting] = useState(false);
+  const [osmarProgress, setOsmarProgress] = useState(0);
 
   // Fetch coordenacoes
   const { data: coordenacoes = [] } = useCoordenacoesFull();
@@ -1179,11 +1185,308 @@ export default function ImportarProcessos() {
   const projurisErrorCount = projurisProcessos.filter(p => p.status === "erro").length;
   const projurisTotalRejeitados = projurisInvalidCount + projurisErrorCount;
 
+  const osmarValidCount = osmarProcessos.filter(p => p.status === "valido").length;
+  const osmarInvalidCount = osmarProcessos.filter(p => p.status === "invalido").length;
+  const osmarSuccessCount = osmarProcessos.filter(p => p.status === "sucesso").length;
+  const osmarErrorCount = osmarProcessos.filter(p => p.status === "erro").length;
+  const osmarTotalRejeitados = osmarInvalidCount + osmarErrorCount;
+
+  // Dr. Osmar file handling
+  const handleOsmarFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setOsmarFile(selectedFile);
+      parseOsmarExcel(selectedFile);
+    }
+  }, []);
+
+  const parseOsmarExcel = async (file: File) => {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+      const parsed: ProcessoImport[] = jsonData.map((row: any, index: number): ProcessoImport => {
+        const processo: ProcessoImport = {
+          numero: String(row["Numero do processo"] || row["Número do processo"] || "").trim(),
+          assunto: row["PEDIDOS"] || null,
+          situacao: row["STATUS DO PROCESSO"] || null,
+          responsavel: row["ADVOGADO"] || null,
+          descricao: row["Observações"] || null,
+          justica: row["Esfera"] || null,
+          cidade: null,
+          estado: row["Estado"] || null,
+          instancia: row["Fase do Processo"] || null,
+          orgao: null,
+          orgaoJulgador: row["VARA"] || null,
+          sistema: null,
+          area: row["Natureza"] || null,
+          fase: row["Fase do Processo"] || null,
+          dataDistribuicao: row["Distribuição"] || null,
+          classeCNJ: null,
+          valorAcao: row["Provável - Dez/2023"] || row["Possível - Dez/2023"] || row["Remoto - Dez/2023"] || null,
+          parteAtiva: row["UNIDADE"] || null,
+          partePassiva: row["Parte Contrária"] || null,
+          cpfCnpjAtivo: null,
+          cpfCnpjPassivo: row["CPF / CNPJ"] || null,
+          status: "pendente",
+          erros: [],
+          linhaOriginal: index + 2,
+          // Extended fields for Dr. Osmar
+          identificadorProjuris: null,
+          pastaFisica: null,
+          pastaCliente: null,
+          dataCitacao: null,
+          dataRecebimento: null,
+          dataArquivamento: null,
+          valorProvisionado: null,
+          probabilidade: null,
+          risco: null,
+          transitadoJulgado: null,
+          resultado: null,
+          valorCondenacao: null,
+        };
+        
+        // Store additional Dr. Osmar fields in a custom property
+        (processo as any).osmarData = {
+          unidadeCliente: row["UNIDADE"] || null,
+          siglaUnidade: row["Sigla"] || null,
+          tipoControladora: row["Controladora / Consolidado"] || null,
+          cpfCnpjParteContraria: row["CPF / CNPJ"] || null,
+          dataFatoGerador: row["Data do Fato Gerador"] || null,
+          pedidos: row["PEDIDOS"] || null,
+          funcaoParteContraria: row["FUNÇÃO"] || null,
+          periodoLaborado: row["PERÍODO LABORADO"] || null,
+          andamentoAtual: row["ANDAMENTO"] || null,
+          esfera: row["Esfera"] || null,
+          natureza: row["Natureza"] || null,
+          materia: row["Matéria"] || null,
+          terceiroEnvolvido: row["3º"] || null,
+          provisionamentoProvavel: parseNumber(row["Provável - Dez/2023"]),
+          provisionamentoPossivel: parseNumber(row["Possível - Dez/2023"]),
+          provisionamentoRemoto: parseNumber(row["Remoto - Dez/2023"]),
+          valorPagamento: parseNumber(row["Valor do pagamento"]),
+          tipoPagamento: row["Acordo ou Pagamento ?"] || null,
+          formaPagamento: row["A vista ou parcelado?"] || null,
+          valorPago: parseNumber(row["Valor pago"]),
+          depositoJudicial: parseNumber(row["Depósito judicial (atualizado)"]),
+          observacoes: row["Observações"] || null,
+        };
+        
+        // Validate the processo
+        processo.erros = validateProcesso(processo);
+        processo.status = processo.erros.length > 0 ? "invalido" : "valido";
+        
+        return processo;
+      });
+
+      setOsmarProcessos(parsed);
+      
+      const validCount = parsed.filter(p => p.status === "valido").length;
+      const invalidCount = parsed.filter(p => p.status === "invalido").length;
+      
+      if (parsed.length === 0) {
+        toast({
+          title: "Nenhum processo encontrado",
+          description: "A planilha não contém dados. Verifique se a primeira linha contém os cabeçalhos.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Planilha Dr. Osmar carregada",
+          description: `${parsed.length} linha(s): ${validCount} válida(s), ${invalidCount} com erro(s).`,
+          variant: invalidCount > 0 ? "destructive" : "default",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao ler planilha Dr. Osmar:", error);
+      toast({
+        title: "Erro ao ler planilha",
+        description: "Verifique se o arquivo está no formato correto (.xlsx ou .xls).",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOsmarImport = async () => {
+    const validProcessos = osmarProcessos.filter(p => p.status === "valido");
+    if (validProcessos.length === 0) {
+      toast({
+        title: "Nenhum processo válido",
+        description: "Corrija os erros de validação antes de importar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setOsmarImporting(true);
+    setOsmarProgress(0);
+
+    const updatedProcessos = [...osmarProcessos];
+    let successCountLocal = 0;
+    let errorCountLocal = 0;
+
+    for (let i = 0; i < updatedProcessos.length; i++) {
+      const processo = updatedProcessos[i];
+      
+      if (processo.status === "invalido") {
+        continue;
+      }
+      
+      try {
+        const osmarData = (processo as any).osmarData || {};
+        
+        // Check if process already exists by numero
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processo.numero.trim())
+          .maybeSingle();
+
+        const processoData: Record<string, any> = {
+          numero: processo.numero.trim(),
+          assunto: osmarData.pedidos,
+          area: mapAreaToEnum(processo.area),
+          status: mapStatusToEnum(processo.situacao),
+          vara: processo.orgaoJulgador,
+          uf: processo.estado,
+          fase: processo.fase,
+          data_distribuicao: parseDate(processo.dataDistribuicao),
+          polo_ativo: osmarData.unidadeCliente,
+          polo_passivo: processo.partePassiva,
+          coordenacao_id: selectedCoordenacao || null,
+          advogado_responsavel_id: selectedMembro || null,
+          cliente_id: selectedCliente || null,
+          // Dr. Osmar specific fields
+          unidade_cliente: osmarData.unidadeCliente,
+          sigla_unidade: osmarData.siglaUnidade,
+          tipo_controladora: osmarData.tipoControladora,
+          cpf_cnpj_parte_contraria: osmarData.cpfCnpjParteContraria,
+          data_fato_gerador: osmarData.dataFatoGerador,
+          pedidos: osmarData.pedidos,
+          funcao_parte_contraria: osmarData.funcaoParteContraria,
+          periodo_laborado: osmarData.periodoLaborado,
+          andamento_atual: osmarData.andamentoAtual,
+          esfera: osmarData.esfera,
+          natureza: osmarData.natureza,
+          materia: osmarData.materia,
+          terceiro_envolvido: osmarData.terceiroEnvolvido,
+          provisionamento_provavel: osmarData.provisionamentoProvavel,
+          provisionamento_possivel: osmarData.provisionamentoPossivel,
+          provisionamento_remoto: osmarData.provisionamentoRemoto,
+          valor_pagamento: osmarData.valorPagamento,
+          tipo_pagamento: osmarData.tipoPagamento,
+          forma_pagamento: osmarData.formaPagamento,
+          valor_pago: osmarData.valorPago,
+          deposito_judicial: osmarData.depositoJudicial,
+          observacoes_processo: osmarData.observacoes,
+        };
+
+        let isUpdate = false;
+
+        if (existingProcesso) {
+          // Update existing process (upsert behavior)
+          const { error } = await supabase
+            .from("processos")
+            .update(processoData)
+            .eq("id", existingProcesso.id);
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            errorCountLocal++;
+            continue;
+          }
+          isUpdate = true;
+        } else {
+          // Insert new process
+          const { error } = await supabase
+            .from("processos")
+            .insert(processoData as any);
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            errorCountLocal++;
+            continue;
+          }
+        }
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "sucesso", 
+          erroImport: isUpdate ? "Atualizado (já existia)" : undefined 
+        };
+        successCountLocal++;
+      } catch (err: any) {
+        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
+        errorCountLocal++;
+      }
+
+      setOsmarProgress(((i + 1) / updatedProcessos.length) * 100);
+      setOsmarProcessos([...updatedProcessos]);
+    }
+
+    setOsmarImporting(false);
+
+    toast({
+      title: "Importação Dr. Osmar concluída",
+      description: `${successCountLocal} processo(s) importado(s). ${errorCountLocal} erro(s) de importação.`,
+      variant: errorCountLocal > 0 ? "destructive" : "default",
+    });
+  };
+
+  const downloadOsmarRejeitados = () => {
+    const rejeitados = osmarProcessos.filter(p => p.status === "invalido" || p.status === "erro");
+    
+    if (rejeitados.length === 0) {
+      toast({
+        title: "Nenhum rejeitado",
+        description: "Não há processos rejeitados para exportar.",
+      });
+      return;
+    }
+
+    const exportData = rejeitados.map(p => ({
+      "Linha": p.linhaOriginal,
+      "Número do processo": p.numero,
+      "Unidade": p.parteAtiva,
+      "Parte Contrária": p.partePassiva,
+      "Fase": p.fase,
+      "VARA": p.orgaoJulgador,
+      "STATUS": p.situacao,
+      "Erros de Validação": p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; "),
+      "Erro de Importação": p.erroImport || "",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Rejeitados");
+    
+    const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+      wch: Math.max(key.length, 15)
+    }));
+    ws["!cols"] = colWidths;
+    
+    XLSX.writeFile(wb, `osmar_rejeitados_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: "Arquivo gerado",
+      description: `${rejeitados.length} processo(s) rejeitado(s) exportado(s).`,
+    });
+  };
+
+  const clearOsmar = () => {
+    setOsmarFile(null);
+    setOsmarProcessos([]);
+    setOsmarProgress(0);
+  };
+
   return (
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-lg">
+          <TabsList className="grid w-full grid-cols-4 max-w-xl">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -1195,6 +1498,10 @@ export default function ImportarProcessos() {
             <TabsTrigger value="projuris" className="flex items-center gap-2">
               <ArrowRightLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Projuris</span>
+            </TabsTrigger>
+            <TabsTrigger value="osmar" className="flex items-center gap-2">
+              <Hospital className="h-4 w-4" />
+              <span className="hidden sm:inline">Dr. Osmar</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1972,6 +2279,268 @@ export default function ImportarProcessos() {
                                 <TableCell className="max-w-[150px] truncate">
                                   {processo.orgao || "-"}
                                 </TableCell>
+                                <TableCell className="text-sm">
+                                  {processo.erros.length > 0 && (
+                                    <div className="text-red-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>• {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {processo.erroImport && (
+                                    <div className="text-orange-600">• Importação: {processo.erroImport}</div>
+                                  )}
+                                  {processo.status === "valido" && "-"}
+                                  {processo.status === "sucesso" && <span className="text-blue-600">Importado com sucesso</span>}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab: Dr. Osmar (Rede D'Or) */}
+          <TabsContent value="osmar" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Hospital className="h-5 w-5" />
+                  Importar Dr. Osmar (Rede D'Or)
+                </CardTitle>
+                <CardDescription>
+                  Importe processos usando a planilha no formato Rede D'Or. Processos existentes serão atualizados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">Faça upload da planilha</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    A planilha deve conter as colunas: ADVOGADO, UNIDADE, Sigla, Numero do processo, VARA, STATUS DO PROCESSO, etc.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleOsmarFileChange}
+                      className="max-w-xs"
+                      disabled={osmarImporting}
+                    />
+                    {osmarFile && (
+                      <Button variant="outline" onClick={clearOsmar} disabled={osmarImporting}>
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Coordenação Selection */}
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="coordenacao-osmar" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Coordenação Responsável
+                  </Label>
+                  <Select 
+                    value={selectedCoordenacao} 
+                    onValueChange={(value) => {
+                      setSelectedCoordenacao(value);
+                      setSelectedMembro("");
+                    }}
+                    disabled={osmarImporting}
+                  >
+                    <SelectTrigger id="coordenacao-osmar" className="max-w-md">
+                      <SelectValue placeholder="Selecione a coordenação (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.nome} ({coord.area})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Member Selection */}
+                {selectedCoordenacao && membrosDisponiveis.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="membro-osmar" className="flex items-center gap-2">
+                      Advogado Responsável (opcional)
+                    </Label>
+                    <Select 
+                      value={selectedMembro} 
+                      onValueChange={setSelectedMembro}
+                      disabled={osmarImporting}
+                    >
+                      <SelectTrigger id="membro-osmar" className="max-w-md">
+                        <SelectValue placeholder="Selecione o advogado responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membrosDisponiveis.map((membro) => (
+                          <SelectItem key={membro.id} value={membro.id}>
+                            {membro.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Cliente Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="cliente-osmar" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Cliente (opcional)
+                  </Label>
+                  <Select 
+                    value={selectedCliente} 
+                    onValueChange={setSelectedCliente}
+                    disabled={osmarImporting}
+                  >
+                    <SelectTrigger id="cliente-osmar" className="max-w-md">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Colunas reconhecidas:</strong> ADVOGADO, UNIDADE, Sigla, Controladora / Consolidado, Parte Contrária, CPF / CNPJ, Distribuição, Numero do processo, Fase do Processo, VARA, PEDIDOS, FUNÇÃO, ANDAMENTO, Esfera, Natureza, Matéria, 3º, Estado, STATUS DO PROCESSO, Provável, Possível, Remoto, Valor do pagamento, Valor pago, Depósito judicial, Observações.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Osmar File Preview */}
+            {osmarFile && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle>Pré-visualização Dr. Osmar</CardTitle>
+                      <CardDescription>
+                        {osmarProcessos.length} processo(s) encontrado(s) em "{osmarFile.name}"
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {osmarProcessos.length > 0 && (
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                            {osmarValidCount} válidos
+                          </Badge>
+                          <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                            {osmarInvalidCount} inválidos
+                          </Badge>
+                          {osmarSuccessCount > 0 && (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
+                              {osmarSuccessCount} importados
+                            </Badge>
+                          )}
+                          {osmarErrorCount > 0 && (
+                            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
+                              {osmarErrorCount} erros
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {osmarTotalRejeitados > 0 && (
+                          <Button variant="outline" onClick={downloadOsmarRejeitados}>
+                            <FileDown className="h-4 w-4 mr-2" />
+                            Baixar Rejeitados ({osmarTotalRejeitados})
+                          </Button>
+                        )}
+                        <Button 
+                          onClick={handleOsmarImport} 
+                          disabled={osmarImporting || osmarValidCount === 0}
+                        >
+                          {osmarImporting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Importando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Importar ({osmarValidCount})
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {osmarImporting && (
+                    <Progress value={osmarProgress} className="mt-4" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {osmarProcessos.length === 0 ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Nenhum processo encontrado na planilha. Verifique se é uma planilha no formato Rede D'Or.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="max-h-[500px] overflow-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead className="w-[60px]">Linha</TableHead>
+                              <TableHead className="w-[60px]">Status</TableHead>
+                              <TableHead>Número</TableHead>
+                              <TableHead>Unidade</TableHead>
+                              <TableHead>Parte Contrária</TableHead>
+                              <TableHead>Fase</TableHead>
+                              <TableHead>Status Proc.</TableHead>
+                              <TableHead className="min-w-[300px]">Erros</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {osmarProcessos.map((processo, index) => (
+                              <TableRow key={index} className={processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : ""}>
+                                <TableCell className="text-muted-foreground">
+                                  {processo.linhaOriginal}
+                                </TableCell>
+                                <TableCell>
+                                  {processo.status === "valido" && (
+                                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                                  )}
+                                  {processo.status === "invalido" && (
+                                    <XCircle className="h-4 w-4 text-red-500" />
+                                  )}
+                                  {processo.status === "sucesso" && (
+                                    <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                                  )}
+                                  {processo.status === "erro" && (
+                                    <XCircle className="h-4 w-4 text-orange-500" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {processo.numero || <span className="text-red-500 italic">vazio</span>}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.parteAtiva || "-"}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.partePassiva || "-"}
+                                </TableCell>
+                                <TableCell>{processo.fase || "-"}</TableCell>
+                                <TableCell>{processo.situacao || "-"}</TableCell>
                                 <TableCell className="text-sm">
                                   {processo.erros.length > 0 && (
                                     <div className="text-red-600 space-y-1">
