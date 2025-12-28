@@ -34,6 +34,7 @@ import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 export default function Notificacoes() {
+  // Central de Notificações
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("todos");
   const navigate = useNavigate();
