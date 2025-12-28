@@ -181,9 +181,10 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   if (dataFim) baseParams.append("dataDisponibilizacaoFim", dataFim);
 
   // The PJE Comunica API is paginated and often caps each page at 100 items.
-  // To avoid the "100 results" limit, we fetch pages until we reach the reported count.
+  // IMPORTANT: Limit pages to avoid memory exhaustion in edge functions
   const PAGE_SIZE = 100;
-  const MAX_PAGES = 300; // safety cap
+  const MAX_PAGES = 10; // Limit to 1000 items max to avoid memory issues
+  const MAX_ITEMS = 1000; // Safety cap
 
   const extractItems = (data: any): any[] => {
     const items = data?.items ?? data?.content ?? data?.comunicacoes ?? data?.publicacoes ?? [];
@@ -196,12 +197,33 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     return typeof n === "number" && Number.isFinite(n) ? n : null;
   };
 
-  const setItemsOnResponse = (data: any, allItems: any[]) => {
-    if (Array.isArray(data?.items)) return { ...data, items: allItems };
-    if (Array.isArray(data?.content)) return { ...data, content: allItems };
-    if (Array.isArray(data?.comunicacoes)) return { ...data, comunicacoes: allItems };
-    if (Array.isArray(data?.publicacoes)) return { ...data, publicacoes: allItems };
-    return { ...data, items: allItems };
+  // Optimize items to reduce memory - only keep essential fields
+  const optimizeItem = (item: any) => ({
+    id: item.id,
+    dataDisponibilizacao: item.dataDisponibilizacao,
+    dataPublicacao: item.dataPublicacao,
+    tipoComunicacao: item.tipoComunicacao,
+    siglaTribunal: item.siglaTribunal,
+    numeroProcesso: item.numeroProcesso,
+    nomeOrgao: item.nomeOrgao,
+    // Truncate content to save memory
+    texto: item.texto?.substring(0, 2000),
+    teor: item.teor?.substring(0, 2000),
+    destinatarioNome: item.destinatarioNome,
+  });
+
+  const setItemsOnResponse = (data: any, allItems: any[], totalAvailable: number | null) => {
+    const truncated = totalAvailable ? allItems.length < totalAvailable : false;
+    const result = {
+      items: allItems,
+      count: totalAvailable ?? allItems.length,
+      totalElements: totalAvailable ?? allItems.length,
+      truncated,
+      message: truncated 
+        ? `Exibindo ${allItems.length} de ${totalAvailable} resultados. Use filtros de data para refinar.`
+        : undefined,
+    };
+    return result;
   };
 
   // Prefer the endpoints that actually return JSON fast.
@@ -217,6 +239,12 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     const allItems: any[] = [];
 
     for (let page = 0; page < MAX_PAGES; page++) {
+      // Check memory limit
+      if (allItems.length >= MAX_ITEMS) {
+        console.log(`Reached max items limit (${MAX_ITEMS}), stopping pagination`);
+        break;
+      }
+
       const qp = new URLSearchParams(baseParams);
       // Try both naming conventions (the API seems to accept 'pagina')
       qp.set("pagina", String(page));
@@ -272,7 +300,9 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
         }
 
         const pageItems = extractItems(data);
-        allItems.push(...pageItems);
+        // Optimize items to reduce memory usage
+        const optimizedItems = pageItems.map(optimizeItem);
+        allItems.push(...optimizedItems);
 
         console.log(
           `Page ${page}: got ${pageItems.length} items (total so far ${allItems.length}${
@@ -282,11 +312,12 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
 
         // Stop conditions
         if (pageItems.length === 0) break;
+        if (allItems.length >= MAX_ITEMS) break;
         if (totalExpected !== null && allItems.length >= totalExpected) break;
         if (pageItems.length < PAGE_SIZE) break; // likely last page
 
         // Small delay to reduce the chance of rate limiting
-        await delay(200);
+        await delay(150);
       } catch (err) {
         console.error("Error with endpoint", endpoint, err);
         lastError = err;
@@ -295,9 +326,8 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     }
 
     if (firstPageData) {
-      const merged = setItemsOnResponse(firstPageData, allItems);
-      const finalCount = totalExpected ?? allItems.length;
-      return { ...merged, count: finalCount };
+      const merged = setItemsOnResponse(firstPageData, allItems, totalExpected);
+      return merged;
     }
   }
 
