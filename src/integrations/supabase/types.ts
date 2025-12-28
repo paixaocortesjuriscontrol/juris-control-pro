@@ -921,121 +921,187 @@ export type Database = {
       processos: {
         Row: {
           advogado_responsavel_id: string | null
+          andamento_atual: string | null
           area: Database["public"]["Enums"]["area_atuacao"]
           assunto: string | null
           classe: string | null
           cliente_id: string | null
           comarca: string | null
           coordenacao_id: string | null
+          cpf_cnpj_parte_contraria: string | null
           created_at: string
           data_arquivamento: string | null
           data_citacao: string | null
           data_distribuicao: string | null
           data_encerramento: string | null
+          data_fato_gerador: string | null
           data_recebimento: string | null
+          deposito_judicial: number | null
           descricao: string | null
+          esfera: string | null
           fase: string | null
+          forma_pagamento: string | null
+          funcao_parte_contraria: string | null
           id: string
           identificador_projuris: string | null
           instancia: string | null
           justica: string | null
+          materia: string | null
+          natureza: string | null
           numero: string
+          observacoes_processo: string | null
           pasta_cliente: string | null
           pasta_fisica: string | null
           pasta_id: string | null
+          pedidos: string | null
+          periodo_laborado: string | null
           polo_ativo: string | null
           polo_passivo: string | null
           probabilidade: string | null
+          provisionamento_possivel: number | null
+          provisionamento_provavel: number | null
+          provisionamento_remoto: number | null
           responsaveis_projuris: string | null
           resultado: string | null
           risco: string | null
+          sigla_unidade: string | null
           status: Database["public"]["Enums"]["status_processo"]
+          terceiro_envolvido: string | null
+          tipo_controladora: string | null
+          tipo_pagamento: string | null
           transitado_julgado: boolean | null
           tribunal: string | null
           uf: string | null
+          unidade_cliente: string | null
           updated_at: string
           valor_causa: number | null
           valor_condenacao: number | null
+          valor_pagamento: number | null
+          valor_pago: number | null
           valor_provisionado: number | null
           vara: string | null
         }
         Insert: {
           advogado_responsavel_id?: string | null
+          andamento_atual?: string | null
           area: Database["public"]["Enums"]["area_atuacao"]
           assunto?: string | null
           classe?: string | null
           cliente_id?: string | null
           comarca?: string | null
           coordenacao_id?: string | null
+          cpf_cnpj_parte_contraria?: string | null
           created_at?: string
           data_arquivamento?: string | null
           data_citacao?: string | null
           data_distribuicao?: string | null
           data_encerramento?: string | null
+          data_fato_gerador?: string | null
           data_recebimento?: string | null
+          deposito_judicial?: number | null
           descricao?: string | null
+          esfera?: string | null
           fase?: string | null
+          forma_pagamento?: string | null
+          funcao_parte_contraria?: string | null
           id?: string
           identificador_projuris?: string | null
           instancia?: string | null
           justica?: string | null
+          materia?: string | null
+          natureza?: string | null
           numero: string
+          observacoes_processo?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
           pasta_id?: string | null
+          pedidos?: string | null
+          periodo_laborado?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
           probabilidade?: string | null
+          provisionamento_possivel?: number | null
+          provisionamento_provavel?: number | null
+          provisionamento_remoto?: number | null
           responsaveis_projuris?: string | null
           resultado?: string | null
           risco?: string | null
+          sigla_unidade?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
+          terceiro_envolvido?: string | null
+          tipo_controladora?: string | null
+          tipo_pagamento?: string | null
           transitado_julgado?: boolean | null
           tribunal?: string | null
           uf?: string | null
+          unidade_cliente?: string | null
           updated_at?: string
           valor_causa?: number | null
           valor_condenacao?: number | null
+          valor_pagamento?: number | null
+          valor_pago?: number | null
           valor_provisionado?: number | null
           vara?: string | null
         }
         Update: {
           advogado_responsavel_id?: string | null
+          andamento_atual?: string | null
           area?: Database["public"]["Enums"]["area_atuacao"]
           assunto?: string | null
           classe?: string | null
           cliente_id?: string | null
           comarca?: string | null
           coordenacao_id?: string | null
+          cpf_cnpj_parte_contraria?: string | null
           created_at?: string
           data_arquivamento?: string | null
           data_citacao?: string | null
           data_distribuicao?: string | null
           data_encerramento?: string | null
+          data_fato_gerador?: string | null
           data_recebimento?: string | null
+          deposito_judicial?: number | null
           descricao?: string | null
+          esfera?: string | null
           fase?: string | null
+          forma_pagamento?: string | null
+          funcao_parte_contraria?: string | null
           id?: string
           identificador_projuris?: string | null
           instancia?: string | null
           justica?: string | null
+          materia?: string | null
+          natureza?: string | null
           numero?: string
+          observacoes_processo?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
           pasta_id?: string | null
+          pedidos?: string | null
+          periodo_laborado?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
           probabilidade?: string | null
+          provisionamento_possivel?: number | null
+          provisionamento_provavel?: number | null
+          provisionamento_remoto?: number | null
           responsaveis_projuris?: string | null
           resultado?: string | null
           risco?: string | null
+          sigla_unidade?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
+          terceiro_envolvido?: string | null
+          tipo_controladora?: string | null
+          tipo_pagamento?: string | null
           transitado_julgado?: boolean | null
           tribunal?: string | null
           uf?: string | null
+          unidade_cliente?: string | null
           updated_at?: string
           valor_causa?: number | null
           valor_condenacao?: number | null
+          valor_pagamento?: number | null
+          valor_pago?: number | null
           valor_provisionado?: number | null
           vara?: string | null
         }
