@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Newspaper, Play, Clock, RefreshCw } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
@@ -26,22 +27,85 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   } = useConfiguracoesMonitoramento(coordenacaoId);
 
   const [executando, setExecutando] = useState(false);
+  const [progresso, setProgresso] = useState({ atual: 0, total: 0, novas: 0 });
 
   const handleExecutarManual = async () => {
     setExecutando(true);
+    setProgresso({ atual: 0, total: 0, novas: 0 });
+    
+    let offset = 0;
+    let totalProcessados = 0;
+    let totalNovas = 0;
+    let hasMore = true;
+    
     try {
-      const { data, error } = await supabase.functions.invoke('monitorar-djen');
-      if (error) throw error;
+      // Get total count first
+      const { count } = await supabase
+        .from('monitoramentos_djen')
+        .select('*', { count: 'exact', head: true })
+        .eq('ativo', true);
       
-      const novas = data?.novasPublicacoes || 0;
-      const processados = data?.monitoramentosProcessados || 0;
-      toast.success(`Monitoramento concluído: ${processados} monitoramentos verificados, ${novas} novas publicações`);
+      const total = count || 0;
+      setProgresso(p => ({ ...p, total }));
       
+      // Process in batches
+      while (hasMore) {
+        toast.info(`Processando lote ${Math.floor(offset / 10) + 1}...`);
+        
+        const { data, error } = await supabase.functions.invoke('monitorar-djen', {
+          body: null,
+          headers: {},
+        });
+        
+        // Pass offset as query param by calling with different approach
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL || 'https://bfxahrrvoqxcdmfsvnrk.supabase.co'}/functions/v1/monitorar-djen?offset=${offset}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            },
+          }
+        );
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Erro: ${response.status} - ${errorText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
+        
+        totalProcessados += result.processados || 0;
+        totalNovas += result.novasPublicacoes || 0;
+        hasMore = result.hasMore || false;
+        
+        setProgresso({ 
+          atual: totalProcessados, 
+          total, 
+          novas: totalNovas 
+        });
+        
+        if (hasMore && result.nextOffset) {
+          offset = result.nextOffset;
+          // Small delay between batches
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+      
+      toast.success(`Monitoramento concluído: ${totalProcessados} verificados, ${totalNovas} novas publicações`);
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+      
     } catch (error) {
-      toast.error(`Erro no monitoramento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      console.error('Erro no monitoramento:', error);
+      toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setExecutando(false);
+      setProgresso({ atual: 0, total: 0, novas: 0 });
     }
   };
 
@@ -71,6 +135,10 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       </Card>
     );
   }
+
+  const progressPercent = progresso.total > 0 
+    ? Math.round((progresso.atual / progresso.total) * 100) 
+    : 0;
 
   return (
     <Card>
@@ -130,11 +198,17 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
                 Última execução: {format(toZonedTime(new Date(configuracaoDjen.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
             </div>
-            {configuracaoDjen.metadata?.last_complete_run && (
-              <span className="text-xs text-green-600">
-                Última execução completa: {format(toZonedTime(new Date(configuracaoDjen.metadata.last_complete_run), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-              </span>
-            )}
+          </div>
+        )}
+
+        {/* Progress */}
+        {executando && progresso.total > 0 && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Processando: {progresso.atual}/{progresso.total}</span>
+              <span className="text-green-600">+{progresso.novas} novas</span>
+            </div>
+            <Progress value={progressPercent} className="h-2" />
           </div>
         )}
 
@@ -147,7 +221,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           {executando ? (
             <>
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              Buscando publicações...
+              Processando... {progressPercent > 0 ? `${progressPercent}%` : ''}
             </>
           ) : (
             <>
