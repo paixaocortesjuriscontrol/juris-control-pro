@@ -217,8 +217,13 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     tipoComunicacao: item.tipoComunicacao,
     siglaTribunal: item.siglaTribunal,
     numeroProcesso: item.numeroProcesso,
+
+    // Keep compatibility aliases used by the frontend
     nomeOrgao: item.nomeOrgao,
+    orgao: item.nomeOrgao,
     destinatarioNome: item.destinatarioNome,
+    destinatario: item.destinatarioNome,
+
     // Truncate content to save memory
     texto: typeof item.texto === "string" ? item.texto.substring(0, 2000) : undefined,
     teor: typeof item.teor === "string" ? item.teor.substring(0, 2000) : undefined,
