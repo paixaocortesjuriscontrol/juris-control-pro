@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 // ============ In-memory cache (5 min TTL) ============
+// NOTE: Keep this cache small. Edge functions have tight memory limits.
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const MAX_CACHE_ENTRIES = 100;
+const MAX_CACHE_ENTRIES = 20;
 
 interface CacheEntry {
   data: any;
@@ -17,9 +18,12 @@ function getCacheKey(params: SearchParams): string {
     oab: params.oab?.toLowerCase(),
     uf: params.uf?.toUpperCase(),
     palavraChave: params.palavraChave?.toLowerCase().trim(),
-    numeroProcesso: params.numeroProcesso?.replace(/\D/g, ''),
+    numeroProcesso: params.numeroProcesso?.replace(/\D/g, ""),
     dataInicio: params.dataInicio,
     dataFim: params.dataFim,
+    page: params.page ?? 0,
+    pageSize: params.pageSize ?? 100,
+    fetchAll: !!params.fetchAll,
   });
 }
 
@@ -83,6 +87,10 @@ interface SearchParams {
   numeroProcesso?: string;
   dataInicio?: string;
   dataFim?: string;
+  page?: number;
+  pageSize?: number;
+  // When true, the function will fetch multiple pages (use with caution).
+  fetchAll?: boolean;
 }
 
 // Browser-like headers to avoid blocking
@@ -99,7 +107,12 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3, baseDelay = 1500): Promise<Response> {
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3,
+  baseDelay = 1500
+): Promise<Response> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -108,7 +121,9 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3,
 
       if (response.status === 429) {
         const waitTime = baseDelay * Math.pow(2, attempt);
-        console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        console.log(
+          `Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`
+        );
         await delay(waitTime);
         continue;
       }
@@ -180,11 +195,8 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   if (dataInicio) baseParams.append("dataDisponibilizacaoInicio", dataInicio);
   if (dataFim) baseParams.append("dataDisponibilizacaoFim", dataFim);
 
-  // The PJE Comunica API is paginated and often caps each page at 100 items.
-  // IMPORTANT: Limit pages to avoid memory exhaustion in edge functions
-  const PAGE_SIZE = 100;
-  const MAX_PAGES = 10; // Limit to 1000 items max to avoid memory issues
-  const MAX_ITEMS = 1000; // Safety cap
+  const page = Math.max(params.page ?? 0, 0);
+  const pageSize = Math.min(Math.max(params.pageSize ?? 100, 1), 100);
 
   const extractItems = (data: any): any[] => {
     const items = data?.items ?? data?.content ?? data?.comunicacoes ?? data?.publicacoes ?? [];
@@ -206,128 +218,161 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     siglaTribunal: item.siglaTribunal,
     numeroProcesso: item.numeroProcesso,
     nomeOrgao: item.nomeOrgao,
-    // Truncate content to save memory
-    texto: item.texto?.substring(0, 2000),
-    teor: item.teor?.substring(0, 2000),
     destinatarioNome: item.destinatarioNome,
+    // Truncate content to save memory
+    texto: typeof item.texto === "string" ? item.texto.substring(0, 2000) : undefined,
+    teor: typeof item.teor === "string" ? item.teor.substring(0, 2000) : undefined,
   });
-
-  const setItemsOnResponse = (data: any, allItems: any[], totalAvailable: number | null) => {
-    const truncated = totalAvailable ? allItems.length < totalAvailable : false;
-    const result = {
-      items: allItems,
-      count: totalAvailable ?? allItems.length,
-      totalElements: totalAvailable ?? allItems.length,
-      truncated,
-      message: truncated 
-        ? `Exibindo ${allItems.length} de ${totalAvailable} resultados. Use filtros de data para refinar.`
-        : undefined,
-    };
-    return result;
-  };
 
   // Prefer the endpoints that actually return JSON fast.
   const endpoints = [`${PJE_COMUNICA_API}/comunicacao`, `${PJE_COMUNICA_API}/comunicacoes`];
 
-  console.log("Base query params:", baseParams.toString());
+  console.log(
+    "Base query params:",
+    baseParams.toString(),
+    "page:",
+    page,
+    "pageSize:",
+    pageSize,
+    "fetchAll:",
+    !!params.fetchAll
+  );
 
   let lastError: any = null;
 
-  for (const endpoint of endpoints) {
-    let totalExpected: number | null = null;
-    let firstPageData: any | null = null;
-    const allItems: any[] = [];
+  const fetchPage = async (endpoint: string, pageNumber: number) => {
+    const qp = new URLSearchParams(baseParams);
+    qp.set("pagina", String(pageNumber));
+    qp.set("tamanhoPagina", String(pageSize));
+    qp.set("page", String(pageNumber));
+    qp.set("size", String(pageSize));
 
-    for (let page = 0; page < MAX_PAGES; page++) {
-      // Check memory limit
-      if (allItems.length >= MAX_ITEMS) {
-        console.log(`Reached max items limit (${MAX_ITEMS}), stopping pagination`);
-        break;
+    const fullUrl = `${endpoint}?${qp.toString()}`;
+    console.log(`Trying endpoint (page ${pageNumber}):`, fullUrl);
+
+    const response = await fetchWithRetry(fullUrl, {
+      method: "GET",
+      headers: browserHeaders,
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+    console.log("Response status:", response.status, "Content-Type:", contentType);
+
+    let data: any | null = null;
+
+    // If blocked (HTML), try proxy via Jina to fetch the same API URL
+    if (contentType.includes("text/html") && jinaApiKey) {
+      console.log("Got HTML response (blocked). Trying Jina proxy...");
+      data = await fetchJsonViaJina(fullUrl, jinaApiKey);
+      if (!data) {
+        console.log("Jina proxy did not return JSON");
+        throw new Error("Blocked (HTML)");
       }
+    } else if (response.ok) {
+      data = await response.json();
+    } else if (response.status === 422) {
+      const errorText = await response.text();
+      console.log("422 response:", errorText);
+      return {
+        data: {
+          publicacoes: [],
+          comunicacoes: [],
+          totalElements: 0,
+          message: "Nenhuma comunicação encontrada",
+        },
+        ok: true,
+      };
+    } else {
+      const t = await response.text().catch(() => "");
+      throw new Error(`Status ${response.status} ${t.slice(0, 120)}`);
+    }
 
-      const qp = new URLSearchParams(baseParams);
-      // Try both naming conventions (the API seems to accept 'pagina')
-      qp.set("pagina", String(page));
-      qp.set("tamanhoPagina", String(PAGE_SIZE));
-      qp.set("page", String(page));
-      qp.set("size", String(PAGE_SIZE));
+    return { data, ok: true };
+  };
 
-      const fullUrl = `${endpoint}?${qp.toString()}`;
-      console.log(`Trying endpoint (page ${page}):`, fullUrl);
-
+  // Default: fetch ONE page only (prevents WORKER_LIMIT memory issues)
+  if (!params.fetchAll) {
+    for (const endpoint of endpoints) {
       try {
-        const response = await fetchWithRetry(fullUrl, {
-          method: "GET",
-          headers: browserHeaders,
-        });
+        const { data } = await fetchPage(endpoint, page);
+        const totalExpected = getTotalCount(data);
+        const pageItems = extractItems(data).map(optimizeItem);
 
-        const contentType = response.headers.get("content-type") || "";
-        console.log("Response status:", response.status, "Content-Type:", contentType);
+        const count = totalExpected ?? pageItems.length;
+        const hasMore =
+          typeof totalExpected === "number"
+            ? (page + 1) * pageSize < totalExpected
+            : pageItems.length === pageSize;
 
-        let data: any | null = null;
-
-        // If blocked (HTML), try proxy via Jina to fetch the same API URL
-        if (contentType.includes("text/html") && jinaApiKey) {
-          console.log("Got HTML response (blocked). Trying Jina proxy...");
-          data = await fetchJsonViaJina(fullUrl, jinaApiKey);
-          if (!data) {
-            console.log("Jina proxy did not return JSON");
-            lastError = "Blocked (HTML)";
-            break; // try next endpoint
-          }
-        } else if (response.ok) {
-          data = await response.json();
-        } else if (response.status === 422) {
-          const errorText = await response.text();
-          console.log("422 response:", errorText);
-          return {
-            publicacoes: [],
-            comunicacoes: [],
-            totalElements: 0,
-            message: "Nenhuma comunicação encontrada",
-          };
-        } else {
-          lastError = `Status ${response.status}`;
-          break; // try next endpoint
-        }
-
-        if (!data) break;
-
-        if (!firstPageData) {
-          firstPageData = data;
-          totalExpected = getTotalCount(data);
-          console.log("First page totalExpected:", totalExpected);
-        }
-
-        const pageItems = extractItems(data);
-        // Optimize items to reduce memory usage
-        const optimizedItems = pageItems.map(optimizeItem);
-        allItems.push(...optimizedItems);
-
-        console.log(
-          `Page ${page}: got ${pageItems.length} items (total so far ${allItems.length}${
-            totalExpected ? `/${totalExpected}` : ""
-          })`
-        );
-
-        // Stop conditions
-        if (pageItems.length === 0) break;
-        if (allItems.length >= MAX_ITEMS) break;
-        if (totalExpected !== null && allItems.length >= totalExpected) break;
-        if (pageItems.length < PAGE_SIZE) break; // likely last page
-
-        // Small delay to reduce the chance of rate limiting
-        await delay(150);
+        return {
+          items: pageItems,
+          count,
+          totalElements: count,
+          page,
+          pageSize,
+          hasMore,
+        };
       } catch (err) {
         console.error("Error with endpoint", endpoint, err);
         lastError = err;
-        break;
       }
     }
+  }
 
-    if (firstPageData) {
-      const merged = setItemsOnResponse(firstPageData, allItems, totalExpected);
-      return merged;
+  // Legacy mode: fetch multiple pages (used by internal backfill jobs).
+  // Keep strict limits to avoid worker OOM.
+  if (params.fetchAll) {
+    const MAX_PAGES = 15; // 15 * 100 = 1500 items max
+    const MAX_ITEMS = 1500;
+
+    for (const endpoint of endpoints) {
+      let totalExpected: number | null = null;
+      const allItems: any[] = [];
+
+      try {
+        for (let p = 0; p < MAX_PAGES; p++) {
+          if (allItems.length >= MAX_ITEMS) break;
+
+          const { data } = await fetchPage(endpoint, p);
+
+          if (totalExpected === null) {
+            totalExpected = getTotalCount(data);
+            console.log("First page totalExpected:", totalExpected);
+          }
+
+          const rawItems = extractItems(data);
+          const optimized = rawItems.map(optimizeItem);
+          allItems.push(...optimized);
+
+          console.log(
+            `Page ${p}: got ${rawItems.length} items (total so far ${allItems.length}${
+              totalExpected ? `/${totalExpected}` : ""
+            })`
+          );
+
+          if (rawItems.length === 0) break;
+          if (rawItems.length < pageSize) break;
+          if (totalExpected !== null && allItems.length >= totalExpected) break;
+
+          await delay(150);
+        }
+
+        const count = totalExpected ?? allItems.length;
+        const truncated = typeof totalExpected === "number" ? allItems.length < totalExpected : false;
+
+        return {
+          items: allItems,
+          count,
+          totalElements: count,
+          truncated,
+          message: truncated
+            ? `Exibindo ${allItems.length} de ${totalExpected} resultados. Use filtros de data para refinar.`
+            : undefined,
+        };
+      } catch (err) {
+        console.error("Error with endpoint", endpoint, err);
+        lastError = err;
+      }
     }
   }
 
@@ -478,7 +523,18 @@ serve(async (req) => {
     const jinaApiKey = Deno.env.get("JINA_API_KEY") || undefined;
 
     const body = await req.json();
-    const { tipo = "palavra-chave", oab, uf, palavraChave, numeroProcesso, dataInicio, dataFim } = body;
+    const {
+      tipo = "palavra-chave",
+      oab,
+      uf,
+      palavraChave,
+      numeroProcesso,
+      dataInicio,
+      dataFim,
+      page,
+      pageSize,
+      fetchAll,
+    } = body;
 
     console.log("DJEN Search request:", JSON.stringify(body));
 
@@ -492,10 +548,13 @@ serve(async (req) => {
       }
     } else if (tipo === "palavra-chave") {
       if (!palavraChave || palavraChave.length < 3) {
-        return new Response(JSON.stringify({ error: "Palavra-chave deve ter pelo menos 3 caracteres" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: "Palavra-chave deve ter pelo menos 3 caracteres" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
     } else if (tipo === "processo") {
       if (!numeroProcesso) {
@@ -506,23 +565,38 @@ serve(async (req) => {
       }
     }
 
-    const searchParams: SearchParams = { tipo, oab, uf, palavraChave, numeroProcesso, dataInicio, dataFim };
+    const searchParams: SearchParams = {
+      tipo,
+      oab,
+      uf,
+      palavraChave,
+      numeroProcesso,
+      dataInicio,
+      dataFim,
+      page: typeof page === "number" ? page : 0,
+      pageSize: typeof pageSize === "number" ? pageSize : 100,
+      fetchAll: !!fetchAll,
+    };
+
+    // For fetchAll we skip cache to avoid keeping large results in memory.
     const cacheKey = getCacheKey(searchParams);
 
-    // Check cache first
-    const cachedResult = getFromCache(cacheKey);
-    if (cachedResult) {
-      console.log("Cache HIT for:", cacheKey);
-      return new Response(JSON.stringify({ success: true, cached: true, ...cachedResult }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!searchParams.fetchAll) {
+      const cachedResult = getFromCache(cacheKey);
+      if (cachedResult) {
+        console.log("Cache HIT for:", cacheKey);
+        return new Response(JSON.stringify({ success: true, cached: true, ...cachedResult }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     console.log("Cache MISS, fetching from API...");
     const result = await searchPJEComunica(searchParams, jinaApiKey);
 
-    // Store in cache
-    setCache(cacheKey, result);
+    if (!searchParams.fetchAll) {
+      setCache(cacheKey, result);
+    }
 
     return new Response(JSON.stringify({ success: true, cached: false, ...result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
