@@ -64,8 +64,14 @@ export default function Notificacoes() {
         return mon?.coordenacao_id === coordenacaoId;
       });
 
-  // Filter distributions
+  // Filter distributions by coordination (via monitoramento)
   const distribuicoesPendentes = distribuicoesEncontradas.filter(d => d.status === 'pendente');
+  const distribuicoesFiltradas = coordenacaoId === "todas"
+    ? distribuicoesPendentes
+    : distribuicoesPendentes.filter(d => {
+        // Get coordination from the monitoramento's coordenacao_id (if available)
+        return (d as any).monitoramento?.coordenacao_id === coordenacaoId;
+      });
 
   // Filter alerts by coordination
   const alertasPendentes = alertas.filter(a => a.status === 'pendente');
@@ -73,19 +79,43 @@ export default function Notificacoes() {
     ? alertasPendentes
     : alertasPendentes.filter(a => a.processo?.coordenacao_id === coordenacaoId);
 
-  // Redistribuições recentes (últimos 7 dias)
+  // Redistribuições recentes (últimos 7 dias) - filter by coordination
   const redistribuicoesRecentes = redistribuicoesData.slice(0, 10);
+  const redistribuicoesFiltradas = coordenacaoId === "todas"
+    ? redistribuicoesRecentes
+    : redistribuicoesRecentes.filter(r => {
+        // Match by coordenacao_nome
+        const coord = coordenacoes.find(c => c.id === coordenacaoId);
+        return coord && r.coordenacao_nome === coord.nome;
+      });
+
+  // Filter prazos by coordination
+  const prazosFiltrados = coordenacaoId === "todas"
+    ? prazosUrgentes
+    : prazosUrgentes.filter(p => p.processo?.coordenacao_id === coordenacaoId);
+
+  // Filter notificacoes by coordination (via dados.processo_id -> process coordination)
+  const notificacoesFiltradas = coordenacaoId === "todas"
+    ? naoLidas
+    : naoLidas.filter(n => {
+        // Check if notification has process data linked to the coordination
+        const processoId = n.dados?.processo_id;
+        if (!processoId) return false;
+        // Try to match with alertas which have process coordination info
+        const alertaRelacionado = alertas.find(a => a.processo_id === processoId);
+        return alertaRelacionado?.processo?.coordenacao_id === coordenacaoId;
+      });
 
   // Stats
   const stats = {
     djen: publicacoesFiltradas.length,
-    distribuicoes: distribuicoesPendentes.length,
+    distribuicoes: distribuicoesFiltradas.length,
     alertas360: alertasFiltrados.length,
-    redistribuicoes: redistribuicoesRecentes.length,
-    prazos: prazosUrgentes.length,
-    notificacoes: naoLidas.length,
-    total: publicacoesFiltradas.length + distribuicoesPendentes.length + alertasFiltrados.length + 
-           redistribuicoesRecentes.length + prazosUrgentes.length + naoLidas.length
+    redistribuicoes: redistribuicoesFiltradas.length,
+    prazos: prazosFiltrados.length,
+    notificacoes: notificacoesFiltradas.length,
+    total: publicacoesFiltradas.length + distribuicoesFiltradas.length + alertasFiltrados.length + 
+           redistribuicoesFiltradas.length + prazosFiltrados.length + notificacoesFiltradas.length
   };
 
   const getIconByType = (tipo: string) => {
@@ -375,7 +405,7 @@ export default function Notificacoes() {
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[200px]">
-                    {prazosUrgentes.slice(0, 5).map((prazo) => (
+                    {prazosFiltrados.slice(0, 5).map((prazo) => (
                       <div key={prazo.id} className="py-2 border-b last:border-0">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium truncate flex-1">{prazo.titulo}</p>
@@ -413,7 +443,7 @@ export default function Notificacoes() {
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[200px]">
-                    {distribuicoesPendentes.slice(0, 5).map((dist) => (
+                    {distribuicoesFiltradas.slice(0, 5).map((dist) => (
                       <div key={dist.id} className="py-2 border-b last:border-0">
                         <p className="text-sm font-medium truncate">{dist.numero_processo}</p>
                         <p className="text-xs text-muted-foreground">{dist.classe || 'Sem classe'}</p>
@@ -441,7 +471,7 @@ export default function Notificacoes() {
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[200px]">
-                    {redistribuicoesRecentes.slice(0, 5).map((red) => (
+                    {redistribuicoesFiltradas.slice(0, 5).map((red) => (
                       <div key={red.id} className="py-2 border-b last:border-0">
                         <p className="text-sm font-medium truncate">{red.processo_numero}</p>
                         <p className="text-xs text-muted-foreground">{red.vara_antiga} → {red.vara_nova}</p>
@@ -459,17 +489,17 @@ export default function Notificacoes() {
             )}
 
             {/* Notificações do sistema */}
-            {naoLidas.length > 0 && (
+            {notificacoesFiltradas.length > 0 && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Bell className="w-4 h-4 text-primary" />
-                    Notificações ({naoLidas.length})
+                    Notificações ({notificacoesFiltradas.length})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[200px]">
-                    {naoLidas.slice(0, 5).map((notif) => (
+                    {notificacoesFiltradas.slice(0, 5).map((notif) => (
                       <div 
                         key={notif.id} 
                         className="py-2 border-b last:border-0 flex items-start justify-between gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 -mx-2"
@@ -587,14 +617,14 @@ export default function Notificacoes() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {distribuicoesPendentes.length === 0 ? (
+              {distribuicoesFiltradas.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhuma distribuição pendente
                 </div>
               ) : (
                 <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
-                    {distribuicoesPendentes.map((dist) => (
+                    {distribuicoesFiltradas.map((dist) => (
                       <Card key={dist.id} className="bg-muted/30">
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
@@ -701,14 +731,14 @@ export default function Notificacoes() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {redistribuicoesRecentes.length === 0 ? (
+              {redistribuicoesFiltradas.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhuma redistribuição recente
                 </div>
               ) : (
                 <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
-                    {redistribuicoesRecentes.map((red) => (
+                    {redistribuicoesFiltradas.map((red) => (
                       <Card key={red.id} className="bg-muted/30">
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
@@ -749,14 +779,14 @@ export default function Notificacoes() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {prazosUrgentes.length === 0 ? (
+              {prazosFiltrados.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhum prazo urgente
                 </div>
               ) : (
                 <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
-                    {prazosUrgentes.map((prazo) => (
+                    {prazosFiltrados.map((prazo) => (
                       <Card key={prazo.id} className={cn(
                         "bg-muted/30",
                         prazo.is_atrasado && "border-red-500/50"
