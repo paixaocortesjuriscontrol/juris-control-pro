@@ -46,6 +46,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
@@ -118,6 +119,8 @@ const BuscarDJEN = () => {
   const [loadingResumo, setLoadingResumo] = useState(false);
   const [importLoteDialogOpen, setImportLoteDialogOpen] = useState(false);
   const [importLoteCoordenacaoId, setImportLoteCoordenacaoId] = useState<string>("");
+  const [importBuscarAndamentos, setImportBuscarAndamentos] = useState(true);
+  const [importLoteBuscarAndamentos, setImportLoteBuscarAndamentos] = useState(true);
   const [importProgress, setImportProgress] = useState({
     current: 0,
     total: 0,
@@ -143,6 +146,7 @@ const BuscarDJEN = () => {
   const handleOpenImportDialog = (pub: Publicacao) => {
     setSelectedPublicacao(pub);
     setImportCoordenacaoId("");
+    setImportBuscarAndamentos(true);
     setImportDialogOpen(true);
   };
 
@@ -244,6 +248,7 @@ const BuscarDJEN = () => {
                 polo_passivo: processData?.polo_passivo,
                 data_distribuicao: processData?.data_distribuicao,
                 coordenacao_id: importCoordenacaoId,
+                monitorar_andamentos: importBuscarAndamentos,
               })
               .select("id")
               .single();
@@ -261,8 +266,8 @@ const BuscarDJEN = () => {
                 data_movimentacao: pub.data || new Date().toISOString(),
               });
 
-            // Import movements from API if available
-            if (processData?.movimentacoes?.length > 0) {
+            // Import movements from API if available and user chose to fetch andamentos
+            if (importBuscarAndamentos && processData?.movimentacoes?.length > 0) {
               const movimentacoes = processData.movimentacoes.map((mov: any) => ({
                 processo_id: newProcess.id,
                 descricao: mov.descricao || mov.nome || "Movimentação",
@@ -882,6 +887,7 @@ const BuscarDJEN = () => {
       return;
     }
     setImportLoteCoordenacaoId("");
+    setImportLoteBuscarAndamentos(true);
     setImportLoteDialogOpen(true);
   };
 
@@ -978,6 +984,7 @@ const BuscarDJEN = () => {
                   assunto: pub.conteudo.substring(0, 200),
                   polo_ativo: pub.partes || "A identificar",
                   coordenacao_id: importLoteCoordenacaoId,
+                  monitorar_andamentos: importLoteBuscarAndamentos,
                 })
                 .select("id")
                 .single();
@@ -1785,6 +1792,26 @@ const BuscarDJEN = () => {
                 </SelectContent>
               </Select>
             </div>
+            
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="buscar-andamentos">Buscar andamentos</Label>
+                <p className="text-xs text-muted-foreground">
+                  Importar histórico de movimentações do processo
+                </p>
+              </div>
+              <Switch
+                id="buscar-andamentos"
+                checked={importBuscarAndamentos}
+                onCheckedChange={setImportBuscarAndamentos}
+              />
+            </div>
+            
+            {!importBuscarAndamentos && (
+              <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                Processo não será monitorado automaticamente. Você pode habilitar depois na página do processo.
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
@@ -1836,6 +1863,27 @@ const BuscarDJEN = () => {
                 </SelectContent>
               </Select>
             </div>
+            
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="buscar-andamentos-lote">Buscar andamentos</Label>
+                <p className="text-xs text-muted-foreground">
+                  Habilitar monitoramento automático de novos processos
+                </p>
+              </div>
+              <Switch
+                id="buscar-andamentos-lote"
+                checked={importLoteBuscarAndamentos}
+                onCheckedChange={setImportLoteBuscarAndamentos}
+                disabled={importing}
+              />
+            </div>
+            
+            {!importLoteBuscarAndamentos && !importing && (
+              <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                Processos não serão monitorados automaticamente. Você pode habilitar depois na página de cada processo.
+              </p>
+            )}
             
             {/* Progress indicator */}
             {importing && importProgress.total > 0 && (
