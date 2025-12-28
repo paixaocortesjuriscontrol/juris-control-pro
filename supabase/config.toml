@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.backfill-djen]
 verify_jwt = false
+
+[functions.backfill-djen-jina]
+verify_jwt = false
