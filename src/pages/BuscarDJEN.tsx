@@ -976,6 +976,29 @@ const BuscarDJEN = () => {
                   </>
                 )}
               </Button>
+
+              {(apiHasMore || (apiTotal !== null && apiTotal > DJEN_PAGE_SIZE)) && (
+                <Button
+                  onClick={handleLoadMore}
+                  disabled={loadingMore || loading}
+                  size="sm"
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Carregando...
+                    </>
+                  ) : (
+                    <>
+                      <ChevronsRight className="w-4 h-4 mr-2" />
+                      Carregar mais (+{DJEN_PAGE_SIZE})
+                    </>
+                  )}
+                </Button>
+              )}
+
               {selectedIds.size > 0 && (
                 <Button onClick={handleOpenImportLoteDialog} disabled={importing} size="sm" className="w-full sm:w-auto">
                   {importing ? (
