@@ -1,6 +1,48 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// Allowed origins for CORS
+// ============ In-memory cache (5 min TTL) ============
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_ENTRIES = 100;
+
+interface CacheEntry {
+  data: any;
+  expiresAt: number;
+}
+
+const cache = new Map<string, CacheEntry>();
+
+function getCacheKey(params: SearchParams): string {
+  return JSON.stringify({
+    tipo: params.tipo,
+    oab: params.oab?.toLowerCase(),
+    uf: params.uf?.toUpperCase(),
+    palavraChave: params.palavraChave?.toLowerCase().trim(),
+    numeroProcesso: params.numeroProcesso?.replace(/\D/g, ''),
+    dataInicio: params.dataInicio,
+    dataFim: params.dataFim,
+  });
+}
+
+function getFromCache(key: string): any | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCache(key: string, data: any): void {
+  // Evict oldest entries if cache is full
+  if (cache.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) cache.delete(oldestKey);
+  }
+  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+// ============ CORS ============
 const ALLOWED_ORIGINS = [
   "https://bfxahrrvoqxcdmfsvnrk.supabase.co",
   "https://lovable.dev",
@@ -350,6 +392,7 @@ serve(async (req) => {
 
     console.log("DJEN Search request:", JSON.stringify(body));
 
+    // Validate params
     if (tipo === "advogado") {
       if (!oab) {
         return new Response(JSON.stringify({ error: "OAB é obrigatório para busca por advogado" }), {
@@ -373,12 +416,25 @@ serve(async (req) => {
       }
     }
 
-    const result = await searchPJEComunica(
-      { tipo, oab, uf, palavraChave, numeroProcesso, dataInicio, dataFim },
-      jinaApiKey
-    );
+    const searchParams: SearchParams = { tipo, oab, uf, palavraChave, numeroProcesso, dataInicio, dataFim };
+    const cacheKey = getCacheKey(searchParams);
 
-    return new Response(JSON.stringify({ success: true, ...result }), {
+    // Check cache first
+    const cachedResult = getFromCache(cacheKey);
+    if (cachedResult) {
+      console.log("Cache HIT for:", cacheKey);
+      return new Response(JSON.stringify({ success: true, cached: true, ...cachedResult }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log("Cache MISS, fetching from API...");
+    const result = await searchPJEComunica(searchParams, jinaApiKey);
+
+    // Store in cache
+    setCache(cacheKey, result);
+
+    return new Response(JSON.stringify({ success: true, cached: false, ...result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
