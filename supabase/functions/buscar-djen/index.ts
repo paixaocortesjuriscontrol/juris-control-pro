@@ -86,7 +86,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3,
 async function fetchJsonViaJina(url: string, jinaApiKey: string): Promise<any | null> {
   // Important: keep a short timeout so the caller doesn't hang
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+  const timeoutId = setTimeout(() => controller.abort(), 6_000);
 
   try {
     const jinaUrl = `${JINA_READER_URL}/${url}`;
@@ -138,11 +138,11 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   if (dataInicio) queryParams.append("dataDisponibilizacaoInicio", dataInicio);
   if (dataFim) queryParams.append("dataDisponibilizacaoFim", dataFim);
 
+  // Prefer the endpoints that actually return JSON fast.
+  // The other endpoints frequently respond with HTML/422 or 404 and add seconds of latency.
   const endpoints = [
-    `${PJE_COMUNICA_API}/comunicacao/consulta`,
-    `${PJE_COMUNICA_API}/comunicacoes`,
-    `${PJE_COMUNICA_API}/comunicacao/pesquisar`,
     `${PJE_COMUNICA_API}/comunicacao`,
+    `${PJE_COMUNICA_API}/comunicacoes`,
   ];
 
   const fullQueryString = queryParams.toString();
