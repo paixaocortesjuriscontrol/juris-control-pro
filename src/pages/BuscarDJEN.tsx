@@ -1087,7 +1087,7 @@ const BuscarDJEN = () => {
                   onClick={handleLoadAll}
                   disabled={loadingMore || loading || loadingAll}
                   size="sm"
-                  variant="secondary"
+                  variant="default"
                   className="w-full sm:w-auto"
                 >
                   <ChevronsRight className="w-4 h-4 mr-2" />
@@ -1396,7 +1396,7 @@ const BuscarDJEN = () => {
               {apiHasMore && (
                 <div className="flex flex-col items-center gap-2 mt-4 pt-4 border-t">
                   <Button
-                    variant="secondary"
+                    variant="default"
                     onClick={handleLoadMore}
                     disabled={loadingMore || loading}
                   >
