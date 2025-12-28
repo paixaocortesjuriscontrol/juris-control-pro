@@ -345,15 +345,22 @@ export default function Notificacoes() {
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[200px]">
-                    {publicacoesFiltradas.slice(0, 5).map((pub) => (
-                      <div key={pub.id} className="py-2 border-b last:border-0">
-                        <p className="text-sm font-medium truncate">{pub.processo_numero || 'Sem número'}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-1">{pub.conteudo?.substring(0, 100)}...</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {pub.data_publicacao && formatDistanceToNow(new Date(pub.data_publicacao), { addSuffix: true, locale: ptBR })}
-                        </p>
-                      </div>
-                    ))}
+                    {publicacoesFiltradas.slice(0, 5).map((pub) => {
+                      // Extract process number from content if not available
+                      const processoDisplay = pub.processo_numero || (() => {
+                        const match = pub.conteudo?.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
+                        return match ? match[1] : null;
+                      })();
+                      return (
+                        <div key={pub.id} className="py-2 border-b last:border-0">
+                          <p className="text-sm font-medium truncate">{processoDisplay || 'Publicação DJEN'}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-1">{pub.conteudo?.substring(0, 100)}...</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {pub.data_publicacao && formatDistanceToNow(new Date(pub.data_publicacao), { addSuffix: true, locale: ptBR })}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </ScrollArea>
                   <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setActiveTab("djen")}>
                     Ver todas
@@ -561,6 +568,11 @@ export default function Notificacoes() {
                   <div className="space-y-3">
                     {publicacoesFiltradas.map((pub) => {
                       const monitoramento = monitoramentosDjen.find(m => m.id === pub.monitoramento_id);
+                      // Extract process number from content if not available
+                      const processoDisplay = pub.processo_numero || (() => {
+                        const match = pub.conteudo?.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
+                        return match ? match[1] : null;
+                      })();
                       return (
                         <Card key={pub.id} className="bg-muted/30">
                           <CardContent className="p-4">
@@ -574,7 +586,7 @@ export default function Notificacoes() {
                                     <Badge variant="secondary">{pub.fonte}</Badge>
                                   )}
                                 </div>
-                                <p className="font-medium">{pub.processo_numero || 'Sem número de processo'}</p>
+                                <p className="font-medium">{processoDisplay || 'Publicação DJEN'}</p>
                                 <p className="text-sm text-muted-foreground mt-1 line-clamp-3">
                                   {pub.conteudo}
                                 </p>
