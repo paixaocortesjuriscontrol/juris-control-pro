@@ -68,6 +68,31 @@ async function fetchWithRetry(
   throw lastError || new Error('Max retries exceeded');
 }
 
+// Extract process number from content using regex patterns
+function extractProcessoNumero(conteudo: string, explicitNumero?: string | null): string | null {
+  // If explicitly provided, use it
+  if (explicitNumero) return explicitNumero;
+  
+  // Try to extract from content - multiple patterns used in Brazilian courts
+  const patterns = [
+    // Standard CNJ format: 0000000-00.0000.0.00.0000
+    /(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/,
+    // "Processo" prefix variations
+    /Processo\s*(?:n[º°]?\.?\s*)?(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/i,
+    // Alternative format with slashes
+    /(\d{7}\/\d{4})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = conteudo.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+  
+  return null;
+}
+
 function generateHash(content: string): string {
   let hash = 0;
   for (let i = 0; i < content.length; i++) {
@@ -196,12 +221,15 @@ async function processMonitoramento(
       // Check exclusion criteria
       const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
       
+      // Extract process number from API or content
+      const processoNumero = extractProcessoNumero(conteudo, pub.numeroProcesso || pub.processo);
+      
       if (motivoExclusao) {
         await supabase.from('publicacoes_djen_descartadas').insert({
           monitoramento_id: monitoramento.id,
           hash_conteudo: hashConteudo,
           data_publicacao: dataPublicacao,
-          processo_numero: pub.numeroProcesso || pub.processo || null,
+          processo_numero: processoNumero,
           conteudo: conteudo.substring(0, 10000),
           fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
           motivo_descarte: `Termo de exclusão: ${motivoExclusao}`,
@@ -223,7 +251,7 @@ async function processMonitoramento(
           monitoramento_id: monitoramento.id,
           hash_conteudo: hashConteudo,
           data_publicacao: dataPublicacao,
-          processo_numero: pub.numeroProcesso || pub.processo || null,
+          processo_numero: processoNumero,
           conteudo: conteudo.substring(0, 10000),
           fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
         })
