@@ -1,8 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useCallback } from "react";
 import {
   Calendar,
   Clock,
-  Filter,
   Plus,
   Search,
   AlertTriangle,
@@ -14,11 +13,13 @@ import {
   Trash2,
   List,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -51,9 +52,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { usePrazos, useUpdatePrazo, useDeletePrazo, type Prazo } from "@/hooks/usePrazos";
+import { 
+  usePrazos, 
+  usePrazosPaginated, 
+  usePrazosStats,
+  useUpdatePrazo, 
+  useDeletePrazo, 
+  type Prazo 
+} from "@/hooks/usePrazos";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { PrazosCalendar } from "@/components/prazos/PrazosCalendar";
 import { TarefaDetalhesDialog } from "@/components/prazos/TarefaDetalhesDialog";
@@ -75,12 +84,15 @@ const statusLabels: Record<string, string> = {
   atrasado: "Atrasado",
 };
 
+const PAGE_SIZE = 50;
+
 const Prazos = () => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedPrazo, setSelectedPrazo] = useState<Prazo | null>(null);
   const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false);
@@ -88,78 +100,46 @@ const Prazos = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [prazoToDelete, setPrazoToDelete] = useState<string | null>(null);
 
-  const { data: prazos, isLoading } = usePrazos();
+  // Debounce search for better performance
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
+
+  // Stats from server
+  const { data: stats, isLoading: statsLoading } = usePrazosStats();
+
+  // Paginated data for list view
+  const { data: paginatedResult, isLoading: listLoading } = usePrazosPaginated({
+    status: statusFilter,
+    prioridade: prioridadeFilter,
+    search: debouncedSearch,
+    page: currentPage,
+    pageSize: PAGE_SIZE,
+  });
+
+  // All data for calendar view (limited)
+  const { data: allPrazos } = usePrazos();
+
   const updatePrazo = useUpdatePrazo();
   const deletePrazo = useDeletePrazo();
 
-  // Calcula estatísticas
-  const stats = useMemo(() => {
-    if (!prazos) return { pendentes: 0, atrasados: 0, cumpridos: 0, urgentes: 0 };
+  // Reset page when filters change
+  const handleStatusChange = useCallback((value: string) => {
+    setStatusFilter(value);
+    setCurrentPage(1);
+  }, []);
 
-    const today = startOfDay(new Date());
-    let pendentes = 0;
-    let atrasados = 0;
-    let cumpridos = 0;
-    let urgentes = 0;
+  const handlePrioridadeChange = useCallback((value: string) => {
+    setPrioridadeFilter(value);
+    setCurrentPage(1);
+  }, []);
 
-    prazos.forEach((prazo) => {
-      if (prazo.status === "cumprido") {
-        cumpridos++;
-      } else {
-        if (prazo.data_vencimento) {
-          const dataVencimento = parseISO(prazo.data_vencimento);
-          if (isAfter(today, dataVencimento)) {
-            atrasados++;
-          } else {
-            pendentes++;
-          }
-        } else {
-          pendentes++; // Sem data = pendente
-        }
-        if (prazo.prioridade === "urgente") {
-          urgentes++;
-        }
-      }
-    });
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  }, []);
 
-    return { pendentes, atrasados, cumpridos, urgentes };
-  }, [prazos]);
-
-  // Filtra prazos
-  const filteredPrazos = useMemo(() => {
-    if (!prazos) return [];
-
-    const today = startOfDay(new Date());
-
-    return prazos.filter((prazo) => {
-      // Busca
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchTitulo = prazo.titulo?.toLowerCase().includes(query);
-        const matchProcesso = prazo.processo?.numero?.toLowerCase().includes(query);
-        const matchResponsavel = prazo.responsavel?.nome?.toLowerCase().includes(query);
-        if (!matchTitulo && !matchProcesso && !matchResponsavel) return false;
-      }
-
-      // Status filter
-      if (statusFilter !== "all") {
-        if (statusFilter === "atrasado") {
-          if (!prazo.data_vencimento) return false;
-          const dataVencimento = parseISO(prazo.data_vencimento);
-          if (prazo.status === "cumprido" || !isAfter(today, dataVencimento)) return false;
-        } else if (prazo.status !== statusFilter) {
-          return false;
-        }
-      }
-
-      // Prioridade filter
-      if (prioridadeFilter !== "all" && prazo.prioridade !== prioridadeFilter) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [prazos, searchQuery, statusFilter, prioridadeFilter]);
+  const prazos = paginatedResult?.data || [];
+  const totalPages = paginatedResult?.totalPages || 1;
+  const totalCount = paginatedResult?.count || 0;
 
   const getPrioridadeBadge = (prioridade: string) => {
     const variants: Record<string, string> = {
@@ -273,17 +253,10 @@ const Prazos = () => {
     setSearchQuery("");
     setStatusFilter("all");
     setPrioridadeFilter("all");
+    setCurrentPage(1);
   };
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || prioridadeFilter !== "all";
-
-  const handleMarkAsCumpridoFromCalendar = async (prazo: Prazo) => {
-    await updatePrazo.mutateAsync({
-      id: prazo.id,
-      status: "cumprido",
-      data_cumprimento: new Date().toISOString(),
-    });
-  };
 
   const handleUpdatePrazoDate = async (prazoId: string, newDate: string) => {
     await updatePrazo.mutateAsync({
@@ -299,56 +272,56 @@ const Prazos = () => {
     >
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setStatusFilter("pendente")}>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => handleStatusChange("pendente")}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/10">
                 <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{isLoading ? "-" : stats.pendentes}</p>
+                <p className="text-2xl font-bold">{statsLoading ? "-" : stats?.pendentes || 0}</p>
                 <p className="text-xs text-muted-foreground">Pendentes</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setStatusFilter("atrasado")}>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => handleStatusChange("atrasado")}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-destructive/10">
                 <AlertTriangle className="w-5 h-5 text-destructive" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{isLoading ? "-" : stats.atrasados}</p>
+                <p className="text-2xl font-bold">{statsLoading ? "-" : stats?.atrasados || 0}</p>
                 <p className="text-xs text-muted-foreground">Atrasados</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setPrioridadeFilter("urgente")}>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => handlePrioridadeChange("urgente")}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-red-500/10">
                 <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{isLoading ? "-" : stats.urgentes}</p>
+                <p className="text-2xl font-bold">{statsLoading ? "-" : stats?.urgentes || 0}</p>
                 <p className="text-xs text-muted-foreground">Urgentes</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setStatusFilter("cumprido")}>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => handleStatusChange("cumprido")}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-emerald-500/10">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{isLoading ? "-" : stats.cumpridos}</p>
+                <p className="text-2xl font-bold">{statsLoading ? "-" : stats?.cumpridos || 0}</p>
                 <p className="text-xs text-muted-foreground">Cumpridos</p>
               </div>
             </div>
@@ -378,9 +351,9 @@ const Prazos = () => {
 
       {viewMode === "calendar" ? (
         <PrazosCalendar
-          prazos={prazos || []}
+          prazos={allPrazos || []}
           onEditPrazo={handleEdit}
-          onMarkAsCumprido={handleMarkAsCumpridoFromCalendar}
+          onMarkAsCumprido={handleMarkAsCumprido}
           onUpdatePrazoDate={handleUpdatePrazoDate}
         />
       ) : (
@@ -392,14 +365,14 @@ const Prazos = () => {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input
-                    placeholder="Buscar por título, processo ou responsável..."
+                    placeholder="Buscar por título..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={handleSearchChange}
                     className="pl-10"
                   />
                 </div>
 
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select value={statusFilter} onValueChange={handleStatusChange}>
                   <SelectTrigger className="w-full md:w-[180px]">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
@@ -411,7 +384,7 @@ const Prazos = () => {
                   </SelectContent>
                 </Select>
 
-                <Select value={prioridadeFilter} onValueChange={setPrioridadeFilter}>
+                <Select value={prioridadeFilter} onValueChange={handlePrioridadeChange}>
                   <SelectTrigger className="w-full md:w-[180px]">
                     <SelectValue placeholder="Prioridade" />
                   </SelectTrigger>
@@ -429,17 +402,17 @@ const Prazos = () => {
                 <div className="flex items-center gap-2 mt-4">
                   <span className="text-sm text-muted-foreground">Filtros ativos:</span>
                   {searchQuery && (
-                    <Badge variant="secondary" className="cursor-pointer" onClick={() => setSearchQuery("")}>
+                    <Badge variant="secondary" className="cursor-pointer" onClick={() => { setSearchQuery(""); setCurrentPage(1); }}>
                       Busca: {searchQuery} ×
                     </Badge>
                   )}
                   {statusFilter !== "all" && (
-                    <Badge variant="secondary" className="cursor-pointer" onClick={() => setStatusFilter("all")}>
+                    <Badge variant="secondary" className="cursor-pointer" onClick={() => handleStatusChange("all")}>
                       {statusLabels[statusFilter]} ×
                     </Badge>
                   )}
                   {prioridadeFilter !== "all" && (
-                    <Badge variant="secondary" className="cursor-pointer" onClick={() => setPrioridadeFilter("all")}>
+                    <Badge variant="secondary" className="cursor-pointer" onClick={() => handlePrioridadeChange("all")}>
                       {prioridadeLabels[prioridadeFilter]} ×
                     </Badge>
                   )}
@@ -451,109 +424,143 @@ const Prazos = () => {
             </CardContent>
           </Card>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : filteredPrazos.length === 0 ? (
-            <div className="p-12 text-center">
-              <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Nenhum prazo encontrado</h3>
-              <p className="text-muted-foreground mb-4">
-                {hasActiveFilters
-                  ? "Tente ajustar os filtros de busca"
-                  : "Cadastre seu primeiro prazo"}
-              </p>
-              {!hasActiveFilters && (
-                <Button onClick={() => { setSelectedPrazo(null); setDialogOpen(true); }}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Novo Prazo
-                </Button>
-              )}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Título</TableHead>
-                  <TableHead>Processo</TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead>Dias</TableHead>
-                  <TableHead>Prioridade</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Responsável</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPrazos.map((prazo) => (
-                  <TableRow key={prazo.id}>
-                    <TableCell className="font-medium">{prazo.titulo}</TableCell>
-                    <TableCell>
+          {/* Table */}
+          <Card>
+            <CardContent className="p-0">
+              {listLoading ? (
+                <div className="p-6 space-y-4">
+                  {[...Array(5)].map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : prazos.length === 0 ? (
+                <div className="p-12 text-center">
+                  <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Nenhum prazo encontrado</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {hasActiveFilters
+                      ? "Tente ajustar os filtros de busca"
+                      : "Cadastre seu primeiro prazo"}
+                  </p>
+                  {!hasActiveFilters && (
+                    <Button onClick={() => { setSelectedPrazo(null); setDialogOpen(true); }}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Prazo
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Título</TableHead>
+                        <TableHead>Processo</TableHead>
+                        <TableHead>Vencimento</TableHead>
+                        <TableHead>Dias</TableHead>
+                        <TableHead>Prioridade</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Responsável</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {prazos.map((prazo) => (
+                        <TableRow key={prazo.id}>
+                          <TableCell className="font-medium max-w-[200px] truncate">{prazo.titulo}</TableCell>
+                          <TableCell>
+                            {prazo.processo_id ? (
+                              <Button
+                                variant="link"
+                                className="p-0 h-auto text-primary"
+                                onClick={() => navigate(`/processos/${prazo.processo_id}`)}
+                              >
+                                {prazo.processo?.numero || "-"}
+                              </Button>
+                            ) : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {prazo.data_vencimento 
+                              ? format(parseISO(prazo.data_vencimento), "dd/MM/yyyy", { locale: ptBR })
+                              : "-"}
+                          </TableCell>
+                          <TableCell>{getDiasRestantes(prazo)}</TableCell>
+                          <TableCell>{getPrioridadeBadge(prazo.prioridade)}</TableCell>
+                          <TableCell>{getStatusBadge(prazo)}</TableCell>
+                          <TableCell>{prazo.responsavel?.nome || "-"}</TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => {
+                                  setPrazoDetalhes(prazo);
+                                  setDetalhesDialogOpen(true);
+                                }}>
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  Ver Detalhes / Conversar
+                                </DropdownMenuItem>
+                                {prazo.status !== "cumprido" && (
+                                  <DropdownMenuItem onClick={() => handleMarkAsCumprido(prazo)}>
+                                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                                    Marcar como Cumprido
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onClick={() => handleEdit(prazo)}>
+                                  <Pencil className="w-4 h-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDelete(prazo.id)}
+                                  className="text-destructive"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between px-4 py-3 border-t">
+                    <p className="text-sm text-muted-foreground">
+                      Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} a {Math.min(currentPage * PAGE_SIZE, totalCount)} de {totalCount} prazos
+                    </p>
+                    <div className="flex items-center gap-2">
                       <Button
-                        variant="link"
-                        className="p-0 h-auto text-primary"
-                        onClick={() => navigate(`/processos/${prazo.processo_id}`)}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
                       >
-                        {prazo.processo?.numero || "-"}
+                        <ChevronLeft className="w-4 h-4 mr-1" />
+                        Anterior
                       </Button>
-                    </TableCell>
-                    <TableCell>
-                      {prazo.data_vencimento 
-                        ? format(parseISO(prazo.data_vencimento), "dd/MM/yyyy", { locale: ptBR })
-                        : "-"}
-                    </TableCell>
-                    <TableCell>{getDiasRestantes(prazo)}</TableCell>
-                    <TableCell>{getPrioridadeBadge(prazo.prioridade)}</TableCell>
-                    <TableCell>{getStatusBadge(prazo)}</TableCell>
-                    <TableCell>{prazo.responsavel?.nome || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => {
-                            setPrazoDetalhes(prazo);
-                            setDetalhesDialogOpen(true);
-                          }}>
-                            <Eye className="w-4 h-4 mr-2" />
-                            Ver Detalhes / Conversar
-                          </DropdownMenuItem>
-                          {prazo.status !== "cumprido" && (
-                            <DropdownMenuItem onClick={() => handleMarkAsCumprido(prazo)}>
-                              <CheckCircle2 className="w-4 h-4 mr-2" />
-                              Marcar como Cumprido
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => handleEdit(prazo)}>
-                            <Pencil className="w-4 h-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDelete(prazo.id)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                      <span className="text-sm text-muted-foreground px-2">
+                        Página {currentPage} de {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage >= totalPages}
+                      >
+                        Próxima
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
 
