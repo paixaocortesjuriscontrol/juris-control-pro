@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -200,6 +200,20 @@ export default function ImportarProcessos() {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const { toast } = useToast();
+
+  // AbortController for cancelling imports on unmount
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isCancelledRef = useRef(false);
+
+  // Cleanup on unmount - cancel any running imports
+  useEffect(() => {
+    return () => {
+      isCancelledRef.current = true;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Batch import states
   const [batchText, setBatchText] = useState("");

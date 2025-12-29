@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Search,
   FileText,
@@ -109,6 +109,18 @@ const BuscarDJEN = () => {
   const [loadAllProgress, setLoadAllProgress] = useState({ loaded: 0, total: 0 });
   const [loadAllLimit, setLoadAllLimit] = useState<number>(500); // Limite máximo de itens
   const loadAllCancelledRef = React.useRef(false);
+  
+  // AbortController for cancelling imports on unmount
+  const isCancelledRef = React.useRef(false);
+  
+  // Cleanup on unmount - cancel any running imports
+  useEffect(() => {
+    return () => {
+      isCancelledRef.current = true;
+      loadAllCancelledRef.current = true;
+    };
+  }, []);
+  
   const [importing, setImporting] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
