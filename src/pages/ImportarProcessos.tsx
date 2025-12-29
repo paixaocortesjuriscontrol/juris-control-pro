@@ -995,7 +995,7 @@ export default function ImportarProcessos() {
   };
 
   const handleProjurisImport = async () => {
-    const validProcessos = projurisProcessos.filter(p => p.status === "valido");
+    const validProcessos = projurisProcessos.filter((p) => p.status === "valido");
     if (validProcessos.length === 0) {
       toast({
         title: "Nenhum processo válido",
@@ -1013,14 +1013,158 @@ export default function ImportarProcessos() {
     let successCount = 0;
     let errorCount = 0;
 
+    // ======== FAST PATH: bulk insert when buscarAndamentos is disabled ========
+    if (!projurisBuscarAndamentos) {
+      const BATCH_SIZE = 200;
+      const validIndices = updatedProcessos
+        .map((p, idx) => (p.status === "valido" ? idx : -1))
+        .filter((idx) => idx >= 0);
+
+      // 1) Fetch existing process numbers in one query
+      const allNumeros = validIndices.map((idx) => updatedProcessos[idx].numero.trim());
+      const { data: existingRows } = await supabase
+        .from("processos")
+        .select("id, numero")
+        .in("numero", allNumeros);
+      const existingMap = new Map((existingRows || []).map((r) => [r.numero, r.id]));
+
+      // Separate indices for insert vs update
+      const toInsertIndices: number[] = [];
+      const toUpdateIndices: number[] = [];
+      for (const idx of validIndices) {
+        const num = updatedProcessos[idx].numero.trim();
+        if (existingMap.has(num)) {
+          toUpdateIndices.push(idx);
+        } else {
+          toInsertIndices.push(idx);
+        }
+      }
+
+      let processed = 0;
+      const totalToProcess = toInsertIndices.length + toUpdateIndices.length;
+
+      // 2) Batch INSERT new processes
+      for (let i = 0; i < toInsertIndices.length; i += BATCH_SIZE) {
+        const batchIndices = toInsertIndices.slice(i, i + BATCH_SIZE);
+        const insertPayload = batchIndices.map((idx) => {
+          const p = updatedProcessos[idx];
+          return {
+            numero: p.numero.trim(),
+            assunto: p.assunto,
+            descricao: p.descricao,
+            area: mapAreaToEnum(p.area),
+            status: mapStatusToEnum(p.situacao),
+            tribunal: p.orgao,
+            vara: p.orgaoJulgador,
+            comarca: p.cidade,
+            classe: p.classeCNJ,
+            data_distribuicao: parseDate(p.dataDistribuicao),
+            valor_causa: parseNumber(p.valorAcao),
+            polo_ativo: p.parteAtiva,
+            polo_passivo: p.partePassiva,
+            coordenacao_id: selectedCoordenacao || null,
+            advogado_responsavel_id: selectedMembro || null,
+            cliente_id: selectedCliente || null,
+            monitorar_andamentos: false,
+            identificador_projuris: p.identificadorProjuris || null,
+            pasta_fisica: p.pastaFisica || null,
+            pasta_cliente: p.pastaCliente || null,
+            justica: p.justica || null,
+            instancia: p.instancia || null,
+            fase: p.fase || null,
+            data_citacao: parseDate(p.dataCitacao),
+            data_recebimento: parseDate(p.dataRecebimento),
+            data_arquivamento: parseDate(p.dataArquivamento),
+            valor_provisionado: parseNumber(p.valorProvisionado),
+            probabilidade: p.probabilidade || null,
+            risco: p.risco || null,
+            transitado_julgado: p.transitadoJulgado || false,
+            resultado: p.resultado || null,
+            valor_condenacao: parseNumber(p.valorCondenacao),
+            uf: p.estado || null,
+            responsaveis_projuris: p.responsavel || null,
+          };
+        });
+
+        const { error } = await supabase.from("processos").insert(insertPayload);
+        if (error) {
+          // Mark all in batch as error
+          for (const idx of batchIndices) {
+            updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: error.message };
+            errorCount++;
+          }
+        } else {
+          for (const idx of batchIndices) {
+            updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso" };
+            successCount++;
+          }
+        }
+
+        processed += batchIndices.length;
+        setProjurisProgress((processed / totalToProcess) * 100);
+        setProjurisProcessos([...updatedProcessos]);
+        // Yield to UI
+        await new Promise((r) => setTimeout(r, 0));
+      }
+
+      // 3) Batch UPDATE existing processes (if coordination/member/cliente selected)
+      const hasUpdateFields = selectedCoordenacao || selectedMembro || selectedCliente;
+      if (hasUpdateFields && toUpdateIndices.length > 0) {
+        for (let i = 0; i < toUpdateIndices.length; i += BATCH_SIZE) {
+          const batchIndices = toUpdateIndices.slice(i, i + BATCH_SIZE);
+          const numeros = batchIndices.map((idx) => updatedProcessos[idx].numero.trim());
+          const updateData: Record<string, any> = {};
+          if (selectedCoordenacao) updateData.coordenacao_id = selectedCoordenacao;
+          if (selectedMembro) updateData.advogado_responsavel_id = selectedMembro;
+          if (selectedCliente) updateData.cliente_id = selectedCliente;
+
+          const { error } = await supabase.from("processos").update(updateData).in("numero", numeros);
+          if (error) {
+            for (const idx of batchIndices) {
+              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: error.message };
+              errorCount++;
+            }
+          } else {
+            for (const idx of batchIndices) {
+              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso", erroImport: "Atualizado (já existia)" };
+              successCount++;
+            }
+          }
+
+          processed += batchIndices.length;
+          setProjurisProgress((processed / totalToProcess) * 100);
+          setProjurisProcessos([...updatedProcessos]);
+          await new Promise((r) => setTimeout(r, 0));
+        }
+      } else {
+        // Mark existing as success (no update needed)
+        for (const idx of toUpdateIndices) {
+          updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso", erroImport: "Já existia (sem alteração)" };
+          successCount++;
+        }
+        setProjurisProgress(100);
+        setProjurisProcessos([...updatedProcessos]);
+      }
+
+      setProjurisImporting(false);
+      endImport();
+      toast({
+        title: "Importação Projuris concluída",
+        description: `${successCount} processo(s) importado(s). ${errorCount} erro(s).`,
+        variant: errorCount > 0 ? "destructive" : "default",
+      });
+      return;
+    }
+
+    // ======== SLOW PATH: one-by-one with API + andamentos ========
     for (let i = 0; i < updatedProcessos.length; i++) {
       const processo = updatedProcessos[i];
-      
+
       // Skip invalid processos
       if (processo.status === "invalido") {
         continue;
       }
-      
+
       try {
         // Check if process already exists
         const { data: existingProcesso } = await supabase
@@ -1044,63 +1188,67 @@ export default function ImportarProcessos() {
           if (selectedCliente) {
             updateData.cliente_id = selectedCliente;
           }
-          
+
           if (Object.keys(updateData).length > 0) {
             await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
           }
-          
+
           processoId = existingProcesso.id;
           isUpdate = true;
         } else {
           // Insert new process with all Projuris fields
-          const { data: insertedProcesso, error } = await supabase.from("processos").insert({
-            numero: processo.numero.trim(),
-            assunto: processo.assunto,
-            descricao: processo.descricao,
-            area: mapAreaToEnum(processo.area),
-            status: mapStatusToEnum(processo.situacao),
-            tribunal: processo.orgao,
-            vara: processo.orgaoJulgador,
-            comarca: processo.cidade,
-            classe: processo.classeCNJ,
-            data_distribuicao: parseDate(processo.dataDistribuicao),
-            valor_causa: parseNumber(processo.valorAcao),
-            polo_ativo: processo.parteAtiva,
-            polo_passivo: processo.partePassiva,
-            coordenacao_id: selectedCoordenacao || null,
-            advogado_responsavel_id: selectedMembro || null,
-            cliente_id: selectedCliente || null,
-            monitorar_andamentos: projurisBuscarAndamentos,
-            // Projuris-specific fields
-            identificador_projuris: processo.identificadorProjuris || null,
-            pasta_fisica: processo.pastaFisica || null,
-            pasta_cliente: processo.pastaCliente || null,
-            justica: processo.justica || null,
-            instancia: processo.instancia || null,
-            fase: processo.fase || null,
-            data_citacao: parseDate(processo.dataCitacao),
-            data_recebimento: parseDate(processo.dataRecebimento),
-            data_arquivamento: parseDate(processo.dataArquivamento),
-            valor_provisionado: parseNumber(processo.valorProvisionado),
-            probabilidade: processo.probabilidade || null,
-            risco: processo.risco || null,
-            transitado_julgado: processo.transitadoJulgado || false,
-            resultado: processo.resultado || null,
-            valor_condenacao: parseNumber(processo.valorCondenacao),
-            uf: processo.estado || null,
-            responsaveis_projuris: processo.responsavel || null,
-          }).select("id").single();
+          const { data: insertedProcesso, error } = await supabase
+            .from("processos")
+            .insert({
+              numero: processo.numero.trim(),
+              assunto: processo.assunto,
+              descricao: processo.descricao,
+              area: mapAreaToEnum(processo.area),
+              status: mapStatusToEnum(processo.situacao),
+              tribunal: processo.orgao,
+              vara: processo.orgaoJulgador,
+              comarca: processo.cidade,
+              classe: processo.classeCNJ,
+              data_distribuicao: parseDate(processo.dataDistribuicao),
+              valor_causa: parseNumber(processo.valorAcao),
+              polo_ativo: processo.parteAtiva,
+              polo_passivo: processo.partePassiva,
+              coordenacao_id: selectedCoordenacao || null,
+              advogado_responsavel_id: selectedMembro || null,
+              cliente_id: selectedCliente || null,
+              monitorar_andamentos: projurisBuscarAndamentos,
+              // Projuris-specific fields
+              identificador_projuris: processo.identificadorProjuris || null,
+              pasta_fisica: processo.pastaFisica || null,
+              pasta_cliente: processo.pastaCliente || null,
+              justica: processo.justica || null,
+              instancia: processo.instancia || null,
+              fase: processo.fase || null,
+              data_citacao: parseDate(processo.dataCitacao),
+              data_recebimento: parseDate(processo.dataRecebimento),
+              data_arquivamento: parseDate(processo.dataArquivamento),
+              valor_provisionado: parseNumber(processo.valorProvisionado),
+              probabilidade: processo.probabilidade || null,
+              risco: processo.risco || null,
+              transitado_julgado: processo.transitadoJulgado || false,
+              resultado: processo.resultado || null,
+              valor_condenacao: parseNumber(processo.valorCondenacao),
+              uf: processo.estado || null,
+              responsaveis_projuris: processo.responsavel || null,
+            })
+            .select("id")
+            .single();
 
           if (error) {
             updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
             errorCount++;
             continue;
           }
-          
+
           processoId = insertedProcesso.id;
         }
 
-        // Fetch additional data from API for new processes
+        // Fetch additional data from API for new processes (only in slow path)
         if (!isUpdate) {
           const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
             body: { numeroProcesso: processo.numero.trim() },
@@ -1115,20 +1263,32 @@ export default function ImportarProcessos() {
 
             if ((!poloAtivo || !poloPassivo) && processoApi.partes && processoApi.partes.length > 0) {
               const partesAtivas = processoApi.partes
-                .filter((p: any) => p.tipo === 'POLO_ATIVO' || p.tipoParte === 'AUTOR' || p.tipoParte === 'REQUERENTE' || p.tipoParte === 'RECLAMANTE')
+                .filter(
+                  (p: any) =>
+                    p.tipo === "POLO_ATIVO" ||
+                    p.tipoParte === "AUTOR" ||
+                    p.tipoParte === "REQUERENTE" ||
+                    p.tipoParte === "RECLAMANTE"
+                )
                 .map((p: any) => p.nome)
                 .filter(Boolean);
 
               const partesPassivas = processoApi.partes
-                .filter((p: any) => p.tipo === 'POLO_PASSIVO' || p.tipoParte === 'REU' || p.tipoParte === 'REQUERIDO' || p.tipoParte === 'RECLAMADO')
+                .filter(
+                  (p: any) =>
+                    p.tipo === "POLO_PASSIVO" ||
+                    p.tipoParte === "REU" ||
+                    p.tipoParte === "REQUERIDO" ||
+                    p.tipoParte === "RECLAMADO"
+                )
                 .map((p: any) => p.nome)
                 .filter(Boolean);
 
               if (!poloAtivo && partesAtivas.length > 0) {
-                poloAtivo = partesAtivas.join(', ');
+                poloAtivo = partesAtivas.join(", ");
               }
               if (!poloPassivo && partesPassivas.length > 0) {
-                poloPassivo = partesPassivas.join(', ');
+                poloPassivo = partesPassivas.join(", ");
               }
             }
 
@@ -1154,13 +1314,21 @@ export default function ImportarProcessos() {
               updateData.polo_passivo = poloPassivo;
             }
             if (!parseDate(processo.dataDistribuicao) && processoApi.dataAjuizamento) {
-              updateData.data_distribuicao = new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0];
+              updateData.data_distribuicao = new Date(
+                processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, "$1-$2-$3")
+              )
+                .toISOString()
+                .split("T")[0];
             }
 
             // Update area based on tribunal if not set
             if (!processo.area) {
               const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
-              if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
+              if (
+                tribunalLower.includes("trt") ||
+                tribunalLower.includes("tst") ||
+                tribunalLower.includes("trabalho")
+              ) {
                 updateData.area = "trabalhista";
               }
             }
@@ -1171,18 +1339,16 @@ export default function ImportarProcessos() {
           }
         }
 
-        // Buscar e inserir andamentos (somente se a opção estiver habilitada)
-        if (projurisBuscarAndamentos) {
-          const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero.trim());
-          if (!andamentosRes.success) {
-            console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
-          }
+        // Buscar e inserir andamentos (somente se a opção estiver habilitada - only in slow path)
+        const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero.trim());
+        if (!andamentosRes.success) {
+          console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
         }
-        
-        updatedProcessos[i] = { 
-          ...processo, 
-          status: "sucesso", 
-          erroImport: isUpdate ? "Atualizado (já existia)" : undefined 
+
+        updatedProcessos[i] = {
+          ...processo,
+          status: "sucesso",
+          erroImport: isUpdate ? "Atualizado (já existia)" : undefined,
         };
         successCount++;
       } catch (err: any) {
