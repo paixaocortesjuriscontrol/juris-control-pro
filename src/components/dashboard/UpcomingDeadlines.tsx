@@ -5,8 +5,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUpcomingPrazos } from "@/hooks/useDashboardData";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
 
 export function UpcomingDeadlines() {
+  const navigate = useNavigate();
   const { data: prazos, isLoading } = useUpcomingPrazos(4);
 
   if (isLoading) {
@@ -70,6 +72,7 @@ export function UpcomingDeadlines() {
           return (
             <div 
               key={prazo.id}
+              onClick={() => navigate(`/prazos?prazoId=${prazo.id}`)}
               className={cn(
                 "p-3 rounded-lg border transition-all hover:shadow-soft cursor-pointer",
                 priority === "high" && "border-status-urgent/30 bg-status-urgent/5",
@@ -105,7 +108,7 @@ export function UpcomingDeadlines() {
         })}
       </div>
       <div className="p-4 pt-0">
-        <Button variant="outline" className="w-full text-sm">
+        <Button variant="outline" className="w-full text-sm" onClick={() => navigate("/prazos")}>
           Ver todos os prazos
         </Button>
       </div>

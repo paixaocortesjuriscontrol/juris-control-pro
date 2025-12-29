@@ -55,6 +55,7 @@ export function useDashboardStats() {
       const hoje = new Date();
       const seteDias = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
       const prazosUrgentes = prazos.filter(p => {
+        if (!p.data_vencimento) return false;
         const dataVencimento = new Date(p.data_vencimento);
         return dataVencimento <= seteDias;
       }).length;

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Calendar,
   Clock,
@@ -69,7 +69,7 @@ import { TarefaDetalhesDialog } from "@/components/prazos/TarefaDetalhesDialog";
 import { format, parseISO, differenceInDays, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const prioridadeLabels: Record<string, string> = {
   baixa: "Baixa",
@@ -88,6 +88,7 @@ const PAGE_SIZE = 50;
 
 const Prazos = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -120,6 +121,21 @@ const Prazos = () => {
 
   const updatePrazo = useUpdatePrazo();
   const deletePrazo = useDeletePrazo();
+
+  // Handle prazoId from URL to open details dialog
+  useEffect(() => {
+    const prazoId = searchParams.get("prazoId");
+    if (prazoId && allPrazos) {
+      const prazo = allPrazos.find(p => p.id === prazoId);
+      if (prazo) {
+        setPrazoDetalhes(prazo);
+        setDetalhesDialogOpen(true);
+        // Clear the prazoId from URL after opening
+        searchParams.delete("prazoId");
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [searchParams, allPrazos, setSearchParams]);
 
   // Reset page when filters change
   const handleStatusChange = useCallback((value: string) => {
