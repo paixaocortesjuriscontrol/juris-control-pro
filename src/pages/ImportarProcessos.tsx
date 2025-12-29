@@ -235,6 +235,7 @@ export default function ImportarProcessos() {
   const [projurisBuscarAndamentos, setProjurisBuscarAndamentos] = useState(true);
   const [projurisParsing, setProjurisParsing] = useState(false);
   const [projurisParseProgress, setProjurisParseProgress] = useState(0);
+  const projurisCancelledRef = useRef(false);
 
   // Dr. Osmar (Rede D'Or) import states
   const [osmarFile, setOsmarFile] = useState<File | null>(null);
@@ -994,6 +995,16 @@ export default function ImportarProcessos() {
     return partyString.replace(/\s*\([^)]*\)\s*$/, "").trim();
   };
 
+  const cancelProjurisImport = useCallback(() => {
+    projurisCancelledRef.current = true;
+    setProjurisImporting(false);
+    endImport();
+    toast({
+      title: "Importação cancelada",
+      description: "A importação foi interrompida. Os processos já importados permanecem na base.",
+    });
+  }, [endImport, toast]);
+
   const handleProjurisImport = async () => {
     const validProcessos = projurisProcessos.filter((p) => p.status === "valido");
     if (validProcessos.length === 0) {
@@ -1005,6 +1016,7 @@ export default function ImportarProcessos() {
       return;
     }
 
+    projurisCancelledRef.current = false;
     setProjurisImporting(true);
     startImport("Importando Projuris");
     setProjurisProgress(0);
@@ -1045,6 +1057,8 @@ export default function ImportarProcessos() {
 
       // 2) Batch INSERT new processes
       for (let i = 0; i < toInsertIndices.length; i += BATCH_SIZE) {
+        if (projurisCancelledRef.current) break;
+
         const batchIndices = toInsertIndices.slice(i, i + BATCH_SIZE);
         const insertPayload = batchIndices.map((idx) => {
           const p = updatedProcessos[idx];
@@ -1107,10 +1121,14 @@ export default function ImportarProcessos() {
         await new Promise((r) => setTimeout(r, 0));
       }
 
+      if (projurisCancelledRef.current) return;
+
       // 3) Batch UPDATE existing processes (if coordination/member/cliente selected)
       const hasUpdateFields = selectedCoordenacao || selectedMembro || selectedCliente;
       if (hasUpdateFields && toUpdateIndices.length > 0) {
         for (let i = 0; i < toUpdateIndices.length; i += BATCH_SIZE) {
+          if (projurisCancelledRef.current) break;
+
           const batchIndices = toUpdateIndices.slice(i, i + BATCH_SIZE);
           const numeros = batchIndices.map((idx) => updatedProcessos[idx].numero.trim());
           const updateData: Record<string, any> = {};
@@ -1136,6 +1154,7 @@ export default function ImportarProcessos() {
           setProjurisProcessos([...updatedProcessos]);
           await new Promise((r) => setTimeout(r, 0));
         }
+        if (projurisCancelledRef.current) return;
       } else {
         // Mark existing as success (no update needed)
         for (const idx of toUpdateIndices) {
@@ -1158,6 +1177,8 @@ export default function ImportarProcessos() {
 
     // ======== SLOW PATH: one-by-one with API + andamentos ========
     for (let i = 0; i < updatedProcessos.length; i++) {
+      if (projurisCancelledRef.current) break;
+
       const processo = updatedProcessos[i];
 
       // Skip invalid processos
@@ -1359,6 +1380,8 @@ export default function ImportarProcessos() {
       setProjurisProgress(((i + 1) / updatedProcessos.length) * 100);
       setProjurisProcessos([...updatedProcessos]);
     }
+
+    if (projurisCancelledRef.current) return;
 
     setProjurisImporting(false);
     endImport();
@@ -2570,22 +2593,23 @@ export default function ImportarProcessos() {
                             Baixar Rejeitados ({projurisTotalRejeitados})
                           </Button>
                         )}
-                        <Button 
-                          onClick={handleProjurisImport} 
-                          disabled={projurisImporting || projurisValidCount === 0}
-                        >
-                          {projurisImporting ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Importando...
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="h-4 w-4 mr-2" />
-                              Importar ({projurisValidCount})
-                            </>
-                          )}
-                        </Button>
+                        {projurisImporting ? (
+                          <Button 
+                            variant="destructive"
+                            onClick={cancelProjurisImport}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </Button>
+                        ) : (
+                          <Button 
+                            onClick={handleProjurisImport} 
+                            disabled={projurisValidCount === 0}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Importar ({projurisValidCount})
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
