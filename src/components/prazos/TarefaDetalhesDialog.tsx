@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,13 +7,15 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { TarefaComentarios } from "./TarefaComentarios";
 import { format, parseISO, differenceInDays, startOfDay, isAfter } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Calendar, User, Briefcase, Clock, CheckCircle2, XCircle, Pencil } from "lucide-react";
+import { Calendar, User, Briefcase, Clock, CheckCircle2, XCircle, Pencil, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Prazo } from "@/hooks/usePrazos";
+import { useUpdatePrazo, type Prazo } from "@/hooks/usePrazos";
+import { toast } from "sonner";
 
 const prioridadeLabels: Record<string, string> = {
   baixa: "Baixa",
@@ -36,6 +39,10 @@ export function TarefaDetalhesDialog({
   onEdit,
   onMarkAsCumprido,
 }: TarefaDetalhesDialogProps) {
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
+  const updatePrazo = useUpdatePrazo();
+
   if (!prazo) return null;
 
   const today = startOfDay(new Date());
@@ -109,15 +116,76 @@ export function TarefaDetalhesDialog({
 
   const statusInfo = getStatusInfo();
 
+  const handleStartEditTitle = () => {
+    setEditedTitle(prazo.titulo);
+    setIsEditingTitle(true);
+  };
+
+  const handleCancelEditTitle = () => {
+    setIsEditingTitle(false);
+    setEditedTitle("");
+  };
+
+  const handleSaveTitle = async () => {
+    if (!editedTitle.trim()) {
+      toast.error("O título não pode estar vazio");
+      return;
+    }
+    
+    try {
+      await updatePrazo.mutateAsync({ id: prazo.id, titulo: editedTitle.trim() });
+      setIsEditingTitle(false);
+      setEditedTitle("");
+    } catch (error) {
+      // Error is handled by the mutation
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <DialogTitle className="text-lg font-semibold mb-2">
-                {prazo.titulo}
-              </DialogTitle>
+              {isEditingTitle ? (
+                <div className="flex items-center gap-2 mb-2">
+                  <Input
+                    value={editedTitle}
+                    onChange={(e) => setEditedTitle(e.target.value)}
+                    className="text-lg font-semibold"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveTitle();
+                      if (e.key === "Escape") handleCancelEditTitle();
+                    }}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleSaveTitle}
+                    disabled={updatePrazo.isPending}
+                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <Check className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleCancelEditTitle}
+                    disabled={updatePrazo.isPending}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <DialogTitle 
+                  className="text-lg font-semibold mb-2 cursor-pointer hover:text-primary group flex items-center gap-2"
+                  onClick={handleStartEditTitle}
+                >
+                  {prazo.titulo}
+                  <Pencil className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
+                </DialogTitle>
+              )}
               <div className="flex items-center gap-2 flex-wrap">
                 {getPrioridadeBadge(prazo.prioridade)}
                 {statusInfo.badge}
