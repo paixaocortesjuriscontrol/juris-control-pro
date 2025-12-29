@@ -39,11 +39,78 @@ export type PrazosFilters = {
   status?: string;
   prioridade?: string;
   search?: string;
-  limit?: number;
+  page?: number;
+  pageSize?: number;
 };
 
+export type PrazosResult = {
+  data: Prazo[];
+  count: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export function usePrazosPaginated(filters?: PrazosFilters) {
+  const page = filters?.page ?? 1;
+  const pageSize = filters?.pageSize ?? 50;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  
+  return useQuery({
+    queryKey: ["prazos-paginated", filters],
+    queryFn: async (): Promise<PrazosResult> => {
+      let query = supabase
+        .from("prazos")
+        .select(`
+          id,
+          titulo,
+          descricao,
+          data_vencimento,
+          status,
+          prioridade,
+          processo_id,
+          responsavel_id,
+          observacoes,
+          data_cumprimento,
+          created_at,
+          processo:processos!prazos_processo_id_fkey(id, numero, assunto),
+          responsavel:profiles!prazos_responsavel_id_fkey(id, nome)
+        `, { count: "exact" })
+        .order("data_vencimento", { ascending: true, nullsFirst: false })
+        .range(from, to);
+
+      // Apply server-side filters
+      if (filters?.status && filters.status !== "all" && filters.status !== "atrasado") {
+        query = query.eq("status", filters.status as "pendente" | "cumprido" | "atrasado");
+      }
+      if (filters?.prioridade && filters.prioridade !== "all") {
+        query = query.eq("prioridade", filters.prioridade as "baixa" | "media" | "alta" | "urgente");
+      }
+      if (filters?.search) {
+        query = query.ilike("titulo", `%${filters.search}%`);
+      }
+
+      const { data, error, count } = await query;
+
+      if (error) throw error;
+      
+      const totalCount = count || 0;
+      
+      return {
+        data: (data || []) as Prazo[],
+        count: totalCount,
+        page,
+        pageSize,
+        totalPages: Math.ceil(totalCount / pageSize),
+      };
+    },
+  });
+}
+
+// Keep the old hook for calendar view and backwards compatibility
 export function usePrazos(filters?: PrazosFilters) {
-  const limit = filters?.limit ?? 500; // Default limit for performance
+  const limit = 500;
   
   return useQuery({
     queryKey: ["prazos", filters],
@@ -87,17 +154,43 @@ export function usePrazos(filters?: PrazosFilters) {
   });
 }
 
-export function usePrazosCount() {
+export function usePrazosStats() {
   return useQuery({
-    queryKey: ["prazos-count"],
+    queryKey: ["prazos-stats"],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from("prazos")
-        .select("*", { count: "exact", head: true });
+      const today = new Date().toISOString().split("T")[0];
+      
+      // Get counts by status
+      const [pendentesRes, cumpridosRes, atrasadosRes, urgentesRes] = await Promise.all([
+        supabase
+          .from("prazos")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "pendente")
+          .gte("data_vencimento", today),
+        supabase
+          .from("prazos")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "cumprido"),
+        supabase
+          .from("prazos")
+          .select("*", { count: "exact", head: true })
+          .neq("status", "cumprido")
+          .lt("data_vencimento", today),
+        supabase
+          .from("prazos")
+          .select("*", { count: "exact", head: true })
+          .eq("prioridade", "urgente")
+          .neq("status", "cumprido"),
+      ]);
 
-      if (error) throw error;
-      return count || 0;
+      return {
+        pendentes: pendentesRes.count || 0,
+        cumpridos: cumpridosRes.count || 0,
+        atrasados: atrasadosRes.count || 0,
+        urgentes: urgentesRes.count || 0,
+      };
     },
+    staleTime: 30000, // 30 seconds cache
   });
 }
 
@@ -128,7 +221,8 @@ export function useCreatePrazo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prazos"] });
-      queryClient.invalidateQueries({ queryKey: ["prazos-count"] });
+      queryClient.invalidateQueries({ queryKey: ["prazos-paginated"] });
+      queryClient.invalidateQueries({ queryKey: ["prazos-stats"] });
       toast.success("Prazo criado com sucesso");
     },
     onError: (error) => {
@@ -167,6 +261,8 @@ export function useUpdatePrazo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prazos"] });
+      queryClient.invalidateQueries({ queryKey: ["prazos-paginated"] });
+      queryClient.invalidateQueries({ queryKey: ["prazos-stats"] });
       toast.success("Prazo atualizado com sucesso");
     },
     onError: (error) => {
@@ -185,7 +281,8 @@ export function useDeletePrazo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prazos"] });
-      queryClient.invalidateQueries({ queryKey: ["prazos-count"] });
+      queryClient.invalidateQueries({ queryKey: ["prazos-paginated"] });
+      queryClient.invalidateQueries({ queryKey: ["prazos-stats"] });
       toast.success("Prazo excluído com sucesso");
     },
     onError: (error) => {
