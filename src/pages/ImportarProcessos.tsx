@@ -799,38 +799,66 @@ export default function ImportarProcessos() {
   const parseProjurisExcel = async (file: File) => {
     setProjurisParsing(true);
     setProjurisParseProgress(0);
-    
+
+    let worker: Worker | null = null;
+
     try {
+      // 1) Ler arquivo (rápido, mas ainda assíncrono)
+      setProjurisParseProgress(2);
       const data = await file.arrayBuffer();
       setProjurisParseProgress(10);
-      
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      setProjurisParseProgress(20);
-      
-      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null, range: 2 }); // Start from row 3 (index 2) to skip header rows
-      setProjurisParseProgress(30);
 
-      // Process in batches to avoid blocking UI
-      const BATCH_SIZE = 500;
-      const filteredRows = jsonData.filter((row: any) => {
-        const numeroCNJ = row["Número CNJ"] || "";
-        return numeroCNJ && numeroCNJ.trim().length >= 5 && !numeroCNJ.includes("Número CNJ");
+      // 2) Parse pesado (XLSX.read + sheet_to_json) em Web Worker para não travar a UI
+      const filteredRows = await new Promise<any[]>((resolve, reject) => {
+        worker = new Worker(new URL("../workers/projurisParser.worker.ts", import.meta.url), {
+          type: "module",
+        });
+
+        worker.onmessage = (ev: MessageEvent) => {
+          const msg = ev.data as
+            | { type: "progress"; progress: number }
+            | { type: "result"; rows: any[] }
+            | { type: "error"; message: string };
+
+          if (msg?.type === "progress") {
+            // Mapear 0-100 do worker para 10-40 no UI
+            const uiProgress = 10 + Math.round((msg.progress / 100) * 30);
+            setProjurisParseProgress(uiProgress);
+            return;
+          }
+
+          if (msg?.type === "result") {
+            resolve(msg.rows);
+            return;
+          }
+
+          if (msg?.type === "error") {
+            reject(new Error(msg.message));
+          }
+        };
+
+        worker.onerror = (err) => {
+          reject(new Error(err.message || "Erro no worker de parsing"));
+        };
+
+        // Transferir o ArrayBuffer para evitar cópia
+        worker.postMessage({ arrayBuffer: data }, [data as ArrayBuffer]);
       });
-      
+
       setProjurisParseProgress(40);
-      
+
+      // 3) Montagem + validação (em lotes no main thread, com yields)
+      const BATCH_SIZE = 500;
       const totalRows = filteredRows.length;
       const parsed: ProcessoImport[] = [];
-      
+
       for (let i = 0; i < totalRows; i += BATCH_SIZE) {
         const batch = filteredRows.slice(i, Math.min(i + BATCH_SIZE, totalRows));
-        
+
         const batchParsed = batch.map((row: any, batchIndex: number): ProcessoImport => {
           const index = i + batchIndex;
           // Parse Projuris columns exactly as exported
-          const numeroCNJ = String(row["Número CNJ"] || "").trim();
+          const numeroCNJ = String(row["Número CNJ"] || row["Numero CNJ"] || "").trim();
           const assunto = row["Assunto"] || null;
           const situacao = row["Situação"] || row["Situacao"] || null;
           const status = row["Status"] || null;
@@ -909,30 +937,30 @@ export default function ImportarProcessos() {
             resultado: resultado,
             valorCondenacao: valorCondenacao,
           };
-          
+
           // Validate the processo
           processo.erros = validateProcesso(processo);
           processo.status = processo.erros.length > 0 ? "invalido" : "valido";
-          
+
           return processo;
         });
-        
+
         parsed.push(...batchParsed);
-        
+
         // Update progress (40-95% is for parsing)
-        const progressPercent = 40 + Math.floor((i + batch.length) / totalRows * 55);
+        const progressPercent = 40 + Math.floor(((i + batch.length) / totalRows) * 55);
         setProjurisParseProgress(progressPercent);
-        
+
         // Yield to UI thread
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
       setProjurisParseProgress(100);
       setProjurisProcessos(parsed);
-      
-      const validCount = parsed.filter(p => p.status === "valido").length;
-      const invalidCount = parsed.filter(p => p.status === "invalido").length;
-      
+
+      const validCount = parsed.filter((p) => p.status === "valido").length;
+      const invalidCount = parsed.filter((p) => p.status === "invalido").length;
+
       if (parsed.length === 0) {
         toast({
           title: "Nenhum processo encontrado",
@@ -954,6 +982,7 @@ export default function ImportarProcessos() {
         variant: "destructive",
       });
     } finally {
+      if (worker) worker.terminate();
       setProjurisParsing(false);
     }
   };
