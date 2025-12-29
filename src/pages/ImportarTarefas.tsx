@@ -244,18 +244,19 @@ export default function ImportarTarefas() {
           linhaOriginal: index + 2,
         };
 
-        // Validate
+        // Warnings (não impedem importação)
         if (!identificador) {
-          tarefa.erros.push("Identificador obrigatório");
+          tarefa.erros.push("Sem identificador");
         }
         if (!titulo) {
-          tarefa.erros.push("Título obrigatório");
+          tarefa.erros.push("Sem título");
         }
         if (!tarefa.dataFatal && !tarefa.dataPrevista) {
-          tarefa.erros.push("Data fatal ou prevista obrigatória");
+          tarefa.erros.push("Sem data fatal/prevista");
         }
 
-        tarefa.status = tarefa.erros.length > 0 ? "invalido" : "valido";
+        // Todas as tarefas são válidas para importação
+        tarefa.status = "valido";
         return tarefa;
       }).filter(t => t.identificador && t.identificador !== "Identificador da tarefa");
 
@@ -350,11 +351,11 @@ export default function ImportarTarefas() {
           const dataVencimento = parseDate(t.dataFatal) || parseDate(t.dataPrevista);
           
           return {
-            identificador_projuris: t.identificador,
+            identificador_projuris: t.identificador || `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             tipo_tarefa: t.tipo,
-            titulo: t.titulo,
+            titulo: t.titulo || "Tarefa sem título",
             descricao: t.descricao,
-            data_vencimento: dataVencimento,
+            data_vencimento: dataVencimento || new Date().toISOString().split('T')[0], // default hoje
             data_base: parseDate(t.dataBase),
             data_fatal: parseDate(t.dataFatal),
             data_cumprimento: status === "cumprido" ? parseDate(t.dataConclusao) : null,
