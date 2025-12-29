@@ -6,7 +6,7 @@ export type Prazo = {
   id: string;
   titulo: string;
   descricao: string | null;
-  data_vencimento: string;
+  data_vencimento: string | null;
   status: "pendente" | "cumprido" | "atrasado";
   prioridade: "baixa" | "media" | "alta" | "urgente";
   processo_id: string | null;
@@ -35,11 +35,20 @@ export type Prazo = {
   } | null;
 };
 
-export function usePrazos() {
+export type PrazosFilters = {
+  status?: string;
+  prioridade?: string;
+  search?: string;
+  limit?: number;
+};
+
+export function usePrazos(filters?: PrazosFilters) {
+  const limit = filters?.limit ?? 500; // Default limit for performance
+  
   return useQuery({
-    queryKey: ["prazos"],
+    queryKey: ["prazos", filters],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("prazos")
         .select(`
           id,
@@ -56,10 +65,38 @@ export function usePrazos() {
           processo:processos!prazos_processo_id_fkey(id, numero, assunto),
           responsavel:profiles!prazos_responsavel_id_fkey(id, nome)
         `)
-        .order("data_vencimento", { ascending: true });
+        .order("data_vencimento", { ascending: true, nullsFirst: false })
+        .limit(limit);
+
+      // Apply server-side filters
+      if (filters?.status && filters.status !== "all" && filters.status !== "atrasado") {
+        query = query.eq("status", filters.status as "pendente" | "cumprido" | "atrasado");
+      }
+      if (filters?.prioridade && filters.prioridade !== "all") {
+        query = query.eq("prioridade", filters.prioridade as "baixa" | "media" | "alta" | "urgente");
+      }
+      if (filters?.search) {
+        query = query.ilike("titulo", `%${filters.search}%`);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return (data || []) as Prazo[];
+    },
+  });
+}
+
+export function usePrazosCount() {
+  return useQuery({
+    queryKey: ["prazos-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("prazos")
+        .select("*", { count: "exact", head: true });
+
+      if (error) throw error;
+      return count || 0;
     },
   });
 }
@@ -71,9 +108,9 @@ export function useCreatePrazo() {
     mutationFn: async (prazo: {
       titulo: string;
       descricao?: string;
-      data_vencimento: string;
+      data_vencimento?: string;
       prioridade: "baixa" | "media" | "alta" | "urgente";
-      processo_id: string;
+      processo_id?: string;
       responsavel_id?: string;
       observacoes?: string;
     }) => {
@@ -91,6 +128,7 @@ export function useCreatePrazo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prazos"] });
+      queryClient.invalidateQueries({ queryKey: ["prazos-count"] });
       toast.success("Prazo criado com sucesso");
     },
     onError: (error) => {
@@ -147,6 +185,7 @@ export function useDeletePrazo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prazos"] });
+      queryClient.invalidateQueries({ queryKey: ["prazos-count"] });
       toast.success("Prazo excluído com sucesso");
     },
     onError: (error) => {
