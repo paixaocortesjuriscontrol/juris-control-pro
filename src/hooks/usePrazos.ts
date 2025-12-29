@@ -9,11 +9,21 @@ export type Prazo = {
   data_vencimento: string;
   status: "pendente" | "cumprido" | "atrasado";
   prioridade: "baixa" | "media" | "alta" | "urgente";
-  processo_id: string;
+  processo_id: string | null;
   responsavel_id: string | null;
   observacoes: string | null;
   data_cumprimento: string | null;
   created_at: string;
+  // Projuris fields
+  identificador_projuris?: string | null;
+  tipo_tarefa?: string | null;
+  data_base?: string | null;
+  data_fatal?: string | null;
+  criado_por_nome?: string | null;
+  concluido_por_nome?: string | null;
+  grupos_trabalho?: string | null;
+  marcadores?: string | null;
+  quadro_kanban?: string | null;
   processo: {
     id: string;
     numero: string;
