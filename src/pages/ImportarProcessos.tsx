@@ -135,6 +135,44 @@ const parseNumber = (value: any): number | null => {
   return null;
 };
 
+// Translate common Supabase/Postgres errors to user-friendly Portuguese messages
+const translateDatabaseError = (errorMessage: string): string => {
+  if (!errorMessage) return "Erro desconhecido ao salvar dados.";
+  
+  const lowerMsg = errorMessage.toLowerCase();
+  
+  if (lowerMsg.includes("numeric field overflow") || lowerMsg.includes("numeric value out of range")) {
+    return "Valor numérico muito grande. Verifique os campos de valor (causa, provisionamento, condenação).";
+  }
+  if (lowerMsg.includes("duplicate key") || lowerMsg.includes("unique constraint")) {
+    return "Processo já existe na base de dados.";
+  }
+  if (lowerMsg.includes("violates foreign key constraint")) {
+    return "Referência inválida (coordenação, advogado ou cliente não encontrado).";
+  }
+  if (lowerMsg.includes("not-null constraint") || lowerMsg.includes("null value in column")) {
+    return "Campo obrigatório não preenchido.";
+  }
+  if (lowerMsg.includes("invalid input syntax for type date")) {
+    return "Data em formato inválido.";
+  }
+  if (lowerMsg.includes("invalid input syntax for type numeric")) {
+    return "Valor numérico em formato inválido.";
+  }
+  if (lowerMsg.includes("string data, right truncation") || lowerMsg.includes("value too long")) {
+    return "Texto muito longo para o campo.";
+  }
+  if (lowerMsg.includes("permission denied") || lowerMsg.includes("rls")) {
+    return "Sem permissão para realizar esta operação.";
+  }
+  if (lowerMsg.includes("network") || lowerMsg.includes("timeout") || lowerMsg.includes("connection")) {
+    return "Erro de conexão. Verifique sua internet e tente novamente.";
+  }
+  
+  // Return original message if no translation found (but clean it up a bit)
+  return errorMessage.length > 100 ? errorMessage.substring(0, 100) + "..." : errorMessage;
+};
+
 const validateNumeroProcesso = (numero: string): boolean => {
   if (!numero || numero.trim() === "") return false;
   // Basic validation - should have some structure
@@ -1102,9 +1140,10 @@ export default function ImportarProcessos() {
 
         const { error } = await supabase.from("processos").insert(insertPayload);
         if (error) {
-          // Mark all in batch as error
+          // Mark all in batch as error with translated message
+          const translatedError = translateDatabaseError(error.message);
           for (const idx of batchIndices) {
-            updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: error.message };
+            updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translatedError };
             errorCount++;
           }
         } else {
@@ -1138,8 +1177,9 @@ export default function ImportarProcessos() {
 
           const { error } = await supabase.from("processos").update(updateData).in("numero", numeros);
           if (error) {
+            const translatedError = translateDatabaseError(error.message);
             for (const idx of batchIndices) {
-              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: error.message };
+              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translatedError };
               errorCount++;
             }
           } else {
@@ -1261,7 +1301,7 @@ export default function ImportarProcessos() {
             .single();
 
           if (error) {
-            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
             errorCount++;
             continue;
           }
