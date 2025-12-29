@@ -232,12 +232,17 @@ export default function ImportarProcessos() {
   const [projurisProcessos, setProjurisProcessos] = useState<ProcessoImport[]>([]);
   const [projurisImporting, setProjurisImporting] = useState(false);
   const [projurisProgress, setProjurisProgress] = useState(0);
+  const [projurisBuscarAndamentos, setProjurisBuscarAndamentos] = useState(true);
 
   // Dr. Osmar (Rede D'Or) import states
   const [osmarFile, setOsmarFile] = useState<File | null>(null);
   const [osmarProcessos, setOsmarProcessos] = useState<ProcessoImport[]>([]);
   const [osmarImporting, setOsmarImporting] = useState(false);
   const [osmarProgress, setOsmarProgress] = useState(0);
+  const [osmarBuscarAndamentos, setOsmarBuscarAndamentos] = useState(true);
+
+  // Excel/Planilha import state for andamentos
+  const [planilhaBuscarAndamentos, setPlanilhaBuscarAndamentos] = useState(true);
 
   // Fetch coordenacoes
   const { data: coordenacoes = [] } = useCoordenacoesFull();
@@ -489,12 +494,14 @@ export default function ImportarProcessos() {
           }
         }
 
-        // Buscar e inserir andamentos (sempre, inclusive para processos já existentes)
-        const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero.trim());
-        if (!andamentosRes.success) {
-          console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
-        } else if (andamentosRes.movimentosInseridos > 0) {
-          console.log(`Processo ${processo.numero}: ${andamentosRes.movimentosInseridos} andamentos importados`);
+        // Buscar e inserir andamentos (somente se a opção estiver habilitada)
+        if (planilhaBuscarAndamentos) {
+          const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero.trim());
+          if (!andamentosRes.success) {
+            console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+          } else if (andamentosRes.movimentosInseridos > 0) {
+            console.log(`Processo ${processo.numero}: ${andamentosRes.movimentosInseridos} andamentos importados`);
+          }
         }
         
         updatedProcessos[i] = { 
@@ -1008,6 +1015,7 @@ export default function ImportarProcessos() {
             coordenacao_id: selectedCoordenacao || null,
             advogado_responsavel_id: selectedMembro || null,
             cliente_id: selectedCliente || null,
+            monitorar_andamentos: projurisBuscarAndamentos,
             // Projuris-specific fields
             identificador_projuris: processo.identificadorProjuris || null,
             pasta_fisica: processo.pastaFisica || null,
@@ -1108,10 +1116,12 @@ export default function ImportarProcessos() {
           }
         }
 
-        // Buscar e inserir andamentos (sempre, inclusive para processos já existentes)
-        const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero.trim());
-        if (!andamentosRes.success) {
-          console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+        // Buscar e inserir andamentos (somente se a opção estiver habilitada)
+        if (projurisBuscarAndamentos) {
+          const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero.trim());
+          if (!andamentosRes.success) {
+            console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+          }
         }
         
         updatedProcessos[i] = { 
@@ -1392,6 +1402,7 @@ export default function ImportarProcessos() {
           coordenacao_id: selectedCoordenacao || null,
           advogado_responsavel_id: selectedMembro || null,
           cliente_id: selectedCliente || null,
+          monitorar_andamentos: osmarBuscarAndamentos,
           // Dr. Osmar specific fields
           unidade_cliente: osmarData.unidadeCliente,
           sigla_unidade: osmarData.siglaUnidade,
@@ -1434,14 +1445,24 @@ export default function ImportarProcessos() {
           isUpdate = true;
         } else {
           // Insert new process
-          const { error } = await supabase
+          const { data: insertedProcesso, error } = await supabase
             .from("processos")
-            .insert(processoData as any);
+            .insert(processoData as any)
+            .select("id")
+            .single();
 
           if (error) {
             updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
             errorCountLocal++;
             continue;
+          }
+
+          // Buscar e inserir andamentos (somente se a opção estiver habilitada e for processo novo)
+          if (osmarBuscarAndamentos && insertedProcesso) {
+            const andamentosRes = await buscarAndamentosExternos(insertedProcesso.id, processo.numero.trim());
+            if (!andamentosRes.success) {
+              console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+            }
           }
         }
         
@@ -1947,6 +1968,27 @@ export default function ImportarProcessos() {
                     Todos os processos importados serão vinculados a este cliente.
                   </p>
                 </div>
+
+                {/* Opção de buscar andamentos - Planilha */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="buscar-andamentos-planilha" className="flex items-center gap-2 font-medium">
+                      <Clock className="h-4 w-4" />
+                      Buscar andamentos na importação
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {planilhaBuscarAndamentos 
+                        ? "Os andamentos serão buscados durante a importação e o processo ficará habilitado para monitoramento automático."
+                        : "Os andamentos NÃO serão buscados e o processo ficará desabilitado para monitoramento."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="buscar-andamentos-planilha"
+                    checked={planilhaBuscarAndamentos}
+                    onCheckedChange={setPlanilhaBuscarAndamentos}
+                    disabled={importing}
+                  />
+                </div>
                 
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
@@ -2223,6 +2265,27 @@ export default function ImportarProcessos() {
                     Todos os processos importados serão vinculados a este cliente.
                   </p>
                 </div>
+
+                {/* Opção de buscar andamentos - Projuris */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="buscar-andamentos-projuris" className="flex items-center gap-2 font-medium">
+                      <Clock className="h-4 w-4" />
+                      Buscar andamentos na importação
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {projurisBuscarAndamentos 
+                        ? "Os andamentos serão buscados durante a importação e o processo ficará habilitado para monitoramento automático."
+                        : "Os andamentos NÃO serão buscados e o processo ficará desabilitado para monitoramento."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="buscar-andamentos-projuris"
+                    checked={projurisBuscarAndamentos}
+                    onCheckedChange={setProjurisBuscarAndamentos}
+                    disabled={projurisImporting}
+                  />
+                </div>
                 
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
@@ -2486,6 +2549,27 @@ export default function ImportarProcessos() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Opção de buscar andamentos - Dr. Osmar */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="buscar-andamentos-osmar" className="flex items-center gap-2 font-medium">
+                      <Clock className="h-4 w-4" />
+                      Buscar andamentos na importação
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {osmarBuscarAndamentos 
+                        ? "Os andamentos serão buscados durante a importação e o processo ficará habilitado para monitoramento automático."
+                        : "Os andamentos NÃO serão buscados e o processo ficará desabilitado para monitoramento."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="buscar-andamentos-osmar"
+                    checked={osmarBuscarAndamentos}
+                    onCheckedChange={setOsmarBuscarAndamentos}
+                    disabled={osmarImporting}
+                  />
                 </div>
                 
                 <Alert>
