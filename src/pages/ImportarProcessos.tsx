@@ -233,6 +233,8 @@ export default function ImportarProcessos() {
   const [projurisImporting, setProjurisImporting] = useState(false);
   const [projurisProgress, setProjurisProgress] = useState(0);
   const [projurisBuscarAndamentos, setProjurisBuscarAndamentos] = useState(true);
+  const [projurisParsing, setProjurisParsing] = useState(false);
+  const [projurisParseProgress, setProjurisParseProgress] = useState(0);
 
   // Dr. Osmar (Rede D'Or) import states
   const [osmarFile, setOsmarFile] = useState<File | null>(null);
@@ -795,20 +797,38 @@ export default function ImportarProcessos() {
   }, []);
 
   const parseProjurisExcel = async (file: File) => {
+    setProjurisParsing(true);
+    setProjurisParseProgress(0);
+    
     try {
       const data = await file.arrayBuffer();
+      setProjurisParseProgress(10);
+      
       const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
+      setProjurisParseProgress(20);
+      
       const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null, range: 2 }); // Start from row 3 (index 2) to skip header rows
+      setProjurisParseProgress(30);
 
-      const parsed: ProcessoImport[] = jsonData
-        .filter((row: any) => {
-          // Skip empty rows and header rows - check for "Número CNJ" column
-          const numeroCNJ = row["Número CNJ"] || "";
-          return numeroCNJ && numeroCNJ.trim().length >= 5 && !numeroCNJ.includes("Número CNJ");
-        })
-        .map((row: any, index: number): ProcessoImport => {
+      // Process in batches to avoid blocking UI
+      const BATCH_SIZE = 500;
+      const filteredRows = jsonData.filter((row: any) => {
+        const numeroCNJ = row["Número CNJ"] || "";
+        return numeroCNJ && numeroCNJ.trim().length >= 5 && !numeroCNJ.includes("Número CNJ");
+      });
+      
+      setProjurisParseProgress(40);
+      
+      const totalRows = filteredRows.length;
+      const parsed: ProcessoImport[] = [];
+      
+      for (let i = 0; i < totalRows; i += BATCH_SIZE) {
+        const batch = filteredRows.slice(i, Math.min(i + BATCH_SIZE, totalRows));
+        
+        const batchParsed = batch.map((row: any, batchIndex: number): ProcessoImport => {
+          const index = i + batchIndex;
           // Parse Projuris columns exactly as exported
           const numeroCNJ = String(row["Número CNJ"] || "").trim();
           const assunto = row["Assunto"] || null;
@@ -816,7 +836,7 @@ export default function ImportarProcessos() {
           const status = row["Status"] || null;
           const justica = row["Justiça"] || row["Justica"] || null;
           const instancia = row["Instância"] || row["Instancia"] || null;
-          const orgao = row["Órgao"] || row["Orgao"] || null; // Note: Projuris uses "Órgao" (without accent on second 'a')
+          const orgao = row["Órgao"] || row["Orgao"] || null;
           const orgaoJulgador = row["Órgão julgador"] || row["Orgao julgador"] || null;
           const tipoOrgaoJulgador = row["Tipo órgão julgador"] || row["Tipo orgao julgador"] || null;
           const complemento = row["Complemento"] || null;
@@ -826,29 +846,22 @@ export default function ImportarProcessos() {
           const dataCitacao = row["Data citação"] || row["Data citacao"] || null;
           const dataRecebimento = row["Data recebimento"] || null;
           const dataArquivamento = row["Data arquivamento"] || null;
-          const dataInclusao = row["Data inclusão"] || row["Data inclusao"] || null;
           const valorAcao = row["Valor ação"] || row["Valor acao"] || null;
           const valorProvisionado = row["Valor provisionado"] || null;
           const probabilidade = row["Probabilidade"] || null;
           const risco = row["Risco"] || null;
-          const dataEncerramento = row["Data encerramento"] || null;
           const transitadoEmJulgado = row["Transitado em julgado"] || null;
           const resultado = row["Resultado"] || null;
           const valorCondenacao = row["Valor da condenação"] || row["Valor da condenacao"] || null;
-          const descricaoEncerramento = row["Descrição do encerramento"] || row["Descricao do encerramento"] || null;
           const partesAtivas = row["Partes ativas"] || null;
           const partesPassivas = row["Partes passivas"] || null;
           const estado = row["Estado"] || null;
           const cidade = row["Cidade"] || null;
-          const clientes = row["Clientes"] || null;
           const responsaveis = row["Responsáveis"] || row["Responsaveis"] || null;
           const descricao = row["Descrição"] || row["Descricao"] || null;
           const identificador = row["Identificador"] || null;
           const pastaFisica = row["Pasta física"] || row["Pasta fisica"] || null;
           const pastaCliente = row["Pasta cliente"] || null;
-          const unidadeAtual = row["Unidade atual"] || null;
-          const gruposTrabalho = row["Grupos de trabalho"] || null;
-          const marcadores = row["Marcadores"] || null;
 
           // Map Projuris status to our status
           const mapProjurisSituacao = (sit: string | null, stat: string | null): string | null => {
@@ -881,7 +894,7 @@ export default function ImportarProcessos() {
             cpfCnpjPassivo: null,
             status: "pendente",
             erros: [],
-            linhaOriginal: index + 4, // +4 because we skip 2 header rows and Excel is 1-indexed
+            linhaOriginal: index + 4,
             // Projuris-specific fields
             identificadorProjuris: identificador,
             pastaFisica: pastaFisica,
@@ -903,7 +916,18 @@ export default function ImportarProcessos() {
           
           return processo;
         });
+        
+        parsed.push(...batchParsed);
+        
+        // Update progress (40-95% is for parsing)
+        const progressPercent = 40 + Math.floor((i + batch.length) / totalRows * 55);
+        setProjurisParseProgress(progressPercent);
+        
+        // Yield to UI thread
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
 
+      setProjurisParseProgress(100);
       setProjurisProcessos(parsed);
       
       const validCount = parsed.filter(p => p.status === "valido").length;
@@ -929,6 +953,8 @@ export default function ImportarProcessos() {
         description: "Verifique se o arquivo é uma planilha do Projuris no formato correto (.xlsx).",
         variant: "destructive",
       });
+    } finally {
+      setProjurisParsing(false);
     }
   };
 
@@ -2171,14 +2197,28 @@ export default function ImportarProcessos() {
                       accept=".xlsx,.xls"
                       onChange={handleProjurisFileChange}
                       className="max-w-xs"
-                      disabled={projurisImporting}
+                      disabled={projurisImporting || projurisParsing}
                     />
-                    {projurisFile && (
+                    {projurisFile && !projurisParsing && (
                       <Button variant="outline" onClick={clearProjuris} disabled={projurisImporting}>
                         Limpar
                       </Button>
                     )}
                   </div>
+                  
+                  {/* Progress bar during file parsing */}
+                  {projurisParsing && (
+                    <div className="mt-4 space-y-2 max-w-md">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Carregando planilha... {projurisParseProgress}%</span>
+                      </div>
+                      <Progress value={projurisParseProgress} className="h-2" />
+                      <p className="text-xs text-muted-foreground">
+                        Processando registros da planilha. Para arquivos grandes, isso pode levar alguns segundos.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Coordenação Selection for Projuris Import */}
