@@ -33,6 +33,7 @@ import AnaliseDjen from "./pages/AnaliseDjen";
 import Pastas from "./pages/Pastas";
 import PastaDetalhes from "./pages/PastaDetalhes";
 import Notificacoes from "./pages/Notificacoes";
+import AnaliseTarefasProjuris from "./pages/AnaliseTarefasProjuris";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,6 +81,7 @@ const App = () => (
               <Route path="/monitoramento-djen" element={<ProtectedRoute><MonitoramentoDjen /></ProtectedRoute>} />
               <Route path="/pastas" element={<ProtectedRoute><Pastas /></ProtectedRoute>} />
               <Route path="/pastas/:id" element={<ProtectedRoute><PastaDetalhes /></ProtectedRoute>} />
+              <Route path="/analise-tarefas-projuris" element={<ProtectedRoute><AnaliseTarefasProjuris /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </ImportProvider>
