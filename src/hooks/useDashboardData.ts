@@ -188,6 +188,7 @@ export function useUpcomingPrazos(limit = 4) {
         .select(`
           id,
           titulo,
+          descricao,
           data_vencimento,
           prioridade,
           status,
