@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.repositorio-chat]
 verify_jwt = true
+
+[functions.analisar-documento]
+verify_jwt = true

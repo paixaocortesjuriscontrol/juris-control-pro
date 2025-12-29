@@ -40,7 +40,7 @@ import {
 import { 
   Search, Upload, FileText, File, MoreHorizontal, 
   Pencil, Trash2, Download, FolderOpen, X, Plus,
-  FileSpreadsheet, FileImage, Archive
+  FileSpreadsheet, FileImage, Archive, Sparkles, Loader2, Check
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
@@ -57,6 +57,21 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
+type FileAnalysis = {
+  file: File;
+  nome: string;
+  categoria: string;
+  tipo_documento: string | null;
+  descricao: string;
+  tags: string[];
+  confianca: "alta" | "media" | "baixa";
+  analyzing: boolean;
+  analyzed: boolean;
+  error?: string;
+};
+
+type UploadStep = "select" | "analyze" | "review";
+
 export default function RepositorioDocumentos() {
   const { user } = useAuth();
   const { data: documentos, isLoading } = useRepositorioDocumentos();
@@ -71,15 +86,12 @@ export default function RepositorioDocumentos() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<RepositorioDocumento | null>(null);
   
-  // Upload form state
-  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
-  const [uploadNome, setUploadNome] = useState("");
-  const [uploadCategoria, setUploadCategoria] = useState("modelo");
-  const [uploadTipo, setUploadTipo] = useState("");
-  const [uploadDescricao, setUploadDescricao] = useState("");
-  const [uploadTags, setUploadTags] = useState("");
+  // Upload flow state
+  const [uploadStep, setUploadStep] = useState<UploadStep>("select");
+  const [fileAnalyses, setFileAnalyses] = useState<FileAnalysis[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const filteredDocs = documentos?.filter(doc => {
     const matchesSearch = 
@@ -137,47 +149,149 @@ export default function RepositorioDocumentos() {
     e.preventDefault();
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
-    setUploadFiles(prev => [...prev, ...files]);
-    if (files.length === 1 && !uploadNome) {
-      setUploadNome(files[0].name.replace(/\.[^/.]+$/, ""));
-    }
-  }, [uploadNome]);
+    addFilesForAnalysis(files);
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      setUploadFiles(prev => [...prev, ...files]);
-      if (files.length === 1 && !uploadNome) {
-        setUploadNome(files[0].name.replace(/\.[^/.]+$/, ""));
-      }
+      addFilesForAnalysis(files);
     }
   };
 
+  const addFilesForAnalysis = (files: File[]) => {
+    const newAnalyses: FileAnalysis[] = files.map(file => ({
+      file,
+      nome: file.name.replace(/\.[^/.]+$/, ""),
+      categoria: "outros",
+      tipo_documento: null,
+      descricao: "",
+      tags: [],
+      confianca: "baixa",
+      analyzing: false,
+      analyzed: false,
+    }));
+    setFileAnalyses(prev => [...prev, ...newAnalyses]);
+  };
+
   const removeFile = (index: number) => {
-    setUploadFiles(prev => prev.filter((_, i) => i !== index));
+    setFileAnalyses(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const readFileContent = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      if (file.type.includes("text") || 
+          file.name.endsWith(".txt") || 
+          file.name.endsWith(".md") ||
+          file.name.endsWith(".rtf")) {
+        reader.onload = (e) => resolve(e.target?.result as string || "");
+        reader.onerror = reject;
+        reader.readAsText(file);
+      } else {
+        // Para PDFs e outros, ler como ArrayBuffer e converter parcialmente
+        reader.onload = async (e) => {
+          const arrayBuffer = e.target?.result as ArrayBuffer;
+          // Tentar extrair texto legível do buffer
+          const bytes = new Uint8Array(arrayBuffer);
+          let text = "";
+          for (let i = 0; i < Math.min(bytes.length, 50000); i++) {
+            const char = bytes[i];
+            // Apenas caracteres ASCII imprimíveis
+            if (char >= 32 && char <= 126) {
+              text += String.fromCharCode(char);
+            } else if (char === 10 || char === 13) {
+              text += "\n";
+            }
+          }
+          resolve(text);
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      }
+    });
+  };
+
+  const analyzeFile = async (index: number) => {
+    const analysis = fileAnalyses[index];
+    if (!analysis) return;
+
+    setFileAnalyses(prev => prev.map((a, i) => 
+      i === index ? { ...a, analyzing: true, error: undefined } : a
+    ));
+
+    try {
+      const content = await readFileContent(analysis.file);
+      
+      const { data, error } = await supabase.functions.invoke("analisar-documento", {
+        body: {
+          fileName: analysis.file.name,
+          fileContent: content,
+          mimeType: analysis.file.type,
+        },
+      });
+
+      if (error) throw error;
+
+      setFileAnalyses(prev => prev.map((a, i) => 
+        i === index ? {
+          ...a,
+          categoria: data.categoria || "outros",
+          tipo_documento: data.tipo_documento || null,
+          descricao: data.descricao || "",
+          tags: data.tags || [],
+          confianca: data.confianca || "baixa",
+          analyzing: false,
+          analyzed: true,
+        } : a
+      ));
+    } catch (error: any) {
+      console.error("Erro ao analisar:", error);
+      setFileAnalyses(prev => prev.map((a, i) => 
+        i === index ? { 
+          ...a, 
+          analyzing: false, 
+          analyzed: true,
+          error: "Falha na análise automática" 
+        } : a
+      ));
+    }
+  };
+
+  const analyzeAllFiles = async () => {
+    setUploadStep("analyze");
+    
+    for (let i = 0; i < fileAnalyses.length; i++) {
+      if (!fileAnalyses[i].analyzed) {
+        await analyzeFile(i);
+      }
+    }
+    
+    setUploadStep("review");
   };
 
   const handleUpload = async () => {
-    if (!uploadFiles.length || !user) return;
+    if (!fileAnalyses.length || !user) return;
     
     setIsUploading(true);
-    const tags = uploadTags.split(",").map(t => t.trim()).filter(Boolean);
 
     try {
-      for (const file of uploadFiles) {
+      for (const analysis of fileAnalyses) {
         await uploadMutation.mutateAsync({
-          file,
-          nome: uploadFiles.length === 1 ? uploadNome : file.name.replace(/\.[^/.]+$/, ""),
-          categoria: uploadCategoria,
-          descricao: uploadDescricao || undefined,
-          tipo_documento: uploadTipo || undefined,
-          tags: tags.length > 0 ? tags : undefined,
+          file: analysis.file,
+          nome: analysis.nome,
+          categoria: analysis.categoria,
+          descricao: analysis.descricao || undefined,
+          tipo_documento: analysis.tipo_documento || undefined,
+          tags: analysis.tags.length > 0 ? analysis.tags : undefined,
           userId: user.id,
         });
       }
       
       setUploadDialogOpen(false);
       resetUploadForm();
+      toast.success(`${fileAnalyses.length} documento(s) enviado(s) com sucesso`);
     } catch (error) {
       console.error("Erro no upload:", error);
     } finally {
@@ -186,12 +300,15 @@ export default function RepositorioDocumentos() {
   };
 
   const resetUploadForm = () => {
-    setUploadFiles([]);
-    setUploadNome("");
-    setUploadCategoria("modelo");
-    setUploadTipo("");
-    setUploadDescricao("");
-    setUploadTags("");
+    setFileAnalyses([]);
+    setUploadStep("select");
+    setEditingIndex(null);
+  };
+
+  const updateFileAnalysis = (index: number, updates: Partial<FileAnalysis>) => {
+    setFileAnalyses(prev => prev.map((a, i) => 
+      i === index ? { ...a, ...updates } : a
+    ));
   };
 
   const handleEdit = (doc: RepositorioDocumento) => {
@@ -252,6 +369,20 @@ export default function RepositorioDocumentos() {
       toast.error("Erro ao baixar documento: " + error.message);
     }
   };
+
+  const getConfiancaBadge = (confianca: string) => {
+    switch (confianca) {
+      case "alta":
+        return <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Alta</Badge>;
+      case "media":
+        return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Média</Badge>;
+      default:
+        return <Badge className="bg-red-500/10 text-red-500 border-red-500/20">Baixa</Badge>;
+    }
+  };
+
+  const allFilesAnalyzed = fileAnalyses.length > 0 && fileAnalyses.every(f => f.analyzed);
+  const someFilesAnalyzing = fileAnalyses.some(f => f.analyzing);
 
   return (
     <MainLayout 
@@ -432,147 +563,311 @@ export default function RepositorioDocumentos() {
         </CardContent>
       </Card>
 
-      {/* Upload Dialog */}
-      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-        <DialogContent className="max-w-lg">
+      {/* Upload Dialog with AI Analysis */}
+      <Dialog open={uploadDialogOpen} onOpenChange={(open) => {
+        setUploadDialogOpen(open);
+        if (!open) resetUploadForm();
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Enviar Documentos</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {uploadStep === "select" && "Selecionar Documentos"}
+              {uploadStep === "analyze" && (
+                <>
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  Analisando com IA...
+                </>
+              )}
+              {uploadStep === "review" && (
+                <>
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  Revisar Classificação
+                </>
+              )}
+            </DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4">
-            {/* Drop Zone */}
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                isDragging 
-                  ? "border-primary bg-primary/5" 
-                  : "border-muted-foreground/25 hover:border-primary/50"
-              }`}
-            >
-              <Upload className="w-10 h-10 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground mb-2">
-                Arraste arquivos aqui ou
-              </p>
-              <label>
-                <Button type="button" variant="outline" size="sm" asChild>
-                  <span>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Selecionar Arquivos
-                  </span>
-                </Button>
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileSelect}
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.rtf"
-                />
-              </label>
-            </div>
-
-            {/* Selected Files */}
-            {uploadFiles.length > 0 && (
-              <div className="space-y-2">
-                <Label>Arquivos selecionados:</Label>
-                <div className="max-h-32 overflow-auto space-y-1">
-                  {uploadFiles.map((file, index) => (
-                    <div 
-                      key={index} 
-                      className="flex items-center justify-between bg-muted/50 rounded px-3 py-2"
-                    >
-                      <span className="text-sm truncate flex-1">{file.name}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => removeFile(index)}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ))}
+            {/* Step 1: Select Files */}
+            {uploadStep === "select" && (
+              <>
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    isDragging 
+                      ? "border-primary bg-primary/5" 
+                      : "border-muted-foreground/25 hover:border-primary/50"
+                  }`}
+                >
+                  <Upload className="w-10 h-10 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Arraste arquivos aqui ou
+                  </p>
+                  <label>
+                    <Button type="button" variant="outline" size="sm" asChild>
+                      <span>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Selecionar Arquivos
+                      </span>
+                    </Button>
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={handleFileSelect}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.rtf"
+                    />
+                  </label>
                 </div>
+
+                {fileAnalyses.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Arquivos selecionados ({fileAnalyses.length}):</Label>
+                    <div className="max-h-40 overflow-auto space-y-1">
+                      {fileAnalyses.map((analysis, index) => (
+                        <div 
+                          key={index} 
+                          className="flex items-center justify-between bg-muted/50 rounded px-3 py-2"
+                        >
+                          <div className="flex items-center gap-2">
+                            {getFileIcon(analysis.file.type)}
+                            <span className="text-sm truncate flex-1">{analysis.file.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatFileSize(analysis.file.size)}
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeFile(index)}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm">Classificação Automática</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        A IA irá analisar cada documento e sugerir categoria, tipo e descrição. 
+                        Você poderá revisar e editar antes de confirmar o envio.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Step 2: Analyzing */}
+            {uploadStep === "analyze" && (
+              <div className="space-y-3">
+                {fileAnalyses.map((analysis, index) => (
+                  <div 
+                    key={index} 
+                    className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      {getFileIcon(analysis.file.type)}
+                      <span className="text-sm">{analysis.file.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {analysis.analyzing && (
+                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      )}
+                      {analysis.analyzed && !analysis.error && (
+                        <Check className="w-4 h-4 text-green-500" />
+                      )}
+                      {analysis.error && (
+                        <span className="text-xs text-destructive">{analysis.error}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
-            {uploadFiles.length === 1 && (
-              <div className="space-y-2">
-                <Label htmlFor="nome">Nome do Documento</Label>
-                <Input
-                  id="nome"
-                  value={uploadNome}
-                  onChange={(e) => setUploadNome(e.target.value)}
-                  placeholder="Nome para identificação"
-                />
+            {/* Step 3: Review */}
+            {uploadStep === "review" && (
+              <div className="space-y-4">
+                {fileAnalyses.map((analysis, index) => (
+                  <Card key={index} className="overflow-hidden">
+                    <CardHeader className="pb-2 bg-muted/30">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {getFileIcon(analysis.file.type)}
+                          <span className="font-medium text-sm">{analysis.file.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getConfiancaBadge(analysis.confianca)}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingIndex(editingIndex === index ? null : index)}
+                          >
+                            <Pencil className="w-3 h-3 mr-1" />
+                            {editingIndex === index ? "Fechar" : "Editar"}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-3">
+                      {editingIndex === index ? (
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Nome</Label>
+                            <Input
+                              value={analysis.nome}
+                              onChange={(e) => updateFileAnalysis(index, { nome: e.target.value })}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Categoria</Label>
+                              <Select 
+                                value={analysis.categoria} 
+                                onValueChange={(v) => updateFileAnalysis(index, { categoria: v })}
+                              >
+                                <SelectTrigger className="h-8 text-sm">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {CATEGORIAS_DOCUMENTO.map((cat) => (
+                                    <SelectItem key={cat.value} value={cat.value}>
+                                      {cat.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Tipo</Label>
+                              <Select 
+                                value={analysis.tipo_documento || ""} 
+                                onValueChange={(v) => updateFileAnalysis(index, { tipo_documento: v || null })}
+                              >
+                                <SelectTrigger className="h-8 text-sm">
+                                  <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {TIPOS_DOCUMENTO.map((tipo) => (
+                                    <SelectItem key={tipo.value} value={tipo.value}>
+                                      {tipo.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Descrição</Label>
+                            <Textarea
+                              value={analysis.descricao}
+                              onChange={(e) => updateFileAnalysis(index, { descricao: e.target.value })}
+                              rows={2}
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Tags (separadas por vírgula)</Label>
+                            <Input
+                              value={analysis.tags.join(", ")}
+                              onChange={(e) => updateFileAnalysis(index, { 
+                                tags: e.target.value.split(",").map(t => t.trim()).filter(Boolean) 
+                              })}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-4">
+                            <span className="text-muted-foreground">Categoria:</span>
+                            <Badge variant="secondary">{getCategoriaLabel(analysis.categoria)}</Badge>
+                            {analysis.tipo_documento && (
+                              <>
+                                <span className="text-muted-foreground">Tipo:</span>
+                                <Badge variant="outline">
+                                  {TIPOS_DOCUMENTO.find(t => t.value === analysis.tipo_documento)?.label}
+                                </Badge>
+                              </>
+                            )}
+                          </div>
+                          {analysis.descricao && (
+                            <p className="text-muted-foreground">{analysis.descricao}</p>
+                          )}
+                          {analysis.tags.length > 0 && (
+                            <div className="flex gap-1 flex-wrap">
+                              {analysis.tags.map((tag, i) => (
+                                <Badge key={i} variant="outline" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Categoria *</Label>
-                <Select value={uploadCategoria} onValueChange={setUploadCategoria}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIAS_DOCUMENTO.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Tipo de Documento</Label>
-                <Select value={uploadTipo} onValueChange={setUploadTipo}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIPOS_DOCUMENTO.map((tipo) => (
-                      <SelectItem key={tipo.value} value={tipo.value}>
-                        {tipo.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Descrição</Label>
-              <Textarea
-                value={uploadDescricao}
-                onChange={(e) => setUploadDescricao(e.target.value)}
-                placeholder="Breve descrição do documento..."
-                rows={2}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tags (separadas por vírgula)</Label>
-              <Input
-                value={uploadTags}
-                onChange={(e) => setUploadTags(e.target.value)}
-                placeholder="trabalhista, reclamação, dano moral..."
-              />
-            </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUploadDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleUpload} 
-              disabled={!uploadFiles.length || isUploading}
-            >
-              {isUploading ? "Enviando..." : `Enviar ${uploadFiles.length > 1 ? `(${uploadFiles.length})` : ""}`}
-            </Button>
+            {uploadStep === "select" && (
+              <>
+                <Button variant="outline" onClick={() => setUploadDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={analyzeAllFiles} 
+                  disabled={fileAnalyses.length === 0}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Analisar com IA
+                </Button>
+              </>
+            )}
+            {uploadStep === "analyze" && (
+              <Button disabled>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Analisando...
+              </Button>
+            )}
+            {uploadStep === "review" && (
+              <>
+                <Button variant="outline" onClick={() => setUploadStep("select")}>
+                  Voltar
+                </Button>
+                <Button 
+                  onClick={handleUpload} 
+                  disabled={isUploading || someFilesAnalyzing}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 mr-2" />
+                      Confirmar e Enviar ({fileAnalyses.length})
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
