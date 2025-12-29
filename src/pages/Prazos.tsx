@@ -106,11 +106,15 @@ const Prazos = () => {
       if (prazo.status === "cumprido") {
         cumpridos++;
       } else {
-        const dataVencimento = parseISO(prazo.data_vencimento);
-        if (isAfter(today, dataVencimento)) {
-          atrasados++;
+        if (prazo.data_vencimento) {
+          const dataVencimento = parseISO(prazo.data_vencimento);
+          if (isAfter(today, dataVencimento)) {
+            atrasados++;
+          } else {
+            pendentes++;
+          }
         } else {
-          pendentes++;
+          pendentes++; // Sem data = pendente
         }
         if (prazo.prioridade === "urgente") {
           urgentes++;
@@ -131,15 +135,16 @@ const Prazos = () => {
       // Busca
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        const matchTitulo = prazo.titulo.toLowerCase().includes(query);
-        const matchProcesso = prazo.processo?.numero.toLowerCase().includes(query);
-        const matchResponsavel = prazo.responsavel?.nome.toLowerCase().includes(query);
+        const matchTitulo = prazo.titulo?.toLowerCase().includes(query);
+        const matchProcesso = prazo.processo?.numero?.toLowerCase().includes(query);
+        const matchResponsavel = prazo.responsavel?.nome?.toLowerCase().includes(query);
         if (!matchTitulo && !matchProcesso && !matchResponsavel) return false;
       }
 
       // Status filter
       if (statusFilter !== "all") {
         if (statusFilter === "atrasado") {
+          if (!prazo.data_vencimento) return false;
           const dataVencimento = parseISO(prazo.data_vencimento);
           if (prazo.status === "cumprido" || !isAfter(today, dataVencimento)) return false;
         } else if (prazo.status !== statusFilter) {
@@ -171,10 +176,6 @@ const Prazos = () => {
   };
 
   const getStatusBadge = (prazo: Prazo) => {
-    const today = startOfDay(new Date());
-    const dataVencimento = parseISO(prazo.data_vencimento);
-    const isAtrasado = prazo.status !== "cumprido" && isAfter(today, dataVencimento);
-
     if (prazo.status === "cumprido") {
       return (
         <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -184,13 +185,19 @@ const Prazos = () => {
       );
     }
 
-    if (isAtrasado) {
-      return (
-        <Badge className="bg-destructive/10 text-destructive">
-          <XCircle className="w-3 h-3 mr-1" />
-          Atrasado
-        </Badge>
-      );
+    if (prazo.data_vencimento) {
+      const today = startOfDay(new Date());
+      const dataVencimento = parseISO(prazo.data_vencimento);
+      const isAtrasado = isAfter(today, dataVencimento);
+
+      if (isAtrasado) {
+        return (
+          <Badge className="bg-destructive/10 text-destructive">
+            <XCircle className="w-3 h-3 mr-1" />
+            Atrasado
+          </Badge>
+        );
+      }
     }
 
     return (
@@ -203,6 +210,7 @@ const Prazos = () => {
 
   const getDiasRestantes = (prazo: Prazo) => {
     if (prazo.status === "cumprido") return null;
+    if (!prazo.data_vencimento) return <span className="text-muted-foreground">-</span>;
 
     const today = startOfDay(new Date());
     const dataVencimento = parseISO(prazo.data_vencimento);
@@ -496,7 +504,9 @@ const Prazos = () => {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      {format(parseISO(prazo.data_vencimento), "dd/MM/yyyy", { locale: ptBR })}
+                      {prazo.data_vencimento 
+                        ? format(parseISO(prazo.data_vencimento), "dd/MM/yyyy", { locale: ptBR })
+                        : "-"}
                     </TableCell>
                     <TableCell>{getDiasRestantes(prazo)}</TableCell>
                     <TableCell>{getPrioridadeBadge(prazo.prioridade)}</TableCell>
