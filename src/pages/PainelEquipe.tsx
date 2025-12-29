@@ -42,6 +42,8 @@ import {
   useEquipeTarefas,
   useMinhasCoordenacoes,
 } from "@/hooks/useEquipeTarefas";
+import { TarefaDetalhesDialog } from "@/components/prazos/TarefaDetalhesDialog";
+import type { Prazo } from "@/hooks/usePrazos";
 
 const prioridadeLabels: Record<string, string> = {
   baixa: "Baixa",
@@ -63,6 +65,8 @@ export default function PainelEquipe() {
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("visao-geral");
+  const [selectedTarefa, setSelectedTarefa] = useState<Prazo | null>(null);
+  const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false);
 
   const { data: coordenacoes, isLoading: loadingCoord } = useMinhasCoordenacoes();
   const { data: membrosStats, isLoading: loadingStats } = useEquipeTarefasStats(selectedCoordenacao);
@@ -435,7 +439,14 @@ export default function PainelEquipe() {
                 </TableHeader>
                 <TableBody>
                   {tarefas?.map((tarefa) => (
-                    <TableRow key={tarefa.id} className="hover:bg-muted/50">
+                    <TableRow 
+                      key={tarefa.id} 
+                      className="hover:bg-muted/50 cursor-pointer"
+                      onClick={() => {
+                        setSelectedTarefa(tarefa as Prazo);
+                        setDetalhesDialogOpen(true);
+                      }}
+                    >
                       <TableCell>
                         <div className="max-w-[250px]">
                           <p className="font-medium truncate">{tarefa.titulo}</p>
@@ -488,6 +499,13 @@ export default function PainelEquipe() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Task Details Dialog */}
+      <TarefaDetalhesDialog
+        open={detalhesDialogOpen}
+        onOpenChange={setDetalhesDialogOpen}
+        prazo={selectedTarefa}
+      />
     </MainLayout>
   );
 }
