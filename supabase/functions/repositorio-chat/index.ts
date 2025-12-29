@@ -50,42 +50,85 @@ serve(async (req) => {
     // Buscar documentos do repositório para contexto
     const { data: documentos, error: docsError } = await supabaseAdmin
       .from('repositorio_documentos')
-      .select('id, nome, categoria, descricao, tipo_documento, tags')
+      .select('id, nome, nome_original, categoria, descricao, tipo_documento, tags')
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (docsError) {
       console.error('Erro ao buscar documentos:', docsError);
     }
 
-    // Construir contexto dos documentos
+    console.log(`Documentos encontrados no repositório: ${documentos?.length || 0}`);
+
+    // Construir contexto dos documentos de forma mais detalhada
     let documentosContexto = '';
     if (documentos && documentos.length > 0) {
-      documentosContexto = '\n\nDocumentos disponíveis no repositório:\n';
+      documentosContexto = `\n\n=== REPOSITÓRIO DE DOCUMENTOS DO ESCRITÓRIO ===\nTotal de ${documentos.length} documento(s) cadastrado(s):\n\n`;
+      const categoriasMap: Record<string, string> = {
+        'modelo': 'Modelo de Documento',
+        'peca_processual': 'Peça Processual',
+        'jurisprudencia': 'Jurisprudência',
+        'legislacao': 'Legislação',
+        'parecer': 'Parecer',
+        'contrato': 'Contrato',
+        'procuracao': 'Procuração',
+        'outros': 'Outros'
+      };
+
+      const tiposMap: Record<string, string> = {
+        'peticao_inicial': 'Petição Inicial',
+        'contestacao': 'Contestação',
+        'recurso': 'Recurso',
+        'agravo': 'Agravo',
+        'embargos': 'Embargos',
+        'manifestacao': 'Manifestação',
+        'acordo': 'Acordo',
+        'contrato_prestacao': 'Contrato de Prestação de Serviços',
+        'contrato_trabalho': 'Contrato de Trabalho',
+        'contrato_locacao': 'Contrato de Locação',
+        'procuracao_ad_judicia': 'Procuração Ad Judicia',
+        'substabelecimento': 'Substabelecimento'
+      };
+
       documentos.forEach((doc, index) => {
-        documentosContexto += `${index + 1}. ${doc.nome} (${doc.categoria})`;
-        if (doc.descricao) documentosContexto += ` - ${doc.descricao}`;
-        if (doc.tipo_documento) documentosContexto += ` [${doc.tipo_documento}]`;
-        if (doc.tags && doc.tags.length > 0) documentosContexto += ` Tags: ${doc.tags.join(', ')}`;
+        const categoriaLabel = categoriasMap[doc.categoria] || doc.categoria;
+        const tipoLabel = doc.tipo_documento ? (tiposMap[doc.tipo_documento] || doc.tipo_documento) : null;
+
+        documentosContexto += `[DOC ${index + 1}]\n`;
+        documentosContexto += `  Nome: ${doc.nome}\n`;
+        documentosContexto += `  Arquivo original: ${doc.nome_original || doc.nome}\n`;
+        documentosContexto += `  Categoria: ${categoriaLabel}\n`;
+        if (tipoLabel) documentosContexto += `  Tipo: ${tipoLabel}\n`;
+        if (doc.descricao) documentosContexto += `  Descrição: ${doc.descricao}\n`;
+        if (doc.tags && doc.tags.length > 0) documentosContexto += `  Palavras-chave: ${doc.tags.join(', ')}\n`;
         documentosContexto += '\n';
       });
+    } else {
+      documentosContexto = '\n\n=== REPOSITÓRIO DE DOCUMENTOS ===\nNenhum documento cadastrado no repositório ainda.\n';
     }
 
-    const systemPrompt = `Você é um assistente jurídico especializado do escritório. Você tem acesso ao repositório de documentos do escritório e pode ajudar os advogados com:
+    const systemPrompt = `Você é um assistente jurídico especializado do escritório de advocacia. Você tem acesso COMPLETO ao repositório de documentos do escritório.
 
-1. PESQUISAS: Buscar informações em documentos, jurisprudências, modelos e peças processuais
-2. GERAÇÃO DE DOCUMENTOS: Criar novos documentos baseados em modelos existentes no repositório
+SUAS CAPACIDADES:
+1. PESQUISAS: Buscar e encontrar documentos, jurisprudências, modelos e peças processuais no repositório
+2. GERAÇÃO DE DOCUMENTOS: Criar novos documentos baseados em modelos existentes
 3. ANÁLISE: Analisar documentos e fornecer insights jurídicos
 4. ORIENTAÇÃO: Responder dúvidas sobre procedimentos e práticas jurídicas
 
-${tipo === 'pesquisa' ? 'O usuário está fazendo uma PESQUISA no repositório.' : ''}
-${tipo === 'geracao' ? 'O usuário está solicitando a GERAÇÃO de um novo documento.' : ''}
+INSTRUÇÕES IMPORTANTES:
+- Você DEVE consultar a lista de documentos abaixo para responder sobre o que existe no repositório
+- Quando perguntarem sobre documentos disponíveis, liste os que existem na categoria solicitada
+- Um documento pode ser de categoria "contrato" e ter diferentes tipos (locação, prestação de serviços, trabalho, etc.)
+- O nome do arquivo original pode conter pistas sobre o tipo real do documento (ex: "APTO" sugere locação de apartamento)
+- Seja preciso e mencione os documentos pelo nome quando relevante
+- Se não houver documentos de um tipo específico, informe claramente
+
+${tipo === 'pesquisa' ? '>>> O usuário está fazendo uma PESQUISA no repositório.' : ''}
+${tipo === 'geracao' ? '>>> O usuário está solicitando a GERAÇÃO de um novo documento.' : ''}
 
 ${documentosContexto}
 
-Responda de forma profissional, precisa e útil. Quando referenciar documentos do repositório, mencione-os pelo nome.
-Se for solicitada a geração de um documento, forneça um modelo completo e bem estruturado.
-Use formatação markdown quando apropriado.`;
+Responda de forma profissional, precisa e útil. Use formatação markdown quando apropriado.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
