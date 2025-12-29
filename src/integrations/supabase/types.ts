@@ -1473,6 +1473,119 @@ export type Database = {
           },
         ]
       }
+      repositorio_conversas: {
+        Row: {
+          created_at: string
+          id: string
+          titulo: string | null
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          titulo?: string | null
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          titulo?: string | null
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
+      repositorio_documentos: {
+        Row: {
+          categoria: string
+          created_at: string
+          descricao: string | null
+          erro_processamento: string | null
+          id: string
+          mime_type: string | null
+          nome: string
+          nome_original: string
+          processado: boolean | null
+          storage_path: string
+          tags: string[] | null
+          tamanho_bytes: number | null
+          tipo_documento: string | null
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          categoria?: string
+          created_at?: string
+          descricao?: string | null
+          erro_processamento?: string | null
+          id?: string
+          mime_type?: string | null
+          nome: string
+          nome_original: string
+          processado?: boolean | null
+          storage_path: string
+          tags?: string[] | null
+          tamanho_bytes?: number | null
+          tipo_documento?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          descricao?: string | null
+          erro_processamento?: string | null
+          id?: string
+          mime_type?: string | null
+          nome?: string
+          nome_original?: string
+          processado?: boolean | null
+          storage_path?: string
+          tags?: string[] | null
+          tamanho_bytes?: number | null
+          tipo_documento?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
+      repositorio_mensagens: {
+        Row: {
+          content: string
+          conversa_id: string
+          created_at: string
+          documentos_referenciados: string[] | null
+          id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          conversa_id: string
+          created_at?: string
+          documentos_referenciados?: string[] | null
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: string
+          conversa_id?: string
+          created_at?: string
+          documentos_referenciados?: string[] | null
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repositorio_mensagens_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "repositorio_conversas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resumos_monitoramento_djen: {
         Row: {
           created_at: string

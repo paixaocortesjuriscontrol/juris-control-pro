@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.backfill-djen-jina]
 verify_jwt = false
+
+[functions.repositorio-chat]
+verify_jwt = true
