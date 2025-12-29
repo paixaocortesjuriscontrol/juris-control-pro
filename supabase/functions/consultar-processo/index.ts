@@ -473,6 +473,8 @@ serve(async (req) => {
       const movimentos = processo.movimentos || [];
       const { poloAtivo, poloPassivo } = extrairPartes(processo.partes);
       
+      console.log(`Processo ${processo.numeroProcesso} - movimentações encontradas: ${movimentos.length}`);
+      
       return new Response(
         JSON.stringify({
           found: true,
@@ -494,7 +496,7 @@ serve(async (req) => {
             poloAtivo,
             poloPassivo
           },
-          movimentacoes: movimentos.slice(0, 100).map((m: any) => ({
+          movimentacoes: movimentos.map((m: any) => ({
             dataHora: m.dataHora,
             nome: m.nome || m.movimentoNacional?.nome,
             codigo: m.codigo || m.movimentoNacional?.codigo,
