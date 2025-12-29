@@ -928,44 +928,71 @@ export type Database = {
       }
       prazos: {
         Row: {
+          concluido_por_nome: string | null
           created_at: string
+          criado_por_nome: string | null
+          data_base: string | null
           data_cumprimento: string | null
+          data_fatal: string | null
           data_vencimento: string
           descricao: string | null
+          grupos_trabalho: string | null
           id: string
+          identificador_projuris: string | null
+          marcadores: string | null
           observacoes: string | null
           prioridade: Database["public"]["Enums"]["prioridade_prazo"]
-          processo_id: string
+          processo_id: string | null
+          quadro_kanban: string | null
           responsavel_id: string | null
           status: Database["public"]["Enums"]["status_prazo"]
+          tipo_tarefa: string | null
           titulo: string
           updated_at: string
         }
         Insert: {
+          concluido_por_nome?: string | null
           created_at?: string
+          criado_por_nome?: string | null
+          data_base?: string | null
           data_cumprimento?: string | null
+          data_fatal?: string | null
           data_vencimento: string
           descricao?: string | null
+          grupos_trabalho?: string | null
           id?: string
+          identificador_projuris?: string | null
+          marcadores?: string | null
           observacoes?: string | null
           prioridade?: Database["public"]["Enums"]["prioridade_prazo"]
-          processo_id: string
+          processo_id?: string | null
+          quadro_kanban?: string | null
           responsavel_id?: string | null
           status?: Database["public"]["Enums"]["status_prazo"]
+          tipo_tarefa?: string | null
           titulo: string
           updated_at?: string
         }
         Update: {
+          concluido_por_nome?: string | null
           created_at?: string
+          criado_por_nome?: string | null
+          data_base?: string | null
           data_cumprimento?: string | null
+          data_fatal?: string | null
           data_vencimento?: string
           descricao?: string | null
+          grupos_trabalho?: string | null
           id?: string
+          identificador_projuris?: string | null
+          marcadores?: string | null
           observacoes?: string | null
           prioridade?: Database["public"]["Enums"]["prioridade_prazo"]
-          processo_id?: string
+          processo_id?: string | null
+          quadro_kanban?: string | null
           responsavel_id?: string | null
           status?: Database["public"]["Enums"]["status_prazo"]
+          tipo_tarefa?: string | null
           titulo?: string
           updated_at?: string
         }

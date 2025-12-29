@@ -32,6 +32,7 @@ const menuItems = [
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },
   { icon: Upload, label: "Importar Processos", path: "/importar" },
+  { icon: Upload, label: "Importar Tarefas", path: "/importar-tarefas" },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: Radar, label: "Monit. DJEN", path: "/monitoramento-djen" },
