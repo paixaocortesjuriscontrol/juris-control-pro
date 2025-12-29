@@ -25,10 +25,19 @@ const TIPOS = [
   { value: "embargos", label: "Embargos" },
   { value: "manifestacao", label: "Manifestação" },
   { value: "acordo", label: "Acordo" },
-  { value: "contrato_prestacao", label: "Contrato de Prestação" },
+  { value: "contrato_prestacao", label: "Contrato de Prestação de Serviços" },
   { value: "contrato_trabalho", label: "Contrato de Trabalho" },
+  { value: "contrato_locacao", label: "Contrato de Locação" },
+  { value: "contrato_compra_venda", label: "Contrato de Compra e Venda" },
+  { value: "contrato_honorarios", label: "Contrato de Honorários" },
   { value: "procuracao_ad_judicia", label: "Procuração Ad Judicia" },
   { value: "substabelecimento", label: "Substabelecimento" },
+  { value: "notificacao_extrajudicial", label: "Notificação Extrajudicial" },
+  { value: "declaracao", label: "Declaração" },
+  { value: "requerimento", label: "Requerimento" },
+  { value: "certidao", label: "Certidão" },
+  { value: "formulario", label: "Formulário" },
+  { value: "relatorio", label: "Relatório" },
   { value: "outro", label: "Outro" },
 ];
 
@@ -56,20 +65,35 @@ serve(async (req) => {
     const truncatedContent = fileContent.substring(0, 8000);
     
     const systemPrompt = `Você é um assistente jurídico especializado em classificar documentos legais brasileiros.
-Analise o conteúdo do documento e identifique:
-1. A categoria mais adequada
-2. O tipo específico de documento (se aplicável)
+Analise o conteúdo E O NOME DO ARQUIVO do documento para identificar corretamente:
+
+1. A categoria mais adequada (obrigatório)
+2. O tipo específico de documento (MUITO IMPORTANTE - seja preciso!)
 3. Uma breve descrição do documento (máximo 100 caracteres)
 4. Tags relevantes (máximo 5)
+
+DICAS PARA CLASSIFICAÇÃO:
+- Se o nome ou conteúdo mencionar "locação", "aluguel", "inquilino", "locador", "APTO", "apartamento", "imóvel" → tipo é "contrato_locacao"
+- Se mencionar "prestação de serviços", "contratada", "contratante" para serviços → tipo é "contrato_prestacao"
+- Se mencionar "honorários advocatícios", "advogado" → tipo é "contrato_honorarios"
+- Se mencionar "compra e venda", "vendedor", "comprador" → tipo é "contrato_compra_venda"
+- Se for um formulário/modelo para preenchimento → tipo é "formulario"
+- Se for uma declaração formal → tipo é "declaracao"
+- Se for notificação para terceiros → tipo é "notificacao_extrajudicial"
 
 Categorias disponíveis: ${CATEGORIAS.map(c => `${c.value} (${c.label})`).join(", ")}
 
 Tipos disponíveis: ${TIPOS.map(t => `${t.value} (${t.label})`).join(", ")}
 
+Se o tipo do documento NÃO se encaixar em nenhum dos tipos acima, você pode sugerir um novo tipo no formato snake_case.
+Neste caso, adicione um campo "novo_tipo" com o valor sugerido e "novo_tipo_label" com o rótulo legível.
+
 Responda APENAS em JSON válido no formato:
 {
   "categoria": "valor_da_categoria",
   "tipo_documento": "valor_do_tipo ou null",
+  "novo_tipo": "novo_tipo_snake_case (opcional, apenas se criar novo)",
+  "novo_tipo_label": "Rótulo do Novo Tipo (opcional)",
   "descricao": "breve descrição do documento",
   "tags": ["tag1", "tag2"],
   "confianca": "alta|media|baixa"
@@ -138,9 +162,20 @@ ${fileContent.length > 8000 ? "\n[Conteúdo truncado - documento muito grande]" 
       analysis.categoria = "outros";
     }
 
-    // Validar tipo
+    // Validar tipo - se não existir e tiver novo_tipo, usar o novo tipo
     if (analysis.tipo_documento && !TIPOS.find(t => t.value === analysis.tipo_documento)) {
-      analysis.tipo_documento = null;
+      // Verificar se é um novo tipo sugerido pela IA
+      if (analysis.novo_tipo) {
+        analysis.tipo_documento = analysis.novo_tipo;
+      } else {
+        // Manter o tipo sugerido mesmo que não esteja na lista predefinida
+        // Isso permite tipos dinâmicos
+      }
+    }
+
+    // Se tiver novo_tipo mas não tiver tipo_documento, usar o novo tipo
+    if (analysis.novo_tipo && !analysis.tipo_documento) {
+      analysis.tipo_documento = analysis.novo_tipo;
     }
 
     console.log(`Análise concluída: ${JSON.stringify(analysis)}`);

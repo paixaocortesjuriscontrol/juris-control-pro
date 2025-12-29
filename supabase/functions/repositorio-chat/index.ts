@@ -86,8 +86,16 @@ serve(async (req) => {
         'contrato_prestacao': 'Contrato de Prestação de Serviços',
         'contrato_trabalho': 'Contrato de Trabalho',
         'contrato_locacao': 'Contrato de Locação',
+        'contrato_compra_venda': 'Contrato de Compra e Venda',
+        'contrato_honorarios': 'Contrato de Honorários',
         'procuracao_ad_judicia': 'Procuração Ad Judicia',
-        'substabelecimento': 'Substabelecimento'
+        'substabelecimento': 'Substabelecimento',
+        'notificacao_extrajudicial': 'Notificação Extrajudicial',
+        'declaracao': 'Declaração',
+        'requerimento': 'Requerimento',
+        'certidao': 'Certidão',
+        'formulario': 'Formulário',
+        'relatorio': 'Relatório',
       };
 
       documentos.forEach((doc, index) => {
