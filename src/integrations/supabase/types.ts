@@ -934,7 +934,7 @@ export type Database = {
           data_base: string | null
           data_cumprimento: string | null
           data_fatal: string | null
-          data_vencimento: string
+          data_vencimento: string | null
           descricao: string | null
           grupos_trabalho: string | null
           id: string
@@ -957,7 +957,7 @@ export type Database = {
           data_base?: string | null
           data_cumprimento?: string | null
           data_fatal?: string | null
-          data_vencimento: string
+          data_vencimento?: string | null
           descricao?: string | null
           grupos_trabalho?: string | null
           id?: string
@@ -980,7 +980,7 @@ export type Database = {
           data_base?: string | null
           data_cumprimento?: string | null
           data_fatal?: string | null
-          data_vencimento?: string
+          data_vencimento?: string | null
           descricao?: string | null
           grupos_trabalho?: string | null
           id?: string
