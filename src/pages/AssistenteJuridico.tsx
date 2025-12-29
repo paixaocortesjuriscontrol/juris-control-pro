@@ -117,6 +117,25 @@ export default function AssistenteJuridico() {
     }
   };
 
+  const clearAllConversas = async () => {
+    if (!user || conversas.length === 0) return;
+
+    const { error } = await supabase
+      .from("repositorio_conversas")
+      .delete()
+      .eq("usuario_id", user.id);
+
+    if (error) {
+      toast.error("Erro ao limpar histórico");
+      return;
+    }
+
+    setConversas([]);
+    setConversaId(null);
+    setMessages([]);
+    toast.success("Histórico limpo com sucesso");
+  };
+
   const handleNewChat = () => {
     setConversaId(null);
     setMessages([]);
@@ -211,9 +230,22 @@ export default function AssistenteJuridico() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm">Conversas</CardTitle>
-              <Button variant="ghost" size="icon" onClick={handleNewChat}>
-                <Plus className="w-4 h-4" />
-              </Button>
+              <div className="flex gap-1">
+                {conversas.length > 0 && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={clearAllConversas}
+                    title="Limpar histórico"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" onClick={handleNewChat} title="Nova conversa">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden p-0">
