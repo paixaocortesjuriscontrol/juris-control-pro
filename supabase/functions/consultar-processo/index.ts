@@ -378,18 +378,58 @@ serve(async (req) => {
     
     console.log("Query Elasticsearch:", JSON.stringify(query));
     
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `APIKey ${DATAJUD_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query,
-        size: Math.min(size, 100),
-        sort: [{ dataAjuizamento: { order: "desc" } }]
-      })
-    });
+    // Retry logic for transient connection errors
+    const MAX_RETRIES = 3;
+    const TIMEOUT_MS = 15000;
+    let lastError: Error | null = null;
+    let response: Response | null = null;
+    
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `APIKey ${DATAJUD_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query,
+            size: Math.min(size, 100),
+            sort: [{ dataAjuizamento: { order: "desc" } }]
+          }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        break; // Success, exit retry loop
+      } catch (fetchError: any) {
+        lastError = fetchError;
+        console.warn(`Tentativa ${attempt}/${MAX_RETRIES} falhou:`, fetchError.message);
+        
+        if (attempt < MAX_RETRIES) {
+          // Wait before retry with exponential backoff
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
+    }
+    
+    if (!response) {
+      console.error("Todas as tentativas falharam:", lastError?.message);
+      return new Response(
+        JSON.stringify({
+          found: false,
+          tribunal: tribunalNome,
+          total: 0,
+          processos: [],
+          error: `Erro de conexão com API do tribunal. Tente novamente.`,
+          connectionError: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
