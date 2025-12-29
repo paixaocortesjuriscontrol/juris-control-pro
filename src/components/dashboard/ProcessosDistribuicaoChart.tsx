@@ -6,17 +6,22 @@ interface CoordDistribution {
   total: number;
   distribuidos: number;
   naoDistribuidos: number;
-  area: "civil" | "trabalhista" | "empresarial";
+  area: string; // Agora aceita qualquer área
 }
 
 interface ProcessosDistribuicaoChartProps {
   data: CoordDistribution[];
 }
 
-const areaColors = {
+const areaColors: Record<string, string> = {
   civil: "hsl(217 91% 60%)",      // Azul vibrante
   trabalhista: "hsl(142 76% 36%)", // Verde escuro
   empresarial: "hsl(262 83% 58%)", // Roxo vibrante
+  direito_privado: "hsl(38 92% 50%)", // Âmbar
+};
+
+const getAreaColor = (area: string): string => {
+  return areaColors[area] || "hsl(215 25% 45%)";
 };
 
 const naoDistribuidoColor = "hsl(215 25% 65%)"; // Cinza azulado
@@ -112,7 +117,7 @@ export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartP
                 }}
               >
                 {data.map((entry, index) => (
-                  <Cell key={`cell-dist-${index}`} fill={areaColors[entry.area]} />
+                  <Cell key={`cell-dist-${index}`} fill={getAreaColor(entry.area)} />
                 ))}
               </Bar>
               <Bar 

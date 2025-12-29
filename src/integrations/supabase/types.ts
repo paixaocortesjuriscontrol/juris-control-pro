@@ -95,6 +95,33 @@ export type Database = {
           },
         ]
       }
+      areas_atuacao: {
+        Row: {
+          ativo: boolean
+          cor: string | null
+          created_at: string
+          id: string
+          nome: string
+          slug: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          slug: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          slug?: string
+        }
+        Relationships: []
+      }
       backfill_jobs: {
         Row: {
           completed_at: string | null
@@ -313,7 +340,7 @@ export type Database = {
       }
       coordenacoes: {
         Row: {
-          area: Database["public"]["Enums"]["area_atuacao"]
+          area: string
           coordenador_id: string | null
           created_at: string
           descricao: string | null
@@ -322,7 +349,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          area: Database["public"]["Enums"]["area_atuacao"]
+          area: string
           coordenador_id?: string | null
           created_at?: string
           descricao?: string | null
@@ -331,7 +358,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          area?: Database["public"]["Enums"]["area_atuacao"]
+          area?: string
           coordenador_id?: string | null
           created_at?: string
           descricao?: string | null
@@ -970,7 +997,7 @@ export type Database = {
         Row: {
           advogado_responsavel_id: string | null
           andamento_atual: string | null
-          area: Database["public"]["Enums"]["area_atuacao"]
+          area: string
           assunto: string | null
           classe: string | null
           cliente_id: string | null
@@ -1033,7 +1060,7 @@ export type Database = {
         Insert: {
           advogado_responsavel_id?: string | null
           andamento_atual?: string | null
-          area: Database["public"]["Enums"]["area_atuacao"]
+          area: string
           assunto?: string | null
           classe?: string | null
           cliente_id?: string | null
@@ -1096,7 +1123,7 @@ export type Database = {
         Update: {
           advogado_responsavel_id?: string | null
           andamento_atual?: string | null
-          area?: Database["public"]["Enums"]["area_atuacao"]
+          area?: string
           assunto?: string | null
           classe?: string | null
           cliente_id?: string | null
@@ -1196,7 +1223,7 @@ export type Database = {
       }
       profiles: {
         Row: {
-          area_principal: Database["public"]["Enums"]["area_atuacao"] | null
+          area_principal: string | null
           ativo: boolean
           avatar_url: string | null
           created_at: string
@@ -1210,7 +1237,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          area_principal?: Database["public"]["Enums"]["area_atuacao"] | null
+          area_principal?: string | null
           ativo?: boolean
           avatar_url?: string | null
           created_at?: string
@@ -1224,7 +1251,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          area_principal?: Database["public"]["Enums"]["area_atuacao"] | null
+          area_principal?: string | null
           ativo?: boolean
           avatar_url?: string | null
           created_at?: string
@@ -1566,7 +1593,7 @@ export type Database = {
         | "estagiario"
         | "assistente"
         | "secretaria"
-      area_atuacao: "civil" | "trabalhista" | "empresarial"
+      area_atuacao: "civil" | "trabalhista" | "empresarial" | "direito_privado"
       prioridade_prazo: "baixa" | "media" | "alta" | "urgente"
       status_prazo: "pendente" | "cumprido" | "atrasado"
       status_processo:
@@ -1710,7 +1737,7 @@ export const Constants = {
         "assistente",
         "secretaria",
       ],
-      area_atuacao: ["civil", "trabalhista", "empresarial"],
+      area_atuacao: ["civil", "trabalhista", "empresarial", "direito_privado"],
       prioridade_prazo: ["baixa", "media", "alta", "urgente"],
       status_prazo: ["pendente", "cumprido", "atrasado"],
       status_processo: [

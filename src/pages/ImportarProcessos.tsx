@@ -72,15 +72,73 @@ interface ProcessoImport {
   valorCondenacao?: number | null;
 }
 
-const validAreas = ["civil", "trabalhista", "empresarial", "cível", "civel", "trabalho", "empresa"];
 const validSituacoes = ["ativo", "pendente", "urgente", "encerrado", "arquivado", "em andamento", "finalizado"];
 
-const mapAreaToEnum = (area: string | null): "civil" | "trabalhista" | "empresarial" => {
+// Normaliza área para slug (ex: "Direito Privado" -> "direito_privado")
+const normalizeAreaToSlug = (area: string | null): string => {
   if (!area) return "civil";
   const areaLower = area.toLowerCase().trim();
+  
+  // Map common variations to standard slugs
   if (areaLower.includes("trabalhista") || areaLower.includes("trabalho")) return "trabalhista";
   if (areaLower.includes("empresarial") || areaLower.includes("empresa")) return "empresarial";
-  return "civil";
+  if (areaLower.includes("cível") || areaLower.includes("civel") || areaLower === "civil") return "civil";
+  if (areaLower.includes("direito privado") || areaLower.includes("privado")) return "direito_privado";
+  
+  // For any other area, create a slug from the name
+  return areaLower
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/[^a-z0-9\s]/g, "") // remove special chars
+    .replace(/\s+/g, "_"); // spaces to underscores
+};
+
+// Alias para manter compatibilidade com código existente
+const mapAreaToEnum = normalizeAreaToSlug;
+
+// Cache de áreas já criadas para evitar múltiplas inserções
+const createdAreasCache = new Set<string>();
+
+// Cria área na tabela areas_atuacao se não existir
+const ensureAreaExists = async (area: string | null): Promise<string> => {
+  if (!area) return "civil";
+  
+  const slug = normalizeAreaToSlug(area);
+  
+  // Se já criamos nessa sessão, não precisa verificar de novo
+  if (createdAreasCache.has(slug)) {
+    return slug;
+  }
+  
+  // Verificar se a área já existe
+  const { data: existingArea } = await supabase
+    .from("areas_atuacao")
+    .select("slug")
+    .eq("slug", slug)
+    .maybeSingle();
+  
+  if (existingArea) {
+    createdAreasCache.add(slug);
+    return slug;
+  }
+  
+  // Criar nova área
+  const nome = area.trim().charAt(0).toUpperCase() + area.trim().slice(1);
+  const cores = ["#3B82F6", "#22C55E", "#8B5CF6", "#F59E0B", "#EC4899", "#14B8A6", "#F97316", "#6366F1"];
+  const randomColor = cores[Math.floor(Math.random() * cores.length)];
+  
+  const { error } = await supabase
+    .from("areas_atuacao")
+    .insert({ nome, slug, cor: randomColor })
+    .select()
+    .single();
+  
+  if (!error) {
+    createdAreasCache.add(slug);
+    console.log(`Nova área criada: ${nome} (${slug})`);
+  }
+  
+  return slug;
 };
 
 const mapStatusToEnum = (situacao: string | null): "ativo" | "pendente" | "urgente" | "encerrado" | "arquivado" => {
@@ -189,14 +247,8 @@ const validateProcesso = (processo: ProcessoImport): ValidationError[] => {
     errors.push({ campo: "Número do processo", mensagem: "Formato inválido (mínimo 5 caracteres)" });
   }
   
-  // Validate area if provided
-  if (processo.area) {
-    const areaLower = processo.area.toLowerCase().trim();
-    const isValidArea = validAreas.some(a => areaLower.includes(a));
-    if (!isValidArea) {
-      errors.push({ campo: "Área", mensagem: `Valor inválido: "${processo.area}". Use: Civil, Trabalhista ou Empresarial` });
-    }
-  }
+  // Área agora aceita qualquer valor - será criada automaticamente se não existir
+  // Não validamos mais contra lista fixa
   
   // Validate situacao if provided
   if (processo.situacao) {
