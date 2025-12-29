@@ -34,6 +34,7 @@ const menuItems = [
   { icon: Upload, label: "Importar Processos", path: "/importar" },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
+  { icon: Radar, label: "Monit. DJEN", path: "/monitoramento-djen" },
   { icon: FolderKanban, label: "Minhas Tarefas", path: "/minha-carteira" },
   { icon: Bell, label: "Notificações", path: "/notificacoes" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
@@ -101,16 +102,6 @@ export function Sidebar() {
         >
           <ShieldCheck className="w-5 h-5 flex-shrink-0" />
           {!collapsed && <span className="text-sm font-medium">Administração</span>}
-        </NavLink>
-        <NavLink
-          to="/monitoramento-djen"
-          onClick={() => setMobileOpen(false)}
-          className={({ isActive }) =>
-            cn("nav-item", isActive && "nav-item-active")
-          }
-        >
-          <Radar className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && <span className="text-sm font-medium">Monit. DJEN</span>}
         </NavLink>
         <NavLink
           to="/configuracoes"
