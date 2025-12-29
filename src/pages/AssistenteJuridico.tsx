@@ -2,13 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { 
   Send, Bot, User, Loader2, Search, FileText, 
-  Plus, Trash2, MessageSquare, Sparkles
+  Plus, Trash2, MessageSquare, Sparkles, History, PanelLeftClose
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,16 +34,15 @@ export default function AssistenteJuridico() {
   const [conversaId, setConversaId] = useState<string | null>(null);
   const [conversas, setConversas] = useState<Conversa[]>([]);
   const [tipo, setTipo] = useState<"pesquisa" | "geracao">("pesquisa");
+  const [sheetOpen, setSheetOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Carregar conversas
   useEffect(() => {
     if (user) {
       loadConversas();
     }
   }, [user]);
 
-  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -56,7 +55,7 @@ export default function AssistenteJuridico() {
       .select("id, titulo, created_at")
       .eq("usuario_id", user?.id)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(50);
 
     if (error) {
       console.error("Erro ao carregar conversas:", error);
@@ -79,6 +78,7 @@ export default function AssistenteJuridico() {
 
     setMessages((data || []) as Message[]);
     setConversaId(id);
+    setSheetOpen(false);
   };
 
   const startNewConversa = async () => {
@@ -140,6 +140,7 @@ export default function AssistenteJuridico() {
     setConversaId(null);
     setMessages([]);
     setInput("");
+    setSheetOpen(false);
   };
 
   const handleSend = async () => {
@@ -151,7 +152,6 @@ export default function AssistenteJuridico() {
     setIsLoading(true);
 
     try {
-      // Criar conversa se não existir
       let currentConversaId = conversaId;
       if (!currentConversaId) {
         currentConversaId = await startNewConversa();
@@ -186,14 +186,11 @@ export default function AssistenteJuridico() {
 
       const data = await response.json();
       setMessages(prev => [...prev, { role: "assistant", content: data.message }]);
-      
-      // Recarregar conversas para atualizar título
       loadConversas();
 
     } catch (error: any) {
       console.error("Erro:", error);
       toast.error(error.message || "Erro ao enviar mensagem");
-      // Remover mensagem do usuário se houve erro
       setMessages(prev => prev.slice(0, -1));
     } finally {
       setIsLoading(false);
@@ -210,7 +207,7 @@ export default function AssistenteJuridico() {
   const sugestoesPesquisa = [
     "Quais modelos de petição inicial temos no repositório?",
     "Buscar jurisprudência sobre danos morais trabalhistas",
-    "Quais são os prazos para recurso ordinário?",
+    "Quais contratos de locação temos cadastrados?",
   ];
 
   const sugestoesGeracao = [
@@ -224,190 +221,219 @@ export default function AssistenteJuridico() {
       title="Assistente Jurídico IA" 
       subtitle="Pesquise documentos e gere novos com auxílio de IA"
     >
-      <div className="flex gap-6 h-[calc(100vh-12rem)]">
-        {/* Sidebar - Histórico */}
-        <Card className="w-72 flex-shrink-0 hidden lg:flex flex-col">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">Conversas</CardTitle>
-              <div className="flex gap-1">
-                {conversas.length > 0 && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={clearAllConversas}
-                    title="Limpar histórico"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
-                <Button variant="ghost" size="icon" onClick={handleNewChat} title="Nova conversa">
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0">
-            <ScrollArea className="h-full px-4 pb-4">
-              {conversas.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhuma conversa ainda
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  {conversas.map((conversa) => (
-                    <div
-                      key={conversa.id}
-                      className={cn(
-                        "group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors",
-                        conversaId === conversa.id 
-                          ? "bg-primary/10 text-primary" 
-                          : "hover:bg-muted"
-                      )}
-                      onClick={() => loadConversa(conversa.id)}
-                    >
-                      <MessageSquare className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm truncate flex-1">
-                        {conversa.titulo || "Nova conversa"}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteConversa(conversa.id);
-                        }}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
+      <Card className="h-[calc(100vh-10rem)] flex flex-col">
+        {/* Header com tabs e botão de conversas */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <Tabs value={tipo} onValueChange={(v) => setTipo(v as "pesquisa" | "geracao")}>
+            <TabsList>
+              <TabsTrigger value="pesquisa" className="gap-2">
+                <Search className="w-4 h-4" />
+                Pesquisa
+              </TabsTrigger>
+              <TabsTrigger value="geracao" className="gap-2">
+                <FileText className="w-4 h-4" />
+                Geração
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-        {/* Main Chat Area */}
-        <Card className="flex-1 flex flex-col">
-          <CardHeader className="pb-3 border-b">
-            <Tabs value={tipo} onValueChange={(v) => setTipo(v as "pesquisa" | "geracao")}>
-              <TabsList className="grid w-full max-w-md grid-cols-2">
-                <TabsTrigger value="pesquisa" className="gap-2">
-                  <Search className="w-4 h-4" />
-                  Pesquisa
-                </TabsTrigger>
-                <TabsTrigger value="geracao" className="gap-2">
-                  <FileText className="w-4 h-4" />
-                  Geração
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </CardHeader>
-          
-          <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
-            {/* Messages */}
-            <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-              {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                    <Sparkles className="w-8 h-8 text-primary" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">
-                    {tipo === "pesquisa" 
-                      ? "Pesquise no Repositório" 
-                      : "Gere Documentos com IA"}
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-6 max-w-md">
-                    {tipo === "pesquisa"
-                      ? "Faça perguntas sobre documentos, jurisprudências e modelos do escritório."
-                      : "Solicite a geração de peças processuais, contratos e outros documentos."}
-                  </p>
-                  
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {(tipo === "pesquisa" ? sugestoesPesquisa : sugestoesGeracao).map((sugestao, i) => (
-                      <Button
-                        key={i}
-                        variant="outline"
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-2">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Nova conversa</span>
+            </Button>
+            
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <History className="w-4 h-4" />
+                  <span className="hidden sm:inline">Conversas</span>
+                  {conversas.length > 0 && (
+                    <span className="ml-1 bg-primary/10 text-primary text-xs px-1.5 py-0.5 rounded-full">
+                      {conversas.length}
+                    </span>
+                  )}
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-80 sm:w-96">
+                <SheetHeader>
+                  <SheetTitle className="flex items-center justify-between">
+                    <span>Histórico de Conversas</span>
+                    {conversas.length > 0 && (
+                      <Button 
+                        variant="ghost" 
                         size="sm"
-                        className="text-xs"
-                        onClick={() => setInput(sugestao)}
+                        onClick={clearAllConversas}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
                       >
-                        {sugestao}
+                        <Trash2 className="w-4 h-4" />
+                        Limpar
                       </Button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {messages.map((message, index) => (
-                    <div
-                      key={index}
-                      className={cn(
-                        "flex gap-3",
-                        message.role === "user" ? "justify-end" : "justify-start"
-                      )}
-                    >
-                      {message.role === "assistant" && (
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Bot className="w-4 h-4 text-primary" />
-                        </div>
-                      )}
-                      <div
-                        className={cn(
-                          "max-w-[80%] rounded-lg px-4 py-3",
-                          message.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted"
-                        )}
-                      >
-                        <div className="text-sm whitespace-pre-wrap">
-                          {message.content}
-                        </div>
-                      </div>
-                      {message.role === "user" && (
-                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
-                          <User className="w-4 h-4" />
-                        </div>
-                      )}
+                    )}
+                  </SheetTitle>
+                </SheetHeader>
+                
+                <div className="mt-4">
+                  {conversas.length === 0 ? (
+                    <div className="text-center py-8">
+                      <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                      <p className="text-sm text-muted-foreground">
+                        Nenhuma conversa ainda
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Inicie uma nova conversa com o assistente
+                      </p>
                     </div>
-                  ))}
-                  {isLoading && (
-                    <div className="flex gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Bot className="w-4 h-4 text-primary" />
+                  ) : (
+                    <ScrollArea className="h-[calc(100vh-10rem)]">
+                      <div className="space-y-1 pr-2">
+                        {conversas.map((conversa) => (
+                          <div
+                            key={conversa.id}
+                            className={cn(
+                              "group flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-colors",
+                              conversaId === conversa.id 
+                                ? "bg-primary/10 text-primary border border-primary/20" 
+                                : "hover:bg-muted border border-transparent"
+                            )}
+                            onClick={() => loadConversa(conversa.id)}
+                          >
+                            <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm truncate font-medium">
+                                {conversa.titulo || "Nova conversa"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(conversa.created_at).toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteConversa(conversa.id);
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                      <div className="bg-muted rounded-lg px-4 py-3">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      </div>
-                    </div>
+                    </ScrollArea>
                   )}
                 </div>
-              )}
-            </ScrollArea>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+        
+        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+          {/* Messages */}
+          <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+                  <Sparkles className="w-10 h-10 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">
+                  {tipo === "pesquisa" 
+                    ? "Pesquise no Repositório" 
+                    : "Gere Documentos com IA"}
+                </h3>
+                <p className="text-sm text-muted-foreground mb-8 max-w-lg">
+                  {tipo === "pesquisa"
+                    ? "Faça perguntas sobre documentos, jurisprudências, contratos e modelos do escritório."
+                    : "Solicite a geração de peças processuais, contratos e outros documentos jurídicos."}
+                </p>
+                
+                <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
+                  {(tipo === "pesquisa" ? sugestoesPesquisa : sugestoesGeracao).map((sugestao, i) => (
+                    <Button
+                      key={i}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-auto py-2 px-3"
+                      onClick={() => setInput(sugestao)}
+                    >
+                      {sugestao}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 max-w-4xl mx-auto">
+                {messages.map((message, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      "flex gap-3",
+                      message.role === "user" ? "justify-end" : "justify-start"
+                    )}
+                  >
+                    {message.role === "assistant" && (
+                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Bot className="w-5 h-5 text-primary" />
+                      </div>
+                    )}
+                    <div
+                      className={cn(
+                        "max-w-[85%] rounded-2xl px-4 py-3",
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
+                      )}
+                    >
+                      <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                        {message.content}
+                      </div>
+                    </div>
+                    {message.role === "user" && (
+                      <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                        <User className="w-5 h-5" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {isLoading && (
+                  <div className="flex gap-3">
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Bot className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="bg-muted rounded-2xl px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm text-muted-foreground">Pensando...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </ScrollArea>
 
-            {/* Input */}
-            <div className="p-4 border-t">
-              <div className="flex gap-2">
+          {/* Input */}
+          <div className="p-4 border-t bg-background">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex gap-3">
                 <Textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={
                     tipo === "pesquisa"
-                      ? "Faça uma pergunta sobre os documentos..."
+                      ? "Faça uma pergunta sobre os documentos do repositório..."
                       : "Descreva o documento que deseja gerar..."
                   }
-                  className="min-h-[60px] resize-none"
+                  className="min-h-[56px] max-h-32 resize-none rounded-xl"
                   disabled={isLoading}
                 />
                 <Button 
                   onClick={handleSend} 
                   disabled={!input.trim() || isLoading}
                   size="icon"
-                  className="h-[60px] w-[60px]"
+                  className="h-14 w-14 rounded-xl flex-shrink-0"
                 >
                   {isLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -417,12 +443,12 @@ export default function AssistenteJuridico() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2 text-center">
-                O assistente utiliza os documentos do repositório como base de conhecimento.
+                O assistente utiliza os documentos do repositório como base de conhecimento
               </p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     </MainLayout>
   );
 }
