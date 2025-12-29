@@ -22,7 +22,8 @@ import {
   Radar,
   FolderKanban,
   FolderOpen,
-  Bell
+  Bell,
+  ClipboardList
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import { Button } from "@/components/ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
+  { icon: ClipboardList, label: "Painel da Equipe", path: "/painel-equipe" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },
   { icon: Upload, label: "Importar Processos", path: "/importar" },
   { icon: Upload, label: "Importar Tarefas", path: "/importar-tarefas" },

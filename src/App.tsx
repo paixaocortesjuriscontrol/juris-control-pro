@@ -35,7 +35,7 @@ import PastaDetalhes from "./pages/PastaDetalhes";
 import Notificacoes from "./pages/Notificacoes";
 import AnaliseTarefasProjuris from "./pages/AnaliseTarefasProjuris";
 import ImportarTarefas from "./pages/ImportarTarefas";
-
+import PainelEquipe from "./pages/PainelEquipe";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -67,6 +67,7 @@ const App = () => (
               <Route path="/prazos" element={<ProtectedRoute><Prazos /></ProtectedRoute>} />
               <Route path="/buscar" element={<ProtectedRoute><BuscarProcessos /></ProtectedRoute>} />
               <Route path="/coordenacoes" element={<ProtectedRoute><Coordenacoes /></ProtectedRoute>} />
+              <Route path="/painel-equipe" element={<ProtectedRoute><PainelEquipe /></ProtectedRoute>} />
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><Administracao /></ProtectedRoute>} />
               <Route path="/consulta-externa" element={<ProtectedRoute><ConsultaExterna /></ProtectedRoute>} />
