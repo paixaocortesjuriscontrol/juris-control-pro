@@ -29,6 +29,8 @@ import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: Users, label: "Coordenações", path: "/coordenacoes" },
+  { icon: Upload, label: "Importar Processos", path: "/importar" },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: FolderKanban, label: "Minhas Tarefas", path: "/minha-carteira" },
@@ -43,8 +45,6 @@ const menuItems = [
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Newspaper, label: "Buscar PJE", path: "/buscar-pje" },
-  { icon: Upload, label: "Importar Processos", path: "/importar" },
-  { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
 ];
