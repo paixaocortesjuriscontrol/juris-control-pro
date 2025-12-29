@@ -39,9 +39,9 @@ export function TarefaDetalhesDialog({
   if (!prazo) return null;
 
   const today = startOfDay(new Date());
-  const dataVencimento = parseISO(prazo.data_vencimento);
-  const isAtrasado = prazo.status !== "cumprido" && isAfter(today, dataVencimento);
-  const dias = differenceInDays(dataVencimento, today);
+  const dataVencimento = prazo.data_vencimento ? parseISO(prazo.data_vencimento) : null;
+  const isAtrasado = prazo.status !== "cumprido" && dataVencimento && isAfter(today, dataVencimento);
+  const dias = dataVencimento ? differenceInDays(dataVencimento, today) : null;
 
   const getPrioridadeBadge = (prioridade: string) => {
     const variants: Record<string, string> = {
@@ -72,7 +72,7 @@ export function TarefaDetalhesDialog({
       };
     }
 
-    if (isAtrasado) {
+    if (isAtrasado && dias !== null) {
       return {
         badge: (
           <Badge className="bg-destructive/10 text-destructive">
@@ -81,6 +81,18 @@ export function TarefaDetalhesDialog({
           </Badge>
         ),
         text: `${Math.abs(dias)} dia${Math.abs(dias) !== 1 ? "s" : ""} de atraso`,
+      };
+    }
+
+    if (dias === null) {
+      return {
+        badge: (
+          <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <Clock className="w-3 h-3 mr-1" />
+            Pendente
+          </Badge>
+        ),
+        text: "Sem data de vencimento",
       };
     }
 
@@ -138,7 +150,7 @@ export function TarefaDetalhesDialog({
             <Calendar className="w-4 h-4 text-muted-foreground" />
             <span className="text-muted-foreground">Vencimento:</span>
             <span className="font-medium">
-              {format(dataVencimento, "dd/MM/yyyy", { locale: ptBR })}
+              {dataVencimento ? format(dataVencimento, "dd/MM/yyyy", { locale: ptBR }) : "-"}
             </span>
           </div>
           <div className="flex items-center gap-2 text-sm">
@@ -146,7 +158,7 @@ export function TarefaDetalhesDialog({
             <span className={cn(
               "font-medium",
               isAtrasado && "text-destructive",
-              !isAtrasado && prazo.status !== "cumprido" && dias <= 3 && "text-amber-600"
+              !isAtrasado && prazo.status !== "cumprido" && dias !== null && dias <= 3 && "text-amber-600"
             )}>
               {statusInfo.text}
             </span>
