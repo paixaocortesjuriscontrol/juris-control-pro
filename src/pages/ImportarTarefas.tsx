@@ -556,12 +556,12 @@ export default function ImportarTarefas() {
 
               <div>
                 <Label>Coordenação (opcional)</Label>
-                <Select value={selectedCoordenacao} onValueChange={setSelectedCoordenacao} disabled={importing}>
+                <Select value={selectedCoordenacao} onValueChange={(val) => setSelectedCoordenacao(val === "none" ? "" : val)} disabled={importing}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhuma</SelectItem>
+                    <SelectItem value="none">Nenhuma</SelectItem>
                     {coordenacoes.map(c => (
                       <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                     ))}
