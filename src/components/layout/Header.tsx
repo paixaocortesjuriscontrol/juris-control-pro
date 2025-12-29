@@ -1,4 +1,4 @@
-import { Search, User, LogOut, Bell } from "lucide-react";
+import { Search, User, LogOut, Bell, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useImport } from "@/contexts/ImportContext";
 import { toast } from "sonner";
 import { NotificacoesDropdown } from "./NotificacoesDropdown";
+import { Badge } from "@/components/ui/badge";
 
 interface HeaderProps {
   title: string;
@@ -22,6 +24,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   const { user, signOut } = useAuth();
+  const { isImporting, importLabel } = useImport();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -54,6 +57,16 @@ export function Header({ title, subtitle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 lg:gap-4">
+        {/* Import Indicator */}
+        {isImporting && (
+          <Badge variant="secondary" className="flex items-center gap-1.5 bg-amber-500/20 text-amber-600 border-amber-500/30 animate-pulse">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span className="hidden sm:inline text-xs font-medium">
+              {importLabel || "Importando..."}
+            </span>
+          </Badge>
+        )}
+
         {/* Search - Hidden on mobile */}
         <div className="relative hidden lg:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
