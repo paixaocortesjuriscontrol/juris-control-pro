@@ -35,7 +35,7 @@ const Index = () => {
     total: coord.processCount,
     distribuidos: coord.processosDistribuidos || 0,
     naoDistribuidos: coord.processosNaoDistribuidos || 0,
-    area: coord.area as "civil" | "trabalhista" | "empresarial",
+    area: coord.area, // Agora aceita qualquer área (string)
   })) || [];
 
   const statusData = stats?.statusCount ? [

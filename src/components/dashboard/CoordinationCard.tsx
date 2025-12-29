@@ -15,14 +15,19 @@ interface CoordinationCardProps {
   processCount: number;
   distributedCount?: number;
   teamMembers: TeamMember[];
-  area: "civil" | "trabalhista" | "empresarial";
+  area: string; // Agora aceita qualquer área
   delay?: number;
 }
 
-const areaColors = {
+const areaColors: Record<string, string> = {
   civil: "border-l-area-civil",
   trabalhista: "border-l-area-trabalhista",
   empresarial: "border-l-area-empresarial",
+  direito_privado: "border-l-amber-500",
+};
+
+const getAreaBorderColor = (area: string): string => {
+  return areaColors[area] || "border-l-primary";
 };
 
 export function CoordinationCard({
@@ -40,7 +45,7 @@ export function CoordinationCard({
     <div 
       className={cn(
         "bg-card rounded-xl p-5 border border-border/50 border-l-4 shadow-soft hover:shadow-medium transition-all duration-300 animate-slide-up",
-        areaColors[area]
+        getAreaBorderColor(area)
       )}
       style={{ animationDelay: `${delay}ms` }}
     >

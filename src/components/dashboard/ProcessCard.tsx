@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 
-export type AreaType = "civil" | "trabalhista" | "empresarial";
+export type AreaType = string; // Agora aceita qualquer área
 export type StatusType = "pending" | "active" | "closed" | "urgent";
 
 interface ProcessCardProps {
@@ -18,10 +18,37 @@ interface ProcessCardProps {
   delay?: number;
 }
 
-const areaLabels: Record<AreaType, string> = {
+// Cores para áreas conhecidas
+const areaColors: Record<string, string> = {
+  civil: "bg-area-civil",
+  trabalhista: "bg-area-trabalhista",
+  empresarial: "bg-area-empresarial",
+  direito_privado: "bg-amber-500",
+};
+
+// Labels para áreas conhecidas
+const areaLabels: Record<string, string> = {
   civil: "Cível",
   trabalhista: "Trabalhista",
   empresarial: "Empresarial",
+  direito_privado: "Direito Privado",
+};
+
+// Função para obter label da área (suporta áreas dinâmicas)
+const getAreaLabel = (area: string): string => {
+  if (areaLabels[area]) return areaLabels[area];
+  // Para áreas dinâmicas, formatar o slug como label
+  return area
+    .split("_")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
+// Função para obter cor da área (suporta áreas dinâmicas)
+const getAreaColor = (area: string): string => {
+  if (areaColors[area]) return areaColors[area];
+  // Para áreas dinâmicas, usar cor padrão
+  return "bg-primary";
 };
 
 const statusLabels: Record<StatusType, string> = {
@@ -61,8 +88,8 @@ export function ProcessCard({
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Badge className={cn("badge-area-" + area, "text-xs font-medium px-2 py-0.5")}>
-            {areaLabels[area]}
+          <Badge className={cn(getAreaColor(area), "text-white text-xs font-medium px-2 py-0.5")}>
+            {getAreaLabel(area)}
           </Badge>
           <Badge className={cn("badge-status-" + status, "text-xs font-medium px-2 py-0.5")}>
             {statusLabels[status]}
