@@ -355,7 +355,7 @@ export default function ImportarTarefas() {
             tipo_tarefa: t.tipo,
             titulo: t.titulo || "Tarefa sem título",
             descricao: t.descricao,
-            data_vencimento: dataVencimento || new Date().toISOString().split('T')[0], // default hoje
+            data_vencimento: dataVencimento, // pode ser null
             data_base: parseDate(t.dataBase),
             data_fatal: parseDate(t.dataFatal),
             data_cumprimento: status === "cumprido" ? parseDate(t.dataConclusao) : null,
