@@ -482,14 +482,33 @@ const Prazos = () => {
                     </TableHeader>
                     <TableBody>
                       {prazos.map((prazo) => (
-                        <TableRow key={prazo.id}>
-                          <TableCell className="font-medium max-w-[200px] truncate">{prazo.titulo}</TableCell>
+                        <TableRow 
+                          key={prazo.id} 
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => {
+                            setPrazoDetalhes(prazo);
+                            setDetalhesDialogOpen(true);
+                          }}
+                        >
+                          <TableCell>
+                            <div className="max-w-[250px]">
+                              <p className="font-medium truncate">{prazo.titulo}</p>
+                              {prazo.descricao && (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {prazo.descricao}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             {prazo.processo_id ? (
                               <Button
                                 variant="link"
                                 className="p-0 h-auto text-primary"
-                                onClick={() => navigate(`/processos/${prazo.processo_id}`)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/processos/${prazo.processo_id}`);
+                                }}
                               >
                                 {prazo.processo?.numero || "-"}
                               </Button>
@@ -506,13 +525,14 @@ const Prazos = () => {
                           <TableCell>{prazo.responsavel?.nome || "-"}</TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                 <Button variant="ghost" size="icon">
                                   <MoreHorizontal className="w-4 h-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => {
+                                <DropdownMenuItem onClick={(e) => {
+                                  e.stopPropagation();
                                   setPrazoDetalhes(prazo);
                                   setDetalhesDialogOpen(true);
                                 }}>
@@ -520,17 +540,26 @@ const Prazos = () => {
                                   Ver Detalhes / Conversar
                                 </DropdownMenuItem>
                                 {prazo.status !== "cumprido" && (
-                                  <DropdownMenuItem onClick={() => handleMarkAsCumprido(prazo)}>
+                                  <DropdownMenuItem onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkAsCumprido(prazo);
+                                  }}>
                                     <CheckCircle2 className="w-4 h-4 mr-2" />
                                     Marcar como Cumprido
                                   </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem onClick={() => handleEdit(prazo)}>
+                                <DropdownMenuItem onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(prazo);
+                                }}>
                                   <Pencil className="w-4 h-4 mr-2" />
                                   Editar
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => handleDelete(prazo.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(prazo.id);
+                                  }}
                                   className="text-destructive"
                                 >
                                   <Trash2 className="w-4 h-4 mr-2" />
