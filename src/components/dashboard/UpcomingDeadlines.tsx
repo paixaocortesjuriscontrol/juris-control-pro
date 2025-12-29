@@ -80,10 +80,15 @@ export function UpcomingDeadlines() {
                 priority === "low" && "border-border/50 bg-muted/30"
               )}
             >
-              <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start justify-between mb-1">
                 <div className="min-w-0 flex-1">
                   <h4 className="text-sm font-semibold text-foreground truncate">{prazo.titulo}</h4>
-                  <p className="text-xs text-muted-foreground font-mono truncate">
+                  {prazo.descricao && (
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                      {prazo.descricao}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground font-mono truncate mt-1">
                     {prazo.processo?.numero || "Sem processo"}
                   </p>
                 </div>
