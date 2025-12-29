@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useImport } from "@/contexts/ImportContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -200,6 +201,7 @@ export default function ImportarProcessos() {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const { toast } = useToast();
+  const { startImport, endImport } = useImport();
 
   // AbortController for cancelling imports on unmount
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -344,6 +346,7 @@ export default function ImportarProcessos() {
     }
 
     setImporting(true);
+    startImport("Importando planilha");
     setProgress(0);
 
     const updatedProcessos = [...processos];
@@ -510,6 +513,7 @@ export default function ImportarProcessos() {
     }
 
     setImporting(false);
+    endImport();
 
     toast({
       title: "Importação concluída",
@@ -605,6 +609,7 @@ export default function ImportarProcessos() {
     }
 
     setBatchImporting(true);
+    startImport("Importação em lote");
     setBatchProgress(0);
 
     const updatedProcessos = [...batchProcessos];
@@ -755,6 +760,7 @@ export default function ImportarProcessos() {
     }
 
     setBatchImporting(false);
+    endImport();
 
     toast({
       title: "Importação concluída",
@@ -938,6 +944,7 @@ export default function ImportarProcessos() {
     }
 
     setProjurisImporting(true);
+    startImport("Importando Projuris");
     setProjurisProgress(0);
 
     const updatedProcessos = [...projurisProcessos];
@@ -1123,6 +1130,7 @@ export default function ImportarProcessos() {
     }
 
     setProjurisImporting(false);
+    endImport();
 
     toast({
       title: "Importação Projuris concluída",
@@ -1346,6 +1354,7 @@ export default function ImportarProcessos() {
     }
 
     setOsmarImporting(true);
+    startImport("Importando Dr. Osmar");
     setOsmarProgress(0);
 
     const updatedProcessos = [...osmarProcessos];
@@ -1452,6 +1461,7 @@ export default function ImportarProcessos() {
     }
 
     setOsmarImporting(false);
+    endImport();
 
     toast({
       title: "Importação Dr. Osmar concluída",

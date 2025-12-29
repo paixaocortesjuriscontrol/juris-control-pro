@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useImport } from "@/contexts/ImportContext";
 import {
   Search,
   FileText,
@@ -76,6 +77,7 @@ const estados = [
 ];
 
 const BuscarDJEN = () => {
+  const { startImport, endImport } = useImport();
   const [searchType, setSearchType] = useState<SearchType>("palavra-chave");
   const [palavraChave, setPalavraChave] = useState("");
   const [oab, setOab] = useState("");
@@ -179,6 +181,7 @@ const BuscarDJEN = () => {
     }
 
     setImportingOne(true);
+    startImport("Importando DJEN");
     
     try {
       const pub = selectedPublicacao;
@@ -314,6 +317,7 @@ const BuscarDJEN = () => {
       toast.error("Erro ao importar: " + error.message);
     } finally {
       setImportingOne(false);
+      endImport();
     }
   };
 
@@ -915,6 +919,7 @@ const BuscarDJEN = () => {
     }
 
     setImporting(true);
+    startImport("Importando DJEN em lote");
     const selectedPubs = publicacoes.filter(p => selectedIds.has(p.id));
     
     // Reset progress
@@ -1045,6 +1050,7 @@ const BuscarDJEN = () => {
       toast.error("Erro ao importar publicações: " + error.message);
     } finally {
       setImporting(false);
+      endImport();
     }
   };
 
