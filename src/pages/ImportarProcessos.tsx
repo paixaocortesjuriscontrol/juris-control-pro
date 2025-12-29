@@ -1115,25 +1115,93 @@ export default function ImportarProcessos() {
     let successCount = 0;
     let errorCount = 0;
 
+    // Helper to build insert payload for a processo
+    const buildInsertPayload = (p: ProcessoImport) => ({
+      numero: p.numero.trim(),
+      assunto: p.assunto,
+      descricao: p.descricao,
+      area: mapAreaToEnum(p.area),
+      status: mapStatusToEnum(p.situacao),
+      tribunal: p.orgao,
+      vara: p.orgaoJulgador,
+      comarca: p.cidade,
+      classe: p.classeCNJ,
+      data_distribuicao: parseDate(p.dataDistribuicao),
+      valor_causa: parseNumber(p.valorAcao),
+      polo_ativo: p.parteAtiva,
+      polo_passivo: p.partePassiva,
+      coordenacao_id: selectedCoordenacao || null,
+      advogado_responsavel_id: selectedMembro || null,
+      cliente_id: selectedCliente || null,
+      monitorar_andamentos: false,
+      identificador_projuris: p.identificadorProjuris || null,
+      pasta_fisica: p.pastaFisica || null,
+      pasta_cliente: p.pastaCliente || null,
+      justica: p.justica || null,
+      instancia: p.instancia || null,
+      fase: p.fase || null,
+      data_citacao: parseDate(p.dataCitacao),
+      data_recebimento: parseDate(p.dataRecebimento),
+      data_arquivamento: parseDate(p.dataArquivamento),
+      valor_provisionado: parseNumber(p.valorProvisionado),
+      probabilidade: p.probabilidade || null,
+      risco: p.risco || null,
+      transitado_julgado: p.transitadoJulgado || false,
+      resultado: p.resultado || null,
+      valor_condenacao: parseNumber(p.valorCondenacao),
+      uf: p.estado || null,
+      responsaveis_projuris: p.responsavel || null,
+    });
+
     // ======== FAST PATH: bulk insert when buscarAndamentos is disabled ========
     if (!projurisBuscarAndamentos) {
       const BATCH_SIZE = 200;
+      const CHUNK_SIZE = 500; // For querying existing in chunks (Supabase limit)
+      
       const validIndices = updatedProcessos
         .map((p, idx) => (p.status === "valido" ? idx : -1))
         .filter((idx) => idx >= 0);
 
-      // 1) Fetch existing process numbers in one query
-      const allNumeros = validIndices.map((idx) => updatedProcessos[idx].numero.trim());
-      const { data: existingRows } = await supabase
-        .from("processos")
-        .select("id, numero")
-        .in("numero", allNumeros);
-      const existingMap = new Map((existingRows || []).map((r) => [r.numero, r.id]));
+      // 1) Detect duplicates WITHIN the spreadsheet itself
+      const seenInSpreadsheet = new Map<string, number>(); // numero -> first index
+      const duplicatesInSpreadsheet: number[] = [];
+      for (const idx of validIndices) {
+        const num = updatedProcessos[idx].numero.trim();
+        if (seenInSpreadsheet.has(num)) {
+          duplicatesInSpreadsheet.push(idx);
+          updatedProcessos[idx] = { 
+            ...updatedProcessos[idx], 
+            status: "erro", 
+            erroImport: `Duplicado na planilha (linha ${updatedProcessos[seenInSpreadsheet.get(num)!].linhaOriginal})` 
+          };
+          errorCount++;
+        } else {
+          seenInSpreadsheet.set(num, idx);
+        }
+      }
+      
+      // Filter out spreadsheet duplicates from valid indices
+      const uniqueValidIndices = validIndices.filter(idx => !duplicatesInSpreadsheet.includes(idx));
+
+      // 2) Fetch existing process numbers in CHUNKS to avoid query limits
+      const allNumeros = uniqueValidIndices.map((idx) => updatedProcessos[idx].numero.trim());
+      const existingMap = new Map<string, string>();
+      
+      for (let i = 0; i < allNumeros.length; i += CHUNK_SIZE) {
+        const chunk = allNumeros.slice(i, i + CHUNK_SIZE);
+        const { data: existingRows } = await supabase
+          .from("processos")
+          .select("id, numero")
+          .in("numero", chunk);
+        for (const row of existingRows || []) {
+          existingMap.set(row.numero, row.id);
+        }
+      }
 
       // Separate indices for insert vs update
       const toInsertIndices: number[] = [];
       const toUpdateIndices: number[] = [];
-      for (const idx of validIndices) {
+      for (const idx of uniqueValidIndices) {
         const num = updatedProcessos[idx].numero.trim();
         if (existingMap.has(num)) {
           toUpdateIndices.push(idx);
@@ -1145,58 +1213,45 @@ export default function ImportarProcessos() {
       let processed = 0;
       const totalToProcess = toInsertIndices.length + toUpdateIndices.length;
 
-      // 2) Batch INSERT new processes
+      // 3) Batch INSERT new processes with FALLBACK on error
       for (let i = 0; i < toInsertIndices.length; i += BATCH_SIZE) {
         if (projurisCancelledRef.current) break;
 
         const batchIndices = toInsertIndices.slice(i, i + BATCH_SIZE);
-        const insertPayload = batchIndices.map((idx) => {
-          const p = updatedProcessos[idx];
-          return {
-            numero: p.numero.trim(),
-            assunto: p.assunto,
-            descricao: p.descricao,
-            area: mapAreaToEnum(p.area),
-            status: mapStatusToEnum(p.situacao),
-            tribunal: p.orgao,
-            vara: p.orgaoJulgador,
-            comarca: p.cidade,
-            classe: p.classeCNJ,
-            data_distribuicao: parseDate(p.dataDistribuicao),
-            valor_causa: parseNumber(p.valorAcao),
-            polo_ativo: p.parteAtiva,
-            polo_passivo: p.partePassiva,
-            coordenacao_id: selectedCoordenacao || null,
-            advogado_responsavel_id: selectedMembro || null,
-            cliente_id: selectedCliente || null,
-            monitorar_andamentos: false,
-            identificador_projuris: p.identificadorProjuris || null,
-            pasta_fisica: p.pastaFisica || null,
-            pasta_cliente: p.pastaCliente || null,
-            justica: p.justica || null,
-            instancia: p.instancia || null,
-            fase: p.fase || null,
-            data_citacao: parseDate(p.dataCitacao),
-            data_recebimento: parseDate(p.dataRecebimento),
-            data_arquivamento: parseDate(p.dataArquivamento),
-            valor_provisionado: parseNumber(p.valorProvisionado),
-            probabilidade: p.probabilidade || null,
-            risco: p.risco || null,
-            transitado_julgado: p.transitadoJulgado || false,
-            resultado: p.resultado || null,
-            valor_condenacao: parseNumber(p.valorCondenacao),
-            uf: p.estado || null,
-            responsaveis_projuris: p.responsavel || null,
-          };
-        });
+        const insertPayload = batchIndices.map((idx) => buildInsertPayload(updatedProcessos[idx]));
 
         const { error } = await supabase.from("processos").insert(insertPayload);
+        
         if (error) {
-          // Mark all in batch as error with translated message
-          const translatedError = translateDatabaseError(error.message);
-          for (const idx of batchIndices) {
-            updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translatedError };
-            errorCount++;
+          // Check if it's a unique violation - if so, fallback to one-by-one
+          const isUniqueViolation = error.message?.includes("duplicate key") || 
+                                     error.code === "23505" ||
+                                     error.message?.includes("processos_numero_key");
+          
+          if (isUniqueViolation) {
+            // FALLBACK: Insert one by one to find the actual duplicates
+            for (const idx of batchIndices) {
+              if (projurisCancelledRef.current) break;
+              
+              const singlePayload = buildInsertPayload(updatedProcessos[idx]);
+              const { error: singleError } = await supabase.from("processos").insert([singlePayload]);
+              
+              if (singleError) {
+                const translatedError = translateDatabaseError(singleError.message);
+                updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translatedError };
+                errorCount++;
+              } else {
+                updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso" };
+                successCount++;
+              }
+            }
+          } else {
+            // Non-duplicate error: mark all in batch as error
+            const translatedError = translateDatabaseError(error.message);
+            for (const idx of batchIndices) {
+              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translatedError };
+              errorCount++;
+            }
           }
         } else {
           for (const idx of batchIndices) {
