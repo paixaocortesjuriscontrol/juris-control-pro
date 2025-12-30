@@ -8,12 +8,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { 
   Send, Bot, User, Loader2, Search, FileText, 
-  Plus, Trash2, MessageSquare, Sparkles, History, PanelLeftClose
+  Plus, Trash2, MessageSquare, Sparkles, History
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 
 type Message = {
   role: "user" | "assistant";
@@ -385,9 +386,13 @@ export default function AssistenteJuridico() {
                           : "bg-muted"
                       )}
                     >
-                      <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                        {message.content}
-                      </div>
+                      {message.role === "assistant" ? (
+                        <MarkdownMessage content={message.content} className="text-sm" />
+                      ) : (
+                        <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                          {message.content}
+                        </div>
+                      )}
                     </div>
                     {message.role === "user" && (
                       <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
