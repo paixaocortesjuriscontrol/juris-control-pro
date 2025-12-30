@@ -131,50 +131,81 @@ function matchesCondicaoConcomitante(conteudo: string, condicao: string | undefi
 
 async function fetchDJENResults(searchText: string, siglaTribunal?: string): Promise<any[]> {
   const dataAtual = new Date().toISOString().split('T')[0];
+  const allResults: any[] = [];
+  let page = 0;
+  const pageSize = 100;
+  const maxPages = 50; // Limit to prevent infinite loops
   
-  const queryParams = new URLSearchParams();
-  queryParams.append("texto", searchText);
-  queryParams.append("dataDisponibilizacaoInicio", dataAtual);
-  queryParams.append("dataDisponibilizacaoFim", dataAtual);
-  
-  // Add tribunal filter if specified
-  if (siglaTribunal && siglaTribunal !== 'TODOS' && !siglaTribunal.startsWith('TODOS_')) {
-    queryParams.append("siglaTribunal", siglaTribunal);
-  }
-  
-  const fullUrl = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
-  console.log(`Fetching: ${fullUrl}`);
-  
-  try {
-    const response = await fetchWithRetry(fullUrl, {
-      method: "GET",
-      headers: browserHeaders,
-    });
-
-    const contentType = response.headers.get("content-type") || "";
+  while (page < maxPages) {
+    const queryParams = new URLSearchParams();
+    queryParams.append("texto", searchText);
+    queryParams.append("dataDisponibilizacaoInicio", dataAtual);
+    queryParams.append("dataDisponibilizacaoFim", dataAtual);
+    queryParams.append("pagina", page.toString());
+    queryParams.append("itensPorPagina", pageSize.toString());
     
-    if (contentType.includes("text/html")) {
-      console.log("Got HTML response, skipping");
-      return [];
+    // Add tribunal filter if specified
+    if (siglaTribunal && siglaTribunal !== 'TODOS' && !siglaTribunal.startsWith('TODOS_')) {
+      queryParams.append("siglaTribunal", siglaTribunal);
     }
-
-    if (response.ok) {
-      const data = await response.json();
-      const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
-      console.log(`Got ${items.length} items for tribunal ${siglaTribunal || 'TODOS'}`);
-      return Array.isArray(items) ? items : [];
+    
+    const fullUrl = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
+    
+    if (page === 0) {
+      console.log(`Fetching: ${fullUrl}`);
     }
+    
+    try {
+      const response = await fetchWithRetry(fullUrl, {
+        method: "GET",
+        headers: browserHeaders,
+      });
 
-    if (response.status === 422 || response.status === 404) {
-      return [];
+      const contentType = response.headers.get("content-type") || "";
+      
+      if (contentType.includes("text/html")) {
+        console.log("Got HTML response, stopping pagination");
+        break;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
+        const totalElements = data.totalElements ?? data.total ?? 0;
+        
+        if (!Array.isArray(items) || items.length === 0) {
+          break;
+        }
+        
+        allResults.push(...items);
+        
+        // Check if we've fetched all results
+        if (allResults.length >= totalElements || items.length < pageSize) {
+          console.log(`Fetched all ${allResults.length}/${totalElements} items for tribunal ${siglaTribunal || 'TODOS'} (${page + 1} pages)`);
+          break;
+        }
+        
+        page++;
+        
+        // Small delay between pages to avoid rate limiting
+        await delay(500);
+      } else if (response.status === 422 || response.status === 404) {
+        break;
+      } else {
+        console.error(`API error: ${response.status}`);
+        break;
+      }
+    } catch (error) {
+      console.error(`Fetch error:`, error);
+      break;
     }
-
-    console.error(`API error: ${response.status}`);
-  } catch (error) {
-    console.error(`Fetch error:`, error);
+  }
+  
+  if (allResults.length > 0) {
+    console.log(`Total: ${allResults.length} items for tribunal ${siglaTribunal || 'TODOS'}`);
   }
 
-  return [];
+  return allResults;
 }
 
 async function processMonitoramento(
