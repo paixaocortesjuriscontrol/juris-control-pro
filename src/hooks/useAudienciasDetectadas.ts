@@ -9,6 +9,8 @@ export interface AudienciaDetectada {
   processo_numero: string | null;
   data_audiencia: string | null;
   hora: string | null;
+  hora_local: string | null;
+  hora_brasilia: string | null;
   tipo_audiencia: string | null;
   local_audiencia: string | null;
   vara_camara: string | null;

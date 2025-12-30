@@ -134,6 +134,8 @@ export type Database = {
           data_audiencia: string | null
           funcao: string | null
           hora: string | null
+          hora_brasilia: string | null
+          hora_local: string | null
           id: string
           local_audiencia: string | null
           monitoramento_id: string | null
@@ -164,6 +166,8 @@ export type Database = {
           data_audiencia?: string | null
           funcao?: string | null
           hora?: string | null
+          hora_brasilia?: string | null
+          hora_local?: string | null
           id?: string
           local_audiencia?: string | null
           monitoramento_id?: string | null
@@ -194,6 +198,8 @@ export type Database = {
           data_audiencia?: string | null
           funcao?: string | null
           hora?: string | null
+          hora_brasilia?: string | null
+          hora_local?: string | null
           id?: string
           local_audiencia?: string | null
           monitoramento_id?: string | null

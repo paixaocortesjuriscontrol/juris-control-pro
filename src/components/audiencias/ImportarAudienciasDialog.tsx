@@ -19,7 +19,8 @@ interface Props {
 
 interface AudienciaRow {
   data: string;
-  hora: string;
+  hora_local: string;
+  hora_brasilia: string;
   processo_numero: string;
   vara_camara: string;
   comarca: string;
@@ -35,6 +36,65 @@ interface AudienciaRow {
   status: 'pendente' | 'sucesso' | 'erro';
   erro?: string;
 }
+
+// Mapeamento de estados para diferença de fuso em relação a Brasília (UTC-3)
+// Valores positivos = horário local está atrás de Brasília
+const FUSO_HORARIO_ESTADOS: Record<string, number> = {
+  // UTC-5 (2 horas atrás de Brasília)
+  "AC": -2, "ACRE": -2, "RIO BRANCO": -2,
+  
+  // UTC-4 (1 hora atrás de Brasília)
+  "AM": -1, "AMAZONAS": -1, "MANAUS": -1,
+  "RO": -1, "RONDÔNIA": -1, "RONDONIA": -1, "PORTO VELHO": -1,
+  "RR": -1, "RORAIMA": -1, "BOA VISTA": -1,
+  "MT": -1, "MATO GROSSO": -1, "CUIABÁ": -1, "CUIABA": -1,
+  "MS": -1, "MATO GROSSO DO SUL": -1, "CAMPO GRANDE": -1,
+  
+  // UTC-2 (1 hora à frente de Brasília)
+  "FN": 1, "FERNANDO DE NORONHA": 1, "NORONHA": 1,
+};
+
+// Função para calcular diferença de fuso baseado na comarca
+const getDiferencaFuso = (comarca: string): number => {
+  if (!comarca) return 0;
+  const comarcaUpper = comarca.toUpperCase().trim();
+  
+  // Primeiro, verifica se a comarca está diretamente no mapeamento
+  if (FUSO_HORARIO_ESTADOS[comarcaUpper] !== undefined) {
+    return FUSO_HORARIO_ESTADOS[comarcaUpper];
+  }
+  
+  // Verifica se alguma chave está contida na comarca
+  for (const [key, diff] of Object.entries(FUSO_HORARIO_ESTADOS)) {
+    if (comarcaUpper.includes(key)) {
+      return diff;
+    }
+  }
+  
+  // Por padrão, assume horário de Brasília (UTC-3)
+  return 0;
+};
+
+// Converte hora local para hora de Brasília
+const converterParaBrasilia = (horaLocal: string, comarca: string): string => {
+  if (!horaLocal) return "";
+  
+  const match = horaLocal.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return horaLocal;
+  
+  const horas = parseInt(match[1], 10);
+  const minutos = parseInt(match[2], 10);
+  const diferencaFuso = getDiferencaFuso(comarca);
+  
+  // Adiciona a diferença de fuso para converter para Brasília
+  let horasBrasilia = horas - diferencaFuso;
+  
+  // Ajusta se passar de 24h ou for negativo
+  if (horasBrasilia >= 24) horasBrasilia -= 24;
+  if (horasBrasilia < 0) horasBrasilia += 24;
+  
+  return `${String(horasBrasilia).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`;
+};
 
 export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
   const queryClient = useQueryClient();
@@ -113,23 +173,30 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
 
       const parsed: AudienciaRow[] = (jsonData as any[])
         .filter(row => row["DATA"] || row["NÚMERO PROCESSO"] || row["Número Processo"])
-        .map(row => ({
-          data: parseExcelDate(row["DATA"]) || "",
-          hora: parseExcelTime(row["HORA"]),
-          processo_numero: String(row["NÚMERO PROCESSO"] || row["Número Processo"] || "").trim(),
-          vara_camara: String(row["VT/ CÂMARA"] || row["VT/CÂMARA"] || row["VT/ CAMARA"] || "").trim(),
-          comarca: String(row["COMARCA"] || "").trim(),
-          polo_ativo: String(row["POLO ATIVO"] || "").trim(),
-          cliente: String(row["CLIENTE"] || "").trim(),
-          terceirizado: String(row["TERCEIRIZADO"] || "").trim(),
-          tipo_audiencia: String(row["TIPO"] || "").trim(),
-          resumo_objeto: String(row["RESUMO DO OBJETO"] || "").trim(),
-          funcao: String(row["FUNÇÃO"] || row["FUNCAO"] || "").trim(),
-          preposto: String(row["PREPOSTO"] || "").trim(),
-          testemunhas: String(row["TESTEMUNHAS"] || "").trim(),
-          advogado: String(row["ADVOGADO"] || "").trim(),
-          status: 'pendente' as const,
-        }))
+        .map(row => {
+          const comarca = String(row["COMARCA"] || "").trim();
+          const horaLocal = parseExcelTime(row["HORA"]);
+          const horaBrasilia = converterParaBrasilia(horaLocal, comarca);
+          
+          return {
+            data: parseExcelDate(row["DATA"]) || "",
+            hora_local: horaLocal,
+            hora_brasilia: horaBrasilia,
+            processo_numero: String(row["NÚMERO PROCESSO"] || row["Número Processo"] || "").trim(),
+            vara_camara: String(row["VT/ CÂMARA"] || row["VT/CÂMARA"] || row["VT/ CAMARA"] || "").trim(),
+            comarca,
+            polo_ativo: String(row["POLO ATIVO"] || "").trim(),
+            cliente: String(row["CLIENTE"] || "").trim(),
+            terceirizado: String(row["TERCEIRIZADO"] || "").trim(),
+            tipo_audiencia: String(row["TIPO"] || "").trim(),
+            resumo_objeto: String(row["RESUMO DO OBJETO"] || "").trim(),
+            funcao: String(row["FUNÇÃO"] || row["FUNCAO"] || "").trim(),
+            preposto: String(row["PREPOSTO"] || "").trim(),
+            testemunhas: String(row["TESTEMUNHAS"] || "").trim(),
+            advogado: String(row["ADVOGADO"] || "").trim(),
+            status: 'pendente' as const,
+          };
+        })
         .filter(row => row.processo_numero || row.data);
 
       setRows(parsed);
@@ -166,7 +233,9 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
           .insert({
             processo_numero: row.processo_numero || null,
             data_audiencia: row.data || null,
-            hora: row.hora || null,
+            hora: row.hora_local || null, // Campo legado, mantém hora local
+            hora_local: row.hora_local || null,
+            hora_brasilia: row.hora_brasilia || null,
             tipo_audiencia: row.tipo_audiencia || null,
             vara_camara: row.vara_camara || null,
             comarca: row.comarca || null,
@@ -295,10 +364,11 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                     <TableRow>
                       <TableHead className="w-[80px]">Status</TableHead>
                       <TableHead>Data</TableHead>
-                      <TableHead>Hora</TableHead>
+                      <TableHead>Hora Local</TableHead>
+                      <TableHead>Hora DF</TableHead>
                       <TableHead>Processo</TableHead>
                       <TableHead>Cliente</TableHead>
-                      <TableHead>Tipo</TableHead>
+                      <TableHead>Comarca</TableHead>
                       <TableHead>Advogado</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -319,11 +389,11 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                           )}
                         </TableCell>
                         <TableCell>{formatDisplayDate(row.data)}</TableCell>
-                        <TableCell>{row.hora}</TableCell>
+                        <TableCell>{row.hora_local}</TableCell>
+                        <TableCell className="font-medium text-primary">{row.hora_brasilia}</TableCell>
                         <TableCell className="font-mono text-xs">{row.processo_numero}</TableCell>
                         <TableCell className="max-w-[150px] truncate">{row.cliente}</TableCell>
-                        <TableCell>{row.tipo_audiencia}</TableCell>
-                        <TableCell>{row.advogado}</TableCell>
+                        <TableCell>{row.comarca}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
