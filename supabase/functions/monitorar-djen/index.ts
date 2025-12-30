@@ -129,90 +129,23 @@ function matchesCondicaoConcomitante(conteudo: string, condicao: string | undefi
   return termos.every(termo => conteudoUpper.includes(termo));
 }
 
-async function fetchDJENResults(searchText: string, siglaTribunal?: string): Promise<any[]> {
-  const dataAtual = new Date().toISOString().split('T')[0];
-  const allResults: any[] = [];
-  let page = 0;
-  const pageSize = 100;
-  const maxPages = 50; // Limit to prevent infinite loops
-  
-  while (page < maxPages) {
-    const queryParams = new URLSearchParams();
-    queryParams.append("texto", searchText);
-    queryParams.append("dataDisponibilizacaoInicio", dataAtual);
-    queryParams.append("dataDisponibilizacaoFim", dataAtual);
-    queryParams.append("pagina", page.toString());
-    queryParams.append("itensPorPagina", pageSize.toString());
-    
-    // Add tribunal filter if specified
-    if (siglaTribunal && siglaTribunal !== 'TODOS' && !siglaTribunal.startsWith('TODOS_')) {
-      queryParams.append("siglaTribunal", siglaTribunal);
-    }
-    
-    const fullUrl = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
-    
-    if (page === 0) {
-      console.log(`Fetching: ${fullUrl}`);
-    }
-    
-    try {
-      const response = await fetchWithRetry(fullUrl, {
-        method: "GET",
-        headers: browserHeaders,
-      });
+// Function removed - using fetchDJENResultsWithStats below
 
-      const contentType = response.headers.get("content-type") || "";
-      
-      if (contentType.includes("text/html")) {
-        console.log("Got HTML response, stopping pagination");
-        break;
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
-        const totalElements = data.totalElements ?? data.total ?? 0;
-        
-        if (!Array.isArray(items) || items.length === 0) {
-          break;
-        }
-        
-        allResults.push(...items);
-        
-        // Check if we've fetched all results
-        if (allResults.length >= totalElements || items.length < pageSize) {
-          console.log(`Fetched all ${allResults.length}/${totalElements} items for tribunal ${siglaTribunal || 'TODOS'} (${page + 1} pages)`);
-          break;
-        }
-        
-        page++;
-        
-        // Small delay between pages to avoid rate limiting
-        await delay(500);
-      } else if (response.status === 422 || response.status === 404) {
-        break;
-      } else {
-        console.error(`API error: ${response.status}`);
-        break;
-      }
-    } catch (error) {
-      console.error(`Fetch error:`, error);
-      break;
-    }
-  }
-  
-  if (allResults.length > 0) {
-    console.log(`Total: ${allResults.length} items for tribunal ${siglaTribunal || 'TODOS'}`);
-  }
-
-  return allResults;
+interface TribunalStats {
+  tribunal: string;
+  paginas: number;
+  resultados: number;
+  novas: number;
+  descartadas: number;
+  duplicatas: number;
 }
 
 async function processMonitoramento(
   supabase: any,
   monitoramento: Monitoramento
-): Promise<{ novas: number; descartadas: number; duplicatas: number }> {
+): Promise<{ novas: number; descartadas: number; duplicatas: number; tribunaisStats: TribunalStats[] }> {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
+  const tribunaisStats: TribunalStats[] = [];
   const dataAtual = new Date().toISOString().split('T')[0];
   
   // Build search term based on type
@@ -230,7 +163,7 @@ async function processMonitoramento(
   
   if (!searchText) {
     console.log(`No search text for monitoramento ${monitoramento.id}`);
-    return stats;
+    return { ...stats, tribunaisStats };
   }
   
   // Get list of tribunais to search
@@ -241,9 +174,21 @@ async function processMonitoramento(
   console.log(`Searching tribunais: ${tribunais.join(', ')}`);
   
   for (const tribunal of tribunais) {
-    // Fetch publications for this tribunal
-    const publications = await fetchDJENResults(searchText, tribunal);
-    console.log(`Found ${publications.length} publications for tribunal ${tribunal}`);
+    const tribunalStat: TribunalStats = {
+      tribunal,
+      paginas: 0,
+      resultados: 0,
+      novas: 0,
+      descartadas: 0,
+      duplicatas: 0,
+    };
+    
+    // Fetch publications for this tribunal with pagination tracking
+    const { items: publications, pages } = await fetchDJENResultsWithStats(searchText, tribunal);
+    tribunalStat.paginas = pages;
+    tribunalStat.resultados = publications.length;
+    
+    console.log(`Found ${publications.length} publications for tribunal ${tribunal} (${pages} pages)`);
     
     for (const pub of publications) {
       const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
@@ -260,6 +205,7 @@ async function processMonitoramento(
 
       if (existingGlobal) {
         stats.duplicatas++;
+        tribunalStat.duplicatas++;
         continue;
       }
 
@@ -291,6 +237,7 @@ async function processMonitoramento(
         }, { onConflict: 'hash_global', ignoreDuplicates: true });
         
         stats.descartadas++;
+        tribunalStat.descartadas++;
         continue;
       }
 
@@ -310,6 +257,7 @@ async function processMonitoramento(
 
       if (!insertError && insertedPub) {
         stats.novas++;
+        tribunalStat.novas++;
         
         await supabase.from('publicacoes_djen_global_hash').upsert({
           hash_global: globalHash,
@@ -328,6 +276,8 @@ async function processMonitoramento(
       }
     }
     
+    tribunaisStats.push(tribunalStat);
+    
     // Small delay between tribunais
     if (tribunais.length > 1) {
       await delay(800);
@@ -335,7 +285,70 @@ async function processMonitoramento(
   }
   
   console.log(`Monitoramento ${monitoramento.id}: novas=${stats.novas}, descartadas=${stats.descartadas}, duplicatas=${stats.duplicatas}`);
-  return stats;
+  return { ...stats, tribunaisStats };
+}
+
+async function fetchDJENResultsWithStats(searchText: string, siglaTribunal?: string): Promise<{ items: any[]; pages: number }> {
+  const dataAtual = new Date().toISOString().split('T')[0];
+  const allResults: any[] = [];
+  let page = 0;
+  const pageSize = 100;
+  const maxPages = 50;
+  
+  while (page < maxPages) {
+    const queryParams = new URLSearchParams();
+    queryParams.append("texto", searchText);
+    queryParams.append("dataDisponibilizacaoInicio", dataAtual);
+    queryParams.append("dataDisponibilizacaoFim", dataAtual);
+    queryParams.append("pagina", page.toString());
+    queryParams.append("itensPorPagina", pageSize.toString());
+    
+    if (siglaTribunal && siglaTribunal !== 'TODOS' && !siglaTribunal.startsWith('TODOS_')) {
+      queryParams.append("siglaTribunal", siglaTribunal);
+    }
+    
+    const fullUrl = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
+    
+    try {
+      const response = await fetchWithRetry(fullUrl, {
+        method: "GET",
+        headers: browserHeaders,
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      
+      if (contentType.includes("text/html")) {
+        break;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
+        const totalElements = data.totalElements ?? data.total ?? 0;
+        
+        if (!Array.isArray(items) || items.length === 0) {
+          break;
+        }
+        
+        allResults.push(...items);
+        
+        if (allResults.length >= totalElements || items.length < pageSize) {
+          page++;
+          break;
+        }
+        
+        page++;
+        await delay(500);
+      } else {
+        break;
+      }
+    } catch (error) {
+      console.error(`Fetch error:`, error);
+      break;
+    }
+  }
+  
+  return { items: allResults, pages: page };
 }
 
 serve(async (req) => {
@@ -375,6 +388,9 @@ serve(async (req) => {
     let totalDuplicatas = 0;
     let processedCount = 0;
     let errorCount = 0;
+    let totalPaginas = 0;
+    let totalResultados = 0;
+    const allTribunaisStats: TribunalStats[] = [];
 
     for (const mon of (monitoramentos || [])) {
       try {
@@ -385,6 +401,24 @@ serve(async (req) => {
         totalNovas += stats.novas;
         totalDescartadas += stats.descartadas;
         totalDuplicatas += stats.duplicatas;
+        
+        // Aggregate tribunal stats
+        for (const ts of stats.tribunaisStats) {
+          totalPaginas += ts.paginas;
+          totalResultados += ts.resultados;
+          
+          // Merge with existing tribunal stats
+          const existing = allTribunaisStats.find(t => t.tribunal === ts.tribunal);
+          if (existing) {
+            existing.paginas += ts.paginas;
+            existing.resultados += ts.resultados;
+            existing.novas += ts.novas;
+            existing.descartadas += ts.descartadas;
+            existing.duplicatas += ts.duplicatas;
+          } else {
+            allTribunaisStats.push({ ...ts });
+          }
+        }
         
         // Delay between monitoramentos
         await delay(1200);
@@ -398,7 +432,10 @@ serve(async (req) => {
     const duration = Math.round((Date.now() - startTime) / 1000);
     const hasMore = count === MAX_PER_INVOCATION;
     
-    // Update config
+    // Sort tribunais by resultados descending
+    allTribunaisStats.sort((a, b) => b.resultados - a.resultados);
+    
+    // Update config with detailed stats
     await supabase
       .from('configuracoes_monitoramento')
       .update({ 
@@ -413,11 +450,14 @@ serve(async (req) => {
           erros: errorCount,
           duracao_s: duration,
           has_more: hasMore,
+          total_paginas: totalPaginas,
+          total_resultados: totalResultados,
+          tribunais_stats: allTribunaisStats.slice(0, 20), // Top 20 tribunais
         }
       })
       .eq('tipo', 'djen');
 
-    console.log(`Done: ${processedCount} processed, ${totalNovas} new, ${duration}s`);
+    console.log(`Done: ${processedCount} processed, ${totalNovas} new, ${totalPaginas} pages, ${duration}s`);
 
     return new Response(
       JSON.stringify({
@@ -428,6 +468,9 @@ serve(async (req) => {
         duplicatas: totalDuplicatas,
         erros: errorCount,
         duracaoSegundos: duration,
+        totalPaginas,
+        totalResultados,
+        tribunaisStats: allTribunaisStats,
         hasMore,
         nextOffset: hasMore ? offset + MAX_PER_INVOCATION : null,
       }),
