@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Loader2, Plus } from "lucide-react";
 import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
-import { format } from "date-fns";
 
 export function CadastroAudienciaForm() {
   const { criarAudiencia } = useAudienciasDetectadas();
@@ -26,6 +26,7 @@ export function CadastroAudienciaForm() {
     testemunhas: "",
     advogado: "",
     observacoes: "",
+    status: "pendente",
   });
 
   const handleChange = (field: keyof NovaAudiencia, value: string) => {
@@ -58,6 +59,7 @@ export function CadastroAudienciaForm() {
       testemunhas: "",
       advogado: "",
       observacoes: "",
+      status: "pendente",
     });
   };
 
@@ -225,16 +227,37 @@ export function CadastroAudienciaForm() {
             </div>
           </div>
 
-          {/* Observações */}
-          <div className="space-y-2">
-            <Label htmlFor="observacoes">Observações</Label>
-            <Textarea
-              id="observacoes"
-              placeholder="Observações adicionais..."
-              value={formData.observacoes}
-              onChange={(e) => handleChange("observacoes", e.target.value)}
-              rows={2}
-            />
+          {/* Status e Observações */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select 
+                value={formData.status || "pendente"} 
+                onValueChange={(value) => handleChange("status", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                  <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+                  <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+                  <SelectItem value="tratado">✔️ Tratado</SelectItem>
+                  <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                  <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="observacoes">Observações</Label>
+              <Textarea
+                id="observacoes"
+                placeholder="Observações adicionais..."
+                value={formData.observacoes}
+                onChange={(e) => handleChange("observacoes", e.target.value)}
+                rows={2}
+              />
+            </div>
           </div>
 
           <Button type="submit" className="w-full md:w-auto" disabled={criarAudiencia.isPending}>
