@@ -159,6 +159,26 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
     return isoDate;
   };
 
+  const normalizeHeader = (header: string): string => {
+    if (!header) return "";
+    return header
+      .replace(/\u00A0/g, " ") // NBSP
+      .trim()
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // remove accents
+      .replace(/[^A-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  };
+
+  const normalizeRowKeys = (row: Record<string, any>): Record<string, any> => {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(row)) {
+      out[normalizeHeader(k)] = v;
+    }
+    return out;
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -172,32 +192,33 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
       const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
       const parsed: AudienciaRow[] = (jsonData as any[])
-        .filter(row => row["DATA"] || row["NÚMERO PROCESSO"] || row["Número Processo"])
-        .map(row => {
+        .map((raw) => normalizeRowKeys(raw))
+        .filter((row) => row["DATA"] || row["NUMERO_PROCESSO"])
+        .map((row) => {
           const comarca = String(row["COMARCA"] || "").trim();
           const horaLocal = parseExcelTime(row["HORA"]);
           const horaBrasilia = converterParaBrasilia(horaLocal, comarca);
-          
+
           return {
             data: parseExcelDate(row["DATA"]) || "",
             hora_local: horaLocal,
             hora_brasilia: horaBrasilia,
-            processo_numero: String(row["NÚMERO PROCESSO"] || row["Número Processo"] || "").trim(),
-            vara_camara: String(row["VT/ CÂMARA"] || row["VT/CÂMARA"] || row["VT/ CAMARA"] || "").trim(),
+            processo_numero: String(row["NUMERO_PROCESSO"] || "").trim(),
+            vara_camara: String(row["VT_CAMARA"] || "").trim(),
             comarca,
-            polo_ativo: String(row["POLO ATIVO"] || "").trim(),
+            polo_ativo: String(row["POLO_ATIVO"] || "").trim(),
             cliente: String(row["CLIENTE"] || "").trim(),
             terceirizado: String(row["TERCEIRIZADO"] || "").trim(),
             tipo_audiencia: String(row["TIPO"] || "").trim(),
-            resumo_objeto: String(row["RESUMO DO OBJETO"] || "").trim(),
-            funcao: String(row["FUNÇÃO"] || row["FUNCAO"] || "").trim(),
+            resumo_objeto: String(row["RESUMO_DO_OBJETO"] || "").trim(),
+            funcao: String(row["FUNCAO"] || "").trim(),
             preposto: String(row["PREPOSTO"] || "").trim(),
             testemunhas: String(row["TESTEMUNHAS"] || "").trim(),
             advogado: String(row["ADVOGADO"] || "").trim(),
-            status: 'pendente' as const,
+            status: "pendente" as const,
           };
         })
-        .filter(row => row.processo_numero || row.data);
+        .filter((row) => row.processo_numero || row.data);
 
       setRows(parsed);
       toast.success(`${parsed.length} audiências encontradas na planilha`);
