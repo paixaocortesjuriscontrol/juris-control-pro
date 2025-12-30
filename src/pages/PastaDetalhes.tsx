@@ -261,6 +261,7 @@ export default function PastaDetalhes() {
                     <TableRow>
                       <TableHead>Número</TableHead>
                       <TableHead>Assunto</TableHead>
+                      <TableHead>Advogado Responsável</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Área</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
@@ -268,15 +269,25 @@ export default function PastaDetalhes() {
                   </TableHeader>
                   <TableBody>
                     {processos.map((processo) => (
-                      <TableRow key={processo.id}>
+                      <TableRow 
+                        key={processo.id} 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/processos/${processo.id}`)}
+                      >
                         <TableCell className="font-mono">{processo.numero}</TableCell>
                         <TableCell>{processo.assunto || "-"}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span>{processo.advogado_responsavel?.nome || "Não atribuído"}</span>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline">{processo.status}</Badge>
                         </TableCell>
                         <TableCell>{processo.area}</TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                             <Button
                               variant="ghost"
                               size="sm"
