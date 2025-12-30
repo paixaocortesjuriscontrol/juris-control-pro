@@ -5,7 +5,6 @@ import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/Mon
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
 import { MonitoramentoDjenCard } from "@/components/configuracoes/MonitoramentoDjenCard";
-import { MonitoramentoAudienciasCard } from "@/components/configuracoes/MonitoramentoAudienciasCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
 
@@ -23,7 +22,6 @@ export default function Configuracoes() {
             <MonitoramentoAndamentosCard coordenacaoId="" />
             <MonitoramentoDistribuicoesCard coordenacaoId="" />
             <MonitoramentoDjenCard coordenacaoId="" />
-            <MonitoramentoAudienciasCard />
           </div>
         </div>
 
