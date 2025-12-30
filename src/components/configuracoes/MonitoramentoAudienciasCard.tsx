@@ -1,5 +1,4 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar, Clock, Loader2 } from "lucide-react";
@@ -12,24 +11,23 @@ interface Props {
 }
 
 const HORARIOS_DISPONIVEIS = [
-  { value: '08:00', label: '08:00', cron: '0 11 * * *' }, // 8h BRT = 11h UTC
-  { value: '12:00', label: '12:00', cron: '0 15 * * *' }, // 12h BRT = 15h UTC  
-  { value: '14:00', label: '14:00', cron: '0 17 * * *' }, // 14h BRT = 17h UTC
-  { value: '18:00', label: '18:00', cron: '0 21 * * *' }, // 18h BRT = 21h UTC
-  { value: '22:00', label: '22:00', cron: '0 1 * * *' },  // 22h BRT = 1h UTC (dia seguinte)
+  { value: '08:00', label: '08:00', cron: '0 11 * * *' },
+  { value: '12:00', label: '12:00', cron: '0 15 * * *' },
+  { value: '14:00', label: '14:00', cron: '0 17 * * *' },
+  { value: '18:00', label: '18:00', cron: '0 21 * * *' },
+  { value: '22:00', label: '22:00', cron: '0 1 * * *' },
 ];
 
 export function MonitoramentoAudienciasCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
 
-  // Buscar configuração existente
   const { data: config, isLoading } = useQuery({
-    queryKey: ['config-monitoramento', 'djen', coordenacaoId],
+    queryKey: ['config-monitoramento', 'andamentos', coordenacaoId],
     queryFn: async () => {
       let query = supabase
         .from('configuracoes_monitoramento')
         .select('*')
-        .eq('tipo', 'djen');
+        .eq('tipo', 'andamentos');
       
       if (coordenacaoId) {
         query = query.eq('coordenacao_id', coordenacaoId);
@@ -43,22 +41,19 @@ export function MonitoramentoAudienciasCard({ coordenacaoId }: Props) {
     },
   });
 
-  // Mutation para atualizar horários
   const atualizarHorarios = useMutation({
     mutationFn: async (horarios: string[]) => {
       if (!config?.id) {
-        // Criar nova configuração
         const { error } = await supabase
           .from('configuracoes_monitoramento')
           .insert({
-            tipo: 'djen',
+            tipo: 'andamentos',
             coordenacao_id: coordenacaoId || null,
             horarios_execucao: horarios,
             ativo: true,
           });
         if (error) throw error;
       } else {
-        // Atualizar existente
         const { error } = await supabase
           .from('configuracoes_monitoramento')
           .update({ 
@@ -108,7 +103,7 @@ export function MonitoramentoAudienciasCard({ coordenacaoId }: Props) {
           <div>
             <CardTitle className="text-lg">Monitoramento de Audiências</CardTitle>
             <CardDescription>
-              Configure os horários de execução do monitoramento DJEN para detecção de audiências
+              Configure os horários para verificar audiências nos andamentos dos processos
             </CardDescription>
           </div>
         </div>
@@ -117,7 +112,7 @@ export function MonitoramentoAudienciasCard({ coordenacaoId }: Props) {
         <div>
           <Label className="text-sm font-medium">Horários de Execução</Label>
           <p className="text-xs text-muted-foreground mb-3">
-            Selecione os horários em que o sistema deve verificar novas publicações
+            Selecione os horários para verificar novos andamentos e detectar audiências
           </p>
           
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -147,9 +142,8 @@ export function MonitoramentoAudienciasCard({ coordenacaoId }: Props) {
 
         <div className="pt-4 border-t">
           <p className="text-xs text-muted-foreground">
-            <strong>Nota:</strong> Os horários selecionados serão usados para agendar a execução 
-            automática do monitoramento DJEN. Publicações contendo o termo "audiência" serão 
-            automaticamente detectadas e exibidas no Painel de Audiências.
+            <strong>Nota:</strong> O monitoramento verifica os andamentos dos processos cadastrados 
+            e detecta automaticamente audiências marcadas, exibindo-as no Painel de Audiências.
           </p>
         </div>
 
