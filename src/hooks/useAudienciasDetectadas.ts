@@ -29,6 +29,8 @@ export interface AudienciaDetectada {
   tratado_por: string | null;
   tratado_em: string | null;
   observacoes: string | null;
+  providencias_tomadas: string | null;
+  alerta_enviado: boolean;
   origem: string | null;
   criado_por: string | null;
   created_at: string;
@@ -38,6 +40,17 @@ export interface AudienciaDetectada {
     descricao: string | null;
   };
 }
+
+export type StatusAudiencia = 'pendente' | 'confirmado' | 'reagendado' | 'tratado' | 'cancelado' | 'ignorado';
+
+export const STATUS_AUDIENCIA_LABELS: Record<StatusAudiencia, string> = {
+  pendente: '⏳ Pendente',
+  confirmado: '✅ Confirmado',
+  reagendado: '🔄 Reagendado',
+  tratado: '✔️ Tratado',
+  cancelado: '❌ Cancelado',
+  ignorado: '🚫 Ignorado',
+};
 
 export interface NovaAudiencia {
   processo_numero: string;

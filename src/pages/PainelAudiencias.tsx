@@ -87,11 +87,17 @@ export default function PainelAudiencias() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pendente':
-        return <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Pendente</Badge>;
+        return <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">⏳ Pendente</Badge>;
+      case 'confirmado':
+        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">✅ Confirmado</Badge>;
+      case 'reagendado':
+        return <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20">🔄 Reagendado</Badge>;
       case 'tratado':
-        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">Tratado</Badge>;
+        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">✔️ Tratado</Badge>;
+      case 'cancelado':
+        return <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20">❌ Cancelado</Badge>;
       case 'ignorado':
-        return <Badge variant="outline" className="bg-muted text-muted-foreground">Ignorado</Badge>;
+        return <Badge variant="outline" className="bg-muted text-muted-foreground">🚫 Ignorado</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -207,9 +213,12 @@ export default function PainelAudiencias() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="pendente">Pendentes</SelectItem>
-                <SelectItem value="tratado">Tratadas</SelectItem>
-                <SelectItem value="ignorado">Ignoradas</SelectItem>
+                <SelectItem value="pendente">⏳ Pendentes</SelectItem>
+                <SelectItem value="confirmado">✅ Confirmados</SelectItem>
+                <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
+                <SelectItem value="tratado">✔️ Tratados</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelados</SelectItem>
+                <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
               </SelectContent>
             </Select>
             <div className="flex gap-2">
