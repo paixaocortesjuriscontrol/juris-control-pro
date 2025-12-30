@@ -2175,14 +2175,43 @@ export default function ImportarProcessos() {
           }
           isUpdate = true;
         } else {
+          // Create pasta with pattern "Reclamante x Cliente"
+          let pastaId: string | null = null;
+          const reclamante = janainaData.reclamante || processo.parteAtiva || "Sem Reclamante";
+          const clienteNome = clientes.find(c => c.id === selectedCliente)?.nome || "Sem Cliente";
+          const nomePasta = `${reclamante} x ${clienteNome}`;
+          
+          // Get current user for pasta creation
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            const { data: novaPasta, error: pastaError } = await supabase
+              .from("pastas")
+              .insert({
+                nome: nomePasta,
+                descricao: `Pasta criada automaticamente para o processo ${processo.numero}`,
+                cliente_id: selectedCliente || null,
+                coordenacao_id: selectedCoordenacao || null,
+                criado_por: user.id,
+              })
+              .select("id")
+              .single();
+            
+            if (!pastaError && novaPasta) {
+              pastaId = novaPasta.id;
+            } else {
+              console.warn(`Falha ao criar pasta para processo ${processo.numero}:`, pastaError?.message);
+            }
+          }
+
           const { data: insertedProcesso, error } = await supabase
             .from("processos")
-            .insert(processoData as any)
+            .insert({ ...processoData, pasta_id: pastaId } as any)
             .select("id")
             .single();
 
           if (error) {
-            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
             errorCountLocal++;
             continue;
           }
