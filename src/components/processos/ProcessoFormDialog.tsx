@@ -53,6 +53,15 @@ const formSchema = z.object({
   coordenacao_id: z.string().optional(),
   advogado_responsavel_id: z.string().optional(),
   cliente_id: z.string().optional(),
+  // Campos contingenciais (Dra. Janaina)
+  ativo_passivo: z.string().optional(),
+  reclamante: z.string().optional(),
+  reclamados: z.string().optional(),
+  responsabilidade_tipo: z.string().optional(),
+  risco_atual: z.string().optional(),
+  valor_condenacao: z.string().optional(),
+  funcao: z.string().optional(),
+  advogado_externo: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -125,6 +134,14 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       coordenacao_id: "",
       advogado_responsavel_id: "",
       cliente_id: "",
+      ativo_passivo: "",
+      reclamante: "",
+      reclamados: "",
+      responsabilidade_tipo: "",
+      risco_atual: "",
+      valor_condenacao: "",
+      funcao: "",
+      advogado_externo: "",
     },
   });
 
@@ -149,6 +166,14 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           coordenacao_id: processo.coordenacao_id || "",
           advogado_responsavel_id: processo.advogado_responsavel_id || "",
           cliente_id: processo.cliente_id || "",
+          ativo_passivo: processo.ativo_passivo || "",
+          reclamante: processo.reclamante || "",
+          reclamados: processo.reclamados || "",
+          responsabilidade_tipo: processo.responsabilidade_tipo || "",
+          risco_atual: processo.risco_atual || "",
+          valor_condenacao: processo.valor_condenacao?.toString() || "",
+          funcao: processo.funcao || "",
+          advogado_externo: processo.advogado_externo || "",
         });
       } else {
         form.reset({
@@ -168,6 +193,14 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           coordenacao_id: "",
           advogado_responsavel_id: "",
           cliente_id: "",
+          ativo_passivo: "",
+          reclamante: "",
+          reclamados: "",
+          responsabilidade_tipo: "",
+          risco_atual: "",
+          valor_condenacao: "",
+          funcao: "",
+          advogado_externo: "",
         });
       }
     }
@@ -286,6 +319,15 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         coordenacao_id: values.coordenacao_id || null,
         advogado_responsavel_id: values.advogado_responsavel_id || null,
         cliente_id: values.cliente_id || null,
+        // Campos contingenciais
+        ativo_passivo: values.ativo_passivo || null,
+        reclamante: values.reclamante || null,
+        reclamados: values.reclamados || null,
+        responsabilidade_tipo: values.responsabilidade_tipo || null,
+        risco_atual: values.risco_atual || null,
+        valor_condenacao: values.valor_condenacao ? parseFloat(values.valor_condenacao.replace(/[^\d.,]/g, "").replace(",", ".")) : null,
+        funcao: values.funcao || null,
+        advogado_externo: values.advogado_externo || null,
       };
 
       if (isEditing && processo) {
@@ -387,10 +429,11 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs defaultValue="basico" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="basico">Dados Básicos</TabsTrigger>
                 <TabsTrigger value="tribunal">Tribunal</TabsTrigger>
                 <TabsTrigger value="partes">Partes</TabsTrigger>
+                <TabsTrigger value="contingencial">Contingencial</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basico" className="space-y-4 mt-4">
@@ -703,6 +746,124 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                       <FormLabel>Parte Passiva (Réu / Requerido)</FormLabel>
                       <FormControl>
                         <Textarea placeholder="Nome(s) da parte passiva" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value="contingencial" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground mb-4">Campos específicos para processos trabalhistas/contingenciais (opcionais)</p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="ativo_passivo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Posição do Cliente</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Ativo">Ativo</SelectItem>
+                            <SelectItem value="Passivo">Passivo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="responsabilidade_tipo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de Responsabilidade</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Exclusiva">Exclusiva</SelectItem>
+                            <SelectItem value="Solidária">Solidária</SelectItem>
+                            <SelectItem value="Subsidiária">Subsidiária</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="risco_atual"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Risco Atual</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Remoto">Remoto</SelectItem>
+                            <SelectItem value="Possível">Possível</SelectItem>
+                            <SelectItem value="Provável">Provável</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="valor_condenacao"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Valor da Condenação</FormLabel>
+                        <FormControl>
+                          <Input placeholder="R$ 0,00" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="funcao"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Função/Cargo</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: Técnico de Enfermagem" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="advogado_externo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Advogado Externo</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nome do advogado externo" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
