@@ -624,6 +624,47 @@ export default function ProcessoDetalhes() {
           </div>
         </div>
 
+        {/* Coordenação e Advogado Responsável - Quick Info */}
+        <Card className="bg-muted/30">
+          <CardContent className="py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Building2 className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Coordenação</p>
+                  <p className="font-medium">
+                    {coordenacoes.find(c => c.id === processo.coordenacao_id)?.nome || "Não vinculado"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <User className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Advogado Responsável</p>
+                  <p className="font-medium">
+                    {processo.advogado_responsavel?.nome || "Não atribuído"}
+                  </p>
+                </div>
+              </div>
+              {processo.cliente && (
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Briefcase className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Cliente</p>
+                    <p className="font-medium">{processo.cliente.nome}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         <Accordion type="multiple" defaultValue={["info-basicas", "localizacao", "partes", "valores", "andamentos"]} className="space-y-4">
           {/* Informações Básicas */}
           <AccordionItem value="info-basicas" className="border rounded-lg px-4">
