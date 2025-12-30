@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: ClipboardList, label: "Painel da Equipe", path: "/painel-equipe" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },
@@ -40,7 +41,6 @@ const menuItems = [
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: Radar, label: "Monit. DJEN", path: "/monitoramento-djen" },
-  { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: FolderKanban, label: "Minhas Tarefas", path: "/minha-carteira" },
   { icon: Bell, label: "Notificações", path: "/notificacoes" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
