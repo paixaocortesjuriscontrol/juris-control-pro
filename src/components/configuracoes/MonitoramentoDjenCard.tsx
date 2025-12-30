@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2 } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -39,6 +39,7 @@ interface ExecutionResult {
   totalResultados: number;
   tribunaisStats: TribunalStat[];
   duracaoSegundos: number;
+  executadoEm?: string;
 }
 
 export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
@@ -53,6 +54,24 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const [progresso, setProgresso] = useState({ atual: 0, total: 0, novas: 0 });
   const [ultimoResultado, setUltimoResultado] = useState<ExecutionResult | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
+  
+  // Fetch last execution report from historico_monitoramento
+  const { data: ultimoHistorico } = useQuery({
+    queryKey: ['historico-monitoramento-djen'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('historico_monitoramento')
+        .select('*')
+        .eq('tipo', 'djen')
+        .order('executado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 60000, // Refresh every minute
+  });
 
   const handleExecutarManual = async () => {
     setExecutando(true);
@@ -162,6 +181,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       
       toast.success(`Monitoramento concluído: ${totalProcessados} verificados, ${totalNovas} novas, ${totalPaginas} páginas buscadas`);
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+      queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
       
     } catch (error) {
       console.error('Erro no monitoramento:', error);
@@ -184,17 +204,21 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     }
   };
 
-  // Parse metadata for last run stats
-  const metadata = configuracaoDjen?.metadata as Record<string, any> | null;
-  const lastRunStats = metadata ? {
-    paginas: metadata.total_paginas || 0,
-    resultados: metadata.total_resultados || 0,
-    novas: metadata.novas || 0,
-    descartadas: metadata.descartadas || 0,
-    duplicatas: metadata.duplicatas || 0,
-    duracao: metadata.duracao_s || 0,
-    tribunais: (metadata.tribunais_stats || []) as TribunalStat[],
-  } : null;
+  // Parse last execution from historico_monitoramento (persisted data)
+  const lastRunFromHistorico: ExecutionResult | null = ultimoHistorico ? (() => {
+    const detalhes = ultimoHistorico.detalhes as Record<string, any> | null;
+    return {
+      processados: ultimoHistorico.processos_verificados,
+      novas: ultimoHistorico.novos_andamentos,
+      descartadas: detalhes?.descartadas || 0,
+      duplicatas: detalhes?.duplicatas || 0,
+      totalPaginas: detalhes?.total_paginas || 0,
+      totalResultados: detalhes?.total_resultados || 0,
+      tribunaisStats: (detalhes?.tribunais_stats || []) as TribunalStat[],
+      duracaoSegundos: detalhes?.duracao_s || 0,
+      executadoEm: ultimoHistorico.executado_em,
+    };
+  })() : null;
 
   if (isLoading) {
     return (
@@ -215,16 +239,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     ? Math.round((progresso.atual / progresso.total) * 100) 
     : 0;
 
-  const statsToShow = ultimoResultado || (lastRunStats && lastRunStats.tribunais.length > 0 ? {
-    processados: metadata?.processados || 0,
-    novas: lastRunStats.novas,
-    descartadas: lastRunStats.descartadas,
-    duplicatas: lastRunStats.duplicatas,
-    totalPaginas: lastRunStats.paginas,
-    totalResultados: lastRunStats.resultados,
-    tribunaisStats: lastRunStats.tribunais,
-    duracaoSegundos: lastRunStats.duracao,
-  } : null);
+  const statsToShow = ultimoResultado || lastRunFromHistorico;
 
   return (
     <Card>
@@ -276,28 +291,28 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         </div>
 
         {/* Última execução */}
-        {configuracaoDjen?.ultima_execucao && (
+        {(configuracaoDjen?.ultima_execucao || lastRunFromHistorico?.executadoEm) && (
           <div className="flex flex-col gap-2 text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Clock className="h-4 w-4" />
               <span>
-                Última execução: {format(toZonedTime(new Date(configuracaoDjen.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                Última execução: {format(toZonedTime(new Date(lastRunFromHistorico?.executadoEm || configuracaoDjen!.ultima_execucao!), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
             </div>
-            {lastRunStats && lastRunStats.paginas > 0 && (
+            {lastRunFromHistorico && lastRunFromHistorico.totalPaginas > 0 && (
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline" className="gap-1">
                   <Layers className="h-3 w-3" />
-                  {lastRunStats.paginas} páginas
+                  {lastRunFromHistorico.totalPaginas} páginas
                 </Badge>
                 <Badge variant="outline" className="gap-1">
                   <FileText className="h-3 w-3" />
-                  {lastRunStats.resultados} resultados
+                  {lastRunFromHistorico.totalResultados} resultados
                 </Badge>
-                {lastRunStats.novas > 0 && (
+                {lastRunFromHistorico.novas > 0 && (
                   <Badge variant="default" className="gap-1 bg-green-500">
                     <CheckCircle2 className="h-3 w-3" />
-                    {lastRunStats.novas} novas
+                    {lastRunFromHistorico.novas} novas
                   </Badge>
                 )}
               </div>
