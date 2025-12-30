@@ -359,46 +359,64 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
               )}
 
               <ScrollArea className="h-[400px] border rounded-md">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[80px]">Status</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Hora Local</TableHead>
-                      <TableHead>Hora DF</TableHead>
-                      <TableHead>Processo</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Comarca</TableHead>
-                      <TableHead>Advogado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((row, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>
-                          {row.status === 'pendente' && (
-                            <Badge variant="outline">Pendente</Badge>
-                          )}
-                          {row.status === 'sucesso' && (
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                          )}
-                        {row.status === 'erro' && (
-                            <span title={row.erro}>
-                              <XCircle className="h-4 w-4 text-red-500" />
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>{formatDisplayDate(row.data)}</TableCell>
-                        <TableCell>{row.hora_local}</TableCell>
-                        <TableCell className="font-medium text-primary">{row.hora_brasilia}</TableCell>
-                        <TableCell className="font-mono text-xs">{row.processo_numero}</TableCell>
-                        <TableCell className="max-w-[150px] truncate">{row.cliente}</TableCell>
-                        <TableCell>{row.comarca}</TableCell>
-                        <TableCell>{row.advogado}</TableCell>
+                <div className="min-w-[1800px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[80px] sticky left-0 bg-background z-10">Status</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Hora Local</TableHead>
+                        <TableHead>Hora DF</TableHead>
+                        <TableHead>Nº Processo</TableHead>
+                        <TableHead>VT/Câmara</TableHead>
+                        <TableHead>Comarca</TableHead>
+                        <TableHead>Polo Ativo</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Terceirizado</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Resumo Objeto</TableHead>
+                        <TableHead>Função</TableHead>
+                        <TableHead>Preposto</TableHead>
+                        <TableHead>Testemunhas</TableHead>
+                        <TableHead>Advogado</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((row, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="sticky left-0 bg-background z-10">
+                            {row.status === 'pendente' && (
+                              <Badge variant="outline">Pendente</Badge>
+                            )}
+                            {row.status === 'sucesso' && (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            )}
+                            {row.status === 'erro' && (
+                              <span title={row.erro}>
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">{formatDisplayDate(row.data)}</TableCell>
+                          <TableCell className="whitespace-nowrap">{row.hora_local}</TableCell>
+                          <TableCell className="whitespace-nowrap font-medium text-primary">{row.hora_brasilia}</TableCell>
+                          <TableCell className="font-mono text-xs whitespace-nowrap">{row.processo_numero}</TableCell>
+                          <TableCell className="whitespace-nowrap">{row.vara_camara}</TableCell>
+                          <TableCell className="whitespace-nowrap">{row.comarca}</TableCell>
+                          <TableCell className="max-w-[150px] truncate">{row.polo_ativo}</TableCell>
+                          <TableCell className="max-w-[150px] truncate">{row.cliente}</TableCell>
+                          <TableCell className="max-w-[150px] truncate">{row.terceirizado}</TableCell>
+                          <TableCell className="whitespace-nowrap">{row.tipo_audiencia}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{row.resumo_objeto}</TableCell>
+                          <TableCell className="whitespace-nowrap">{row.funcao}</TableCell>
+                          <TableCell className="max-w-[150px] truncate">{row.preposto}</TableCell>
+                          <TableCell className="max-w-[150px] truncate">{row.testemunhas}</TableCell>
+                          <TableCell className="whitespace-nowrap">{row.advogado}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </ScrollArea>
             </>
           )}
