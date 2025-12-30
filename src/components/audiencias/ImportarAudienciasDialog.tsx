@@ -394,6 +394,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                         <TableCell className="font-mono text-xs">{row.processo_numero}</TableCell>
                         <TableCell className="max-w-[150px] truncate">{row.cliente}</TableCell>
                         <TableCell>{row.comarca}</TableCell>
+                        <TableCell>{row.advogado}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
