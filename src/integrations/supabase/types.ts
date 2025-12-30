@@ -1203,10 +1203,13 @@ export type Database = {
       }
       processos: {
         Row: {
+          adicao_baixa: string | null
+          advogado_externo: string | null
           advogado_responsavel_id: string | null
           andamento_atual: string | null
           area: string
           assunto: string | null
+          ativo_passivo: string | null
           classe: string | null
           cliente_id: string | null
           comarca: string | null
@@ -1215,29 +1218,38 @@ export type Database = {
           created_at: string
           data_arquivamento: string | null
           data_citacao: string | null
+          data_consulta: string | null
+          data_desligamento: string | null
           data_distribuicao: string | null
           data_encerramento: string | null
           data_fato_gerador: string | null
           data_recebimento: string | null
           deposito_judicial: number | null
+          depositos_vinculados: string | null
           descricao: string | null
+          epoca_razao: string | null
           esfera: string | null
           fase: string | null
           forma_pagamento: string | null
+          funcao: string | null
           funcao_parte_contraria: string | null
           id: string
           identificador_projuris: string | null
           instancia: string | null
           justica: string | null
+          justificativa_risco: string | null
           materia: string | null
           monitorar_andamentos: boolean
+          mudanca_risco: boolean | null
           natureza: string | null
           numero: string
           observacoes_processo: string | null
           pasta_cliente: string | null
           pasta_fisica: string | null
           pasta_id: string | null
+          pedido_valor: string | null
           pedidos: string | null
+          periodo_condenacao: string | null
           periodo_laborado: string | null
           polo_ativo: string | null
           polo_passivo: string | null
@@ -1245,9 +1257,17 @@ export type Database = {
           provisionamento_possivel: number | null
           provisionamento_provavel: number | null
           provisionamento_remoto: number | null
+          reclamados: string | null
+          reclamante: string | null
+          responsabilidade_antes_data: number | null
+          responsabilidade_apos_data: number | null
+          responsabilidade_tipo: string | null
           responsaveis_projuris: string | null
           resultado: string | null
           risco: string | null
+          risco_anterior: string | null
+          risco_atual: string | null
+          setor: string | null
           sigla_unidade: string | null
           status: Database["public"]["Enums"]["status_processo"]
           terceiro_envolvido: string | null
@@ -1262,14 +1282,19 @@ export type Database = {
           valor_condenacao: number | null
           valor_pagamento: number | null
           valor_pago: number | null
+          valor_perda_anterior: number | null
+          valor_perda_atual: number | null
           valor_provisionado: number | null
           vara: string | null
         }
         Insert: {
+          adicao_baixa?: string | null
+          advogado_externo?: string | null
           advogado_responsavel_id?: string | null
           andamento_atual?: string | null
           area: string
           assunto?: string | null
+          ativo_passivo?: string | null
           classe?: string | null
           cliente_id?: string | null
           comarca?: string | null
@@ -1278,29 +1303,38 @@ export type Database = {
           created_at?: string
           data_arquivamento?: string | null
           data_citacao?: string | null
+          data_consulta?: string | null
+          data_desligamento?: string | null
           data_distribuicao?: string | null
           data_encerramento?: string | null
           data_fato_gerador?: string | null
           data_recebimento?: string | null
           deposito_judicial?: number | null
+          depositos_vinculados?: string | null
           descricao?: string | null
+          epoca_razao?: string | null
           esfera?: string | null
           fase?: string | null
           forma_pagamento?: string | null
+          funcao?: string | null
           funcao_parte_contraria?: string | null
           id?: string
           identificador_projuris?: string | null
           instancia?: string | null
           justica?: string | null
+          justificativa_risco?: string | null
           materia?: string | null
           monitorar_andamentos?: boolean
+          mudanca_risco?: boolean | null
           natureza?: string | null
           numero: string
           observacoes_processo?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
           pasta_id?: string | null
+          pedido_valor?: string | null
           pedidos?: string | null
+          periodo_condenacao?: string | null
           periodo_laborado?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
@@ -1308,9 +1342,17 @@ export type Database = {
           provisionamento_possivel?: number | null
           provisionamento_provavel?: number | null
           provisionamento_remoto?: number | null
+          reclamados?: string | null
+          reclamante?: string | null
+          responsabilidade_antes_data?: number | null
+          responsabilidade_apos_data?: number | null
+          responsabilidade_tipo?: string | null
           responsaveis_projuris?: string | null
           resultado?: string | null
           risco?: string | null
+          risco_anterior?: string | null
+          risco_atual?: string | null
+          setor?: string | null
           sigla_unidade?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           terceiro_envolvido?: string | null
@@ -1325,14 +1367,19 @@ export type Database = {
           valor_condenacao?: number | null
           valor_pagamento?: number | null
           valor_pago?: number | null
+          valor_perda_anterior?: number | null
+          valor_perda_atual?: number | null
           valor_provisionado?: number | null
           vara?: string | null
         }
         Update: {
+          adicao_baixa?: string | null
+          advogado_externo?: string | null
           advogado_responsavel_id?: string | null
           andamento_atual?: string | null
           area?: string
           assunto?: string | null
+          ativo_passivo?: string | null
           classe?: string | null
           cliente_id?: string | null
           comarca?: string | null
@@ -1341,29 +1388,38 @@ export type Database = {
           created_at?: string
           data_arquivamento?: string | null
           data_citacao?: string | null
+          data_consulta?: string | null
+          data_desligamento?: string | null
           data_distribuicao?: string | null
           data_encerramento?: string | null
           data_fato_gerador?: string | null
           data_recebimento?: string | null
           deposito_judicial?: number | null
+          depositos_vinculados?: string | null
           descricao?: string | null
+          epoca_razao?: string | null
           esfera?: string | null
           fase?: string | null
           forma_pagamento?: string | null
+          funcao?: string | null
           funcao_parte_contraria?: string | null
           id?: string
           identificador_projuris?: string | null
           instancia?: string | null
           justica?: string | null
+          justificativa_risco?: string | null
           materia?: string | null
           monitorar_andamentos?: boolean
+          mudanca_risco?: boolean | null
           natureza?: string | null
           numero?: string
           observacoes_processo?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
           pasta_id?: string | null
+          pedido_valor?: string | null
           pedidos?: string | null
+          periodo_condenacao?: string | null
           periodo_laborado?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
@@ -1371,9 +1427,17 @@ export type Database = {
           provisionamento_possivel?: number | null
           provisionamento_provavel?: number | null
           provisionamento_remoto?: number | null
+          reclamados?: string | null
+          reclamante?: string | null
+          responsabilidade_antes_data?: number | null
+          responsabilidade_apos_data?: number | null
+          responsabilidade_tipo?: string | null
           responsaveis_projuris?: string | null
           resultado?: string | null
           risco?: string | null
+          risco_anterior?: string | null
+          risco_atual?: string | null
+          setor?: string | null
           sigla_unidade?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           terceiro_envolvido?: string | null
@@ -1388,6 +1452,8 @@ export type Database = {
           valor_condenacao?: number | null
           valor_pagamento?: number | null
           valor_pago?: number | null
+          valor_perda_anterior?: number | null
+          valor_perda_atual?: number | null
           valor_provisionado?: number | null
           vara?: string | null
         }

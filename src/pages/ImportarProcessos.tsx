@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
@@ -333,6 +333,13 @@ export default function ImportarProcessos() {
   const [osmarImporting, setOsmarImporting] = useState(false);
   const [osmarProgress, setOsmarProgress] = useState(0);
   const [osmarBuscarAndamentos, setOsmarBuscarAndamentos] = useState(true);
+
+  // Dra. Janaina (ACH Contingencial) import states
+  const [janainaFile, setJanainaFile] = useState<File | null>(null);
+  const [janainaProcessos, setJanainaProcessos] = useState<ProcessoImport[]>([]);
+  const [janainaImporting, setJanainaImporting] = useState(false);
+  const [janainaProgress, setJanainaProgress] = useState(0);
+  const [janainaBuscarAndamentos, setJanainaBuscarAndamentos] = useState(true);
 
   // Excel/Planilha import state for andamentos
   const [planilhaBuscarAndamentos, setPlanilhaBuscarAndamentos] = useState(true);
@@ -1621,6 +1628,14 @@ export default function ImportarProcessos() {
   const osmarTotalRejeitados = osmarInvalidCount + osmarErrorCount;
   const osmarTotalProblemas = osmarTotalRejeitados + osmarWarningCount;
 
+  const janainaValidCount = janainaProcessos.filter(p => p.status === "valido").length;
+  const janainaInvalidCount = janainaProcessos.filter(p => p.status === "invalido").length;
+  const janainaSuccessCount = janainaProcessos.filter(p => p.status === "sucesso").length;
+  const janainaErrorCount = janainaProcessos.filter(p => p.status === "erro").length;
+  const janainaWarningCount = janainaProcessos.filter(p => (p.status === "valido" || p.status === "sucesso") && p.erros.length > 0).length;
+  const janainaTotalRejeitados = janainaInvalidCount + janainaErrorCount;
+  const janainaTotalProblemas = janainaTotalRejeitados + janainaWarningCount;
+
   // Dr. Osmar file handling
   const handleOsmarFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -1946,11 +1961,329 @@ export default function ImportarProcessos() {
     setOsmarProgress(0);
   };
 
+  // Dra. Janaina (ACH Contingencial) file handling
+  const handleJanainaFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setJanainaFile(selectedFile);
+      parseJanainaExcel(selectedFile);
+    }
+  }, []);
+
+  const parseJanainaExcel = async (file: File) => {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+      const parsed: ProcessoImport[] = jsonData.map((row: any, index: number): ProcessoImport => {
+        const processo: ProcessoImport = {
+          numero: String(row["Processo Judicial"] || "").trim(),
+          assunto: row["Assunto da Ação"] || null,
+          situacao: row["Status"] || null,
+          responsavel: row["Advogado"] || null,
+          descricao: row["Justificativa"] || null,
+          justica: null,
+          cidade: null,
+          estado: null,
+          instancia: null,
+          orgao: null,
+          orgaoJulgador: row["Vara"] || null,
+          sistema: null,
+          area: row["Natureza"] || "trabalhista",
+          fase: null,
+          dataDistribuicao: row["Data do Ajuizamento"] || null,
+          classeCNJ: null,
+          valorAcao: row["Valor da Causa"] || null,
+          parteAtiva: row["Reclamante"] || null,
+          partePassiva: row["Reclamados"] || null,
+          cpfCnpjAtivo: null,
+          cpfCnpjPassivo: null,
+          status: "pendente",
+          erros: [],
+          linhaOriginal: index + 2,
+          identificadorProjuris: null,
+          pastaFisica: null,
+          pastaCliente: null,
+          dataCitacao: null,
+          dataRecebimento: null,
+          dataArquivamento: null,
+          valorProvisionado: null,
+          probabilidade: null,
+          risco: null,
+          transitadoJulgado: null,
+          resultado: null,
+          valorCondenacao: parseNumber(row["Valor da Condenação"]),
+        };
+        
+        // Store additional ACH (Janaina) fields
+        (processo as any).janainaData = {
+          ativoPasso: row["Ativo/Passivo"] || null,
+          reclamante: row["Reclamante"] || null,
+          reclamados: row["Reclamados"] || null,
+          comarca: row["Comarca"] || null,
+          desligamento: row["Desligamento"] || null,
+          responsabilidadeTipo: row["Responsabilidade: Exclusiva, Solidária, Subsidiária"] || null,
+          pedidoValor: row["Pedido e Valor"] || null,
+          andamento: row["Andamento"] || null,
+          dataConsulta: row["Data da Consulta"] || null,
+          periodoCondenacao: row["Período da Condenação"] || null,
+          riscoAnterior: row["Risco Perda Anterior"] || null,
+          riscoAtual: row["Risco Perda Atual"] || null,
+          mudancaRisco: row["Mudança (?)"] || null,
+          justificativa: row["Justificativa"] || null,
+          valorPerdaAnterior: parseNumber(row["Valor Perda Anterior"]),
+          valorPerdaAtual: parseNumber(row["Valor Perda Atual"]),
+          responsabilidadeAntes: parseNumber(row["Responsabilidade até 18/11/2020"]),
+          responsabilidadeApos: parseNumber(row["Responsabilidade após 18/11/2020"]),
+          adicaoBaixa: row["Adição/baixa"] || null,
+          depositosVinculados: row["Depósitos vinculados"] || null,
+          epocaRazao: row["Época / Razão"] || null,
+          funcao: row["Função"] || null,
+          setor: row["Setor"] || null,
+        };
+        
+        processo.erros = validateProcesso(processo);
+        const hasCriticalError = !processo.numero || processo.numero.trim() === "" || processo.numero.trim().length < 5;
+        processo.status = hasCriticalError ? "invalido" : "valido";
+        
+        return processo;
+      });
+
+      setJanainaProcessos(parsed);
+      
+      const validCount = parsed.filter(p => p.status === "valido").length;
+      const invalidCount = parsed.filter(p => p.status === "invalido").length;
+      
+      if (parsed.length === 0) {
+        toast({
+          title: "Nenhum processo encontrado",
+          description: "A planilha não contém dados. Verifique se a primeira linha contém os cabeçalhos.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Planilha carregada",
+          description: `${parsed.length} linha(s): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
+          variant: invalidCount > 0 ? "destructive" : "default",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao ler planilha Dra. Janaina:", error);
+      toast({
+        title: "Erro ao ler planilha",
+        description: "Verifique se o arquivo está no formato correto (.xlsx ou .xls).",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleJanainaImport = async () => {
+    const validProcessos = janainaProcessos.filter(p => p.status === "valido");
+    if (validProcessos.length === 0) {
+      toast({
+        title: "Nenhum processo válido",
+        description: "Corrija os erros de validação antes de importar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setJanainaImporting(true);
+    startImport("Importando ACH Contingencial");
+    setJanainaProgress(0);
+
+    const updatedProcessos = [...janainaProcessos];
+    let successCountLocal = 0;
+    let errorCountLocal = 0;
+
+    for (let i = 0; i < updatedProcessos.length; i++) {
+      const processo = updatedProcessos[i];
+      
+      if (processo.status === "invalido") {
+        continue;
+      }
+
+      try {
+        const janainaData = (processo as any).janainaData || {};
+
+        // Check if process already exists
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processo.numero.trim())
+          .maybeSingle();
+
+        const areaSlug = await ensureAreaExists(processo.area);
+
+        const processoData: any = {
+          numero: processo.numero.trim(),
+          area: areaSlug,
+          status: mapStatusToEnum(processo.situacao),
+          assunto: processo.assunto,
+          vara: processo.orgaoJulgador,
+          comarca: janainaData.comarca,
+          data_distribuicao: parseDate(processo.dataDistribuicao),
+          valor_causa: parseNumber(processo.valorAcao),
+          polo_ativo: janainaData.reclamante,
+          polo_passivo: janainaData.reclamados,
+          valor_condenacao: processo.valorCondenacao,
+          coordenacao_id: selectedCoordenacao || null,
+          advogado_responsavel_id: selectedMembro || null,
+          cliente_id: selectedCliente || null,
+          monitorar_andamentos: janainaBuscarAndamentos,
+          // ACH specific fields
+          ativo_passivo: janainaData.ativoPasso,
+          reclamante: janainaData.reclamante,
+          reclamados: janainaData.reclamados,
+          data_desligamento: parseDate(janainaData.desligamento),
+          responsabilidade_tipo: janainaData.responsabilidadeTipo,
+          pedido_valor: janainaData.pedidoValor,
+          andamento_atual: janainaData.andamento,
+          data_consulta: parseDate(janainaData.dataConsulta),
+          periodo_condenacao: janainaData.periodoCondenacao,
+          risco_anterior: janainaData.riscoAnterior,
+          risco_atual: janainaData.riscoAtual,
+          mudanca_risco: janainaData.mudancaRisco === "Sim" || janainaData.mudancaRisco === true,
+          justificativa_risco: janainaData.justificativa,
+          valor_perda_anterior: janainaData.valorPerdaAnterior,
+          valor_perda_atual: janainaData.valorPerdaAtual,
+          responsabilidade_antes_data: janainaData.responsabilidadeAntes,
+          responsabilidade_apos_data: janainaData.responsabilidadeApos,
+          adicao_baixa: janainaData.adicaoBaixa,
+          depositos_vinculados: janainaData.depositosVinculados,
+          epoca_razao: janainaData.epocaRazao,
+          funcao: janainaData.funcao,
+          setor: janainaData.setor,
+          advogado_externo: processo.responsavel,
+        };
+
+        let isUpdate = false;
+
+        if (existingProcesso) {
+          const { error } = await supabase
+            .from("processos")
+            .update(processoData)
+            .eq("id", existingProcesso.id);
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            errorCountLocal++;
+            continue;
+          }
+          isUpdate = true;
+        } else {
+          const { data: insertedProcesso, error } = await supabase
+            .from("processos")
+            .insert(processoData as any)
+            .select("id")
+            .single();
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            errorCountLocal++;
+            continue;
+          }
+
+          if (janainaBuscarAndamentos && insertedProcesso) {
+            const andamentosRes = await buscarAndamentosExternos(insertedProcesso.id, processo.numero.trim());
+            if (!andamentosRes.success) {
+              console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+            }
+          }
+        }
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "sucesso", 
+          erroImport: isUpdate ? "Atualizado (já existia)" : undefined 
+        };
+        successCountLocal++;
+      } catch (err: any) {
+        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
+        errorCountLocal++;
+      }
+
+      setJanainaProgress(((i + 1) / updatedProcessos.length) * 100);
+      setJanainaProcessos([...updatedProcessos]);
+    }
+
+    setJanainaImporting(false);
+    endImport();
+
+    toast({
+      title: "Importação Dra. Janaina concluída",
+      description: `${successCountLocal} processo(s) importado(s). ${errorCountLocal} erro(s) de importação.`,
+      variant: errorCountLocal > 0 ? "destructive" : "default",
+    });
+  };
+
+  const downloadJanainaRejeitados = () => {
+    const rejeitados = janainaProcessos.filter(p => p.status === "invalido" || p.status === "erro");
+    const comAvisos = janainaProcessos.filter(p => (p.status === "sucesso" || p.status === "valido") && p.erros.length > 0);
+    
+    if (rejeitados.length === 0 && comAvisos.length === 0) {
+      toast({
+        title: "Nenhum problema encontrado",
+        description: "Não há processos rejeitados ou com avisos para exportar.",
+      });
+      return;
+    }
+
+    const rejeitadosData = rejeitados.map(p => ({
+      "Linha": p.linhaOriginal,
+      "Número do processo": p.numero || "(vazio)",
+      "Reclamante": p.parteAtiva,
+      "Reclamados": p.partePassiva,
+      "Vara": p.orgaoJulgador,
+      "Status": p.situacao,
+      "Tipo": "REJEITADO",
+      "Motivo": p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; ") || p.erroImport || "Erro crítico",
+    }));
+
+    const avisosData = comAvisos.map(p => ({
+      "Linha": p.linhaOriginal,
+      "Número do processo": p.numero,
+      "Reclamante": p.parteAtiva,
+      "Reclamados": p.partePassiva,
+      "Vara": p.orgaoJulgador,
+      "Status": p.situacao,
+      "Tipo": "IMPORTADO COM AVISOS",
+      "Avisos": p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; "),
+    }));
+
+    const allData = [...rejeitadosData, ...avisosData];
+
+    const ws = XLSX.utils.json_to_sheet(allData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Problemas");
+    
+    const colWidths = Object.keys(allData[0] || {}).map(key => ({
+      wch: Math.max(key.length, 15)
+    }));
+    ws["!cols"] = colWidths;
+    
+    XLSX.writeFile(wb, `janaina_problemas_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: "Arquivo gerado",
+      description: `${rejeitados.length} rejeitado(s), ${comAvisos.length} com avisos.`,
+    });
+  };
+
+  const clearJanaina = () => {
+    setJanainaFile(null);
+    setJanainaProcessos([]);
+    setJanainaProgress(0);
+  };
+
   return (
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 max-w-xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -1966,6 +2299,10 @@ export default function ImportarProcessos() {
             <TabsTrigger value="osmar" className="flex items-center gap-2">
               <Hospital className="h-4 w-4" />
               <span className="hidden sm:inline">Dr. Osmar</span>
+            </TabsTrigger>
+            <TabsTrigger value="janaina" className="flex items-center gap-2">
+              <Scale className="h-4 w-4" />
+              <span className="hidden sm:inline">Dra. Janaina</span>
             </TabsTrigger>
           </TabsList>
 
@@ -3118,6 +3455,312 @@ export default function ImportarProcessos() {
                                   {processo.partePassiva || "-"}
                                 </TableCell>
                                 <TableCell>{processo.fase || "-"}</TableCell>
+                                <TableCell>{processo.situacao || "-"}</TableCell>
+                                <TableCell className="text-sm">
+                                  {processo.status === "invalido" && processo.erros.length > 0 && (
+                                    <div className="text-red-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>• {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {(processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 && (
+                                    <div className="text-yellow-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>⚠ {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {processo.erroImport && (
+                                    <div className="text-orange-600">• Importação: {processo.erroImport}</div>
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length === 0 && "-"}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && <span className="text-blue-600">Importado com sucesso</span>}
+                                  {processo.status === "sucesso" && processo.erros.length > 0 && <span className="text-yellow-600 block mt-1">Importado com avisos</span>}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab: Dra. Janaina (ACH Contingencial) */}
+          <TabsContent value="janaina" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Scale className="h-5 w-5" />
+                  Importar Dra. Janaina (ACH Contingencial)
+                </CardTitle>
+                <CardDescription>
+                  Importe processos trabalhistas usando a planilha de controle contingencial ACH. Processos existentes serão atualizados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">Faça upload da planilha</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    A planilha deve conter as colunas: Processo Judicial, Status, Comarca, Vara, Data do Ajuizamento, Reclamante, Reclamados, etc.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleJanainaFileChange}
+                      className="max-w-xs"
+                      disabled={janainaImporting}
+                    />
+                    {janainaFile && (
+                      <Button variant="outline" onClick={clearJanaina} disabled={janainaImporting}>
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Coordenação Selection */}
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="coordenacao-janaina" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Coordenação Responsável
+                  </Label>
+                  <Select 
+                    value={selectedCoordenacao} 
+                    onValueChange={(value) => {
+                      setSelectedCoordenacao(value);
+                      setSelectedMembro("");
+                    }}
+                    disabled={janainaImporting}
+                  >
+                    <SelectTrigger id="coordenacao-janaina" className="max-w-md">
+                      <SelectValue placeholder="Selecione a coordenação (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.nome} ({coord.area})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Member Selection */}
+                {selectedCoordenacao && membrosDisponiveis.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="membro-janaina" className="flex items-center gap-2">
+                      Advogado Responsável (opcional)
+                    </Label>
+                    <Select 
+                      value={selectedMembro} 
+                      onValueChange={setSelectedMembro}
+                      disabled={janainaImporting}
+                    >
+                      <SelectTrigger id="membro-janaina" className="max-w-md">
+                        <SelectValue placeholder="Selecione o advogado responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membrosDisponiveis.map((membro) => (
+                          <SelectItem key={membro.id} value={membro.id}>
+                            {membro.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Cliente Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="cliente-janaina" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Cliente (opcional)
+                  </Label>
+                  <Select 
+                    value={selectedCliente} 
+                    onValueChange={setSelectedCliente}
+                    disabled={janainaImporting}
+                  >
+                    <SelectTrigger id="cliente-janaina" className="max-w-md">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Opção de buscar andamentos */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="buscar-andamentos-janaina" className="flex items-center gap-2 font-medium">
+                      <Clock className="h-4 w-4" />
+                      Buscar andamentos na importação
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {janainaBuscarAndamentos 
+                        ? "Os andamentos serão buscados durante a importação e o processo ficará habilitado para monitoramento automático."
+                        : "Os andamentos NÃO serão buscados e o processo ficará desabilitado para monitoramento."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="buscar-andamentos-janaina"
+                    checked={janainaBuscarAndamentos}
+                    onCheckedChange={setJanainaBuscarAndamentos}
+                    disabled={janainaImporting}
+                  />
+                </div>
+                
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Colunas reconhecidas:</strong> Processo Judicial, Status, Comarca, Vara, Data do Ajuizamento, Ativo/Passivo, Reclamante, Reclamados, Natureza, Desligamento, Responsabilidade, Assunto da Ação, Pedido e Valor, Andamento, Data da Consulta, Período da Condenação, Risco Perda, Justificativa, Valor da Causa, Valor Perda, Valor da Condenação, Depósitos vinculados, Função, Advogado, Setor.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Janaina File Preview */}
+            {janainaFile && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle>Pré-visualização Dra. Janaina</CardTitle>
+                      <CardDescription>
+                        {janainaProcessos.length} processo(s) encontrado(s) em "{janainaFile.name}"
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {janainaProcessos.length > 0 && (
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                            {janainaValidCount} importáveis
+                          </Badge>
+                          {janainaWarningCount > 0 && (
+                            <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-200">
+                              {janainaWarningCount} com avisos
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                            {janainaInvalidCount} rejeitados
+                          </Badge>
+                          {janainaSuccessCount > 0 && (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
+                              {janainaSuccessCount} importados
+                            </Badge>
+                          )}
+                          {janainaErrorCount > 0 && (
+                            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
+                              {janainaErrorCount} erros
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {janainaTotalProblemas > 0 && (
+                          <Button variant="outline" onClick={downloadJanainaRejeitados}>
+                            <FileDown className="h-4 w-4 mr-2" />
+                            Baixar Problemas ({janainaTotalProblemas})
+                          </Button>
+                        )}
+                        <Button 
+                          onClick={handleJanainaImport} 
+                          disabled={janainaImporting || janainaValidCount === 0}
+                        >
+                          {janainaImporting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Importando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Importar ({janainaValidCount})
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {janainaImporting && (
+                    <Progress value={janainaProgress} className="mt-4" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {janainaProcessos.length === 0 ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Nenhum processo encontrado na planilha. Verifique se é uma planilha no formato ACH Contingencial.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="max-h-[500px] overflow-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead className="w-[60px]">Linha</TableHead>
+                              <TableHead className="w-[60px]">Status</TableHead>
+                              <TableHead>Número</TableHead>
+                              <TableHead>Reclamante</TableHead>
+                              <TableHead>Reclamados</TableHead>
+                              <TableHead>Vara</TableHead>
+                              <TableHead>Status Proc.</TableHead>
+                              <TableHead className="min-w-[300px]">Avisos/Erros</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {janainaProcessos.map((processo, index) => (
+                              <TableRow key={index} className={
+                                processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : 
+                                processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : 
+                                (processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 ? "bg-yellow-50 dark:bg-yellow-950/20" : ""
+                              }>
+                                <TableCell className="text-muted-foreground">
+                                  {processo.linhaOriginal}
+                                </TableCell>
+                                <TableCell>
+                                  {processo.status === "valido" && processo.erros.length === 0 && (
+                                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length > 0 && (
+                                    <AlertCircle className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                  {processo.status === "invalido" && (
+                                    <XCircle className="h-4 w-4 text-red-500" />
+                                  )}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && (
+                                    <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                                  )}
+                                  {processo.status === "sucesso" && processo.erros.length > 0 && (
+                                    <CheckCircle2 className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                  {processo.status === "erro" && (
+                                    <XCircle className="h-4 w-4 text-orange-500" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {processo.numero || <span className="text-red-500 italic">vazio</span>}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.parteAtiva || "-"}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.partePassiva || "-"}
+                                </TableCell>
+                                <TableCell>{processo.orgaoJulgador || "-"}</TableCell>
                                 <TableCell>{processo.situacao || "-"}</TableCell>
                                 <TableCell className="text-sm">
                                   {processo.status === "invalido" && processo.erros.length > 0 && (

@@ -1,0 +1,47 @@
+-- Add new columns for Dra. Janaina (ACH contingencial) import
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS ativo_passivo text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS reclamante text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS reclamados text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS data_desligamento date;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS responsabilidade_tipo text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS pedido_valor text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS data_consulta date;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS periodo_condenacao text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS risco_anterior text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS risco_atual text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS mudanca_risco boolean;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS justificativa_risco text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS valor_perda_anterior numeric;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS valor_perda_atual numeric;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS responsabilidade_antes_data numeric;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS responsabilidade_apos_data numeric;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS adicao_baixa text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS depositos_vinculados text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS epoca_razao text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS funcao text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS setor text;
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS advogado_externo text;
+
+-- Add comment to explain the columns
+COMMENT ON COLUMN public.processos.ativo_passivo IS 'Posição do cliente: Ativo ou Passivo';
+COMMENT ON COLUMN public.processos.reclamante IS 'Nome do reclamante (parte ativa trabalhista)';
+COMMENT ON COLUMN public.processos.reclamados IS 'Nome dos reclamados (parte passiva trabalhista)';
+COMMENT ON COLUMN public.processos.data_desligamento IS 'Data de desligamento do trabalhador';
+COMMENT ON COLUMN public.processos.responsabilidade_tipo IS 'Tipo de responsabilidade: Exclusiva, Solidária, Subsidiária';
+COMMENT ON COLUMN public.processos.pedido_valor IS 'Descrição do pedido e valor estimado';
+COMMENT ON COLUMN public.processos.data_consulta IS 'Data da última consulta/atualização';
+COMMENT ON COLUMN public.processos.periodo_condenacao IS 'Período da condenação';
+COMMENT ON COLUMN public.processos.risco_anterior IS 'Risco de perda anterior';
+COMMENT ON COLUMN public.processos.risco_atual IS 'Risco de perda atual';
+COMMENT ON COLUMN public.processos.mudanca_risco IS 'Indica se houve mudança no risco';
+COMMENT ON COLUMN public.processos.justificativa_risco IS 'Justificativa para o risco atribuído';
+COMMENT ON COLUMN public.processos.valor_perda_anterior IS 'Valor da perda anterior';
+COMMENT ON COLUMN public.processos.valor_perda_atual IS 'Valor da perda atual';
+COMMENT ON COLUMN public.processos.responsabilidade_antes_data IS 'Valor de responsabilidade antes de data referência';
+COMMENT ON COLUMN public.processos.responsabilidade_apos_data IS 'Valor de responsabilidade após data referência';
+COMMENT ON COLUMN public.processos.adicao_baixa IS 'Indica se é adição ou baixa';
+COMMENT ON COLUMN public.processos.depositos_vinculados IS 'Valor e detalhes dos depósitos vinculados';
+COMMENT ON COLUMN public.processos.epoca_razao IS 'Época e razão do depósito';
+COMMENT ON COLUMN public.processos.funcao IS 'Função/cargo do trabalhador';
+COMMENT ON COLUMN public.processos.setor IS 'Setor do trabalhador';
+COMMENT ON COLUMN public.processos.advogado_externo IS 'Nome do advogado externo responsável';
