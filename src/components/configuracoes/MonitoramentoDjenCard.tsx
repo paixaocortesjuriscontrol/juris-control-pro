@@ -63,10 +63,11 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         .from('historico_monitoramento')
         .select('*')
         .eq('tipo', 'djen')
+        .gt('processos_verificados', 0)
         .order('executado_em', { ascending: false })
         .limit(1)
         .maybeSingle();
-      
+
       if (error) throw error;
       return data;
     },
