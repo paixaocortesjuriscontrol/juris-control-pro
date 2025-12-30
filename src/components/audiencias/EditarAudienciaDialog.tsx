@@ -87,8 +87,15 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
 
     setIsLoading(true);
     try {
+      // Converter data para formato ISO completo (timestamp with time zone)
+      let dataAudienciaISO: string | null = null;
+      if (formData.data_audiencia) {
+        // Criar data com hora 12:00 para evitar problemas de timezone
+        dataAudienciaISO = `${formData.data_audiencia}T12:00:00.000Z`;
+      }
+
       const updateData: Record<string, any> = {
-        data_audiencia: formData.data_audiencia || null,
+        data_audiencia: dataAudienciaISO,
         hora: formData.hora || null,
         processo_numero: formData.processo_numero || null,
         tipo_audiencia: formData.tipo_audiencia || null,

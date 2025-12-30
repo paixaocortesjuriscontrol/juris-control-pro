@@ -68,6 +68,7 @@ export interface NovaAudiencia {
   testemunhas?: string;
   advogado?: string;
   observacoes?: string;
+  status?: string;
 }
 
 interface AudienciasFiltros {
@@ -162,13 +163,20 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      // Converter data para formato ISO completo (timestamp with time zone)
+      let dataAudienciaISO: string | null = null;
+      if (novaAudiencia.data_audiencia) {
+        dataAudienciaISO = `${novaAudiencia.data_audiencia}T12:00:00.000Z`;
+      }
+
       const { error } = await supabase
         .from('audiencias_detectadas')
         .insert({
           ...novaAudiencia,
+          data_audiencia: dataAudienciaISO,
           origem: 'manual',
           criado_por: user.id,
-          status: 'pendente',
+          status: novaAudiencia.status || 'pendente',
         });
 
       if (error) throw error;
