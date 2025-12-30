@@ -129,6 +129,110 @@ function matchesCondicaoConcomitante(conteudo: string, condicao: string | undefi
   return termos.every(termo => conteudoUpper.includes(termo));
 }
 
+// Detect audiência in publication content
+interface AudienciaInfo {
+  dataAudiencia: string | null;
+  tipoAudiencia: string | null;
+  localAudiencia: string | null;
+  contexto: string;
+}
+
+function detectAudiencia(conteudo: string): AudienciaInfo | null {
+  const conteudoLower = conteudo.toLowerCase();
+  
+  // Check for "audiência" term
+  const audienciaTerms = [
+    'audiência',
+    'audiencia',
+    'sessão de julgamento',
+    'sessao de julgamento',
+    'pauta de julgamento',
+  ];
+  
+  const hasAudiencia = audienciaTerms.some(term => conteudoLower.includes(term));
+  if (!hasAudiencia) return null;
+  
+  // Extract context around the term
+  let contexto = '';
+  for (const term of audienciaTerms) {
+    const index = conteudoLower.indexOf(term);
+    if (index !== -1) {
+      const start = Math.max(0, index - 100);
+      const end = Math.min(conteudo.length, index + term.length + 200);
+      contexto = (start > 0 ? '...' : '') + 
+                 conteudo.slice(start, end) + 
+                 (end < conteudo.length ? '...' : '');
+      break;
+    }
+  }
+  
+  // Try to extract date from context
+  let dataAudiencia: string | null = null;
+  
+  // Pattern: DD/MM/YYYY or DD-MM-YYYY
+  const datePatterns = [
+    /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/,
+    /(\d{1,2})\s+de\s+(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+(\d{4})/i,
+  ];
+  
+  for (const pattern of datePatterns) {
+    const match = contexto.match(pattern);
+    if (match) {
+      // Convert to ISO date if possible
+      if (match[2] && isNaN(parseInt(match[2]))) {
+        // Month is text
+        const months: Record<string, string> = {
+          'janeiro': '01', 'fevereiro': '02', 'março': '03', 'marco': '03',
+          'abril': '04', 'maio': '05', 'junho': '06', 'julho': '07',
+          'agosto': '08', 'setembro': '09', 'outubro': '10', 'novembro': '11', 'dezembro': '12'
+        };
+        const month = months[match[2].toLowerCase()] || '01';
+        dataAudiencia = `${match[3]}-${month}-${match[1].padStart(2, '0')}`;
+      } else {
+        dataAudiencia = `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+      }
+      break;
+    }
+  }
+  
+  // Try to extract type
+  let tipoAudiencia: string | null = null;
+  const tipoPatterns = [
+    /audiência\s+de\s+(conciliação|instrução|julgamento|instrução e julgamento|una|inicial|custódia)/i,
+    /audiencia\s+de\s+(conciliacao|instrucao|julgamento|instrucao e julgamento|una|inicial|custodia)/i,
+  ];
+  
+  for (const pattern of tipoPatterns) {
+    const match = conteudo.match(pattern);
+    if (match) {
+      tipoAudiencia = match[1];
+      break;
+    }
+  }
+  
+  // Try to extract location
+  let localAudiencia: string | null = null;
+  const localPatterns = [
+    /(?:local|sala|endereço|endereco|forum|fórum)[\s:]+([^,\n]{10,60})/i,
+    /(?:na|no|em)\s+(?:sala|fórum|forum)\s+([^,\n]{5,50})/i,
+  ];
+  
+  for (const pattern of localPatterns) {
+    const match = conteudo.match(pattern);
+    if (match) {
+      localAudiencia = match[1].trim();
+      break;
+    }
+  }
+  
+  return {
+    dataAudiencia,
+    tipoAudiencia,
+    localAudiencia,
+    contexto,
+  };
+}
+
 // Function removed - using fetchDJENResultsWithStats below
 
 interface TribunalStats {
@@ -264,6 +368,31 @@ async function processMonitoramento(
           primeiro_monitoramento_id: monitoramento.id,
           publicacao_id: insertedPub.id,
         }, { onConflict: 'hash_global', ignoreDuplicates: true });
+        
+        // Check for "audiência" term and create alert
+        const audienciaInfo = detectAudiencia(conteudo);
+        if (audienciaInfo) {
+          await supabase.from('audiencias_detectadas').insert({
+            publicacao_id: insertedPub.id,
+            monitoramento_id: monitoramento.id,
+            processo_numero: processoNumero,
+            data_audiencia: audienciaInfo.dataAudiencia,
+            tipo_audiencia: audienciaInfo.tipoAudiencia,
+            local_audiencia: audienciaInfo.localAudiencia,
+            contexto: audienciaInfo.contexto,
+            conteudo_publicacao: conteudo.substring(0, 5000),
+            status: 'pendente',
+          });
+          
+          // Notification for audiência detection
+          await supabase.from('notificacoes').insert({
+            usuario_id: monitoramento.criado_por,
+            titulo: '📅 Audiência Detectada!',
+            mensagem: `Audiência encontrada: ${audienciaInfo.contexto?.substring(0, 100) || 'Ver detalhes'}`,
+            tipo: 'warning',
+            link: '/painel-audiencias',
+          });
+        }
         
         // Create notification (simplified - just for creator)
         await supabase.from('notificacoes').insert({
