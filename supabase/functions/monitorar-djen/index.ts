@@ -456,6 +456,25 @@ serve(async (req) => {
         }
       })
       .eq('tipo', 'djen');
+    
+    // Save to historico_monitoramento for persistent report
+    await supabase.from('historico_monitoramento').insert({
+      tipo: 'djen',
+      executado_em: new Date().toISOString(),
+      processos_verificados: processedCount,
+      novos_andamentos: totalNovas,
+      processos_com_novos: totalNovas,
+      erros: errorCount,
+      detalhes: {
+        offset,
+        descartadas: totalDescartadas,
+        duplicatas: totalDuplicatas,
+        duracao_s: duration,
+        total_paginas: totalPaginas,
+        total_resultados: totalResultados,
+        tribunais_stats: allTribunaisStats.slice(0, 30),
+      },
+    });
 
     console.log(`Done: ${processedCount} processed, ${totalNovas} new, ${totalPaginas} pages, ${duration}s`);
 
