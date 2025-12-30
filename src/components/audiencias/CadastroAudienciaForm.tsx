@@ -31,7 +31,7 @@ export function CadastroAudienciaForm() {
     status: "pendente",
   });
 
-  const handleChange = (field: keyof NovaAudiencia, value: string) => {
+  const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
