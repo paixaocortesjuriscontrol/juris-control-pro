@@ -124,55 +124,94 @@ export type Database = {
       }
       audiencias_detectadas: {
         Row: {
+          advogado: string | null
+          cliente: string | null
+          comarca: string | null
           conteudo_publicacao: string | null
           contexto: string | null
           created_at: string
+          criado_por: string | null
           data_audiencia: string | null
+          funcao: string | null
+          hora: string | null
           id: string
           local_audiencia: string | null
           monitoramento_id: string | null
           observacoes: string | null
+          origem: string | null
+          polo_ativo: string | null
+          preposto: string | null
           processo_numero: string | null
           publicacao_id: string | null
+          resumo_objeto: string | null
           status: string
+          terceirizado: string | null
+          testemunhas: string | null
           tipo_audiencia: string | null
           tratado_em: string | null
           tratado_por: string | null
           updated_at: string
+          vara_camara: string | null
         }
         Insert: {
+          advogado?: string | null
+          cliente?: string | null
+          comarca?: string | null
           conteudo_publicacao?: string | null
           contexto?: string | null
           created_at?: string
+          criado_por?: string | null
           data_audiencia?: string | null
+          funcao?: string | null
+          hora?: string | null
           id?: string
           local_audiencia?: string | null
           monitoramento_id?: string | null
           observacoes?: string | null
+          origem?: string | null
+          polo_ativo?: string | null
+          preposto?: string | null
           processo_numero?: string | null
           publicacao_id?: string | null
+          resumo_objeto?: string | null
           status?: string
+          terceirizado?: string | null
+          testemunhas?: string | null
           tipo_audiencia?: string | null
           tratado_em?: string | null
           tratado_por?: string | null
           updated_at?: string
+          vara_camara?: string | null
         }
         Update: {
+          advogado?: string | null
+          cliente?: string | null
+          comarca?: string | null
           conteudo_publicacao?: string | null
           contexto?: string | null
           created_at?: string
+          criado_por?: string | null
           data_audiencia?: string | null
+          funcao?: string | null
+          hora?: string | null
           id?: string
           local_audiencia?: string | null
           monitoramento_id?: string | null
           observacoes?: string | null
+          origem?: string | null
+          polo_ativo?: string | null
+          preposto?: string | null
           processo_numero?: string | null
           publicacao_id?: string | null
+          resumo_objeto?: string | null
           status?: string
+          terceirizado?: string | null
+          testemunhas?: string | null
           tipo_audiencia?: string | null
           tratado_em?: string | null
           tratado_por?: string | null
           updated_at?: string
+          vara_camara?: string | null
         }
         Relationships: [
           {
