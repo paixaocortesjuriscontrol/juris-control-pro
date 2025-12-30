@@ -58,6 +58,7 @@ const AnaliseDjen = () => {
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [apenasNaoLidas, setApenasNaoLidas] = useState(false);
   const [activeTab, setActiveTab] = useState("publicacoes");
+  const [resumoLocal, setResumoLocal] = useState<string | null>(null);
   
   // States
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -151,7 +152,11 @@ const AnaliseDjen = () => {
       return;
     }
     const selectedPubs = publicacoes.filter(p => selectedIds.has(p.id));
-    await gerarResumoIA.mutateAsync({ publicacoes: selectedPubs, monitoramentoId: monitoramentoId || undefined });
+    const resumo = await gerarResumoIA.mutateAsync({ publicacoes: selectedPubs, monitoramentoId: monitoramentoId || undefined });
+    // Armazenar o resumo localmente para exibição imediata
+    if (resumo) {
+      setResumoLocal(resumo);
+    }
   };
 
   const handleMarcarLidas = async () => {
@@ -499,27 +504,22 @@ const AnaliseDjen = () => {
             )}
           </CardHeader>
           <CardContent>
-            {!monitoramentoId ? (
-              <div className="text-center py-6 text-green-600 dark:text-green-400">
-                <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>Selecione uma coordenação e um monitoramento para gerar o resumo de IA.</p>
-              </div>
-            ) : loadingResumo ? (
+            {loadingResumo ? (
               <div className="flex items-center justify-center py-6">
                 <Loader2 className="w-6 h-6 animate-spin text-green-600" />
               </div>
-            ) : ultimoResumo ? (
+            ) : (ultimoResumo || resumoLocal) ? (
               <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-green-800 dark:prose-headings:text-green-200">
                 <div className="whitespace-pre-wrap text-green-700 dark:text-green-300">
-                  {ultimoResumo.resumo}
+                  {ultimoResumo?.resumo || resumoLocal}
                 </div>
               </div>
             ) : (
               <div className="text-center py-6 text-green-600 dark:text-green-400">
                 <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>Nenhum resumo gerado ainda para este monitoramento.</p>
+                <p>Selecione publicações e clique em "Resumir Selecionados" para gerar um resumo com IA.</p>
                 <p className="text-sm mt-1">
-                  Clique em "Gerar Resumo" para analisar as {publicacoes.length} publicação(ões) com IA.
+                  {publicacoes.length > 0 ? `${publicacoes.length} publicação(ões) disponível(is).` : "Nenhuma publicação encontrada com os filtros atuais."}
                 </p>
               </div>
             )}
