@@ -118,6 +118,193 @@ async function getActiveTermos(supabase: any) {
   return termosCache;
 }
 
+// ============ DETECÇÃO DE AUDIÊNCIAS ============
+function detectAudienciaInMovement(descricao: string): {
+  detected: boolean;
+  tipo: string | null;
+  data: Date | null;
+  contexto: string;
+} {
+  const descLower = descricao.toLowerCase();
+  
+  // Termos que indicam audiência
+  const termosAudiencia = [
+    'audiência',
+    'audiencia',
+    'sessão de julgamento',
+    'sessao de julgamento',
+    'designada audiência',
+    'designada audiencia',
+    'pauta de julgamento',
+    'intimação para audiência',
+    'intimacao para audiencia',
+  ];
+  
+  const detected = termosAudiencia.some(termo => descLower.includes(termo));
+  if (!detected) {
+    return { detected: false, tipo: null, data: null, contexto: '' };
+  }
+  
+  // Detectar tipo de audiência
+  let tipo = 'Audiência';
+  if (descLower.includes('conciliação') || descLower.includes('conciliacao')) {
+    tipo = 'Audiência de Conciliação';
+  } else if (descLower.includes('instrução') || descLower.includes('instrucao')) {
+    tipo = 'Audiência de Instrução';
+  } else if (descLower.includes('julgamento')) {
+    tipo = 'Sessão de Julgamento';
+  } else if (descLower.includes('una') || descLower.includes('unica') || descLower.includes('única')) {
+    tipo = 'Audiência Una';
+  } else if (descLower.includes('inicial')) {
+    tipo = 'Audiência Inicial';
+  }
+  
+  // Tentar extrair data
+  const regexData = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/g;
+  const matches = descricao.match(regexData);
+  let dataAudiencia: Date | null = null;
+  
+  if (matches && matches.length > 0) {
+    const parts = matches[0].split(/[\/\-]/);
+    if (parts.length === 3) {
+      const dia = parseInt(parts[0]);
+      const mes = parseInt(parts[1]) - 1;
+      let ano = parseInt(parts[2]);
+      if (ano < 100) ano += 2000;
+      dataAudiencia = new Date(ano, mes, dia);
+    }
+  }
+  
+  // Extrair contexto (primeiros 300 caracteres)
+  const contexto = descricao.substring(0, 300) + (descricao.length > 300 ? '...' : '');
+  
+  return { detected: true, tipo, data: dataAudiencia, contexto };
+}
+
+async function registrarAudienciaDetectada(
+  supabase: any,
+  processoId: string,
+  processoNumero: string,
+  movimentacaoId: string,
+  descricao: string,
+  dataMovimentacao: string
+) {
+  const { detected, tipo, data, contexto } = detectAudienciaInMovement(descricao);
+  
+  if (!detected) return null;
+  
+  // Verificar se já existe uma audiência para este processo com dados similares
+  const { data: existing } = await supabase
+    .from('audiencias_detectadas')
+    .select('id')
+    .eq('processo_numero', processoNumero)
+    .eq('contexto', contexto)
+    .maybeSingle();
+  
+  if (existing) {
+    console.log(`Audiência já registrada para processo ${processoNumero}`);
+    return null;
+  }
+  
+  const { data: inserted, error } = await supabase
+    .from('audiencias_detectadas')
+    .insert({
+      processo_numero: processoNumero,
+      data_audiencia: data?.toISOString() || null,
+      tipo_audiencia: tipo,
+      contexto,
+      conteudo_publicacao: descricao,
+      status: 'pendente',
+    })
+    .select('id')
+    .single();
+  
+  if (error) {
+    console.error('Erro ao registrar audiência:', error);
+    return null;
+  }
+  
+  console.log(`Audiência detectada para processo ${processoNumero}: ${tipo}`);
+  
+  // Notificar usuários relevantes
+  await notifyAudienciaDetectada(supabase, processoId, processoNumero, tipo, data);
+  
+  return inserted;
+}
+
+async function notifyAudienciaDetectada(
+  supabase: any,
+  processoId: string,
+  processoNumero: string,
+  tipoAudiencia: string | null,
+  dataAudiencia: Date | null
+) {
+  try {
+    const { data: processo } = await supabase
+      .from('processos')
+      .select('advogado_responsavel_id, coordenacao_id')
+      .eq('id', processoId)
+      .single();
+
+    if (!processo) return;
+
+    const usersToNotify: string[] = [];
+
+    if (processo.advogado_responsavel_id) {
+      usersToNotify.push(processo.advogado_responsavel_id);
+    }
+
+    if (processo.coordenacao_id) {
+      const { data: membros } = await supabase
+        .from('membros_coordenacao')
+        .select('usuario_id')
+        .eq('coordenacao_id', processo.coordenacao_id);
+
+      membros?.forEach((m: any) => {
+        if (!usersToNotify.includes(m.usuario_id)) {
+          usersToNotify.push(m.usuario_id);
+        }
+      });
+    }
+
+    const { data: adminUsers } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .in('role', ['admin', 'coordenador']);
+    
+    adminUsers?.forEach((u: any) => {
+      if (!usersToNotify.includes(u.user_id)) {
+        usersToNotify.push(u.user_id);
+      }
+    });
+
+    const dataFormatada = dataAudiencia 
+      ? dataAudiencia.toLocaleDateString('pt-BR')
+      : 'Data a confirmar';
+    
+    for (const userId of usersToNotify) {
+      await supabase
+        .from('notificacoes')
+        .insert({
+          usuario_id: userId,
+          titulo: `📅 Audiência detectada: ${tipoAudiencia || 'Audiência'}`,
+          mensagem: `Audiência identificada no processo ${processoNumero}. Data: ${dataFormatada}`,
+          tipo: 'warning',
+          link: `/painel-audiencias`,
+          dados: {
+            processo_numero: processoNumero,
+            tipo_audiencia: tipoAudiencia,
+            data_audiencia: dataAudiencia?.toISOString(),
+          }
+        });
+    }
+
+    console.log(`Notified ${usersToNotify.length} users about new audiência`);
+  } catch (error) {
+    console.error('Error notifying about audiência:', error);
+  }
+}
+
 async function scanMovementForTerms(
   supabase: any, 
   movimentacaoId: string, 
@@ -436,6 +623,16 @@ async function processBatch(supabase: any): Promise<{
 
                 // Varredura automática de termos no novo andamento
                 await scanMovementForTerms(supabase, insertedMov.id, processo.id, descricaoCompleta);
+                
+                // Detectar audiências no andamento
+                await registrarAudienciaDetectada(
+                  supabase,
+                  processo.id,
+                  processo.numero,
+                  insertedMov.id,
+                  descricaoCompleta,
+                  movDate
+                );
               }
             }
         }
