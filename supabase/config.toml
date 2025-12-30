@@ -50,3 +50,9 @@ verify_jwt = true
 
 [functions.analisar-documento]
 verify_jwt = true
+
+[functions.alertar-audiencias]
+verify_jwt = false
+
+[functions.backfill-djen-job]
+verify_jwt = false

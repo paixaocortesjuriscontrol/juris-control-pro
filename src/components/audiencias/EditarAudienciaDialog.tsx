@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Save } from "lucide-react";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
     testemunhas: "",
     advogado: "",
     observacoes: "",
+    status: "pendente",
+    providencias_tomadas: "",
   });
 
   useEffect(() => {
@@ -68,6 +71,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
         testemunhas: audiencia.testemunhas || "",
         advogado: audiencia.advogado || "",
         observacoes: audiencia.observacoes || "",
+        status: audiencia.status || "pendente",
+        providencias_tomadas: (audiencia as any).providencias_tomadas || "",
       });
     }
   }, [audiencia]);
@@ -82,25 +87,36 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
 
     setIsLoading(true);
     try {
+      const updateData: Record<string, any> = {
+        data_audiencia: formData.data_audiencia || null,
+        hora: formData.hora || null,
+        processo_numero: formData.processo_numero || null,
+        tipo_audiencia: formData.tipo_audiencia || null,
+        vara_camara: formData.vara_camara || null,
+        comarca: formData.comarca || null,
+        polo_ativo: formData.polo_ativo || null,
+        cliente: formData.cliente || null,
+        terceirizado: formData.terceirizado || null,
+        resumo_objeto: formData.resumo_objeto || null,
+        funcao: formData.funcao || null,
+        preposto: formData.preposto || null,
+        testemunhas: formData.testemunhas || null,
+        advogado: formData.advogado || null,
+        observacoes: formData.observacoes || null,
+        status: formData.status,
+        providencias_tomadas: formData.providencias_tomadas || null,
+      };
+
+      // Se marcando como tratado, registrar quem e quando
+      if (formData.status === "tratado" && audiencia.status !== "tratado") {
+        const { data: { user } } = await supabase.auth.getUser();
+        updateData.tratado_por = user?.id;
+        updateData.tratado_em = new Date().toISOString();
+      }
+
       const { error } = await supabase
         .from('audiencias_detectadas')
-        .update({
-          data_audiencia: formData.data_audiencia || null,
-          hora: formData.hora || null,
-          processo_numero: formData.processo_numero || null,
-          tipo_audiencia: formData.tipo_audiencia || null,
-          vara_camara: formData.vara_camara || null,
-          comarca: formData.comarca || null,
-          polo_ativo: formData.polo_ativo || null,
-          cliente: formData.cliente || null,
-          terceirizado: formData.terceirizado || null,
-          resumo_objeto: formData.resumo_objeto || null,
-          funcao: formData.funcao || null,
-          preposto: formData.preposto || null,
-          testemunhas: formData.testemunhas || null,
-          advogado: formData.advogado || null,
-          observacoes: formData.observacoes || null,
-        })
+        .update(updateData)
         .eq('id', audiencia.id);
 
       if (error) throw error;
@@ -263,15 +279,47 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
             </div>
           </div>
 
-          {/* Observações */}
-          <div className="space-y-2">
-            <Label htmlFor="observacoes">Observações</Label>
-            <Textarea
-              id="observacoes"
-              value={formData.observacoes}
-              onChange={(e) => handleChange("observacoes", e.target.value)}
-              rows={2}
-            />
+          {/* Status e Providências */}
+          <div className="border-t pt-4 mt-4">
+            <h3 className="text-sm font-medium mb-3">Status e Providências</h3>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="status">Situação</Label>
+                <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                    <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+                    <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+                    <SelectItem value="tratado">✔️ Tratado</SelectItem>
+                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                    <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="observacoes">Observações</Label>
+                <Input
+                  id="observacoes"
+                  value={formData.observacoes}
+                  onChange={(e) => handleChange("observacoes", e.target.value)}
+                  placeholder="Observações gerais"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2 mt-4">
+              <Label htmlFor="providencias_tomadas">Providências Tomadas</Label>
+              <Textarea
+                id="providencias_tomadas"
+                value={formData.providencias_tomadas}
+                onChange={(e) => handleChange("providencias_tomadas", e.target.value)}
+                rows={3}
+                placeholder="Descreva as providências tomadas (preposto confirmado, documentos enviados, etc.)"
+              />
+            </div>
           </div>
 
           <DialogFooter>

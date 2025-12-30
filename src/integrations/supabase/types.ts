@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      alertas_audiencias: {
+        Row: {
+          audiencia_id: string
+          created_at: string
+          dias_restantes: number | null
+          enviado_em: string
+          id: string
+          lido: boolean
+          lido_em: string | null
+          lido_por: string | null
+          tipo: string
+        }
+        Insert: {
+          audiencia_id: string
+          created_at?: string
+          dias_restantes?: number | null
+          enviado_em?: string
+          id?: string
+          lido?: boolean
+          lido_em?: string | null
+          lido_por?: string | null
+          tipo?: string
+        }
+        Update: {
+          audiencia_id?: string
+          created_at?: string
+          dias_restantes?: number | null
+          enviado_em?: string
+          id?: string
+          lido?: boolean
+          lido_em?: string | null
+          lido_por?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_audiencias_audiencia_id_fkey"
+            columns: ["audiencia_id"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alertas_monitoramento: {
         Row: {
           contexto: string | null
@@ -125,6 +169,7 @@ export type Database = {
       audiencias_detectadas: {
         Row: {
           advogado: string | null
+          alerta_enviado: boolean | null
           cliente: string | null
           comarca: string | null
           conteudo_publicacao: string | null
@@ -144,6 +189,7 @@ export type Database = {
           polo_ativo: string | null
           preposto: string | null
           processo_numero: string | null
+          providencias_tomadas: string | null
           publicacao_id: string | null
           resumo_objeto: string | null
           status: string
@@ -157,6 +203,7 @@ export type Database = {
         }
         Insert: {
           advogado?: string | null
+          alerta_enviado?: boolean | null
           cliente?: string | null
           comarca?: string | null
           conteudo_publicacao?: string | null
@@ -176,6 +223,7 @@ export type Database = {
           polo_ativo?: string | null
           preposto?: string | null
           processo_numero?: string | null
+          providencias_tomadas?: string | null
           publicacao_id?: string | null
           resumo_objeto?: string | null
           status?: string
@@ -189,6 +237,7 @@ export type Database = {
         }
         Update: {
           advogado?: string | null
+          alerta_enviado?: boolean | null
           cliente?: string | null
           comarca?: string | null
           conteudo_publicacao?: string | null
@@ -208,6 +257,7 @@ export type Database = {
           polo_ativo?: string | null
           preposto?: string | null
           processo_numero?: string | null
+          providencias_tomadas?: string | null
           publicacao_id?: string | null
           resumo_objeto?: string | null
           status?: string
