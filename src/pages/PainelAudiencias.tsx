@@ -6,20 +6,27 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, CalendarDays, FileText, Eye, Plus, User, Building } from "lucide-react";
+import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, CalendarDays, FileText, Eye, Plus, User, Building, Upload, Download, Pencil } from "lucide-react";
 import { useAudienciasDetectadas, AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
+import { useExportarAudiencias } from "@/hooks/useExportarAudiencias";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
+import { ImportarAudienciasDialog } from "@/components/audiencias/ImportarAudienciasDialog";
+import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 
 export default function PainelAudiencias() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("pendente");
   const [selectedAudiencia, setSelectedAudiencia] = useState<AudienciaDetectada | null>(null);
+  const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);
   const [observacoes, setObservacoes] = useState("");
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+
+  const { exportarExcel } = useExportarAudiencias();
 
   const { 
     audiencias, 
@@ -183,7 +190,7 @@ export default function PainelAudiencias() {
             </Card>
           </div>
 
-          {/* Filters */}
+          {/* Filters and Actions */}
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -205,6 +212,20 @@ export default function PainelAudiencias() {
                 <SelectItem value="ignorado">Ignoradas</SelectItem>
               </SelectContent>
             </Select>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => exportarExcel(audiencias)}
+                disabled={audiencias.length === 0}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar
+              </Button>
+            </div>
           </div>
 
           {/* Audiências List */}
@@ -297,6 +318,14 @@ export default function PainelAudiencias() {
                         </div>
 
                         <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEditingAudiencia(audiencia)}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Editar
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -523,6 +552,19 @@ export default function PainelAudiencias() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Import Dialog */}
+      <ImportarAudienciasDialog 
+        open={importDialogOpen} 
+        onOpenChange={setImportDialogOpen} 
+      />
+
+      {/* Edit Dialog */}
+      <EditarAudienciaDialog
+        audiencia={editingAudiencia}
+        open={!!editingAudiencia}
+        onOpenChange={(open) => !open && setEditingAudiencia(null)}
+      />
     </MainLayout>
   );
 }
