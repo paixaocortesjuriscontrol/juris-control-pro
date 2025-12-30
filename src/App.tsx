@@ -38,6 +38,7 @@ import ImportarTarefas from "./pages/ImportarTarefas";
 import PainelEquipe from "./pages/PainelEquipe";
 import RepositorioDocumentos from "./pages/RepositorioDocumentos";
 import AssistenteJuridico from "./pages/AssistenteJuridico";
+import PainelAudiencias from "./pages/PainelAudiencias";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -90,6 +91,7 @@ const App = () => (
               <Route path="/analise-tarefas-projuris" element={<ProtectedRoute><AnaliseTarefasProjuris /></ProtectedRoute>} />
               <Route path="/repositorio" element={<ProtectedRoute><RepositorioDocumentos /></ProtectedRoute>} />
               <Route path="/assistente-juridico" element={<ProtectedRoute><AssistenteJuridico /></ProtectedRoute>} />
+              <Route path="/painel-audiencias" element={<ProtectedRoute><PainelAudiencias /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </ImportProvider>

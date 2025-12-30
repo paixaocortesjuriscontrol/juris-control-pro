@@ -40,6 +40,7 @@ const menuItems = [
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: Radar, label: "Monit. DJEN", path: "/monitoramento-djen" },
+  { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: FolderKanban, label: "Minhas Tarefas", path: "/minha-carteira" },
   { icon: Bell, label: "Notificações", path: "/notificacoes" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },

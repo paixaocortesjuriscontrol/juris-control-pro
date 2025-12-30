@@ -122,6 +122,89 @@ export type Database = {
         }
         Relationships: []
       }
+      audiencias_detectadas: {
+        Row: {
+          conteudo_publicacao: string | null
+          contexto: string | null
+          created_at: string
+          data_audiencia: string | null
+          id: string
+          local_audiencia: string | null
+          monitoramento_id: string | null
+          observacoes: string | null
+          processo_numero: string | null
+          publicacao_id: string | null
+          status: string
+          tipo_audiencia: string | null
+          tratado_em: string | null
+          tratado_por: string | null
+          updated_at: string
+        }
+        Insert: {
+          conteudo_publicacao?: string | null
+          contexto?: string | null
+          created_at?: string
+          data_audiencia?: string | null
+          id?: string
+          local_audiencia?: string | null
+          monitoramento_id?: string | null
+          observacoes?: string | null
+          processo_numero?: string | null
+          publicacao_id?: string | null
+          status?: string
+          tipo_audiencia?: string | null
+          tratado_em?: string | null
+          tratado_por?: string | null
+          updated_at?: string
+        }
+        Update: {
+          conteudo_publicacao?: string | null
+          contexto?: string | null
+          created_at?: string
+          data_audiencia?: string | null
+          id?: string
+          local_audiencia?: string | null
+          monitoramento_id?: string | null
+          observacoes?: string | null
+          processo_numero?: string | null
+          publicacao_id?: string | null
+          status?: string
+          tipo_audiencia?: string | null
+          tratado_em?: string | null
+          tratado_por?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audiencias_detectadas_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_detectadas_publicacao_id_fkey"
+            columns: ["publicacao_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_djen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_detectadas_tratado_por_fkey"
+            columns: ["tratado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_detectadas_tratado_por_fkey"
+            columns: ["tratado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       backfill_jobs: {
         Row: {
           completed_at: string | null
@@ -300,6 +383,7 @@ export type Database = {
           coordenacao_id: string | null
           created_at: string
           frequencia: string
+          horarios_execucao: string[] | null
           id: string
           metadata: Json | null
           tipo: string
@@ -311,6 +395,7 @@ export type Database = {
           coordenacao_id?: string | null
           created_at?: string
           frequencia?: string
+          horarios_execucao?: string[] | null
           id?: string
           metadata?: Json | null
           tipo: string
@@ -322,6 +407,7 @@ export type Database = {
           coordenacao_id?: string | null
           created_at?: string
           frequencia?: string
+          horarios_execucao?: string[] | null
           id?: string
           metadata?: Json | null
           tipo?: string
