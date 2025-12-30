@@ -105,7 +105,7 @@ export function MarkdownMessage({ content, className, showCopyButton = true }: M
       
       // Gerar URL de download
       const { data: urlData, error: urlError } = await supabase.storage
-        .from("repositorio-documentos")
+        .from("repositorio_documentos")
         .createSignedUrl(doc.storage_path, 60);
 
       if (urlError || !urlData) {
