@@ -47,12 +47,12 @@ serve(async (req) => {
       });
     }
 
-    // Buscar documentos do repositório para contexto
+    // Buscar documentos do repositório para contexto - aumentar limite para listar todos
     const { data: documentos, error: docsError } = await supabaseAdmin
       .from('repositorio_documentos')
-      .select('id, nome, nome_original, categoria, descricao, tipo_documento, tags')
+      .select('id, nome, nome_original, categoria, descricao, tipo_documento, tags, created_at, tamanho_bytes')
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(500);
 
     if (docsError) {
       console.error('Erro ao buscar documentos:', docsError);
@@ -62,53 +62,76 @@ serve(async (req) => {
 
     // Construir contexto dos documentos de forma mais detalhada
     let documentosContexto = '';
+    const categoriasMap: Record<string, string> = {
+      'modelo': 'Modelo de Documento',
+      'peca_processual': 'Peça Processual',
+      'jurisprudencia': 'Jurisprudência',
+      'legislacao': 'Legislação',
+      'parecer': 'Parecer',
+      'contrato': 'Contrato',
+      'procuracao': 'Procuração',
+      'outros': 'Outros',
+      'geral': 'Geral'
+    };
+
+    const tiposMap: Record<string, string> = {
+      'peticao_inicial': 'Petição Inicial',
+      'contestacao': 'Contestação',
+      'recurso': 'Recurso',
+      'agravo': 'Agravo',
+      'embargos': 'Embargos',
+      'manifestacao': 'Manifestação',
+      'acordo': 'Acordo',
+      'contrato_prestacao': 'Contrato de Prestação de Serviços',
+      'contrato_trabalho': 'Contrato de Trabalho',
+      'contrato_locacao': 'Contrato de Locação',
+      'contrato_compra_venda': 'Contrato de Compra e Venda',
+      'contrato_honorarios': 'Contrato de Honorários',
+      'procuracao_ad_judicia': 'Procuração Ad Judicia',
+      'substabelecimento': 'Substabelecimento',
+      'notificacao_extrajudicial': 'Notificação Extrajudicial',
+      'declaracao': 'Declaração',
+      'requerimento': 'Requerimento',
+      'certidao': 'Certidão',
+      'formulario': 'Formulário',
+      'relatorio': 'Relatório',
+    };
+
     if (documentos && documentos.length > 0) {
-      documentosContexto = `\n\n=== REPOSITÓRIO DE DOCUMENTOS DO ESCRITÓRIO ===\nTotal de ${documentos.length} documento(s) cadastrado(s):\n\n`;
-      const categoriasMap: Record<string, string> = {
-        'modelo': 'Modelo de Documento',
-        'peca_processual': 'Peça Processual',
-        'jurisprudencia': 'Jurisprudência',
-        'legislacao': 'Legislação',
-        'parecer': 'Parecer',
-        'contrato': 'Contrato',
-        'procuracao': 'Procuração',
-        'outros': 'Outros'
-      };
+      // Agrupar por categoria para facilitar listagem
+      const porCategoria: Record<string, typeof documentos> = {};
+      documentos.forEach(doc => {
+        const cat = doc.categoria || 'geral';
+        if (!porCategoria[cat]) porCategoria[cat] = [];
+        porCategoria[cat].push(doc);
+      });
 
-      const tiposMap: Record<string, string> = {
-        'peticao_inicial': 'Petição Inicial',
-        'contestacao': 'Contestação',
-        'recurso': 'Recurso',
-        'agravo': 'Agravo',
-        'embargos': 'Embargos',
-        'manifestacao': 'Manifestação',
-        'acordo': 'Acordo',
-        'contrato_prestacao': 'Contrato de Prestação de Serviços',
-        'contrato_trabalho': 'Contrato de Trabalho',
-        'contrato_locacao': 'Contrato de Locação',
-        'contrato_compra_venda': 'Contrato de Compra e Venda',
-        'contrato_honorarios': 'Contrato de Honorários',
-        'procuracao_ad_judicia': 'Procuração Ad Judicia',
-        'substabelecimento': 'Substabelecimento',
-        'notificacao_extrajudicial': 'Notificação Extrajudicial',
-        'declaracao': 'Declaração',
-        'requerimento': 'Requerimento',
-        'certidao': 'Certidão',
-        'formulario': 'Formulário',
-        'relatorio': 'Relatório',
-      };
+      documentosContexto = `\n\n=== REPOSITÓRIO DE DOCUMENTOS DO ESCRITÓRIO ===\n`;
+      documentosContexto += `📊 Total: ${documentos.length} documento(s) cadastrado(s)\n\n`;
+      
+      // Resumo por categoria
+      documentosContexto += `📁 RESUMO POR CATEGORIA:\n`;
+      Object.entries(porCategoria).forEach(([cat, docs]) => {
+        const catLabel = categoriasMap[cat] || cat;
+        documentosContexto += `  • ${catLabel}: ${docs.length} documento(s)\n`;
+      });
+      documentosContexto += '\n';
 
+      // Lista completa de documentos
+      documentosContexto += `📄 LISTA COMPLETA DE DOCUMENTOS:\n\n`;
       documentos.forEach((doc, index) => {
         const categoriaLabel = categoriasMap[doc.categoria] || doc.categoria;
         const tipoLabel = doc.tipo_documento ? (tiposMap[doc.tipo_documento] || doc.tipo_documento) : null;
+        const dataUpload = doc.created_at ? new Date(doc.created_at).toLocaleDateString('pt-BR') : '';
 
-        documentosContexto += `[DOC ${index + 1}]\n`;
-        documentosContexto += `  Nome: ${doc.nome}\n`;
-        documentosContexto += `  Arquivo original: ${doc.nome_original || doc.nome}\n`;
-        documentosContexto += `  Categoria: ${categoriaLabel}\n`;
-        if (tipoLabel) documentosContexto += `  Tipo: ${tipoLabel}\n`;
-        if (doc.descricao) documentosContexto += `  Descrição: ${doc.descricao}\n`;
-        if (doc.tags && doc.tags.length > 0) documentosContexto += `  Palavras-chave: ${doc.tags.join(', ')}\n`;
+        documentosContexto += `[${index + 1}] "${doc.nome}" (ID: ${doc.id})\n`;
+        documentosContexto += `    📁 Categoria: ${categoriaLabel}`;
+        if (tipoLabel) documentosContexto += ` | Tipo: ${tipoLabel}`;
+        documentosContexto += `\n`;
+        documentosContexto += `    📎 Arquivo: ${doc.nome_original || doc.nome}\n`;
+        if (doc.descricao) documentosContexto += `    📝 Descrição: ${doc.descricao}\n`;
+        if (doc.tags && doc.tags.length > 0) documentosContexto += `    🏷️ Tags: ${doc.tags.join(', ')}\n`;
+        if (dataUpload) documentosContexto += `    📅 Data: ${dataUpload}\n`;
         documentosContexto += '\n';
       });
     } else {
@@ -119,17 +142,29 @@ serve(async (req) => {
 
 SUAS CAPACIDADES:
 1. PESQUISAS: Buscar e encontrar documentos, jurisprudências, modelos e peças processuais no repositório
-2. GERAÇÃO DE DOCUMENTOS: Criar novos documentos baseados em modelos existentes
-3. ANÁLISE: Analisar documentos e fornecer insights jurídicos
-4. ORIENTAÇÃO: Responder dúvidas sobre procedimentos e práticas jurídicas
+2. LISTAR DOCUMENTOS: Quando solicitado, liste TODOS os documentos disponíveis no repositório de forma organizada
+3. GERAÇÃO DE DOCUMENTOS: Criar novos documentos baseados em modelos existentes
+4. ANÁLISE: Analisar documentos e fornecer insights jurídicos
+5. ORIENTAÇÃO: Responder dúvidas sobre procedimentos e práticas jurídicas
 
 INSTRUÇÕES IMPORTANTES:
 - Você DEVE consultar a lista de documentos abaixo para responder sobre o que existe no repositório
-- Quando perguntarem sobre documentos disponíveis, liste os que existem na categoria solicitada
+- Quando pedirem para "listar documentos" ou "mostrar todos os documentos", apresente TODOS os documentos disponíveis
+- Formate a listagem de forma clara usando markdown (tabelas, listas, etc.)
+- Ao listar documentos, inclua: nome, categoria, tipo (se houver), e uma breve descrição
+- Mencione o ID do documento entre parênteses para que o usuário possa baixá-lo
 - Um documento pode ser de categoria "contrato" e ter diferentes tipos (locação, prestação de serviços, trabalho, etc.)
-- O nome do arquivo original pode conter pistas sobre o tipo real do documento (ex: "APTO" sugere locação de apartamento)
+- O nome do arquivo original pode conter pistas sobre o tipo real do documento
 - Seja preciso e mencione os documentos pelo nome quando relevante
 - Se não houver documentos de um tipo específico, informe claramente
+
+FORMATO PARA LISTAR DOCUMENTOS:
+Quando pedirem para listar, use este formato:
+
+### 📁 [Nome da Categoria]
+| Documento | Tipo | Descrição |
+|-----------|------|-----------|
+| Nome do doc (ID: xxx...) | Tipo | Breve descrição |
 
 ${tipo === 'pesquisa' ? '>>> O usuário está fazendo uma PESQUISA no repositório.' : ''}
 ${tipo === 'geracao' ? '>>> O usuário está solicitando a GERAÇÃO de um novo documento.' : ''}
