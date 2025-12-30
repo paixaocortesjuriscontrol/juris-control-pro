@@ -1,48 +1,100 @@
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 interface MarkdownMessageProps {
   content: string;
   className?: string;
+  showCopyButton?: boolean;
 }
 
-// Regex para detectar referências a documentos no texto
+// UUID pattern
+const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+// Patterns para detectar referências a documentos
 const documentPatterns = [
+  // Menções diretas com aspas
   /documento[s]?\s*["']([^"']+)["']/gi,
   /arquivo[s]?\s*["']([^"']+)["']/gi,
-  /\*\*([^*]+\.(?:pdf|docx?|xlsx?|txt))\*\*/gi,
-  /["']([^"']+\.(?:pdf|docx?|xlsx?|txt))["']/gi,
+  // Arquivos com extensão em negrito ou aspas
+  /\*\*([^*]+\.(?:pdf|docx?|xlsx?|txt|pptx?|odt|rtf))\*\*/gi,
+  /["']([^"']+\.(?:pdf|docx?|xlsx?|txt|pptx?|odt|rtf))["']/gi,
+  // Menções em markdown links
+  /\[([^\]]+\.(?:pdf|docx?|xlsx?|txt|pptx?|odt|rtf))\]/gi,
+  // Nomes de documentos após "chamado" ou "intitulado"
+  /(?:chamado|intitulado|denominado|nomeado)\s+["']?([^"'\n,]+)["']?/gi,
+  // Referências ao repositório
+  /repositório[:\s]+["']?([^"'\n,]+)["']?/gi,
+  // Nomes após "documento" sem aspas mas com extensão
+  /documento\s+(\S+\.(?:pdf|docx?|xlsx?|txt|pptx?|odt|rtf))/gi,
 ];
 
-export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
-  const extractDocumentNames = (text: string): string[] => {
-    const names = new Set<string>();
+type DocumentRef = {
+  name: string;
+  id?: string;
+};
+
+export function MarkdownMessage({ content, className, showCopyButton = true }: MarkdownMessageProps) {
+  const [copied, setCopied] = useState(false);
+
+  const extractDocumentReferences = (text: string): DocumentRef[] => {
+    const refs = new Map<string, DocumentRef>();
     
+    // Extrair UUIDs (IDs de documentos)
+    let uuidMatch;
+    const uuidRegex = new RegExp(uuidPattern.source, uuidPattern.flags);
+    while ((uuidMatch = uuidRegex.exec(text)) !== null) {
+      const id = uuidMatch[0];
+      refs.set(`id:${id}`, { name: id, id });
+    }
+    
+    // Extrair nomes de documentos pelos padrões
     documentPatterns.forEach(pattern => {
       let match;
       const regex = new RegExp(pattern.source, pattern.flags);
       while ((match = regex.exec(text)) !== null) {
         if (match[1]) {
-          names.add(match[1].trim());
+          const name = match[1].trim();
+          // Ignorar se for muito curto ou muito genérico
+          if (name.length > 3 && !['pdf', 'doc', 'txt'].includes(name.toLowerCase())) {
+            refs.set(`name:${name.toLowerCase()}`, { name });
+          }
         }
       }
     });
     
-    return Array.from(names);
+    return Array.from(refs.values());
   };
 
-  const handleDownload = async (documentName: string) => {
+  const handleCopy = async () => {
     try {
-      // Buscar o documento pelo nome
-      const { data: docs, error: searchError } = await supabase
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      toast.success("Copiado para a área de transferência");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast.error("Erro ao copiar texto");
+    }
+  };
+
+  const handleDownload = async (ref: DocumentRef) => {
+    try {
+      let query = supabase
         .from("repositorio_documentos")
-        .select("id, nome, nome_original, storage_path")
-        .or(`nome.ilike.%${documentName}%,nome_original.ilike.%${documentName}%`)
-        .limit(1);
+        .select("id, nome, nome_original, storage_path");
+      
+      // Buscar por ID ou por nome
+      if (ref.id) {
+        query = query.eq("id", ref.id);
+      } else {
+        query = query.or(`nome.ilike.%${ref.name}%,nome_original.ilike.%${ref.name}%`);
+      }
+      
+      const { data: docs, error: searchError } = await query.limit(1);
 
       if (searchError || !docs || docs.length === 0) {
         toast.error("Documento não encontrado no repositório");
@@ -77,7 +129,7 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
     }
   };
 
-  const documentNames = extractDocumentNames(content);
+  const documentRefs = extractDocumentReferences(content);
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -85,23 +137,49 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
         <ReactMarkdown>{content}</ReactMarkdown>
       </div>
       
-      {documentNames.length > 0 && (
-        <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
-          {documentNames.map((name, index) => (
-            <Button
-              key={index}
-              variant="outline"
-              size="sm"
-              className="gap-2 h-8 text-xs"
-              onClick={() => handleDownload(name)}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span className="max-w-[150px] truncate">{name}</span>
-              <Download className="w-3.5 h-3.5" />
-            </Button>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2 pt-2">
+        {showCopyButton && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 h-7 text-xs text-muted-foreground hover:text-foreground"
+            onClick={handleCopy}
+          >
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-green-500" />
+                Copiado
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                Copiar
+              </>
+            )}
+          </Button>
+        )}
+        
+        {documentRefs.length > 0 && (
+          <>
+            <div className="w-px h-4 bg-border" />
+            {documentRefs.map((ref, index) => (
+              <Button
+                key={index}
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-7 text-xs"
+                onClick={() => handleDownload(ref)}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span className="max-w-[120px] truncate">
+                  {ref.id ? `ID: ${ref.id.substring(0, 8)}...` : ref.name}
+                </span>
+                <Download className="w-3.5 h-3.5" />
+              </Button>
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }
