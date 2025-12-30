@@ -24,6 +24,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
   const [formData, setFormData] = useState({
     data_audiencia: "",
     hora: "",
+    hora_local: "",
+    hora_brasilia: "",
     processo_numero: "",
     tipo_audiencia: "",
     vara_camara: "",
@@ -58,6 +60,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
       setFormData({
         data_audiencia: dataFormatted,
         hora: audiencia.hora || "",
+        hora_local: audiencia.hora_local || "",
+        hora_brasilia: audiencia.hora_brasilia || "",
         processo_numero: audiencia.processo_numero || "",
         tipo_audiencia: audiencia.tipo_audiencia || "",
         vara_camara: audiencia.vara_camara || "",
@@ -72,7 +76,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
         advogado: audiencia.advogado || "",
         observacoes: audiencia.observacoes || "",
         status: audiencia.status || "pendente",
-        providencias_tomadas: (audiencia as any).providencias_tomadas || "",
+        providencias_tomadas: audiencia.providencias_tomadas || "",
       });
     }
   }, [audiencia]);
@@ -97,6 +101,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
       const updateData: Record<string, any> = {
         data_audiencia: dataAudienciaISO,
         hora: formData.hora || null,
+        hora_local: formData.hora_local || null,
+        hora_brasilia: formData.hora_brasilia || null,
         processo_numero: formData.processo_numero || null,
         tipo_audiencia: formData.tipo_audiencia || null,
         vara_camara: formData.vara_camara || null,
@@ -158,7 +164,20 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="hora">Hora</Label>
+              <Label htmlFor="processo_numero">Número do Processo</Label>
+              <Input
+                id="processo_numero"
+                placeholder="0000000-00.0000.0.00.0000"
+                value={formData.processo_numero}
+                onChange={(e) => handleChange("processo_numero", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Horários */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="hora">Hora (original)</Label>
               <Input
                 id="hora"
                 placeholder="Ex: 14:00"
@@ -167,12 +186,21 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="processo_numero">Número do Processo</Label>
+              <Label htmlFor="hora_local">Hora Local (Comarca)</Label>
               <Input
-                id="processo_numero"
-                placeholder="0000000-00.0000.0.00.0000"
-                value={formData.processo_numero}
-                onChange={(e) => handleChange("processo_numero", e.target.value)}
+                id="hora_local"
+                placeholder="Ex: 14:00"
+                value={formData.hora_local}
+                onChange={(e) => handleChange("hora_local", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hora_brasilia">Hora Brasília (DF)</Label>
+              <Input
+                id="hora_brasilia"
+                placeholder="Ex: 15:00"
+                value={formData.hora_brasilia}
+                onChange={(e) => handleChange("hora_brasilia", e.target.value)}
               />
             </div>
           </div>

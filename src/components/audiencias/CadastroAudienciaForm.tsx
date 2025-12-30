@@ -14,6 +14,8 @@ export function CadastroAudienciaForm() {
     processo_numero: "",
     data_audiencia: "",
     hora: "",
+    hora_local: "",
+    hora_brasilia: "",
     tipo_audiencia: "",
     vara_camara: "",
     comarca: "",
@@ -47,6 +49,8 @@ export function CadastroAudienciaForm() {
       processo_numero: "",
       data_audiencia: "",
       hora: "",
+      hora_local: "",
+      hora_brasilia: "",
       tipo_audiencia: "",
       vara_camara: "",
       comarca: "",
@@ -77,7 +81,7 @@ export function CadastroAudienciaForm() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Dados Principais */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="data_audiencia">Data *</Label>
               <Input
@@ -89,7 +93,21 @@ export function CadastroAudienciaForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="hora">Hora</Label>
+              <Label htmlFor="processo_numero">Número do Processo *</Label>
+              <Input
+                id="processo_numero"
+                placeholder="0000000-00.0000.0.00.0000"
+                value={formData.processo_numero}
+                onChange={(e) => handleChange("processo_numero", e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Horários */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="hora">Hora (original)</Label>
               <Input
                 id="hora"
                 type="text"
@@ -99,13 +117,23 @@ export function CadastroAudienciaForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="processo_numero">Número do Processo *</Label>
+              <Label htmlFor="hora_local">Hora Local (Comarca)</Label>
               <Input
-                id="processo_numero"
-                placeholder="0000000-00.0000.0.00.0000"
-                value={formData.processo_numero}
-                onChange={(e) => handleChange("processo_numero", e.target.value)}
-                required
+                id="hora_local"
+                type="text"
+                placeholder="Ex: 14:00"
+                value={formData.hora_local}
+                onChange={(e) => handleChange("hora_local", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hora_brasilia">Hora Brasília (DF)</Label>
+              <Input
+                id="hora_brasilia"
+                type="text"
+                placeholder="Ex: 15:00"
+                value={formData.hora_brasilia}
+                onChange={(e) => handleChange("hora_brasilia", e.target.value)}
               />
             </div>
           </div>

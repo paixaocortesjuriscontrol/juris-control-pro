@@ -56,6 +56,8 @@ export interface NovaAudiencia {
   processo_numero: string;
   data_audiencia: string;
   hora?: string;
+  hora_local?: string;
+  hora_brasilia?: string;
   tipo_audiencia?: string;
   vara_camara?: string;
   comarca?: string;
