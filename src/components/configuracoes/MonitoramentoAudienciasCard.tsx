@@ -8,6 +8,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useState } from "react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { toZonedTime } from "date-fns-tz";
 
 interface Props {
   coordenacaoId?: string;
@@ -163,7 +166,7 @@ export function MonitoramentoAudienciasCard({ coordenacaoId }: Props) {
             Selecione os horários para verificar novos andamentos e detectar audiências
           </p>
           
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="flex flex-col gap-2">
             {HORARIOS_DISPONIVEIS.map((horario) => (
               <label
                 key={horario.value}
@@ -226,20 +229,22 @@ export function MonitoramentoAudienciasCard({ coordenacaoId }: Props) {
           )}
         </div>
 
+        {/* Última execução */}
+        {config?.ultima_execucao && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground pt-4 border-t">
+            <Clock className="h-4 w-4" />
+            <span>
+              Última execução: {format(toZonedTime(new Date(config.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            </span>
+          </div>
+        )}
+
         <div className="pt-4 border-t">
           <p className="text-xs text-muted-foreground">
             <strong>Nota:</strong> O monitoramento verifica os andamentos dos processos cadastrados 
             e detecta automaticamente audiências marcadas, exibindo-as no Painel de Audiências.
           </p>
         </div>
-
-        {horariosSelecionados.length > 0 && (
-          <div className="p-3 bg-muted rounded-lg">
-            <p className="text-sm">
-              <strong>Horários configurados:</strong> {horariosSelecionados.sort().join(', ')}
-            </p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
