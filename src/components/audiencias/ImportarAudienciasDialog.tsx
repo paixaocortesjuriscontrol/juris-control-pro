@@ -66,6 +66,39 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
     return null;
   };
 
+  const parseExcelTime = (value: any): string => {
+    if (!value) return "";
+    
+    // Se for número (fração decimal de 24h no Excel)
+    if (typeof value === 'number') {
+      const totalMinutes = Math.round(value * 24 * 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+    
+    // Se for string
+    if (typeof value === 'string') {
+      // Já está no formato HH:MM
+      const match = value.match(/(\d{1,2}):(\d{2})/);
+      if (match) {
+        return `${match[1].padStart(2, '0')}:${match[2]}`;
+      }
+      return value.trim();
+    }
+    
+    return String(value);
+  };
+
+  const formatDisplayDate = (isoDate: string): string => {
+    if (!isoDate) return "";
+    const match = isoDate.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[3]}/${match[2]}/${match[1]}`;
+    }
+    return isoDate;
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -82,7 +115,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
         .filter(row => row["DATA"] || row["NÚMERO PROCESSO"] || row["Número Processo"])
         .map(row => ({
           data: parseExcelDate(row["DATA"]) || "",
-          hora: String(row["HORA"] || "").trim(),
+          hora: parseExcelTime(row["HORA"]),
           processo_numero: String(row["NÚMERO PROCESSO"] || row["Número Processo"] || "").trim(),
           vara_camara: String(row["VT/ CÂMARA"] || row["VT/CÂMARA"] || row["VT/ CAMARA"] || "").trim(),
           comarca: String(row["COMARCA"] || "").trim(),
@@ -285,7 +318,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                             </span>
                           )}
                         </TableCell>
-                        <TableCell>{row.data}</TableCell>
+                        <TableCell>{formatDisplayDate(row.data)}</TableCell>
                         <TableCell>{row.hora}</TableCell>
                         <TableCell className="font-mono text-xs">{row.processo_numero}</TableCell>
                         <TableCell className="max-w-[150px] truncate">{row.cliente}</TableCell>
