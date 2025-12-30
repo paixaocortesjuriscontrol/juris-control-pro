@@ -1,10 +1,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar, Clock, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Calendar, Clock, Loader2, Play } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useState } from "react";
 
 interface Props {
   coordenacaoId?: string;
@@ -20,6 +23,8 @@ const HORARIOS_DISPONIVEIS = [
 
 export function MonitoramentoAudienciasCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0, percentage: 0 });
 
   const { data: config, isLoading } = useQuery({
     queryKey: ['config-monitoramento', 'andamentos', coordenacaoId],
@@ -83,6 +88,49 @@ export function MonitoramentoAudienciasCard({ coordenacaoId }: Props) {
     atualizarHorarios.mutate(novosHorarios);
   };
 
+  const executarMonitoramentoCompleto = async () => {
+    setIsExecuting(true);
+    setProgress({ current: 0, total: 0, percentage: 0 });
+    
+    try {
+      let isComplete = false;
+      let batchCount = 0;
+      
+      while (!isComplete) {
+        batchCount++;
+        toast.info(`Executando lote ${batchCount}...`);
+        
+        const { data, error } = await supabase.functions.invoke('monitorar-andamentos', {
+          body: { completeRun: false }
+        });
+        
+        if (error) throw error;
+        
+        if (data?.progress) {
+          setProgress({
+            current: data.progress.current,
+            total: data.progress.total,
+            percentage: data.progress.percentage
+          });
+        }
+        
+        isComplete = data?.isComplete || false;
+        
+        if (!isComplete) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
+      toast.success('Monitoramento de audiências concluído!');
+      queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
+    } catch (error: any) {
+      console.error('Erro ao executar monitoramento:', error);
+      toast.error(`Erro: ${error.message}`);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -138,6 +186,44 @@ export function MonitoramentoAudienciasCard({ coordenacaoId }: Props) {
               </label>
             ))}
           </div>
+        </div>
+
+        {/* Botão Executar Completo */}
+        <div className="pt-4 border-t space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-sm font-medium">Executar Agora</Label>
+              <p className="text-xs text-muted-foreground">
+                Verificar todos os processos e detectar audiências
+              </p>
+            </div>
+            <Button
+              onClick={executarMonitoramentoCompleto}
+              disabled={isExecuting}
+              className="gap-2"
+            >
+              {isExecuting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Executando...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Executar Completo
+                </>
+              )}
+            </Button>
+          </div>
+          
+          {isExecuting && progress.total > 0 && (
+            <div className="space-y-2">
+              <Progress value={progress.percentage} className="h-2" />
+              <p className="text-xs text-muted-foreground text-center">
+                {progress.current} de {progress.total} processos ({Math.round(progress.percentage)}%)
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="pt-4 border-t">
