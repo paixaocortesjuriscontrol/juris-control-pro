@@ -46,10 +46,12 @@ const statusLabels: Record<StatusType, string> = {
 const Processos = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [areaFilter, setAreaFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("all");
+  
+  // Ler filtros da URL na inicialização
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") || "");
+  const [areaFilter, setAreaFilter] = useState<string>(() => searchParams.get("area") || "all");
+  const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get("status") || "all");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>(() => searchParams.get("coordenacao") || "all");
   const [selectedProcessos, setSelectedProcessos] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showAtribuirDialog, setShowAtribuirDialog] = useState(false);
@@ -64,13 +66,16 @@ const Processos = () => {
   // Debounce search to avoid too many API calls
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
 
-  // Ler parâmetros da URL na inicialização
+  // Atualizar URL quando filtros mudam
   useEffect(() => {
-    const areaFromUrl = searchParams.get("area");
-    if (areaFromUrl && ["civil", "trabalhista", "empresarial"].includes(areaFromUrl)) {
-      setAreaFilter(areaFromUrl);
-    }
-  }, [searchParams]);
+    const params = new URLSearchParams();
+    if (searchQuery) params.set("q", searchQuery);
+    if (areaFilter !== "all") params.set("area", areaFilter);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (coordenacaoFilter !== "all") params.set("coordenacao", coordenacaoFilter);
+    
+    setSearchParams(params, { replace: true });
+  }, [searchQuery, areaFilter, statusFilter, coordenacaoFilter, setSearchParams]);
 
   const { 
     data, 
