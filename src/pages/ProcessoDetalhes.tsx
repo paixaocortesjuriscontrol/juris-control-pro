@@ -591,8 +591,8 @@ export default function ProcessoDetalhes() {
 
   return (
     <MainLayout 
-      title={`Processo ${processo.numero}`}
-      subtitle={processo.assunto || "Sem assunto definido"}
+      title="Detalhes do Processo"
+      subtitle=""
     >
       <div className="space-y-6">
         {/* Back Button & Quick Actions */}
