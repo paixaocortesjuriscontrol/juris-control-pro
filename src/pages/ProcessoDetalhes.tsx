@@ -623,24 +623,41 @@ export default function ProcessoDetalhes() {
           </div>
         </div>
 
-        {/* Status Badge Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-2">
-            <Badge className={`badge-area-${processo.area}`}>
-              {areaLabels[processo.area] || processo.area}
-            </Badge>
-            <Badge className={`badge-status-${processo.status}`}>
-              {statusLabels[processo.status] || processo.status}
-            </Badge>
-            {processo.monitorar_andamentos === false && (
-              <Badge variant="outline" className="border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950/30">
-                <BellOff className="w-3 h-3 mr-1" />
-                Monitoramento desativado
-              </Badge>
-            )}
-          </div>
-          
-          {/* Monitoramento Toggle */}
+        {/* Hero Card - Número do Processo e Descrição */}
+        <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardContent className="py-6">
+            <div className="text-center space-y-3">
+              <div className="flex items-center justify-center gap-3">
+                <Scale className="w-6 h-6 text-primary" />
+                <h2 className="text-2xl md:text-3xl font-bold text-foreground tracking-wide">
+                  {processo.numero}
+                </h2>
+              </div>
+              {processo.assunto && (
+                <p className="text-muted-foreground text-sm md:text-base max-w-3xl mx-auto">
+                  {processo.assunto}
+                </p>
+              )}
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <Badge className={`badge-area-${processo.area}`}>
+                  {areaLabels[processo.area] || processo.area}
+                </Badge>
+                <Badge className={`badge-status-${processo.status}`}>
+                  {statusLabels[processo.status] || processo.status}
+                </Badge>
+                {processo.monitorar_andamentos === false && (
+                  <Badge variant="outline" className="border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950/30">
+                    <BellOff className="w-3 h-3 mr-1" />
+                    Monitoramento desativado
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Monitoramento Toggle */}
+        <div className="flex justify-end">
           <div className="flex items-center gap-3 px-4 py-2 rounded-lg border bg-muted/30">
             <div className="flex items-center gap-2">
               {processo.monitorar_andamentos ? (
