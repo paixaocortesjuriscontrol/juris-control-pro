@@ -701,7 +701,7 @@ export default function ProcessoDetalhes() {
           </CardContent>
         </Card>
 
-        <Accordion type="multiple" defaultValue={["info-basicas", "localizacao", "partes", "valores", "andamentos"]} className="space-y-4">
+        <Accordion type="multiple" defaultValue={["info-basicas", "localizacao", "partes", "valores", "contingencial", "andamentos"]} className="space-y-4">
           {/* Informações Básicas */}
           <AccordionItem value="info-basicas" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
