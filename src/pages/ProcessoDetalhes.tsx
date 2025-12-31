@@ -54,7 +54,8 @@ import {
   Info,
   FileBox,
   Bell,
-  BellOff
+  BellOff,
+  AlertTriangle
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -235,6 +236,29 @@ export default function ProcessoDetalhes() {
         tipo_controladora: processo.tipo_controladora || "",
         identificador_projuris: processo.identificador_projuris || "",
         responsaveis_projuris: processo.responsaveis_projuris || "",
+        // Campos contingenciais (Dra. Janaina)
+        ativo_passivo: processo.ativo_passivo || "",
+        reclamante: processo.reclamante || "",
+        reclamados: processo.reclamados || "",
+        data_desligamento: processo.data_desligamento || "",
+        responsabilidade_tipo: processo.responsabilidade_tipo || "",
+        data_consulta: processo.data_consulta || "",
+        periodo_condenacao: processo.periodo_condenacao || "",
+        risco_anterior: processo.risco_anterior || "",
+        risco_atual: processo.risco_atual || "",
+        mudanca_risco: processo.mudanca_risco || false,
+        valor_perda_anterior: processo.valor_perda_anterior || "",
+        valor_perda_atual: processo.valor_perda_atual || "",
+        responsabilidade_antes_data: processo.responsabilidade_antes_data || "",
+        responsabilidade_apos_data: processo.responsabilidade_apos_data || "",
+        adicao_baixa: processo.adicao_baixa || "",
+        depositos_vinculados: processo.depositos_vinculados || "",
+        epoca_razao: processo.epoca_razao || "",
+        setor: processo.setor || "",
+        funcao: processo.funcao || "",
+        advogado_externo: processo.advogado_externo || "",
+        pedido_valor: processo.pedido_valor || "",
+        justificativa_risco: processo.justificativa_risco || "",
       });
     }
   }, [processo, editando]);
@@ -269,14 +293,23 @@ export default function ProcessoDetalhes() {
         "forma_pagamento", "risco", "probabilidade", "resultado", "andamento_atual",
         "descricao", "observacoes_processo", "pedidos", "periodo_laborado",
         "unidade_cliente", "sigla_unidade", "pasta_cliente", "pasta_fisica",
-        "tipo_controladora", "identificador_projuris", "responsaveis_projuris"
+        "tipo_controladora", "identificador_projuris", "responsaveis_projuris",
+        // Campos contingenciais (Dra. Janaina)
+        "ativo_passivo", "reclamante", "reclamados", "data_desligamento", 
+        "responsabilidade_tipo", "data_consulta", "periodo_condenacao",
+        "risco_anterior", "risco_atual", "adicao_baixa", "depositos_vinculados",
+        "epoca_razao", "setor", "funcao", "advogado_externo", "pedido_valor", "justificativa_risco"
       ];
       
       const numericFields = [
         "valor_causa", "valor_condenacao", "valor_provisionado", "provisionamento_provavel",
         "provisionamento_possivel", "provisionamento_remoto", "deposito_judicial",
-        "valor_pago", "valor_pagamento"
+        "valor_pago", "valor_pagamento",
+        // Campos contingenciais numéricos
+        "valor_perda_anterior", "valor_perda_atual", "responsabilidade_antes_data", "responsabilidade_apos_data"
       ];
+      
+      const booleanFields = ["transitado_julgado", "mudanca_risco"];
       
       fieldsToCheck.forEach((field) => {
         const newValue = formData[field] || null;
@@ -294,10 +327,13 @@ export default function ProcessoDetalhes() {
         }
       });
       
-      // Handle transitado_julgado boolean
-      if (formData.transitado_julgado !== processo.transitado_julgado) {
-        updates.transitado_julgado = formData.transitado_julgado;
-      }
+      // Handle boolean fields
+      booleanFields.forEach((field) => {
+        const processoValue = processo[field as keyof typeof processo];
+        if (formData[field] !== processoValue) {
+          updates[field] = formData[field];
+        }
+      });
       
       // Handle coordenacao_id
       if (formData.coordenacao_id !== (processo.coordenacao_id || "")) {
@@ -921,6 +957,63 @@ export default function ProcessoDetalhes() {
                 <FieldItem label="Pasta Física" value={processo.pasta_fisica} field="pasta_fisica" />
                 <FieldItem label="Tipo Controladora" value={processo.tipo_controladora} field="tipo_controladora" />
                 <FieldItem label="Identificador Projuris" value={processo.identificador_projuris} field="identificador_projuris" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Contingencial (Dra. Janaina) */}
+          <AccordionItem value="contingencial" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                <span className="font-semibold">Contingencial</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <FieldItem label="Ativo/Passivo" value={processo.ativo_passivo} field="ativo_passivo" />
+                <FieldItem label="Reclamante" value={processo.reclamante} field="reclamante" />
+                <FieldItem label="Reclamados" value={processo.reclamados} field="reclamados" />
+                <FieldItem label="Função" value={processo.funcao} field="funcao" />
+                <FieldItem label="Setor" value={processo.setor} field="setor" />
+                <FieldItem label="Data do Desligamento" value={processo.data_desligamento} field="data_desligamento" type="date" />
+                <FieldItem label="Data da Consulta" value={processo.data_consulta} field="data_consulta" type="date" />
+                <FieldItem label="Responsabilidade" value={processo.responsabilidade_tipo} field="responsabilidade_tipo" />
+                <FieldItem label="Período da Condenação" value={processo.periodo_condenacao} field="periodo_condenacao" />
+                <FieldItem label="Pedido/Valor" value={processo.pedido_valor} field="pedido_valor" />
+                <FieldItem label="Advogado Externo" value={processo.advogado_externo} field="advogado_externo" />
+              </div>
+
+              <div className="mt-6 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Análise de Risco</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem label="Risco Anterior" value={processo.risco_anterior} field="risco_anterior" />
+                  <FieldItem label="Risco Atual" value={processo.risco_atual} field="risco_atual" />
+                  <FieldItem label="Houve Mudança" value={processo.mudanca_risco} field="mudanca_risco" type="boolean" />
+                  <FieldItem label="Valor Perda Anterior" value={processo.valor_perda_anterior} field="valor_perda_anterior" type="number" />
+                  <FieldItem label="Valor Perda Atual" value={processo.valor_perda_atual} field="valor_perda_atual" type="number" />
+                  <FieldItem label="Valor da Condenação" value={processo.valor_condenacao} field="valor_condenacao" type="number" />
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                  <FieldItem label="Justificativa do Risco" value={processo.justificativa_risco} field="justificativa_risco" type="textarea" />
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Responsabilidade por Período</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FieldItem label="Responsabilidade até Data" value={processo.responsabilidade_antes_data} field="responsabilidade_antes_data" type="number" />
+                  <FieldItem label="Responsabilidade após Data" value={processo.responsabilidade_apos_data} field="responsabilidade_apos_data" type="number" />
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Outros Dados</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem label="Adição/Baixa" value={processo.adicao_baixa} field="adicao_baixa" />
+                  <FieldItem label="Depósitos Vinculados" value={processo.depositos_vinculados} field="depositos_vinculados" />
+                  <FieldItem label="Época / Razão" value={processo.epoca_razao} field="epoca_razao" />
+                </div>
               </div>
             </AccordionContent>
           </AccordionItem>
