@@ -1154,60 +1154,60 @@ export default function ProcessoDetalhes() {
             </AccordionTrigger>
             <AccordionContent className="pt-4">
               {loadingPublicacoes ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {[...Array(3)].map((_, i) => (
-                    <Skeleton key={i} className="h-20 rounded-lg" />
+                    <Skeleton key={i} className="h-32 rounded-lg" />
                   ))}
                 </div>
               ) : publicacoesDjen.length > 0 ? (
-                <ScrollArea className="h-[400px] pr-4">
-                  <div className="space-y-3">
+                <ScrollArea className="h-[600px] pr-4">
+                  <div className="space-y-4">
                     {publicacoesDjen.map((pub) => (
                       <div 
                         key={pub.id}
-                        className={`p-4 border rounded-lg transition-colors ${pub.lida ? 'bg-muted/30' : 'bg-background hover:bg-muted/50'}`}
+                        className={`p-5 border-2 rounded-xl transition-colors ${pub.lida ? 'bg-muted/30 border-muted' : 'bg-background border-primary/20 hover:border-primary/40'}`}
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              {pub.lida ? (
-                                <Eye className="w-4 h-4 text-muted-foreground" />
-                              ) : (
-                                <EyeOff className="w-4 h-4 text-primary" />
-                              )}
-                              <Badge variant={pub.lida ? "secondary" : "default"}>
-                                {pub.lida ? "Lida" : "Não lida"}
-                              </Badge>
-                              {pub.fonte && (
-                                <Badge variant="outline">{pub.fonte}</Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-foreground whitespace-pre-wrap break-words line-clamp-4">
-                              {pub.conteudo || "Conteúdo não disponível"}
-                            </p>
+                        <div className="flex items-center justify-between gap-4 mb-4 pb-3 border-b">
+                          <div className="flex items-center gap-3">
+                            {pub.lida ? (
+                              <Eye className="w-5 h-5 text-muted-foreground" />
+                            ) : (
+                              <EyeOff className="w-5 h-5 text-primary" />
+                            )}
+                            <Badge variant={pub.lida ? "secondary" : "default"} className="text-sm">
+                              {pub.lida ? "Lida" : "Não lida"}
+                            </Badge>
+                            {pub.fonte && (
+                              <Badge variant="outline" className="text-sm">{pub.fonte}</Badge>
+                            )}
                           </div>
-                          <div className="text-right shrink-0 space-y-1">
-                            <div>
-                              <p className="text-xs text-muted-foreground">Diário</p>
-                              <p className="text-sm font-medium">
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="text-right">
+                              <span className="text-xs">Diário:</span>{" "}
+                              <span className="font-medium text-foreground">
                                 {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
-                              </p>
+                              </span>
                             </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Capturado</p>
-                              <p className="text-sm">{formatDateTime(pub.data_encontrado)}</p>
+                            <div className="text-right">
+                              <span className="text-xs">Capturado:</span>{" "}
+                              <span>{formatDateTime(pub.data_encontrado)}</span>
                             </div>
                           </div>
+                        </div>
+                        <div className="bg-muted/20 rounded-lg p-4">
+                          <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
+                            {pub.conteudo || "Conteúdo não disponível"}
+                          </p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </ScrollArea>
               ) : (
-                <div className="text-center py-8">
-                  <Newspaper className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground">Nenhuma publicação DJEN encontrada</p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                <div className="text-center py-12">
+                  <Newspaper className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground text-lg">Nenhuma publicação DJEN encontrada</p>
+                  <p className="text-sm text-muted-foreground mt-2">
                     As publicações são capturadas automaticamente pelo monitoramento
                   </p>
                 </div>
