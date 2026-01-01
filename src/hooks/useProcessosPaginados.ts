@@ -9,6 +9,11 @@ interface ProcessosPaginadosFilters {
   area?: string;
   status?: string;
   coordenacao_id?: string;
+  responsavel_id?: string;
+  instancia?: string;
+  comMovimento?: boolean;
+  periodoInicio?: Date;
+  periodoFim?: Date;
 }
 
 export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
@@ -55,6 +60,24 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
       }
       if (filters.coordenacao_id && filters.coordenacao_id !== "all") {
         query = query.eq("coordenacao_id", filters.coordenacao_id);
+      }
+      if (filters.responsavel_id) {
+        query = query.eq("advogado_responsavel_id", filters.responsavel_id);
+      }
+      if (filters.instancia && filters.instancia !== "todos") {
+        if (filters.instancia === "1") {
+          query = query.eq("instancia", "1º Instância");
+        } else if (filters.instancia === "2") {
+          query = query.eq("instancia", "2º Instância");
+        } else if (filters.instancia === "superior") {
+          query = query.eq("instancia", "Tribunais Superiores");
+        }
+      }
+      if (filters.periodoInicio) {
+        query = query.gte("created_at", filters.periodoInicio.toISOString());
+      }
+      if (filters.periodoFim) {
+        query = query.lte("created_at", filters.periodoFim.toISOString());
       }
       if (filters.search) {
         const searchTerm = `%${filters.search}%`;

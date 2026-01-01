@@ -17,6 +17,7 @@ import { useProcessosPaginados } from "@/hooks/useProcessosPaginados";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AtribuirCoordenacaoLoteDialog } from "@/components/processos/AtribuirCoordenacaoLoteDialog";
 import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
+import { FiltrosAvancadosProcessos, FiltrosAvancados, defaultFiltrosAvancados } from "@/components/processos/FiltrosAvancadosProcessos";
 import { cn } from "@/lib/utils";
 import { Calendar, User } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
@@ -58,6 +59,8 @@ const Processos = () => {
   const [showFormDialog, setShowFormDialog] = useState(false);
   const [processoToEdit, setProcessoToEdit] = useState<any>(null);
   const [monitorandoRedistribuicoes, setMonitorandoRedistribuicoes] = useState(false);
+  const [filtrosAvancados, setFiltrosAvancados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
+  const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   
   const { executarMonitoramento } = useConfiguracoesMonitoramento();
   const { data: coordenacoes } = useCoordenacoes();
@@ -94,6 +97,11 @@ const Processos = () => {
     area: areaFilter,
     status: statusFilter,
     coordenacao_id: coordenacaoFilter,
+    responsavel_id: filtrosAplicados.responsavelId,
+    instancia: filtrosAplicados.instancia,
+    comMovimento: filtrosAplicados.comMovimento,
+    periodoInicio: filtrosAplicados.periodoInicio,
+    periodoFim: filtrosAplicados.periodoFim,
   });
 
   const { data: processosRedistribuidos } = useProcessosComRedistribuicaoRecente();
@@ -101,7 +109,7 @@ const Processos = () => {
   // Reset page when filters change
   useEffect(() => {
     resetPage();
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter]);
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados]);
 
   const processos = data?.processos || [];
   const totalCount = data?.totalCount || 0;
@@ -144,6 +152,23 @@ const Processos = () => {
     setSelectedProcessos([]);
   };
 
+  const handleAplicarFiltros = () => {
+    setFiltrosAplicados(filtrosAvancados);
+  };
+
+  const handleLimparFiltros = () => {
+    setFiltrosAvancados(defaultFiltrosAvancados);
+    setFiltrosAplicados(defaultFiltrosAvancados);
+  };
+
+  const hasAdvancedFiltersApplied =
+    filtrosAplicados.tipo !== "todos" ||
+    filtrosAplicados.comMovimento ||
+    filtrosAplicados.periodoInicio ||
+    filtrosAplicados.periodoFim ||
+    filtrosAplicados.responsavelId ||
+    filtrosAplicados.instancia !== "todos";
+
   return (
     <MainLayout 
       title="Processos" 
@@ -152,62 +177,75 @@ const Processos = () => {
       {/* Filters Bar */}
       <div className="bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in">
         <div className="flex flex-col gap-4">
+          {/* Search Row */}
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
-                placeholder="Buscar por número ou partes..." 
+                placeholder="Digite algo para pesquisar" 
                 className="pl-9"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-32">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ATIVOS</SelectItem>
+                <SelectItem value="ativo">Ativo</SelectItem>
+                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="urgente">Urgente</SelectItem>
+                <SelectItem value="encerrado">Encerrado</SelectItem>
+                <SelectItem value="arquivado">Arquivado</SelectItem>
+              </SelectContent>
+            </Select>
             <CacheIndicator
               isFetching={isFetching}
               isStale={isStale}
               dataUpdatedAt={dataUpdatedAt}
               onRefresh={handleForceRefresh}
             />
-            <div className="flex flex-wrap gap-3">
-              <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Coordenação" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as coordenações</SelectItem>
-                  {coordenacoes?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={areaFilter} onValueChange={setAreaFilter}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="Área" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as áreas</SelectItem>
-                  <SelectItem value="civil">Cível</SelectItem>
-                  <SelectItem value="trabalhista">Trabalhista</SelectItem>
-                  <SelectItem value="empresarial">Empresarial</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="ativo">Ativo</SelectItem>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="urgente">Urgente</SelectItem>
-                  <SelectItem value="encerrado">Encerrado</SelectItem>
-                  <SelectItem value="arquivado">Arquivado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
+
+          {/* Advanced Filters Row - Astrea Style */}
+          <FiltrosAvancadosProcessos
+            filtros={filtrosAvancados}
+            onFiltrosChange={setFiltrosAvancados}
+            onAplicar={handleAplicarFiltros}
+            onLimpar={handleLimparFiltros}
+          />
+
+          {/* Additional Filters */}
+          <div className="flex flex-wrap gap-3">
+            <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as coordenações</SelectItem>
+                {coordenacoes?.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={areaFilter} onValueChange={setAreaFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Área" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as áreas</SelectItem>
+                <SelectItem value="civil">Cível</SelectItem>
+                <SelectItem value="trabalhista">Trabalhista</SelectItem>
+                <SelectItem value="empresarial">Empresarial</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Action Buttons Row */}
           <div className="flex flex-wrap gap-2 justify-end">
             {!isSelectionMode ? (
               <>
@@ -283,7 +321,7 @@ const Processos = () => {
         </div>
 
         {/* Active Filters */}
-        {(areaFilter !== "all" || statusFilter !== "all" || coordenacaoFilter !== "all" || searchQuery) && (
+        {(areaFilter !== "all" || statusFilter !== "all" || coordenacaoFilter !== "all" || searchQuery || hasAdvancedFiltersApplied) && (
           <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border/50">
             <span className="text-sm text-muted-foreground">Filtros ativos:</span>
             {searchQuery && (
@@ -306,6 +344,38 @@ const Processos = () => {
                 {statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} ×
               </Badge>
             )}
+            {filtrosAplicados.responsavelNome && (
+              <Badge variant="secondary" className="cursor-pointer" onClick={() => {
+                setFiltrosAvancados(prev => ({ ...prev, responsavelId: undefined, responsavelNome: undefined }));
+                setFiltrosAplicados(prev => ({ ...prev, responsavelId: undefined, responsavelNome: undefined }));
+              }}>
+                Responsável: {filtrosAplicados.responsavelNome} ×
+              </Badge>
+            )}
+            {filtrosAplicados.instancia !== "todos" && (
+              <Badge variant="secondary" className="cursor-pointer" onClick={() => {
+                setFiltrosAvancados(prev => ({ ...prev, instancia: "todos" }));
+                setFiltrosAplicados(prev => ({ ...prev, instancia: "todos" }));
+              }}>
+                {filtrosAplicados.instancia === "1" ? "1º Grau" : filtrosAplicados.instancia === "2" ? "2º Grau" : "Superior"} ×
+              </Badge>
+            )}
+            {filtrosAplicados.comMovimento && (
+              <Badge variant="secondary" className="cursor-pointer" onClick={() => {
+                setFiltrosAvancados(prev => ({ ...prev, comMovimento: false }));
+                setFiltrosAplicados(prev => ({ ...prev, comMovimento: false }));
+              }}>
+                Com movimento ×
+              </Badge>
+            )}
+            {(filtrosAplicados.periodoInicio || filtrosAplicados.periodoFim) && (
+              <Badge variant="secondary" className="cursor-pointer" onClick={() => {
+                setFiltrosAvancados(prev => ({ ...prev, periodoInicio: undefined, periodoFim: undefined }));
+                setFiltrosAplicados(prev => ({ ...prev, periodoInicio: undefined, periodoFim: undefined }));
+              }}>
+                Período ×
+              </Badge>
+            )}
             <Button 
               variant="ghost" 
               size="sm" 
@@ -315,6 +385,7 @@ const Processos = () => {
                 setAreaFilter("all");
                 setStatusFilter("all");
                 setCoordenacaoFilter("all");
+                handleLimparFiltros();
               }}
             >
               Limpar filtros
