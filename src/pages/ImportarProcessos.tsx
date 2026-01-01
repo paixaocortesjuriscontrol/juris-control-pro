@@ -2110,6 +2110,9 @@ export default function ImportarProcessos() {
     const updatedProcessos = [...janainaProcessos];
     let successCountLocal = 0;
     let errorCountLocal = 0;
+    
+    // Create a mutable copy of clientes to track newly created clients during import
+    const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
 
     for (let i = 0; i < updatedProcessos.length; i++) {
       const processo = updatedProcessos[i];
@@ -2136,8 +2139,8 @@ export default function ImportarProcessos() {
         
         if (janainaData.cliente) {
           clienteNomeFromSheet = janainaData.cliente.trim();
-          // Try to find existing client by name
-          const existingCliente = clientes.find(c => 
+          // Try to find existing client by name in our mutable cache
+          const existingCliente = clientesCache.find(c => 
             c.nome.toLowerCase().trim() === clienteNomeFromSheet!.toLowerCase()
           );
           
@@ -2156,8 +2159,8 @@ export default function ImportarProcessos() {
             
             if (!clienteError && novoCliente) {
               clienteIdToUse = novoCliente.id;
-              // Add to local clients array so next rows can find it
-              clientes.push({ id: novoCliente.id, nome: novoCliente.nome, tipo: "pessoa_juridica" });
+              // Add to local cache so next rows can find it
+              clientesCache.push({ id: novoCliente.id, nome: novoCliente.nome, tipo: "pessoa_juridica" });
             } else {
               console.warn(`Falha ao criar cliente ${clienteNomeFromSheet}:`, clienteError?.message);
             }
