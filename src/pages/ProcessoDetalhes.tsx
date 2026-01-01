@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import DOMPurify from "dompurify";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1195,9 +1196,19 @@ export default function ProcessoDetalhes() {
                           </div>
                         </div>
                         <div className="bg-muted/20 rounded-lg p-4">
-                          <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
-                            {pub.conteudo || "Conteúdo não disponível"}
-                          </p>
+                          {pub.conteudo ? (
+                            <div 
+                              className="text-sm text-foreground prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-headings:my-2"
+                              dangerouslySetInnerHTML={{ 
+                                __html: DOMPurify.sanitize(pub.conteudo, {
+                                  ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+                                  ALLOWED_ATTR: ['class', 'style', 'href', 'target']
+                                })
+                              }} 
+                            />
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Conteúdo não disponível</p>
+                          )}
                         </div>
                       </div>
                     ))}
