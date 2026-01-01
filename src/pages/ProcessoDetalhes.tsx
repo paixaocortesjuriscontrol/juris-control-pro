@@ -1250,10 +1250,11 @@ export default function ProcessoDetalhes() {
                             </Button>
                           </div>
                         </div>
-                        <div className="bg-muted/20 rounded-lg p-4">
+                        <div className="bg-muted/20 rounded-lg p-3 sm:p-4 overflow-hidden">
                           {pub.conteudo ? (
                             <div 
-                              className="text-sm text-foreground prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-headings:my-2"
+                              className="text-sm text-foreground prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-headings:my-2 break-words overflow-wrap-anywhere [&_*]:max-w-full [&_table]:table-fixed [&_table]:w-full [&_td]:break-words [&_th]:break-words"
+                              style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                               dangerouslySetInnerHTML={{ 
                                 __html: DOMPurify.sanitize(pub.conteudo, {
                                   ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
