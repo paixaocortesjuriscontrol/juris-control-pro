@@ -481,12 +481,17 @@ const Processos = () => {
                           </Tooltip>
                         )}
                         <span className="font-medium text-foreground truncate">
-                          {processo.polo_ativo || "Não informado"} X {processo.polo_passivo || "..."}
+                          {processo.polo_ativo && processo.polo_passivo 
+                            ? `${processo.polo_ativo} X ${processo.polo_passivo}`
+                            : processo.polo_ativo || processo.polo_passivo || processo.numero
+                          }
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span className="text-primary">Processo {processo.status}</span>
-                        <span className="font-mono">{processo.numero}</span>
+                        {(processo.polo_ativo || processo.polo_passivo) && (
+                          <span className="font-mono">{processo.numero}</span>
+                        )}
                       </div>
                       {/* Mobile only: show all info */}
                       <div className="md:hidden mt-2 space-y-1 text-xs text-muted-foreground">
