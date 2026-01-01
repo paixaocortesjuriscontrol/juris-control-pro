@@ -148,7 +148,18 @@ const mapStatusToEnum = (situacao: string | null): "ativo" | "pendente" | "urgen
   if (situacaoLower.includes("arquivado")) return "arquivado";
   if (situacaoLower.includes("urgente")) return "urgente";
   if (situacaoLower.includes("pendente")) return "pendente";
+  if (situacaoLower.includes("ativo") || situacaoLower.includes("andamento")) return "ativo";
+  // If doesn't match any known status, return "ativo" as default
   return "ativo";
+};
+
+// Returns the original situation value if it doesn't match standard enum values
+const getSituacaoOriginal = (situacao: string | null): string | null => {
+  if (!situacao) return null;
+  const situacaoLower = situacao.toLowerCase().trim();
+  const standardValues = ["ativo", "pendente", "urgente", "encerrado", "arquivado", "em andamento", "finalizado"];
+  const isStandard = standardValues.some(s => situacaoLower.includes(s));
+  return isStandard ? null : situacao.trim();
 };
 
 const parseDate = (dateValue: any): string | null => {
@@ -250,14 +261,7 @@ const validateProcesso = (processo: ProcessoImport): ValidationError[] => {
   // Área agora aceita qualquer valor - será criada automaticamente se não existir
   // Não validamos mais contra lista fixa
   
-  // Validate situacao if provided
-  if (processo.situacao) {
-    const situacaoLower = processo.situacao.toLowerCase().trim();
-    const isValidSituacao = validSituacoes.some(s => situacaoLower.includes(s));
-    if (!isValidSituacao) {
-      errors.push({ campo: "Situação", mensagem: `Valor inválido: "${processo.situacao}". Use: Ativo, Pendente, Urgente, Encerrado ou Arquivado` });
-    }
-  }
+  // Situação: não validamos mais - valores não padrão serão salvos em situacao_original
   
   // Validate date if provided
   if (processo.dataDistribuicao) {
@@ -501,6 +505,7 @@ export default function ImportarProcessos() {
             descricao: processo.descricao,
             area: mapAreaToEnum(processo.area),
             status: mapStatusToEnum(processo.situacao),
+            situacao_original: getSituacaoOriginal(processo.situacao),
             tribunal: processo.orgao,
             vara: processo.orgaoJulgador,
             comarca: processo.cidade,
@@ -1129,6 +1134,7 @@ export default function ImportarProcessos() {
       descricao: p.descricao,
       area: mapAreaToEnum(p.area),
       status: mapStatusToEnum(p.situacao),
+      situacao_original: getSituacaoOriginal(p.situacao),
       tribunal: p.orgao,
       vara: p.orgaoJulgador,
       comarca: p.cidade,
@@ -1799,6 +1805,7 @@ export default function ImportarProcessos() {
           assunto: osmarData.pedidos,
           area: mapAreaToEnum(processo.area),
           status: mapStatusToEnum(processo.situacao),
+          situacao_original: getSituacaoOriginal(processo.situacao),
           vara: processo.orgaoJulgador,
           uf: processo.estado,
           fase: processo.fase,
@@ -2171,6 +2178,7 @@ export default function ImportarProcessos() {
           numero: processo.numero.trim(),
           area: areaSlug,
           status: mapStatusToEnum(processo.situacao),
+          situacao_original: getSituacaoOriginal(processo.situacao),
           assunto: processo.assunto,
           vara: processo.orgaoJulgador,
           comarca: janainaData.comarca,
