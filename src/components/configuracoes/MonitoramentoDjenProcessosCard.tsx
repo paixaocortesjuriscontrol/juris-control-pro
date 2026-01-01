@@ -3,13 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { FileSearch, Loader2, RefreshCw, Clock } from "lucide-react";
-import { useState } from "react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { FileSearch, Loader2, RefreshCw, Clock, CalendarIcon, X } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
 
 interface Props {
   coordenacaoId: string;
@@ -17,7 +21,10 @@ interface Props {
 
 export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   const [executando, setExecutando] = useState(false);
-  const [progresso, setProgresso] = useState<{ processados: number; novas: number } | null>(null);
+  const [progresso, setProgresso] = useState<{ processados: number; total: number; novas: number } | null>(null);
+  const [dataInicio, setDataInicio] = useState<Date | undefined>();
+  const [dataFim, setDataFim] = useState<Date | undefined>();
+  const canceladoRef = useRef(false);
   const queryClient = useQueryClient();
 
   // Buscar configuração
@@ -78,31 +85,78 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     }
   });
 
+  const executarLote = useCallback(async (continuarDe: number, dataInicioStr?: string, dataFimStr?: string): Promise<{ novas: number; concluido: boolean; nextOffset: number; totalProcessos: number }> => {
+    const { data, error } = await supabase.functions.invoke('monitorar-djen-processos', {
+      body: { 
+        dataInicio: dataInicioStr, 
+        dataFim: dataFimStr,
+        continuarDe 
+      }
+    });
+
+    if (error) throw error;
+    return {
+      novas: data.novas || 0,
+      concluido: data.concluido || false,
+      nextOffset: data.nextOffset || 0,
+      totalProcessos: data.totalProcessos || 0
+    };
+  }, []);
+
   const handleExecutarManual = async () => {
     setExecutando(true);
+    canceladoRef.current = false;
     setProgresso(null);
 
+    const dataInicioStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : undefined;
+    const dataFimStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : undefined;
+
+    let totalNovas = 0;
+    let offset = 0;
+    let totalProcessos = 0;
+
     try {
-      const { data, error } = await supabase.functions.invoke('monitorar-djen-processos');
+      // Loop para processar todos os lotes
+      while (!canceladoRef.current) {
+        const result = await executarLote(offset, dataInicioStr, dataFimStr);
+        
+        totalNovas += result.novas;
+        totalProcessos = result.totalProcessos;
+        offset = result.nextOffset;
 
-      if (error) throw error;
+        setProgresso({
+          processados: result.concluido ? totalProcessos : offset,
+          total: totalProcessos,
+          novas: totalNovas
+        });
 
-      setProgresso({
-        processados: data.processados || 0,
-        novas: data.novas || 0
-      });
+        if (result.concluido) {
+          break;
+        }
+
+        // Pequeno delay entre lotes
+        await new Promise(r => setTimeout(r, 1000));
+      }
 
       queryClient.invalidateQueries({ queryKey: ['djen-processos-stats'] });
       queryClient.invalidateQueries({ queryKey: ['djen-processos-historico'] });
       queryClient.invalidateQueries({ queryKey: ['config-djen-processos'] });
 
-      toast.success(`Monitoramento concluído: ${data.novas || 0} novas publicações encontradas`);
+      if (canceladoRef.current) {
+        toast.info(`Busca cancelada. ${totalNovas} publicações encontradas até agora.`);
+      } else {
+        toast.success(`Busca concluída! ${totalNovas} novas publicações em ${totalProcessos} processos.`);
+      }
     } catch (error: any) {
       console.error('Erro:', error);
       toast.error('Erro ao executar monitoramento');
     } finally {
       setExecutando(false);
     }
+  };
+
+  const handleCancelar = () => {
+    canceladoRef.current = true;
   };
 
   const handleFrequenciaChange = async (value: string) => {
@@ -133,6 +187,11 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     }
   };
 
+  const limparDatas = () => {
+    setDataInicio(undefined);
+    setDataFim(undefined);
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -144,6 +203,10 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
       </Card>
     );
   }
+
+  const progressPercent = progresso && progresso.total > 0 
+    ? Math.round((progresso.processados / progresso.total) * 100) 
+    : 0;
 
   return (
     <Card>
@@ -184,9 +247,78 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
           </div>
         </div>
 
+        {/* Filtros de data */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Período de busca (opcional)</span>
+            {(dataInicio || dataFim) && (
+              <Button variant="ghost" size="sm" className="h-6 px-2" onClick={limparDatas}>
+                <X className="h-3 w-3 mr-1" />
+                Limpar
+              </Button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "justify-start text-left font-normal h-8",
+                    !dataInicio && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-3 w-3" />
+                  {dataInicio ? format(dataInicio, "dd/MM/yy") : "Início"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dataInicio}
+                  onSelect={setDataInicio}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "justify-start text-left font-normal h-8",
+                    !dataFim && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-3 w-3" />
+                  {dataFim ? format(dataFim, "dd/MM/yy") : "Fim"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dataFim}
+                  onSelect={setDataFim}
+                  disabled={(date) => date > new Date() || (dataInicio ? date < dataInicio : false)}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {!dataInicio && !dataFim ? "Sem datas = busca apenas hoje" : ""}
+          </p>
+        </div>
+
         {/* Frequência */}
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Frequência</span>
+          <span className="text-sm text-muted-foreground">Frequência automática</span>
           <Select
             value={config?.frequencia || 'diario'}
             onValueChange={handleFrequenciaChange}
@@ -207,11 +339,11 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
             <span>
-              Última execução: {format(new Date(ultimoHistorico.executado_em), "dd/MM HH:mm", { locale: ptBR })}
+              Última: {format(new Date(ultimoHistorico.executado_em), "dd/MM HH:mm", { locale: ptBR })}
             </span>
             {ultimoHistorico.novos_andamentos > 0 && (
               <Badge variant="secondary" className="text-xs">
-                +{ultimoHistorico.novos_andamentos} novas
+                +{ultimoHistorico.novos_andamentos}
               </Badge>
             )}
           </div>
@@ -219,31 +351,39 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
 
         {/* Progresso */}
         {progresso && (
-          <div className="flex items-center gap-2 text-sm text-green-600">
-            <span>{progresso.processados} processos verificados, {progresso.novas} novas publicações</span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span>{progresso.processados} de {progresso.total} processos</span>
+              <span className="text-green-600">+{progresso.novas} novas</span>
+            </div>
+            <Progress value={progressPercent} className="h-2" />
           </div>
         )}
 
-        {/* Botão executar */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={handleExecutarManual}
-          disabled={executando}
-        >
+        {/* Botões */}
+        <div className="flex gap-2">
           {executando ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Buscando...
-            </>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="flex-1"
+              onClick={handleCancelar}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
           ) : (
-            <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={handleExecutarManual}
+            >
               <RefreshCw className="h-4 w-4 mr-2" />
               Executar Agora
-            </>
+            </Button>
           )}
-        </Button>
+        </div>
       </CardContent>
     </Card>
   );
