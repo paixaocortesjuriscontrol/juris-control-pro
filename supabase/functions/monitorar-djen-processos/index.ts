@@ -6,15 +6,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const PJE_COMUNICA_API = 'https://comunicaapi.pje.jus.br/api/v1/comunicacoes';
+// Use the correct PJE Comunica API endpoints
+const PJE_COMUNICA_ENDPOINTS = [
+  'https://comunicaapi.pje.jus.br/api/v1/comunicacao',
+  'https://comunicaapi.pje.jus.br/api/v1/comunicacoes'
+];
 const BATCH_SIZE = 50;
-const MAX_PAGES_PER_PROCESSO = 10;
+const MAX_PAGES_PER_PROCESSO = 5;
+const PAGE_SIZE = 100;
+
+// Browser-like headers to avoid blocking
+const browserHeaders = {
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Origin': 'https://comunica.pje.jus.br',
+  'Referer': 'https://comunica.pje.jus.br/',
+};
 
 function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3, baseDelay = 1000) {
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3, baseDelay = 1500) {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const response = await fetch(url, options);
@@ -45,56 +59,85 @@ function generateHash(content: string): string {
 
 async function searchDJENByProcesso(numeroProcesso: string, dataInicio?: string, dataFim?: string): Promise<any[]> {
   const results: any[] = [];
-  const browserHeaders = {
-    'Accept': 'application/json',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    'Origin': 'https://comunica.pje.jus.br',
-    'Referer': 'https://comunica.pje.jus.br/',
-  };
-
-  // Remove formatação do número do processo para busca
-  const numeroLimpo = numeroProcesso.replace(/[^0-9]/g, '');
   
-  try {
-    for (let page = 1; page <= MAX_PAGES_PER_PROCESSO; page++) {
-      const params = new URLSearchParams({
-        texto: numeroLimpo,
-        pagina: page.toString(),
-        itensPorPagina: '100',
-      });
+  // Usar o número do processo como texto de busca (pode ser formatado ou não)
+  const textoBusca = numeroProcesso;
+  
+  console.log(`Buscando publicações para processo: ${textoBusca}`);
 
-      // Adicionar filtros de data se fornecidos
-      if (dataInicio) {
-        params.append('dataPublicacaoInicio', dataInicio);
+  for (const endpoint of PJE_COMUNICA_ENDPOINTS) {
+    try {
+      for (let page = 0; page < MAX_PAGES_PER_PROCESSO; page++) {
+        const params = new URLSearchParams();
+        params.append('texto', textoBusca);
+        params.append('pagina', page.toString());
+        params.append('tamanhoPagina', PAGE_SIZE.toString());
+        params.append('page', page.toString());
+        params.append('size', PAGE_SIZE.toString());
+
+        // Usar os parâmetros corretos de data
+        if (dataInicio) {
+          params.append('dataDisponibilizacaoInicio', dataInicio);
+        }
+        if (dataFim) {
+          params.append('dataDisponibilizacaoFim', dataFim);
+        }
+
+        const fullUrl = `${endpoint}?${params.toString()}`;
+        
+        const response = await fetchWithRetry(fullUrl, { 
+          method: 'GET', 
+          headers: browserHeaders 
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        
+        // Se recebemos HTML, a API bloqueou a requisição
+        if (contentType.includes('text/html')) {
+          console.log(`Bloqueado (HTML) para ${numeroProcesso}, tentando próximo endpoint...`);
+          break;
+        }
+
+        if (response.status === 422) {
+          // Sem resultados
+          console.log(`Nenhum resultado para processo ${numeroProcesso}`);
+          return [];
+        }
+
+        if (!response.ok) {
+          console.log(`Erro ${response.status} na busca do processo ${numeroProcesso}`);
+          break;
+        }
+
+        const data = await response.json();
+        const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
+        
+        if (items.length === 0) {
+          // Sucesso mas sem itens nesta página
+          if (page === 0) {
+            console.log(`Sem publicações para processo ${numeroProcesso}`);
+          }
+          break;
+        }
+        
+        console.log(`Processo ${numeroProcesso}: página ${page} - ${items.length} itens`);
+        results.push(...items);
+        
+        // Verificar se há mais páginas
+        const totalElements = data.totalElements || data.count || data.total;
+        if (totalElements && results.length >= totalElements) break;
+        if (items.length < PAGE_SIZE) break;
+        
+        await delay(300); // Rate limiting entre páginas
       }
-      if (dataFim) {
-        params.append('dataPublicacaoFim', dataFim);
-      }
-
-      const response = await fetchWithRetry(
-        `${PJE_COMUNICA_API}?${params.toString()}`,
-        { method: 'GET', headers: browserHeaders }
-      );
-
-      if (!response.ok) {
-        console.log(`Erro na busca do processo ${numeroProcesso}: ${response.status}`);
-        break;
-      }
-
-      const data = await response.json();
-      const items = data.items || data.content || [];
       
-      if (items.length === 0) break;
+      // Se encontrou resultados em um endpoint, não precisa tentar outro
+      if (results.length > 0) break;
       
-      results.push(...items);
-      
-      const totalPages = data.totalPages || Math.ceil((data.totalElements || 0) / 100);
-      if (page >= totalPages) break;
-      
-      await delay(300); // Rate limiting
+    } catch (error) {
+      console.error(`Erro com endpoint ${endpoint} para ${numeroProcesso}:`, error);
+      continue; // Tenta próximo endpoint
     }
-  } catch (error) {
-    console.error(`Erro buscando processo ${numeroProcesso}:`, error);
   }
 
   return results;
@@ -195,12 +238,15 @@ serve(async (req) => {
     let totalNovas = 0;
     let totalDuplicadas = 0;
     let processosComNovas = 0;
+    let processosComResultados = 0;
 
     for (const processo of processos) {
       try {
         const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
         
-        if (publicacoes.length === 0) continue;
+        if (publicacoes.length > 0) {
+          processosComResultados++;
+        }
 
         let novasDoProcesso = 0;
 
@@ -230,7 +276,7 @@ serve(async (req) => {
               processo_id: processo.id,
               processo_numero: processo.numero,
               conteudo: conteudo.substring(0, 10000),
-              data_publicacao: pub.dataPublicacao || pub.data || null,
+              data_publicacao: pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || null,
               fonte: pub.siglaTribunal || pub.tribunal || 'DJEN',
               hash_conteudo: hash,
             });
@@ -245,7 +291,7 @@ serve(async (req) => {
           processosComNovas++;
         }
 
-        await delay(400); // Rate limiting entre processos
+        await delay(500); // Rate limiting entre processos
       } catch (error) {
         console.error(`Erro processando ${processo.numero}:`, error);
       }
@@ -284,11 +330,12 @@ serve(async (req) => {
           hasMore,
           dataInicio,
           dataFim,
-          totalProcessos
+          totalProcessos,
+          processosComResultados
         }
       });
 
-    console.log(`Lote concluído: ${totalNovas} novas, ${totalDuplicadas} duplicadas, hasMore: ${hasMore}`);
+    console.log(`Lote concluído: ${totalNovas} novas, ${totalDuplicadas} duplicadas, ${processosComResultados} com resultados, hasMore: ${hasMore}`);
 
     return new Response(
       JSON.stringify({
@@ -297,6 +344,7 @@ serve(async (req) => {
         novas: totalNovas,
         duplicadas: totalDuplicadas,
         processosComNovas,
+        processosComResultados,
         hasMore,
         nextOffset: hasMore ? nextOffset : 0,
         totalProcessos: totalProcessos || 0,
