@@ -1197,8 +1197,9 @@ export default function ProcessoDetalhes() {
                         key={pub.id}
                         className={`p-5 border-2 rounded-xl transition-colors ${pub.lida ? 'bg-muted/30 border-muted' : 'bg-background border-primary/20 hover:border-primary/40'}`}
                       >
-                        <div className="flex items-center justify-between gap-4 mb-4 pb-3 border-b">
-                          <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-3 mb-4 pb-3 border-b">
+                          {/* Linha 1: Status e Fonte */}
+                          <div className="flex flex-wrap items-center gap-2">
                             {pub.lida ? (
                               <Eye className="w-5 h-5 text-muted-foreground" />
                             ) : (
@@ -1211,15 +1212,17 @@ export default function ProcessoDetalhes() {
                               <Badge variant="outline" className="text-sm">{pub.fonte}</Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <div className="text-right">
+                          
+                          {/* Linha 2: Datas e Botão */}
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                              <div>
                                 <span className="text-xs">Diário:</span>{" "}
                                 <span className="font-medium text-foreground">
                                   {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
                                 </span>
                               </div>
-                              <div className="text-right">
+                              <div>
                                 <span className="text-xs">Capturado:</span>{" "}
                                 <span>{formatDateTime(pub.data_encontrado)}</span>
                               </div>
@@ -1229,7 +1232,7 @@ export default function ProcessoDetalhes() {
                               size="sm"
                               onClick={() => handleToggleLida(pub.id, pub.lida)}
                               disabled={toglingLida === pub.id}
-                              className="shrink-0"
+                              className="shrink-0 w-full sm:w-auto"
                             >
                               {toglingLida === pub.id ? (
                                 <RefreshCw className="w-4 h-4 animate-spin" />
