@@ -1985,10 +1985,63 @@ export default function ImportarProcessos() {
       const sheet = workbook.Sheets[sheetName];
 
       const range = sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null;
-      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null, blankrows: true });
-      const expectedRows = range ? Math.max(0, range.e.r - range.s.r) : jsonData.length;
+      const expectedRows = range ? Math.max(0, range.e.r - range.s.r) : 0;
 
-      const parsed: ProcessoImport[] = jsonData.map((row: any, index: number): ProcessoImport => {
+      // Lê como matriz (AOA) para preservar posição das linhas (inclui linhas vazias)
+      const aoa = XLSX.utils.sheet_to_json<any[]>(sheet, {
+        header: 1,
+        defval: null,
+        blankrows: true,
+      }) as any[][];
+
+      const headerRow = (aoa[0] || []).map((h) => String(h ?? "").trim());
+
+      const normalizeHeaderKey = (value: string) =>
+        value
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const getFromRow = (rowObj: Record<string, any>, keys: string[]) => {
+        for (const k of keys) {
+          if (k in rowObj) return rowObj[k];
+        }
+
+        // fallback com normalização (para cabeçalhos com quebras de linha/espaços)
+        const normalizedRow: Record<string, any> = {};
+        for (const [k, v] of Object.entries(rowObj)) {
+          const nk = normalizeHeaderKey(k);
+          if (!normalizedRow[nk]) normalizedRow[nk] = v;
+        }
+
+        for (const k of keys) {
+          const nk = normalizeHeaderKey(k);
+          if (nk in normalizedRow) return normalizedRow[nk];
+        }
+
+        return null;
+      };
+
+      const totalDataRows = expectedRows || Math.max(0, aoa.length - 1);
+
+      const parsed: ProcessoImport[] = Array.from({ length: totalDataRows }).map((_, index) => {
+        const rowArr = aoa[index + 1] || [];
+
+        // Monta objeto por cabeçalho, mantendo null quando faltar coluna
+        const row: Record<string, any> = {};
+        headerRow.forEach((header, colIndex) => {
+          if (!header) return;
+          row[header] = rowArr[colIndex] ?? null;
+        });
+
+        const rowHasAnyValue = rowArr.some((v) => {
+          if (v === null || v === undefined) return false;
+          if (typeof v === "string") return v.trim() !== "";
+          return true;
+        });
+
         // Build periodo_condenacao from separate date fields if available
         const dataInicioCondenacao = row["Data início Período da Condenação"] || null;
         const dataFimCondenacao = row["Data fim Período da Condenação"] || null;
@@ -1999,14 +2052,16 @@ export default function ImportarProcessos() {
 
         // Try multiple possible column names for the process number
         const numeroProcesso =
-          row["Processo Judicial"] ||
-          row["Nº Processo"] ||
-          row["Nº do Processo"] ||
-          row["Numero do Processo"] ||
-          row["Número do Processo"] ||
-          row["Processo"] ||
-          row["N° Processo"] ||
-          row["Nº Processo Judicial"] ||
+          getFromRow(row, [
+            "Processo Judicial",
+            "Nº Processo",
+            "Nº do Processo",
+            "Numero do Processo",
+            "Número do Processo",
+            "Processo",
+            "N° Processo",
+            "Nº Processo Judicial",
+          ]) ||
           "";
 
         const processo: ProcessoImport = {
@@ -2055,7 +2110,8 @@ export default function ImportarProcessos() {
           reclamante: row["Reclamante"] || null,
           reclamados: row["Reclamados"] || null,
           comarca: row["Comarca"] || null,
-          desligamento: row["Data Desligamento"] || row["Data\nDesligamento"] || row["Desligamento"] || null,
+          desligamento:
+            row["Data Desligamento"] || row["Data\nDesligamento"] || row["Desligamento"] || null,
           responsabilidadeTipo: row["Responsabilidade: Exclusiva, Solidária, Subsidiária"] || null,
           pedidoValor: row["Pedido e Valor"] || null,
           andamento: row["Andamento"] || null,
@@ -2078,24 +2134,24 @@ export default function ImportarProcessos() {
           setor: row["Setor"] || null,
         };
 
+        // Validação base
         processo.erros = validateProcesso(processo);
 
+        // Regras de rejeição (críticas): linha vazia OU número inválido
         const numeroTrimmed = (processo.numero || "").trim();
-        const hasCriticalError = !numeroTrimmed || numeroTrimmed.length < 5;
+        const isEmptyRow = !rowHasAnyValue;
+        const hasInvalidNumero = !numeroTrimmed || numeroTrimmed.length < 5;
 
-        // Importante: qualquer linha (inclusive em branco) vira um registro rejeitado,
-        // para garantir que rejeitados + gravados = total da planilha.
-        if (hasCriticalError) {
-          const motivo = !numeroTrimmed
-            ? "Número do processo vazio ou não encontrado na planilha"
-            : `Número do processo muito curto (${numeroTrimmed.length} caracteres, mínimo 5)`;
+        if (isEmptyRow || hasInvalidNumero) {
+          const motivo = isEmptyRow
+            ? "Linha vazia na planilha"
+            : !numeroTrimmed
+              ? "Número do processo vazio ou não encontrado na planilha"
+              : `Número do processo muito curto (${numeroTrimmed.length} caracteres, mínimo 5)`;
 
           processo.status = "invalido";
           processo.erroImport = motivo;
-
-          if (processo.erros.length === 0) {
-            processo.erros = [{ campo: "numero", mensagem: motivo }];
-          }
+          processo.erros = [{ campo: "numero", mensagem: motivo }];
         } else {
           processo.status = "valido";
         }
@@ -2117,8 +2173,8 @@ export default function ImportarProcessos() {
       } else {
         toast({
           title: "Planilha carregada",
-          description: `${parsed.length} linha(s) lida(s) (esperado: ${expectedRows}): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
-          variant: invalidCount > 0 || parsed.length !== expectedRows ? "destructive" : "default",
+          description: `${parsed.length} linha(s) lida(s) (esperado: ${totalDataRows}): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
+          variant: invalidCount > 0 || parsed.length !== totalDataRows ? "destructive" : "default",
         });
       }
     } catch (error) {
