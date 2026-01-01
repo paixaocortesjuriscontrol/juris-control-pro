@@ -1676,6 +1676,53 @@ export type Database = {
           },
         ]
       }
+      publicacoes_djen_processos: {
+        Row: {
+          conteudo: string | null
+          created_at: string
+          data_encontrado: string
+          data_publicacao: string | null
+          fonte: string | null
+          hash_conteudo: string
+          id: string
+          lida: boolean
+          processo_id: string
+          processo_numero: string
+        }
+        Insert: {
+          conteudo?: string | null
+          created_at?: string
+          data_encontrado?: string
+          data_publicacao?: string | null
+          fonte?: string | null
+          hash_conteudo: string
+          id?: string
+          lida?: boolean
+          processo_id: string
+          processo_numero: string
+        }
+        Update: {
+          conteudo?: string | null
+          created_at?: string
+          data_encontrado?: string
+          data_publicacao?: string | null
+          fonte?: string | null
+          hash_conteudo?: string
+          id?: string
+          lida?: boolean
+          processo_id?: string
+          processo_numero?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_djen_processos_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       publicacoes_pje: {
         Row: {
           conteudo: string | null
