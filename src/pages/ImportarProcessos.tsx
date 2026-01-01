@@ -1983,7 +1983,10 @@ export default function ImportarProcessos() {
       const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+      const range = sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null;
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null, blankrows: true });
+      const expectedRows = range ? Math.max(0, range.e.r - range.s.r) : jsonData.length;
 
       const parsed: ProcessoImport[] = jsonData.map((row: any, index: number): ProcessoImport => {
         // Build periodo_condenacao from separate date fields if available
@@ -1991,16 +1994,23 @@ export default function ImportarProcessos() {
         const dataFimCondenacao = row["Data fim Período da Condenação"] || null;
         let periodoCondenacao = null;
         if (dataInicioCondenacao || dataFimCondenacao) {
-          periodoCondenacao = `${dataInicioCondenacao || ''} a ${dataFimCondenacao || ''}`.trim();
+          periodoCondenacao = `${dataInicioCondenacao || ""} a ${dataFimCondenacao || ""}`.trim();
         }
 
         // Try multiple possible column names for the process number
-        const numeroProcesso = row["Processo Judicial"] || row["Nº Processo"] || row["Nº do Processo"] || 
-                               row["Numero do Processo"] || row["Número do Processo"] || row["Processo"] || 
-                               row["N° Processo"] || row["Nº Processo Judicial"] || "";
-        
+        const numeroProcesso =
+          row["Processo Judicial"] ||
+          row["Nº Processo"] ||
+          row["Nº do Processo"] ||
+          row["Numero do Processo"] ||
+          row["Número do Processo"] ||
+          row["Processo"] ||
+          row["N° Processo"] ||
+          row["Nº Processo Judicial"] ||
+          "";
+
         const processo: ProcessoImport = {
-          numero: String(numeroProcesso).trim(),
+          numero: String(numeroProcesso ?? "").trim(),
           assunto: row["Assunto da Ação"] || null,
           situacao: row["Status"] || null,
           responsavel: row["Advogado"] || null,
@@ -2037,15 +2047,15 @@ export default function ImportarProcessos() {
           resultado: null,
           valorCondenacao: parseNumber(row["Valor da Condenação"]),
         };
-        
+
         // Store additional ACH (Janaina) fields - including new Cliente column
         (processo as any).janainaData = {
-          cliente: row["Cliente"] || null, // NEW: Cliente now comes in first column
+          cliente: row["Cliente"] || null, // Cliente (coluna 1)
           ativoPasso: row["Ativo/Passivo"] || null,
           reclamante: row["Reclamante"] || null,
           reclamados: row["Reclamados"] || null,
           comarca: row["Comarca"] || null,
-          desligamento: row["Data Desligamento"] || row["Data\nDesligamento"] || row["Desligamento"] || null, // Support multiple header formats
+          desligamento: row["Data Desligamento"] || row["Data\nDesligamento"] || row["Desligamento"] || null,
           responsabilidadeTipo: row["Responsabilidade: Exclusiva, Solidária, Subsidiária"] || null,
           pedidoValor: row["Pedido e Valor"] || null,
           andamento: row["Andamento"] || null,
@@ -2057,7 +2067,6 @@ export default function ImportarProcessos() {
           justificativa: row["Justificativa"] || null,
           valorPerdaAnterior: parseNumber(row["Valor Perda Anterior"]),
           valorPerdaAtual: parseNumber(row["Valor Perda Atual"]),
-          // NEW: Updated column names for responsabilidade fields
           dataResponsabilidadeAte: row["Data responsabilidade até"] || null,
           valorResponsabilidadeAte: parseNumber(row["Valor responsabilidade até"]),
           dataResponsabilidadeApos: row["Data responsabilidade após"] || null,
@@ -2068,19 +2077,37 @@ export default function ImportarProcessos() {
           funcao: row["Função"] || null,
           setor: row["Setor"] || null,
         };
-        
+
         processo.erros = validateProcesso(processo);
-        const hasCriticalError = !processo.numero || processo.numero.trim() === "" || processo.numero.trim().length < 5;
-        processo.status = hasCriticalError ? "invalido" : "valido";
-        
+
+        const numeroTrimmed = (processo.numero || "").trim();
+        const hasCriticalError = !numeroTrimmed || numeroTrimmed.length < 5;
+
+        // Importante: qualquer linha (inclusive em branco) vira um registro rejeitado,
+        // para garantir que rejeitados + gravados = total da planilha.
+        if (hasCriticalError) {
+          const motivo = !numeroTrimmed
+            ? "Número do processo vazio ou não encontrado na planilha"
+            : `Número do processo muito curto (${numeroTrimmed.length} caracteres, mínimo 5)`;
+
+          processo.status = "invalido";
+          processo.erroImport = motivo;
+
+          if (processo.erros.length === 0) {
+            processo.erros = [{ campo: "numero", mensagem: motivo }];
+          }
+        } else {
+          processo.status = "valido";
+        }
+
         return processo;
       });
 
       setJanainaProcessos(parsed);
-      
-      const validCount = parsed.filter(p => p.status === "valido").length;
-      const invalidCount = parsed.filter(p => p.status === "invalido").length;
-      
+
+      const validCount = parsed.filter((p) => p.status === "valido").length;
+      const invalidCount = parsed.filter((p) => p.status === "invalido").length;
+
       if (parsed.length === 0) {
         toast({
           title: "Nenhum processo encontrado",
@@ -2090,8 +2117,8 @@ export default function ImportarProcessos() {
       } else {
         toast({
           title: "Planilha carregada",
-          description: `${parsed.length} linha(s): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
-          variant: invalidCount > 0 ? "destructive" : "default",
+          description: `${parsed.length} linha(s) lida(s) (esperado: ${expectedRows}): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
+          variant: invalidCount > 0 || parsed.length !== expectedRows ? "destructive" : "default",
         });
       }
     } catch (error) {
@@ -2327,14 +2354,22 @@ export default function ImportarProcessos() {
     toast({
       title: "Importação Dra. Janaina concluída",
       description: `${successCountLocal} importado(s), ${rejectedCountLocal} rejeitado(s), ${errorCountLocal} erro(s). Total: ${totalProcessed}/${updatedProcessos.length}`,
-      variant: (errorCountLocal > 0 || rejectedCountLocal > 0) ? "destructive" : "default",
+      variant: errorCountLocal > 0 || rejectedCountLocal > 0 ? "destructive" : "default",
     });
+
+    // Se houve rejeições/erros, já gera o arquivo de problemas automaticamente
+    // (garante conferência: rejeitados + gravados = total da planilha)
+    if (rejectedCountLocal > 0 || errorCountLocal > 0) {
+      setTimeout(() => downloadJanainaRejeitados(updatedProcessos), 0);
+    }
   };
 
-  const downloadJanainaRejeitados = () => {
-    const rejeitados = janainaProcessos.filter(p => p.status === "invalido" || p.status === "erro");
-    const comAvisos = janainaProcessos.filter(p => (p.status === "sucesso" || p.status === "valido") && p.erros.length > 0);
-    
+  const downloadJanainaRejeitados = (processosToExport: ProcessoImport[] = janainaProcessos) => {
+    const rejeitados = processosToExport.filter((p) => p.status === "invalido" || p.status === "erro");
+    const comAvisos = processosToExport.filter(
+      (p) => (p.status === "sucesso" || p.status === "valido") && p.erros.length > 0
+    );
+
     if (rejeitados.length === 0 && comAvisos.length === 0) {
       toast({
         title: "Nenhum problema encontrado",
@@ -2343,26 +2378,29 @@ export default function ImportarProcessos() {
       return;
     }
 
-    const rejeitadosData = rejeitados.map(p => ({
-      "Linha": p.linhaOriginal,
+    const rejeitadosData = rejeitados.map((p) => ({
+      Linha: p.linhaOriginal,
       "Número do processo": p.numero || "(vazio)",
-      "Reclamante": p.parteAtiva,
-      "Reclamados": p.partePassiva,
-      "Vara": p.orgaoJulgador,
-      "Status": p.situacao,
-      "Tipo": "REJEITADO",
-      "Motivo": p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; ") || p.erroImport || "Erro crítico",
+      Reclamante: p.parteAtiva,
+      Reclamados: p.partePassiva,
+      Vara: p.orgaoJulgador,
+      Status: p.situacao,
+      Tipo: "REJEITADO",
+      Motivo:
+        p.erros.map((e) => `${e.campo}: ${e.mensagem}`).join("; ") ||
+        p.erroImport ||
+        "Erro crítico",
     }));
 
-    const avisosData = comAvisos.map(p => ({
-      "Linha": p.linhaOriginal,
+    const avisosData = comAvisos.map((p) => ({
+      Linha: p.linhaOriginal,
       "Número do processo": p.numero,
-      "Reclamante": p.parteAtiva,
-      "Reclamados": p.partePassiva,
-      "Vara": p.orgaoJulgador,
-      "Status": p.situacao,
-      "Tipo": "IMPORTADO COM AVISOS",
-      "Avisos": p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; "),
+      Reclamante: p.parteAtiva,
+      Reclamados: p.partePassiva,
+      Vara: p.orgaoJulgador,
+      Status: p.situacao,
+      Tipo: "IMPORTADO COM AVISOS",
+      Avisos: p.erros.map((e) => `${e.campo}: ${e.mensagem}`).join("; "),
     }));
 
     const allData = [...rejeitadosData, ...avisosData];
@@ -2370,14 +2408,14 @@ export default function ImportarProcessos() {
     const ws = XLSX.utils.json_to_sheet(allData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Problemas");
-    
-    const colWidths = Object.keys(allData[0] || {}).map(key => ({
-      wch: Math.max(key.length, 15)
+
+    const colWidths = Object.keys(allData[0] || {}).map((key) => ({
+      wch: Math.max(key.length, 15),
     }));
     ws["!cols"] = colWidths;
-    
-    XLSX.writeFile(wb, `janaina_problemas_${new Date().toISOString().split('T')[0]}.xlsx`);
-    
+
+    XLSX.writeFile(wb, `janaina_problemas_${new Date().toISOString().split("T")[0]}.xlsx`);
+
     toast({
       title: "Arquivo gerado",
       description: `${rejeitados.length} rejeitado(s), ${comAvisos.length} com avisos.`,
@@ -3780,7 +3818,7 @@ export default function ImportarProcessos() {
                       )}
                       <div className="flex gap-2">
                         {janainaTotalProblemas > 0 && (
-                          <Button variant="outline" onClick={downloadJanainaRejeitados}>
+                          <Button variant="outline" onClick={() => downloadJanainaRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
                             Baixar Problemas ({janainaTotalProblemas})
                           </Button>
