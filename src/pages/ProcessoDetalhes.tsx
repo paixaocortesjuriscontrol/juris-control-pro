@@ -55,7 +55,10 @@ import {
   FileBox,
   Bell,
   BellOff,
-  AlertTriangle
+  AlertTriangle,
+  Newspaper,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -174,6 +177,21 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
+  });
+
+  const { data: publicacoesDjen = [], isLoading: loadingPublicacoes, refetch: refetchPublicacoes } = useQuery({
+    queryKey: ["publicacoes-djen-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("publicacoes_djen_processos")
+        .select("*")
+        .eq("processo_id", id!)
+        .order("data_encontrado", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
   });
 
   // Initialize form when processo loads or editing starts
@@ -1116,6 +1134,82 @@ export default function ProcessoDetalhes() {
                     <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
                     Buscar Andamentos
                   </Button>
+                </div>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Publicações DJEN */}
+          <AccordionItem value="publicacoes-djen" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Newspaper className="w-5 h-5" />
+                <span className="font-semibold">Publicações DJEN</span>
+                {publicacoesDjen.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {publicacoesDjen.length}
+                  </Badge>
+                )}
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              {loadingPublicacoes ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 rounded-lg" />
+                  ))}
+                </div>
+              ) : publicacoesDjen.length > 0 ? (
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-3">
+                    {publicacoesDjen.map((pub) => (
+                      <div 
+                        key={pub.id}
+                        className={`p-4 border rounded-lg transition-colors ${pub.lida ? 'bg-muted/30' : 'bg-background hover:bg-muted/50'}`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              {pub.lida ? (
+                                <Eye className="w-4 h-4 text-muted-foreground" />
+                              ) : (
+                                <EyeOff className="w-4 h-4 text-primary" />
+                              )}
+                              <Badge variant={pub.lida ? "secondary" : "default"}>
+                                {pub.lida ? "Lida" : "Não lida"}
+                              </Badge>
+                              {pub.fonte && (
+                                <Badge variant="outline">{pub.fonte}</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-foreground whitespace-pre-wrap break-words line-clamp-4">
+                              {pub.conteudo || "Conteúdo não disponível"}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0 space-y-1">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Diário</p>
+                              <p className="text-sm font-medium">
+                                {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Capturado</p>
+                              <p className="text-sm">{formatDateTime(pub.data_encontrado)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <Newspaper className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhuma publicação DJEN encontrada</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    As publicações são capturadas automaticamente pelo monitoramento
+                  </p>
                 </div>
               )}
             </AccordionContent>
