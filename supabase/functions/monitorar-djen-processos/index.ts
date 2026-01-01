@@ -57,86 +57,151 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
-async function searchDJENByProcesso(numeroProcesso: string, dataInicio?: string, dataFim?: string): Promise<any[]> {
+function parseISODateOnly(dateStr: string): Date {
+  // Force UTC to avoid timezone shifting the day
+  return new Date(`${dateStr}T00:00:00.000Z`);
+}
+
+function formatISODateOnlyUTC(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function buildDateRanges(
+  dataInicio?: string,
+  dataFim?: string,
+  maxRangeDays = 180
+): Array<{ inicio: string; fim: string }> {
+  if (!dataInicio || !dataFim) return [];
+
+  const start = parseISODateOnly(dataInicio);
+  const end = parseISODateOnly(dataFim);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+
+  const ranges: Array<{ inicio: string; fim: string }> = [];
+  const maxMs = maxRangeDays * 24 * 60 * 60 * 1000;
+
+  let cursor = start;
+  while (cursor.getTime() <= end.getTime()) {
+    const chunkEnd = new Date(Math.min(cursor.getTime() + maxMs, end.getTime()));
+    ranges.push({ inicio: formatISODateOnlyUTC(cursor), fim: formatISODateOnlyUTC(chunkEnd) });
+
+    // next day after chunkEnd
+    cursor = new Date(chunkEnd.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  return ranges;
+}
+
+async function fetchDJENPages(
+  endpoint: string,
+  textoBusca: string,
+  dataInicio?: string,
+  dataFim?: string,
+): Promise<any[]> {
   const results: any[] = [];
-  
-  // Usar o número do processo como texto de busca (pode ser formatado ou não)
+
+  for (let page = 0; page < MAX_PAGES_PER_PROCESSO; page++) {
+    const params = new URLSearchParams();
+    params.append('texto', textoBusca);
+    params.append('pagina', page.toString());
+    params.append('tamanhoPagina', PAGE_SIZE.toString());
+
+    // Alguns endpoints usam page/size
+    params.append('page', page.toString());
+    params.append('size', PAGE_SIZE.toString());
+
+    if (dataInicio) params.append('dataDisponibilizacaoInicio', dataInicio);
+    if (dataFim) params.append('dataDisponibilizacaoFim', dataFim);
+
+    const fullUrl = `${endpoint}?${params.toString()}`;
+
+    const response = await fetchWithRetry(fullUrl, {
+      method: 'GET',
+      headers: browserHeaders,
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+
+    // Se recebemos HTML, a API bloqueou a requisição
+    if (contentType.includes('text/html')) {
+      console.log(`Bloqueado (HTML) para "${textoBusca}" em ${endpoint}`);
+      break;
+    }
+
+    // A API pode retornar 404 para "sem resultado" ou para endpoints específicos.
+    // Vamos tratar 404 como "sem itens" para não abortar o fluxo.
+    if (response.status === 404) {
+      console.log(`404 (sem resultado) para "${textoBusca}"`);
+      break;
+    }
+
+    if (response.status === 422) {
+      console.log(`422 (provável filtro inválido) para "${textoBusca}"`);
+      break;
+    }
+
+    if (!response.ok) {
+      console.log(`Erro ${response.status} na busca de "${textoBusca}"`);
+      break;
+    }
+
+    const data = await response.json();
+    const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
+
+    if (!Array.isArray(items) || items.length === 0) {
+      break;
+    }
+
+    results.push(...items);
+
+    const totalElements = data.totalElements || data.count || data.total;
+    if (totalElements && results.length >= totalElements) break;
+    if (items.length < PAGE_SIZE) break;
+
+    await delay(300);
+  }
+
+  return results;
+}
+
+async function searchDJENByProcesso(
+  numeroProcesso: string,
+  dataInicio?: string,
+  dataFim?: string,
+): Promise<any[]> {
+  const results: any[] = [];
   const textoBusca = numeroProcesso;
-  
+
   console.log(`Buscando publicações para processo: ${textoBusca}`);
+
+  // A Comunica API costuma limitar intervalos grandes. Se o usuário mandar um ano inteiro,
+  // quebramos em blocos (ex.: 180 dias) para evitar retorno vazio.
+  const ranges = buildDateRanges(dataInicio, dataFim, 180);
+  const rangesToUse = ranges.length > 0 ? ranges : [{ inicio: dataInicio, fim: dataFim }];
 
   for (const endpoint of PJE_COMUNICA_ENDPOINTS) {
     try {
-      for (let page = 0; page < MAX_PAGES_PER_PROCESSO; page++) {
-        const params = new URLSearchParams();
-        params.append('texto', textoBusca);
-        params.append('pagina', page.toString());
-        params.append('tamanhoPagina', PAGE_SIZE.toString());
-        params.append('page', page.toString());
-        params.append('size', PAGE_SIZE.toString());
-
-        // Usar os parâmetros corretos de data
-        if (dataInicio) {
-          params.append('dataDisponibilizacaoInicio', dataInicio);
-        }
-        if (dataFim) {
-          params.append('dataDisponibilizacaoFim', dataFim);
+      for (const range of rangesToUse) {
+        if (range.inicio && range.fim) {
+          console.log(`Processo ${numeroProcesso}: intervalo ${range.inicio} a ${range.fim}`);
         }
 
-        const fullUrl = `${endpoint}?${params.toString()}`;
-        
-        const response = await fetchWithRetry(fullUrl, { 
-          method: 'GET', 
-          headers: browserHeaders 
-        });
+        const items = await fetchDJENPages(endpoint, textoBusca, range.inicio, range.fim);
 
-        const contentType = response.headers.get('content-type') || '';
-        
-        // Se recebemos HTML, a API bloqueou a requisição
-        if (contentType.includes('text/html')) {
-          console.log(`Bloqueado (HTML) para ${numeroProcesso}, tentando próximo endpoint...`);
-          break;
+        if (items.length > 0) {
+          console.log(`Processo ${numeroProcesso}: ${items.length} itens no endpoint ${endpoint}`);
+          results.push(...items);
         }
 
-        if (response.status === 422) {
-          // Sem resultados
-          console.log(`Nenhum resultado para processo ${numeroProcesso}`);
-          return [];
-        }
-
-        if (!response.ok) {
-          console.log(`Erro ${response.status} na busca do processo ${numeroProcesso}`);
-          break;
-        }
-
-        const data = await response.json();
-        const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
-        
-        if (items.length === 0) {
-          // Sucesso mas sem itens nesta página
-          if (page === 0) {
-            console.log(`Sem publicações para processo ${numeroProcesso}`);
-          }
-          break;
-        }
-        
-        console.log(`Processo ${numeroProcesso}: página ${page} - ${items.length} itens`);
-        results.push(...items);
-        
-        // Verificar se há mais páginas
-        const totalElements = data.totalElements || data.count || data.total;
-        if (totalElements && results.length >= totalElements) break;
-        if (items.length < PAGE_SIZE) break;
-        
-        await delay(300); // Rate limiting entre páginas
+        // Rate limiting entre intervalos
+        await delay(250);
       }
-      
-      // Se encontrou resultados em um endpoint, não precisa tentar outro
+
+      // Se achou algo em algum endpoint, não precisa tentar os outros
       if (results.length > 0) break;
-      
     } catch (error) {
       console.error(`Erro com endpoint ${endpoint} para ${numeroProcesso}:`, error);
-      continue; // Tenta próximo endpoint
+      continue;
     }
   }
 
@@ -243,18 +308,28 @@ serve(async (req) => {
     for (const processo of processos) {
       try {
         const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
-        
+
         if (publicacoes.length > 0) {
           processosComResultados++;
         }
 
         let novasDoProcesso = 0;
+        const seenHashes = new Set<string>();
 
         for (const pub of publicacoes) {
-          const conteudo = pub.texto || pub.teor || pub.conteudo || '';
-          if (!conteudo) continue;
+          const conteudo =
+            pub.texto ??
+            pub.teor ??
+            pub.conteudo ??
+            pub.conteudoPublicacao ??
+            pub.resumo ??
+            '';
+
+          if (!conteudo || typeof conteudo !== 'string') continue;
 
           const hash = generateHash(conteudo);
+          if (seenHashes.has(hash)) continue;
+          seenHashes.add(hash);
 
           // Verificar se já existe
           const { data: existing } = await supabase
@@ -269,6 +344,24 @@ serve(async (req) => {
             continue;
           }
 
+          const rawDataPublicacao =
+            pub.dataPublicacao ??
+            pub.dataDisponibilizacao ??
+            pub.data_publicacao ??
+            pub.data ??
+            null;
+
+          const dataPublicacao = typeof rawDataPublicacao === 'string'
+            ? rawDataPublicacao
+            : null;
+
+          const fonte =
+            pub.siglaTribunal ??
+            pub.tribunal ??
+            pub.orgao ??
+            pub.fonte ??
+            'DJEN';
+
           // Inserir nova publicação
           const { error: insertError } = await supabase
             .from('publicacoes_djen_processos')
@@ -276,8 +369,8 @@ serve(async (req) => {
               processo_id: processo.id,
               processo_numero: processo.numero,
               conteudo: conteudo.substring(0, 10000),
-              data_publicacao: pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || null,
-              fonte: pub.siglaTribunal || pub.tribunal || 'DJEN',
+              data_publicacao: dataPublicacao,
+              fonte,
               hash_conteudo: hash,
             });
 
