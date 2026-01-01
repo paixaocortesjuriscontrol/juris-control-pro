@@ -1994,8 +1994,13 @@ export default function ImportarProcessos() {
           periodoCondenacao = `${dataInicioCondenacao || ''} a ${dataFimCondenacao || ''}`.trim();
         }
 
+        // Try multiple possible column names for the process number
+        const numeroProcesso = row["Processo Judicial"] || row["Nº Processo"] || row["Nº do Processo"] || 
+                               row["Numero do Processo"] || row["Número do Processo"] || row["Processo"] || 
+                               row["N° Processo"] || row["Nº Processo Judicial"] || "";
+        
         const processo: ProcessoImport = {
-          numero: String(row["Processo Judicial"] || "").trim(),
+          numero: String(numeroProcesso).trim(),
           assunto: row["Assunto da Ação"] || null,
           situacao: row["Status"] || null,
           responsavel: row["Advogado"] || null,
