@@ -63,6 +63,7 @@ export function AtribuirProcessoDialog({
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [areaFilter, setAreaFilter] = useState<string>("all");
+  const [clienteFilter, setClienteFilter] = useState<string>("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -71,7 +72,7 @@ export function AtribuirProcessoDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("processos")
-        .select("id, numero, assunto, polo_ativo, area, advogado_responsavel_id")
+        .select("id, numero, assunto, polo_ativo, area, advogado_responsavel_id, cliente_id, cliente:clientes(id, nome)")
         .eq("coordenacao_id", coordenacaoId)
         .is("advogado_responsavel_id", null)
         .order("created_at", { ascending: false });
@@ -81,6 +82,17 @@ export function AtribuirProcessoDialog({
     },
     enabled: open,
   });
+
+  const clientesUnicos = useMemo(() => {
+    if (!processosNaoAtribuidos) return [];
+    const map = new Map<string, string>();
+    processosNaoAtribuidos.forEach((p) => {
+      if (p.cliente?.id && p.cliente?.nome) {
+        map.set(p.cliente.id, p.cliente.nome);
+      }
+    });
+    return Array.from(map.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [processosNaoAtribuidos]);
 
   const processosFiltrados = useMemo(() => {
     if (!processosNaoAtribuidos) return [];
@@ -92,10 +104,11 @@ export function AtribuirProcessoDialog({
         p.assunto?.toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesArea = areaFilter === "all" || p.area === areaFilter;
+      const matchesCliente = clienteFilter === "all" || p.cliente_id === clienteFilter;
       
-      return matchesSearch && matchesArea;
+      return matchesSearch && matchesArea && matchesCliente;
     });
-  }, [processosNaoAtribuidos, searchQuery, areaFilter]);
+  }, [processosNaoAtribuidos, searchQuery, areaFilter, clienteFilter]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -185,8 +198,8 @@ export function AtribuirProcessoDialog({
                   <FormLabel>Processos sem Responsável ({processosNaoAtribuidos?.length || 0})</FormLabel>
                   
                   {/* Filters */}
-                  <div className="flex gap-2 mb-2">
-                    <div className="relative flex-1">
+                  <div className="flex flex-col gap-2 mb-2">
+                    <div className="relative">
                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="Buscar por número..."
@@ -195,17 +208,32 @@ export function AtribuirProcessoDialog({
                         className="pl-8"
                       />
                     </div>
-                    <Select value={areaFilter} onValueChange={setAreaFilter}>
-                      <SelectTrigger className="w-[140px]">
-                        <SelectValue placeholder="Área" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas</SelectItem>
-                        <SelectItem value="civil">Civil</SelectItem>
-                        <SelectItem value="trabalhista">Trabalhista</SelectItem>
-                        <SelectItem value="empresarial">Empresarial</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select value={areaFilter} onValueChange={setAreaFilter}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Área" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas as áreas</SelectItem>
+                          <SelectItem value="civil">Civil</SelectItem>
+                          <SelectItem value="trabalhista">Trabalhista</SelectItem>
+                          <SelectItem value="empresarial">Empresarial</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={clienteFilter} onValueChange={setClienteFilter}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os clientes</SelectItem>
+                          {clientesUnicos.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   {processosFiltrados.length > 0 ? (
