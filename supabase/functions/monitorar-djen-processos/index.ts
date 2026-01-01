@@ -8,12 +8,7 @@ const corsHeaders = {
 
 const PJE_COMUNICA_API = 'https://comunicaapi.pje.jus.br/api/v1/comunicacoes';
 const BATCH_SIZE = 50;
-const MAX_PAGES_PER_PROCESSO = 5;
-
-interface Processo {
-  id: string;
-  numero: string;
-}
+const MAX_PAGES_PER_PROCESSO = 10;
 
 function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -48,7 +43,7 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
-async function searchDJENByProcesso(numeroProcesso: string): Promise<any[]> {
+async function searchDJENByProcesso(numeroProcesso: string, dataInicio?: string, dataFim?: string): Promise<any[]> {
   const results: any[] = [];
   const browserHeaders = {
     'Accept': 'application/json',
@@ -67,6 +62,14 @@ async function searchDJENByProcesso(numeroProcesso: string): Promise<any[]> {
         pagina: page.toString(),
         itensPorPagina: '100',
       });
+
+      // Adicionar filtros de data se fornecidos
+      if (dataInicio) {
+        params.append('dataPublicacaoInicio', dataInicio);
+      }
+      if (dataFim) {
+        params.append('dataPublicacaoFim', dataFim);
+      }
 
       const response = await fetchWithRetry(
         `${PJE_COMUNICA_API}?${params.toString()}`,
@@ -107,7 +110,28 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('Iniciando monitoramento DJEN por processos cadastrados...');
+    // Parâmetros opcionais
+    let dataInicio: string | undefined;
+    let dataFim: string | undefined;
+    let continuarDe: number | undefined;
+
+    try {
+      const body = await req.json();
+      dataInicio = body.dataInicio;
+      dataFim = body.dataFim;
+      continuarDe = body.continuarDe;
+    } catch {
+      // Sem body, usa valores padrão
+    }
+
+    // Se não tiver datas, busca só do dia atual
+    if (!dataInicio && !dataFim) {
+      const hoje = new Date().toISOString().split('T')[0];
+      dataInicio = hoje;
+      dataFim = hoje;
+    }
+
+    console.log(`Monitoramento DJEN por processos: ${dataInicio} a ${dataFim}`);
 
     // Buscar configuração
     const { data: config } = await supabase
@@ -116,47 +140,57 @@ serve(async (req) => {
       .eq('tipo', 'djen_processos')
       .single();
 
-    if (!config?.ativo) {
-      return new Response(
-        JSON.stringify({ success: true, message: 'Monitoramento desativado' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Contar total de processos para monitorar
+    const { count: totalProcessos } = await supabase
+      .from('processos')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'ativo')
+      .eq('monitorar_andamentos', true);
 
-    // Buscar offset do metadata
-    const metadata = config.metadata || {};
-    const currentOffset = metadata.next_offset || 0;
+    const offset = continuarDe || 0;
 
-    // Buscar processos ativos com monitoramento ativo
+    // Buscar lote de processos
     const { data: processos, error: processosError } = await supabase
       .from('processos')
       .select('id, numero')
       .eq('status', 'ativo')
       .eq('monitorar_andamentos', true)
       .order('created_at', { ascending: true })
-      .range(currentOffset, currentOffset + BATCH_SIZE - 1);
+      .range(offset, offset + BATCH_SIZE - 1);
 
     if (processosError) {
       throw new Error(`Erro ao buscar processos: ${processosError.message}`);
     }
 
     if (!processos || processos.length === 0) {
-      // Reset offset se não houver mais processos
-      await supabase
-        .from('configuracoes_monitoramento')
-        .update({
-          ultima_execucao: new Date().toISOString(),
-          metadata: { ...metadata, next_offset: 0, last_complete_run: new Date().toISOString() }
-        })
-        .eq('tipo', 'djen_processos');
+      // Ciclo completo
+      if (config) {
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            ultima_execucao: new Date().toISOString(),
+            metadata: { 
+              ...(config.metadata || {}), 
+              last_complete_run: new Date().toISOString(),
+              next_offset: 0 
+            }
+          })
+          .eq('tipo', 'djen_processos');
+      }
 
       return new Response(
-        JSON.stringify({ success: true, message: 'Ciclo completo, reiniciando', processados: 0 }),
+        JSON.stringify({ 
+          success: true, 
+          message: 'Ciclo completo', 
+          processados: 0,
+          totalProcessos: totalProcessos || 0,
+          concluido: true
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Processando ${processos.length} processos (offset: ${currentOffset})`);
+    console.log(`Processando lote: ${processos.length} processos (offset: ${offset}, total: ${totalProcessos})`);
 
     let totalNovas = 0;
     let totalDuplicadas = 0;
@@ -164,7 +198,7 @@ serve(async (req) => {
 
     for (const processo of processos) {
       try {
-        const publicacoes = await searchDJENByProcesso(processo.numero);
+        const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
         
         if (publicacoes.length === 0) continue;
 
@@ -195,7 +229,7 @@ serve(async (req) => {
             .insert({
               processo_id: processo.id,
               processo_numero: processo.numero,
-              conteudo: conteudo.substring(0, 10000), // Limitar tamanho
+              conteudo: conteudo.substring(0, 10000),
               data_publicacao: pub.dataPublicacao || pub.data || null,
               fonte: pub.siglaTribunal || pub.tribunal || 'DJEN',
               hash_conteudo: hash,
@@ -211,28 +245,30 @@ serve(async (req) => {
           processosComNovas++;
         }
 
-        await delay(500); // Rate limiting entre processos
+        await delay(400); // Rate limiting entre processos
       } catch (error) {
         console.error(`Erro processando ${processo.numero}:`, error);
       }
     }
 
-    // Atualizar offset para próxima execução
-    const nextOffset = currentOffset + processos.length;
-    const hasMore = processos.length === BATCH_SIZE;
+    const nextOffset = offset + processos.length;
+    const hasMore = nextOffset < (totalProcessos || 0);
 
-    await supabase
-      .from('configuracoes_monitoramento')
-      .update({
-        ultima_execucao: new Date().toISOString(),
-        metadata: {
-          ...metadata,
-          next_offset: hasMore ? nextOffset : 0,
-          last_batch_size: processos.length,
-          last_complete_run: hasMore ? metadata.last_complete_run : new Date().toISOString()
-        }
-      })
-      .eq('tipo', 'djen_processos');
+    // Atualizar metadata
+    if (config) {
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          ultima_execucao: new Date().toISOString(),
+          metadata: {
+            ...(config.metadata || {}),
+            next_offset: hasMore ? nextOffset : 0,
+            last_batch_size: processos.length,
+            last_complete_run: hasMore ? (config.metadata as any)?.last_complete_run : new Date().toISOString()
+          }
+        })
+        .eq('tipo', 'djen_processos');
+    }
 
     // Registrar no histórico
     await supabase
@@ -243,13 +279,16 @@ serve(async (req) => {
         novos_andamentos: totalNovas,
         processos_com_novos: processosComNovas,
         detalhes: {
-          offset: currentOffset,
+          offset,
           duplicadas: totalDuplicadas,
-          hasMore
+          hasMore,
+          dataInicio,
+          dataFim,
+          totalProcessos
         }
       });
 
-    console.log(`Concluído: ${totalNovas} novas publicações, ${totalDuplicadas} duplicadas, ${processosComNovas} processos com novidades`);
+    console.log(`Lote concluído: ${totalNovas} novas, ${totalDuplicadas} duplicadas, hasMore: ${hasMore}`);
 
     return new Response(
       JSON.stringify({
@@ -259,7 +298,9 @@ serve(async (req) => {
         duplicadas: totalDuplicadas,
         processosComNovas,
         hasMore,
-        nextOffset: hasMore ? nextOffset : 0
+        nextOffset: hasMore ? nextOffset : 0,
+        totalProcessos: totalProcessos || 0,
+        concluido: !hasMore
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
