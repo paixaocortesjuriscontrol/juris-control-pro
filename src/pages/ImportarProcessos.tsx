@@ -2106,10 +2106,12 @@ export default function ImportarProcessos() {
 
   const handleJanainaImport = async () => {
     const validProcessos = janainaProcessos.filter(p => p.status === "valido");
-    if (validProcessos.length === 0) {
+    const invalidProcessos = janainaProcessos.filter(p => p.status === "invalido");
+    
+    if (validProcessos.length === 0 && invalidProcessos.length === 0) {
       toast({
-        title: "Nenhum processo válido",
-        description: "Corrija os erros de validação antes de importar.",
+        title: "Nenhum processo para processar",
+        description: "A planilha não contém dados válidos.",
         variant: "destructive",
       });
       return;
@@ -2122,6 +2124,7 @@ export default function ImportarProcessos() {
     const updatedProcessos = [...janainaProcessos];
     let successCountLocal = 0;
     let errorCountLocal = 0;
+    let rejectedCountLocal = 0;
     
     // Create a mutable copy of clientes to track newly created clients during import
     const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
@@ -2129,7 +2132,23 @@ export default function ImportarProcessos() {
     for (let i = 0; i < updatedProcessos.length; i++) {
       const processo = updatedProcessos[i];
       
+      // Process invalid records - mark them as rejected with clear reason
       if (processo.status === "invalido") {
+        const motivo = !processo.numero || processo.numero.trim() === "" 
+          ? "Número do processo vazio ou não encontrado na planilha"
+          : processo.numero.trim().length < 5 
+            ? `Número do processo muito curto (${processo.numero.trim().length} caracteres, mínimo 5)`
+            : "Dados insuficientes para importação";
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "invalido", 
+          erroImport: motivo,
+          erros: processo.erros.length > 0 ? processo.erros : [{ campo: "numero", mensagem: motivo }]
+        };
+        rejectedCountLocal++;
+        setJanainaProgress(((i + 1) / updatedProcessos.length) * 100);
+        setJanainaProcessos([...updatedProcessos]);
         continue;
       }
 
@@ -2304,10 +2323,11 @@ export default function ImportarProcessos() {
     setJanainaImporting(false);
     endImport();
 
+    const totalProcessed = successCountLocal + errorCountLocal + rejectedCountLocal;
     toast({
       title: "Importação Dra. Janaina concluída",
-      description: `${successCountLocal} processo(s) importado(s). ${errorCountLocal} erro(s) de importação.`,
-      variant: errorCountLocal > 0 ? "destructive" : "default",
+      description: `${successCountLocal} importado(s), ${rejectedCountLocal} rejeitado(s), ${errorCountLocal} erro(s). Total: ${totalProcessed}/${updatedProcessos.length}`,
+      variant: (errorCountLocal > 0 || rejectedCountLocal > 0) ? "destructive" : "default",
     });
   };
 
