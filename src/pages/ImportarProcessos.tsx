@@ -1979,6 +1979,14 @@ export default function ImportarProcessos() {
       const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
 
       const parsed: ProcessoImport[] = jsonData.map((row: any, index: number): ProcessoImport => {
+        // Build periodo_condenacao from separate date fields if available
+        const dataInicioCondenacao = row["Data início Período da Condenação"] || null;
+        const dataFimCondenacao = row["Data fim Período da Condenação"] || null;
+        let periodoCondenacao = null;
+        if (dataInicioCondenacao || dataFimCondenacao) {
+          periodoCondenacao = `${dataInicioCondenacao || ''} a ${dataFimCondenacao || ''}`.trim();
+        }
+
         const processo: ProcessoImport = {
           numero: String(row["Processo Judicial"] || "").trim(),
           assunto: row["Assunto da Ação"] || null,
@@ -2018,26 +2026,30 @@ export default function ImportarProcessos() {
           valorCondenacao: parseNumber(row["Valor da Condenação"]),
         };
         
-        // Store additional ACH (Janaina) fields
+        // Store additional ACH (Janaina) fields - including new Cliente column
         (processo as any).janainaData = {
+          cliente: row["Cliente"] || null, // NEW: Cliente now comes in first column
           ativoPasso: row["Ativo/Passivo"] || null,
           reclamante: row["Reclamante"] || null,
           reclamados: row["Reclamados"] || null,
           comarca: row["Comarca"] || null,
-          desligamento: row["Desligamento"] || null,
+          desligamento: row["Data Desligamento"] || row["Data\nDesligamento"] || row["Desligamento"] || null, // Support multiple header formats
           responsabilidadeTipo: row["Responsabilidade: Exclusiva, Solidária, Subsidiária"] || null,
           pedidoValor: row["Pedido e Valor"] || null,
           andamento: row["Andamento"] || null,
           dataConsulta: row["Data da Consulta"] || null,
-          periodoCondenacao: row["Período da Condenação"] || null,
+          periodoCondenacao: periodoCondenacao,
           riscoAnterior: row["Risco Perda Anterior"] || null,
           riscoAtual: row["Risco Perda Atual"] || null,
           mudancaRisco: row["Mudança (?)"] || null,
           justificativa: row["Justificativa"] || null,
           valorPerdaAnterior: parseNumber(row["Valor Perda Anterior"]),
           valorPerdaAtual: parseNumber(row["Valor Perda Atual"]),
-          responsabilidadeAntes: parseNumber(row["Responsabilidade até 18/11/2020"]),
-          responsabilidadeApos: parseNumber(row["Responsabilidade após 18/11/2020"]),
+          // NEW: Updated column names for responsabilidade fields
+          dataResponsabilidadeAte: row["Data responsabilidade até"] || null,
+          valorResponsabilidadeAte: parseNumber(row["Valor responsabilidade até"]),
+          dataResponsabilidadeApos: row["Data responsabilidade após"] || null,
+          valorResponsabilidadeApos: parseNumber(row["Responsabilidade após"]),
           adicaoBaixa: row["Adição/baixa"] || null,
           depositosVinculados: row["Depósitos vinculados"] || null,
           epocaRazao: row["Época / Razão"] || null,
@@ -2118,6 +2130,40 @@ export default function ImportarProcessos() {
 
         const areaSlug = await ensureAreaExists(processo.area);
 
+        // Determine cliente_id: use from spreadsheet column "Cliente" if available, otherwise use selected
+        let clienteIdToUse = selectedCliente || null;
+        let clienteNomeFromSheet: string | null = null;
+        
+        if (janainaData.cliente) {
+          clienteNomeFromSheet = janainaData.cliente.trim();
+          // Try to find existing client by name
+          const existingCliente = clientes.find(c => 
+            c.nome.toLowerCase().trim() === clienteNomeFromSheet!.toLowerCase()
+          );
+          
+          if (existingCliente) {
+            clienteIdToUse = existingCliente.id;
+          } else {
+            // Create new client
+            const { data: novoCliente, error: clienteError } = await supabase
+              .from("clientes")
+              .insert({
+                nome: clienteNomeFromSheet,
+                tipo: "pessoa_juridica",
+              })
+              .select("id, nome")
+              .single();
+            
+            if (!clienteError && novoCliente) {
+              clienteIdToUse = novoCliente.id;
+              // Add to local clients array so next rows can find it
+              clientes.push({ id: novoCliente.id, nome: novoCliente.nome, tipo: "pessoa_juridica" });
+            } else {
+              console.warn(`Falha ao criar cliente ${clienteNomeFromSheet}:`, clienteError?.message);
+            }
+          }
+        }
+
         const processoData: any = {
           numero: processo.numero.trim(),
           area: areaSlug,
@@ -2132,7 +2178,7 @@ export default function ImportarProcessos() {
           valor_condenacao: processo.valorCondenacao,
           coordenacao_id: selectedCoordenacao || null,
           advogado_responsavel_id: selectedMembro || null,
-          cliente_id: selectedCliente || null,
+          cliente_id: clienteIdToUse,
           monitorar_andamentos: janainaBuscarAndamentos,
           // ACH specific fields
           ativo_passivo: janainaData.ativoPasso,
@@ -2146,12 +2192,12 @@ export default function ImportarProcessos() {
           periodo_condenacao: janainaData.periodoCondenacao,
           risco_anterior: janainaData.riscoAnterior,
           risco_atual: janainaData.riscoAtual,
-          mudanca_risco: janainaData.mudancaRisco === "Sim" || janainaData.mudancaRisco === true,
+          mudanca_risco: janainaData.mudancaRisco === "Sim" || janainaData.mudancaRisco === "Não" ? janainaData.mudancaRisco === "Sim" : null,
           justificativa_risco: janainaData.justificativa,
           valor_perda_anterior: janainaData.valorPerdaAnterior,
           valor_perda_atual: janainaData.valorPerdaAtual,
-          responsabilidade_antes_data: janainaData.responsabilidadeAntes,
-          responsabilidade_apos_data: janainaData.responsabilidadeApos,
+          responsabilidade_antes_data: janainaData.valorResponsabilidadeAte,
+          responsabilidade_apos_data: janainaData.valorResponsabilidadeApos,
           adicao_baixa: janainaData.adicaoBaixa,
           depositos_vinculados: janainaData.depositosVinculados,
           epoca_razao: janainaData.epocaRazao,
@@ -2178,7 +2224,7 @@ export default function ImportarProcessos() {
           // Create pasta with pattern "Reclamante x Cliente"
           let pastaId: string | null = null;
           const reclamante = janainaData.reclamante || processo.parteAtiva || "Sem Reclamante";
-          const clienteNome = clientes.find(c => c.id === selectedCliente)?.nome || "Sem Cliente";
+          const clienteNome = clienteNomeFromSheet || clientes.find(c => c.id === clienteIdToUse)?.nome || "Sem Cliente";
           const nomePasta = `${reclamante} x ${clienteNome}`;
           
           // Get current user for pasta creation
@@ -2190,7 +2236,7 @@ export default function ImportarProcessos() {
               .insert({
                 nome: nomePasta,
                 descricao: `Pasta criada automaticamente para o processo ${processo.numero}`,
-                cliente_id: selectedCliente || null,
+                cliente_id: clienteIdToUse,
                 coordenacao_id: selectedCoordenacao || null,
                 criado_por: user.id,
               })
