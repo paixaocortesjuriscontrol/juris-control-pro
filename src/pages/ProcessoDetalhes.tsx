@@ -97,6 +97,7 @@ export default function ProcessoDetalhes() {
   const [salvando, setSalvando] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [toglingMonitoramento, setToglingMonitoramento] = useState(false);
+  const [toglingLida, setToglingLida] = useState<string | null>(null);
   
   // Form state for all fields
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -460,6 +461,34 @@ export default function ProcessoDetalhes() {
       });
     } finally {
       setToglingMonitoramento(false);
+    }
+  };
+
+  const handleToggleLida = async (publicacaoId: string, lidaAtual: boolean) => {
+    setToglingLida(publicacaoId);
+    try {
+      const { error } = await supabase
+        .from("publicacoes_djen_processos")
+        .update({ lida: !lidaAtual })
+        .eq("id", publicacaoId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo", id] });
+      
+      toast({
+        title: !lidaAtual ? "Marcada como lida" : "Marcada como não lida",
+        description: "Status da publicação atualizado",
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar status:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o status da publicação",
+        variant: "destructive",
+      });
+    } finally {
+      setToglingLida(null);
     }
   };
 
@@ -1182,17 +1211,40 @@ export default function ProcessoDetalhes() {
                               <Badge variant="outline" className="text-sm">{pub.fonte}</Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <div className="text-right">
-                              <span className="text-xs">Diário:</span>{" "}
-                              <span className="font-medium text-foreground">
-                                {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
-                              </span>
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <div className="text-right">
+                                <span className="text-xs">Diário:</span>{" "}
+                                <span className="font-medium text-foreground">
+                                  {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs">Capturado:</span>{" "}
+                                <span>{formatDateTime(pub.data_encontrado)}</span>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <span className="text-xs">Capturado:</span>{" "}
-                              <span>{formatDateTime(pub.data_encontrado)}</span>
-                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleToggleLida(pub.id, pub.lida)}
+                              disabled={toglingLida === pub.id}
+                              className="shrink-0"
+                            >
+                              {toglingLida === pub.id ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                              ) : pub.lida ? (
+                                <>
+                                  <EyeOff className="w-4 h-4 mr-1" />
+                                  Marcar não lida
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  Marcar lida
+                                </>
+                              )}
+                            </Button>
                           </div>
                         </div>
                         <div className="bg-muted/20 rounded-lg p-4">
