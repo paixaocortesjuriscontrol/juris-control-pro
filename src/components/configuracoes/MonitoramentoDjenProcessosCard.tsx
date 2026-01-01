@@ -5,7 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { FileSearch, Loader2, RefreshCw, Clock, CalendarIcon, X } from "lucide-react";
+import { FileSearch, Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useState, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -384,6 +385,14 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             </Button>
           )}
         </div>
+
+        {/* Link para auditoria */}
+        <Link to="/auditoria-djen-processos" className="block">
+          <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground hover:text-foreground">
+            <ExternalLink className="h-3 w-3 mr-2" />
+            Ver auditoria de lotes
+          </Button>
+        </Link>
       </CardContent>
     </Card>
   );
