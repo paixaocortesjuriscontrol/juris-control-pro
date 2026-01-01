@@ -1269,6 +1269,7 @@ export type Database = {
           risco_atual: string | null
           setor: string | null
           sigla_unidade: string | null
+          situacao_original: string | null
           status: Database["public"]["Enums"]["status_processo"]
           terceiro_envolvido: string | null
           tipo_controladora: string | null
@@ -1354,6 +1355,7 @@ export type Database = {
           risco_atual?: string | null
           setor?: string | null
           sigla_unidade?: string | null
+          situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           terceiro_envolvido?: string | null
           tipo_controladora?: string | null
@@ -1439,6 +1441,7 @@ export type Database = {
           risco_atual?: string | null
           setor?: string | null
           sigla_unidade?: string | null
+          situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           terceiro_envolvido?: string | null
           tipo_controladora?: string | null
