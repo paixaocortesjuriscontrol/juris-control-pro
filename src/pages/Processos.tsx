@@ -116,18 +116,16 @@ const Processos = () => {
   }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
-  // so selecting a responsável / período / com movimento filters immediately.
+  // so selecting a responsável / período filters immediately.
   useEffect(() => {
     setFiltrosAplicados((prev) => ({
       ...prev,
-      comMovimento: filtrosAvancados.comMovimento,
       periodoInicio: filtrosAvancados.periodoInicio,
       periodoFim: filtrosAvancados.periodoFim,
       responsavelId: filtrosAvancados.responsavelId,
       responsavelNome: filtrosAvancados.responsavelNome,
     }));
   }, [
-    filtrosAvancados.comMovimento,
     filtrosAvancados.periodoInicio,
     filtrosAvancados.periodoFim,
     filtrosAvancados.responsavelId,
@@ -194,7 +192,6 @@ const Processos = () => {
 
   const hasAdvancedFiltersApplied =
     filtrosAplicados.tipo !== "todos" ||
-    filtrosAplicados.comMovimento ||
     filtrosAplicados.periodoInicio ||
     filtrosAplicados.periodoFim ||
     filtrosAplicados.responsavelId ||
