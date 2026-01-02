@@ -345,6 +345,13 @@ export default function ImportarProcessos() {
   const [janainaProgress, setJanainaProgress] = useState(0);
   const [janainaBuscarAndamentos, setJanainaBuscarAndamentos] = useState(true);
 
+  // Dra. Polyana import states
+  const [polyanaFile, setPolyanaFile] = useState<File | null>(null);
+  const [polyanaProcessos, setPolyanaProcessos] = useState<ProcessoImport[]>([]);
+  const [polyanaImporting, setPolyanaImporting] = useState(false);
+  const [polyanaProgress, setPolyanaProgress] = useState(0);
+  const [polyanaBuscarAndamentos, setPolyanaBuscarAndamentos] = useState(true);
+
   // Excel/Planilha import state for andamentos
   const [planilhaBuscarAndamentos, setPlanilhaBuscarAndamentos] = useState(true);
 
@@ -2513,11 +2520,470 @@ export default function ImportarProcessos() {
     setJanainaProgress(0);
   };
 
+  // Dra. Polyana file handling
+  const POLYANA_COORDENACAO_ID = "f73e8ee7-924c-4518-bbdc-62dd77df93a1";
+  const POLYANA_ADVOGADA_ID = "c3bb1df8-ea39-4cc9-9496-39d68df3f1f4";
+
+  const handlePolyanaFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setPolyanaFile(selectedFile);
+      parsePolyanaExcel(selectedFile);
+    }
+  }, []);
+
+  const parsePolyanaExcel = async (file: File) => {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+
+      const range = sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null;
+      const expectedRows = range ? Math.max(0, range.e.r - range.s.r) : 0;
+
+      const aoa = XLSX.utils.sheet_to_json<any[]>(sheet, {
+        header: 1,
+        defval: null,
+        blankrows: true,
+      }) as any[][];
+
+      const headerRow = (aoa[0] || []).map((h) => String(h ?? "").trim());
+
+      const normalizeHeaderKey = (value: string) =>
+        value
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const getFromRow = (rowObj: Record<string, any>, keys: string[]) => {
+        for (const k of keys) {
+          if (k in rowObj) return rowObj[k];
+        }
+        const normalizedRow: Record<string, any> = {};
+        for (const [k, v] of Object.entries(rowObj)) {
+          const nk = normalizeHeaderKey(k);
+          if (!normalizedRow[nk]) normalizedRow[nk] = v;
+        }
+        for (const k of keys) {
+          const nk = normalizeHeaderKey(k);
+          if (nk in normalizedRow) return normalizedRow[nk];
+        }
+        return null;
+      };
+
+      const totalDataRows = expectedRows || Math.max(0, aoa.length - 1);
+
+      const parsed: ProcessoImport[] = Array.from({ length: totalDataRows }).map((_, index) => {
+        const rowArr = aoa[index + 1] || [];
+
+        const row: Record<string, any> = {};
+        headerRow.forEach((header, colIndex) => {
+          if (!header) return;
+          row[header] = rowArr[colIndex] ?? null;
+        });
+
+        const rowHasAnyValue = rowArr.some((v) => {
+          if (v === null || v === undefined) return false;
+          if (typeof v === "string") return v.trim() !== "";
+          return true;
+        });
+
+        const numeroProcesso = getFromRow(row, [
+          "Numero do processo",
+          "Número do processo",
+          "Numero do Processo",
+          "Número do Processo",
+          "Processo",
+          "Nº Processo",
+        ]) || "";
+
+        const processo: ProcessoImport = {
+          numero: String(numeroProcesso ?? "").trim(),
+          assunto: row["DESCRIÇÃO DO OBJETO"] || row["Descrição do Objeto"] || row["DESCRICAO DO OBJETO"] || null,
+          situacao: row["Fase do Processo"] || null,
+          responsavel: null,
+          descricao: row["DESCRIÇÃO DO OBJETO"] || row["Descrição do Objeto"] || null,
+          justica: null,
+          cidade: null,
+          estado: null,
+          instancia: null,
+          orgao: null,
+          orgaoJulgador: null,
+          sistema: null,
+          area: "trabalhista",
+          fase: row["Fase do Processo"] || null,
+          dataDistribuicao: null,
+          classeCNJ: null,
+          valorAcao: row["VALOR DA CAUSA"] || row["Valor da Causa"] || null,
+          parteAtiva: row["HOSPITAL"] || row["Hospital"] || null,
+          partePassiva: row["Parte Contrária"] || row["Parte Contraria"] || row["PARTE CONTRÁRIA"] || null,
+          cpfCnpjAtivo: null,
+          cpfCnpjPassivo: null,
+          status: "pendente",
+          erros: [],
+          linhaOriginal: index + 2,
+          identificadorProjuris: null,
+          pastaFisica: null,
+          pastaCliente: null,
+          dataCitacao: null,
+          dataRecebimento: null,
+          dataArquivamento: null,
+          valorProvisionado: null,
+          probabilidade: null,
+          risco: null,
+          transitadoJulgado: null,
+          resultado: null,
+          valorCondenacao: null,
+        };
+
+        // Store Polyana-specific data
+        (processo as any).polyanaData = {
+          hospital: row["HOSPITAL"] || row["Hospital"] || null,
+          parteContraria: row["Parte Contrária"] || row["Parte Contraria"] || null,
+          faseProcesso: row["Fase do Processo"] || null,
+          descricaoObjeto: row["DESCRIÇÃO DO OBJETO"] || row["Descrição do Objeto"] || null,
+          andamentoAtualizado: row["ANDAMENTO ATUALIZADO"] || row["Andamento Atualizado"] || null,
+          valorCausa: row["VALOR DA CAUSA"] || row["Valor da Causa"] || null,
+        };
+
+        // Validação
+        processo.erros = validateProcesso(processo);
+
+        const numeroTrimmed = (processo.numero || "").trim();
+        const isEmptyRow = !rowHasAnyValue;
+        const hasInvalidNumero = !numeroTrimmed || numeroTrimmed.length < 5;
+
+        if (isEmptyRow || hasInvalidNumero) {
+          const motivo = isEmptyRow
+            ? "Linha vazia na planilha"
+            : !numeroTrimmed
+              ? "Número do processo vazio ou não encontrado na planilha"
+              : `Número do processo muito curto (${numeroTrimmed.length} caracteres, mínimo 5)`;
+
+          processo.status = "invalido";
+          processo.erroImport = motivo;
+          processo.erros = [{ campo: "numero", mensagem: motivo }];
+        } else {
+          processo.status = "valido";
+        }
+
+        return processo;
+      });
+
+      setPolyanaProcessos(parsed);
+
+      const validCount = parsed.filter((p) => p.status === "valido").length;
+      const invalidCount = parsed.filter((p) => p.status === "invalido").length;
+
+      if (parsed.length === 0) {
+        toast({
+          title: "Nenhum processo encontrado",
+          description: "A planilha não contém dados.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Planilha carregada",
+          description: `${parsed.length} linha(s) lida(s): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
+          variant: invalidCount > 0 ? "destructive" : "default",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao ler planilha Dra. Polyana:", error);
+      toast({
+        title: "Erro ao ler planilha",
+        description: "Verifique se o arquivo está no formato correto (.xlsx ou .xls).",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePolyanaImport = async () => {
+    const validProcessos = polyanaProcessos.filter(p => p.status === "valido");
+    const invalidProcessos = polyanaProcessos.filter(p => p.status === "invalido");
+    
+    if (validProcessos.length === 0 && invalidProcessos.length === 0) {
+      toast({
+        title: "Nenhum processo para processar",
+        description: "A planilha não contém dados válidos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPolyanaImporting(true);
+    startImport("Importando Dra. Polyana");
+    setPolyanaProgress(0);
+
+    const updatedProcessos = [...polyanaProcessos];
+    let successCountLocal = 0;
+    let updateCountLocal = 0;
+    let errorCountLocal = 0;
+    let rejectedCountLocal = 0;
+    
+    // Cache de clientes criados
+    const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
+
+    for (let i = 0; i < updatedProcessos.length; i++) {
+      const processo = updatedProcessos[i];
+      
+      if (processo.status === "invalido") {
+        const motivo = !processo.numero || processo.numero.trim() === "" 
+          ? "Número do processo vazio ou não encontrado na planilha"
+          : processo.numero.trim().length < 5 
+            ? `Número do processo muito curto (${processo.numero.trim().length} caracteres, mínimo 5)`
+            : "Dados insuficientes para importação";
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "invalido", 
+          erroImport: motivo,
+          erros: processo.erros.length > 0 ? processo.erros : [{ campo: "numero", mensagem: motivo }]
+        };
+        rejectedCountLocal++;
+        setPolyanaProgress(((i + 1) / updatedProcessos.length) * 100);
+        setPolyanaProcessos([...updatedProcessos]);
+        continue;
+      }
+
+      try {
+        const polyanaData = (processo as any).polyanaData || {};
+
+        // Verificar se processo já existe
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processo.numero.trim())
+          .maybeSingle();
+
+        const areaSlug = await ensureAreaExists("trabalhista");
+
+        // Determinar cliente - criar automaticamente pelo HOSPITAL
+        let clienteIdToUse: string | null = null;
+        const hospitalNome = polyanaData.hospital?.trim();
+        
+        if (hospitalNome) {
+          const existingCliente = clientesCache.find(c => 
+            c.nome.toLowerCase().trim() === hospitalNome.toLowerCase()
+          );
+          
+          if (existingCliente) {
+            clienteIdToUse = existingCliente.id;
+          } else {
+            const { data: novoCliente, error: clienteError } = await supabase
+              .from("clientes")
+              .insert({
+                nome: hospitalNome,
+                tipo: "pessoa_juridica",
+              })
+              .select("id, nome")
+              .single();
+            
+            if (!clienteError && novoCliente) {
+              clienteIdToUse = novoCliente.id;
+              clientesCache.push({ id: novoCliente.id, nome: novoCliente.nome, tipo: "pessoa_juridica" });
+            } else {
+              console.warn(`Falha ao criar cliente ${hospitalNome}:`, clienteError?.message);
+            }
+          }
+        }
+
+        const processoData: any = {
+          numero: processo.numero.trim(),
+          area: areaSlug,
+          status: mapStatusToEnum(processo.situacao),
+          situacao_original: getSituacaoOriginal(processo.situacao),
+          assunto: polyanaData.descricaoObjeto,
+          pedidos: polyanaData.descricaoObjeto,
+          fase: polyanaData.faseProcesso,
+          valor_causa: parseNumber(polyanaData.valorCausa),
+          polo_ativo: polyanaData.hospital,
+          polo_passivo: polyanaData.parteContraria,
+          andamento_atual: polyanaData.andamentoAtualizado,
+          // SEMPRE atribuir à coordenação da Dra. Janaina e à Dra. Polyana
+          coordenacao_id: POLYANA_COORDENACAO_ID,
+          advogado_responsavel_id: POLYANA_ADVOGADA_ID,
+          cliente_id: clienteIdToUse,
+          monitorar_andamentos: polyanaBuscarAndamentos,
+        };
+
+        let isUpdate = false;
+
+        if (existingProcesso) {
+          // Update existente e redistribuir para Polyana
+          const { error } = await supabase
+            .from("processos")
+            .update(processoData)
+            .eq("id", existingProcesso.id);
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            errorCountLocal++;
+            continue;
+          }
+          isUpdate = true;
+        } else {
+          // Criar pasta automaticamente
+          let pastaId: string | null = null;
+          const parteContraria = polyanaData.parteContraria || "Sem Parte Contrária";
+          const clienteNome = hospitalNome || "Sem Cliente";
+          const nomePasta = `${parteContraria} x ${clienteNome}`;
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            const { data: novaPasta, error: pastaError } = await supabase
+              .from("pastas")
+              .insert({
+                nome: nomePasta,
+                descricao: `Pasta criada automaticamente para o processo ${processo.numero}`,
+                cliente_id: clienteIdToUse,
+                coordenacao_id: POLYANA_COORDENACAO_ID,
+                criado_por: user.id,
+              })
+              .select("id")
+              .single();
+            
+            if (!pastaError && novaPasta) {
+              pastaId = novaPasta.id;
+            } else {
+              console.warn(`Falha ao criar pasta para processo ${processo.numero}:`, pastaError?.message);
+            }
+          }
+
+          const { data: insertedProcesso, error } = await supabase
+            .from("processos")
+            .insert({ ...processoData, pasta_id: pastaId } as any)
+            .select("id")
+            .single();
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            errorCountLocal++;
+            continue;
+          }
+
+          if (polyanaBuscarAndamentos && insertedProcesso) {
+            const andamentosRes = await buscarAndamentosExternos(insertedProcesso.id, processo.numero.trim());
+            if (!andamentosRes.success) {
+              console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+            }
+          }
+        }
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "sucesso", 
+          erroImport: isUpdate ? "Atualizado e redistribuído para Dra. Polyana" : undefined 
+        };
+        if (isUpdate) {
+          updateCountLocal++;
+        } else {
+          successCountLocal++;
+        }
+      } catch (err: any) {
+        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
+        errorCountLocal++;
+      }
+
+      setPolyanaProgress(((i + 1) / updatedProcessos.length) * 100);
+      setPolyanaProcessos([...updatedProcessos]);
+    }
+
+    setPolyanaImporting(false);
+    endImport();
+
+    const totalProcessed = successCountLocal + updateCountLocal + errorCountLocal + rejectedCountLocal;
+    
+    toast({
+      title: "Importação Dra. Polyana concluída",
+      description: `${successCountLocal} novo(s), ${updateCountLocal} atualizado(s) e redistribuído(s), ${rejectedCountLocal} rejeitado(s), ${errorCountLocal} erro(s). Total: ${totalProcessed}/${updatedProcessos.length}`,
+      variant: errorCountLocal > 0 || rejectedCountLocal > 0 ? "destructive" : "default",
+    });
+
+    if (rejectedCountLocal > 0 || errorCountLocal > 0) {
+      setTimeout(() => downloadPolyanaRejeitados(updatedProcessos), 0);
+    }
+  };
+
+  const downloadPolyanaRejeitados = (processosToExport: ProcessoImport[] = polyanaProcessos) => {
+    const rejeitados = processosToExport.filter((p) => p.status === "invalido" || p.status === "erro");
+    const comAvisos = processosToExport.filter(
+      (p) => (p.status === "sucesso" || p.status === "valido") && p.erros.length > 0
+    );
+
+    if (rejeitados.length === 0 && comAvisos.length === 0) {
+      toast({
+        title: "Nenhum problema encontrado",
+        description: "Não há processos rejeitados ou com avisos para exportar.",
+      });
+      return;
+    }
+
+    const rejeitadosData = rejeitados.map((p) => ({
+      Linha: p.linhaOriginal,
+      "Número do processo": p.numero || "(vazio)",
+      Hospital: p.parteAtiva,
+      "Parte Contrária": p.partePassiva,
+      Fase: (p as any).polyanaData?.faseProcesso || p.fase,
+      Tipo: "REJEITADO",
+      Motivo:
+        p.erros.map((e) => `${e.campo}: ${e.mensagem}`).join("; ") ||
+        p.erroImport ||
+        "Erro crítico",
+    }));
+
+    const avisosData = comAvisos.map((p) => ({
+      Linha: p.linhaOriginal,
+      "Número do processo": p.numero,
+      Hospital: p.parteAtiva,
+      "Parte Contrária": p.partePassiva,
+      Fase: (p as any).polyanaData?.faseProcesso || p.fase,
+      Tipo: "IMPORTADO COM AVISOS",
+      Avisos: p.erros.map((e) => `${e.campo}: ${e.mensagem}`).join("; "),
+    }));
+
+    const allData = [...rejeitadosData, ...avisosData];
+
+    const ws = XLSX.utils.json_to_sheet(allData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Problemas");
+
+    const colWidths = Object.keys(allData[0] || {}).map((key) => ({
+      wch: Math.max(key.length, 15),
+    }));
+    ws["!cols"] = colWidths;
+
+    XLSX.writeFile(wb, `polyana_problemas_${new Date().toISOString().split("T")[0]}.xlsx`);
+
+    toast({
+      title: "Arquivo gerado",
+      description: `${rejeitados.length} rejeitado(s), ${comAvisos.length} com avisos.`,
+    });
+  };
+
+  const clearPolyana = () => {
+    setPolyanaFile(null);
+    setPolyanaProcessos([]);
+    setPolyanaProgress(0);
+  };
+
+  // Polyana counts
+  const polyanaValidCount = polyanaProcessos.filter(p => p.status === "valido").length;
+  const polyanaInvalidCount = polyanaProcessos.filter(p => p.status === "invalido").length;
+  const polyanaWarningCount = polyanaProcessos.filter(p => (p.status === "valido" || p.status === "sucesso") && p.erros.length > 0).length;
+  const polyanaSuccessCount = polyanaProcessos.filter(p => p.status === "sucesso").length;
+  const polyanaErrorCount = polyanaProcessos.filter(p => p.status === "erro").length;
+  const polyanaTotalProblemas = polyanaInvalidCount + polyanaErrorCount + polyanaWarningCount;
+
   return (
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-6 max-w-3xl">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -2537,6 +3003,10 @@ export default function ImportarProcessos() {
             <TabsTrigger value="janaina" className="flex items-center gap-2">
               <Scale className="h-4 w-4" />
               <span className="hidden sm:inline">Dra. Janaina</span>
+            </TabsTrigger>
+            <TabsTrigger value="polyana" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Dra. Polyana</span>
             </TabsTrigger>
           </TabsList>
 
@@ -3996,6 +4466,236 @@ export default function ImportarProcessos() {
                                 </TableCell>
                                 <TableCell>{processo.orgaoJulgador || "-"}</TableCell>
                                 <TableCell>{processo.situacao || "-"}</TableCell>
+                                <TableCell className="text-sm">
+                                  {processo.status === "invalido" && processo.erros.length > 0 && (
+                                    <div className="text-red-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>• {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {(processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 && (
+                                    <div className="text-yellow-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>⚠ {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {processo.erroImport && (
+                                    <div className="text-orange-600">• Importação: {processo.erroImport}</div>
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length === 0 && "-"}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && <span className="text-blue-600">Importado com sucesso</span>}
+                                  {processo.status === "sucesso" && processo.erros.length > 0 && <span className="text-yellow-600 block mt-1">Importado com avisos</span>}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab: Dra. Polyana */}
+          <TabsContent value="polyana" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Importar Dra. Polyana
+                </CardTitle>
+                <CardDescription>
+                  Importe processos trabalhistas da Dra. Polyana. Todos os processos serão atribuídos automaticamente à Coordenação da Dra. Janaína e à Dra. Polyana como advogada responsável. Processos existentes serão atualizados e redistribuídos.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">Faça upload da planilha</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    A planilha deve conter as colunas: HOSPITAL, Parte Contrária, Numero do processo, Fase do Processo, DESCRIÇÃO DO OBJETO, ANDAMENTO ATUALIZADO, VALOR DA CAUSA.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handlePolyanaFileChange}
+                      className="max-w-xs"
+                      disabled={polyanaImporting}
+                    />
+                    {polyanaFile && (
+                      <Button variant="outline" onClick={clearPolyana} disabled={polyanaImporting}>
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Opção de buscar andamentos */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="buscar-andamentos-polyana" className="flex items-center gap-2 font-medium">
+                      <Clock className="h-4 w-4" />
+                      Buscar andamentos na importação
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {polyanaBuscarAndamentos 
+                        ? "Os andamentos serão buscados durante a importação e o processo ficará habilitado para monitoramento automático."
+                        : "Os andamentos NÃO serão buscados e o processo ficará desabilitado para monitoramento."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="buscar-andamentos-polyana"
+                    checked={polyanaBuscarAndamentos}
+                    onCheckedChange={setPolyanaBuscarAndamentos}
+                    disabled={polyanaImporting}
+                  />
+                </div>
+                
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Atribuição automática:</strong> Todos os processos serão atribuídos à Coordenação da Dra. Janaína e à Dra. Polyana como advogada responsável. O cliente será criado automaticamente baseado na coluna HOSPITAL.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Polyana File Preview */}
+            {polyanaFile && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle>Pré-visualização Dra. Polyana</CardTitle>
+                      <CardDescription>
+                        {polyanaProcessos.length} processo(s) encontrado(s) em "{polyanaFile.name}"
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {polyanaProcessos.length > 0 && (
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                            {polyanaValidCount} importáveis
+                          </Badge>
+                          {polyanaWarningCount > 0 && (
+                            <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-200">
+                              {polyanaWarningCount} com avisos
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                            {polyanaInvalidCount} rejeitados
+                          </Badge>
+                          {polyanaSuccessCount > 0 && (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
+                              {polyanaSuccessCount} importados
+                            </Badge>
+                          )}
+                          {polyanaErrorCount > 0 && (
+                            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
+                              {polyanaErrorCount} erros
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {polyanaTotalProblemas > 0 && (
+                          <Button variant="outline" onClick={() => downloadPolyanaRejeitados()}>
+                            <FileDown className="h-4 w-4 mr-2" />
+                            Baixar Problemas ({polyanaTotalProblemas})
+                          </Button>
+                        )}
+                        <Button 
+                          onClick={handlePolyanaImport} 
+                          disabled={polyanaImporting || polyanaValidCount === 0}
+                        >
+                          {polyanaImporting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Importando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Importar ({polyanaValidCount})
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {polyanaImporting && (
+                    <Progress value={polyanaProgress} className="mt-4" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {polyanaProcessos.length === 0 ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Nenhum processo encontrado na planilha. Verifique se é uma planilha no formato correto.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="max-h-[500px] overflow-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead className="w-[60px]">Linha</TableHead>
+                              <TableHead className="w-[60px]">Status</TableHead>
+                              <TableHead>Número</TableHead>
+                              <TableHead>Hospital</TableHead>
+                              <TableHead>Parte Contrária</TableHead>
+                              <TableHead>Fase</TableHead>
+                              <TableHead>Valor Causa</TableHead>
+                              <TableHead className="min-w-[300px]">Avisos/Erros</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {polyanaProcessos.map((processo, index) => (
+                              <TableRow key={index} className={
+                                processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : 
+                                processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : 
+                                (processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 ? "bg-yellow-50 dark:bg-yellow-950/20" : ""
+                              }>
+                                <TableCell className="text-muted-foreground">
+                                  {processo.linhaOriginal}
+                                </TableCell>
+                                <TableCell>
+                                  {processo.status === "valido" && processo.erros.length === 0 && (
+                                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length > 0 && (
+                                    <AlertCircle className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                  {processo.status === "invalido" && (
+                                    <XCircle className="h-4 w-4 text-red-500" />
+                                  )}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && (
+                                    <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                                  )}
+                                  {processo.status === "sucesso" && processo.erros.length > 0 && (
+                                    <CheckCircle2 className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                  {processo.status === "erro" && (
+                                    <XCircle className="h-4 w-4 text-orange-500" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {processo.numero || <span className="text-red-500 italic">vazio</span>}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.parteAtiva || "-"}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.partePassiva || "-"}
+                                </TableCell>
+                                <TableCell>{(processo as any).polyanaData?.faseProcesso || processo.fase || "-"}</TableCell>
+                                <TableCell>{(processo as any).polyanaData?.valorCausa || "-"}</TableCell>
                                 <TableCell className="text-sm">
                                   {processo.status === "invalido" && processo.erros.length > 0 && (
                                     <div className="text-red-600 space-y-1">
