@@ -5,7 +5,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { FileSearch, Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { FileSearch, Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,8 +15,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toZonedTime } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
+import { Label } from "@/components/ui/label";
+
+interface ExecutionResult {
+  processados: number;
+  novas: number;
+  erros: number;
+  duracaoSegundos?: number;
+  executadoEm?: string;
+}
 
 interface Props {
   coordenacaoId: string;
@@ -25,6 +37,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   const [progresso, setProgresso] = useState<{ processados: number; total: number; novas: number } | null>(null);
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
+  const [statsOpen, setStatsOpen] = useState(false);
   const canceladoRef = useRef(false);
   const queryClient = useQueryClient();
 
@@ -83,6 +96,20 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
         .limit(1)
         .maybeSingle();
       return data;
+    }
+  });
+
+  // Buscar histórico completo para relatório
+  const { data: historicoCompleto } = useQuery({
+    queryKey: ['djen-processos-historico-completo'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('historico_monitoramento')
+        .select('*')
+        .eq('tipo', 'djen_processos')
+        .order('executado_em', { ascending: false })
+        .limit(20);
+      return data || [];
     }
   });
 
@@ -317,38 +344,68 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
           </p>
         </div>
 
+        {/* Status e Última execução */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Status</Label>
+              <p className="text-sm text-muted-foreground">
+                {config?.ativo ? "Executando automaticamente" : "Pausado"}
+              </p>
+            </div>
+            <Badge variant={config?.ativo ? "default" : "secondary"}>
+              {config?.ativo ? "Ativo" : "Inativo"}
+            </Badge>
+          </div>
+          
+          {config?.ultima_execucao && (
+            <div className="flex flex-col gap-2 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                <span>
+                  Última execução: {format(toZonedTime(new Date(config.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </span>
+              </div>
+              {ultimoHistorico && (
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="gap-1">
+                    <Layers className="h-3 w-3" />
+                    {ultimoHistorico.processos_verificados} processos
+                  </Badge>
+                  {ultimoHistorico.novos_andamentos > 0 && (
+                    <Badge variant="default" className="gap-1 bg-green-500">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {ultimoHistorico.novos_andamentos} novas
+                    </Badge>
+                  )}
+                  {ultimoHistorico.erros > 0 && (
+                    <Badge variant="destructive" className="gap-1">
+                      {ultimoHistorico.erros} erros
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Frequência */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Frequência automática</span>
+        <div className="space-y-2">
+          <Label>Frequência de Execução</Label>
           <Select
             value={config?.frequencia || 'diario'}
             onValueChange={handleFrequenciaChange}
           >
-            <SelectTrigger className="w-32 h-8">
+            <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="diario">Diário</SelectItem>
-              <SelectItem value="2x_dia">2x ao dia</SelectItem>
-              <SelectItem value="semanal">Semanal</SelectItem>
+              <SelectItem value="diario">Diário (8h BRT)</SelectItem>
+              <SelectItem value="2x_dia">2x ao dia (8h e 18h BRT)</SelectItem>
+              <SelectItem value="semanal">Semanal (Segunda 8h BRT)</SelectItem>
             </SelectContent>
           </Select>
         </div>
-
-        {/* Última execução */}
-        {ultimoHistorico && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            <span>
-              Última: {format(new Date(ultimoHistorico.executado_em), "dd/MM HH:mm", { locale: ptBR })}
-            </span>
-            {ultimoHistorico.novos_andamentos > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                +{ultimoHistorico.novos_andamentos}
-              </Badge>
-            )}
-          </div>
-        )}
 
         {/* Progresso */}
         {progresso && (
@@ -361,30 +418,100 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
           </div>
         )}
 
+        {/* Relatório de Execuções */}
+        {historicoCompleto && historicoCompleto.length > 0 && (
+          <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="w-full justify-between p-2 h-auto">
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <FileText className="h-4 w-4" />
+                  Histórico de Execuções
+                </span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${statsOpen ? 'rotate-180' : ''}`} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-2 p-3 bg-muted/50 rounded-lg space-y-3">
+                {/* Summary */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="p-2 bg-background rounded text-center">
+                    <p className="text-muted-foreground">Execuções</p>
+                    <p className="font-bold text-lg">{historicoCompleto.length}</p>
+                  </div>
+                  <div className="p-2 bg-background rounded text-center">
+                    <p className="text-muted-foreground">Total Processos</p>
+                    <p className="font-bold text-lg">{historicoCompleto.reduce((acc, h) => acc + h.processos_verificados, 0)}</p>
+                  </div>
+                  <div className="p-2 bg-background rounded text-center">
+                    <p className="text-muted-foreground">Novas</p>
+                    <p className="font-bold text-lg text-green-600">{historicoCompleto.reduce((acc, h) => acc + h.novos_andamentos, 0)}</p>
+                  </div>
+                  <div className="p-2 bg-background rounded text-center">
+                    <p className="text-muted-foreground">Erros</p>
+                    <p className="font-bold text-lg text-destructive">{historicoCompleto.reduce((acc, h) => acc + h.erros, 0)}</p>
+                  </div>
+                </div>
+
+                {/* Executions Table */}
+                <ScrollArea className="h-[200px]">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted">
+                      <tr className="border-b">
+                        <th className="text-left p-1.5 font-medium">Data/Hora</th>
+                        <th className="text-right p-1.5 font-medium">Processos</th>
+                        <th className="text-right p-1.5 font-medium text-green-600">Novas</th>
+                        <th className="text-right p-1.5 font-medium text-destructive">Erros</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historicoCompleto.map((h) => (
+                        <tr key={h.id} className="border-b border-border/50 hover:bg-muted/50">
+                          <td className="p-1.5">
+                            {format(toZonedTime(new Date(h.executado_em), 'America/Sao_Paulo'), "dd/MM HH:mm", { locale: ptBR })}
+                          </td>
+                          <td className="p-1.5 text-right">{h.processos_verificados}</td>
+                          <td className="p-1.5 text-right text-green-600 font-medium">{h.novos_andamentos || '-'}</td>
+                          <td className="p-1.5 text-right text-destructive">{h.erros || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ScrollArea>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
         {/* Botões */}
-        <div className="flex gap-2">
+        <Button 
+          onClick={handleExecutarManual} 
+          disabled={executando}
+          className="w-full"
+        >
           {executando ? (
-            <Button
-              variant="destructive"
-              size="sm"
-              className="flex-1"
-              onClick={handleCancelar}
-            >
-              <X className="h-4 w-4 mr-2" />
-              Cancelar
-            </Button>
+            <>
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Processando... {progressPercent > 0 ? `${progressPercent}%` : ''}
+            </>
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              onClick={handleExecutarManual}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <>
+              <Play className="h-4 w-4 mr-2" />
               Executar Agora
-            </Button>
+            </>
           )}
-        </div>
+        </Button>
+
+        {executando && (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full"
+            onClick={handleCancelar}
+          >
+            <X className="h-4 w-4 mr-2" />
+            Cancelar
+          </Button>
+        )}
 
         {/* Link para auditoria */}
         <Link to="/auditoria-djen-processos" className="block">
