@@ -245,32 +245,32 @@ export function ProcessoExpandableRow({
                   <Skeleton className="h-16 w-full" />
                 </div>
               ) : publicacoesDjen && publicacoesDjen.length > 0 ? (
-                <ScrollArea className="max-h-64">
-                  <div className="space-y-2">
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3 pr-4">
                     {publicacoesDjen.map((pub) => (
                       <div
                         key={pub.id}
                         className={cn(
-                          "p-3 rounded-lg border text-sm",
+                          "p-4 rounded-lg border",
                           pub.lida
                             ? "bg-background border-border/50"
                             : "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800"
                         )}
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-medium text-muted-foreground">
                             {pub.data_publicacao
                               ? format(new Date(pub.data_publicacao), "dd/MM/yyyy")
                               : format(new Date(pub.created_at), "dd/MM/yyyy")}
                           </span>
                           {pub.fonte && (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-xs">
                               {pub.fonte}
                             </Badge>
                           )}
                         </div>
                         <div
-                          className="prose prose-sm max-w-none dark:prose-invert text-xs line-clamp-3 break-words"
+                          className="prose prose-sm max-w-none dark:prose-invert text-sm break-words [&_table]:table-fixed [&_table]:w-full [&_td]:break-words [&_th]:break-words"
                           dangerouslySetInnerHTML={{
                             __html: DOMPurify.sanitize(pub.conteudo || "Sem conteúdo"),
                           }}
@@ -305,24 +305,24 @@ export function ProcessoExpandableRow({
                   <Skeleton className="h-12 w-full" />
                 </div>
               ) : movimentacoes && movimentacoes.length > 0 ? (
-                <ScrollArea className="max-h-64">
-                  <div className="space-y-2">
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3 pr-4">
                     {movimentacoes.map((mov) => (
                       <div
                         key={mov.id}
-                        className="p-3 rounded-lg border bg-background border-border/50 text-sm"
+                        className="p-4 rounded-lg border bg-background border-border/50"
                       >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-medium text-muted-foreground">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-muted-foreground">
                             {format(new Date(mov.data_movimentacao), "dd/MM/yyyy HH:mm")}
                           </span>
                           {mov.tipo && (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-xs">
                               {mov.tipo}
                             </Badge>
                           )}
                         </div>
-                        <p className="text-foreground text-xs line-clamp-2">{mov.descricao}</p>
+                        <p className="text-foreground text-sm whitespace-pre-wrap break-words">{mov.descricao}</p>
                       </div>
                     ))}
                   </div>
