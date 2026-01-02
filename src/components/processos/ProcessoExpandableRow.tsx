@@ -80,8 +80,7 @@ export function ProcessoExpandableRow({
         .from("publicacoes_djen_processos")
         .select("*")
         .eq("processo_id", processo.id)
-        .order("data_publicacao", { ascending: false })
-        .limit(10);
+        .order("data_publicacao", { ascending: false });
 
       if (error) throw error;
       return data || [];
@@ -97,8 +96,7 @@ export function ProcessoExpandableRow({
         .from("movimentacoes")
         .select("*")
         .eq("processo_id", processo.id)
-        .order("data_movimentacao", { ascending: false })
-        .limit(10);
+        .order("data_movimentacao", { ascending: false });
 
       if (error) throw error;
       return data || [];
