@@ -326,8 +326,8 @@ export function ReatribuirProcessoDialog({
                     )}
                   </div>
                   {processosFiltrados && processosFiltrados.length > 0 ? (
-                    <ScrollArea className="h-[200px] border rounded-md p-3 flex-1">
-                      <div className="space-y-3">
+                    <ScrollArea className="h-[250px] border rounded-md">
+                      <div className="space-y-3 p-3">
                         {processosFiltrados.map((processo) => (
                           <FormField
                             key={processo.id}
