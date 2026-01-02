@@ -237,13 +237,22 @@ const Processos = () => {
           </div>
 
           {/* Advanced Filters Row - Astrea Style */}
-          <FiltrosAvancadosProcessos
-            filtros={filtrosAvancados}
-            onFiltrosChange={setFiltrosAvancados}
-            onAplicar={handleAplicarFiltros}
-            onLimpar={handleLimparFiltros}
-            coordenacaoId={coordenacaoFilter}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <FiltrosAvancadosProcessos
+              filtros={filtrosAvancados}
+              onFiltrosChange={setFiltrosAvancados}
+              onAplicar={handleAplicarFiltros}
+              onLimpar={handleLimparFiltros}
+              coordenacaoId={coordenacaoFilter}
+            />
+            
+            {/* Results counter chip */}
+            {(filtrosAplicados.responsavelId || coordenacaoFilter !== "all" || areaFilter !== "all" || statusFilter !== "all" || searchQuery) && (
+              <Badge variant="outline" className="h-8 px-3 text-xs font-medium bg-primary/10 border-primary/30 text-primary">
+                {isFetching ? "..." : totalCount} processo{totalCount !== 1 ? "s" : ""} encontrado{totalCount !== 1 ? "s" : ""}
+              </Badge>
+            )}
+          </div>
 
           {/* Additional Filters */}
           <div className="flex flex-wrap gap-3">
