@@ -26,163 +26,51 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
     queryFn: async () => {
-      const from = (page - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-
-      // Existence filters (DJEN publicações / movimentações) are handled via PostgREST inner joins
-      // in the main processos query below (avoids fetching large ID lists with hard limits).
-
-      const baseSelect = `
-          id,
-          numero,
-          assunto,
-          area,
-          status,
-          polo_ativo,
-          polo_passivo,
-          tribunal,
-          vara,
-          comarca,
-          valor_causa,
-          data_distribuicao,
-          coordenacao_id,
-          pasta_id,
-          created_at,
-          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
-          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo)
-        ` as const;
-
-      const selectWithDjen = `
-          id,
-          numero,
-          assunto,
-          area,
-          status,
-          polo_ativo,
-          polo_passivo,
-          tribunal,
-          vara,
-          comarca,
-          valor_causa,
-          data_distribuicao,
-          coordenacao_id,
-          pasta_id,
-          created_at,
-          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
-          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo),
-          publicacoes_djen_processos!inner(id)
-        ` as const;
-
-      const selectWithMov = `
-          id,
-          numero,
-          assunto,
-          area,
-          status,
-          polo_ativo,
-          polo_passivo,
-          tribunal,
-          vara,
-          comarca,
-          valor_causa,
-          data_distribuicao,
-          coordenacao_id,
-          pasta_id,
-          created_at,
-          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
-          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo),
-          movimentacoes!inner(id)
-        ` as const;
-
-      const selectWithDjenAndMov = `
-          id,
-          numero,
-          assunto,
-          area,
-          status,
-          polo_ativo,
-          polo_passivo,
-          tribunal,
-          vara,
-          comarca,
-          valor_causa,
-          data_distribuicao,
-          coordenacao_id,
-          pasta_id,
-          created_at,
-          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
-          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo),
-          publicacoes_djen_processos!inner(id),
-          movimentacoes!inner(id)
-        ` as const;
-
-      const select =
-        filters.comPublicacaoDjen && filters.comMovimento
-          ? selectWithDjenAndMov
-          : filters.comPublicacaoDjen
-            ? selectWithDjen
-            : filters.comMovimento
-              ? selectWithMov
-              : baseSelect;
-
-      let query: any = supabase
-        .from("processos")
-        .select(select as any, { count: "exact" })
-        .order("created_at", { ascending: false });
-
-      // Apply filters
-      if (filters.area && filters.area !== "all") {
-        query = query.eq("area", filters.area as "civil" | "trabalhista" | "empresarial");
-      }
-      if (filters.status && filters.status !== "all") {
-        query = query.eq("status", filters.status as "ativo" | "pendente" | "urgente" | "encerrado" | "arquivado");
-      }
-      if (filters.coordenacao_id && filters.coordenacao_id !== "all") {
-        query = query.eq("coordenacao_id", filters.coordenacao_id);
-      }
-      if (filters.responsavel_id) {
-        query = query.eq("advogado_responsavel_id", filters.responsavel_id);
-      }
-      if (filters.instancia && filters.instancia !== "todos") {
-        if (filters.instancia === "1") {
-          query = query.eq("instancia", "1º Instância");
-        } else if (filters.instancia === "2") {
-          query = query.eq("instancia", "2º Instância");
-        } else if (filters.instancia === "superior") {
-          query = query.eq("instancia", "Tribunais Superiores");
-        }
-      }
-      if (filters.periodoInicio) {
-        query = query.gte("created_at", filters.periodoInicio.toISOString());
-      }
-      if (filters.periodoFim) {
-        query = query.lte("created_at", filters.periodoFim.toISOString());
-      }
-      if (filters.search) {
-        const searchTerm = `%${filters.search}%`;
-        query = query.or(`numero.ilike.${searchTerm},polo_ativo.ilike.${searchTerm},polo_passivo.ilike.${searchTerm}`);
-      }
-
-
-      // Keep embedded payload small (we only need existence for filtering)
-      if (filters.comPublicacaoDjen) {
-        query = query.limit(1, { foreignTable: "publicacoes_djen_processos" });
-      }
-      if (filters.comMovimento) {
-        query = query.limit(1, { foreignTable: "movimentacoes" });
-      }
-
-
-      query = query.range(from, to);
-
-      const { data, error, count } = await query;
+      const { data, error } = await supabase.rpc("get_processos_paginados", {
+        _page: page,
+        _page_size: PAGE_SIZE,
+        _search: filters.search || null,
+        _area: filters.area && filters.area !== "all" ? filters.area : null,
+        _status: filters.status && filters.status !== "all" ? filters.status : null,
+        _coordenacao_id: filters.coordenacao_id && filters.coordenacao_id !== "all" ? filters.coordenacao_id : null,
+        _responsavel_id: filters.responsavel_id || null,
+        _instancia: filters.instancia && filters.instancia !== "todos" ? filters.instancia : null,
+        _com_movimento: filters.comMovimento ?? false,
+        _com_publicacao_djen: filters.comPublicacaoDjen ?? false,
+        _periodo_inicio: filters.periodoInicio ? filters.periodoInicio.toISOString() : null,
+        _periodo_fim: filters.periodoFim ? filters.periodoFim.toISOString() : null,
+      });
 
       if (error) throw error;
 
+      const rows = data || [];
+      const totalCount = rows.length > 0 ? Number(rows[0].total_count) : 0;
+
+      // Map RPC result to the expected shape
+      const processos = rows.map((row: any) => ({
+        id: row.id,
+        numero: row.numero,
+        assunto: row.assunto,
+        area: row.area,
+        status: row.status,
+        polo_ativo: row.polo_ativo,
+        polo_passivo: row.polo_passivo,
+        tribunal: row.tribunal,
+        vara: row.vara,
+        comarca: row.comarca,
+        valor_causa: row.valor_causa,
+        data_distribuicao: row.data_distribuicao,
+        coordenacao_id: row.coordenacao_id,
+        pasta_id: row.pasta_id,
+        created_at: row.created_at,
+        advogado_responsavel: row.advogado_responsavel?.id ? row.advogado_responsavel : null,
+        cliente: row.cliente?.id ? row.cliente : null,
+      }));
+
       return {
-        processos: data || [],
-        totalCount: count || 0,
-        totalPages: Math.ceil((count || 0) / PAGE_SIZE),
+        processos,
+        totalCount,
+        totalPages: Math.ceil(totalCount / PAGE_SIZE),
         currentPage: page,
         pageSize: PAGE_SIZE,
       };
