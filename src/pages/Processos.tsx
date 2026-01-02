@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { AtribuirCoordenacaoLoteDialog } from "@/components/processos/AtribuirCoordenacaoLoteDialog";
 import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { FiltrosAvancadosProcessos, FiltrosAvancados, defaultFiltrosAvancados } from "@/components/processos/FiltrosAvancadosProcessos";
+import { ProcessoExpandableRow } from "@/components/processos/ProcessoExpandableRow";
 import { cn } from "@/lib/utils";
 import { Calendar, User } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
@@ -61,6 +62,8 @@ const Processos = () => {
   const [monitorandoRedistribuicoes, setMonitorandoRedistribuicoes] = useState(false);
   const [filtrosAvancados, setFiltrosAvancados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
+  const [comPublicacaoDjen, setComPublicacaoDjen] = useState(false);
+  const [comAndamentos, setComAndamentos] = useState(false);
   
   const { executarMonitoramento } = useConfiguracoesMonitoramento();
   const { data: coordenacoes } = useCoordenacoes();
@@ -99,7 +102,8 @@ const Processos = () => {
     coordenacao_id: coordenacaoFilter,
     responsavel_id: filtrosAplicados.responsavelId,
     instancia: filtrosAplicados.instancia,
-    comMovimento: filtrosAplicados.comMovimento,
+    comMovimento: comAndamentos,
+    comPublicacaoDjen: comPublicacaoDjen,
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
   });
@@ -109,7 +113,7 @@ const Processos = () => {
   // Reset page when filters change
   useEffect(() => {
     resetPage();
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados]);
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
   // so selecting a responsável / período / com movimento filters immediately.
@@ -194,7 +198,9 @@ const Processos = () => {
     filtrosAplicados.periodoInicio ||
     filtrosAplicados.periodoFim ||
     filtrosAplicados.responsavelId ||
-    filtrosAplicados.instancia !== "todos";
+    filtrosAplicados.instancia !== "todos" ||
+    comPublicacaoDjen ||
+    comAndamentos;
 
   return (
     <MainLayout 
@@ -280,6 +286,43 @@ const Processos = () => {
                 <SelectItem value="empresarial">Empresarial</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Special filters for DJEN and Movements */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={comPublicacaoDjen ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-9 gap-2",
+                    comPublicacaoDjen && "bg-blue-600 hover:bg-blue-700 text-white"
+                  )}
+                  onClick={() => setComPublicacaoDjen(!comPublicacaoDjen)}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span className="hidden sm:inline">Com DJEN</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Processos com publicação DJEN</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={comAndamentos ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-9 gap-2",
+                    comAndamentos && "bg-green-600 hover:bg-green-700 text-white"
+                  )}
+                  onClick={() => setComAndamentos(!comAndamentos)}
+                >
+                  <Activity className="w-4 h-4" />
+                  <span className="hidden sm:inline">Com Andamentos</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Processos com andamentos</TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Action Buttons Row */}
@@ -397,12 +440,14 @@ const Processos = () => {
                 {filtrosAplicados.instancia === "1" ? "1º Grau" : filtrosAplicados.instancia === "2" ? "2º Grau" : "Superior"} ×
               </Badge>
             )}
-            {filtrosAplicados.comMovimento && (
-              <Badge variant="secondary" className="cursor-pointer" onClick={() => {
-                setFiltrosAvancados(prev => ({ ...prev, comMovimento: false }));
-                setFiltrosAplicados(prev => ({ ...prev, comMovimento: false }));
-              }}>
-                Com movimento ×
+            {comPublicacaoDjen && (
+              <Badge variant="secondary" className="cursor-pointer bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" onClick={() => setComPublicacaoDjen(false)}>
+                Com DJEN ×
+              </Badge>
+            )}
+            {comAndamentos && (
+              <Badge variant="secondary" className="cursor-pointer bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300" onClick={() => setComAndamentos(false)}>
+                Com Andamentos ×
               </Badge>
             )}
             {(filtrosAplicados.periodoInicio || filtrosAplicados.periodoFim) && (
@@ -422,6 +467,8 @@ const Processos = () => {
                 setAreaFilter("all");
                 setStatusFilter("all");
                 setCoordenacaoFilter("all");
+                setComPublicacaoDjen(false);
+                setComAndamentos(false);
                 handleLimparFiltros();
               }}
             >
@@ -459,7 +506,7 @@ const Processos = () => {
         <>
           {/* Header Row */}
           <div className="bg-card rounded-t-xl border border-border/50 overflow-hidden">
-            <div className="hidden md:grid md:grid-cols-[40px_1fr_200px_180px_120px] gap-4 px-4 py-3 bg-muted/30 border-b border-border/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <div className="hidden md:grid md:grid-cols-[40px_1fr_200px_180px_180px] gap-4 px-4 py-3 bg-muted/30 border-b border-border/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
               <div className="flex items-center justify-center">
                 {isSelectionMode && (
                   <Checkbox
@@ -471,106 +518,25 @@ const Processos = () => {
               <div>TÍTULO</div>
               <div>CLIENTE / PASTA</div>
               <div>AÇÃO / FORO</div>
-              <div className="text-right">ÚLT. MOV</div>
+              <div className="text-right">AÇÕES / DATA</div>
             </div>
 
             {/* List Items */}
             <div className="divide-y divide-border/50">
-              {processos.map((processo, index) => {
+              {processos.map((processo) => {
                 const isSelected = selectedProcessos.includes(processo.id);
                 const temRedistribuicaoRecente = processosRedistribuidos?.has(processo.id);
                 
                 return (
-                  <div 
+                  <ProcessoExpandableRow
                     key={processo.id}
-                    onClick={() => isSelectionMode ? toggleProcessoSelection(processo.id) : navigate(`/processos/${processo.id}`)}
-                    className={cn(
-                      "grid grid-cols-1 md:grid-cols-[40px_1fr_200px_180px_120px] gap-4 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer group",
-                      isSelected && "bg-primary/5"
-                    )}
-                  >
-                    {/* Checkbox Column */}
-                    <div className="hidden md:flex items-start justify-center pt-1">
-                      {isSelectionMode ? (
-                        <Checkbox 
-                          checked={isSelected}
-                          onClick={(e) => e.stopPropagation()}
-                          onCheckedChange={() => toggleProcessoSelection(processo.id)}
-                        />
-                      ) : (
-                        <div className="w-6 h-6 rounded bg-muted/50 flex items-center justify-center">
-                          <Scale className="w-3.5 h-3.5 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Title Column */}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        {temRedistribuicaoRecente && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Badge variant="outline" className="text-[10px] font-medium px-1.5 py-0 border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950/30 shrink-0">
-                                <ArrowRightLeft className="w-2.5 h-2.5" />
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent>Redistribuído nos últimos 7 dias</TooltipContent>
-                          </Tooltip>
-                        )}
-                        <span className="font-medium text-foreground truncate">
-                          {processo.polo_ativo && processo.polo_passivo 
-                            ? `${processo.polo_ativo} X ${processo.polo_passivo}`
-                            : processo.polo_ativo || processo.polo_passivo || processo.numero
-                          }
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="text-primary">Processo {processo.status}</span>
-                        {(processo.polo_ativo || processo.polo_passivo) && (
-                          <span className="font-mono">{processo.numero}</span>
-                        )}
-                      </div>
-                      {/* Mobile only: show all info */}
-                      <div className="md:hidden mt-2 space-y-1 text-xs text-muted-foreground">
-                        {processo.cliente?.nome && (
-                          <div>Cliente: {processo.cliente.nome}</div>
-                        )}
-                        <div>{processo.vara || processo.tribunal || "-"}</div>
-                      </div>
-                    </div>
-
-                    {/* Cliente/Pasta Column */}
-                    <div className="hidden md:block min-w-0">
-                      <div className="text-sm font-medium text-foreground truncate">
-                        {processo.cliente?.nome || "-"}
-                      </div>
-                      {processo.cliente?.tipo && (
-                        <div className="text-xs text-muted-foreground">
-                          {processo.cliente.tipo === "pessoa_juridica" ? "Pessoa Jurídica" : "Pessoa Física"}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Ação/Foro Column */}
-                    <div className="hidden md:block min-w-0">
-                      <div className="text-sm text-foreground truncate">
-                        {processo.area === "civil" ? "ACPCiv" : processo.area === "trabalhista" ? "ATOrd" : "AEmp"}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {processo.vara || processo.tribunal || "-"}
-                      </div>
-                    </div>
-
-                    {/* Última Movimentação Column */}
-                    <div className="hidden md:flex items-start justify-end">
-                      <span className="text-sm text-muted-foreground">
-                        {processo.data_distribuicao 
-                          ? new Date(processo.data_distribuicao).toLocaleDateString('pt-BR')
-                          : new Date(processo.created_at).toLocaleDateString('pt-BR')
-                        }
-                      </span>
-                    </div>
-                  </div>
+                    processo={processo}
+                    isSelectionMode={isSelectionMode}
+                    isSelected={isSelected}
+                    temRedistribuicaoRecente={temRedistribuicaoRecente || false}
+                    onToggleSelection={toggleProcessoSelection}
+                    onNavigate={(id) => navigate(`/processos/${id}`)}
+                  />
                 );
               })}
             </div>
