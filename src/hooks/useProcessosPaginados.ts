@@ -107,23 +107,21 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
       }
 
       // Apply special filters for DJEN and movements
-      if (processIdsWithDjen !== null) {
-        if (processIdsWithDjen.length === 0) {
-          // No processes with DJEN publications
-          return {
-            processos: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: page,
-            pageSize: PAGE_SIZE,
-          };
-        }
-        query = query.in("id", processIdsWithDjen);
+      // When both filters are active, we need to intersect the IDs
+      let finalProcessIds: string[] | null = null;
+      
+      if (processIdsWithDjen !== null && processIdsWithMov !== null) {
+        // Intersection of both sets
+        const djenSet = new Set(processIdsWithDjen);
+        finalProcessIds = processIdsWithMov.filter(id => djenSet.has(id));
+      } else if (processIdsWithDjen !== null) {
+        finalProcessIds = processIdsWithDjen;
+      } else if (processIdsWithMov !== null) {
+        finalProcessIds = processIdsWithMov;
       }
 
-      if (processIdsWithMov !== null) {
-        if (processIdsWithMov.length === 0) {
-          // No processes with movements
+      if (finalProcessIds !== null) {
+        if (finalProcessIds.length === 0) {
           return {
             processos: [],
             totalCount: 0,
@@ -132,7 +130,7 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
             pageSize: PAGE_SIZE,
           };
         }
-        query = query.in("id", processIdsWithMov);
+        query = query.in("id", finalProcessIds);
       }
 
       query = query.range(from, to);
