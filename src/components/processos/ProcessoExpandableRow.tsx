@@ -172,10 +172,53 @@ export function ProcessoExpandableRow({
               <span className="font-mono">{processo.numero}</span>
             )}
           </div>
-          {/* Mobile only: show all info */}
-          <div className="md:hidden mt-2 space-y-1 text-xs text-muted-foreground">
-            {processo.cliente?.nome && <div>Cliente: {processo.cliente.nome}</div>}
-            <div>{processo.vara || processo.tribunal || "-"}</div>
+          {/* Mobile only: show all info + action buttons */}
+          <div className="md:hidden mt-2 space-y-2">
+            <div className="text-xs text-muted-foreground space-y-1">
+              {processo.cliente?.nome && <div>Cliente: {processo.cliente.nome}</div>}
+              <div>{processo.vara || processo.tribunal || "-"}</div>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              {hasDjen && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 px-2 gap-1",
+                    expandedSection === "djen" && "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("djen");
+                  }}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span className="text-xs">{countDjen}</span>
+                </Button>
+              )}
+              {hasMov && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 px-2 gap-1",
+                    expandedSection === "andamentos" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("andamentos");
+                  }}
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span className="text-xs">{countMov}</span>
+                </Button>
+              )}
+              <span className="text-xs text-muted-foreground ml-auto">
+                {processo.data_distribuicao
+                  ? new Date(processo.data_distribuicao).toLocaleDateString("pt-BR")
+                  : new Date(processo.created_at).toLocaleDateString("pt-BR")}
+              </span>
+            </div>
           </div>
         </div>
 
