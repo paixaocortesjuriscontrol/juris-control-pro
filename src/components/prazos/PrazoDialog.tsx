@@ -22,14 +22,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, Search } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useCreatePrazo, useUpdatePrazo, type Prazo } from "@/hooks/usePrazos";
-import { useProcessos } from "@/hooks/useProcessos";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type PrazoDialogProps = {
   open: boolean;
@@ -51,10 +51,87 @@ export function PrazoDialog({
   const [processoId, setProcessoId] = useState("");
   const [responsavelId, setResponsavelId] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  
+  // Filtros para processos
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const [clienteId, setClienteId] = useState<string>("");
+  const [searchProcesso, setSearchProcesso] = useState("");
 
   const createPrazo = useCreatePrazo();
   const updatePrazo = useUpdatePrazo();
-  const { data: processos } = useProcessos();
+
+  // Buscar coordenações
+  const { data: coordenacoes } = useQuery({
+    queryKey: ["coordenacoes-prazo"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coordenacoes")
+        .select("id, nome")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open,
+  });
+
+  // Buscar clientes (filtrados por coordenação se selecionada)
+  const { data: clientes } = useQuery({
+    queryKey: ["clientes-prazo", coordenacaoId],
+    queryFn: async () => {
+      let query = supabase
+        .from("clientes")
+        .select("id, nome")
+        .order("nome");
+      
+      // Se tiver coordenação, buscar apenas clientes com processos nessa coordenação
+      if (coordenacaoId) {
+        const { data: processosIds } = await supabase
+          .from("processos")
+          .select("cliente_id")
+          .eq("coordenacao_id", coordenacaoId)
+          .not("cliente_id", "is", null);
+        
+        const clienteIds = [...new Set(processosIds?.map(p => p.cliente_id).filter(Boolean) || [])];
+        if (clienteIds.length > 0) {
+          query = query.in("id", clienteIds);
+        } else {
+          return [];
+        }
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open,
+  });
+
+  // Buscar processos filtrados (só carrega quando tiver pelo menos um filtro)
+  const { data: processos, isLoading: loadingProcessos } = useQuery({
+    queryKey: ["processos-prazo", coordenacaoId, clienteId, searchProcesso],
+    queryFn: async () => {
+      let query = supabase
+        .from("processos")
+        .select("id, numero, assunto, polo_ativo, polo_passivo")
+        .order("numero")
+        .limit(50);
+      
+      if (coordenacaoId) {
+        query = query.eq("coordenacao_id", coordenacaoId);
+      }
+      if (clienteId) {
+        query = query.eq("cliente_id", clienteId);
+      }
+      if (searchProcesso.length >= 3) {
+        query = query.or(`numero.ilike.%${searchProcesso}%,polo_ativo.ilike.%${searchProcesso}%,polo_passivo.ilike.%${searchProcesso}%`);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && (!!coordenacaoId || !!clienteId || searchProcesso.length >= 3),
+  });
 
   const { data: advogados } = useQuery({
     queryKey: ["advogados"],
@@ -67,7 +144,14 @@ export function PrazoDialog({
       if (error) throw error;
       return data || [];
     },
+    enabled: open,
   });
+
+  // Resetar cliente quando trocar coordenação
+  useEffect(() => {
+    setClienteId("");
+    setProcessoId("");
+  }, [coordenacaoId]);
 
   useEffect(() => {
     if (prazo) {
@@ -86,8 +170,13 @@ export function PrazoDialog({
       setProcessoId(defaultProcessoId || "");
       setResponsavelId("");
       setObservacoes("");
+      setCoordenacaoId("");
+      setClienteId("");
+      setSearchProcesso("");
     }
   }, [prazo, open, defaultProcessoId]);
+
+  const showProcessoSelect = !!coordenacaoId || !!clienteId || searchProcesso.length >= 3;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,20 +227,85 @@ export function PrazoDialog({
             />
           </div>
 
+          {/* Filtros para seleção de processo */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Coordenação</Label>
+              <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filtrar por coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  {coordenacoes?.map((coord) => (
+                    <SelectItem key={coord.id} value={coord.id}>
+                      {coord.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cliente</Label>
+              <Select value={clienteId} onValueChange={setClienteId} disabled={!coordenacaoId && clientes?.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filtrar por cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clientes?.map((cliente) => (
+                    <SelectItem key={cliente.id} value={cliente.id}>
+                      {cliente.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Buscar Processo</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchProcesso}
+                onChange={(e) => setSearchProcesso(e.target.value)}
+                placeholder="Digite 3+ caracteres para buscar..."
+                className="pl-9"
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="processo">Processo *</Label>
-            <Select value={processoId} onValueChange={setProcessoId} required>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o processo" />
-              </SelectTrigger>
-              <SelectContent>
-                {processos?.map((processo) => (
-                  <SelectItem key={processo.id} value={processo.id}>
-                    {processo.numero} - {processo.assunto || "Sem assunto"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!showProcessoSelect ? (
+              <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">
+                Selecione uma coordenação, cliente ou digite 3+ caracteres para buscar processos
+              </p>
+            ) : loadingProcessos ? (
+              <div className="flex items-center gap-2 p-3 border rounded-md">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm text-muted-foreground">Carregando processos...</span>
+              </div>
+            ) : processos?.length === 0 ? (
+              <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">
+                Nenhum processo encontrado com os filtros selecionados
+              </p>
+            ) : (
+              <Select value={processoId} onValueChange={setProcessoId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o processo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <ScrollArea className="h-[200px]">
+                    {processos?.map((processo) => (
+                      <SelectItem key={processo.id} value={processo.id}>
+                        {processo.numero} - {processo.polo_ativo || processo.assunto || "Sem assunto"}
+                      </SelectItem>
+                    ))}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
