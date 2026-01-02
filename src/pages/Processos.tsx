@@ -111,11 +111,30 @@ const Processos = () => {
     resetPage();
   }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados]);
 
+  // Auto-apply the "quick" filters (always visible on the bar)
+  // so selecting a responsável / período / com movimento filters immediately.
+  useEffect(() => {
+    setFiltrosAplicados((prev) => ({
+      ...prev,
+      comMovimento: filtrosAvancados.comMovimento,
+      periodoInicio: filtrosAvancados.periodoInicio,
+      periodoFim: filtrosAvancados.periodoFim,
+      responsavelId: filtrosAvancados.responsavelId,
+      responsavelNome: filtrosAvancados.responsavelNome,
+    }));
+  }, [
+    filtrosAvancados.comMovimento,
+    filtrosAvancados.periodoInicio,
+    filtrosAvancados.periodoFim,
+    filtrosAvancados.responsavelId,
+    filtrosAvancados.responsavelNome,
+  ]);
+
   // Clear responsible filter when coordination changes
   useEffect(() => {
     if (filtrosAvancados.responsavelId || filtrosAplicados.responsavelId) {
-      setFiltrosAvancados(prev => ({ ...prev, responsavelId: undefined, responsavelNome: undefined }));
-      setFiltrosAplicados(prev => ({ ...prev, responsavelId: undefined, responsavelNome: undefined }));
+      setFiltrosAvancados((prev) => ({ ...prev, responsavelId: undefined, responsavelNome: undefined }));
+      setFiltrosAplicados((prev) => ({ ...prev, responsavelId: undefined, responsavelNome: undefined }));
     }
   }, [coordenacaoFilter]);
 
