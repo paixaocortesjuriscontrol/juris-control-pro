@@ -2206,6 +2206,7 @@ export default function ImportarProcessos() {
 
     const updatedProcessos = [...janainaProcessos];
     let successCountLocal = 0;
+    let updateCountLocal = 0;
     let errorCountLocal = 0;
     let rejectedCountLocal = 0;
     
@@ -2327,9 +2328,30 @@ export default function ImportarProcessos() {
         let isUpdate = false;
 
         if (existingProcesso) {
+          // Não sobrescrever coordenacao_id e advogado_responsavel_id se já existem no processo
+          // Apenas atualiza se o usuário selecionou explicitamente valores
+          const updateData = { ...processoData };
+          
+          // Buscar os dados atuais do processo para preservar distribuições existentes
+          const { data: currentProcesso } = await supabase
+            .from("processos")
+            .select("coordenacao_id, advogado_responsavel_id")
+            .eq("id", existingProcesso.id)
+            .single();
+          
+          // Se o processo já tem coordenação/responsável e o usuário não selecionou nada, preservar
+          if (currentProcesso) {
+            if (currentProcesso.coordenacao_id && !selectedCoordenacao) {
+              delete updateData.coordenacao_id;
+            }
+            if (currentProcesso.advogado_responsavel_id && !selectedMembro) {
+              delete updateData.advogado_responsavel_id;
+            }
+          }
+
           const { error } = await supabase
             .from("processos")
-            .update(processoData)
+            .update(updateData)
             .eq("id", existingProcesso.id);
 
           if (error) {
@@ -2393,7 +2415,11 @@ export default function ImportarProcessos() {
           status: "sucesso", 
           erroImport: isUpdate ? "Atualizado (já existia)" : undefined 
         };
-        successCountLocal++;
+        if (isUpdate) {
+          updateCountLocal++;
+        } else {
+          successCountLocal++;
+        }
       } catch (err: any) {
         updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
         errorCountLocal++;
@@ -2406,10 +2432,13 @@ export default function ImportarProcessos() {
     setJanainaImporting(false);
     endImport();
 
-    const totalProcessed = successCountLocal + errorCountLocal + rejectedCountLocal;
+    const totalProcessed = successCountLocal + updateCountLocal + errorCountLocal + rejectedCountLocal;
+    const newRecords = successCountLocal;
+    const updatedRecords = updateCountLocal;
+    
     toast({
       title: "Importação Dra. Janaina concluída",
-      description: `${successCountLocal} importado(s), ${rejectedCountLocal} rejeitado(s), ${errorCountLocal} erro(s). Total: ${totalProcessed}/${updatedProcessos.length}`,
+      description: `${newRecords} novo(s), ${updatedRecords} atualizado(s), ${rejectedCountLocal} rejeitado(s), ${errorCountLocal} erro(s). Total: ${totalProcessed}/${updatedProcessos.length}`,
       variant: errorCountLocal > 0 || rejectedCountLocal > 0 ? "destructive" : "default",
     });
 
