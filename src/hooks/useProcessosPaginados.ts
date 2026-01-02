@@ -12,6 +12,7 @@ interface ProcessosPaginadosFilters {
   responsavel_id?: string;
   instancia?: string;
   comMovimento?: boolean;
+  comPublicacaoDjen?: boolean;
   periodoInicio?: Date;
   periodoFim?: Date;
 }
@@ -27,6 +28,27 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
     queryFn: async () => {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
+
+      // If we need to filter by DJEN publications or movements, we need a different approach
+      // First, get the IDs of processes that match the special filters
+      let processIdsWithDjen: string[] | null = null;
+      let processIdsWithMov: string[] | null = null;
+
+      if (filters.comPublicacaoDjen) {
+        const { data: djenData } = await supabase
+          .from("publicacoes_djen_processos")
+          .select("processo_id")
+          .limit(1000);
+        processIdsWithDjen = [...new Set(djenData?.map((d) => d.processo_id) || [])];
+      }
+
+      if (filters.comMovimento) {
+        const { data: movData } = await supabase
+          .from("movimentacoes")
+          .select("processo_id")
+          .limit(5000);
+        processIdsWithMov = [...new Set(movData?.map((m) => m.processo_id) || [])];
+      }
 
       let query = supabase
         .from("processos")
@@ -82,6 +104,35 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
       if (filters.search) {
         const searchTerm = `%${filters.search}%`;
         query = query.or(`numero.ilike.${searchTerm},polo_ativo.ilike.${searchTerm},polo_passivo.ilike.${searchTerm}`);
+      }
+
+      // Apply special filters for DJEN and movements
+      if (processIdsWithDjen !== null) {
+        if (processIdsWithDjen.length === 0) {
+          // No processes with DJEN publications
+          return {
+            processos: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: page,
+            pageSize: PAGE_SIZE,
+          };
+        }
+        query = query.in("id", processIdsWithDjen);
+      }
+
+      if (processIdsWithMov !== null) {
+        if (processIdsWithMov.length === 0) {
+          // No processes with movements
+          return {
+            processos: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: page,
+            pageSize: PAGE_SIZE,
+          };
+        }
+        query = query.in("id", processIdsWithMov);
       }
 
       query = query.range(from, to);
