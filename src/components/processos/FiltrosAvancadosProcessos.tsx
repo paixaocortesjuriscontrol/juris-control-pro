@@ -16,7 +16,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface FiltrosAvancados {
   tipo: "processo" | "todos";
-  comMovimento: boolean;
   periodoInicio?: Date;
   periodoFim?: Date;
   responsavelId?: string;
@@ -34,7 +33,6 @@ interface FiltrosAvancadosProcessosProps {
 
 export const defaultFiltrosAvancados: FiltrosAvancados = {
   tipo: "todos",
-  comMovimento: false,
   instancia: "todos",
 };
 
@@ -83,7 +81,6 @@ export function FiltrosAvancadosProcessos({
 
   const hasActiveFilters =
     filtros.tipo !== "todos" ||
-    filtros.comMovimento ||
     filtros.periodoInicio ||
     filtros.periodoFim ||
     filtros.responsavelId ||
@@ -102,16 +99,6 @@ export function FiltrosAvancadosProcessos({
     <div className="relative">
       {/* Trigger Row - Always visible */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        {/* Com Movimento Toggle */}
-        <Button
-          variant={filtros.comMovimento ? "default" : "outline"}
-          size="sm"
-          className="h-8 text-xs font-medium"
-          onClick={() => onFiltrosChange({ ...filtros, comMovimento: !filtros.comMovimento })}
-        >
-          COM MOVIMENTO
-        </Button>
-
         {/* Período */}
         <Popover>
           <PopoverTrigger asChild>
