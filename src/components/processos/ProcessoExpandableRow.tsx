@@ -322,18 +322,18 @@ export function ProcessoExpandableRow({
                 </div>
               ) : publicacoesDjen && publicacoesDjen.length > 0 ? (
                 <ScrollArea className="h-[400px]">
-                  <div className="space-y-3 pr-4">
+                  <div className="space-y-3 pr-2 sm:pr-4">
                     {publicacoesDjen.map((pub) => (
                       <div
                         key={pub.id}
                         className={cn(
-                          "p-4 rounded-lg border",
+                          "p-3 sm:p-4 rounded-lg border overflow-hidden",
                           pub.lida
                             ? "bg-background border-border/50"
                             : "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800"
                         )}
                       >
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                           <span className="text-sm font-medium text-muted-foreground">
                             {pub.data_publicacao
                               ? format(new Date(pub.data_publicacao), "dd/MM/yyyy")
@@ -346,7 +346,7 @@ export function ProcessoExpandableRow({
                           )}
                         </div>
                         <div
-                          className="prose prose-sm max-w-none dark:prose-invert text-sm break-words [&_table]:table-fixed [&_table]:w-full [&_td]:break-words [&_th]:break-words"
+                          className="prose prose-sm max-w-none dark:prose-invert text-sm overflow-x-auto break-words [word-break:break-word] [overflow-wrap:anywhere] [&_table]:table-fixed [&_table]:w-full [&_table]:text-xs [&_td]:break-words [&_th]:break-words [&_td]:p-1 [&_th]:p-1 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-words"
                           dangerouslySetInnerHTML={{
                             __html: DOMPurify.sanitize(pub.conteudo || "Sem conteúdo"),
                           }}
