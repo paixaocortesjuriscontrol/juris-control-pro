@@ -111,6 +111,14 @@ const Processos = () => {
     resetPage();
   }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados]);
 
+  // Clear responsible filter when coordination changes
+  useEffect(() => {
+    if (filtrosAvancados.responsavelId || filtrosAplicados.responsavelId) {
+      setFiltrosAvancados(prev => ({ ...prev, responsavelId: undefined, responsavelNome: undefined }));
+      setFiltrosAplicados(prev => ({ ...prev, responsavelId: undefined, responsavelNome: undefined }));
+    }
+  }, [coordenacaoFilter]);
+
   const processos = data?.processos || [];
   const totalCount = data?.totalCount || 0;
   const totalPages = data?.totalPages || 1;
@@ -215,6 +223,7 @@ const Processos = () => {
             onFiltrosChange={setFiltrosAvancados}
             onAplicar={handleAplicarFiltros}
             onLimpar={handleLimparFiltros}
+            coordenacaoId={coordenacaoFilter}
           />
 
           {/* Additional Filters */}

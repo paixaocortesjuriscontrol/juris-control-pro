@@ -29,6 +29,7 @@ interface FiltrosAvancadosProcessosProps {
   onFiltrosChange: (filtros: FiltrosAvancados) => void;
   onAplicar: () => void;
   onLimpar: () => void;
+  coordenacaoId?: string;
 }
 
 export const defaultFiltrosAvancados: FiltrosAvancados = {
@@ -42,23 +43,41 @@ export function FiltrosAvancadosProcessos({
   onFiltrosChange,
   onAplicar,
   onLimpar,
+  coordenacaoId,
 }: FiltrosAvancadosProcessosProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [responsavelSearch, setResponsavelSearch] = useState("");
 
+  // Fetch members of the selected coordination OR all profiles if no coordination selected
   const { data: advogados = [] } = useQuery({
-    queryKey: ["profiles-select"],
+    queryKey: ["profiles-select", coordenacaoId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles_basic")
-        .select("id, nome")
-        .order("nome");
-      if (error) throw error;
-      return data;
+      if (coordenacaoId && coordenacaoId !== "all") {
+        // Fetch only members of the selected coordination
+        const { data: membros, error: membrosError } = await supabase
+          .from("membros_coordenacao")
+          .select("usuario_id, profiles:profiles_basic!inner(id, nome)")
+          .eq("coordenacao_id", coordenacaoId);
+        
+        if (membrosError) throw membrosError;
+        
+        return (membros || [])
+          .map((m: any) => m.profiles)
+          .filter((p: any) => p?.id && p?.nome)
+          .sort((a: any, b: any) => (a.nome || "").localeCompare(b.nome || ""));
+      } else {
+        // Fetch all profiles
+        const { data, error } = await supabase
+          .from("profiles_basic")
+          .select("id, nome")
+          .order("nome");
+        if (error) throw error;
+        return data;
+      }
     },
   });
 
-  const filteredAdvogados = advogados.filter((a) =>
+  const filteredAdvogados = advogados.filter((a: any) =>
     a.nome?.toLowerCase().includes(responsavelSearch.toLowerCase())
   );
 
