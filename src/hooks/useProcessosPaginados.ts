@@ -29,30 +29,10 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      // If we need to filter by DJEN publications or movements, we need a different approach
-      // First, get the IDs of processes that match the special filters
-      let processIdsWithDjen: string[] | null = null;
-      let processIdsWithMov: string[] | null = null;
+      // Existence filters (DJEN publicações / movimentações) are handled via PostgREST inner joins
+      // in the main processos query below (avoids fetching large ID lists with hard limits).
 
-      if (filters.comPublicacaoDjen) {
-        const { data: djenData } = await supabase
-          .from("publicacoes_djen_processos")
-          .select("processo_id")
-          .limit(1000);
-        processIdsWithDjen = [...new Set(djenData?.map((d) => d.processo_id) || [])];
-      }
-
-      if (filters.comMovimento) {
-        const { data: movData } = await supabase
-          .from("movimentacoes")
-          .select("processo_id")
-          .limit(5000);
-        processIdsWithMov = [...new Set(movData?.map((m) => m.processo_id) || [])];
-      }
-
-      let query = supabase
-        .from("processos")
-        .select(`
+      const baseSelect = `
           id,
           numero,
           assunto,
@@ -70,7 +50,84 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
           created_at,
           advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
           cliente:clientes!processos_cliente_id_fkey(id, nome, tipo)
-        `, { count: 'exact' })
+        ` as const;
+
+      const selectWithDjen = `
+          id,
+          numero,
+          assunto,
+          area,
+          status,
+          polo_ativo,
+          polo_passivo,
+          tribunal,
+          vara,
+          comarca,
+          valor_causa,
+          data_distribuicao,
+          coordenacao_id,
+          pasta_id,
+          created_at,
+          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
+          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo),
+          publicacoes_djen_processos!inner(id)
+        ` as const;
+
+      const selectWithMov = `
+          id,
+          numero,
+          assunto,
+          area,
+          status,
+          polo_ativo,
+          polo_passivo,
+          tribunal,
+          vara,
+          comarca,
+          valor_causa,
+          data_distribuicao,
+          coordenacao_id,
+          pasta_id,
+          created_at,
+          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
+          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo),
+          movimentacoes!inner(id)
+        ` as const;
+
+      const selectWithDjenAndMov = `
+          id,
+          numero,
+          assunto,
+          area,
+          status,
+          polo_ativo,
+          polo_passivo,
+          tribunal,
+          vara,
+          comarca,
+          valor_causa,
+          data_distribuicao,
+          coordenacao_id,
+          pasta_id,
+          created_at,
+          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome),
+          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo),
+          publicacoes_djen_processos!inner(id),
+          movimentacoes!inner(id)
+        ` as const;
+
+      const select =
+        filters.comPublicacaoDjen && filters.comMovimento
+          ? selectWithDjenAndMov
+          : filters.comPublicacaoDjen
+            ? selectWithDjen
+            : filters.comMovimento
+              ? selectWithMov
+              : baseSelect;
+
+      let query: any = supabase
+        .from("processos")
+        .select(select as any, { count: "exact" })
         .order("created_at", { ascending: false });
 
       // Apply filters
@@ -106,32 +163,15 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         query = query.or(`numero.ilike.${searchTerm},polo_ativo.ilike.${searchTerm},polo_passivo.ilike.${searchTerm}`);
       }
 
-      // Apply special filters for DJEN and movements
-      // When both filters are active, we need to intersect the IDs
-      let finalProcessIds: string[] | null = null;
-      
-      if (processIdsWithDjen !== null && processIdsWithMov !== null) {
-        // Intersection of both sets
-        const djenSet = new Set(processIdsWithDjen);
-        finalProcessIds = processIdsWithMov.filter(id => djenSet.has(id));
-      } else if (processIdsWithDjen !== null) {
-        finalProcessIds = processIdsWithDjen;
-      } else if (processIdsWithMov !== null) {
-        finalProcessIds = processIdsWithMov;
+
+      // Keep embedded payload small (we only need existence for filtering)
+      if (filters.comPublicacaoDjen) {
+        query = query.limit(1, { foreignTable: "publicacoes_djen_processos" });
+      }
+      if (filters.comMovimento) {
+        query = query.limit(1, { foreignTable: "movimentacoes" });
       }
 
-      if (finalProcessIds !== null) {
-        if (finalProcessIds.length === 0) {
-          return {
-            processos: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: page,
-            pageSize: PAGE_SIZE,
-          };
-        }
-        query = query.in("id", finalProcessIds);
-      }
 
       query = query.range(from, to);
 
