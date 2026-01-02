@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,7 +63,7 @@ const Processos = () => {
   const [filtrosAvancados, setFiltrosAvancados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   const [comPublicacaoDjen, setComPublicacaoDjen] = useState(false);
-  const [comAndamentos, setComAndamentos] = useState(false);
+  // const comAndamentos removed - filter was slowing down queries
   
   const { executarMonitoramento } = useConfiguracoesMonitoramento();
   const { data: coordenacoes } = useCoordenacoes();
@@ -102,7 +102,7 @@ const Processos = () => {
     coordenacao_id: coordenacaoFilter,
     responsavel_id: filtrosAplicados.responsavelId,
     instancia: filtrosAplicados.instancia,
-    comMovimento: comAndamentos,
+    comMovimento: false, // disabled for performance
     comPublicacaoDjen: comPublicacaoDjen,
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
@@ -113,7 +113,7 @@ const Processos = () => {
   // Reset page when filters change
   useEffect(() => {
     resetPage();
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos]);
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
   // so selecting a responsável / período / com movimento filters immediately.
@@ -199,8 +199,7 @@ const Processos = () => {
     filtrosAplicados.periodoFim ||
     filtrosAplicados.responsavelId ||
     filtrosAplicados.instancia !== "todos" ||
-    comPublicacaoDjen ||
-    comAndamentos;
+    comPublicacaoDjen;
 
   return (
     <MainLayout 
@@ -304,24 +303,6 @@ const Processos = () => {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Processos com publicação DJEN</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={comAndamentos ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "h-9 gap-2",
-                    comAndamentos && "bg-green-600 hover:bg-green-700 text-white"
-                  )}
-                  onClick={() => setComAndamentos(!comAndamentos)}
-                >
-                  <Activity className="w-4 h-4" />
-                  <span className="hidden sm:inline">Com Andamentos</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Processos com andamentos</TooltipContent>
             </Tooltip>
           </div>
 
@@ -445,11 +426,6 @@ const Processos = () => {
                 Com DJEN ×
               </Badge>
             )}
-            {comAndamentos && (
-              <Badge variant="secondary" className="cursor-pointer bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300" onClick={() => setComAndamentos(false)}>
-                Com Andamentos ×
-              </Badge>
-            )}
             {(filtrosAplicados.periodoInicio || filtrosAplicados.periodoFim) && (
               <Badge variant="secondary" className="cursor-pointer" onClick={() => {
                 setFiltrosAvancados(prev => ({ ...prev, periodoInicio: undefined, periodoFim: undefined }));
@@ -468,7 +444,6 @@ const Processos = () => {
                 setStatusFilter("all");
                 setCoordenacaoFilter("all");
                 setComPublicacaoDjen(false);
-                setComAndamentos(false);
                 handleLimparFiltros();
               }}
             >
