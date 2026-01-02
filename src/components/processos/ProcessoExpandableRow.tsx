@@ -45,10 +45,36 @@ export function ProcessoExpandableRow({
 }: ProcessoExpandableRowProps) {
   const [expandedSection, setExpandedSection] = useState<"djen" | "andamentos" | null>(null);
 
+  // Check if process has DJEN publications
+  const { data: countDjen } = useQuery({
+    queryKey: ["count-djen-processo", processo.id],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("publicacoes_djen_processos")
+        .select("id", { count: "exact", head: true })
+        .eq("processo_id", processo.id);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
+  // Check if process has movements
+  const { data: countMov } = useQuery({
+    queryKey: ["count-mov-processo", processo.id],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("movimentacoes")
+        .select("id", { count: "exact", head: true })
+        .eq("processo_id", processo.id);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
   // Fetch DJEN publications when expanded
   const { data: publicacoesDjen, isLoading: loadingDjen } = useQuery({
     queryKey: ["publicacoes-djen-processo", processo.id],
-    enabled: expandedSection === "djen",
+    enabled: expandedSection === "djen" && (countDjen ?? 0) > 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("publicacoes_djen_processos")
@@ -65,7 +91,7 @@ export function ProcessoExpandableRow({
   // Fetch movements when expanded
   const { data: movimentacoes, isLoading: loadingMov } = useQuery({
     queryKey: ["movimentacoes-processo", processo.id],
-    enabled: expandedSection === "andamentos",
+    enabled: expandedSection === "andamentos" && (countMov ?? 0) > 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("movimentacoes")
@@ -78,6 +104,9 @@ export function ProcessoExpandableRow({
       return data || [];
     },
   });
+
+  const hasDjen = (countDjen ?? 0) > 0;
+  const hasMov = (countMov ?? 0) > 0;
 
   const toggleSection = (section: "djen" | "andamentos") => {
     setExpandedSection((prev) => (prev === section ? null : section));
@@ -176,45 +205,51 @@ export function ProcessoExpandableRow({
 
         {/* Actions + Date Column */}
         <div className="hidden md:flex items-center justify-end gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-7 w-7 p-0",
-                  expandedSection === "djen" && "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                )}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleSection("djen");
-                }}
-              >
-                <FileText className="w-3.5 h-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Publicações DJEN</TooltipContent>
-          </Tooltip>
+          {hasDjen && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 px-2 gap-1",
+                    expandedSection === "djen" && "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("djen");
+                  }}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span className="text-xs">{countDjen}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Publicações DJEN</TooltipContent>
+            </Tooltip>
+          )}
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-7 w-7 p-0",
-                  expandedSection === "andamentos" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300"
-                )}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleSection("andamentos");
-                }}
-              >
-                <Activity className="w-3.5 h-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Andamentos</TooltipContent>
-          </Tooltip>
+          {hasMov && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 px-2 gap-1",
+                    expandedSection === "andamentos" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("andamentos");
+                  }}
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span className="text-xs">{countMov}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Andamentos</TooltipContent>
+            </Tooltip>
+          )}
 
           <span className="text-sm text-muted-foreground ml-2">
             {processo.data_distribuicao
