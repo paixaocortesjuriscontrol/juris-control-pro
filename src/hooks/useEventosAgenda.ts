@@ -23,6 +23,7 @@ export interface EventoAgenda {
   concluido_em: string | null;
   created_at: string;
   updated_at: string;
+  enviar_whatsapp: boolean;
   participantes?: { usuario_id: string; usuario?: { id: string; nome: string } }[];
   processo?: { id: string; numero: string } | null;
 }

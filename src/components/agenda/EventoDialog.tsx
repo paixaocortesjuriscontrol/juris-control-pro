@@ -174,7 +174,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
         processo_id: evento.processo_id || "",
         participantes_ids: evento.participantes?.map(p => p.usuario_id) || [],
         alerta_minutos: alertas,
-        enviar_whatsapp: false, // Não enviar WhatsApp ao editar por padrão
+        enviar_whatsapp: evento.enviar_whatsapp ?? true,
       });
     } else {
       setFormData({
@@ -194,7 +194,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
         processo_id: "",
         participantes_ids: [],
         alerta_minutos: [30],
-        enviar_whatsapp: true, // Enviar WhatsApp por padrão ao criar
+        enviar_whatsapp: true,
       });
     }
   }, [evento, open, alertasEvento]);
@@ -216,6 +216,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
     const eventoData = {
       titulo: formData.titulo,
       descricao: formData.descricao || undefined,
+      enviar_whatsapp: formData.enviar_whatsapp,
       tipo: formData.tipo,
       data_inicio: dataInicio,
       data_fim: dataFim,
