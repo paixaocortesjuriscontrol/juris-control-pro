@@ -231,17 +231,23 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent 
+        className="w-[95vw] max-w-2xl h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0"
+        aria-describedby="evento-dialog-description"
+      >
+        <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6 pb-2 shrink-0">
           <DialogTitle>
             {isEditing ? "Editar Evento" : "Novo Evento"}
           </DialogTitle>
+          <p id="evento-dialog-description" className="sr-only">
+            Formulário para criar ou editar um evento na agenda
+          </p>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="col-span-1 sm:col-span-2">
                 <Label htmlFor="titulo">Título *</Label>
                 <Input
                   id="titulo"
@@ -326,7 +332,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
                 </div>
               )}
 
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <Label htmlFor="local">Local</Label>
                 <Input
                   id="local"
@@ -336,7 +342,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
                 />
               </div>
 
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <Label htmlFor="descricao">Descrição</Label>
                 <Textarea
                   id="descricao"
@@ -363,7 +369,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
               </div>
 
               {formData.recorrente && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <Label>Frequência</Label>
                     <Select
@@ -411,9 +417,9 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
             <div className="border rounded-lg p-4 space-y-3">
               <Label className="font-medium">Participantes</Label>
               
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Select value={coordenacaoFiltro} onValueChange={setCoordenacaoFiltro}>
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger className="w-full sm:w-48">
                     <SelectValue placeholder="Filtrar por coordenação" />
                   </SelectTrigger>
                   <SelectContent>
@@ -483,13 +489,14 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 pb-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={createEvento.isPending || updateEvento.isPending}
+                className="w-full sm:w-auto"
               >
                 {isEditing ? "Salvar" : "Criar Evento"}
               </Button>
