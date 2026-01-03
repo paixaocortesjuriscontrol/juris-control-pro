@@ -279,6 +279,13 @@ export default function ProcessoDetalhes() {
         advogado_externo: processo.advogado_externo || "",
         pedido_valor: processo.pedido_valor || "",
         justificativa_risco: processo.justificativa_risco || "",
+        // Campos MPT
+        localidade: processo.localidade || "",
+        autor: processo.autor || "",
+        requerido: processo.requerido || "",
+        materia_mpt: processo.materia_mpt || "",
+        ultimo_andamento_mpt: processo.ultimo_andamento_mpt || "",
+        observacao_advogado: processo.observacao_advogado || "",
       });
     }
   }, [processo, editando]);
@@ -318,7 +325,9 @@ export default function ProcessoDetalhes() {
         "ativo_passivo", "reclamante", "reclamados", "data_desligamento", 
         "responsabilidade_tipo", "data_consulta", "periodo_condenacao",
         "risco_anterior", "risco_atual", "adicao_baixa", "depositos_vinculados",
-        "epoca_razao", "setor", "funcao", "advogado_externo", "pedido_valor", "justificativa_risco"
+        "epoca_razao", "setor", "funcao", "advogado_externo", "pedido_valor", "justificativa_risco",
+        // Campos MPT
+        "localidade", "autor", "requerido", "materia_mpt", "ultimo_andamento_mpt", "observacao_advogado"
       ];
       
       const numericFields = [
@@ -1089,6 +1098,28 @@ export default function ProcessoDetalhes() {
                   <FieldItem label="Depósitos Vinculados" value={processo.depositos_vinculados} field="depositos_vinculados" />
                   <FieldItem label="Época / Razão" value={processo.epoca_razao} field="epoca_razao" />
                 </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Ministério Público do Trabalho (MPT) */}
+          <AccordionItem value="mpt" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5" />
+                <span className="font-semibold">Ministério Público do Trabalho</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <FieldItem label="Localidade" value={processo.localidade} field="localidade" />
+                <FieldItem label="Autor" value={processo.autor} field="autor" />
+                <FieldItem label="Requerido" value={processo.requerido} field="requerido" />
+                <FieldItem label="Matéria MPT" value={processo.materia_mpt} field="materia_mpt" />
+              </div>
+              <div className="grid grid-cols-1 gap-4 mt-4">
+                <FieldItem label="Último Andamento MPT" value={processo.ultimo_andamento_mpt} field="ultimo_andamento_mpt" type="textarea" />
+                <FieldItem label="Observação Advogado" value={processo.observacao_advogado} field="observacao_advogado" type="textarea" />
               </div>
             </AccordionContent>
           </AccordionItem>
