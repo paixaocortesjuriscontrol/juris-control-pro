@@ -3235,7 +3235,7 @@ export default function ImportarProcessos() {
           localidade: mptData.localidade,
           autor: mptData.autor,
           requerido: mptData.requerido,
-          materia_mpt: mptData.materia,
+          materia_mpt: mptData.materia || "Ministério Público",
           ultimo_andamento_mpt: mptData.ultimoAndamento,
           observacao_advogado: mptData.observacaoAdvogado,
           monitorar_andamentos: mptBuscarAndamentos,
