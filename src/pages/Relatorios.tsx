@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { 
   BarChart3, 
   Download, 
@@ -8,7 +8,7 @@ import {
   Activity,
   Users,
   Loader2,
-  Printer
+  FileDown
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -27,27 +27,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RelatorioResumo } from "@/components/relatorios/RelatorioResumo";
 import { RelatorioAtividades } from "@/components/relatorios/RelatorioAtividades";
 import { RelatorioClientes } from "@/components/relatorios/RelatorioClientes";
-import { useToast } from "@/hooks/use-toast";
+import { RelatorioPrintView } from "@/components/relatorios/RelatorioPrintView";
+import { useRelatorioResumoData } from "@/hooks/useRelatorioResumoData";
+import { useRelatorioAtividadesData } from "@/hooks/useRelatorioAtividadesData";
+import { useRelatorioClientesData } from "@/hooks/useRelatorioClientesData";
 
 const Relatorios = () => {
   const [periodo, setPeriodo] = useState("ultimo-mes");
   const [activeTab, setActiveTab] = useState("resumo");
   const [exporting, setExporting] = useState(false);
-  const { toast } = useToast();
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // Carregar dados de todos os relatórios para exportação
+  const { data: resumoData } = useRelatorioResumoData(true);
+  const { data: atividadesData } = useRelatorioAtividadesData(true);
+  const { data: clientesData } = useRelatorioClientesData(true);
 
   const handleExportPdf = () => {
     setExporting(true);
     
-    toast({
-      title: "Preparando impressão...",
-      description: "Use 'Salvar como PDF' na caixa de impressão.",
-    });
-
-    // Pequeno delay para garantir que o toast apareça
+    // Abrir janela de impressão diretamente
     setTimeout(() => {
       window.print();
       setExporting(false);
-    }, 500);
+    }, 100);
   };
 
   return (
@@ -82,9 +85,9 @@ const Relatorios = () => {
                 {exporting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <Printer className="w-4 h-4 mr-2" />
+                  <FileDown className="w-4 h-4 mr-2" />
                 )}
-                <span className="hidden sm:inline">{exporting ? "Preparando..." : "Imprimir / PDF"}</span>
+                <span className="hidden sm:inline">{exporting ? "Gerando..." : "Exportar PDF"}</span>
                 <span className="sm:hidden">{exporting ? "..." : "PDF"}</span>
               </Button>
             </div>
@@ -92,17 +95,17 @@ const Relatorios = () => {
         </CardContent>
       </Card>
 
-      {/* Print Header - only visible when printing */}
-      <div className="hidden print:block print:mb-6">
-        <h1 className="text-2xl font-bold text-center">Relatório Geral</h1>
-        <p className="text-center text-sm text-muted-foreground">
-          Gerado em: {new Date().toLocaleString("pt-BR")}
-        </p>
-      </div>
+      {/* Componente de impressão - visível apenas ao imprimir */}
+      <RelatorioPrintView 
+        ref={printRef}
+        resumoData={resumoData}
+        atividadesData={atividadesData}
+        clientesData={clientesData}
+      />
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid print:hidden">
+      {/* Tabs - escondido na impressão */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6 print:hidden">
+        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
           <TabsTrigger value="resumo" className="flex items-center gap-2">
             <BarChart3 className="w-4 h-4" />
             <span className="hidden sm:inline">Resumo</span>
@@ -117,29 +120,17 @@ const Relatorios = () => {
           </TabsTrigger>
         </TabsList>
 
-        {/* Mostrar conteúdo ativo na tela, mas imprimir todas as seções */}
-        <div className="print:space-y-8">
-          <TabsContent value="resumo" className="mt-6 print:block print:mt-0">
-            <div className="hidden print:block print:mb-4">
-              <h2 className="text-xl font-semibold border-b pb-2">Resumo</h2>
-            </div>
-            <RelatorioResumo isActive={activeTab === "resumo"} />
-          </TabsContent>
+        <TabsContent value="resumo" className="mt-6">
+          <RelatorioResumo isActive={activeTab === "resumo"} />
+        </TabsContent>
 
-          <TabsContent value="atividades" className="mt-6 print:block print:mt-0 print:break-before-page">
-            <div className="hidden print:block print:mb-4">
-              <h2 className="text-xl font-semibold border-b pb-2">Atividades</h2>
-            </div>
-            <RelatorioAtividades isActive={activeTab === "atividades"} />
-          </TabsContent>
+        <TabsContent value="atividades" className="mt-6">
+          <RelatorioAtividades isActive={activeTab === "atividades"} />
+        </TabsContent>
 
-          <TabsContent value="clientes" className="mt-6 print:block print:mt-0 print:break-before-page">
-            <div className="hidden print:block print:mb-4">
-              <h2 className="text-xl font-semibold border-b pb-2">Clientes</h2>
-            </div>
-            <RelatorioClientes isActive={activeTab === "clientes"} />
-          </TabsContent>
-        </div>
+        <TabsContent value="clientes" className="mt-6">
+          <RelatorioClientes isActive={activeTab === "clientes"} />
+        </TabsContent>
       </Tabs>
 
       {/* Note about missing features */}

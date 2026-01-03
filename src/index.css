@@ -243,3 +243,112 @@
     transform: scale(1);
   }
 }
+
+/* Estilos de Impressão para Relatórios Profissionais */
+@media print {
+  /* Reset geral para impressão */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
+  /* Esconder elementos não necessários */
+  body > *:not(#root),
+  header,
+  nav,
+  aside,
+  .print\\:hidden,
+  [class*="sidebar"],
+  [class*="Sidebar"],
+  button,
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in {
+    display: none !important;
+  }
+  
+  /* Mostrar apenas o conteúdo de impressão */
+  .print\\:block {
+    display: block !important;
+  }
+  
+  /* Configurações de página */
+  @page {
+    size: A4;
+    margin: 15mm 15mm 20mm 15mm;
+  }
+  
+  /* Quebras de página */
+  .break-before-page {
+    page-break-before: always;
+    break-before: page;
+  }
+  
+  /* Estilo base para impressão */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt !important;
+    line-height: 1.4 !important;
+  }
+  
+  #root {
+    background: white !important;
+  }
+  
+  /* Tabelas com bordas visíveis */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  
+  th, td {
+    border: 1px solid #333 !important;
+    padding: 6px 10px !important;
+  }
+  
+  th {
+    background-color: #f0f0f0 !important;
+    font-weight: bold !important;
+  }
+  
+  /* Cores para status */
+  .text-green-600 {
+    color: #16a34a !important;
+  }
+  
+  .text-amber-600 {
+    color: #d97706 !important;
+  }
+  
+  .text-blue-600 {
+    color: #2563eb !important;
+  }
+  
+  .text-purple-600 {
+    color: #9333ea !important;
+  }
+  
+  .text-red-600 {
+    color: #dc2626 !important;
+  }
+  
+  /* Evitar quebra de elementos */
+  tr, .border {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  
+  /* Cabeçalhos de seção */
+  h2 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+  
+  h3 {
+    page-break-after: avoid;
+    break-after: avoid;
+    margin-top: 16px;
+  }
+}
