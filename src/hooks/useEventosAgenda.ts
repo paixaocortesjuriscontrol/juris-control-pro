@@ -221,8 +221,9 @@ export function useUpdateEvento() {
     mutationFn: async ({ 
       id, 
       participantes_ids,
+      alerta_minutos,
       ...updates 
-    }: Partial<EventoAgenda> & { id: string; participantes_ids?: string[] }) => {
+    }: Partial<EventoAgenda> & { id: string; participantes_ids?: string[]; alerta_minutos?: number[] }) => {
       const { data, error } = await supabase
         .from("eventos_agenda")
         .update(updates)
@@ -242,6 +243,19 @@ export function useUpdateEvento() {
             usuario_id: userId,
           }));
           await supabase.from("participantes_evento").insert(participantesData);
+        }
+      }
+
+      // Update alerts if provided
+      if (alerta_minutos !== undefined) {
+        await supabase.from("alertas_evento").delete().eq("evento_id", id);
+        
+        if (alerta_minutos.length > 0) {
+          const alertasData = alerta_minutos.map(minutos => ({
+            evento_id: id,
+            minutos_antes: minutos,
+          }));
+          await supabase.from("alertas_evento").insert(alertasData);
         }
       }
 
