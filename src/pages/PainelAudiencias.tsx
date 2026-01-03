@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, CalendarDays, FileText, Eye, Plus, User, Building, Upload, Download, Pencil } from "lucide-react";
+import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, CalendarDays, FileText, Eye, Plus, User, Building, Upload, Download, Pencil, Settings } from "lucide-react";
 import { useAudienciasDetectadas, AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { useExportarAudiencias } from "@/hooks/useExportarAudiencias";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
 import { ImportarAudienciasDialog } from "@/components/audiencias/ImportarAudienciasDialog";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
+import { ConfigAlertasAudienciasTab } from "@/components/audiencias/ConfigAlertasAudienciasTab";
 
 export default function PainelAudiencias() {
   const [search, setSearch] = useState("");
@@ -141,6 +142,10 @@ export default function PainelAudiencias() {
           <TabsTrigger value="cadastro" className="gap-2">
             <Plus className="h-4 w-4" />
             Cadastrar Audiência
+          </TabsTrigger>
+          <TabsTrigger value="configuracoes" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Configurações de Alertas
           </TabsTrigger>
         </TabsList>
 
@@ -380,6 +385,10 @@ export default function PainelAudiencias() {
 
         <TabsContent value="cadastro">
           <CadastroAudienciaForm />
+        </TabsContent>
+
+        <TabsContent value="configuracoes">
+          <ConfigAlertasAudienciasTab />
         </TabsContent>
       </Tabs>
 

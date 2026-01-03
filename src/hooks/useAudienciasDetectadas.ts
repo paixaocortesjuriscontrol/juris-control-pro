@@ -168,10 +168,12 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
       // Converter data para formato ISO completo (timestamp with time zone)
       let dataAudienciaISO: string | null = null;
       if (novaAudiencia.data_audiencia) {
-        dataAudienciaISO = `${novaAudiencia.data_audiencia}T12:00:00.000Z`;
+        // Se tiver hora, usar ela; senão usar 12:00
+        const hora = novaAudiencia.hora_brasilia || novaAudiencia.hora || '12:00';
+        dataAudienciaISO = `${novaAudiencia.data_audiencia}T${hora}:00-03:00`;
       }
 
-      const { error } = await supabase
+      const { data: audienciaCriada, error } = await supabase
         .from('audiencias_detectadas')
         .insert({
           ...novaAudiencia,
@@ -179,9 +181,73 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
           origem: 'manual',
           criado_por: user.id,
           status: novaAudiencia.status || 'pendente',
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Buscar configurações de alertas
+      const { data: config } = await supabase
+        .from('config_alertas_audiencias')
+        .select('*')
+        .limit(1)
+        .single();
+
+      if (config && audienciaCriada) {
+        // Criar lembretes automáticos baseados na configuração
+        const lembretes = (config.lembretes_minutos || []).map((minutos: number) => ({
+          audiencia_id: audienciaCriada.id,
+          minutos_antes: minutos,
+          enviado: false,
+        }));
+
+        if (lembretes.length > 0) {
+          await supabase.from('lembretes_audiencia').insert(lembretes);
+        }
+
+        // Enviar alerta de criação via WhatsApp se configurado
+        if (config.enviar_whatsapp_criacao && novaAudiencia.advogado) {
+          try {
+            // Buscar telefone do criador
+            const { data: perfil } = await supabase
+              .from('profiles')
+              .select('telefone, nome')
+              .eq('id', user.id)
+              .single();
+
+            const telefones: string[] = [];
+            if (perfil?.telefone) {
+              telefones.push(perfil.telefone);
+            }
+
+            if (telefones.length > 0) {
+              const horaExibicao = novaAudiencia.hora_brasilia || novaAudiencia.hora || 'Não definido';
+              const mensagem = `📋 *NOVA AUDIÊNCIA CADASTRADA*\n\n` +
+                `📅 Data: ${novaAudiencia.data_audiencia}\n` +
+                `🕐 Horário: ${horaExibicao}\n` +
+                `📄 Processo: ${novaAudiencia.processo_numero}\n` +
+                (novaAudiencia.tipo_audiencia ? `📌 Tipo: ${novaAudiencia.tipo_audiencia}\n` : '') +
+                (novaAudiencia.cliente ? `🏢 Cliente: ${novaAudiencia.cliente}\n` : '') +
+                (novaAudiencia.comarca ? `📍 Comarca: ${novaAudiencia.comarca}\n` : '') +
+                `\n_JurisControl - Sistema de Gestão Jurídica_`;
+
+              await supabase.functions.invoke('enviar-whatsapp-zapi', {
+                body: {
+                  telefones,
+                  mensagem,
+                  tipo: 'audiencia',
+                },
+              });
+            }
+          } catch (whatsappError) {
+            console.error('Erro ao enviar WhatsApp de criação:', whatsappError);
+            // Não bloqueia o fluxo principal
+          }
+        }
+      }
+
+      return audienciaCriada;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
