@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Search } from "lucide-react";
 
 interface EventoDialogProps {
   open: boolean;
@@ -74,18 +75,57 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
     alerta_minutos: [30] as number[],
   });
 
-  const { data: usuarios } = useQuery({
-    queryKey: ["usuarios-agenda"],
+  const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
+  const [participanteSearch, setParticipanteSearch] = useState("");
+
+  const { data: coordenacoes } = useQuery({
+    queryKey: ["coordenacoes-agenda"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("profiles")
+        .from("coordenacoes")
         .select("id, nome")
-        .eq("ativo", true)
         .order("nome");
       if (error) throw error;
       return data;
     },
   });
+
+  const { data: usuarios } = useQuery({
+    queryKey: ["usuarios-agenda", coordenacaoFiltro],
+    queryFn: async () => {
+      let query = supabase
+        .from("profiles")
+        .select("id, nome")
+        .eq("ativo", true)
+        .order("nome");
+      
+      if (coordenacaoFiltro && coordenacaoFiltro !== "todas") {
+        const { data: membros } = await supabase
+          .from("membros_coordenacao")
+          .select("usuario_id")
+          .eq("coordenacao_id", coordenacaoFiltro);
+        
+        const userIds = membros?.map(m => m.usuario_id) || [];
+        if (userIds.length > 0) {
+          query = query.in("id", userIds);
+        } else {
+          return [];
+        }
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filteredUsuarios = useMemo(() => {
+    if (!usuarios) return [];
+    if (!participanteSearch) return usuarios;
+    return usuarios.filter(u => 
+      u.nome.toLowerCase().includes(participanteSearch.toLowerCase())
+    );
+  }, [usuarios, participanteSearch]);
 
   useEffect(() => {
     if (evento) {
@@ -370,8 +410,35 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
             {/* Participantes */}
             <div className="border rounded-lg p-4 space-y-3">
               <Label className="font-medium">Participantes</Label>
+              
+              <div className="flex gap-2">
+                <Select value={coordenacaoFiltro} onValueChange={setCoordenacaoFiltro}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Filtrar por coordenação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as coordenações</SelectItem>
+                    {coordenacoes?.map((coord) => (
+                      <SelectItem key={coord.id} value={coord.id}>
+                        {coord.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar participante..."
+                    value={participanteSearch}
+                    onChange={(e) => setParticipanteSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+              
               <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                {usuarios?.map((usuario) => (
+                {filteredUsuarios?.map((usuario) => (
                   <div key={usuario.id} className="flex items-center gap-2">
                     <Checkbox
                       id={`user-${usuario.id}`}
@@ -383,7 +450,18 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
                     </Label>
                   </div>
                 ))}
+                {filteredUsuarios?.length === 0 && (
+                  <p className="col-span-2 text-sm text-muted-foreground text-center py-2">
+                    Nenhum participante encontrado
+                  </p>
+                )}
               </div>
+              
+              {formData.participantes_ids.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {formData.participantes_ids.length} participante(s) selecionado(s)
+                </p>
+              )}
             </div>
 
             {/* Alertas */}
