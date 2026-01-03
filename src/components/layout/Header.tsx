@@ -48,7 +48,7 @@ export function Header({ title, subtitle }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
+    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6 print:hidden">
       <div className="pl-12 lg:pl-0">
         <h1 className="font-serif text-lg lg:text-xl font-semibold text-foreground truncate">{title}</h1>
         {subtitle && (
