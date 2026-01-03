@@ -121,14 +121,44 @@ export default function MinhaAgenda() {
   const { data: eventos, isLoading } = useEventosAgenda(filters);
   const { data: stats } = useEventoStats();
 
-  const { data: usuarios } = useQuery({
-    queryKey: ["usuarios-agenda-filter"],
+  const [coordenacaoFiltroPage, setCoordenacaoFiltroPage] = useState<string>("todas");
+
+  const { data: coordenacoes } = useQuery({
+    queryKey: ["coordenacoes-agenda-filter"],
     queryFn: async () => {
       const { data, error } = await supabase
+        .from("coordenacoes")
+        .select("id, nome")
+        .order("nome");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: usuarios } = useQuery({
+    queryKey: ["usuarios-agenda-filter", coordenacaoFiltroPage],
+    queryFn: async () => {
+      let query = supabase
         .from("profiles")
         .select("id, nome")
         .eq("ativo", true)
         .order("nome");
+      
+      if (coordenacaoFiltroPage && coordenacaoFiltroPage !== "todas") {
+        const { data: membros } = await supabase
+          .from("membros_coordenacao")
+          .select("usuario_id")
+          .eq("coordenacao_id", coordenacaoFiltroPage);
+        
+        const userIds = membros?.map(m => m.usuario_id) || [];
+        if (userIds.length > 0) {
+          query = query.in("id", userIds);
+        } else {
+          return [];
+        }
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -338,9 +368,24 @@ export default function MinhaAgenda() {
                 <ChevronDown className="w-4 h-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-72" align="start">
+            <PopoverContent className="w-80" align="start">
               <div className="space-y-4">
                 <div className="font-medium">Pessoas</div>
+                
+                <Select value={coordenacaoFiltroPage} onValueChange={setCoordenacaoFiltroPage}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filtrar por coordenação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as coordenações</SelectItem>
+                    {coordenacoes?.map((coord) => (
+                      <SelectItem key={coord.id} value={coord.id}>
+                        {coord.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
                 <div className="max-h-60 overflow-y-auto space-y-2">
                   {usuarios?.map((usuario) => (
                     <div key={usuario.id} className="flex items-center gap-2">
@@ -354,9 +399,14 @@ export default function MinhaAgenda() {
                       </Label>
                     </div>
                   ))}
+                  {usuarios?.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      Nenhum membro nesta coordenação
+                    </p>
+                  )}
                 </div>
                 <div className="flex justify-end gap-2 pt-2 border-t">
-                  <Button variant="ghost" size="sm" onClick={() => setPessoasFiltro([])}>
+                  <Button variant="ghost" size="sm" onClick={() => { setPessoasFiltro([]); setCoordenacaoFiltroPage("todas"); }}>
                     Limpar
                   </Button>
                   <Button size="sm" onClick={() => setPessoasPopoverOpen(false)}>
