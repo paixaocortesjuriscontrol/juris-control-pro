@@ -739,6 +739,7 @@ export type Database = {
           data_inicio: string
           descricao: string | null
           dia_inteiro: boolean | null
+          enviar_whatsapp: boolean
           id: string
           local: string | null
           processo_id: string | null
@@ -760,6 +761,7 @@ export type Database = {
           data_inicio: string
           descricao?: string | null
           dia_inteiro?: boolean | null
+          enviar_whatsapp?: boolean
           id?: string
           local?: string | null
           processo_id?: string | null
@@ -781,6 +783,7 @@ export type Database = {
           data_inicio?: string
           descricao?: string | null
           dia_inteiro?: boolean | null
+          enviar_whatsapp?: boolean
           id?: string
           local?: string | null
           processo_id?: string | null
