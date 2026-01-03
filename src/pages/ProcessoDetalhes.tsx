@@ -1112,6 +1112,15 @@ export default function ProcessoDetalhes() {
             </AccordionTrigger>
             <AccordionContent className="pt-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <FieldItem label="Procedimento (Número)" value={processo.numero} field="numero" />
+                <FieldItem 
+                  label="Status" 
+                  value={processo.status} 
+                  field="status" 
+                  type="select"
+                  options={statusOptions.map(s => ({ value: s, label: statusLabels[s] }))}
+                />
+                <FieldItem label="UF" value={processo.uf} field="uf" />
                 <FieldItem label="Localidade" value={processo.localidade} field="localidade" />
                 <FieldItem label="Autor" value={processo.autor} field="autor" />
                 <FieldItem label="Requerido" value={processo.requerido} field="requerido" />
