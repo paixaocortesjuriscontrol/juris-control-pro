@@ -58,6 +58,41 @@ export type Database = {
           },
         ]
       }
+      alertas_evento: {
+        Row: {
+          created_at: string
+          enviado: boolean | null
+          enviado_em: string | null
+          evento_id: string
+          id: string
+          minutos_antes: number
+        }
+        Insert: {
+          created_at?: string
+          enviado?: boolean | null
+          enviado_em?: string | null
+          evento_id: string
+          id?: string
+          minutos_antes?: number
+        }
+        Update: {
+          created_at?: string
+          enviado?: boolean | null
+          enviado_em?: string | null
+          evento_id?: string
+          id?: string
+          minutos_antes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_evento_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_agenda"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alertas_monitoramento: {
         Row: {
           contexto: string | null
@@ -695,6 +730,80 @@ export type Database = {
           },
         ]
       }
+      eventos_agenda: {
+        Row: {
+          concluido_em: string | null
+          created_at: string
+          criado_por: string
+          data_fim: string | null
+          data_inicio: string
+          descricao: string | null
+          dia_inteiro: boolean | null
+          id: string
+          local: string | null
+          processo_id: string | null
+          recorrencia_dias_semana: number[] | null
+          recorrencia_fim: string | null
+          recorrencia_intervalo: number | null
+          recorrencia_tipo: string | null
+          recorrente: boolean | null
+          status: string
+          tipo: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          concluido_em?: string | null
+          created_at?: string
+          criado_por: string
+          data_fim?: string | null
+          data_inicio: string
+          descricao?: string | null
+          dia_inteiro?: boolean | null
+          id?: string
+          local?: string | null
+          processo_id?: string | null
+          recorrencia_dias_semana?: number[] | null
+          recorrencia_fim?: string | null
+          recorrencia_intervalo?: number | null
+          recorrencia_tipo?: string | null
+          recorrente?: boolean | null
+          status?: string
+          tipo?: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          concluido_em?: string | null
+          created_at?: string
+          criado_por?: string
+          data_fim?: string | null
+          data_inicio?: string
+          descricao?: string | null
+          dia_inteiro?: boolean | null
+          id?: string
+          local?: string | null
+          processo_id?: string | null
+          recorrencia_dias_semana?: number[] | null
+          recorrencia_fim?: string | null
+          recorrencia_intervalo?: number | null
+          recorrencia_tipo?: string | null
+          recorrente?: boolean | null
+          status?: string
+          tipo?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_agenda_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       historico_login: {
         Row: {
           email: string | null
@@ -1052,6 +1161,38 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      participantes_evento: {
+        Row: {
+          created_at: string
+          evento_id: string
+          id: string
+          notificar: boolean | null
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          evento_id: string
+          id?: string
+          notificar?: boolean | null
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          evento_id?: string
+          id?: string
+          notificar?: boolean | null
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participantes_evento_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_agenda"
             referencedColumns: ["id"]
           },
         ]
