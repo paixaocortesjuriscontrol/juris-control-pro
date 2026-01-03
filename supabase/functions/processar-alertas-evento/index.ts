@@ -189,11 +189,7 @@ serve(async (req) => {
 
         const userIds = (participantes || []).map((p: any) => p.usuario_id).filter(Boolean);
         if (userIds.length === 0) {
-          await supabase
-            .from("alertas_evento")
-            .update({ enviado: true, enviado_em: now.toISOString() })
-            .eq("id", alertaId);
-
+          // Mantém o alerta pendente para permitir que participantes sejam adicionados depois
           results.push({ alerta_id: alertaId, evento_id: evento.id, status: "sem_participantes" });
           continue;
         }
@@ -211,11 +207,7 @@ serve(async (req) => {
           .filter((t: string | null) => !!t) as string[];
 
         if (telefones.length === 0) {
-          await supabase
-            .from("alertas_evento")
-            .update({ enviado: true, enviado_em: now.toISOString() })
-            .eq("id", alertaId);
-
+          // Mantém o alerta pendente para permitir que os usuários preencham o telefone depois
           results.push({ alerta_id: alertaId, evento_id: evento.id, status: "sem_telefones" });
           continue;
         }
