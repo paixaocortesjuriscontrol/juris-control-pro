@@ -54,7 +54,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { userId, email, password } = await req.json();
+    const body = await req.json();
+    const { userId, email, password, nome, oab, telefone, filial, ativo } = body ?? {};
 
     if (!userId) {
       return new Response(JSON.stringify({ error: "ID do usuário é obrigatório" }), {
@@ -63,51 +64,105 @@ Deno.serve(async (req) => {
       });
     }
 
-    const updateData: { email?: string; password?: string } = {};
-    
-    if (email) {
-      updateData.email = email;
+    // 1) Atualização no Auth (email/senha)
+    const updateAuthData: { email?: string; password?: string } = {};
+
+    if (typeof email === "string" && email.trim()) {
+      updateAuthData.email = email.trim();
     }
-    
-    if (password) {
+
+    if (typeof password === "string" && password) {
       if (password.length < 6) {
         return new Response(JSON.stringify({ error: "A senha deve ter pelo menos 6 caracteres" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      updateData.password = password;
+      updateAuthData.password = password;
     }
 
-    if (Object.keys(updateData).length === 0) {
-      return new Response(JSON.stringify({ message: "Nenhuma alteração de autenticação necessária" }), {
+    // 2) Atualização no Profile (dados do app)
+    const updateProfileData: Record<string, unknown> = {};
+
+    if (typeof nome === "string") {
+      updateProfileData.nome = nome.trim();
+    }
+
+    if ("oab" in body) {
+      if (typeof oab === "string") updateProfileData.oab = oab.trim() || null;
+      else updateProfileData.oab = oab ?? null;
+    }
+
+    if ("telefone" in body) {
+      if (typeof telefone === "string") updateProfileData.telefone = telefone.trim() || null;
+      else updateProfileData.telefone = telefone ?? null;
+    }
+
+    if ("filial" in body) {
+      if (typeof filial === "string") updateProfileData.filial = filial.trim() || null;
+      else updateProfileData.filial = filial ?? null;
+    }
+
+    if ("ativo" in body) {
+      updateProfileData.ativo = !!ativo;
+    }
+
+    // Se email foi enviado, também espelha no perfil
+    if (typeof email === "string" && email.trim()) {
+      updateProfileData.email = email.trim();
+    }
+
+    const willUpdateAuth = Object.keys(updateAuthData).length > 0;
+    const willUpdateProfile = Object.keys(updateProfileData).length > 0;
+
+    if (!willUpdateAuth && !willUpdateProfile) {
+      return new Response(JSON.stringify({ message: "Nenhuma alteração necessária" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, updateData);
+    if (willUpdateAuth) {
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, updateAuthData);
 
-    if (updateError) {
-      console.error("Erro ao atualizar usuário:", updateError);
-      return new Response(JSON.stringify({ error: updateError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (updateError) {
+        console.error("Erro ao atualizar usuário (auth):", updateError);
+        return new Response(JSON.stringify({ error: updateError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
-    // If email was updated, also update in profiles table
-    if (email) {
-      await supabaseAdmin
+    if (willUpdateProfile) {
+      const { error: profileError } = await supabaseAdmin
         .from("profiles")
-        .update({ email })
+        .update(updateProfileData)
         .eq("id", userId);
+
+      if (profileError) {
+        console.error("Erro ao atualizar usuário (profile):", profileError);
+        return new Response(JSON.stringify({ error: profileError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
-    return new Response(JSON.stringify({ success: true, message: "Usuário atualizado com sucesso" }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Usuário atualizado com sucesso",
+        updated: {
+          auth: willUpdateAuth,
+          profile: willUpdateProfile,
+        },
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
 
   } catch (error: unknown) {
     console.error("Erro:", error);

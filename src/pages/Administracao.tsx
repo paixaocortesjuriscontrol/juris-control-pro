@@ -76,6 +76,7 @@ const Administracao = () => {
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
   const [filialFilter, setFilialFilter] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("usuarios");
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(undefined);
@@ -300,19 +301,20 @@ const Administracao = () => {
         refresh_token: adminSession.refresh_token,
       });
 
-      // Update profile with additional data (now as admin)
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          nome: newUserData.nome,
-          oab: newUserData.oab || null,
-          telefone: newUserData.telefone || null,
-          filial: newUserData.filial || null,
-        })
-        .eq("id", newUserId);
+      // Atualizar profile com dados adicionais (via Edge Function com Service Role)
+      const { error: profileError } = await supabase.functions.invoke("atualizar-usuario", {
+        body: {
+          userId: newUserId,
+          nome: newUserData.nome.trim(),
+          oab: newUserData.oab.trim() || null,
+          telefone: newUserData.telefone.trim() || null,
+          filial: newUserData.filial.trim() || null,
+        },
+      });
 
       if (profileError) {
-        console.error("Erro ao atualizar perfil:", profileError);
+        console.error("Erro ao atualizar profile via edge function:", profileError);
+        toast.error(profileError.message || "Erro ao salvar dados do perfil");
       }
 
       // Set user role (now as admin)
@@ -390,19 +392,24 @@ const Administracao = () => {
     setSaving(true);
 
     try {
-      // Update profile data
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
+      const emailChanged = editUserData.email.trim() !== editingUser.email;
+      const passwordChanged = editUserData.senha.trim().length > 0;
+
+      // Atualiza profile + (se necessário) email/senha no Auth via Edge Function (Service Role)
+      const { error: updateError } = await supabase.functions.invoke("atualizar-usuario", {
+        body: {
+          userId: editingUser.id,
+          email: emailChanged ? editUserData.email.trim() : undefined,
+          password: passwordChanged ? editUserData.senha.trim() : undefined,
           nome: editUserData.nome.trim(),
           oab: editUserData.oab.trim() || null,
           telefone: editUserData.telefone.trim() || null,
           filial: editUserData.filial.trim() || null,
-        })
-        .eq("id", editingUser.id);
+        },
+      });
 
-      if (profileError) {
-        throw new Error("Erro ao atualizar perfil");
+      if (updateError) {
+        throw new Error(updateError.message || "Erro ao atualizar usuário");
       }
 
       // Update role if changed
@@ -422,24 +429,6 @@ const Administracao = () => {
           await supabase
             .from("user_roles")
             .insert({ user_id: editingUser.id, role: editUserData.role });
-        }
-      }
-
-      // Update email and/or password via edge function if needed
-      const emailChanged = editUserData.email.trim() !== editingUser.email;
-      const passwordChanged = editUserData.senha.trim().length > 0;
-
-      if (emailChanged || passwordChanged) {
-        const { error: authError } = await supabase.functions.invoke('atualizar-usuario', {
-          body: {
-            userId: editingUser.id,
-            email: emailChanged ? editUserData.email.trim() : undefined,
-            password: passwordChanged ? editUserData.senha.trim() : undefined,
-          }
-        });
-
-        if (authError) {
-          throw new Error(authError.message || "Erro ao atualizar credenciais");
         }
       }
 
@@ -467,13 +456,48 @@ const Administracao = () => {
     setSaving(false);
   }
 
+  async function handleEnviarTesteWhatsApp() {
+    if (!editingUser) return;
+
+    const tel = editUserData.telefone.trim();
+    if (!tel) {
+      toast.error("Preencha um telefone para enviar o teste");
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      const now = new Date();
+      const mensagem = `✅ *Teste WhatsApp - JurisControl*\n\nUsuário: *${editUserData.nome.trim()}*\nData/Hora: ${now.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}\n\nSe você recebeu esta mensagem, o envio está funcionando.`;
+
+      const { error } = await supabase.functions.invoke("enviar-whatsapp-zapi", {
+        body: {
+          telefones: [tel],
+          mensagem,
+          tipo: "teste",
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success("Teste enviado! Confira o WhatsApp do usuário.");
+    } catch (err: any) {
+      toast.error(err?.message || "Falha ao enviar teste");
+      console.error(err);
+    } finally {
+      setSendingTest(false);
+    }
+  }
+
   async function handleToggleAtivo(userId: string, currentStatus: boolean) {
     setTogglingStatus(userId);
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ ativo: !currentStatus })
-      .eq("id", userId);
+    const { error } = await supabase.functions.invoke("atualizar-usuario", {
+      body: {
+        userId,
+        ativo: !currentStatus,
+      },
+    });
 
     if (error) {
       toast.error("Erro ao alterar status do usuário");
@@ -983,7 +1007,17 @@ const Administracao = () => {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-3">
+            <div className="flex items-center justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="mr-auto"
+                onClick={handleEnviarTesteWhatsApp}
+                disabled={sendingTest}
+              >
+                {sendingTest && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Enviar teste WhatsApp
+              </Button>
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                 Cancelar
               </Button>
