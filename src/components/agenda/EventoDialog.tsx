@@ -18,13 +18,15 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCreateEvento, useUpdateEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
+import { useEnviarWhatsApp } from "@/hooks/useEnviarWhatsApp";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, X, UserPlus } from "lucide-react";
+import { Search, X, UserPlus, MessageCircle, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 interface EventoDialogProps {
   open: boolean;
@@ -56,6 +58,7 @@ const ALERTAS_OPCOES = [
 export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
+  const enviarWhatsApp = useEnviarWhatsApp();
   const isEditing = !!evento;
 
   const [formData, setFormData] = useState({
@@ -75,6 +78,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
     processo_id: "",
     participantes_ids: [] as string[],
     alerta_minutos: [30] as number[],
+    enviar_whatsapp: true,
   });
 
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
@@ -152,6 +156,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
         processo_id: evento.processo_id || "",
         participantes_ids: evento.participantes?.map(p => p.usuario_id) || [],
         alerta_minutos: [30],
+        enviar_whatsapp: false, // Não enviar WhatsApp ao editar por padrão
       });
     } else {
       setFormData({
@@ -171,6 +176,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
         processo_id: "",
         participantes_ids: [],
         alerta_minutos: [30],
+        enviar_whatsapp: true, // Enviar WhatsApp por padrão ao criar
       });
     }
   }, [evento, open]);
@@ -206,13 +212,48 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
       alerta_minutos: formData.alerta_minutos,
     };
 
-    if (isEditing && evento) {
-      await updateEvento.mutateAsync({ id: evento.id, ...eventoData });
-    } else {
-      await createEvento.mutateAsync(eventoData);
+    try {
+      if (isEditing && evento) {
+        await updateEvento.mutateAsync({ id: evento.id, ...eventoData });
+      } else {
+        await createEvento.mutateAsync(eventoData);
+      }
+
+      // Enviar WhatsApp para participantes se solicitado
+      if (formData.enviar_whatsapp && formData.participantes_ids.length > 0) {
+        // Buscar telefones dos participantes
+        const { data: participantesComTelefone } = await supabase
+          .from("profiles")
+          .select("id, nome, telefone")
+          .in("id", formData.participantes_ids);
+
+        const telefonesValidos = participantesComTelefone
+          ?.filter(p => p.telefone)
+          .map(p => p.telefone!) || [];
+
+        if (telefonesValidos.length > 0) {
+          try {
+            await enviarWhatsApp.mutateAsync({
+              eventoTitulo: formData.titulo,
+              eventoData: dataInicio,
+              eventoHora: formData.dia_inteiro ? undefined : formData.hora_inicio,
+              eventoLocal: formData.local || undefined,
+              participantesTelefones: telefonesValidos,
+              tipo: isEditing ? "lembrete" : "evento",
+            });
+          } catch (whatsAppError) {
+            console.error("Erro ao enviar WhatsApp:", whatsAppError);
+            // Não bloqueia o fluxo principal, apenas notifica
+          }
+        } else {
+          toast.info("Nenhum participante com telefone cadastrado");
+        }
+      }
+      
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Erro ao salvar evento:", error);
     }
-    
-    onOpenChange(false);
   };
 
   const toggleParticipante = (userId: string) => {
@@ -505,16 +546,45 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
               </div>
             </div>
 
+            {/* Notificação WhatsApp */}
+            {formData.participantes_ids.length > 0 && (
+              <div className="border rounded-lg p-4 space-y-3 bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    id="enviar-whatsapp"
+                    checked={formData.enviar_whatsapp}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enviar_whatsapp: checked === true }))}
+                  />
+                  <Label htmlFor="enviar-whatsapp" className="cursor-pointer flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-green-600" />
+                    <span>Enviar alerta via WhatsApp aos participantes</span>
+                  </Label>
+                </div>
+                {formData.enviar_whatsapp && (
+                  <p className="text-xs text-muted-foreground ml-7">
+                    Os participantes com telefone cadastrado receberão uma mensagem no WhatsApp com os detalhes do evento.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 pb-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
                 Cancelar
               </Button>
               <Button
                 type="submit"
-                disabled={createEvento.isPending || updateEvento.isPending}
+                disabled={createEvento.isPending || updateEvento.isPending || enviarWhatsApp.isPending}
                 className="w-full sm:w-auto"
               >
-                {isEditing ? "Salvar" : "Criar Evento"}
+                {(createEvento.isPending || updateEvento.isPending || enviarWhatsApp.isPending) && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
+                {enviarWhatsApp.isPending 
+                  ? "Enviando WhatsApp..." 
+                  : isEditing 
+                    ? "Salvar" 
+                    : "Criar Evento"}
               </Button>
             </div>
           </form>
