@@ -201,6 +201,49 @@ export type Database = {
         }
         Relationships: []
       }
+      audiencias_advogados: {
+        Row: {
+          advogado_id: string
+          audiencia_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          advogado_id: string
+          audiencia_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          advogado_id?: string
+          audiencia_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audiencias_advogados_advogado_id_fkey"
+            columns: ["advogado_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_advogados_advogado_id_fkey"
+            columns: ["advogado_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_advogados_audiencia_id_fkey"
+            columns: ["audiencia_id"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audiencias_detectadas: {
         Row: {
           advogado: string | null

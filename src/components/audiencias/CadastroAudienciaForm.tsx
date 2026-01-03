@@ -7,10 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Loader2, Plus } from "lucide-react";
 import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
+import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
 
 export function CadastroAudienciaForm() {
   const { criarAudiencia } = useAudienciasDetectadas();
-  const [formData, setFormData] = useState<NovaAudiencia>({
+  const [advogadosSelecionados, setAdvogadosSelecionados] = useState<string[]>([]);
+  const [formData, setFormData] = useState<Omit<NovaAudiencia, 'advogados_ids'>>({
     processo_numero: "",
     data_audiencia: "",
     hora: "",
@@ -42,7 +44,10 @@ export function CadastroAudienciaForm() {
       return;
     }
 
-    await criarAudiencia.mutateAsync(formData);
+    await criarAudiencia.mutateAsync({
+      ...formData,
+      advogados_ids: advogadosSelecionados,
+    });
     
     // Limpar formulário
     setFormData({
@@ -65,6 +70,7 @@ export function CadastroAudienciaForm() {
       observacoes: "",
       status: "pendente",
     });
+    setAdvogadosSelecionados([]);
   };
 
   return (
@@ -225,7 +231,7 @@ export function CadastroAudienciaForm() {
           </div>
 
           {/* Participantes */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="preposto">Preposto</Label>
               <Input
@@ -244,16 +250,13 @@ export function CadastroAudienciaForm() {
                 onChange={(e) => handleChange("testemunhas", e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="advogado">Advogado Responsável</Label>
-              <Input
-                id="advogado"
-                placeholder="Nome do advogado"
-                value={formData.advogado}
-                onChange={(e) => handleChange("advogado", e.target.value)}
-              />
-            </div>
           </div>
+
+          {/* Seleção de Advogados */}
+          <SelecionarAdvogadosAudiencia
+            selectedAdvogados={advogadosSelecionados}
+            onSelectionChange={setAdvogadosSelecionados}
+          />
 
           {/* Status e Observações */}
           <div className="grid gap-4 md:grid-cols-2">

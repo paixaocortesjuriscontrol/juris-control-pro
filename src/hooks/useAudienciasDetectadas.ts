@@ -71,6 +71,7 @@ export interface NovaAudiencia {
   advogado?: string;
   observacoes?: string;
   status?: string;
+  advogados_ids?: string[]; // Novo campo para múltiplos advogados
 }
 
 interface AudienciasFiltros {
@@ -165,25 +166,60 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      // Extrair advogados_ids antes de inserir
+      const { advogados_ids, ...dadosAudiencia } = novaAudiencia;
+
       // Converter data para formato ISO completo (timestamp with time zone)
       let dataAudienciaISO: string | null = null;
-      if (novaAudiencia.data_audiencia) {
+      if (dadosAudiencia.data_audiencia) {
         // Se tiver hora, usar ela; senão usar 12:00
-        const hora = novaAudiencia.hora_brasilia || novaAudiencia.hora || '12:00';
-        dataAudienciaISO = `${novaAudiencia.data_audiencia}T${hora}:00-03:00`;
+        const hora = dadosAudiencia.hora_brasilia || dadosAudiencia.hora || '12:00';
+        dataAudienciaISO = `${dadosAudiencia.data_audiencia}T${hora}:00-03:00`;
       }
 
       const { data: audienciaCriada, error } = await supabase
         .from('audiencias_detectadas')
         .insert({
-          ...novaAudiencia,
+          ...dadosAudiencia,
           data_audiencia: dataAudienciaISO,
           origem: 'manual',
           criado_por: user.id,
-          status: novaAudiencia.status || 'pendente',
+          status: dadosAudiencia.status || 'pendente',
         })
         .select()
         .single();
+
+      if (error) throw error;
+
+      // Inserir advogados responsáveis na tabela de junção
+      if (advogados_ids && advogados_ids.length > 0 && audienciaCriada) {
+        const advogadosInsert = advogados_ids.map(advogadoId => ({
+          audiencia_id: audienciaCriada.id,
+          advogado_id: advogadoId,
+        }));
+
+        await supabase.from('audiencias_advogados').insert(advogadosInsert);
+
+        // Notificar os advogados selecionados
+        const { data: advogadosInfo } = await supabase
+          .from('profiles')
+          .select('id, nome')
+          .in('id', advogados_ids);
+
+        for (const advogado of advogadosInfo || []) {
+          await supabase.from('notificacoes').insert({
+            usuario_id: advogado.id,
+            titulo: '📋 Nova audiência atribuída',
+            mensagem: `Você foi designado para a audiência do processo ${novaAudiencia.processo_numero} em ${novaAudiencia.data_audiencia}`,
+            tipo: 'info',
+            link: '/painel-audiencias',
+            dados: {
+              audiencia_id: audienciaCriada.id,
+              processo_numero: novaAudiencia.processo_numero,
+            },
+          });
+        }
+      }
 
       if (error) throw error;
 
