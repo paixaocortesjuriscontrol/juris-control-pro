@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.processar-alertas-evento]
 verify_jwt = false
+
+[functions.processar-lembretes-audiencia]
+verify_jwt = false

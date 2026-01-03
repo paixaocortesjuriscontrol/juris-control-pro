@@ -507,6 +507,39 @@ export type Database = {
           },
         ]
       }
+      config_alertas_audiencias: {
+        Row: {
+          created_at: string
+          destinatarios_email: string[] | null
+          destinatarios_whatsapp: string[] | null
+          enviar_email_criacao: boolean
+          enviar_whatsapp_criacao: boolean
+          id: string
+          lembretes_minutos: number[] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          destinatarios_email?: string[] | null
+          destinatarios_whatsapp?: string[] | null
+          enviar_email_criacao?: boolean
+          enviar_whatsapp_criacao?: boolean
+          id?: string
+          lembretes_minutos?: number[] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          destinatarios_email?: string[] | null
+          destinatarios_whatsapp?: string[] | null
+          enviar_email_criacao?: boolean
+          enviar_whatsapp_criacao?: boolean
+          id?: string
+          lembretes_minutos?: number[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       configuracoes_monitoramento: {
         Row: {
           ativo: boolean
@@ -869,6 +902,41 @@ export type Database = {
           tipo?: string
         }
         Relationships: []
+      }
+      lembretes_audiencia: {
+        Row: {
+          audiencia_id: string
+          created_at: string
+          enviado: boolean | null
+          enviado_em: string | null
+          id: string
+          minutos_antes: number
+        }
+        Insert: {
+          audiencia_id: string
+          created_at?: string
+          enviado?: boolean | null
+          enviado_em?: string | null
+          id?: string
+          minutos_antes?: number
+        }
+        Update: {
+          audiencia_id?: string
+          created_at?: string
+          enviado?: boolean | null
+          enviado_em?: string | null
+          id?: string
+          minutos_antes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lembretes_audiencia_audiencia_id_fkey"
+            columns: ["audiencia_id"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       membros_coordenacao: {
         Row: {
