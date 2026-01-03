@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Save } from "lucide-react";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, parseISO, isValid } from "date-fns";
+import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
@@ -21,6 +22,7 @@ interface Props {
 export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     data_audiencia: "",
     hora: "",
@@ -41,6 +43,22 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
     observacoes: "",
     status: "pendente",
     providencias_tomadas: "",
+  });
+
+  // Buscar advogados vinculados à audiência
+  const { data: advogadosVinculados = [] } = useQuery({
+    queryKey: ["audiencia-advogados", audiencia?.id],
+    queryFn: async () => {
+      if (!audiencia?.id) return [];
+      const { data, error } = await supabase
+        .from("audiencias_advogados")
+        .select("advogado_id")
+        .eq("audiencia_id", audiencia.id);
+
+      if (error) throw error;
+      return data.map(a => a.advogado_id);
+    },
+    enabled: !!audiencia?.id && open,
   });
 
   useEffect(() => {
@@ -80,6 +98,15 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
       });
     }
   }, [audiencia]);
+
+  // Atualizar advogados selecionados quando carregar os vinculados
+  useEffect(() => {
+    if (advogadosVinculados.length > 0) {
+      setSelectedAdvogados(advogadosVinculados);
+    } else if (audiencia) {
+      setSelectedAdvogados([]);
+    }
+  }, [advogadosVinculados, audiencia]);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -134,7 +161,31 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
 
       if (error) throw error;
 
+      // Atualizar advogados vinculados
+      // Primeiro remove todos os existentes
+      await supabase
+        .from('audiencias_advogados')
+        .delete()
+        .eq('audiencia_id', audiencia.id);
+
+      // Depois insere os novos
+      if (selectedAdvogados.length > 0) {
+        const advogadosInsert = selectedAdvogados.map(advogadoId => ({
+          audiencia_id: audiencia.id,
+          advogado_id: advogadoId,
+        }));
+
+        const { error: advError } = await supabase
+          .from('audiencias_advogados')
+          .insert(advogadosInsert);
+
+        if (advError) {
+          console.error('Erro ao vincular advogados:', advError);
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
+      queryClient.invalidateQueries({ queryKey: ['audiencia-advogados', audiencia.id] });
       toast.success('Audiência atualizada com sucesso!');
       onOpenChange(false);
     } catch (error: any) {
@@ -286,6 +337,12 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
             />
           </div>
 
+          {/* Advogados Responsáveis */}
+          <SelecionarAdvogadosAudiencia
+            selectedAdvogados={selectedAdvogados}
+            onSelectionChange={setSelectedAdvogados}
+          />
+
           {/* Participantes */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
@@ -305,11 +362,12 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="advogado">Advogado</Label>
+              <Label htmlFor="advogado">Advogado (texto)</Label>
               <Input
                 id="advogado"
                 value={formData.advogado}
                 onChange={(e) => handleChange("advogado", e.target.value)}
+                placeholder="Advogado externo ou referência"
               />
             </div>
           </div>
