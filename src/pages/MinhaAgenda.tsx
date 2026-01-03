@@ -34,6 +34,7 @@ import {
   MoreVertical,
   Trash2,
   Edit,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameDay, isToday, differenceInDays } from "date-fns";
@@ -215,81 +216,67 @@ export default function MinhaAgenda() {
 
   const renderEventoCard = (evento: EventoAgenda) => {
     const dataEvento = new Date(evento.data_inicio);
+    const dataFim = evento.data_fim ? new Date(evento.data_fim) : null;
     const diasRestantes = differenceInDays(startOfDay(dataEvento), startOfDay(new Date()));
     const isAtrasado = diasRestantes < 0 && evento.status !== "concluido";
+    const isHoje = isToday(dataEvento);
     
     return (
       <div
         key={evento.id}
         className={cn(
-          "flex items-start gap-4 p-4 border rounded-lg bg-card transition-all hover:shadow-md",
-          evento.status === "concluido" && "opacity-60"
+          "flex flex-col p-4 border rounded-lg bg-card transition-all hover:shadow-md",
+          evento.status === "concluido" && "opacity-60",
+          isAtrasado && "border-destructive/50 bg-destructive/5"
         )}
       >
-        <Checkbox
-          checked={evento.status === "concluido"}
-          onCheckedChange={() => handleConcluirEvento(evento)}
-          className="mt-1"
-        />
-        
-        <div className={cn("w-1 self-stretch rounded-full", TIPO_CORES[evento.tipo] || "bg-gray-400")} />
-        
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs text-muted-foreground">
-              {isToday(dataEvento) ? "Hoje" : format(dataEvento, "EEE, dd MMM yyyy", { locale: ptBR })}
-            </span>
-            <Badge variant="outline" className="text-xs">
-              {TIPO_LABELS[evento.tipo] || evento.tipo.toUpperCase()}
-            </Badge>
-            {evento.recorrente && (
-              <Badge variant="secondary" className="text-xs">Recorrente</Badge>
-            )}
+        {/* Header Row */}
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={evento.status === "concluido"}
+              onCheckedChange={() => handleConcluirEvento(evento)}
+            />
+            <div className={cn("w-1.5 h-8 rounded-full", TIPO_CORES[evento.tipo] || "bg-gray-400")} />
+            <div>
+              <h3 className={cn(
+                "font-semibold text-base text-foreground",
+                evento.status === "concluido" && "line-through text-muted-foreground"
+              )}>
+                {evento.titulo}
+              </h3>
+              <div className="flex items-center gap-2 mt-0.5">
+                <Badge 
+                  variant="outline" 
+                  className={cn(
+                    "text-xs font-medium",
+                    evento.tipo === "audiencia" && "border-purple-500 text-purple-600",
+                    evento.tipo === "prazo" && "border-red-500 text-red-600",
+                    evento.tipo === "tarefa" && "border-amber-500 text-amber-600",
+                    evento.tipo === "evento" && "border-blue-500 text-blue-600"
+                  )}
+                >
+                  {TIPO_LABELS[evento.tipo] || evento.tipo.toUpperCase()}
+                </Badge>
+                {evento.recorrente && (
+                  <Badge variant="secondary" className="text-xs">
+                    <CalendarDays className="w-3 h-3 mr-1" />
+                    Recorrente
+                  </Badge>
+                )}
+                {isAtrasado && (
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    Atrasado {Math.abs(diasRestantes)} dia(s)
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
-          
-          <h3 className={cn(
-            "font-medium text-foreground",
-            evento.status === "concluido" && "line-through"
-          )}>
-            {evento.titulo}
-          </h3>
-          
-          {evento.descricao && (
-            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-              {evento.descricao}
-            </p>
-          )}
-          
-          {evento.processo && (
-            <p className="text-xs text-muted-foreground font-mono mt-1">
-              {evento.processo.numero}
-            </p>
-          )}
-          
-          <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-            {!evento.dia_inteiro && (
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {format(dataEvento, "HH:mm")}
-              </span>
-            )}
-            {evento.local && (
-              <span className="truncate max-w-[150px]">{evento.local}</span>
-            )}
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {isAtrasado && (
-            <Badge variant="destructive" className="text-xs">
-              <AlertTriangle className="w-3 h-3 mr-1" />
-              Atrasado
-            </Badge>
-          )}
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
                 <MoreVertical className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -307,6 +294,88 @@ export default function MinhaAgenda() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
+        
+        {/* Description */}
+        {evento.descricao && (
+          <p className="text-sm text-muted-foreground mb-3 pl-10">
+            {evento.descricao}
+          </p>
+        )}
+        
+        {/* Details Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pl-10 text-sm">
+          {/* Date & Time */}
+          <div className="flex items-start gap-2">
+            <CalendarDays className="w-4 h-4 text-muted-foreground mt-0.5" />
+            <div>
+              <p className={cn("font-medium", isHoje && "text-primary")}>
+                {isHoje ? "Hoje" : format(dataEvento, "dd/MM/yyyy", { locale: ptBR })}
+              </p>
+              {!evento.dia_inteiro && (
+                <p className="text-xs text-muted-foreground">
+                  {format(dataEvento, "HH:mm")}
+                  {dataFim && ` - ${format(dataFim, "HH:mm")}`}
+                </p>
+              )}
+              {evento.dia_inteiro && (
+                <p className="text-xs text-muted-foreground">Dia inteiro</p>
+              )}
+            </div>
+          </div>
+          
+          {/* Process */}
+          {evento.processo && (
+            <div className="flex items-start gap-2">
+              <Tag className="w-4 h-4 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="text-xs text-muted-foreground">Processo</p>
+                <p className="font-mono text-xs">{evento.processo.numero}</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Location */}
+          {evento.local && (
+            <div className="flex items-start gap-2 col-span-2 sm:col-span-1">
+              <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="text-xs text-muted-foreground">Local</p>
+                <p className="text-sm truncate max-w-[180px]">{evento.local}</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Participants */}
+          {evento.participantes && evento.participantes.length > 0 && (
+            <div className="flex items-start gap-2 col-span-2 sm:col-span-1">
+              <Users className="w-4 h-4 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="text-xs text-muted-foreground">Participantes</p>
+                <p className="text-sm">{evento.participantes.length} pessoa(s)</p>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Status indicator */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t pl-10">
+          <div className="flex items-center gap-2">
+            {evento.status === "concluido" ? (
+              <Badge variant="outline" className="text-green-600 border-green-500 bg-green-50">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                Concluído
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-amber-600 border-amber-500 bg-amber-50">
+                <Clock className="w-3 h-3 mr-1" />
+                Pendente
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Criado em {format(new Date(evento.created_at), "dd/MM/yyyy", { locale: ptBR })}
+          </p>
         </div>
       </div>
     );
