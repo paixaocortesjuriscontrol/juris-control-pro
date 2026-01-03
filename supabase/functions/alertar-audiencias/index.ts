@@ -74,8 +74,58 @@ serve(async (req) => {
 
       alertasCriados++;
 
-      // Criar notificação para o criador
-      if (audiencia.criado_por) {
+      // Buscar advogados associados a esta audiência
+      const { data: advogadosAudiencia } = await supabase
+        .from("audiencias_advogados")
+        .select("advogado_id")
+        .eq("audiencia_id", audiencia.id);
+
+      const usuariosParaNotificar: string[] = [];
+
+      // Adicionar advogados associados
+      if (advogadosAudiencia && advogadosAudiencia.length > 0) {
+        advogadosAudiencia.forEach((aa: { advogado_id: string }) => {
+          if (!usuariosParaNotificar.includes(aa.advogado_id)) {
+            usuariosParaNotificar.push(aa.advogado_id);
+          }
+        });
+      }
+
+      // Adicionar criador
+      if (audiencia.criado_por && !usuariosParaNotificar.includes(audiencia.criado_por)) {
+        usuariosParaNotificar.push(audiencia.criado_por);
+      }
+
+      // Buscar processo e notificar responsável e coordenação
+      if (audiencia.processo_numero) {
+        const { data: processo } = await supabase
+          .from("processos")
+          .select("advogado_responsavel_id, coordenacao_id")
+          .eq("numero", audiencia.processo_numero)
+          .maybeSingle();
+
+        if (processo) {
+          if (processo.advogado_responsavel_id && !usuariosParaNotificar.includes(processo.advogado_responsavel_id)) {
+            usuariosParaNotificar.push(processo.advogado_responsavel_id);
+          }
+
+          if (processo.coordenacao_id) {
+            const { data: membros } = await supabase
+              .from("membros_coordenacao")
+              .select("usuario_id")
+              .eq("coordenacao_id", processo.coordenacao_id);
+
+            membros?.forEach((m: { usuario_id: string }) => {
+              if (!usuariosParaNotificar.includes(m.usuario_id)) {
+                usuariosParaNotificar.push(m.usuario_id);
+              }
+            });
+          }
+        }
+      }
+
+      // Criar notificações
+      for (const usuarioId of usuariosParaNotificar) {
         let titulo = "";
         let mensagem = "";
         const dataFormatada = new Date(audiencia.data_audiencia).toLocaleDateString("pt-BR");
@@ -95,7 +145,7 @@ serve(async (req) => {
         const { error: notifError } = await supabase
           .from("notificacoes")
           .insert({
-            usuario_id: audiencia.criado_por,
+            usuario_id: usuarioId,
             titulo,
             mensagem,
             tipo: diasRestantes === 0 ? "warning" : "info",
