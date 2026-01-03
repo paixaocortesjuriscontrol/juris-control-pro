@@ -86,13 +86,14 @@ serve(async (req) => {
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const ZAPI_INSTANCE_ID = Deno.env.get("ZAPI_INSTANCE_ID");
     const ZAPI_TOKEN = Deno.env.get("ZAPI_TOKEN");
+    const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN");
 
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
       throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY não configurados");
     }
 
-    if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN) {
-      throw new Error("Credenciais da Z-API não configuradas");
+    if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
+      throw new Error("Credenciais da Z-API não configuradas (INSTANCE_ID, TOKEN ou CLIENT_TOKEN)");
     }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -240,7 +241,10 @@ serve(async (req) => {
 
           const resp = await fetch(zapiUrl, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "Client-Token": ZAPI_CLIENT_TOKEN,
+            },
             body: JSON.stringify({ phone: telFmt, message: mensagem }),
           });
 
