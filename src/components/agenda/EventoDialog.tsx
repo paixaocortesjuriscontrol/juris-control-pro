@@ -21,6 +21,7 @@ import { useCreateEvento, useUpdateEvento, EventoAgenda } from "@/hooks/useEvent
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, X, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -130,8 +131,9 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
 
   useEffect(() => {
     if (evento) {
-      const dataInicio = new Date(evento.data_inicio);
-      const dataFim = evento.data_fim ? new Date(evento.data_fim) : null;
+      // Converter para horário de Brasília usando date-fns-tz
+      const dataInicio = toZonedTime(new Date(evento.data_inicio), 'America/Sao_Paulo');
+      const dataFim = evento.data_fim ? toZonedTime(new Date(evento.data_fim), 'America/Sao_Paulo') : null;
       
       setFormData({
         titulo: evento.titulo,
@@ -176,14 +178,15 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Salvar com offset de Brasília (-03:00) para garantir que o horário seja preservado
     const dataInicio = formData.dia_inteiro
-      ? `${formData.data_inicio}T00:00:00`
-      : `${formData.data_inicio}T${formData.hora_inicio}:00`;
+      ? `${formData.data_inicio}T00:00:00-03:00`
+      : `${formData.data_inicio}T${formData.hora_inicio}:00-03:00`;
 
     const dataFim = formData.data_fim
       ? formData.dia_inteiro
-        ? `${formData.data_fim}T23:59:59`
-        : `${formData.data_fim}T${formData.hora_fim || formData.hora_inicio}:00`
+        ? `${formData.data_fim}T23:59:59-03:00`
+        : `${formData.data_fim}T${formData.hora_fim || formData.hora_inicio}:00-03:00`
       : undefined;
 
     const eventoData = {

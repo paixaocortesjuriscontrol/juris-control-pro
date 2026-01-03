@@ -39,6 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameDay, isToday, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toZonedTime } from "date-fns-tz";
 import { useEventosAgenda, useEventoStats, useUpdateEvento, useDeleteEvento, EventoAgenda, EventoFilters } from "@/hooks/useEventosAgenda";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { useQuery } from "@tanstack/react-query";
@@ -215,8 +216,9 @@ export default function MinhaAgenda() {
   };
 
   const renderEventoCard = (evento: EventoAgenda) => {
-    const dataEvento = new Date(evento.data_inicio);
-    const dataFim = evento.data_fim ? new Date(evento.data_fim) : null;
+    // Converter para horário de Brasília
+    const dataEvento = toZonedTime(new Date(evento.data_inicio), 'America/Sao_Paulo');
+    const dataFim = evento.data_fim ? toZonedTime(new Date(evento.data_fim), 'America/Sao_Paulo') : null;
     const diasRestantes = differenceInDays(startOfDay(dataEvento), startOfDay(new Date()));
     const isAtrasado = diasRestantes < 0 && evento.status !== "concluido";
     const isHoje = isToday(dataEvento);
