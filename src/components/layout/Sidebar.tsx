@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: Calendar, label: "Minha Agenda", path: "/minha-agenda" },
   { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: ClipboardList, label: "Painel da Equipe", path: "/painel-equipe" },
