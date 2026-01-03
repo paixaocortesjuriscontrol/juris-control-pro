@@ -188,6 +188,8 @@ serve(async (req) => {
         if (partError) throw partError;
 
         const userIds = (participantes || []).map((p: any) => p.usuario_id).filter(Boolean);
+        console.log(`[processar-alertas-evento] Evento ${evento.id} - Participantes: ${userIds.length}`, userIds);
+        
         if (userIds.length === 0) {
           // Mantém o alerta pendente para permitir que participantes sejam adicionados depois
           results.push({ alerta_id: alertaId, evento_id: evento.id, status: "sem_participantes" });
@@ -197,14 +199,18 @@ serve(async (req) => {
         // Buscar telefones
         const { data: perfis, error: perfisError } = await supabase
           .from("profiles")
-          .select("id, telefone")
+          .select("id, nome, telefone")
           .in("id", userIds);
 
         if (perfisError) throw perfisError;
 
+        console.log(`[processar-alertas-evento] Perfis encontrados:`, perfis?.map((p: any) => ({ nome: p.nome, telefone: p.telefone })));
+
         const telefones = (perfis || [])
           .map((p: any) => p.telefone as string | null)
           .filter((t: string | null) => !!t) as string[];
+
+        console.log(`[processar-alertas-evento] Telefones válidos: ${telefones.length}`, telefones);
 
         if (telefones.length === 0) {
           // Mantém o alerta pendente para permitir que os usuários preencham o telefone depois
