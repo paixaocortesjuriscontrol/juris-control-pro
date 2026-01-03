@@ -22,7 +22,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search } from "lucide-react";
+import { Search, X, UserPlus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface EventoDialogProps {
   open: boolean;
@@ -417,6 +418,26 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
             <div className="border rounded-lg p-4 space-y-3">
               <Label className="font-medium">Participantes</Label>
               
+              {/* Selected participants as chips */}
+              {formData.participantes_ids.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-2 bg-muted/50 rounded-md">
+                  {formData.participantes_ids.map(id => {
+                    const user = usuarios?.find(u => u.id === id);
+                    return (
+                      <Badge
+                        key={id}
+                        variant="secondary"
+                        className="flex items-center gap-1 pr-1 cursor-pointer hover:bg-destructive/20"
+                        onClick={() => toggleParticipante(id)}
+                      >
+                        {user?.nome || "Carregando..."}
+                        <X className="w-3 h-3 ml-1" />
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+              
               <div className="flex flex-col sm:flex-row gap-2">
                 <Select value={coordenacaoFiltro} onValueChange={setCoordenacaoFiltro}>
                   <SelectTrigger className="w-full sm:w-48">
@@ -444,30 +465,22 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
               </div>
               
               <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                {filteredUsuarios?.map((usuario) => (
-                  <div key={usuario.id} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`user-${usuario.id}`}
-                      checked={formData.participantes_ids.includes(usuario.id)}
-                      onCheckedChange={() => toggleParticipante(usuario.id)}
-                    />
-                    <Label htmlFor={`user-${usuario.id}`} className="cursor-pointer text-sm">
-                      {usuario.nome}
-                    </Label>
+                {filteredUsuarios?.filter(u => !formData.participantes_ids.includes(u.id)).map((usuario) => (
+                  <div 
+                    key={usuario.id} 
+                    className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer"
+                    onClick={() => toggleParticipante(usuario.id)}
+                  >
+                    <UserPlus className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">{usuario.nome}</span>
                   </div>
                 ))}
-                {filteredUsuarios?.length === 0 && (
+                {filteredUsuarios?.filter(u => !formData.participantes_ids.includes(u.id)).length === 0 && (
                   <p className="col-span-2 text-sm text-muted-foreground text-center py-2">
-                    Nenhum participante encontrado
+                    {formData.participantes_ids.length > 0 ? "Todos já adicionados" : "Nenhum participante encontrado"}
                   </p>
                 )}
               </div>
-              
-              {formData.participantes_ids.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {formData.participantes_ids.length} participante(s) selecionado(s)
-                </p>
-              )}
             </div>
 
             {/* Alertas */}
