@@ -62,3 +62,6 @@ verify_jwt = true
 
 [functions.monitorar-djen-processos]
 verify_jwt = false
+
+[functions.processar-alertas-evento]
+verify_jwt = false
