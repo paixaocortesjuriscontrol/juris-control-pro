@@ -6,7 +6,8 @@ import {
   PieChart,
   User,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Gavel
 } from "lucide-react";
 import {
   Card,
@@ -86,6 +87,7 @@ export function RelatorioResumo({ isActive }: RelatorioResumoProps) {
     processosPerArea,
     processosPorTipoPessoa,
     processosMensais,
+    processosMptStatus,
   } = data;
 
   return (
@@ -258,7 +260,7 @@ export function RelatorioResumo({ isActive }: RelatorioResumoProps) {
         </Card>
 
         {/* Movimentação Mensal */}
-        <Card className="animate-slide-up lg:col-span-2" style={{ animationDelay: "150ms" }}>
+        <Card className="animate-slide-up" style={{ animationDelay: "150ms" }}>
           <CardHeader>
             <CardTitle className="font-serif flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-gold" />
@@ -291,6 +293,59 @@ export function RelatorioResumo({ isActive }: RelatorioResumoProps) {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Processos MPT por Status */}
+        <Card className="animate-slide-up" style={{ animationDelay: "200ms" }}>
+          <CardHeader>
+            <CardTitle className="font-serif flex items-center gap-2">
+              <Gavel className="w-5 h-5 text-gold" />
+              Processos do Ministério Público por Situação
+            </CardTitle>
+            <CardDescription>Distribuição por status (matéria MPT)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!processosMptStatus || processosMptStatus.length === 0 ? (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                Nenhum processo do Ministério Público cadastrado
+              </div>
+            ) : (
+              <>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Pie
+                        data={processosMptStatus}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label={({ name, value }) => value > 0 ? `${name}: ${value}` : ""}
+                      >
+                        {processosMptStatus.map((entry: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap justify-center gap-4 mt-4">
+                  {processosMptStatus.map((status: any) => (
+                    <div key={status.name} className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: status.color }}
+                      />
+                      <span className="text-sm text-muted-foreground">{status.name} ({status.value})</span>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
