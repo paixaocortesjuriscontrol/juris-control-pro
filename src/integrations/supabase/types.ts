@@ -2135,8 +2135,16 @@ export type Database = {
       }
     }
     Functions: {
+      can_access_evento: {
+        Args: { _evento_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_access_processo: {
         Args: { _processo_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_manage_evento: {
+        Args: { _evento_id: string; _user_id: string }
         Returns: boolean
       }
       get_coordenacao_stats: {
