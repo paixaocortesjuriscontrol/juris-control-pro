@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
@@ -351,6 +351,13 @@ export default function ImportarProcessos() {
   const [polyanaImporting, setPolyanaImporting] = useState(false);
   const [polyanaProgress, setPolyanaProgress] = useState(0);
   const [polyanaBuscarAndamentos, setPolyanaBuscarAndamentos] = useState(true);
+
+  // Ministério Público import states
+  const [mptFile, setMptFile] = useState<File | null>(null);
+  const [mptProcessos, setMptProcessos] = useState<ProcessoImport[]>([]);
+  const [mptImporting, setMptImporting] = useState(false);
+  const [mptProgress, setMptProgress] = useState(0);
+  const [mptBuscarAndamentos, setMptBuscarAndamentos] = useState(true);
 
   // Excel/Planilha import state for andamentos
   const [planilhaBuscarAndamentos, setPlanilhaBuscarAndamentos] = useState(true);
@@ -2979,11 +2986,416 @@ export default function ImportarProcessos() {
   const polyanaErrorCount = polyanaProcessos.filter(p => p.status === "erro").length;
   const polyanaTotalProblemas = polyanaInvalidCount + polyanaErrorCount + polyanaWarningCount;
 
+  // Ministério Público file handling
+  const handleMptFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setMptFile(selectedFile);
+      parseMptExcel(selectedFile);
+    }
+  }, []);
+
+  const parseMptExcel = async (file: File) => {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+
+      const range = sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null;
+      const expectedRows = range ? Math.max(0, range.e.r - range.s.r) : 0;
+
+      const aoa = XLSX.utils.sheet_to_json<any[]>(sheet, {
+        header: 1,
+        defval: null,
+        blankrows: true,
+      }) as any[][];
+
+      const headerRow = (aoa[0] || []).map((h) => String(h ?? "").trim());
+
+      const normalizeHeaderKey = (value: string) =>
+        value
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const getFromRow = (rowObj: Record<string, any>, keys: string[]) => {
+        for (const k of keys) {
+          if (k in rowObj) return rowObj[k];
+        }
+        const normalizedRow: Record<string, any> = {};
+        for (const [k, v] of Object.entries(rowObj)) {
+          const nk = normalizeHeaderKey(k);
+          if (!normalizedRow[nk]) normalizedRow[nk] = v;
+        }
+        for (const k of keys) {
+          const nk = normalizeHeaderKey(k);
+          if (nk in normalizedRow) return normalizedRow[nk];
+        }
+        return null;
+      };
+
+      const totalDataRows = expectedRows || Math.max(0, aoa.length - 1);
+
+      const parsed: ProcessoImport[] = Array.from({ length: totalDataRows }).map((_, index) => {
+        const rowArr = aoa[index + 1] || [];
+
+        const row: Record<string, any> = {};
+        headerRow.forEach((header, colIndex) => {
+          if (!header) return;
+          row[header] = rowArr[colIndex] ?? null;
+        });
+
+        const rowHasAnyValue = rowArr.some((v) => {
+          if (v === null || v === undefined) return false;
+          if (typeof v === "string") return v.trim() !== "";
+          return true;
+        });
+
+        // PROCEDIMENTO vai para o campo "numero" (processo)
+        const procedimento = getFromRow(row, [
+          "PROCEDIMENTO",
+          "Procedimento",
+          "procedimento",
+        ]) || "";
+
+        const processo: ProcessoImport = {
+          numero: String(procedimento ?? "").trim(),
+          assunto: row["MATÉRIA"] || row["Matéria"] || row["MATERIA"] || null,
+          situacao: row["STATUS"] || row["Status"] || null,
+          responsavel: null,
+          descricao: row["Observação Advogado Responsável"] || row["OBSERVAÇÃO ADVOGADO RESPONSÁVEL"] || null,
+          justica: null,
+          cidade: row["LOCALIDADE"] || row["Localidade"] || null,
+          estado: row["UF"] || row["Uf"] || null,
+          instancia: null,
+          orgao: null,
+          orgaoJulgador: null,
+          sistema: null,
+          area: "trabalhista",
+          fase: null,
+          dataDistribuicao: null,
+          classeCNJ: null,
+          valorAcao: null,
+          parteAtiva: row["AUTOR"] || row["Autor"] || null,
+          partePassiva: row["REQUERIDO"] || row["Requerido"] || null,
+          cpfCnpjAtivo: null,
+          cpfCnpjPassivo: null,
+          status: "pendente",
+          erros: [],
+          linhaOriginal: index + 2,
+          identificadorProjuris: null,
+          pastaFisica: null,
+          pastaCliente: null,
+          dataCitacao: null,
+          dataRecebimento: null,
+          dataArquivamento: null,
+          valorProvisionado: null,
+          probabilidade: null,
+          risco: null,
+          transitadoJulgado: null,
+          resultado: null,
+          valorCondenacao: null,
+        };
+
+        // Store MPT-specific data
+        (processo as any).mptData = {
+          procedimento: procedimento,
+          localidade: row["LOCALIDADE"] || row["Localidade"] || null,
+          uf: row["UF"] || row["Uf"] || null,
+          autor: row["AUTOR"] || row["Autor"] || null,
+          requerido: row["REQUERIDO"] || row["Requerido"] || null,
+          materia: row["MATÉRIA"] || row["Matéria"] || row["MATERIA"] || null,
+          ultimoAndamento: row["ÚLTIMO ANDAMENTO"] || row["Último Andamento"] || row["ULTIMO ANDAMENTO"] || null,
+          status: row["STATUS"] || row["Status"] || null,
+          observacaoAdvogado: row["Observação Advogado Responsável"] || row["OBSERVAÇÃO ADVOGADO RESPONSÁVEL"] || null,
+        };
+
+        // Validação
+        processo.erros = validateProcesso(processo);
+
+        const numeroTrimmed = (processo.numero || "").trim();
+        const isEmptyRow = !rowHasAnyValue;
+        const hasInvalidNumero = !numeroTrimmed || numeroTrimmed.length < 5;
+
+        if (isEmptyRow || hasInvalidNumero) {
+          const motivo = isEmptyRow
+            ? "Linha vazia na planilha"
+            : !numeroTrimmed
+              ? "Procedimento vazio ou não encontrado na planilha"
+              : `Procedimento muito curto (${numeroTrimmed.length} caracteres, mínimo 5)`;
+
+          processo.status = "invalido";
+          processo.erroImport = motivo;
+          processo.erros = [{ campo: "numero", mensagem: motivo }];
+        } else {
+          processo.status = "valido";
+        }
+
+        return processo;
+      });
+
+      setMptProcessos(parsed);
+
+      const validCount = parsed.filter((p) => p.status === "valido").length;
+      const invalidCount = parsed.filter((p) => p.status === "invalido").length;
+
+      if (parsed.length === 0) {
+        toast({
+          title: "Nenhum processo encontrado",
+          description: "A planilha não contém dados.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Planilha carregada",
+          description: `${parsed.length} linha(s) lida(s): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
+          variant: invalidCount > 0 ? "destructive" : "default",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao ler planilha MPT:", error);
+      toast({
+        title: "Erro ao ler planilha",
+        description: "Verifique se o arquivo está no formato correto (.xlsx ou .xls).",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMptImport = async () => {
+    const validProcessos = mptProcessos.filter(p => p.status === "valido");
+    const invalidProcessos = mptProcessos.filter(p => p.status === "invalido");
+    
+    if (validProcessos.length === 0 && invalidProcessos.length === 0) {
+      toast({
+        title: "Nenhum processo para processar",
+        description: "A planilha não contém dados válidos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setMptImporting(true);
+    startImport("Importando Ministério Público");
+    setMptProgress(0);
+
+    const updatedProcessos = [...mptProcessos];
+    let successCountLocal = 0;
+    let updateCountLocal = 0;
+    let errorCountLocal = 0;
+    let rejectedCountLocal = 0;
+
+    for (let i = 0; i < updatedProcessos.length; i++) {
+      const processo = updatedProcessos[i];
+      
+      if (processo.status === "invalido") {
+        const motivo = !processo.numero || processo.numero.trim() === "" 
+          ? "Procedimento vazio ou não encontrado na planilha"
+          : processo.numero.trim().length < 5 
+            ? `Procedimento muito curto (${processo.numero.trim().length} caracteres, mínimo 5)`
+            : "Dados insuficientes para importação";
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "invalido", 
+          erroImport: motivo,
+          erros: processo.erros.length > 0 ? processo.erros : [{ campo: "numero", mensagem: motivo }]
+        };
+        rejectedCountLocal++;
+        setMptProgress(((i + 1) / updatedProcessos.length) * 100);
+        setMptProcessos([...updatedProcessos]);
+        continue;
+      }
+
+      try {
+        const mptData = (processo as any).mptData || {};
+
+        // Verificar se processo já existe
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processo.numero.trim())
+          .maybeSingle();
+
+        const areaSlug = await ensureAreaExists("trabalhista");
+
+        const processoData: any = {
+          numero: processo.numero.trim(),
+          area: areaSlug,
+          status: mapStatusToEnum(mptData.status),
+          situacao_original: getSituacaoOriginal(mptData.status),
+          assunto: mptData.materia,
+          polo_ativo: mptData.autor,
+          polo_passivo: mptData.requerido,
+          uf: mptData.uf,
+          // Novos campos específicos do MPT
+          localidade: mptData.localidade,
+          autor: mptData.autor,
+          requerido: mptData.requerido,
+          materia_mpt: mptData.materia,
+          ultimo_andamento_mpt: mptData.ultimoAndamento,
+          observacao_advogado: mptData.observacaoAdvogado,
+          monitorar_andamentos: mptBuscarAndamentos,
+          // Coordenação e advogado podem ser selecionados
+          coordenacao_id: selectedCoordenacao || null,
+          advogado_responsavel_id: selectedMembro || null,
+          cliente_id: selectedCliente || null,
+        };
+
+        let isUpdate = false;
+
+        if (existingProcesso) {
+          // Update existente
+          const { error } = await supabase
+            .from("processos")
+            .update(processoData)
+            .eq("id", existingProcesso.id);
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            errorCountLocal++;
+            continue;
+          }
+          isUpdate = true;
+        } else {
+          // Insert novo
+          const { data: insertedProcesso, error } = await supabase
+            .from("processos")
+            .insert(processoData as any)
+            .select("id")
+            .single();
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            errorCountLocal++;
+            continue;
+          }
+
+          if (mptBuscarAndamentos && insertedProcesso) {
+            const andamentosRes = await buscarAndamentosExternos(insertedProcesso.id, processo.numero.trim());
+            if (!andamentosRes.success) {
+              console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+            }
+          }
+        }
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "sucesso", 
+          erroImport: isUpdate ? "Atualizado (já existia)" : undefined 
+        };
+        if (isUpdate) {
+          updateCountLocal++;
+        } else {
+          successCountLocal++;
+        }
+      } catch (err: any) {
+        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
+        errorCountLocal++;
+      }
+
+      setMptProgress(((i + 1) / updatedProcessos.length) * 100);
+      setMptProcessos([...updatedProcessos]);
+    }
+
+    setMptImporting(false);
+    endImport();
+
+    const totalProcessed = successCountLocal + updateCountLocal + errorCountLocal + rejectedCountLocal;
+    const newRecords = successCountLocal;
+    const updatedRecords = updateCountLocal;
+    
+    toast({
+      title: "Importação MPT concluída",
+      description: `${newRecords} novo(s), ${updatedRecords} atualizado(s), ${rejectedCountLocal} rejeitado(s), ${errorCountLocal} erro(s). Total: ${totalProcessed}/${updatedProcessos.length}`,
+      variant: errorCountLocal > 0 || rejectedCountLocal > 0 ? "destructive" : "default",
+    });
+
+    if (rejectedCountLocal > 0 || errorCountLocal > 0) {
+      setTimeout(() => downloadMptRejeitados(updatedProcessos), 0);
+    }
+  };
+
+  const downloadMptRejeitados = (processosToExport: ProcessoImport[] = mptProcessos) => {
+    const rejeitados = processosToExport.filter((p) => p.status === "invalido" || p.status === "erro");
+    const comAvisos = processosToExport.filter(
+      (p) => (p.status === "sucesso" || p.status === "valido") && p.erros.length > 0
+    );
+
+    if (rejeitados.length === 0 && comAvisos.length === 0) {
+      toast({
+        title: "Nenhum problema encontrado",
+        description: "Não há processos rejeitados ou com avisos para exportar.",
+      });
+      return;
+    }
+
+    const rejeitadosData = rejeitados.map((p) => ({
+      Linha: p.linhaOriginal,
+      "Procedimento": p.numero || "(vazio)",
+      Autor: p.parteAtiva,
+      Requerido: p.partePassiva,
+      UF: p.estado,
+      Status: p.situacao,
+      Tipo: "REJEITADO",
+      Motivo:
+        p.erros.map((e) => `${e.campo}: ${e.mensagem}`).join("; ") ||
+        p.erroImport ||
+        "Erro crítico",
+    }));
+
+    const avisosData = comAvisos.map((p) => ({
+      Linha: p.linhaOriginal,
+      "Procedimento": p.numero,
+      Autor: p.parteAtiva,
+      Requerido: p.partePassiva,
+      UF: p.estado,
+      Status: p.situacao,
+      Tipo: "IMPORTADO COM AVISOS",
+      Avisos: p.erros.map((e) => `${e.campo}: ${e.mensagem}`).join("; "),
+    }));
+
+    const allData = [...rejeitadosData, ...avisosData];
+
+    const ws = XLSX.utils.json_to_sheet(allData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Problemas");
+
+    const colWidths = Object.keys(allData[0] || {}).map((key) => ({
+      wch: Math.max(key.length, 15),
+    }));
+    ws["!cols"] = colWidths;
+
+    XLSX.writeFile(wb, `mpt_problemas_${new Date().toISOString().split("T")[0]}.xlsx`);
+
+    toast({
+      title: "Arquivo gerado",
+      description: `${rejeitados.length} rejeitado(s), ${comAvisos.length} com avisos.`,
+    });
+  };
+
+  const clearMpt = () => {
+    setMptFile(null);
+    setMptProcessos([]);
+    setMptProgress(0);
+  };
+
+  // MPT counts
+  const mptValidCount = mptProcessos.filter(p => p.status === "valido").length;
+  const mptInvalidCount = mptProcessos.filter(p => p.status === "invalido").length;
+  const mptWarningCount = mptProcessos.filter(p => (p.status === "valido" || p.status === "sucesso") && p.erros.length > 0).length;
+  const mptSuccessCount = mptProcessos.filter(p => p.status === "sucesso").length;
+  const mptErrorCount = mptProcessos.filter(p => p.status === "erro").length;
+  const mptTotalProblemas = mptInvalidCount + mptErrorCount + mptWarningCount;
+
   return (
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 max-w-3xl">
+          <TabsList className="grid w-full grid-cols-7 max-w-4xl">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -3007,6 +3419,10 @@ export default function ImportarProcessos() {
             <TabsTrigger value="polyana" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               <span className="hidden sm:inline">Dra. Polyana</span>
+            </TabsTrigger>
+            <TabsTrigger value="mpt" className="flex items-center gap-2">
+              <Gavel className="h-4 w-4" />
+              <span className="hidden sm:inline">Min. Público</span>
             </TabsTrigger>
           </TabsList>
 
@@ -4696,6 +5112,312 @@ export default function ImportarProcessos() {
                                 </TableCell>
                                 <TableCell>{(processo as any).polyanaData?.faseProcesso || processo.fase || "-"}</TableCell>
                                 <TableCell>{(processo as any).polyanaData?.valorCausa || "-"}</TableCell>
+                                <TableCell className="text-sm">
+                                  {processo.status === "invalido" && processo.erros.length > 0 && (
+                                    <div className="text-red-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>• {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {(processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 && (
+                                    <div className="text-yellow-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>⚠ {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {processo.erroImport && (
+                                    <div className="text-orange-600">• Importação: {processo.erroImport}</div>
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length === 0 && "-"}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && <span className="text-blue-600">Importado com sucesso</span>}
+                                  {processo.status === "sucesso" && processo.erros.length > 0 && <span className="text-yellow-600 block mt-1">Importado com avisos</span>}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab: Ministério Público */}
+          <TabsContent value="mpt" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Gavel className="h-5 w-5" />
+                  Importar Ministério Público
+                </CardTitle>
+                <CardDescription>
+                  Importe processos do Ministério Público do Trabalho. Processos existentes serão atualizados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">Faça upload da planilha</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    A planilha deve conter as colunas: PROCEDIMENTO, LOCALIDADE, UF, AUTOR, REQUERIDO, MATÉRIA, ÚLTIMO ANDAMENTO, STATUS, Observação Advogado Responsável.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleMptFileChange}
+                      className="max-w-xs"
+                      disabled={mptImporting}
+                    />
+                    {mptFile && (
+                      <Button variant="outline" onClick={clearMpt} disabled={mptImporting}>
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Coordenação Selection */}
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="coordenacao-mpt" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Coordenação Responsável
+                  </Label>
+                  <Select 
+                    value={selectedCoordenacao} 
+                    onValueChange={(value) => {
+                      setSelectedCoordenacao(value);
+                      setSelectedMembro("");
+                    }}
+                    disabled={mptImporting}
+                  >
+                    <SelectTrigger id="coordenacao-mpt" className="max-w-md">
+                      <SelectValue placeholder="Selecione a coordenação (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.nome} ({coord.area})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Member Selection */}
+                {selectedCoordenacao && membrosDisponiveis.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="membro-mpt" className="flex items-center gap-2">
+                      Advogado Responsável (opcional)
+                    </Label>
+                    <Select 
+                      value={selectedMembro} 
+                      onValueChange={setSelectedMembro}
+                      disabled={mptImporting}
+                    >
+                      <SelectTrigger id="membro-mpt" className="max-w-md">
+                        <SelectValue placeholder="Selecione o advogado responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membrosDisponiveis.map((membro) => (
+                          <SelectItem key={membro.id} value={membro.id}>
+                            {membro.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Cliente Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="cliente-mpt" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Cliente (opcional)
+                  </Label>
+                  <Select 
+                    value={selectedCliente} 
+                    onValueChange={setSelectedCliente}
+                    disabled={mptImporting}
+                  >
+                    <SelectTrigger id="cliente-mpt" className="max-w-md">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Opção de buscar andamentos */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="buscar-andamentos-mpt" className="flex items-center gap-2 font-medium">
+                      <Clock className="h-4 w-4" />
+                      Buscar andamentos na importação
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {mptBuscarAndamentos 
+                        ? "Os andamentos serão buscados durante a importação e o processo ficará habilitado para monitoramento automático."
+                        : "Os andamentos NÃO serão buscados e o processo ficará desabilitado para monitoramento."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="buscar-andamentos-mpt"
+                    checked={mptBuscarAndamentos}
+                    onCheckedChange={setMptBuscarAndamentos}
+                    disabled={mptImporting}
+                  />
+                </div>
+                
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Colunas reconhecidas:</strong> PROCEDIMENTO (número do processo), LOCALIDADE, UF, AUTOR, REQUERIDO, MATÉRIA, ÚLTIMO ANDAMENTO, STATUS, Observação Advogado Responsável.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* MPT File Preview */}
+            {mptFile && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle>Pré-visualização MPT</CardTitle>
+                      <CardDescription>
+                        {mptProcessos.length} processo(s) encontrado(s) em "{mptFile.name}"
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {mptProcessos.length > 0 && (
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                            {mptValidCount} importáveis
+                          </Badge>
+                          {mptWarningCount > 0 && (
+                            <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-200">
+                              {mptWarningCount} com avisos
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                            {mptInvalidCount} rejeitados
+                          </Badge>
+                          {mptSuccessCount > 0 && (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
+                              {mptSuccessCount} importados
+                            </Badge>
+                          )}
+                          {mptErrorCount > 0 && (
+                            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
+                              {mptErrorCount} erros
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {mptTotalProblemas > 0 && (
+                          <Button variant="outline" onClick={() => downloadMptRejeitados()}>
+                            <FileDown className="h-4 w-4 mr-2" />
+                            Baixar Problemas ({mptTotalProblemas})
+                          </Button>
+                        )}
+                        <Button 
+                          onClick={handleMptImport} 
+                          disabled={mptImporting || mptValidCount === 0}
+                        >
+                          {mptImporting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Importando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Importar ({mptValidCount})
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {mptImporting && (
+                    <Progress value={mptProgress} className="mt-4" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {mptProcessos.length === 0 ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Nenhum processo encontrado na planilha. Verifique se é uma planilha no formato correto.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="max-h-[500px] overflow-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead className="w-[60px]">Linha</TableHead>
+                              <TableHead className="w-[60px]">Status</TableHead>
+                              <TableHead>Procedimento</TableHead>
+                              <TableHead>Autor</TableHead>
+                              <TableHead>Requerido</TableHead>
+                              <TableHead>UF</TableHead>
+                              <TableHead>Status Proc.</TableHead>
+                              <TableHead className="min-w-[300px]">Avisos/Erros</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {mptProcessos.map((processo, index) => (
+                              <TableRow key={index} className={
+                                processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : 
+                                processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : 
+                                (processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 ? "bg-yellow-50 dark:bg-yellow-950/20" : ""
+                              }>
+                                <TableCell className="text-muted-foreground">
+                                  {processo.linhaOriginal}
+                                </TableCell>
+                                <TableCell>
+                                  {processo.status === "valido" && processo.erros.length === 0 && (
+                                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length > 0 && (
+                                    <AlertCircle className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                  {processo.status === "invalido" && (
+                                    <XCircle className="h-4 w-4 text-red-500" />
+                                  )}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && (
+                                    <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                                  )}
+                                  {processo.status === "sucesso" && processo.erros.length > 0 && (
+                                    <CheckCircle2 className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                  {processo.status === "erro" && (
+                                    <XCircle className="h-4 w-4 text-orange-500" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {processo.numero || <span className="text-red-500 italic">vazio</span>}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.parteAtiva || "-"}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.partePassiva || "-"}
+                                </TableCell>
+                                <TableCell>{processo.estado || "-"}</TableCell>
+                                <TableCell>{processo.situacao || "-"}</TableCell>
                                 <TableCell className="text-sm">
                                   {processo.status === "invalido" && processo.erros.length > 0 && (
                                     <div className="text-red-600 space-y-1">
