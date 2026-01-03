@@ -133,11 +133,29 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
     );
   }, [usuarios, participanteSearch]);
 
+  // Carregar alertas do evento ao editar
+  const { data: alertasEvento } = useQuery({
+    queryKey: ["alertas-evento", evento?.id],
+    queryFn: async () => {
+      if (!evento?.id) return [];
+      const { data, error } = await supabase
+        .from("alertas_evento")
+        .select("minutos_antes")
+        .eq("evento_id", evento.id);
+      if (error) throw error;
+      return data?.map(a => a.minutos_antes) || [];
+    },
+    enabled: !!evento?.id && open,
+  });
+
   useEffect(() => {
     if (evento) {
       // Converter para horário de Brasília usando date-fns-tz
       const dataInicio = toZonedTime(new Date(evento.data_inicio), 'America/Sao_Paulo');
       const dataFim = evento.data_fim ? toZonedTime(new Date(evento.data_fim), 'America/Sao_Paulo') : null;
+      
+      // Usar alertas do banco se disponíveis, senão usar [30] como padrão
+      const alertas = alertasEvento && alertasEvento.length > 0 ? alertasEvento : [30];
       
       setFormData({
         titulo: evento.titulo,
@@ -155,7 +173,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
         recorrencia_fim: evento.recorrencia_fim || "",
         processo_id: evento.processo_id || "",
         participantes_ids: evento.participantes?.map(p => p.usuario_id) || [],
-        alerta_minutos: [30],
+        alerta_minutos: alertas,
         enviar_whatsapp: false, // Não enviar WhatsApp ao editar por padrão
       });
     } else {
@@ -179,7 +197,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
         enviar_whatsapp: true, // Enviar WhatsApp por padrão ao criar
       });
     }
-  }, [evento, open]);
+  }, [evento, open, alertasEvento]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
