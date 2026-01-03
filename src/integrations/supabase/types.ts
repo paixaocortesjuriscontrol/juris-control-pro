@@ -1465,6 +1465,7 @@ export type Database = {
           area: string
           assunto: string | null
           ativo_passivo: string | null
+          autor: string | null
           classe: string | null
           cliente_id: string | null
           comarca: string | null
@@ -1493,11 +1494,14 @@ export type Database = {
           instancia: string | null
           justica: string | null
           justificativa_risco: string | null
+          localidade: string | null
           materia: string | null
+          materia_mpt: string | null
           monitorar_andamentos: boolean
           mudanca_risco: boolean | null
           natureza: string | null
           numero: string
+          observacao_advogado: string | null
           observacoes_processo: string | null
           pasta_cliente: string | null
           pasta_fisica: string | null
@@ -1514,6 +1518,7 @@ export type Database = {
           provisionamento_remoto: number | null
           reclamados: string | null
           reclamante: string | null
+          requerido: string | null
           responsabilidade_antes_data: number | null
           responsabilidade_apos_data: number | null
           responsabilidade_tipo: string | null
@@ -1532,6 +1537,7 @@ export type Database = {
           transitado_julgado: boolean | null
           tribunal: string | null
           uf: string | null
+          ultimo_andamento_mpt: string | null
           unidade_cliente: string | null
           updated_at: string
           valor_causa: number | null
@@ -1551,6 +1557,7 @@ export type Database = {
           area: string
           assunto?: string | null
           ativo_passivo?: string | null
+          autor?: string | null
           classe?: string | null
           cliente_id?: string | null
           comarca?: string | null
@@ -1579,11 +1586,14 @@ export type Database = {
           instancia?: string | null
           justica?: string | null
           justificativa_risco?: string | null
+          localidade?: string | null
           materia?: string | null
+          materia_mpt?: string | null
           monitorar_andamentos?: boolean
           mudanca_risco?: boolean | null
           natureza?: string | null
           numero: string
+          observacao_advogado?: string | null
           observacoes_processo?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
@@ -1600,6 +1610,7 @@ export type Database = {
           provisionamento_remoto?: number | null
           reclamados?: string | null
           reclamante?: string | null
+          requerido?: string | null
           responsabilidade_antes_data?: number | null
           responsabilidade_apos_data?: number | null
           responsabilidade_tipo?: string | null
@@ -1618,6 +1629,7 @@ export type Database = {
           transitado_julgado?: boolean | null
           tribunal?: string | null
           uf?: string | null
+          ultimo_andamento_mpt?: string | null
           unidade_cliente?: string | null
           updated_at?: string
           valor_causa?: number | null
@@ -1637,6 +1649,7 @@ export type Database = {
           area?: string
           assunto?: string | null
           ativo_passivo?: string | null
+          autor?: string | null
           classe?: string | null
           cliente_id?: string | null
           comarca?: string | null
@@ -1665,11 +1678,14 @@ export type Database = {
           instancia?: string | null
           justica?: string | null
           justificativa_risco?: string | null
+          localidade?: string | null
           materia?: string | null
+          materia_mpt?: string | null
           monitorar_andamentos?: boolean
           mudanca_risco?: boolean | null
           natureza?: string | null
           numero?: string
+          observacao_advogado?: string | null
           observacoes_processo?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
@@ -1686,6 +1702,7 @@ export type Database = {
           provisionamento_remoto?: number | null
           reclamados?: string | null
           reclamante?: string | null
+          requerido?: string | null
           responsabilidade_antes_data?: number | null
           responsabilidade_apos_data?: number | null
           responsabilidade_tipo?: string | null
@@ -1704,6 +1721,7 @@ export type Database = {
           transitado_julgado?: boolean | null
           tribunal?: string | null
           uf?: string | null
+          ultimo_andamento_mpt?: string | null
           unidade_cliente?: string | null
           updated_at?: string
           valor_causa?: number | null
