@@ -158,13 +158,21 @@ export function useCreateEvento() {
 
   return useMutation({
     mutationFn: async (evento: NovoEvento) => {
+      // Get current user from session to ensure we have the ID
+      const { data: { user: sessionUser } } = await supabase.auth.getUser();
+      const userId = sessionUser?.id || user?.id;
+      
+      if (!userId) {
+        throw new Error("Usuário não autenticado");
+      }
+
       const { participantes_ids, alerta_minutos, ...eventoData } = evento;
       
       const { data, error } = await supabase
         .from("eventos_agenda")
         .insert({
           ...eventoData,
-          criado_por: user?.id,
+          criado_por: userId,
         })
         .select()
         .single();
@@ -173,12 +181,13 @@ export function useCreateEvento() {
 
       // Add participants
       if (participantes_ids && participantes_ids.length > 0) {
-        const participantesData = participantes_ids.map(userId => ({
+        const participantesData = participantes_ids.map(participantId => ({
           evento_id: data.id,
-          usuario_id: userId,
+          usuario_id: participantId,
         }));
         
-        await supabase.from("participantes_evento").insert(participantesData);
+        const { error: partError } = await supabase.from("participantes_evento").insert(participantesData);
+        if (partError) console.error("Erro ao adicionar participantes:", partError);
       }
 
       // Add alerts
@@ -188,7 +197,8 @@ export function useCreateEvento() {
           minutos_antes: minutos,
         }));
         
-        await supabase.from("alertas_evento").insert(alertasData);
+        const { error: alertError } = await supabase.from("alertas_evento").insert(alertasData);
+        if (alertError) console.error("Erro ao adicionar alertas:", alertError);
       }
 
       return data;
