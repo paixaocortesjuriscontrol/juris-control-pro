@@ -1,6 +1,13 @@
 import { forwardRef } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import {
+  PrintDonutChart,
+  PrintGroupedBarChart,
+  PrintHorizontalBarChart,
+  PrintStatusChart,
+  PrintYearlyChart,
+} from "./PrintCharts";
 
 interface RelatorioPrintViewProps {
   resumoData: any;
@@ -23,7 +30,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
 
         {/* ========== SEÇÃO RESUMO ========== */}
         <section className="mb-12">
-          <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-primary pb-2 mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-blue-600 pb-2 mb-6">
             1. RESUMO EXECUTIVO
           </h2>
 
@@ -49,9 +56,44 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </div>
               </div>
 
-              {/* Processos por Área */}
+              {/* Gráficos lado a lado */}
+              <div className="grid grid-cols-2 gap-8 mb-8">
+                {/* Processos por Área - Gráfico */}
+                <PrintDonutChart
+                  data={resumoData.processosPerArea || []}
+                  title="1.1 Processos por Área de Atuação"
+                  centerLabel={resumoData.totalProcessos?.toString()}
+                />
+
+                {/* Tipo de Pessoa - Gráfico */}
+                <PrintDonutChart
+                  data={resumoData.processosPorTipoPessoa || []}
+                  title="1.2 Processos por Tipo de Pessoa"
+                />
+              </div>
+
+              {/* Movimentação Mensal - Gráfico */}
               <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">1.1 Processos por Área de Atuação</h3>
+                <PrintGroupedBarChart
+                  data={resumoData.processosMensais || []}
+                  title="1.3 Movimentação Mensal (Novos vs Encerrados)"
+                />
+              </div>
+
+              {/* MPT por Status - Gráfico */}
+              {resumoData.processosMptStatus && resumoData.processosMptStatus.length > 0 && (
+                <div className="mb-8">
+                  <PrintStatusChart
+                    data={resumoData.processosMptStatus}
+                    title="1.4 Processos do Ministério Público por Situação"
+                    total={resumoData.processosMptStatus.reduce((acc: number, s: any) => acc + s.value, 0)}
+                  />
+                </div>
+              )}
+
+              {/* Tabela de Resumo por Área */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">1.5 Detalhamento por Área</h3>
                 <table className="w-full border-collapse border border-gray-300">
                   <thead>
                     <tr className="bg-gray-100">
@@ -63,7 +105,12 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                   <tbody>
                     {resumoData.processosPerArea?.filter((a: any) => a.value > 0).map((area: any) => (
                       <tr key={area.name}>
-                        <td className="border border-gray-300 px-4 py-2">{area.name}</td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded" style={{ backgroundColor: area.color }} />
+                            {area.name}
+                          </div>
+                        </td>
                         <td className="border border-gray-300 px-4 py-2 text-right">{area.value}</td>
                         <td className="border border-gray-300 px-4 py-2 text-right">
                           {resumoData.totalProcessos > 0 
@@ -75,72 +122,13 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                   </tbody>
                 </table>
               </div>
-
-              {/* Tipo de Pessoa */}
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">1.2 Processos por Tipo de Pessoa</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  {resumoData.processosPorTipoPessoa?.map((tipo: any) => (
-                    <div key={tipo.name} className="border border-gray-300 rounded-lg p-4 text-center">
-                      <p className="text-2xl font-bold" style={{ color: tipo.color }}>{tipo.value}</p>
-                      <p className="text-sm text-gray-600">{tipo.name}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* MPT por Status */}
-              {resumoData.processosMptStatus && resumoData.processosMptStatus.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">1.3 Processos do Ministério Público por Situação</h3>
-                  <table className="w-full border-collapse border border-gray-300">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="border border-gray-300 px-4 py-2 text-left">Status</th>
-                        <th className="border border-gray-300 px-4 py-2 text-right">Quantidade</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {resumoData.processosMptStatus.filter((s: any) => s.value > 0).map((status: any) => (
-                        <tr key={status.name}>
-                          <td className="border border-gray-300 px-4 py-2">{status.name}</td>
-                          <td className="border border-gray-300 px-4 py-2 text-right">{status.value}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Movimentação Mensal */}
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">1.4 Movimentação Mensal</h3>
-                <table className="w-full border-collapse border border-gray-300">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-4 py-2 text-left">Mês</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Novos</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Encerrados</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {resumoData.processosMensais?.map((mes: any) => (
-                      <tr key={mes.mes}>
-                        <td className="border border-gray-300 px-4 py-2">{mes.mes}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right">{mes.novos}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right">{mes.encerrados}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </>
           )}
         </section>
 
         {/* ========== SEÇÃO ATIVIDADES ========== */}
         <section className="mb-12 break-before-page">
-          <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-primary pb-2 mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-green-600 pb-2 mb-6">
             2. CONTROLE DE ATIVIDADES E PRAZOS
           </h2>
 
@@ -162,95 +150,52 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </div>
               </div>
 
-              {/* Status de Prazos */}
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">2.1 Status dos Prazos</h3>
-                <table className="w-full border-collapse border border-gray-300">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-4 py-2 text-left">Status</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Quantidade</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Percentual</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {atividadesData.prazosStatus?.map((status: any) => (
-                      <tr key={status.name}>
-                        <td className="border border-gray-300 px-4 py-2">{status.name}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right">{status.value}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right">
-                          {atividadesData.totalPrazos > 0 
-                            ? ((status.value / atividadesData.totalPrazos) * 100).toFixed(1) 
-                            : 0}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* Gráficos de Atividades */}
+              <div className="grid grid-cols-2 gap-8 mb-8">
+                {/* Status de Prazos - Gráfico */}
+                <PrintStatusChart
+                  data={atividadesData.prazosStatus || []}
+                  title="2.1 Status dos Prazos"
+                  total={atividadesData.totalPrazos || 0}
+                />
+
+                {/* Andamentos por Área - Gráfico */}
+                <PrintDonutChart
+                  data={atividadesData.andamentosPorArea || []}
+                  title="2.2 Andamentos por Área"
+                />
               </div>
 
-              {/* Atividades por Área */}
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">2.2 Atividades por Área de Atuação</h3>
-                <table className="w-full border-collapse border border-gray-300">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-4 py-2 text-left">Área</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Concluídas</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Pendentes</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {atividadesData.atividadesPorArea?.filter((a: any) => a.concluidas > 0 || a.pendentes > 0).map((area: any) => (
-                      <tr key={area.name}>
-                        <td className="border border-gray-300 px-4 py-2">{area.name}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right text-green-600">{area.concluidas}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right text-amber-600">{area.pendentes}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right font-semibold">{area.concluidas + area.pendentes}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Andamentos por Área */}
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">2.3 Andamentos por Área</h3>
-                <table className="w-full border-collapse border border-gray-300">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-4 py-2 text-left">Área</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Quantidade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {atividadesData.andamentosPorArea?.filter((a: any) => a.value > 0).map((area: any) => (
-                      <tr key={area.name}>
-                        <td className="border border-gray-300 px-4 py-2">{area.name}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right">{area.value}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Evolução Anual */}
+              {/* Evolução Anual - Gráfico */}
               {atividadesData.evolucaoAndamentos?.length > 0 && (
                 <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">2.4 Evolução dos Andamentos por Ano</h3>
+                  <PrintYearlyChart
+                    data={atividadesData.evolucaoAndamentos}
+                    title="2.3 Evolução dos Andamentos por Ano"
+                  />
+                </div>
+              )}
+
+              {/* Tabela de Atividades por Área */}
+              {atividadesData.atividadesPorArea?.some((a: any) => a.concluidas > 0 || a.pendentes > 0) && (
+                <div className="mb-8">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">2.4 Atividades por Área de Atuação</h3>
                   <table className="w-full border-collapse border border-gray-300">
                     <thead>
                       <tr className="bg-gray-100">
-                        <th className="border border-gray-300 px-4 py-2 text-left">Ano</th>
-                        <th className="border border-gray-300 px-4 py-2 text-right">Andamentos</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Área</th>
+                        <th className="border border-gray-300 px-4 py-2 text-right">Concluídas</th>
+                        <th className="border border-gray-300 px-4 py-2 text-right">Pendentes</th>
+                        <th className="border border-gray-300 px-4 py-2 text-right">Total</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {atividadesData.evolucaoAndamentos.map((ano: any) => (
-                        <tr key={ano.ano}>
-                          <td className="border border-gray-300 px-4 py-2">{ano.ano}</td>
-                          <td className="border border-gray-300 px-4 py-2 text-right">{ano.total}</td>
+                      {atividadesData.atividadesPorArea?.filter((a: any) => a.concluidas > 0 || a.pendentes > 0).map((area: any) => (
+                        <tr key={area.name}>
+                          <td className="border border-gray-300 px-4 py-2">{area.name}</td>
+                          <td className="border border-gray-300 px-4 py-2 text-right text-green-600">{area.concluidas}</td>
+                          <td className="border border-gray-300 px-4 py-2 text-right text-amber-600">{area.pendentes}</td>
+                          <td className="border border-gray-300 px-4 py-2 text-right font-semibold">{area.concluidas + area.pendentes}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -263,7 +208,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
 
         {/* ========== SEÇÃO CLIENTES ========== */}
         <section className="break-before-page">
-          <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-primary pb-2 mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-purple-600 pb-2 mb-6">
             3. ANÁLISE POR CLIENTES
           </h2>
 
@@ -295,10 +240,37 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </div>
               </div>
 
-              {/* Processos por Cliente */}
+              {/* Gráficos de Clientes */}
+              <div className="grid grid-cols-2 gap-8 mb-8">
+                {/* Top Varas - Gráfico */}
+                {clientesData.processosPorVara?.length > 0 && (
+                  <PrintHorizontalBarChart
+                    data={clientesData.processosPorVara.slice(0, 8).map((v: any) => ({
+                      name: v.vara?.substring(0, 20) || "N/A",
+                      value: v.total,
+                      color: "#8B5CF6"
+                    }))}
+                    title="3.1 Processos por Vara (Top 8)"
+                  />
+                )}
+
+                {/* Produtividade - Gráfico */}
+                {clientesData.produtividadeAdvogados?.length > 0 && (
+                  <PrintHorizontalBarChart
+                    data={clientesData.produtividadeAdvogados.map((a: any, i: number) => ({
+                      name: a.nome?.substring(0, 15) || "N/A",
+                      value: a.processos,
+                      color: ["#3B82F6", "#22C55E", "#F59E0B", "#EF4444", "#8B5CF6"][i % 5]
+                    }))}
+                    title="3.2 Produtividade da Equipe"
+                  />
+                )}
+              </div>
+
+              {/* Processos por Cliente - Tabela */}
               {clientesData.processosPorCliente?.length > 0 && (
                 <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">3.1 Processos por Cliente</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">3.3 Processos por Cliente</h3>
                   <table className="w-full border-collapse border border-gray-300 text-sm">
                     <thead>
                       <tr className="bg-gray-100">
@@ -311,7 +283,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                       </tr>
                     </thead>
                     <tbody>
-                      {clientesData.processosPorCliente.map((cliente: any) => (
+                      {clientesData.processosPorCliente.slice(0, 15).map((cliente: any) => (
                         <tr key={cliente.nome}>
                           <td className="border border-gray-300 px-3 py-2">{cliente.nome}</td>
                           <td className="border border-gray-300 px-3 py-2 text-center">
@@ -325,36 +297,18 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                       ))}
                     </tbody>
                   </table>
+                  {clientesData.processosPorCliente.length > 15 && (
+                    <p className="text-xs text-gray-500 mt-2 italic">
+                      * Exibindo os 15 principais clientes de um total de {clientesData.processosPorCliente.length}
+                    </p>
+                  )}
                 </div>
               )}
 
-              {/* Processos por Vara */}
-              {clientesData.processosPorVara?.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">3.2 Processos por Vara</h3>
-                  <table className="w-full border-collapse border border-gray-300">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="border border-gray-300 px-4 py-2 text-left">Vara</th>
-                        <th className="border border-gray-300 px-4 py-2 text-right">Processos</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {clientesData.processosPorVara.map((item: any) => (
-                        <tr key={item.vara}>
-                          <td className="border border-gray-300 px-4 py-2">{item.vara}</td>
-                          <td className="border border-gray-300 px-4 py-2 text-right">{item.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Duração por Cliente */}
+              {/* Duração por Cliente - Tabela */}
               {clientesData.duracaoClientes?.length > 0 && (
                 <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">3.3 Duração Média dos Processos por Cliente</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">3.4 Duração Média dos Processos por Cliente</h3>
                   <table className="w-full border-collapse border border-gray-300">
                     <thead>
                       <tr className="bg-gray-100">
@@ -364,7 +318,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                       </tr>
                     </thead>
                     <tbody>
-                      {clientesData.duracaoClientes.map((cliente: any) => (
+                      {clientesData.duracaoClientes.slice(0, 10).map((cliente: any) => (
                         <tr key={cliente.nome}>
                           <td className="border border-gray-300 px-4 py-2">{cliente.nome}</td>
                           <td className="border border-gray-300 px-4 py-2 text-right">{cliente.processos}</td>
@@ -376,10 +330,10 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </div>
               )}
 
-              {/* Atividades por Tarefa */}
+              {/* Atividades por Tarefa - Tabela */}
               {clientesData.atividadesPorTarefa?.length > 0 && (
                 <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">3.4 Atividades por Tipo de Tarefa</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">3.5 Atividades por Tipo de Tarefa</h3>
                   <table className="w-full border-collapse border border-gray-300">
                     <thead>
                       <tr className="bg-gray-100">
@@ -402,31 +356,6 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                   </table>
                 </div>
               )}
-
-              {/* Produtividade */}
-              {clientesData.produtividadeAdvogados?.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">3.5 Produtividade da Equipe</h3>
-                  <table className="w-full border-collapse border border-gray-300">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="border border-gray-300 px-4 py-2 text-center">Ranking</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Advogado</th>
-                        <th className="border border-gray-300 px-4 py-2 text-right">Processos</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {clientesData.produtividadeAdvogados.map((adv: any, index: number) => (
-                        <tr key={adv.nome}>
-                          <td className="border border-gray-300 px-4 py-2 text-center font-bold">{index + 1}º</td>
-                          <td className="border border-gray-300 px-4 py-2">{adv.nome}</td>
-                          <td className="border border-gray-300 px-4 py-2 text-right">{adv.processos}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
             </>
           )}
         </section>
@@ -434,7 +363,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
         {/* Rodapé */}
         <footer className="mt-12 pt-6 border-t-2 border-gray-300 text-center text-sm text-gray-500">
           <p>Este relatório foi gerado automaticamente pelo sistema Juris Control.</p>
-          <p>Documento destinado à Diretoria - Uso interno e confidencial.</p>
+          <p className="mt-1">Documento destinado à Diretoria - Uso interno e confidencial.</p>
         </footer>
       </div>
     );
