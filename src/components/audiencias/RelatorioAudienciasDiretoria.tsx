@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
-type PeriodoPreset = "semana_atual" | "proxima_semana" | "mes_atual" | "personalizado";
+type PeriodoPreset = "todas" | "semana_atual" | "proxima_semana" | "mes_atual" | "personalizado";
 
 export function RelatorioAudienciasDiretoria() {
   const [periodoPreset, setPeriodoPreset] = useState<PeriodoPreset>("semana_atual");
@@ -33,8 +33,8 @@ export function RelatorioAudienciasDiretoria() {
   // Buscar audiências com filtro de data e status
   const { audiencias: audienciasBase, isLoading } = useAudienciasDetectadas({
     status: statusFilter,
-    dataInicio,
-    dataFim,
+    dataInicio: periodoPreset === "todas" ? undefined : dataInicio,
+    dataFim: periodoPreset === "todas" ? undefined : dataFim,
     search,
   });
 
@@ -88,6 +88,9 @@ export function RelatorioAudienciasDiretoria() {
     const today = new Date();
 
     switch (preset) {
+      case "todas":
+        // Sem filtro de data
+        break;
       case "semana_atual":
         setDataInicio(format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd"));
         setDataFim(format(endOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd"));
@@ -196,6 +199,7 @@ export function RelatorioAudienciasDiretoria() {
   };
 
   const periodoLabel = () => {
+    if (periodoPreset === "todas") return "Todas as datas";
     const inicio = formatDate(dataInicio);
     const fim = formatDate(dataFim);
     return `${inicio} a ${fim}`;
@@ -223,6 +227,7 @@ export function RelatorioAudienciasDiretoria() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="todas">Todas</SelectItem>
                   <SelectItem value="semana_atual">Semana Atual</SelectItem>
                   <SelectItem value="proxima_semana">Próxima Semana</SelectItem>
                   <SelectItem value="mes_atual">Mês Atual</SelectItem>
