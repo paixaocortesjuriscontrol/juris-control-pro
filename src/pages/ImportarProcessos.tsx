@@ -22,7 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel, FileText } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel, FileText, FileBarChart } from "lucide-react";
+import { useRelatorioPedidos, TipoPedido } from "@/hooks/useRelatorioPedidos";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
@@ -365,6 +366,8 @@ export default function ImportarProcessos() {
   const [pedidosImporting, setPedidosImporting] = useState(false);
   const [pedidosProgress, setPedidosProgress] = useState(0);
   const [pedidosBuscarAndamentos, setPedidosBuscarAndamentos] = useState(true);
+  const [pedidosRelatorioTipo, setPedidosRelatorioTipo] = useState<TipoPedido>("todos");
+  const { exportarRelatorioPedidos } = useRelatorioPedidos();
 
   // Excel/Planilha import state for andamentos
   const [planilhaBuscarAndamentos, setPlanilhaBuscarAndamentos] = useState(true);
@@ -6066,6 +6069,49 @@ export default function ImportarProcessos() {
                     <strong>Colunas reconhecidas:</strong> PROCESSO, RECLAMANTE, FUNÇÃO, SETOR, RECLAMADO (salvo como cliente), VARA, COMARCA, Lei 13.467/2017, Responsabilidade Subsidiária, Horas Extras (Excesso Jornada, Plantões, Dobras, Intervalos, Domingos/Feriados), Insalubridade/Periculosidade, Diferenças Salariais, Adicional Noturno, Sobrecarga, Vínculo, Danos Morais (Assédio, Outros, Acidente), Acidente/Doença, Estabilidade, Multas, Status, Motivo Encerramento, Custo Encerramento.
                   </AlertDescription>
                 </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Exportar Relatório de Pedidos */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileBarChart className="h-5 w-5" />
+                  Exportar Relatório de Pedidos
+                </CardTitle>
+                <CardDescription>
+                  Exporte um relatório Excel com os processos de pedidos já importados, filtrados por tipo.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="space-y-1">
+                    <Label>Tipo de Pedido</Label>
+                    <Select 
+                      value={pedidosRelatorioTipo} 
+                      onValueChange={(v) => setPedidosRelatorioTipo(v as TipoPedido)}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos os Pedidos</SelectItem>
+                        <SelectItem value="horas_extras">Horas Extras</SelectItem>
+                        <SelectItem value="adicionais">Adicionais e Benefícios</SelectItem>
+                        <SelectItem value="danos_morais">Danos Morais</SelectItem>
+                        <SelectItem value="acidente_doenca">Acidente / Doença</SelectItem>
+                        <SelectItem value="estabilidade">Estabilidade e Justa Causa</SelectItem>
+                        <SelectItem value="multas">Multas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <Button onClick={() => exportarRelatorioPedidos(pedidosRelatorioTipo)}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Exportar Excel
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
