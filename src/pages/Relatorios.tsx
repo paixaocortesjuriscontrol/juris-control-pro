@@ -40,9 +40,9 @@ const Relatorios = () => {
   const printRef = useRef<HTMLDivElement>(null);
 
   // Carregar dados de todos os relatórios para exportação
-  const { data: resumoData, isLoading: resumoLoading } = useRelatorioResumoData(true);
-  const { data: atividadesData, isLoading: atividadesLoading } = useRelatorioAtividadesData(true);
-  const { data: clientesData, isLoading: clientesLoading } = useRelatorioClientesData(true);
+  const { data: resumoData, isLoading: resumoLoading, refetch: refetchResumo } = useRelatorioResumoData(true);
+  const { data: atividadesData, isLoading: atividadesLoading, refetch: refetchAtividades } = useRelatorioAtividadesData(true);
+  const { data: clientesData, isLoading: clientesLoading, refetch: refetchClientes } = useRelatorioClientesData(true);
 
   const canExportPdf = Boolean(resumoData && atividadesData && clientesData);
   const loadingExportData = resumoLoading || atividadesLoading || clientesLoading;
@@ -51,10 +51,18 @@ const Relatorios = () => {
   const loadedCount = [resumoData, atividadesData, clientesData].filter(Boolean).length;
   const loadingProgress = Math.round((loadedCount / 3) * 100);
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (exporting || loadingExportData || !canExportPdf) return;
 
     setExporting(true);
+
+    try {
+      // Garante que o PDF sempre reflita os dados mais atualizados do banco
+      await Promise.all([refetchResumo(), refetchAtividades(), refetchClientes()]);
+    } catch (e) {
+      console.error("Erro ao atualizar dados para exportação do PDF:", e);
+      // Mantém o fluxo de impressão com o que estiver disponível no cache
+    }
 
     const finish = () => {
       setExporting(false);

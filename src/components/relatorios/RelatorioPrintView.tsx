@@ -283,7 +283,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                       </tr>
                     </thead>
                     <tbody>
-                      {clientesData.processosPorCliente.slice(0, 15).map((cliente: any) => (
+                      {clientesData.processosPorCliente.map((cliente: any) => (
                         <tr key={cliente.nome}>
                           <td className="border border-gray-300 px-3 py-2">{cliente.nome}</td>
                           <td className="border border-gray-300 px-3 py-2 text-center">
@@ -297,11 +297,6 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                       ))}
                     </tbody>
                   </table>
-                  {clientesData.processosPorCliente.length > 15 && (
-                    <p className="text-xs text-gray-500 mt-2 italic">
-                      * Exibindo os 15 principais clientes de um total de {clientesData.processosPorCliente.length}
-                    </p>
-                  )}
                 </div>
               )}
 
@@ -318,7 +313,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                       </tr>
                     </thead>
                     <tbody>
-                      {clientesData.duracaoClientes.slice(0, 10).map((cliente: any) => (
+                      {clientesData.duracaoClientes.map((cliente: any) => (
                         <tr key={cliente.nome}>
                           <td className="border border-gray-300 px-4 py-2">{cliente.nome}</td>
                           <td className="border border-gray-300 px-4 py-2 text-right">{cliente.processos}</td>
