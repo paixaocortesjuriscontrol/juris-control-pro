@@ -1832,7 +1832,7 @@ export default function ImportarProcessos() {
         // Check if process already exists by numero
         const { data: existingProcesso } = await supabase
           .from("processos")
-          .select("id, coordenacao_id, advogado_responsavel_id")
+          .select("id, coordenacao_id, advogado_responsavel_id, pasta_id")
           .eq("numero", processo.numero.trim())
           .maybeSingle();
 
@@ -1914,15 +1914,58 @@ export default function ImportarProcessos() {
         let isUpdate = false;
 
         if (existingProcesso) {
+          // Criar ou encontrar pasta com pattern "Parte Contrária x Unidade"
+          let pastaId: string | null = existingProcesso.pasta_id;
+          
+          // Se não tem pasta vinculada, criar uma nova
+          if (!pastaId) {
+            const parteContraria = processo.partePassiva || osmarData.unidadeCliente || "Sem Parte";
+            const unidadeNome = clienteNomeFromSheet || osmarData.unidadeCliente || "Sem Unidade";
+            const nomePasta = `${parteContraria} x ${unidadeNome}`;
+            
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (user) {
+              // Verificar se já existe uma pasta com esse nome
+              const { data: pastaExistente } = await supabase
+                .from("pastas")
+                .select("id")
+                .eq("nome", nomePasta)
+                .maybeSingle();
+              
+              if (pastaExistente) {
+                pastaId = pastaExistente.id;
+              } else {
+                const { data: novaPasta, error: pastaError } = await supabase
+                  .from("pastas")
+                  .insert({
+                    nome: nomePasta,
+                    descricao: `Pasta criada automaticamente para o processo ${processo.numero}`,
+                    cliente_id: clienteIdToUse,
+                    coordenacao_id: selectedCoordenacao || existingProcesso.coordenacao_id || null,
+                    criado_por: user.id,
+                  })
+                  .select("id")
+                  .single();
+                
+                if (!pastaError && novaPasta) {
+                  pastaId = novaPasta.id;
+                } else {
+                  console.warn(`Falha ao criar pasta para processo ${processo.numero}:`, pastaError?.message);
+                }
+              }
+            }
+          }
+
           // Não sobrescrever coordenacao_id e advogado_responsavel_id se já existem no processo
           // Apenas atualiza se o usuário selecionou explicitamente valores
-          const updateData = { ...processoData };
+          const updateData: Record<string, any> = { ...processoData, pasta_id: pastaId };
           
           // Se o processo já tem coordenação/responsável e o usuário não selecionou nada, preservar
-          if (existingProcesso.coordenacao_id && !selectedCoordenacao) {
+          if ((existingProcesso as any).coordenacao_id && !selectedCoordenacao) {
             delete updateData.coordenacao_id;
           }
-          if (existingProcesso.advogado_responsavel_id && !selectedMembro) {
+          if ((existingProcesso as any).advogado_responsavel_id && !selectedMembro) {
             delete updateData.advogado_responsavel_id;
           }
 
