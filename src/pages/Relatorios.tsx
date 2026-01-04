@@ -39,18 +39,33 @@ const Relatorios = () => {
   const printRef = useRef<HTMLDivElement>(null);
 
   // Carregar dados de todos os relatórios para exportação
-  const { data: resumoData } = useRelatorioResumoData(true);
-  const { data: atividadesData } = useRelatorioAtividadesData(true);
-  const { data: clientesData } = useRelatorioClientesData(true);
+  const { data: resumoData, isLoading: resumoLoading } = useRelatorioResumoData(true);
+  const { data: atividadesData, isLoading: atividadesLoading } = useRelatorioAtividadesData(true);
+  const { data: clientesData, isLoading: clientesLoading } = useRelatorioClientesData(true);
+
+  const canExportPdf = Boolean(resumoData && atividadesData && clientesData);
+  const loadingExportData = resumoLoading || atividadesLoading || clientesLoading;
 
   const handleExportPdf = () => {
+    if (exporting || loadingExportData || !canExportPdf) return;
+
     setExporting(true);
-    
-    // Abrir janela de impressão diretamente
-    setTimeout(() => {
-      window.print();
+
+    const finish = () => {
       setExporting(false);
-    }, 100);
+      window.removeEventListener("afterprint", finish);
+    };
+
+    // Em alguns navegadores mobile o afterprint pode não disparar; mantemos fallback.
+    window.addEventListener("afterprint", finish);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print();
+      });
+    });
+
+    setTimeout(finish, 8000);
   };
 
   return (
@@ -81,14 +96,18 @@ const Relatorios = () => {
               Mais Filtros
             </Button>
             <div className="ml-auto">
-              <Button onClick={handleExportPdf} disabled={exporting}>
+              <Button onClick={handleExportPdf} disabled={exporting || loadingExportData || !canExportPdf}>
                 {exporting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <FileDown className="w-4 h-4 mr-2" />
                 )}
-                <span className="hidden sm:inline">{exporting ? "Gerando..." : "Exportar PDF"}</span>
-                <span className="sm:hidden">{exporting ? "..." : "PDF"}</span>
+                <span className="hidden sm:inline">
+                  {exporting ? "Gerando..." : loadingExportData || !canExportPdf ? "Carregando dados..." : "Exportar PDF"}
+                </span>
+                <span className="sm:hidden">
+                  {exporting ? "..." : loadingExportData || !canExportPdf ? "Car..." : "PDF"}
+                </span>
               </Button>
             </div>
           </div>
