@@ -744,17 +744,17 @@ export default function ProcessoDetalhes() {
         <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
           <CardContent className="py-6">
             <div className="text-center space-y-3">
+              {processo.assunto && (
+                <h1 className="text-lg md:text-xl font-semibold text-muted-foreground">
+                  {processo.assunto}
+                </h1>
+              )}
               <div className="flex items-center justify-center gap-3">
                 <Scale className="w-6 h-6 text-primary" />
                 <h2 className="text-2xl md:text-3xl font-bold text-foreground tracking-wide">
                   {processo.numero}
                 </h2>
               </div>
-              {processo.assunto && (
-                <p className="text-muted-foreground text-sm md:text-base max-w-3xl mx-auto">
-                  {processo.assunto}
-                </p>
-              )}
               <div className="flex items-center justify-center gap-2 pt-2">
                 <Badge className={`badge-area-${processo.area}`}>
                   {areaLabels[processo.area] || processo.area}
