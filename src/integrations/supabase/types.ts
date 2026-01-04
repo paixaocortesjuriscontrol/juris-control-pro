@@ -1466,6 +1466,7 @@ export type Database = {
           assunto: string | null
           ativo_passivo: string | null
           autor: string | null
+          cargo_reconhecimento_vinculo: string | null
           categoria_importacao: string | null
           classe: string | null
           cliente_id: string | null
@@ -1482,6 +1483,7 @@ export type Database = {
           data_encerramento: string | null
           data_fato_gerador: string | null
           data_recebimento: string | null
+          data_situacao: string | null
           deposito_judicial: number | null
           depositos_vinculados: string | null
           descricao: string | null
@@ -1506,6 +1508,7 @@ export type Database = {
           natureza: string | null
           numero: string
           observacao_advogado: string | null
+          observacao_resp_subsidiaria: string | null
           observacoes_processo: string | null
           pasta_cliente: string | null
           pasta_fisica: string | null
@@ -1539,6 +1542,7 @@ export type Database = {
           pedido_valor: string | null
           pedidos: string | null
           periodo_condenacao: string | null
+          periodo_contratacao: string | null
           periodo_laborado: string | null
           polo_ativo: string | null
           polo_passivo: string | null
@@ -1565,6 +1569,7 @@ export type Database = {
           status_pedido: string | null
           terceiro_envolvido: string | null
           tipo_controladora: string | null
+          tipo_estabilidade: string | null
           tipo_pagamento: string | null
           transitado_julgado: boolean | null
           tribunal: string | null
@@ -1590,6 +1595,7 @@ export type Database = {
           assunto?: string | null
           ativo_passivo?: string | null
           autor?: string | null
+          cargo_reconhecimento_vinculo?: string | null
           categoria_importacao?: string | null
           classe?: string | null
           cliente_id?: string | null
@@ -1606,6 +1612,7 @@ export type Database = {
           data_encerramento?: string | null
           data_fato_gerador?: string | null
           data_recebimento?: string | null
+          data_situacao?: string | null
           deposito_judicial?: number | null
           depositos_vinculados?: string | null
           descricao?: string | null
@@ -1630,6 +1637,7 @@ export type Database = {
           natureza?: string | null
           numero: string
           observacao_advogado?: string | null
+          observacao_resp_subsidiaria?: string | null
           observacoes_processo?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
@@ -1663,6 +1671,7 @@ export type Database = {
           pedido_valor?: string | null
           pedidos?: string | null
           periodo_condenacao?: string | null
+          periodo_contratacao?: string | null
           periodo_laborado?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
@@ -1689,6 +1698,7 @@ export type Database = {
           status_pedido?: string | null
           terceiro_envolvido?: string | null
           tipo_controladora?: string | null
+          tipo_estabilidade?: string | null
           tipo_pagamento?: string | null
           transitado_julgado?: boolean | null
           tribunal?: string | null
@@ -1714,6 +1724,7 @@ export type Database = {
           assunto?: string | null
           ativo_passivo?: string | null
           autor?: string | null
+          cargo_reconhecimento_vinculo?: string | null
           categoria_importacao?: string | null
           classe?: string | null
           cliente_id?: string | null
@@ -1730,6 +1741,7 @@ export type Database = {
           data_encerramento?: string | null
           data_fato_gerador?: string | null
           data_recebimento?: string | null
+          data_situacao?: string | null
           deposito_judicial?: number | null
           depositos_vinculados?: string | null
           descricao?: string | null
@@ -1754,6 +1766,7 @@ export type Database = {
           natureza?: string | null
           numero?: string
           observacao_advogado?: string | null
+          observacao_resp_subsidiaria?: string | null
           observacoes_processo?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
@@ -1787,6 +1800,7 @@ export type Database = {
           pedido_valor?: string | null
           pedidos?: string | null
           periodo_condenacao?: string | null
+          periodo_contratacao?: string | null
           periodo_laborado?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
@@ -1813,6 +1827,7 @@ export type Database = {
           status_pedido?: string | null
           terceiro_envolvido?: string | null
           tipo_controladora?: string | null
+          tipo_estabilidade?: string | null
           tipo_pagamento?: string | null
           transitado_julgado?: boolean | null
           tribunal?: string | null
