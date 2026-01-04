@@ -10,6 +10,7 @@ import {
   Loader2,
   FileDown
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +46,10 @@ const Relatorios = () => {
 
   const canExportPdf = Boolean(resumoData && atividadesData && clientesData);
   const loadingExportData = resumoLoading || atividadesLoading || clientesLoading;
+
+  // Calcular percentual de carregamento (0 a 100)
+  const loadedCount = [resumoData, atividadesData, clientesData].filter(Boolean).length;
+  const loadingProgress = Math.round((loadedCount / 3) * 100);
 
   const handleExportPdf = () => {
     if (exporting || loadingExportData || !canExportPdf) return;
@@ -95,7 +100,7 @@ const Relatorios = () => {
               <Filter className="w-4 h-4 mr-2" />
               Mais Filtros
             </Button>
-            <div className="ml-auto">
+            <div className="ml-auto flex flex-col items-end gap-2">
               <Button onClick={handleExportPdf} disabled={exporting || loadingExportData || !canExportPdf}>
                 {exporting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -109,6 +114,12 @@ const Relatorios = () => {
                   {exporting ? "..." : loadingExportData || !canExportPdf ? "Car..." : "PDF"}
                 </span>
               </Button>
+              {loadingExportData && (
+                <div className="w-40 flex items-center gap-2">
+                  <Progress value={loadingProgress} className="h-2" />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{loadingProgress}%</span>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
