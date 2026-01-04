@@ -3765,40 +3765,40 @@ export default function ImportarProcessos() {
           // Responsabilidade Subsidiária
           responsabilidade_subsidiaria: pedidosData.responsabilidade_subsidiaria,
           observacao_resp_subsidiaria: pedidosData.observacao_resp_subsidiaria,
-          // Horas Extras
-          pedido_excesso_jornada: pedidosData.excesso_jornada,
-          pedido_plantoes_extras: pedidosData.plantoes_extras,
-          pedido_dobras: pedidosData.dobras,
-          pedido_intervalo_intrajornada: pedidosData.intervalo_intrajornada,
-          pedido_intervalo_interjornada: pedidosData.intervalo_interjornada,
-          pedido_descaract_jornada_12_36: pedidosData.descaract_jornada_12_36,
-          pedido_domingos_feriados: pedidosData.domingos_feriados,
-          // Insalubridade/Periculosidade e Adicionais
+          // Horas Extras - campos boolean precisam de parseBoolean
+          pedido_excesso_jornada: parseBoolean(pedidosData.excesso_jornada),
+          pedido_plantoes_extras: parseBoolean(pedidosData.plantoes_extras),
+          pedido_dobras: parseBoolean(pedidosData.dobras),
+          pedido_intervalo_intrajornada: pedidosData.intervalo_intrajornada, // text
+          pedido_intervalo_interjornada: parseBoolean(pedidosData.intervalo_interjornada),
+          pedido_descaract_jornada_12_36: parseBoolean(pedidosData.descaract_jornada_12_36),
+          pedido_domingos_feriados: pedidosData.domingos_feriados, // text
+          // Insalubridade/Periculosidade e Adicionais - todos text
           pedido_insalubridade_periculosidade: pedidosData.insalubridade_periculosidade,
           pedido_diferencas_salariais: pedidosData.diferencas_salariais,
           pedido_adicional_noturno: pedidosData.adicional_noturno,
           pedido_sobrecarga_trabalho: pedidosData.sobrecarga_trabalho,
-          // Reconhecimento de Vínculo
+          // Reconhecimento de Vínculo - text
           pedido_reconhecimento_vinculo: pedidosData.reconhecimento_vinculo,
           cargo_reconhecimento_vinculo: pedidosData.cargo_reconhecimento_vinculo,
-          // Danos Morais
+          // Danos Morais - todos text
           pedido_danos_morais_assedio: pedidosData.danos_morais_assedio,
           pedido_danos_morais_outros: pedidosData.danos_morais_outros,
-          // Acidente/Doença
-          pedido_acidente_doenca: pedidosData.acidente_doenca,
-          pedido_danos_materiais: pedidosData.danos_materiais,
-          pedido_pensao_vitalicia: pedidosData.pensao_vitalicia,
-          pedido_danos_morais_acidente: pedidosData.danos_morais_acidente,
-          pedido_limbo_previdenciario: pedidosData.limbo_previdenciario,
-          // Estabilidade
+          // Acidente/Doença - mix de boolean e text
+          pedido_acidente_doenca: pedidosData.acidente_doenca, // text
+          pedido_danos_materiais: parseBoolean(pedidosData.danos_materiais),
+          pedido_pensao_vitalicia: parseBoolean(pedidosData.pensao_vitalicia),
+          pedido_danos_morais_acidente: pedidosData.danos_morais_acidente, // text
+          pedido_limbo_previdenciario: parseBoolean(pedidosData.limbo_previdenciario),
+          // Estabilidade - text
           tipo_estabilidade: pedidosData.tipo_estabilidade,
           pedido_estabilidade: pedidosData.possui_estabilidade,
-          // Indenização
-          pedido_indenizacao_substitutiva: pedidosData.indenizacao_substitutiva,
-          pedido_reversao_justa_causa: pedidosData.reversao_justa_causa,
-          pedido_rescisao_indireta: pedidosData.rescisao_indireta,
-          pedido_reversao_pedido_demissao: pedidosData.reversao_pedido_demissao,
-          // Multas
+          // Indenização - todos boolean
+          pedido_indenizacao_substitutiva: parseBoolean(pedidosData.indenizacao_substitutiva),
+          pedido_reversao_justa_causa: parseBoolean(pedidosData.reversao_justa_causa),
+          pedido_rescisao_indireta: parseBoolean(pedidosData.rescisao_indireta),
+          pedido_reversao_pedido_demissao: parseBoolean(pedidosData.reversao_pedido_demissao),
+          // Multas - text
           pedido_multas_clt: pedidosData.multas_clt,
           // Situação/Encerramento
           status_pedido: pedidosData.situacao,
