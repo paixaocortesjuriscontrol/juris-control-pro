@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, CalendarDays, FileText, Eye, Plus, User, Building, Upload, Download, Pencil, Settings } from "lucide-react";
+import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, CalendarDays, FileText, Eye, Plus, User, Building, Upload, Download, Pencil, Settings, FileSpreadsheet } from "lucide-react";
 import { useAudienciasDetectadas, AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { useExportarAudiencias } from "@/hooks/useExportarAudiencias";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
@@ -18,6 +18,7 @@ import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudiencia
 import { ImportarAudienciasDialog } from "@/components/audiencias/ImportarAudienciasDialog";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { ConfigAlertasAudienciasTab } from "@/components/audiencias/ConfigAlertasAudienciasTab";
+import { RelatorioAudienciasDiretoria } from "@/components/audiencias/RelatorioAudienciasDiretoria";
 
 export default function PainelAudiencias() {
   const [search, setSearch] = useState("");
@@ -134,7 +135,7 @@ export default function PainelAudiencias() {
       subtitle="Controle de audiências detectadas e cadastradas manualmente"
     >
       <Tabs defaultValue="lista" className="space-y-6">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="lista" className="gap-2">
             <Calendar className="h-4 w-4" />
             Lista de Audiências
@@ -143,9 +144,13 @@ export default function PainelAudiencias() {
             <Plus className="h-4 w-4" />
             Cadastrar Audiência
           </TabsTrigger>
+          <TabsTrigger value="relatorio" className="gap-2">
+            <FileSpreadsheet className="h-4 w-4" />
+            Relatório Diretoria
+          </TabsTrigger>
           <TabsTrigger value="configuracoes" className="gap-2">
             <Settings className="h-4 w-4" />
-            Configurações de Alertas
+            Configurações
           </TabsTrigger>
         </TabsList>
 
@@ -385,6 +390,10 @@ export default function PainelAudiencias() {
 
         <TabsContent value="cadastro">
           <CadastroAudienciaForm />
+        </TabsContent>
+
+        <TabsContent value="relatorio">
+          <RelatorioAudienciasDiretoria />
         </TabsContent>
 
         <TabsContent value="configuracoes">
