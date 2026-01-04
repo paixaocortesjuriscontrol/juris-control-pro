@@ -4,8 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 export function useRelatorioClientesData(enabled: boolean) {
   return useQuery({
     queryKey: ["relatorio-clientes-data"],
-    staleTime: 30 * 60 * 1000, // 30 minutos
-    gcTime: 2 * 60 * 60 * 1000, // 2 horas
+    staleTime: 0, // Sempre buscar dados frescos
+    gcTime: 5 * 60 * 1000, // 5 minutos
     enabled,
     retry: 2,
     retryDelay: 1000,
