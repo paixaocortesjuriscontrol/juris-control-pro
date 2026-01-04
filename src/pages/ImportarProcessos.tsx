@@ -3742,6 +3742,8 @@ export default function ImportarProcessos() {
           setor: pedidosData.setor,
           observacao_advogado: pedidosData.observacao_advogado,
           cliente_id: clienteIdToUse,
+          coordenacao_id: selectedCoordenacao || null,
+          advogado_responsavel_id: selectedMembro || null,
           monitorar_andamentos: pedidosBuscarAndamentos,
           categoria_importacao: "pedidos",
           // Campos específicos de Pedidos
@@ -6109,6 +6111,58 @@ export default function ImportarProcessos() {
                     )}
                   </div>
                 </div>
+
+                {/* Coordenação Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="coordenacao-pedidos" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Coordenação Responsável
+                  </Label>
+                  <Select 
+                    value={selectedCoordenacao} 
+                    onValueChange={(value) => {
+                      setSelectedCoordenacao(value);
+                      setSelectedMembro("");
+                    }}
+                    disabled={pedidosImporting}
+                  >
+                    <SelectTrigger id="coordenacao-pedidos" className="max-w-md">
+                      <SelectValue placeholder="Selecione a coordenação (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.nome} ({coord.area})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Member Selection */}
+                {selectedCoordenacao && membrosDisponiveis.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="membro-pedidos" className="flex items-center gap-2">
+                      Advogado Responsável (opcional)
+                    </Label>
+                    <Select 
+                      value={selectedMembro} 
+                      onValueChange={setSelectedMembro}
+                      disabled={pedidosImporting}
+                    >
+                      <SelectTrigger id="membro-pedidos" className="max-w-md">
+                        <SelectValue placeholder="Selecione o advogado responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membrosDisponiveis.map((membro) => (
+                          <SelectItem key={membro.id} value={membro.id}>
+                            {membro.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {/* Opção de buscar andamentos */}
                 <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
