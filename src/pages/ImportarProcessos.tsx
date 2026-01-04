@@ -1813,7 +1813,11 @@ export default function ImportarProcessos() {
 
     const updatedProcessos = [...osmarProcessos];
     let successCountLocal = 0;
+    let updateCountLocal = 0;
     let errorCountLocal = 0;
+
+    // Create a mutable copy of clientes to track newly created clients during import
+    const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
 
     for (let i = 0; i < updatedProcessos.length; i++) {
       const processo = updatedProcessos[i];
@@ -1828,9 +1832,43 @@ export default function ImportarProcessos() {
         // Check if process already exists by numero
         const { data: existingProcesso } = await supabase
           .from("processos")
-          .select("id")
+          .select("id, coordenacao_id, advogado_responsavel_id")
           .eq("numero", processo.numero.trim())
           .maybeSingle();
+
+        // Determine cliente_id using UNIDADE column
+        let clienteIdToUse = selectedCliente || null;
+        let clienteNomeFromSheet: string | null = null;
+        
+        if (osmarData.unidadeCliente) {
+          clienteNomeFromSheet = osmarData.unidadeCliente.trim();
+          // Try to find existing client by name in our mutable cache
+          const existingCliente = clientesCache.find(c => 
+            c.nome.toLowerCase().trim() === clienteNomeFromSheet!.toLowerCase()
+          );
+          
+          if (existingCliente) {
+            clienteIdToUse = existingCliente.id;
+          } else {
+            // Create new client
+            const { data: novoCliente, error: clienteError } = await supabase
+              .from("clientes")
+              .insert({
+                nome: clienteNomeFromSheet,
+                tipo: "pessoa_juridica",
+              })
+              .select("id, nome")
+              .single();
+            
+            if (!clienteError && novoCliente) {
+              clienteIdToUse = novoCliente.id;
+              // Add to local cache so next rows can find it
+              clientesCache.push({ id: novoCliente.id, nome: novoCliente.nome, tipo: "pessoa_juridica" });
+            } else {
+              console.warn(`Falha ao criar cliente ${clienteNomeFromSheet}:`, clienteError?.message);
+            }
+          }
+        }
 
         const processoData: Record<string, any> = {
           numero: processo.numero.trim(),
@@ -1846,14 +1884,14 @@ export default function ImportarProcessos() {
           polo_passivo: processo.partePassiva,
           coordenacao_id: selectedCoordenacao || null,
           advogado_responsavel_id: selectedMembro || null,
-          cliente_id: selectedCliente || null,
+          cliente_id: clienteIdToUse,
           monitorar_andamentos: osmarBuscarAndamentos,
           // Dr. Osmar specific fields
           unidade_cliente: osmarData.unidadeCliente,
           sigla_unidade: osmarData.siglaUnidade,
           tipo_controladora: osmarData.tipoControladora,
           cpf_cnpj_parte_contraria: osmarData.cpfCnpjParteContraria,
-          data_fato_gerador: osmarData.dataFatoGerador,
+          data_fato_gerador: parseDate(osmarData.dataFatoGerador),
           pedidos: osmarData.pedidos,
           funcao_parte_contraria: osmarData.funcaoParteContraria,
           periodo_laborado: osmarData.periodoLaborado,
@@ -1876,28 +1914,69 @@ export default function ImportarProcessos() {
         let isUpdate = false;
 
         if (existingProcesso) {
-          // Update existing process (upsert behavior)
+          // Não sobrescrever coordenacao_id e advogado_responsavel_id se já existem no processo
+          // Apenas atualiza se o usuário selecionou explicitamente valores
+          const updateData = { ...processoData };
+          
+          // Se o processo já tem coordenação/responsável e o usuário não selecionou nada, preservar
+          if (existingProcesso.coordenacao_id && !selectedCoordenacao) {
+            delete updateData.coordenacao_id;
+          }
+          if (existingProcesso.advogado_responsavel_id && !selectedMembro) {
+            delete updateData.advogado_responsavel_id;
+          }
+
           const { error } = await supabase
             .from("processos")
-            .update(processoData)
+            .update(updateData)
             .eq("id", existingProcesso.id);
 
           if (error) {
-            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
             errorCountLocal++;
             continue;
           }
           isUpdate = true;
+          updateCountLocal++;
         } else {
-          // Insert new process
+          // Create pasta with pattern "Parte Contrária x Unidade"
+          let pastaId: string | null = null;
+          const parteContraria = processo.partePassiva || osmarData.unidadeCliente || "Sem Parte";
+          const unidadeNome = clienteNomeFromSheet || osmarData.unidadeCliente || "Sem Unidade";
+          const nomePasta = `${parteContraria} x ${unidadeNome}`;
+          
+          // Get current user for pasta creation
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            const { data: novaPasta, error: pastaError } = await supabase
+              .from("pastas")
+              .insert({
+                nome: nomePasta,
+                descricao: `Pasta criada automaticamente para o processo ${processo.numero}`,
+                cliente_id: clienteIdToUse,
+                coordenacao_id: selectedCoordenacao || null,
+                criado_por: user.id,
+              })
+              .select("id")
+              .single();
+            
+            if (!pastaError && novaPasta) {
+              pastaId = novaPasta.id;
+            } else {
+              console.warn(`Falha ao criar pasta para processo ${processo.numero}:`, pastaError?.message);
+            }
+          }
+
+          // Insert new process with pasta_id
           const { data: insertedProcesso, error } = await supabase
             .from("processos")
-            .insert(processoData as any)
+            .insert({ ...processoData, pasta_id: pastaId } as any)
             .select("id")
             .single();
 
           if (error) {
-            updatedProcessos[i] = { ...processo, status: "erro", erroImport: error.message };
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
             errorCountLocal++;
             continue;
           }
@@ -1909,6 +1988,7 @@ export default function ImportarProcessos() {
               console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
             }
           }
+          successCountLocal++;
         }
         
         updatedProcessos[i] = { 
@@ -1916,7 +1996,6 @@ export default function ImportarProcessos() {
           status: "sucesso", 
           erroImport: isUpdate ? "Atualizado (já existia)" : undefined 
         };
-        successCountLocal++;
       } catch (err: any) {
         updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
         errorCountLocal++;
@@ -1931,7 +2010,7 @@ export default function ImportarProcessos() {
 
     toast({
       title: "Importação Dr. Osmar concluída",
-      description: `${successCountLocal} processo(s) importado(s). ${errorCountLocal} erro(s) de importação.`,
+      description: `${successCountLocal} novo(s), ${updateCountLocal} atualizado(s), ${errorCountLocal} erro(s).`,
       variant: errorCountLocal > 0 ? "destructive" : "default",
     });
   };
