@@ -15,6 +15,7 @@ type AlertaEventoRow = {
   eventos_agenda: {
     id: string;
     titulo: string;
+    descricao: string | null;
     data_inicio: string;
     dia_inteiro: boolean | null;
     local: string | null;
@@ -55,6 +56,7 @@ function formatarDataHoraBR(dateIso: string) {
 
 function montarMensagemLembrete(params: {
   titulo: string;
+  descricao?: string | null;
   data_inicio: string;
   dia_inteiro?: boolean;
   local?: string | null;
@@ -69,6 +71,9 @@ function montarMensagemLembrete(params: {
   msg += `📆 Data: ${data}\n`;
   if (!diaInteiro) msg += `🕐 Horário: ${hora}\n`;
   if (params.local) msg += `📍 Local: ${params.local}\n`;
+  if (params.descricao) {
+    msg += `\n📝 *Descrição:*\n${params.descricao}\n`;
+  }
   msg += `\n_JurisControl - Sistema de Gestão Jurídica_`;
   return msg;
 }
@@ -113,7 +118,7 @@ serve(async (req) => {
       .from("alertas_evento")
       .select(
         `id, evento_id, minutos_antes, enviado, enviado_em,
-         eventos_agenda!inner(id, titulo, data_inicio, dia_inteiro, local, status, enviar_whatsapp)`
+         eventos_agenda!inner(id, titulo, descricao, data_inicio, dia_inteiro, local, status, enviar_whatsapp)`
       )
       .or("enviado.is.null,enviado.eq.false")
       .order("created_at", { ascending: true })
@@ -221,6 +226,7 @@ serve(async (req) => {
 
         const mensagem = montarMensagemLembrete({
           titulo: evento.titulo,
+          descricao: evento.descricao,
           data_inicio: evento.data_inicio,
           dia_inteiro: !!evento.dia_inteiro,
           local: evento.local,
