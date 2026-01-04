@@ -24,6 +24,14 @@ import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel, FileText, FileBarChart } from "lucide-react";
 import { useRelatorioPedidos, TipoPedido } from "@/hooks/useRelatorioPedidos";
+import { 
+  downloadProjurisTemplate, 
+  downloadOsmarTemplate, 
+  downloadJanainaTemplate, 
+  downloadPolyanaTemplate, 
+  downloadMptTemplate, 
+  downloadPedidosTemplate 
+} from "@/utils/generateTemplates";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
@@ -4565,9 +4573,19 @@ export default function ImportarProcessos() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <h4 className="font-medium mb-2">Faça upload da planilha do Projuris</h4>
+                  <h4 className="font-medium mb-2">1. Baixe o modelo de planilha</h4>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Exporte a planilha de processos do Projuris e faça o upload aqui.
+                    Utilize o modelo padrão para preencher os dados dos processos.
+                  </p>
+                  <Button variant="outline" onClick={downloadProjurisTemplate}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Modelo Projuris
+                  </Button>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">2. Faça upload da planilha do Projuris</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Preencha e faça o upload da planilha aqui.
                   </p>
                   <div className="flex items-center gap-2">
                     <Input
@@ -4874,7 +4892,17 @@ export default function ImportarProcessos() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <h4 className="font-medium mb-2">Faça upload da planilha</h4>
+                  <h4 className="font-medium mb-2">1. Baixe o modelo de planilha</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Utilize o modelo padrão para preencher os dados dos processos.
+                  </p>
+                  <Button variant="outline" onClick={downloadOsmarTemplate}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Modelo Dr. Osmar
+                  </Button>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">2. Faça upload da planilha</h4>
                   <p className="text-sm text-muted-foreground mb-3">
                     A planilha deve conter as colunas: ADVOGADO, UNIDADE, Sigla, Numero do processo, VARA, STATUS DO PROCESSO, etc.
                   </p>
@@ -5180,7 +5208,17 @@ export default function ImportarProcessos() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <h4 className="font-medium mb-2">Faça upload da planilha</h4>
+                  <h4 className="font-medium mb-2">1. Baixe o modelo de planilha</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Utilize o modelo padrão para preencher os dados dos processos.
+                  </p>
+                  <Button variant="outline" onClick={downloadJanainaTemplate}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Modelo Dra. Janaína
+                  </Button>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">2. Faça upload da planilha</h4>
                   <p className="text-sm text-muted-foreground mb-3">
                     A planilha deve conter as colunas: Processo Judicial, Status, Comarca, Vara, Data do Ajuizamento, Reclamante, Reclamados, etc.
                   </p>
@@ -5486,7 +5524,17 @@ export default function ImportarProcessos() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <h4 className="font-medium mb-2">Faça upload da planilha</h4>
+                  <h4 className="font-medium mb-2">1. Baixe o modelo de planilha</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Utilize o modelo padrão para preencher os dados dos processos.
+                  </p>
+                  <Button variant="outline" onClick={downloadPolyanaTemplate}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Modelo Dra. Polyana
+                  </Button>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">2. Faça upload da planilha</h4>
                   <p className="text-sm text-muted-foreground mb-3">
                     A planilha deve conter as colunas: HOSPITAL, Parte Contrária, Numero do processo, Fase do Processo, DESCRIÇÃO DO OBJETO, ANDAMENTO ATUALIZADO, VALOR DA CAUSA.
                   </p>
@@ -5716,7 +5764,17 @@ export default function ImportarProcessos() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <h4 className="font-medium mb-2">Faça upload da planilha</h4>
+                  <h4 className="font-medium mb-2">1. Baixe o modelo de planilha</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Utilize o modelo padrão para preencher os dados dos processos.
+                  </p>
+                  <Button variant="outline" onClick={downloadMptTemplate}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Modelo MPT
+                  </Button>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">2. Faça upload da planilha</h4>
                   <p className="text-sm text-muted-foreground mb-3">
                     A planilha deve conter as colunas: PROCEDIMENTO, LOCALIDADE, UF, AUTOR, REQUERIDO, MATÉRIA, ÚLTIMO ANDAMENTO, STATUS, Observação Advogado Responsável.
                   </p>
@@ -6022,7 +6080,17 @@ export default function ImportarProcessos() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <h4 className="font-medium mb-2">Faça upload da planilha de Pedidos</h4>
+                  <h4 className="font-medium mb-2">1. Baixe o modelo de planilha</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Utilize o modelo padrão para preencher os dados dos processos.
+                  </p>
+                  <Button variant="outline" onClick={downloadPedidosTemplate}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Modelo Pedidos
+                  </Button>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">2. Faça upload da planilha de Pedidos</h4>
                   <p className="text-sm text-muted-foreground mb-3">
                     A planilha deve conter as colunas: PROCESSO, RECLAMANTE, FUNÇÃO, SETOR, RECLAMADO, VARA, COMARCA, além das colunas de pedidos.
                   </p>
