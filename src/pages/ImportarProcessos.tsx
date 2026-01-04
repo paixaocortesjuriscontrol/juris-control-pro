@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel, FileText } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
@@ -358,6 +358,13 @@ export default function ImportarProcessos() {
   const [mptImporting, setMptImporting] = useState(false);
   const [mptProgress, setMptProgress] = useState(0);
   const [mptBuscarAndamentos, setMptBuscarAndamentos] = useState(true);
+
+  // Pedidos import states
+  const [pedidosFile, setPedidosFile] = useState<File | null>(null);
+  const [pedidosProcessos, setPedidosProcessos] = useState<ProcessoImport[]>([]);
+  const [pedidosImporting, setPedidosImporting] = useState(false);
+  const [pedidosProgress, setPedidosProgress] = useState(0);
+  const [pedidosBuscarAndamentos, setPedidosBuscarAndamentos] = useState(true);
 
   // Excel/Planilha import state for andamentos
   const [planilhaBuscarAndamentos, setPlanilhaBuscarAndamentos] = useState(true);
@@ -3391,11 +3398,553 @@ export default function ImportarProcessos() {
   const mptErrorCount = mptProcessos.filter(p => p.status === "erro").length;
   const mptTotalProblemas = mptInvalidCount + mptErrorCount + mptWarningCount;
 
+  // Pedidos file handling
+  const handlePedidosFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setPedidosFile(selectedFile);
+      parsePedidosExcel(selectedFile);
+    }
+  }, []);
+
+  const parsePedidosExcel = async (file: File) => {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+
+      const range = sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null;
+      const expectedRows = range ? Math.max(0, range.e.r - range.s.r) : 0;
+
+      const aoa = XLSX.utils.sheet_to_json<any[]>(sheet, {
+        header: 1,
+        defval: null,
+        blankrows: true,
+      }) as any[][];
+
+      // Pular as primeiras linhas de cabeçalho agrupado (7 linhas na planilha de pedidos)
+      // A linha 8 (index 7) contém os cabeçalhos detalhados
+      const headerRow = (aoa[7] || aoa[0] || []).map((h) => String(h ?? "").trim());
+
+      const normalizeHeaderKey = (value: string) =>
+        value
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const getFromRow = (rowObj: Record<string, any>, keys: string[]) => {
+        for (const k of keys) {
+          if (k in rowObj) return rowObj[k];
+        }
+        const normalizedRow: Record<string, any> = {};
+        for (const [k, v] of Object.entries(rowObj)) {
+          const nk = normalizeHeaderKey(k);
+          if (!normalizedRow[nk]) normalizedRow[nk] = v;
+        }
+        for (const k of keys) {
+          const nk = normalizeHeaderKey(k);
+          if (nk in normalizedRow) return normalizedRow[nk];
+        }
+        return null;
+      };
+
+      // Dados começam após o cabeçalho na linha 8 (index 7)
+      const dataStartIndex = 8;
+      const totalDataRows = expectedRows ? Math.max(0, aoa.length - dataStartIndex) : Math.max(0, aoa.length - dataStartIndex);
+
+      const parsed: ProcessoImport[] = [];
+
+      for (let index = 0; index < totalDataRows; index++) {
+        const rowArr = aoa[dataStartIndex + index] || [];
+
+        const row: Record<string, any> = {};
+        headerRow.forEach((header, colIndex) => {
+          if (!header) return;
+          row[header] = rowArr[colIndex] ?? null;
+        });
+
+        const rowHasAnyValue = rowArr.some((v) => {
+          if (v === null || v === undefined) return false;
+          if (typeof v === "string") return v.trim() !== "";
+          return true;
+        });
+
+        const numeroProcesso = getFromRow(row, [
+          "PROCESSO",
+          "Processo",
+          "processo",
+          "Número",
+          "Numero",
+        ]) || "";
+
+        const processo: ProcessoImport = {
+          numero: String(numeroProcesso ?? "").trim(),
+          assunto: null,
+          situacao: getFromRow(row, ["STATUS", "Status", "status"]) || null,
+          responsavel: null,
+          descricao: getFromRow(row, ["OBSERVAÇÃO ADVOGADO", "Observação Advogado", "observacao advogado"]) || null,
+          justica: null,
+          cidade: getFromRow(row, ["COMARCA", "Comarca", "comarca"]) || null,
+          estado: null,
+          instancia: null,
+          orgao: null,
+          orgaoJulgador: getFromRow(row, ["VARA", "Vara", "vara"]) || null,
+          sistema: null,
+          area: "trabalhista",
+          fase: null,
+          dataDistribuicao: null,
+          classeCNJ: null,
+          valorAcao: null,
+          parteAtiva: getFromRow(row, ["RECLAMANTE", "Reclamante", "reclamante"]) || null,
+          partePassiva: getFromRow(row, ["RECLAMADO", "Reclamado", "reclamado"]) || null,
+          cpfCnpjAtivo: null,
+          cpfCnpjPassivo: null,
+          status: "pendente",
+          erros: [],
+          linhaOriginal: dataStartIndex + index + 2,
+          identificadorProjuris: null,
+          pastaFisica: null,
+          pastaCliente: null,
+          dataCitacao: null,
+          dataRecebimento: null,
+          dataArquivamento: null,
+          valorProvisionado: null,
+          probabilidade: null,
+          risco: null,
+          transitadoJulgado: null,
+          resultado: null,
+          valorCondenacao: null,
+        };
+
+        // Store Pedidos-specific data
+        (processo as any).pedidosData = {
+          reclamante: getFromRow(row, ["RECLAMANTE", "Reclamante"]) || null,
+          funcao: getFromRow(row, ["FUNÇÃO", "Funcao", "Função"]) || null,
+          setor: getFromRow(row, ["SETOR", "Setor"]) || null,
+          reclamado: getFromRow(row, ["RECLAMADO", "Reclamado"]) || null,
+          vara: getFromRow(row, ["VARA", "Vara"]) || null,
+          comarca: getFromRow(row, ["COMARCA", "Comarca"]) || null,
+          lei_13467: getFromRow(row, ["LEI 13.467/2017", "Lei 13.467/2017"]) || null,
+          responsabilidade_subsidiaria: getFromRow(row, ["RESPONSABILIDADE SUBSIDIÁRIA", "Responsabilidade Subsidiária"]) || null,
+          observacao_advogado: getFromRow(row, ["OBSERVAÇÃO ADVOGADO", "Observação Advogado"]) || null,
+          // Horas Extras
+          excesso_jornada: getFromRow(row, ["EXCESSO JORNADA", "Excesso Jornada"]) || null,
+          plantoes_extras: getFromRow(row, ["PLANTÕES EXTRAS", "Plantões Extras"]) || null,
+          dobras: getFromRow(row, ["DOBRAS", "Dobras"]) || null,
+          intervalo_intrajornada: getFromRow(row, ["INTERVALO INTRAJORNADA", "Intervalo Intrajornada"]) || null,
+          intervalo_interjornada: getFromRow(row, ["INTERVALO INTERJORNADA", "Intervalo Interjornada"]) || null,
+          descaract_jornada_12_36: getFromRow(row, ["DESCARACTERIZAÇÃO JORNADA 12/36", "Descaracterização Jornada 12/36"]) || null,
+          domingos_feriados: getFromRow(row, ["Domingos/Feriados", "DOMINGOS/FERIADOS"]) || null,
+          // Insalubridade/Periculosidade e Adicionais
+          insalubridade_periculosidade: getFromRow(row, ["INSALUBRIDADE/PERICULOSIDADE", "Insalubridade/Periculosidade"]) || null,
+          diferencas_salariais: getFromRow(row, ["DIFERENÇAS SALARIAIS", "Diferenças Salariais"]) || null,
+          adicional_noturno: getFromRow(row, ["ADICIONAL NOTURNO", "Adicional Noturno"]) || null,
+          sobrecarga_trabalho: getFromRow(row, ["SOBRECARGA DE TRABALHO", "Sobrecarga de Trabalho"]) || null,
+          reconhecimento_vinculo: getFromRow(row, ["RECONHECIMENTO DE VÍNCULO", "Reconhecimento de Vínculo"]) || null,
+          // Danos Morais
+          danos_morais_assedio: getFromRow(row, ["ASSÉDIO", "Assédio"]) || null,
+          danos_morais_outros: getFromRow(row, ["OUTROS", "Outros"]) || null,
+          // Acidente/Doença
+          acidente_doenca: getFromRow(row, ["ACIDENTE/DOENÇA", "Acidente/Doença"]) || null,
+          danos_materiais: getFromRow(row, ["DANOS MATERIAIS", "Danos Materiais"]) || null,
+          pensao_vitalicia: getFromRow(row, ["PENSÃO VITALÍCIA", "Pensão Vitalícia"]) || null,
+          danos_morais_acidente: getFromRow(row, ["DANOS MORAIS", "Danos Morais"]) || null,
+          limbo_previdenciario: getFromRow(row, ["LIMBO PREVIDENCIÁRIO", "Limbo Previdenciário"]) || null,
+          // Estabilidade e Justa Causa
+          estabilidade: getFromRow(row, ["ESTABILIDADE", "Estabilidade"]) || null,
+          indenizacao_substitutiva: getFromRow(row, ["INDENIZAÇÃO SUBSTITUTIVA", "Indenização Substitutiva"]) || null,
+          reversao_justa_causa: getFromRow(row, ["REVERSÃO JUSTA CAUSA", "Reversão Justa Causa"]) || null,
+          rescisao_indireta: getFromRow(row, ["RESCISÃO INDIRETA", "Rescisão Indireta"]) || null,
+          reversao_pedido_demissao: getFromRow(row, ["REVERSÃO PEDIDO DEMISSÃO", "Reversão Pedido Demissão"]) || null,
+          // Multas
+          multas_clt: getFromRow(row, ["Multas CLT", "MULTAS CLT"]) || null,
+          multas_ccts: getFromRow(row, ["Multas CCTs", "MULTAS CCTS"]) || null,
+          // Encerramento
+          status_processo: getFromRow(row, ["STATUS", "Status"]) || null,
+          encerramento: getFromRow(row, ["ENCERRAMENTO", "Encerramento"]) || null,
+          motivo_encerramento: getFromRow(row, ["MOTIVO ENCERRAMENTO", "Motivo Encerramento"]) || null,
+          custo_encerramento: getFromRow(row, ["CUSTO ENCERRAMENTO", "Custo Encerramento"]) || null,
+        };
+
+        // Validação
+        processo.erros = validateProcesso(processo);
+
+        const numeroTrimmed = (processo.numero || "").trim();
+        const isEmptyRow = !rowHasAnyValue;
+        const hasInvalidNumero = !numeroTrimmed || numeroTrimmed.length < 5;
+
+        if (isEmptyRow || hasInvalidNumero) {
+          const motivo = isEmptyRow
+            ? "Linha vazia na planilha"
+            : !numeroTrimmed
+              ? "Processo vazio ou não encontrado na planilha"
+              : `Processo muito curto (${numeroTrimmed.length} caracteres, mínimo 5)`;
+
+          processo.status = "invalido";
+          processo.erroImport = motivo;
+          processo.erros = [{ campo: "numero", mensagem: motivo }];
+        } else {
+          processo.status = "valido";
+        }
+
+        parsed.push(processo);
+      }
+
+      setPedidosProcessos(parsed);
+
+      const validCount = parsed.filter((p) => p.status === "valido").length;
+      const invalidCount = parsed.filter((p) => p.status === "invalido").length;
+
+      if (parsed.length === 0) {
+        toast({
+          title: "Nenhum processo encontrado",
+          description: "A planilha não contém dados.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Planilha carregada",
+          description: `${parsed.length} linha(s) lida(s): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
+          variant: invalidCount > 0 ? "destructive" : "default",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao ler planilha Pedidos:", error);
+      toast({
+        title: "Erro ao ler planilha",
+        description: "Verifique se o arquivo está no formato correto (.xlsx ou .xls).",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePedidosImport = async () => {
+    const validProcessos = pedidosProcessos.filter(p => p.status === "valido");
+    const invalidProcessos = pedidosProcessos.filter(p => p.status === "invalido");
+    
+    if (validProcessos.length === 0 && invalidProcessos.length === 0) {
+      toast({
+        title: "Nenhum processo para processar",
+        description: "A planilha não contém dados válidos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPedidosImporting(true);
+    startImport("Importando Pedidos");
+    setPedidosProgress(0);
+
+    const updatedProcessos = [...pedidosProcessos];
+    let successCountLocal = 0;
+    let updateCountLocal = 0;
+    let errorCountLocal = 0;
+    let rejectedCountLocal = 0;
+    
+    // Cache de clientes criados
+    const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
+
+    for (let i = 0; i < updatedProcessos.length; i++) {
+      const processo = updatedProcessos[i];
+      
+      if (processo.status === "invalido") {
+        const motivo = !processo.numero || processo.numero.trim() === "" 
+          ? "Processo vazio ou não encontrado na planilha"
+          : processo.numero.trim().length < 5 
+            ? `Processo muito curto (${processo.numero.trim().length} caracteres, mínimo 5)`
+            : "Dados insuficientes para importação";
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "invalido", 
+          erroImport: motivo,
+          erros: processo.erros.length > 0 ? processo.erros : [{ campo: "numero", mensagem: motivo }]
+        };
+        rejectedCountLocal++;
+        setPedidosProgress(((i + 1) / updatedProcessos.length) * 100);
+        setPedidosProcessos([...updatedProcessos]);
+        continue;
+      }
+
+      try {
+        const pedidosData = (processo as any).pedidosData || {};
+
+        // Verificar se processo já existe
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processo.numero.trim())
+          .maybeSingle();
+
+        const areaSlug = await ensureAreaExists("trabalhista");
+
+        // Determinar cliente - criar automaticamente pelo RECLAMADO
+        let clienteIdToUse: string | null = null;
+        const reclamadoNome = pedidosData.reclamado?.trim();
+        
+        if (reclamadoNome) {
+          const existingCliente = clientesCache.find(c => 
+            c.nome.toLowerCase().trim() === reclamadoNome.toLowerCase()
+          );
+          
+          if (existingCliente) {
+            clienteIdToUse = existingCliente.id;
+          } else {
+            const { data: novoCliente, error: clienteError } = await supabase
+              .from("clientes")
+              .insert({
+                nome: reclamadoNome,
+                tipo: "pessoa_juridica",
+              })
+              .select("id, nome")
+              .single();
+            
+            if (!clienteError && novoCliente) {
+              clienteIdToUse = novoCliente.id;
+              clientesCache.push({ id: novoCliente.id, nome: novoCliente.nome, tipo: "pessoa_juridica" });
+            } else {
+              console.warn(`Falha ao criar cliente ${reclamadoNome}:`, clienteError?.message);
+            }
+          }
+        }
+
+        // Converter valores booleanos
+        const parseBoolean = (value: any): boolean => {
+          if (!value) return false;
+          const str = String(value).toLowerCase().trim();
+          return str === "sim" || str === "s" || str === "true" || str === "1" || str === "x";
+        };
+
+        const processoData: any = {
+          numero: processo.numero.trim(),
+          area: areaSlug,
+          status: mapStatusToEnum(pedidosData.status_processo),
+          situacao_original: getSituacaoOriginal(pedidosData.status_processo),
+          polo_ativo: pedidosData.reclamante,
+          polo_passivo: pedidosData.reclamado,
+          vara: pedidosData.vara,
+          comarca: pedidosData.comarca,
+          funcao: pedidosData.funcao,
+          setor: pedidosData.setor,
+          observacao_advogado: pedidosData.observacao_advogado,
+          cliente_id: clienteIdToUse,
+          monitorar_andamentos: pedidosBuscarAndamentos,
+          categoria_importacao: "pedidos",
+          // Campos específicos de Pedidos
+          lei_13467_2017: pedidosData.lei_13467,
+          responsabilidade_subsidiaria: pedidosData.responsabilidade_subsidiaria,
+          // Horas Extras
+          pedido_excesso_jornada: parseBoolean(pedidosData.excesso_jornada),
+          pedido_plantoes_extras: parseBoolean(pedidosData.plantoes_extras),
+          pedido_dobras: parseBoolean(pedidosData.dobras),
+          pedido_intervalo_intrajornada: pedidosData.intervalo_intrajornada,
+          pedido_intervalo_interjornada: parseBoolean(pedidosData.intervalo_interjornada),
+          pedido_descaract_jornada_12_36: parseBoolean(pedidosData.descaract_jornada_12_36),
+          pedido_domingos_feriados: pedidosData.domingos_feriados,
+          // Insalubridade/Periculosidade e Adicionais
+          pedido_insalubridade_periculosidade: pedidosData.insalubridade_periculosidade,
+          pedido_diferencas_salariais: pedidosData.diferencas_salariais,
+          pedido_adicional_noturno: pedidosData.adicional_noturno,
+          pedido_sobrecarga_trabalho: pedidosData.sobrecarga_trabalho,
+          pedido_reconhecimento_vinculo: pedidosData.reconhecimento_vinculo,
+          // Danos Morais
+          pedido_danos_morais_assedio: pedidosData.danos_morais_assedio,
+          pedido_danos_morais_outros: pedidosData.danos_morais_outros,
+          // Acidente/Doença
+          pedido_acidente_doenca: pedidosData.acidente_doenca,
+          pedido_danos_materiais: parseBoolean(pedidosData.danos_materiais),
+          pedido_pensao_vitalicia: parseBoolean(pedidosData.pensao_vitalicia),
+          pedido_danos_morais_acidente: pedidosData.danos_morais_acidente,
+          pedido_limbo_previdenciario: parseBoolean(pedidosData.limbo_previdenciario),
+          // Estabilidade e Justa Causa
+          pedido_estabilidade: pedidosData.estabilidade,
+          pedido_indenizacao_substitutiva: parseBoolean(pedidosData.indenizacao_substitutiva),
+          pedido_reversao_justa_causa: parseBoolean(pedidosData.reversao_justa_causa),
+          pedido_rescisao_indireta: parseBoolean(pedidosData.rescisao_indireta),
+          pedido_reversao_pedido_demissao: parseBoolean(pedidosData.reversao_pedido_demissao),
+          // Multas
+          pedido_multas_clt: pedidosData.multas_clt,
+          pedido_multas_ccts: pedidosData.multas_ccts,
+          // Encerramento
+          status_pedido: pedidosData.status_processo,
+          motivo_encerramento: pedidosData.motivo_encerramento,
+          custo_encerramento: parseNumber(pedidosData.custo_encerramento),
+        };
+
+        let isUpdate = false;
+
+        if (existingProcesso) {
+          // Update existente
+          const { error } = await supabase
+            .from("processos")
+            .update(processoData)
+            .eq("id", existingProcesso.id);
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            errorCountLocal++;
+            continue;
+          }
+          isUpdate = true;
+        } else {
+          // Criar pasta automaticamente
+          let pastaId: string | null = null;
+          const reclamante = pedidosData.reclamante || "Sem Reclamante";
+          const clienteNome = reclamadoNome || "Sem Cliente";
+          const nomePasta = `${reclamante} x ${clienteNome}`;
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            const { data: novaPasta, error: pastaError } = await supabase
+              .from("pastas")
+              .insert({
+                nome: nomePasta,
+                descricao: `Pasta criada automaticamente para o processo ${processo.numero}`,
+                cliente_id: clienteIdToUse,
+                criado_por: user.id,
+              })
+              .select("id")
+              .single();
+            
+            if (!pastaError && novaPasta) {
+              pastaId = novaPasta.id;
+            } else {
+              console.warn(`Falha ao criar pasta para processo ${processo.numero}:`, pastaError?.message);
+            }
+          }
+
+          const { data: insertedProcesso, error } = await supabase
+            .from("processos")
+            .insert({ ...processoData, pasta_id: pastaId } as any)
+            .select("id")
+            .single();
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            errorCountLocal++;
+            continue;
+          }
+
+          if (pedidosBuscarAndamentos && insertedProcesso) {
+            const andamentosRes = await buscarAndamentosExternos(insertedProcesso.id, processo.numero.trim());
+            if (!andamentosRes.success) {
+              console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+            }
+          }
+        }
+        
+        updatedProcessos[i] = { 
+          ...processo, 
+          status: "sucesso", 
+          erroImport: isUpdate ? "Atualizado" : undefined 
+        };
+        if (isUpdate) {
+          updateCountLocal++;
+        } else {
+          successCountLocal++;
+        }
+      } catch (err: any) {
+        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
+        errorCountLocal++;
+      }
+
+      setPedidosProgress(((i + 1) / updatedProcessos.length) * 100);
+      setPedidosProcessos([...updatedProcessos]);
+    }
+
+    setPedidosImporting(false);
+    endImport();
+
+    const totalProcessed = successCountLocal + updateCountLocal + errorCountLocal + rejectedCountLocal;
+    
+    toast({
+      title: "Importação Pedidos concluída",
+      description: `${successCountLocal} novo(s), ${updateCountLocal} atualizado(s), ${rejectedCountLocal} rejeitado(s), ${errorCountLocal} erro(s). Total: ${totalProcessed}/${updatedProcessos.length}`,
+      variant: errorCountLocal > 0 || rejectedCountLocal > 0 ? "destructive" : "default",
+    });
+
+    if (rejectedCountLocal > 0 || errorCountLocal > 0) {
+      setTimeout(() => downloadPedidosRejeitados(updatedProcessos), 0);
+    }
+  };
+
+  const downloadPedidosRejeitados = (processosToExport: ProcessoImport[] = pedidosProcessos) => {
+    const rejeitados = processosToExport.filter((p) => p.status === "invalido" || p.status === "erro");
+    const comAvisos = processosToExport.filter(
+      (p) => (p.status === "sucesso" || p.status === "valido") && p.erros.length > 0
+    );
+
+    if (rejeitados.length === 0 && comAvisos.length === 0) {
+      toast({
+        title: "Nenhum problema encontrado",
+        description: "Não há processos rejeitados ou com avisos para exportar.",
+      });
+      return;
+    }
+
+    const rejeitadosData = rejeitados.map((p) => ({
+      Linha: p.linhaOriginal,
+      "Número do processo": p.numero || "(vazio)",
+      Reclamante: p.parteAtiva,
+      "Reclamado (Cliente)": p.partePassiva,
+      Tipo: "REJEITADO",
+      Motivo:
+        p.erros.map((e) => `${e.campo}: ${e.mensagem}`).join("; ") ||
+        p.erroImport ||
+        "Erro crítico",
+    }));
+
+    const avisosData = comAvisos.map((p) => ({
+      Linha: p.linhaOriginal,
+      "Número do processo": p.numero,
+      Reclamante: p.parteAtiva,
+      "Reclamado (Cliente)": p.partePassiva,
+      Tipo: "IMPORTADO COM AVISOS",
+      Avisos: p.erros.map((e) => `${e.campo}: ${e.mensagem}`).join("; "),
+    }));
+
+    const allData = [...rejeitadosData, ...avisosData];
+
+    const ws = XLSX.utils.json_to_sheet(allData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Problemas");
+
+    const colWidths = Object.keys(allData[0] || {}).map((key) => ({
+      wch: Math.max(key.length, 15),
+    }));
+    ws["!cols"] = colWidths;
+
+    XLSX.writeFile(wb, `pedidos_problemas_${new Date().toISOString().split("T")[0]}.xlsx`);
+
+    toast({
+      title: "Arquivo gerado",
+      description: `${rejeitados.length} rejeitado(s), ${comAvisos.length} com avisos.`,
+    });
+  };
+
+  const clearPedidos = () => {
+    setPedidosFile(null);
+    setPedidosProcessos([]);
+    setPedidosProgress(0);
+  };
+
+  // Pedidos counts
+  const pedidosValidCount = pedidosProcessos.filter(p => p.status === "valido").length;
+  const pedidosInvalidCount = pedidosProcessos.filter(p => p.status === "invalido").length;
+  const pedidosWarningCount = pedidosProcessos.filter(p => (p.status === "valido" || p.status === "sucesso") && p.erros.length > 0).length;
+  const pedidosSuccessCount = pedidosProcessos.filter(p => p.status === "sucesso").length;
+  const pedidosErrorCount = pedidosProcessos.filter(p => p.status === "erro").length;
+  const pedidosTotalProblemas = pedidosInvalidCount + pedidosErrorCount + pedidosWarningCount;
+
   return (
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-7 max-w-4xl">
+          <TabsList className="grid w-full grid-cols-8 max-w-5xl">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -3423,6 +3972,10 @@ export default function ImportarProcessos() {
             <TabsTrigger value="mpt" className="flex items-center gap-2">
               <Gavel className="h-4 w-4" />
               <span className="hidden sm:inline">Min. Público</span>
+            </TabsTrigger>
+            <TabsTrigger value="pedidos" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Pedidos</span>
             </TabsTrigger>
           </TabsList>
 
@@ -5417,6 +5970,236 @@ export default function ImportarProcessos() {
                                   {processo.partePassiva || "-"}
                                 </TableCell>
                                 <TableCell>{processo.estado || "-"}</TableCell>
+                                <TableCell>{processo.situacao || "-"}</TableCell>
+                                <TableCell className="text-sm">
+                                  {processo.status === "invalido" && processo.erros.length > 0 && (
+                                    <div className="text-red-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>• {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {(processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 && (
+                                    <div className="text-yellow-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>⚠ {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {processo.erroImport && (
+                                    <div className="text-orange-600">• Importação: {processo.erroImport}</div>
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length === 0 && "-"}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && <span className="text-blue-600">Importado com sucesso</span>}
+                                  {processo.status === "sucesso" && processo.erros.length > 0 && <span className="text-yellow-600 block mt-1">Importado com avisos</span>}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab: Pedidos */}
+          <TabsContent value="pedidos" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Importar Pedidos Trabalhistas
+                </CardTitle>
+                <CardDescription>
+                  Importe processos de reclamações trabalhistas com detalhamento de pedidos. A coluna "Reclamado" será usada como Cliente.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">Faça upload da planilha de Pedidos</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    A planilha deve conter as colunas: PROCESSO, RECLAMANTE, FUNÇÃO, SETOR, RECLAMADO, VARA, COMARCA, além das colunas de pedidos.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handlePedidosFileChange}
+                      className="max-w-xs"
+                      disabled={pedidosImporting}
+                    />
+                    {pedidosFile && (
+                      <Button variant="outline" onClick={clearPedidos} disabled={pedidosImporting}>
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Opção de buscar andamentos */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="buscar-andamentos-pedidos" className="flex items-center gap-2 font-medium">
+                      <Clock className="h-4 w-4" />
+                      Buscar andamentos na importação
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {pedidosBuscarAndamentos 
+                        ? "Os andamentos serão buscados durante a importação e o processo ficará habilitado para monitoramento automático."
+                        : "Os andamentos NÃO serão buscados e o processo ficará desabilitado para monitoramento."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="buscar-andamentos-pedidos"
+                    checked={pedidosBuscarAndamentos}
+                    onCheckedChange={setPedidosBuscarAndamentos}
+                    disabled={pedidosImporting}
+                  />
+                </div>
+                
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Colunas reconhecidas:</strong> PROCESSO, RECLAMANTE, FUNÇÃO, SETOR, RECLAMADO (salvo como cliente), VARA, COMARCA, Lei 13.467/2017, Responsabilidade Subsidiária, Horas Extras (Excesso Jornada, Plantões, Dobras, Intervalos, Domingos/Feriados), Insalubridade/Periculosidade, Diferenças Salariais, Adicional Noturno, Sobrecarga, Vínculo, Danos Morais (Assédio, Outros, Acidente), Acidente/Doença, Estabilidade, Multas, Status, Motivo Encerramento, Custo Encerramento.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Pedidos File Preview */}
+            {pedidosFile && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle>Pré-visualização Pedidos</CardTitle>
+                      <CardDescription>
+                        {pedidosProcessos.length} processo(s) encontrado(s) em "{pedidosFile.name}"
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {pedidosProcessos.length > 0 && (
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                            {pedidosValidCount} importáveis
+                          </Badge>
+                          {pedidosWarningCount > 0 && (
+                            <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-200">
+                              {pedidosWarningCount} com avisos
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                            {pedidosInvalidCount} rejeitados
+                          </Badge>
+                          {pedidosSuccessCount > 0 && (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
+                              {pedidosSuccessCount} importados
+                            </Badge>
+                          )}
+                          {pedidosErrorCount > 0 && (
+                            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
+                              {pedidosErrorCount} erros
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {pedidosTotalProblemas > 0 && (
+                          <Button variant="outline" onClick={() => downloadPedidosRejeitados()}>
+                            <FileDown className="h-4 w-4 mr-2" />
+                            Baixar Problemas ({pedidosTotalProblemas})
+                          </Button>
+                        )}
+                        <Button 
+                          onClick={handlePedidosImport} 
+                          disabled={pedidosImporting || pedidosValidCount === 0}
+                        >
+                          {pedidosImporting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Importando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Importar ({pedidosValidCount})
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {pedidosImporting && (
+                    <Progress value={pedidosProgress} className="mt-4" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {pedidosProcessos.length === 0 ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Nenhum processo encontrado na planilha. Verifique se é uma planilha no formato correto.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="max-h-[500px] overflow-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead className="w-[60px]">Linha</TableHead>
+                              <TableHead className="w-[60px]">Status</TableHead>
+                              <TableHead>Processo</TableHead>
+                              <TableHead>Reclamante</TableHead>
+                              <TableHead>Reclamado (Cliente)</TableHead>
+                              <TableHead>Vara</TableHead>
+                              <TableHead>Status Proc.</TableHead>
+                              <TableHead className="min-w-[300px]">Avisos/Erros</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {pedidosProcessos.map((processo, index) => (
+                              <TableRow key={index} className={
+                                processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : 
+                                processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : 
+                                (processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 ? "bg-yellow-50 dark:bg-yellow-950/20" : ""
+                              }>
+                                <TableCell className="text-muted-foreground">
+                                  {processo.linhaOriginal}
+                                </TableCell>
+                                <TableCell>
+                                  {processo.status === "valido" && processo.erros.length === 0 && (
+                                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length > 0 && (
+                                    <AlertCircle className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                  {processo.status === "invalido" && (
+                                    <XCircle className="h-4 w-4 text-red-500" />
+                                  )}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && (
+                                    <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                                  )}
+                                  {processo.status === "sucesso" && processo.erros.length > 0 && (
+                                    <CheckCircle2 className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                  {processo.status === "erro" && (
+                                    <XCircle className="h-4 w-4 text-orange-500" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {processo.numero || <span className="text-red-500 italic">vazio</span>}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.parteAtiva || "-"}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.partePassiva || "-"}
+                                </TableCell>
+                                <TableCell>{processo.orgaoJulgador || "-"}</TableCell>
                                 <TableCell>{processo.situacao || "-"}</TableCell>
                                 <TableCell className="text-sm">
                                   {processo.status === "invalido" && processo.erros.length > 0 && (

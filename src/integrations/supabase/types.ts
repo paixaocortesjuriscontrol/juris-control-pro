@@ -1466,12 +1466,14 @@ export type Database = {
           assunto: string | null
           ativo_passivo: string | null
           autor: string | null
+          categoria_importacao: string | null
           classe: string | null
           cliente_id: string | null
           comarca: string | null
           coordenacao_id: string | null
           cpf_cnpj_parte_contraria: string | null
           created_at: string
+          custo_encerramento: number | null
           data_arquivamento: string | null
           data_citacao: string | null
           data_consulta: string | null
@@ -1494,10 +1496,12 @@ export type Database = {
           instancia: string | null
           justica: string | null
           justificativa_risco: string | null
+          lei_13467_2017: string | null
           localidade: string | null
           materia: string | null
           materia_mpt: string | null
           monitorar_andamentos: boolean
+          motivo_encerramento: string | null
           mudanca_risco: boolean | null
           natureza: string | null
           numero: string
@@ -1506,6 +1510,32 @@ export type Database = {
           pasta_cliente: string | null
           pasta_fisica: string | null
           pasta_id: string | null
+          pedido_acidente_doenca: string | null
+          pedido_adicional_noturno: string | null
+          pedido_danos_materiais: boolean | null
+          pedido_danos_morais_acidente: string | null
+          pedido_danos_morais_assedio: string | null
+          pedido_danos_morais_outros: string | null
+          pedido_descaract_jornada_12_36: boolean | null
+          pedido_diferencas_salariais: string | null
+          pedido_dobras: boolean | null
+          pedido_domingos_feriados: string | null
+          pedido_estabilidade: string | null
+          pedido_excesso_jornada: boolean | null
+          pedido_indenizacao_substitutiva: boolean | null
+          pedido_insalubridade_periculosidade: string | null
+          pedido_intervalo_interjornada: boolean | null
+          pedido_intervalo_intrajornada: string | null
+          pedido_limbo_previdenciario: boolean | null
+          pedido_multas_ccts: string | null
+          pedido_multas_clt: string | null
+          pedido_pensao_vitalicia: boolean | null
+          pedido_plantoes_extras: boolean | null
+          pedido_reconhecimento_vinculo: string | null
+          pedido_rescisao_indireta: boolean | null
+          pedido_reversao_justa_causa: boolean | null
+          pedido_reversao_pedido_demissao: boolean | null
+          pedido_sobrecarga_trabalho: string | null
           pedido_valor: string | null
           pedidos: string | null
           periodo_condenacao: string | null
@@ -1521,6 +1551,7 @@ export type Database = {
           requerido: string | null
           responsabilidade_antes_data: number | null
           responsabilidade_apos_data: number | null
+          responsabilidade_subsidiaria: string | null
           responsabilidade_tipo: string | null
           responsaveis_projuris: string | null
           resultado: string | null
@@ -1531,6 +1562,7 @@ export type Database = {
           sigla_unidade: string | null
           situacao_original: string | null
           status: Database["public"]["Enums"]["status_processo"]
+          status_pedido: string | null
           terceiro_envolvido: string | null
           tipo_controladora: string | null
           tipo_pagamento: string | null
@@ -1558,12 +1590,14 @@ export type Database = {
           assunto?: string | null
           ativo_passivo?: string | null
           autor?: string | null
+          categoria_importacao?: string | null
           classe?: string | null
           cliente_id?: string | null
           comarca?: string | null
           coordenacao_id?: string | null
           cpf_cnpj_parte_contraria?: string | null
           created_at?: string
+          custo_encerramento?: number | null
           data_arquivamento?: string | null
           data_citacao?: string | null
           data_consulta?: string | null
@@ -1586,10 +1620,12 @@ export type Database = {
           instancia?: string | null
           justica?: string | null
           justificativa_risco?: string | null
+          lei_13467_2017?: string | null
           localidade?: string | null
           materia?: string | null
           materia_mpt?: string | null
           monitorar_andamentos?: boolean
+          motivo_encerramento?: string | null
           mudanca_risco?: boolean | null
           natureza?: string | null
           numero: string
@@ -1598,6 +1634,32 @@ export type Database = {
           pasta_cliente?: string | null
           pasta_fisica?: string | null
           pasta_id?: string | null
+          pedido_acidente_doenca?: string | null
+          pedido_adicional_noturno?: string | null
+          pedido_danos_materiais?: boolean | null
+          pedido_danos_morais_acidente?: string | null
+          pedido_danos_morais_assedio?: string | null
+          pedido_danos_morais_outros?: string | null
+          pedido_descaract_jornada_12_36?: boolean | null
+          pedido_diferencas_salariais?: string | null
+          pedido_dobras?: boolean | null
+          pedido_domingos_feriados?: string | null
+          pedido_estabilidade?: string | null
+          pedido_excesso_jornada?: boolean | null
+          pedido_indenizacao_substitutiva?: boolean | null
+          pedido_insalubridade_periculosidade?: string | null
+          pedido_intervalo_interjornada?: boolean | null
+          pedido_intervalo_intrajornada?: string | null
+          pedido_limbo_previdenciario?: boolean | null
+          pedido_multas_ccts?: string | null
+          pedido_multas_clt?: string | null
+          pedido_pensao_vitalicia?: boolean | null
+          pedido_plantoes_extras?: boolean | null
+          pedido_reconhecimento_vinculo?: string | null
+          pedido_rescisao_indireta?: boolean | null
+          pedido_reversao_justa_causa?: boolean | null
+          pedido_reversao_pedido_demissao?: boolean | null
+          pedido_sobrecarga_trabalho?: string | null
           pedido_valor?: string | null
           pedidos?: string | null
           periodo_condenacao?: string | null
@@ -1613,6 +1675,7 @@ export type Database = {
           requerido?: string | null
           responsabilidade_antes_data?: number | null
           responsabilidade_apos_data?: number | null
+          responsabilidade_subsidiaria?: string | null
           responsabilidade_tipo?: string | null
           responsaveis_projuris?: string | null
           resultado?: string | null
@@ -1623,6 +1686,7 @@ export type Database = {
           sigla_unidade?: string | null
           situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
+          status_pedido?: string | null
           terceiro_envolvido?: string | null
           tipo_controladora?: string | null
           tipo_pagamento?: string | null
@@ -1650,12 +1714,14 @@ export type Database = {
           assunto?: string | null
           ativo_passivo?: string | null
           autor?: string | null
+          categoria_importacao?: string | null
           classe?: string | null
           cliente_id?: string | null
           comarca?: string | null
           coordenacao_id?: string | null
           cpf_cnpj_parte_contraria?: string | null
           created_at?: string
+          custo_encerramento?: number | null
           data_arquivamento?: string | null
           data_citacao?: string | null
           data_consulta?: string | null
@@ -1678,10 +1744,12 @@ export type Database = {
           instancia?: string | null
           justica?: string | null
           justificativa_risco?: string | null
+          lei_13467_2017?: string | null
           localidade?: string | null
           materia?: string | null
           materia_mpt?: string | null
           monitorar_andamentos?: boolean
+          motivo_encerramento?: string | null
           mudanca_risco?: boolean | null
           natureza?: string | null
           numero?: string
@@ -1690,6 +1758,32 @@ export type Database = {
           pasta_cliente?: string | null
           pasta_fisica?: string | null
           pasta_id?: string | null
+          pedido_acidente_doenca?: string | null
+          pedido_adicional_noturno?: string | null
+          pedido_danos_materiais?: boolean | null
+          pedido_danos_morais_acidente?: string | null
+          pedido_danos_morais_assedio?: string | null
+          pedido_danos_morais_outros?: string | null
+          pedido_descaract_jornada_12_36?: boolean | null
+          pedido_diferencas_salariais?: string | null
+          pedido_dobras?: boolean | null
+          pedido_domingos_feriados?: string | null
+          pedido_estabilidade?: string | null
+          pedido_excesso_jornada?: boolean | null
+          pedido_indenizacao_substitutiva?: boolean | null
+          pedido_insalubridade_periculosidade?: string | null
+          pedido_intervalo_interjornada?: boolean | null
+          pedido_intervalo_intrajornada?: string | null
+          pedido_limbo_previdenciario?: boolean | null
+          pedido_multas_ccts?: string | null
+          pedido_multas_clt?: string | null
+          pedido_pensao_vitalicia?: boolean | null
+          pedido_plantoes_extras?: boolean | null
+          pedido_reconhecimento_vinculo?: string | null
+          pedido_rescisao_indireta?: boolean | null
+          pedido_reversao_justa_causa?: boolean | null
+          pedido_reversao_pedido_demissao?: boolean | null
+          pedido_sobrecarga_trabalho?: string | null
           pedido_valor?: string | null
           pedidos?: string | null
           periodo_condenacao?: string | null
@@ -1705,6 +1799,7 @@ export type Database = {
           requerido?: string | null
           responsabilidade_antes_data?: number | null
           responsabilidade_apos_data?: number | null
+          responsabilidade_subsidiaria?: string | null
           responsabilidade_tipo?: string | null
           responsaveis_projuris?: string | null
           resultado?: string | null
@@ -1715,6 +1810,7 @@ export type Database = {
           sigla_unidade?: string | null
           situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
+          status_pedido?: string | null
           terceiro_envolvido?: string | null
           tipo_controladora?: string | null
           tipo_pagamento?: string | null

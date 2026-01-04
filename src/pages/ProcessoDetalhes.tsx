@@ -286,6 +286,39 @@ export default function ProcessoDetalhes() {
         materia_mpt: processo.materia_mpt || "",
         ultimo_andamento_mpt: processo.ultimo_andamento_mpt || "",
         observacao_advogado: processo.observacao_advogado || "",
+        // Campos de Pedidos
+        lei_13467_2017: processo.lei_13467_2017 || "",
+        responsabilidade_subsidiaria: processo.responsabilidade_subsidiaria || "",
+        pedido_excesso_jornada: processo.pedido_excesso_jornada || false,
+        pedido_plantoes_extras: processo.pedido_plantoes_extras || false,
+        pedido_dobras: processo.pedido_dobras || false,
+        pedido_intervalo_intrajornada: processo.pedido_intervalo_intrajornada || "",
+        pedido_intervalo_interjornada: processo.pedido_intervalo_interjornada || false,
+        pedido_descaract_jornada_12_36: processo.pedido_descaract_jornada_12_36 || false,
+        pedido_domingos_feriados: processo.pedido_domingos_feriados || "",
+        pedido_insalubridade_periculosidade: processo.pedido_insalubridade_periculosidade || "",
+        pedido_diferencas_salariais: processo.pedido_diferencas_salariais || "",
+        pedido_adicional_noturno: processo.pedido_adicional_noturno || "",
+        pedido_sobrecarga_trabalho: processo.pedido_sobrecarga_trabalho || "",
+        pedido_reconhecimento_vinculo: processo.pedido_reconhecimento_vinculo || "",
+        pedido_danos_morais_assedio: processo.pedido_danos_morais_assedio || "",
+        pedido_danos_morais_outros: processo.pedido_danos_morais_outros || "",
+        pedido_acidente_doenca: processo.pedido_acidente_doenca || "",
+        pedido_danos_materiais: processo.pedido_danos_materiais || false,
+        pedido_pensao_vitalicia: processo.pedido_pensao_vitalicia || false,
+        pedido_danos_morais_acidente: processo.pedido_danos_morais_acidente || "",
+        pedido_limbo_previdenciario: processo.pedido_limbo_previdenciario || false,
+        pedido_estabilidade: processo.pedido_estabilidade || "",
+        pedido_indenizacao_substitutiva: processo.pedido_indenizacao_substitutiva || false,
+        pedido_reversao_justa_causa: processo.pedido_reversao_justa_causa || false,
+        pedido_rescisao_indireta: processo.pedido_rescisao_indireta || false,
+        pedido_reversao_pedido_demissao: processo.pedido_reversao_pedido_demissao || false,
+        pedido_multas_clt: processo.pedido_multas_clt || "",
+        pedido_multas_ccts: processo.pedido_multas_ccts || "",
+        status_pedido: processo.status_pedido || "",
+        motivo_encerramento: processo.motivo_encerramento || "",
+        custo_encerramento: processo.custo_encerramento || "",
+        categoria_importacao: processo.categoria_importacao || "",
       });
     }
   }, [processo, editando]);
@@ -327,7 +360,14 @@ export default function ProcessoDetalhes() {
         "risco_anterior", "risco_atual", "adicao_baixa", "depositos_vinculados",
         "epoca_razao", "setor", "funcao", "advogado_externo", "pedido_valor", "justificativa_risco",
         // Campos MPT
-        "localidade", "autor", "requerido", "materia_mpt", "ultimo_andamento_mpt", "observacao_advogado"
+        "localidade", "autor", "requerido", "materia_mpt", "ultimo_andamento_mpt", "observacao_advogado",
+        // Campos de Pedidos
+        "lei_13467_2017", "responsabilidade_subsidiaria", "pedido_intervalo_intrajornada",
+        "pedido_domingos_feriados", "pedido_insalubridade_periculosidade", "pedido_diferencas_salariais",
+        "pedido_adicional_noturno", "pedido_sobrecarga_trabalho", "pedido_reconhecimento_vinculo",
+        "pedido_danos_morais_assedio", "pedido_danos_morais_outros", "pedido_acidente_doenca",
+        "pedido_danos_morais_acidente", "pedido_estabilidade", "pedido_multas_clt", "pedido_multas_ccts",
+        "status_pedido", "motivo_encerramento", "categoria_importacao"
       ];
       
       const numericFields = [
@@ -335,10 +375,20 @@ export default function ProcessoDetalhes() {
         "provisionamento_possivel", "provisionamento_remoto", "deposito_judicial",
         "valor_pago", "valor_pagamento",
         // Campos contingenciais numéricos
-        "valor_perda_anterior", "valor_perda_atual", "responsabilidade_antes_data", "responsabilidade_apos_data"
+        "valor_perda_anterior", "valor_perda_atual", "responsabilidade_antes_data", "responsabilidade_apos_data",
+        // Campos de Pedidos numéricos
+        "custo_encerramento"
       ];
       
-      const booleanFields = ["transitado_julgado", "mudanca_risco"];
+      const booleanFields = [
+        "transitado_julgado", "mudanca_risco",
+        // Campos de Pedidos booleanos
+        "pedido_excesso_jornada", "pedido_plantoes_extras", "pedido_dobras", 
+        "pedido_intervalo_interjornada", "pedido_descaract_jornada_12_36",
+        "pedido_danos_materiais", "pedido_pensao_vitalicia", "pedido_limbo_previdenciario",
+        "pedido_indenizacao_substitutiva", "pedido_reversao_justa_causa", 
+        "pedido_rescisao_indireta", "pedido_reversao_pedido_demissao"
+      ];
       
       fieldsToCheck.forEach((field) => {
         const newValue = formData[field] || null;
@@ -1129,6 +1179,105 @@ export default function ProcessoDetalhes() {
               <div className="grid grid-cols-1 gap-4 mt-4">
                 <FieldItem label="Último Andamento MPT" value={processo.ultimo_andamento_mpt} field="ultimo_andamento_mpt" type="textarea" />
                 <FieldItem label="Observação Advogado" value={processo.observacao_advogado} field="observacao_advogado" type="textarea" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Pedidos Trabalhistas */}
+          <AccordionItem value="pedidos_trabalhistas" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                <span className="font-semibold">Pedidos Trabalhistas</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4">
+              {/* Contrato de Trabalho */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Contrato de Trabalho</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem label="Lei 13.467/2017" value={processo.lei_13467_2017} field="lei_13467_2017" />
+                  <FieldItem label="Responsabilidade Subsidiária" value={processo.responsabilidade_subsidiaria} field="responsabilidade_subsidiaria" />
+                  <FieldItem label="Categoria de Importação" value={processo.categoria_importacao} field="categoria_importacao" />
+                </div>
+              </div>
+
+              {/* Horas Extras */}
+              <div className="mt-6 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Horas Extras</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem label="Excesso de Jornada" value={processo.pedido_excesso_jornada} field="pedido_excesso_jornada" type="boolean" />
+                  <FieldItem label="Plantões Extras" value={processo.pedido_plantoes_extras} field="pedido_plantoes_extras" type="boolean" />
+                  <FieldItem label="Dobras" value={processo.pedido_dobras} field="pedido_dobras" type="boolean" />
+                  <FieldItem label="Intervalo Intrajornada" value={processo.pedido_intervalo_intrajornada} field="pedido_intervalo_intrajornada" />
+                  <FieldItem label="Intervalo Interjornada" value={processo.pedido_intervalo_interjornada} field="pedido_intervalo_interjornada" type="boolean" />
+                  <FieldItem label="Descaract. Jornada 12/36" value={processo.pedido_descaract_jornada_12_36} field="pedido_descaract_jornada_12_36" type="boolean" />
+                  <FieldItem label="Domingos/Feriados" value={processo.pedido_domingos_feriados} field="pedido_domingos_feriados" />
+                </div>
+              </div>
+
+              {/* Adicionais e Benefícios */}
+              <div className="mt-6 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Adicionais e Benefícios</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem label="Insalubridade/Periculosidade" value={processo.pedido_insalubridade_periculosidade} field="pedido_insalubridade_periculosidade" />
+                  <FieldItem label="Diferenças Salariais" value={processo.pedido_diferencas_salariais} field="pedido_diferencas_salariais" />
+                  <FieldItem label="Adicional Noturno" value={processo.pedido_adicional_noturno} field="pedido_adicional_noturno" />
+                  <FieldItem label="Sobrecarga de Trabalho" value={processo.pedido_sobrecarga_trabalho} field="pedido_sobrecarga_trabalho" />
+                  <FieldItem label="Reconhecimento de Vínculo" value={processo.pedido_reconhecimento_vinculo} field="pedido_reconhecimento_vinculo" />
+                </div>
+              </div>
+
+              {/* Danos Morais */}
+              <div className="mt-6 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Danos Morais</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem label="Assédio" value={processo.pedido_danos_morais_assedio} field="pedido_danos_morais_assedio" />
+                  <FieldItem label="Outros Danos Morais" value={processo.pedido_danos_morais_outros} field="pedido_danos_morais_outros" />
+                </div>
+              </div>
+
+              {/* Acidente de Trabalho / Doença Ocupacional */}
+              <div className="mt-6 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Acidente de Trabalho / Doença Ocupacional</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem label="Acidente/Doença" value={processo.pedido_acidente_doenca} field="pedido_acidente_doenca" />
+                  <FieldItem label="Danos Materiais" value={processo.pedido_danos_materiais} field="pedido_danos_materiais" type="boolean" />
+                  <FieldItem label="Pensão Vitalícia" value={processo.pedido_pensao_vitalicia} field="pedido_pensao_vitalicia" type="boolean" />
+                  <FieldItem label="Danos Morais (Acidente)" value={processo.pedido_danos_morais_acidente} field="pedido_danos_morais_acidente" />
+                  <FieldItem label="Limbo Previdenciário" value={processo.pedido_limbo_previdenciario} field="pedido_limbo_previdenciario" type="boolean" />
+                </div>
+              </div>
+
+              {/* Estabilidade e Justa Causa */}
+              <div className="mt-6 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Estabilidade e Justa Causa</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem label="Estabilidade" value={processo.pedido_estabilidade} field="pedido_estabilidade" />
+                  <FieldItem label="Indenização Substitutiva" value={processo.pedido_indenizacao_substitutiva} field="pedido_indenizacao_substitutiva" type="boolean" />
+                  <FieldItem label="Reversão Justa Causa" value={processo.pedido_reversao_justa_causa} field="pedido_reversao_justa_causa" type="boolean" />
+                  <FieldItem label="Rescisão Indireta" value={processo.pedido_rescisao_indireta} field="pedido_rescisao_indireta" type="boolean" />
+                  <FieldItem label="Reversão Pedido Demissão" value={processo.pedido_reversao_pedido_demissao} field="pedido_reversao_pedido_demissao" type="boolean" />
+                </div>
+              </div>
+
+              {/* Multas */}
+              <div className="mt-6 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Multas</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem label="Multas CLT" value={processo.pedido_multas_clt} field="pedido_multas_clt" />
+                  <FieldItem label="Multas CCTs" value={processo.pedido_multas_ccts} field="pedido_multas_ccts" />
+                </div>
+              </div>
+
+              {/* Status e Encerramento */}
+              <div className="mt-6 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground">Status e Encerramento</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem label="Status do Pedido" value={processo.status_pedido} field="status_pedido" />
+                  <FieldItem label="Motivo do Encerramento" value={processo.motivo_encerramento} field="motivo_encerramento" />
+                  <FieldItem label="Custo do Encerramento" value={processo.custo_encerramento} field="custo_encerramento" type="number" />
+                </div>
               </div>
             </AccordionContent>
           </AccordionItem>
