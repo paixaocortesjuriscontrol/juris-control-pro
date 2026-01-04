@@ -110,7 +110,8 @@ export default function ProcessoDetalhes() {
         .select(`
           *,
           advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome, email),
-          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo, cpf_cnpj, email, telefone)
+          cliente:clientes!processos_cliente_id_fkey(id, nome, tipo, cpf_cnpj, email, telefone),
+          pasta:pastas!processos_pasta_id_fkey(id, nome)
         `)
         .eq("id", id!)
         .maybeSingle();
@@ -744,6 +745,11 @@ export default function ProcessoDetalhes() {
         <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
           <CardContent className="py-6">
             <div className="text-center space-y-3">
+              {processo.pasta?.nome && (
+                <p className="text-sm text-primary font-medium uppercase tracking-wider">
+                  {processo.pasta.nome}
+                </p>
+              )}
               {processo.assunto && (
                 <h1 className="text-lg md:text-xl font-semibold text-muted-foreground">
                   {processo.assunto}
