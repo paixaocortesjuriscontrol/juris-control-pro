@@ -334,8 +334,8 @@
     color: #dc2626 !important;
   }
   
-  /* Evitar quebra de elementos */
-  tr, .border {
+  /* Evitar quebra dentro de linhas de tabela */
+  tr {
     page-break-inside: avoid;
     break-inside: avoid;
   }
@@ -352,24 +352,25 @@
     margin-top: 16px;
   }
 
-  /* Seções do relatório - cada uma em nova página */
-  .print-section-atividades,
-  .print-section-clientes {
-    page-break-before: always;
-    break-before: page;
-    padding-top: 20px;
+  /* Cada item (seção) do relatório começa em nova página */
+  .report-section {
+    page-break-after: always;
+    break-after: page;
   }
 
-  /* Evitar página em branco no final */
+  /* Não criar página extra após a última seção */
+  .report-section:last-of-type {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  /* Rodapé nunca deve gerar página extra sozinho */
   footer {
-    page-break-before: avoid;
-    break-before: avoid;
-    page-break-after: avoid;
-    break-after: avoid;
-  }
-
-  /* Container principal sem padding extra no final */
-  .print\\:block {
-    padding-bottom: 0 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    page-break-before: auto;
+    break-before: auto;
+    page-break-after: auto;
+    break-after: auto;
   }
 }

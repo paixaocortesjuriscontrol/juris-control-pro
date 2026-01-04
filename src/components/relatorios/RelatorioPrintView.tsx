@@ -29,7 +29,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
         </div>
 
         {/* ========== SEÇÃO RESUMO ========== */}
-        <section className="mb-12">
+        <section className="mb-12 report-section">
           <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-blue-600 pb-2 mb-6">
             1. RESUMO EXECUTIVO
           </h2>
@@ -127,7 +127,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
         </section>
 
         {/* ========== SEÇÃO ATIVIDADES ========== */}
-        <section className="mb-12 print-section-atividades">
+        <section className="mb-12 report-section">
           <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-green-600 pb-2 mb-6">
             2. CONTROLE DE ATIVIDADES E PRAZOS
           </h2>
@@ -207,7 +207,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
         </section>
 
         {/* ========== SEÇÃO CLIENTES ========== */}
-        <section className="print-section-clientes">
+        <section className="report-section">
           <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-purple-600 pb-2 mb-6">
             3. ANÁLISE POR CLIENTES
           </h2>
