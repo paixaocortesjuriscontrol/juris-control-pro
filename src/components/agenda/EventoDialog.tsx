@@ -254,6 +254,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
           try {
             await enviarWhatsApp.mutateAsync({
               eventoTitulo: formData.titulo,
+              eventoDescricao: formData.descricao || undefined,
               eventoData: dataInicio,
               eventoHora: formData.dia_inteiro ? undefined : formData.hora_inicio,
               eventoLocal: formData.local || undefined,

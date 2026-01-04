@@ -7,6 +7,7 @@ import { toZonedTime } from "date-fns-tz";
 
 interface EnviarAlertaEventoParams {
   eventoTitulo: string;
+  eventoDescricao?: string | null;
   eventoData: string;
   eventoHora?: string;
   eventoLocal?: string;
@@ -25,6 +26,7 @@ export function useEnviarWhatsApp() {
   return useMutation({
     mutationFn: async ({
       eventoTitulo,
+      eventoDescricao,
       eventoData,
       eventoHora,
       eventoLocal,
@@ -55,6 +57,7 @@ export function useEnviarWhatsApp() {
         mensagem += `📆 Data: ${dataFormatada}\n`;
         if (eventoHora) mensagem += `🕐 Horário: ${eventoHora}\n`;
         if (eventoLocal) mensagem += `📍 Local: ${eventoLocal}\n`;
+        if (eventoDescricao) mensagem += `\n📝 *Descrição:*\n${eventoDescricao}\n`;
       } else {
         mensagem = `${emoji} *NOVO EVENTO AGENDADO*\n\n`;
         mensagem += `Você foi adicionado a um evento:\n\n`;
@@ -62,6 +65,7 @@ export function useEnviarWhatsApp() {
         mensagem += `📆 Data: ${dataFormatada}\n`;
         if (eventoHora) mensagem += `🕐 Horário: ${eventoHora}\n`;
         if (eventoLocal) mensagem += `📍 Local: ${eventoLocal}\n`;
+        if (eventoDescricao) mensagem += `\n📝 *Descrição:*\n${eventoDescricao}\n`;
       }
 
       mensagem += `\n_JurisControl - Sistema de Gestão Jurídica_`;
