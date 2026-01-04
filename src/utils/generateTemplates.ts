@@ -67,17 +67,31 @@ export const TEMPLATES = {
   },
   pedidos: {
     columns: [
-      "PROCESSO", "RECLAMANTE", "FUNÇÃO", "SETOR", "RECLAMADO", "VARA", "COMARCA",
-      "Lei 13.467/2017", "Responsabilidade Subsidiária",
-      "Excesso de Jornada", "Plantões Extras", "Dobras", 
-      "Intervalo Intrajornada", "Intervalo Interjornada", "Descaracterização 12x36",
-      "Domingos/Feriados", "Insalubridade/Periculosidade", "Diferenças Salariais",
-      "Adicional Noturno", "Sobrecarga de Trabalho", "Reconhecimento de Vínculo",
-      "Danos Morais Assédio", "Danos Morais Outros", "Danos Morais Acidente",
-      "Danos Materiais", "Acidente/Doença Ocupacional", "Pensão Vitalícia",
-      "Limbo Previdenciário", "Estabilidade", "Reversão Justa Causa",
-      "Reversão Pedido Demissão", "Rescisão Indireta", "Indenização Substitutiva",
-      "Multas CLT", "Multas CCTs", "Status", "Motivo Encerramento", "Custo Encerramento"
+      // PROCESSO
+      "NÚMERO", "RECLAMANTE", "FUNÇÃO", "SETOR", "RECLAMADO", "VARA", "COMARCA",
+      // CONTRATO TRABALHO
+      "PERÍODO CONTRATAÇÃO", "TIPO CONTRATO TRABALHO",
+      // RESPONSABILIDADE SUBSIDIÁRIA
+      "POSSUI (SIM/NÃO)", "OBSERVAÇÃO RESPONSABILIDADE SUBSIDIÁRIA",
+      // HORAS EXTRAS
+      "EXCESSO JORNADA", "PLANTÕES EXTRAS", "DOBRAS", "INTERVALO INTRAJORNADA", 
+      "INTERVALO INTERJORNADA", "DESCARACTERIZAÇÃO JORNADA 12/36", "Domingos/Feriados",
+      // INSALUBRIDADE/PERICULOSIDADE
+      "PEDIDO (OBSERVAÇÃO)", "DIFERENÇAS SALARIAIS", "ADICIONAL NOTURNO", "SOBRECARGA DE TRABALHO",
+      // RECONHECIMENTO DE VÍNCULO
+      "RECONHECIMENTO DE VÍNCULO", "CARGO RECONHECIMENTO VÍNCULO",
+      // DANOS MORAIS
+      "ASSÉDIO", "OUTROS",
+      // ACIDENTE DE TRABALHO/DOENÇA OCUPACIONAL
+      "ACIDENTE/DOENÇA", "DANOS MATERIAIS", "PENSÃO VITALÍCIA", "DANOS MORAIS", "LIMBO PREVIDENCIÁRIO",
+      // ESTABILIDADE
+      "TIPO", "POSSUI",
+      // INDENIZAÇÃO
+      "INDENIZAÇÃO SUBSTITUTIVA", "REVERSÃO JUSTA CAUSA", "RESCISÃO INDIRETA", "REVERSÃO PEDIDO DEMISSÃO",
+      // MULTA CCTs
+      "Multas CLT", "SITUAÇÃO", "DATA SITUAÇÃO",
+      // ENCERRAMENTO
+      "TIPO", "CUSTO"
     ],
     sheetName: "Pedidos Trabalhistas",
     fileName: "MODELO_IMPORTACAO_PEDIDOS.xlsx"
