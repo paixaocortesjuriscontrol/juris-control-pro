@@ -1515,29 +1515,29 @@ export type Database = {
           pasta_id: string | null
           pedido_acidente_doenca: string | null
           pedido_adicional_noturno: string | null
-          pedido_danos_materiais: boolean | null
+          pedido_danos_materiais: string | null
           pedido_danos_morais_acidente: string | null
           pedido_danos_morais_assedio: string | null
           pedido_danos_morais_outros: string | null
-          pedido_descaract_jornada_12_36: boolean | null
+          pedido_descaract_jornada_12_36: string | null
           pedido_diferencas_salariais: string | null
-          pedido_dobras: boolean | null
+          pedido_dobras: string | null
           pedido_domingos_feriados: string | null
           pedido_estabilidade: string | null
-          pedido_excesso_jornada: boolean | null
-          pedido_indenizacao_substitutiva: boolean | null
+          pedido_excesso_jornada: string | null
+          pedido_indenizacao_substitutiva: string | null
           pedido_insalubridade_periculosidade: string | null
-          pedido_intervalo_interjornada: boolean | null
+          pedido_intervalo_interjornada: string | null
           pedido_intervalo_intrajornada: string | null
-          pedido_limbo_previdenciario: boolean | null
+          pedido_limbo_previdenciario: string | null
           pedido_multas_ccts: string | null
           pedido_multas_clt: string | null
-          pedido_pensao_vitalicia: boolean | null
-          pedido_plantoes_extras: boolean | null
+          pedido_pensao_vitalicia: string | null
+          pedido_plantoes_extras: string | null
           pedido_reconhecimento_vinculo: string | null
-          pedido_rescisao_indireta: boolean | null
-          pedido_reversao_justa_causa: boolean | null
-          pedido_reversao_pedido_demissao: boolean | null
+          pedido_rescisao_indireta: string | null
+          pedido_reversao_justa_causa: string | null
+          pedido_reversao_pedido_demissao: string | null
           pedido_sobrecarga_trabalho: string | null
           pedido_valor: string | null
           pedidos: string | null
@@ -1644,29 +1644,29 @@ export type Database = {
           pasta_id?: string | null
           pedido_acidente_doenca?: string | null
           pedido_adicional_noturno?: string | null
-          pedido_danos_materiais?: boolean | null
+          pedido_danos_materiais?: string | null
           pedido_danos_morais_acidente?: string | null
           pedido_danos_morais_assedio?: string | null
           pedido_danos_morais_outros?: string | null
-          pedido_descaract_jornada_12_36?: boolean | null
+          pedido_descaract_jornada_12_36?: string | null
           pedido_diferencas_salariais?: string | null
-          pedido_dobras?: boolean | null
+          pedido_dobras?: string | null
           pedido_domingos_feriados?: string | null
           pedido_estabilidade?: string | null
-          pedido_excesso_jornada?: boolean | null
-          pedido_indenizacao_substitutiva?: boolean | null
+          pedido_excesso_jornada?: string | null
+          pedido_indenizacao_substitutiva?: string | null
           pedido_insalubridade_periculosidade?: string | null
-          pedido_intervalo_interjornada?: boolean | null
+          pedido_intervalo_interjornada?: string | null
           pedido_intervalo_intrajornada?: string | null
-          pedido_limbo_previdenciario?: boolean | null
+          pedido_limbo_previdenciario?: string | null
           pedido_multas_ccts?: string | null
           pedido_multas_clt?: string | null
-          pedido_pensao_vitalicia?: boolean | null
-          pedido_plantoes_extras?: boolean | null
+          pedido_pensao_vitalicia?: string | null
+          pedido_plantoes_extras?: string | null
           pedido_reconhecimento_vinculo?: string | null
-          pedido_rescisao_indireta?: boolean | null
-          pedido_reversao_justa_causa?: boolean | null
-          pedido_reversao_pedido_demissao?: boolean | null
+          pedido_rescisao_indireta?: string | null
+          pedido_reversao_justa_causa?: string | null
+          pedido_reversao_pedido_demissao?: string | null
           pedido_sobrecarga_trabalho?: string | null
           pedido_valor?: string | null
           pedidos?: string | null
@@ -1773,29 +1773,29 @@ export type Database = {
           pasta_id?: string | null
           pedido_acidente_doenca?: string | null
           pedido_adicional_noturno?: string | null
-          pedido_danos_materiais?: boolean | null
+          pedido_danos_materiais?: string | null
           pedido_danos_morais_acidente?: string | null
           pedido_danos_morais_assedio?: string | null
           pedido_danos_morais_outros?: string | null
-          pedido_descaract_jornada_12_36?: boolean | null
+          pedido_descaract_jornada_12_36?: string | null
           pedido_diferencas_salariais?: string | null
-          pedido_dobras?: boolean | null
+          pedido_dobras?: string | null
           pedido_domingos_feriados?: string | null
           pedido_estabilidade?: string | null
-          pedido_excesso_jornada?: boolean | null
-          pedido_indenizacao_substitutiva?: boolean | null
+          pedido_excesso_jornada?: string | null
+          pedido_indenizacao_substitutiva?: string | null
           pedido_insalubridade_periculosidade?: string | null
-          pedido_intervalo_interjornada?: boolean | null
+          pedido_intervalo_interjornada?: string | null
           pedido_intervalo_intrajornada?: string | null
-          pedido_limbo_previdenciario?: boolean | null
+          pedido_limbo_previdenciario?: string | null
           pedido_multas_ccts?: string | null
           pedido_multas_clt?: string | null
-          pedido_pensao_vitalicia?: boolean | null
-          pedido_plantoes_extras?: boolean | null
+          pedido_pensao_vitalicia?: string | null
+          pedido_plantoes_extras?: string | null
           pedido_reconhecimento_vinculo?: string | null
-          pedido_rescisao_indireta?: boolean | null
-          pedido_reversao_justa_causa?: boolean | null
-          pedido_reversao_pedido_demissao?: boolean | null
+          pedido_rescisao_indireta?: string | null
+          pedido_reversao_justa_causa?: string | null
+          pedido_reversao_pedido_demissao?: string | null
           pedido_sobrecarga_trabalho?: string | null
           pedido_valor?: string | null
           pedidos?: string | null
