@@ -3434,9 +3434,9 @@ export default function ImportarProcessos() {
         blankrows: true,
       }) as any[][];
 
-      // Pular as primeiras linhas de cabeçalho agrupado (7 linhas na planilha de pedidos)
-      // A linha 8 (index 7) contém os cabeçalhos detalhados
-      const headerRow = (aoa[7] || aoa[0] || []).map((h) => String(h ?? "").trim());
+      // A planilha tem 2 linhas de cabeçalho agrupado
+      // A linha 2 (index 1) contém os cabeçalhos detalhados das colunas
+      const headerRow = (aoa[1] || aoa[0] || []).map((h) => String(h ?? "").trim());
 
       const normalizeHeaderKey = (value: string) =>
         value
@@ -3462,8 +3462,8 @@ export default function ImportarProcessos() {
         return null;
       };
 
-      // Dados começam após o cabeçalho na linha 8 (index 7)
-      const dataStartIndex = 8;
+      // Dados começam após o cabeçalho na linha 3 (index 2)
+      const dataStartIndex = 2;
       const totalDataRows = expectedRows ? Math.max(0, aoa.length - dataStartIndex) : Math.max(0, aoa.length - dataStartIndex);
 
       const parsed: ProcessoImport[] = [];
@@ -3484,11 +3484,12 @@ export default function ImportarProcessos() {
         });
 
         const numeroProcesso = getFromRow(row, [
+          "NÚMERO",
+          "Número",
+          "Numero",
           "PROCESSO",
           "Processo",
           "processo",
-          "Número",
-          "Numero",
         ]) || "";
 
         const processo: ProcessoImport = {
@@ -3530,7 +3531,7 @@ export default function ImportarProcessos() {
           valorCondenacao: null,
         };
 
-        // Store Pedidos-specific data
+        // Store Pedidos-specific data - mapeando para os nomes reais da planilha
         (processo as any).pedidosData = {
           reclamante: getFromRow(row, ["RECLAMANTE", "Reclamante"]) || null,
           funcao: getFromRow(row, ["FUNÇÃO", "Funcao", "Função"]) || null,
@@ -3538,9 +3539,12 @@ export default function ImportarProcessos() {
           reclamado: getFromRow(row, ["RECLAMADO", "Reclamado"]) || null,
           vara: getFromRow(row, ["VARA", "Vara"]) || null,
           comarca: getFromRow(row, ["COMARCA", "Comarca"]) || null,
-          lei_13467: getFromRow(row, ["LEI 13.467/2017", "Lei 13.467/2017"]) || null,
-          responsabilidade_subsidiaria: getFromRow(row, ["RESPONSABILIDADE SUBSIDIÁRIA", "Responsabilidade Subsidiária"]) || null,
-          observacao_advogado: getFromRow(row, ["OBSERVAÇÃO ADVOGADO", "Observação Advogado"]) || null,
+          // Contrato Trabalho
+          periodo_contratacao: getFromRow(row, ["PERÍODO CONTRATAÇÃO", "Período Contratação"]) || null,
+          tipo_contrato: getFromRow(row, ["TIPO CONTRATO TRABALHO", "Tipo Contrato Trabalho"]) || null,
+          // Responsabilidade Subsidiária
+          responsabilidade_subsidiaria: getFromRow(row, ["POSSUI (SIM/NÃO)", "Possui (Sim/Não)"]) || null,
+          observacao_resp_subsidiaria: getFromRow(row, ["OBSERVAÇÃO RESPONSABILIDADE SUBSIDIÁRIA", "Observação Responsabilidade Subsidiária"]) || null,
           // Horas Extras
           excesso_jornada: getFromRow(row, ["EXCESSO JORNADA", "Excesso Jornada"]) || null,
           plantoes_extras: getFromRow(row, ["PLANTÕES EXTRAS", "Plantões Extras"]) || null,
@@ -3549,12 +3553,14 @@ export default function ImportarProcessos() {
           intervalo_interjornada: getFromRow(row, ["INTERVALO INTERJORNADA", "Intervalo Interjornada"]) || null,
           descaract_jornada_12_36: getFromRow(row, ["DESCARACTERIZAÇÃO JORNADA 12/36", "Descaracterização Jornada 12/36"]) || null,
           domingos_feriados: getFromRow(row, ["Domingos/Feriados", "DOMINGOS/FERIADOS"]) || null,
-          // Insalubridade/Periculosidade e Adicionais
-          insalubridade_periculosidade: getFromRow(row, ["INSALUBRIDADE/PERICULOSIDADE", "Insalubridade/Periculosidade"]) || null,
+          // Insalubridade/Periculosidade
+          insalubridade_periculosidade: getFromRow(row, ["PEDIDO (OBSERVAÇÃO)", "Pedido (Observação)"]) || null,
           diferencas_salariais: getFromRow(row, ["DIFERENÇAS SALARIAIS", "Diferenças Salariais"]) || null,
           adicional_noturno: getFromRow(row, ["ADICIONAL NOTURNO", "Adicional Noturno"]) || null,
           sobrecarga_trabalho: getFromRow(row, ["SOBRECARGA DE TRABALHO", "Sobrecarga de Trabalho"]) || null,
+          // Reconhecimento de Vínculo
           reconhecimento_vinculo: getFromRow(row, ["RECONHECIMENTO DE VÍNCULO", "Reconhecimento de Vínculo"]) || null,
+          cargo_reconhecimento_vinculo: getFromRow(row, ["CARGO RECONHECIMENTO VÍNCULO", "Cargo Reconhecimento Vínculo"]) || null,
           // Danos Morais
           danos_morais_assedio: getFromRow(row, ["ASSÉDIO", "Assédio"]) || null,
           danos_morais_outros: getFromRow(row, ["OUTROS", "Outros"]) || null,
@@ -3564,20 +3570,28 @@ export default function ImportarProcessos() {
           pensao_vitalicia: getFromRow(row, ["PENSÃO VITALÍCIA", "Pensão Vitalícia"]) || null,
           danos_morais_acidente: getFromRow(row, ["DANOS MORAIS", "Danos Morais"]) || null,
           limbo_previdenciario: getFromRow(row, ["LIMBO PREVIDENCIÁRIO", "Limbo Previdenciário"]) || null,
-          // Estabilidade e Justa Causa
-          estabilidade: getFromRow(row, ["ESTABILIDADE", "Estabilidade"]) || null,
+          // Estabilidade
+          tipo_estabilidade: getFromRow(row, ["TIPO", "Tipo"]) || null,
+          possui_estabilidade: getFromRow(row, ["POSSUI", "Possui"]) || null,
+          // Indenização
           indenizacao_substitutiva: getFromRow(row, ["INDENIZAÇÃO SUBSTITUTIVA", "Indenização Substitutiva"]) || null,
           reversao_justa_causa: getFromRow(row, ["REVERSÃO JUSTA CAUSA", "Reversão Justa Causa"]) || null,
           rescisao_indireta: getFromRow(row, ["RESCISÃO INDIRETA", "Rescisão Indireta"]) || null,
           reversao_pedido_demissao: getFromRow(row, ["REVERSÃO PEDIDO DEMISSÃO", "Reversão Pedido Demissão"]) || null,
           // Multas
           multas_clt: getFromRow(row, ["Multas CLT", "MULTAS CLT"]) || null,
-          multas_ccts: getFromRow(row, ["Multas CCTs", "MULTAS CCTS"]) || null,
-          // Encerramento
-          status_processo: getFromRow(row, ["STATUS", "Status"]) || null,
-          encerramento: getFromRow(row, ["ENCERRAMENTO", "Encerramento"]) || null,
-          motivo_encerramento: getFromRow(row, ["MOTIVO ENCERRAMENTO", "Motivo Encerramento"]) || null,
-          custo_encerramento: getFromRow(row, ["CUSTO ENCERRAMENTO", "Custo Encerramento"]) || null,
+          // Situação
+          situacao: getFromRow(row, ["SITUAÇÃO", "Situação"]) || null,
+          data_situacao: getFromRow(row, ["DATA SITUAÇÃO", "Data Situação"]) || null,
+          // Encerramento - colunas repetidas na planilha
+          tipo_encerramento: (() => {
+            // Pegar a coluna TIPO que está no grupo ENCERRAMENTO (última ocorrência)
+            const headers = headerRow;
+            const tipoIndices = headers.map((h, i) => h.toUpperCase() === "TIPO" ? i : -1).filter(i => i !== -1);
+            const lastTipoIndex = tipoIndices[tipoIndices.length - 1];
+            return lastTipoIndex !== undefined ? rowArr[lastTipoIndex] : null;
+          })(),
+          custo_encerramento: getFromRow(row, ["CUSTO", "Custo"]) || null,
         };
 
         // Validação
@@ -3732,58 +3746,64 @@ export default function ImportarProcessos() {
         const processoData: any = {
           numero: processo.numero.trim(),
           area: areaSlug,
-          status: mapStatusToEnum(pedidosData.status_processo),
-          situacao_original: getSituacaoOriginal(pedidosData.status_processo),
+          status: mapStatusToEnum(pedidosData.situacao),
+          situacao_original: getSituacaoOriginal(pedidosData.situacao),
           polo_ativo: pedidosData.reclamante,
           polo_passivo: pedidosData.reclamado,
           vara: pedidosData.vara,
           comarca: pedidosData.comarca,
           funcao: pedidosData.funcao,
           setor: pedidosData.setor,
-          observacao_advogado: pedidosData.observacao_advogado,
           cliente_id: clienteIdToUse,
           coordenacao_id: selectedCoordenacao || null,
           advogado_responsavel_id: selectedMembro || null,
           monitorar_andamentos: pedidosBuscarAndamentos,
           categoria_importacao: "pedidos",
-          // Campos específicos de Pedidos
-          lei_13467_2017: pedidosData.lei_13467,
+          // Contrato Trabalho
+          periodo_contratacao: pedidosData.periodo_contratacao,
+          lei_13467_2017: pedidosData.tipo_contrato,
+          // Responsabilidade Subsidiária
           responsabilidade_subsidiaria: pedidosData.responsabilidade_subsidiaria,
+          observacao_resp_subsidiaria: pedidosData.observacao_resp_subsidiaria,
           // Horas Extras
-          pedido_excesso_jornada: parseBoolean(pedidosData.excesso_jornada),
-          pedido_plantoes_extras: parseBoolean(pedidosData.plantoes_extras),
-          pedido_dobras: parseBoolean(pedidosData.dobras),
+          pedido_excesso_jornada: pedidosData.excesso_jornada,
+          pedido_plantoes_extras: pedidosData.plantoes_extras,
+          pedido_dobras: pedidosData.dobras,
           pedido_intervalo_intrajornada: pedidosData.intervalo_intrajornada,
-          pedido_intervalo_interjornada: parseBoolean(pedidosData.intervalo_interjornada),
-          pedido_descaract_jornada_12_36: parseBoolean(pedidosData.descaract_jornada_12_36),
+          pedido_intervalo_interjornada: pedidosData.intervalo_interjornada,
+          pedido_descaract_jornada_12_36: pedidosData.descaract_jornada_12_36,
           pedido_domingos_feriados: pedidosData.domingos_feriados,
           // Insalubridade/Periculosidade e Adicionais
           pedido_insalubridade_periculosidade: pedidosData.insalubridade_periculosidade,
           pedido_diferencas_salariais: pedidosData.diferencas_salariais,
           pedido_adicional_noturno: pedidosData.adicional_noturno,
           pedido_sobrecarga_trabalho: pedidosData.sobrecarga_trabalho,
+          // Reconhecimento de Vínculo
           pedido_reconhecimento_vinculo: pedidosData.reconhecimento_vinculo,
+          cargo_reconhecimento_vinculo: pedidosData.cargo_reconhecimento_vinculo,
           // Danos Morais
           pedido_danos_morais_assedio: pedidosData.danos_morais_assedio,
           pedido_danos_morais_outros: pedidosData.danos_morais_outros,
           // Acidente/Doença
           pedido_acidente_doenca: pedidosData.acidente_doenca,
-          pedido_danos_materiais: parseBoolean(pedidosData.danos_materiais),
-          pedido_pensao_vitalicia: parseBoolean(pedidosData.pensao_vitalicia),
+          pedido_danos_materiais: pedidosData.danos_materiais,
+          pedido_pensao_vitalicia: pedidosData.pensao_vitalicia,
           pedido_danos_morais_acidente: pedidosData.danos_morais_acidente,
-          pedido_limbo_previdenciario: parseBoolean(pedidosData.limbo_previdenciario),
-          // Estabilidade e Justa Causa
-          pedido_estabilidade: pedidosData.estabilidade,
-          pedido_indenizacao_substitutiva: parseBoolean(pedidosData.indenizacao_substitutiva),
-          pedido_reversao_justa_causa: parseBoolean(pedidosData.reversao_justa_causa),
-          pedido_rescisao_indireta: parseBoolean(pedidosData.rescisao_indireta),
-          pedido_reversao_pedido_demissao: parseBoolean(pedidosData.reversao_pedido_demissao),
+          pedido_limbo_previdenciario: pedidosData.limbo_previdenciario,
+          // Estabilidade
+          tipo_estabilidade: pedidosData.tipo_estabilidade,
+          pedido_estabilidade: pedidosData.possui_estabilidade,
+          // Indenização
+          pedido_indenizacao_substitutiva: pedidosData.indenizacao_substitutiva,
+          pedido_reversao_justa_causa: pedidosData.reversao_justa_causa,
+          pedido_rescisao_indireta: pedidosData.rescisao_indireta,
+          pedido_reversao_pedido_demissao: pedidosData.reversao_pedido_demissao,
           // Multas
           pedido_multas_clt: pedidosData.multas_clt,
-          pedido_multas_ccts: pedidosData.multas_ccts,
-          // Encerramento
-          status_pedido: pedidosData.status_processo,
-          motivo_encerramento: pedidosData.motivo_encerramento,
+          // Situação/Encerramento
+          status_pedido: pedidosData.situacao,
+          data_situacao: parseDate(pedidosData.data_situacao),
+          motivo_encerramento: pedidosData.tipo_encerramento,
           custo_encerramento: parseNumber(pedidosData.custo_encerramento),
         };
 
