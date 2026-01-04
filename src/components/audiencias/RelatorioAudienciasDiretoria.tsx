@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calendar, Download, FileSpreadsheet, Filter } from "lucide-react";
+import { Calendar, Download, FileSpreadsheet, Search } from "lucide-react";
 import { useAudienciasDetectadas, AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { format, parseISO, isValid, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -27,12 +27,27 @@ export function RelatorioAudienciasDiretoria() {
     const end = endOfWeek(new Date(), { weekStartsOn: 1 });
     return format(end, "yyyy-MM-dd");
   });
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("todos");
 
-  // Buscar audiências com filtro de data
-  const { audiencias, isLoading } = useAudienciasDetectadas({
-    status: "todos",
+  // Buscar audiências com filtro de data e status
+  const { audiencias: audienciasBase, isLoading } = useAudienciasDetectadas({
+    status: statusFilter,
     dataInicio,
     dataFim,
+    search,
+  });
+
+  // Filtrar por busca local (processo, cliente, advogado)
+  const audiencias = audienciasBase.filter((a) => {
+    if (!search) return true;
+    const termo = search.toLowerCase();
+    return (
+      a.processo_numero?.toLowerCase().includes(termo) ||
+      a.cliente?.toLowerCase().includes(termo) ||
+      a.advogado?.toLowerCase().includes(termo) ||
+      a.polo_ativo?.toLowerCase().includes(termo)
+    );
   });
 
   // Buscar advogados associados a cada audiência
@@ -199,7 +214,7 @@ export function RelatorioAudienciasDiretoria() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Filtros */}
+          {/* Filtros de Período */}
           <div className="flex flex-col md:flex-row gap-4 items-end">
             <div className="flex-1 max-w-[200px]">
               <Label>Período</Label>
@@ -245,6 +260,33 @@ export function RelatorioAudienciasDiretoria() {
               <Download className="h-4 w-4 mr-2" />
               Exportar Excel
             </Button>
+          </div>
+
+          {/* Filtros de Busca e Situação */}
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por processo, cliente, advogado..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="pendente">⏳ Pendentes</SelectItem>
+                <SelectItem value="confirmado">✅ Confirmados</SelectItem>
+                <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
+                <SelectItem value="tratado">✔️ Tratados</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelados</SelectItem>
+                <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Info do período */}
