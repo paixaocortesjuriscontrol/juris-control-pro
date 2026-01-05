@@ -181,6 +181,255 @@ function detectAudienciaInMovement(descricao: string): {
   return { detected: true, tipo, data: dataAudiencia, contexto };
 }
 
+// ============ DETECÇÃO DE INTIMAÇÕES ============
+function detectIntimacaoInMovement(descricao: string): {
+  detected: boolean;
+  tipo: string | null;
+  prazo: number | null;
+  dataLimite: Date | null;
+  contexto: string;
+} {
+  const descLower = descricao.toLowerCase();
+  
+  // Termos que indicam intimação
+  const termosIntimacao = [
+    'intimação',
+    'intimacao',
+    'intimado',
+    'intimada',
+    'intimar',
+    'intime-se',
+    'intimem-se',
+    'cite-se',
+    'citação',
+    'citacao',
+    'citado',
+    'citada',
+    'notificação',
+    'notificacao',
+    'notificado',
+    'notificada',
+    'notifique-se',
+    'cientifique-se',
+    'cientificado',
+    'para manifestação',
+    'para manifestar',
+    'prazo de',
+    'no prazo',
+    'em prazo',
+  ];
+  
+  // Termos que indicam audiência (excluir se for audiência)
+  const termosExclusaoAudiencia = [
+    'audiência',
+    'audiencia',
+    'sessão de julgamento',
+    'sessao de julgamento',
+    'pauta de julgamento',
+  ];
+  
+  // Se contém termos de audiência, não é intimação pura
+  const isAudiencia = termosExclusaoAudiencia.some(termo => descLower.includes(termo));
+  
+  const detected = termosIntimacao.some(termo => descLower.includes(termo)) && !isAudiencia;
+  if (!detected) {
+    return { detected: false, tipo: null, prazo: null, dataLimite: null, contexto: '' };
+  }
+  
+  // Detectar tipo de intimação
+  let tipo = 'Intimação';
+  if (descLower.includes('manifestação') || descLower.includes('manifestacao') || descLower.includes('manifestar')) {
+    tipo = 'Intimação para Manifestação';
+  } else if (descLower.includes('sentença') || descLower.includes('sentenca')) {
+    tipo = 'Intimação de Sentença';
+  } else if (descLower.includes('despacho')) {
+    tipo = 'Intimação de Despacho';
+  } else if (descLower.includes('decisão') || descLower.includes('decisao')) {
+    tipo = 'Intimação de Decisão';
+  } else if (descLower.includes('citação') || descLower.includes('citacao') || descLower.includes('cite-se')) {
+    tipo = 'Citação';
+  } else if (descLower.includes('notificação') || descLower.includes('notificacao')) {
+    tipo = 'Notificação';
+  } else if (descLower.includes('contrarrazões') || descLower.includes('contrarrazoes') || descLower.includes('contra-razões')) {
+    tipo = 'Intimação para Contrarrazões';
+  } else if (descLower.includes('recurso')) {
+    tipo = 'Intimação para Recurso';
+  } else if (descLower.includes('cumprimento')) {
+    tipo = 'Intimação para Cumprimento';
+  } else if (descLower.includes('pagamento')) {
+    tipo = 'Intimação para Pagamento';
+  }
+  
+  // Tentar extrair prazo (ex: "prazo de 15 dias", "no prazo de 5 dias")
+  let prazo: number | null = null;
+  const regexPrazo = /prazo\s+(?:de\s+)?(\d+)\s*(?:dias?)?/i;
+  const matchPrazo = descricao.match(regexPrazo);
+  if (matchPrazo) {
+    prazo = parseInt(matchPrazo[1]);
+  }
+  
+  // Tentar extrair data limite
+  let dataLimite: Date | null = null;
+  const regexData = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/g;
+  const matches = descricao.match(regexData);
+  if (matches && matches.length > 0) {
+    const parts = matches[0].split(/[\/\-]/);
+    if (parts.length === 3) {
+      const dia = parseInt(parts[0]);
+      const mes = parseInt(parts[1]) - 1;
+      let ano = parseInt(parts[2]);
+      if (ano < 100) ano += 2000;
+      dataLimite = new Date(ano, mes, dia);
+    }
+  }
+  
+  // Se não encontrou data mas encontrou prazo, calcular data limite
+  if (!dataLimite && prazo) {
+    dataLimite = new Date();
+    dataLimite.setDate(dataLimite.getDate() + prazo);
+  }
+  
+  // Extrair contexto (primeiros 400 caracteres)
+  const contexto = descricao.substring(0, 400) + (descricao.length > 400 ? '...' : '');
+  
+  return { detected: true, tipo, prazo, dataLimite, contexto };
+}
+
+async function registrarIntimacaoDetectada(
+  supabase: any,
+  processoId: string,
+  processoNumero: string,
+  movimentacaoId: string,
+  descricao: string,
+  dataMovimentacao: string
+) {
+  const { detected, tipo, prazo, dataLimite, contexto } = detectIntimacaoInMovement(descricao);
+  
+  if (!detected) return null;
+  
+  // Verificar se já existe uma intimação similar
+  const { data: existing } = await supabase
+    .from('intimacoes_detectadas')
+    .select('id')
+    .eq('processo_numero', processoNumero)
+    .eq('contexto', contexto)
+    .maybeSingle();
+  
+  if (existing) {
+    console.log(`Intimação já registrada para processo ${processoNumero}`);
+    return null;
+  }
+  
+  const { data: inserted, error } = await supabase
+    .from('intimacoes_detectadas')
+    .insert({
+      processo_numero: processoNumero,
+      processo_id: processoId,
+      movimentacao_id: movimentacaoId,
+      data_intimacao: dataMovimentacao,
+      data_limite: dataLimite?.toISOString() || null,
+      tipo_intimacao: tipo,
+      prazo_dias: prazo,
+      contexto,
+      conteudo_publicacao: descricao,
+      descricao: descricao.substring(0, 500),
+      status: 'pendente',
+      prioridade: prazo && prazo <= 5 ? 'alta' : prazo && prazo <= 3 ? 'urgente' : 'normal',
+    })
+    .select('id')
+    .single();
+  
+  if (error) {
+    console.error('Erro ao registrar intimação:', error);
+    return null;
+  }
+  
+  console.log(`Intimação detectada para processo ${processoNumero}: ${tipo}`);
+  
+  // Notificar usuários relevantes
+  await notifyIntimacaoDetectada(supabase, processoId, processoNumero, tipo, dataLimite, prazo);
+  
+  return inserted;
+}
+
+async function notifyIntimacaoDetectada(
+  supabase: any,
+  processoId: string,
+  processoNumero: string,
+  tipoIntimacao: string | null,
+  dataLimite: Date | null,
+  prazo: number | null
+) {
+  try {
+    const { data: processo } = await supabase
+      .from('processos')
+      .select('advogado_responsavel_id, coordenacao_id')
+      .eq('id', processoId)
+      .single();
+
+    if (!processo) return;
+
+    const usersToNotify: string[] = [];
+
+    if (processo.advogado_responsavel_id) {
+      usersToNotify.push(processo.advogado_responsavel_id);
+    }
+
+    if (processo.coordenacao_id) {
+      const { data: membros } = await supabase
+        .from('membros_coordenacao')
+        .select('usuario_id')
+        .eq('coordenacao_id', processo.coordenacao_id);
+
+      membros?.forEach((m: any) => {
+        if (!usersToNotify.includes(m.usuario_id)) {
+          usersToNotify.push(m.usuario_id);
+        }
+      });
+    }
+
+    const { data: adminUsers } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .in('role', ['admin', 'coordenador']);
+    
+    adminUsers?.forEach((u: any) => {
+      if (!usersToNotify.includes(u.user_id)) {
+        usersToNotify.push(u.user_id);
+      }
+    });
+
+    const dataFormatada = dataLimite 
+      ? dataLimite.toLocaleDateString('pt-BR')
+      : 'Prazo a confirmar';
+    
+    const prazoText = prazo ? ` (${prazo} dias)` : '';
+    const emoji = prazo && prazo <= 5 ? '🚨' : '📋';
+    
+    for (const userId of usersToNotify) {
+      await supabase
+        .from('notificacoes')
+        .insert({
+          usuario_id: userId,
+          titulo: `${emoji} Intimação detectada: ${tipoIntimacao || 'Intimação'}`,
+          mensagem: `Intimação identificada no processo ${processoNumero}. Prazo: ${dataFormatada}${prazoText}`,
+          tipo: prazo && prazo <= 5 ? 'warning' : 'info',
+          link: `/painel-intimacoes`,
+          dados: {
+            processo_numero: processoNumero,
+            tipo_intimacao: tipoIntimacao,
+            data_limite: dataLimite?.toISOString(),
+            prazo_dias: prazo,
+          }
+        });
+    }
+
+    console.log(`Notified ${usersToNotify.length} users about new intimação`);
+  } catch (error) {
+    console.error('Error notifying about intimação:', error);
+  }
+}
+
 async function registrarAudienciaDetectada(
   supabase: any,
   processoId: string,
@@ -626,6 +875,16 @@ async function processBatch(supabase: any): Promise<{
                 
                 // Detectar audiências no andamento
                 await registrarAudienciaDetectada(
+                  supabase,
+                  processo.id,
+                  processo.numero,
+                  insertedMov.id,
+                  descricaoCompleta,
+                  movDate
+                );
+                
+                // Detectar intimações no andamento
+                await registrarIntimacaoDetectada(
                   supabase,
                   processo.id,
                   processo.numero,
