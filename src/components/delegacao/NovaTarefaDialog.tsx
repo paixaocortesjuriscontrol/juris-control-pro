@@ -443,9 +443,9 @@ export function NovaTarefaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0 px-6">
+        <ScrollArea className="max-h-[calc(90vh-172px)] px-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               {/* Tipo de Vínculo */}
               <FormField
                 control={form.control}
@@ -879,10 +879,10 @@ export function NovaTarefaDialog({
             Cancelar
           </Button>
           <Button 
-            type="submit" 
+            type="submit"
+            form="nova-tarefa-form"
             disabled={loading || uploadingAnexos} 
             className="w-full sm:w-auto"
-            onClick={form.handleSubmit(onSubmit)}
           >
             {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
