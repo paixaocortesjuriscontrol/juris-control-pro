@@ -43,6 +43,7 @@ import AuditoriaDjenProcessos from "./pages/AuditoriaDjenProcessos";
 import MinhaAgenda from "./pages/MinhaAgenda";
 import CentralDelegacao from "./pages/CentralDelegacao";
 import PainelIntimacoes from "./pages/PainelIntimacoes";
+import NovaTarefa from "./pages/NovaTarefa";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -67,6 +68,7 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/central-delegacao" element={<ProtectedRoute><CentralDelegacao /></ProtectedRoute>} />
+              <Route path="/nova-tarefa" element={<ProtectedRoute><NovaTarefa /></ProtectedRoute>} />
               <Route path="/minha-agenda" element={<ProtectedRoute><MinhaAgenda /></ProtectedRoute>} />
               <Route path="/minha-carteira" element={<ProtectedRoute><MinhaCarteira /></ProtectedRoute>} />
               <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
