@@ -94,6 +94,15 @@ export default function NovaTarefa() {
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Buscar usuário atual para salvar criado_por
+  const { data: userData } = useQuery({
+    queryKey: ["current-user-nova-tarefa"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user;
+    },
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -276,6 +285,7 @@ export default function NovaTarefa() {
         data_fatal: values.data_fatal || null,
         prioridade: values.prioridade,
         status: "pendente",
+        criado_por: userData?.id || null,
       }).select("id").single();
 
       if (error) throw error;

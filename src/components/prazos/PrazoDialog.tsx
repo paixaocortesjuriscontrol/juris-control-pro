@@ -282,7 +282,10 @@ export function PrazoDialog({
       if (prazo) {
         await updatePrazo.mutateAsync({ id: prazo.id, ...prazoData });
       } else {
-        await createPrazo.mutateAsync(prazoData);
+        await createPrazo.mutateAsync({
+          ...prazoData,
+          criado_por: user?.id,
+        });
       }
 
       // Upload de anexos se houver

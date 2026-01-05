@@ -14,6 +14,7 @@ export type Prazo = {
   observacoes: string | null;
   data_cumprimento: string | null;
   created_at: string;
+  criado_por: string | null;
   // Projuris fields
   identificador_projuris?: string | null;
   tipo_tarefa?: string | null;
@@ -74,6 +75,7 @@ export function usePrazosPaginated(filters?: PrazosFilters) {
           observacoes,
           data_cumprimento,
           created_at,
+          criado_por,
           processo:processos!prazos_processo_id_fkey(id, numero, assunto),
           responsavel:profiles!prazos_responsavel_id_fkey(id, nome)
         `, { count: "exact" })
@@ -129,6 +131,7 @@ export function usePrazos(filters?: PrazosFilters) {
           observacoes,
           data_cumprimento,
           created_at,
+          criado_por,
           processo:processos!prazos_processo_id_fkey(id, numero, assunto),
           responsavel:profiles!prazos_responsavel_id_fkey(id, nome)
         `)
@@ -203,9 +206,10 @@ export function useCreatePrazo() {
       descricao?: string;
       data_vencimento?: string;
       prioridade: "baixa" | "media" | "alta" | "urgente";
-      processo_id?: string;
+      processo_id?: string | null;
       responsavel_id?: string;
       observacoes?: string;
+      criado_por?: string;
     }) => {
       const { data, error } = await supabase
         .from("prazos")
