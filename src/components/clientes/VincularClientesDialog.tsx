@@ -38,7 +38,9 @@ export function VincularClientesDialog({
   grupo,
 }: VincularClientesDialogProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedClientes, setSelectedClientes] = useState<Set<string>>(new Set());
+  const [selectedClientes, setSelectedClientes] = useState<Set<string>>(
+    new Set()
+  );
   const [saving, setSaving] = useState(false);
 
   const { toast } = useToast();
@@ -147,17 +149,19 @@ export function VincularClientesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg mx-auto">
         <DialogHeader>
-          <DialogTitle>Vincular Clientes ao Grupo: {grupo?.nome}</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg pr-6">
+            Vincular Clientes: {grupo?.nome}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-hidden">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               placeholder="Buscar clientes..."
-              className="pl-10"
+              className="pl-10 w-full"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -172,12 +176,12 @@ export function VincularClientesDialog({
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <ScrollArea className="h-[300px] border rounded-md">
+            <ScrollArea className="h-[250px] sm:h-[300px] border rounded-md">
               <div className="p-2 space-y-1">
                 {filteredClientes.map((cliente) => (
                   <div
                     key={cliente.id}
-                    className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                    className={`flex items-center gap-2 sm:gap-3 p-2 rounded-md cursor-pointer transition-colors ${
                       selectedClientes.has(cliente.id)
                         ? "bg-primary/10"
                         : "hover:bg-muted"
@@ -187,13 +191,16 @@ export function VincularClientesDialog({
                     <Checkbox
                       checked={selectedClientes.has(cliente.id)}
                       onCheckedChange={() => toggleCliente(cliente.id)}
+                      className="flex-shrink-0"
                     />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{cliente.nome}</p>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="font-medium truncate text-sm sm:text-base">
+                        {cliente.nome}
+                      </p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
                         {cliente.tipo === "pessoa_fisica"
-                          ? "Pessoa Física"
-                          : "Pessoa Jurídica"}
+                          ? "PF"
+                          : "PJ"}
                         {cliente.cpf_cnpj && ` • ${cliente.cpf_cnpj}`}
                       </p>
                     </div>
@@ -212,15 +219,16 @@ export function VincularClientesDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-0">
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
+            className="w-full sm:w-auto"
           >
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
             {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Salvar
           </Button>
