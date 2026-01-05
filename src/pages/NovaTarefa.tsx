@@ -28,13 +28,14 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, HelpCircle, ArrowLeft, Upload, FileText, Trash2, Sparkles, CheckCircle2 } from "lucide-react";
+import { Loader2, HelpCircle, ArrowLeft, Upload, FileText, Trash2, Sparkles, CheckCircle2, Link2, X } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 
 type AnexoComAnalise = {
   file: File;
@@ -92,6 +93,8 @@ export default function NovaTarefa() {
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
+  const [tarefaRelacionadaId, setTarefaRelacionadaId] = useState<string>("");
+  const [searchTarefa, setSearchTarefa] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -189,6 +192,54 @@ export default function NovaTarefa() {
       return data || [];
     },
     enabled: tipoVinculo === "processo" && (!!coordenacaoId || searchProcesso.length >= 3),
+  });
+
+  // Fetch tarefas para vincular (quando sem vínculo de processo)
+  const { data: tarefasParaVincular, isLoading: loadingTarefas } = useQuery({
+    queryKey: ["tarefas-vincular", searchTarefa],
+    queryFn: async () => {
+      if (searchTarefa.length < 3) return [];
+
+      const { data, error } = await supabase
+        .from("tarefas")
+        .select(`
+          id,
+          titulo,
+          tipo_tarefa,
+          data_vencimento,
+          processo:processos!tarefas_processo_id_fkey(numero)
+        `)
+        .or(`titulo.ilike.%${searchTarefa}%,tipo_tarefa.ilike.%${searchTarefa}%`)
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: tipoVinculo === "sem_vinculo" && searchTarefa.length >= 3,
+  });
+
+  // Fetch tarefa selecionada para exibir
+  const { data: tarefaSelecionada } = useQuery({
+    queryKey: ["tarefa-selecionada", tarefaRelacionadaId],
+    queryFn: async () => {
+      if (!tarefaRelacionadaId) return null;
+      const { data, error } = await supabase
+        .from("tarefas")
+        .select(`
+          id,
+          titulo,
+          tipo_tarefa,
+          data_vencimento,
+          processo:processos!tarefas_processo_id_fkey(numero)
+        `)
+        .eq("id", tarefaRelacionadaId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tarefaRelacionadaId,
   });
 
   const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
@@ -289,6 +340,15 @@ export default function NovaTarefa() {
       } as any).select("id").single();
 
       if (error) throw error;
+
+      // Se tiver tarefa relacionada, criar o vínculo
+      if (novaTarefa?.id && tarefaRelacionadaId && userData?.id) {
+        await supabase.from("tarefas_relacionadas").insert({
+          tarefa_origem_id: tarefaRelacionadaId,
+          tarefa_relacionada_id: novaTarefa.id,
+          criado_por: userData.id,
+        });
+      }
 
       let uploadedCount = 0;
       let failedUploads: string[] = [];
@@ -550,6 +610,82 @@ export default function NovaTarefa() {
                       </FormItem>
                     )}
                   />
+                )}
+
+                {/* Vincular a tarefa existente (sem_vinculo) */}
+                {tipoVinculo === "sem_vinculo" && (
+                  <div className="space-y-3">
+                    <Label className="flex items-center gap-1">
+                      <Link2 className="w-4 h-4" />
+                      Vincular a tarefa existente (opcional)
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <HelpCircle className="w-3 h-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Vincule esta tarefa a outra já existente como relacionada</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </Label>
+
+                    {tarefaSelecionada ? (
+                      <div className="flex items-center gap-2 p-3 border rounded-md bg-muted/50">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{tarefaSelecionada.titulo}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {tarefaSelecionada.tipo_tarefa}
+                            {tarefaSelecionada.processo?.numero && ` • ${tarefaSelecionada.processo.numero}`}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setTarefaRelacionadaId("")}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Input
+                          placeholder="Digite 3+ caracteres para buscar tarefa..."
+                          value={searchTarefa}
+                          onChange={(e) => setSearchTarefa(e.target.value)}
+                        />
+                        {loadingTarefas ? (
+                          <div className="flex items-center gap-2 p-3 border rounded-md">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="text-sm text-muted-foreground">Buscando tarefas...</span>
+                          </div>
+                        ) : tarefasParaVincular && tarefasParaVincular.length > 0 ? (
+                          <div className="border rounded-md max-h-48 overflow-y-auto">
+                            {tarefasParaVincular.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                className="w-full text-left p-3 hover:bg-muted/50 border-b last:border-b-0"
+                                onClick={() => {
+                                  setTarefaRelacionadaId(t.id);
+                                  setSearchTarefa("");
+                                }}
+                              >
+                                <p className="font-medium text-sm">{t.titulo}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {t.tipo_tarefa}
+                                  {t.processo?.numero && ` • ${t.processo.numero}`}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        ) : searchTarefa.length >= 3 ? (
+                          <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">
+                            Nenhuma tarefa encontrada
+                          </p>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
                 )}
 
                 {/* Tipo de Tarefa e Título */}
