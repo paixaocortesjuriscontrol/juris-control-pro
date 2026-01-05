@@ -504,6 +504,42 @@ export type Database = {
         }
         Relationships: []
       }
+      clientes_grupos: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          grupo_id: string
+          id: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          grupo_id: string
+          id?: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          grupo_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clientes_grupos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clientes_grupos_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos_clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comentarios_prazos: {
         Row: {
           autor_id: string
@@ -882,6 +918,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      grupos_clientes: {
+        Row: {
+          cor: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       historico_login: {
         Row: {
