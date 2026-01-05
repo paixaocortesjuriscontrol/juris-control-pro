@@ -88,7 +88,7 @@ const Processos = () => {
   });
 
   // Buscar clientes do grupo selecionado
-  const { data: clientesDoGrupo = [] } = useQuery({
+  const { data: clientesDoGrupo = [], isLoading: isLoadingClientesDoGrupo } = useQuery({
     queryKey: ["clientes_do_grupo", selectedGrupoId],
     enabled: selectedGrupoId !== "all",
     queryFn: async () => {
@@ -114,12 +114,20 @@ const Processos = () => {
     if (selectedClienteId !== "all") {
       return [selectedClienteId];
     }
-    // Se selecionou um grupo (filtra por todos os clientes do grupo)
-    if (selectedGrupoId !== "all" && clientesDoGrupo.length > 0) {
-      return clientesDoGrupo.map((c) => c.id);
+    // Se selecionou um grupo, aguarda carregar os clientes
+    if (selectedGrupoId !== "all") {
+      // Se ainda está carregando, retorna array vazio para evitar buscar sem filtro
+      if (isLoadingClientesDoGrupo) {
+        return [];
+      }
+      if (clientesDoGrupo.length > 0) {
+        return clientesDoGrupo.map((c) => c.id);
+      }
+      // Grupo sem clientes - retorna ID fictício para não trazer resultados
+      return ["no-clients-in-group"];
     }
     return undefined;
-  }, [grupoClientesParam, selectedGrupoId, selectedClienteId, clientesDoGrupo]);
+  }, [grupoClientesParam, selectedGrupoId, selectedClienteId, clientesDoGrupo, isLoadingClientesDoGrupo]);
 
   // Nome do grupo para exibição
   const grupoNome = grupoNomeParam || (selectedGrupoId !== "all" ? grupos.find(g => g.id === selectedGrupoId)?.nome : undefined);
