@@ -684,15 +684,29 @@ export function TarefaDetalhesDialog({
                           key={doc.id} 
                           className="flex items-center justify-between p-2 bg-muted/50 rounded-lg text-sm hover:bg-muted transition-colors gap-2"
                         >
-                          <a 
-                            href={doc.url || '#'} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 flex-1 min-w-0"
+                          <button 
+                            onClick={async () => {
+                              if (!doc.url) return;
+                              try {
+                                const response = await fetch(doc.url);
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = doc.nome;
+                                document.body.appendChild(a);
+                                a.click();
+                                window.URL.revokeObjectURL(url);
+                                document.body.removeChild(a);
+                              } catch (error) {
+                                toast({ title: "Erro ao baixar documento", variant: "destructive" });
+                              }
+                            }}
+                            className="flex items-center gap-2 flex-1 min-w-0 text-left"
                           >
                             <FileText className="w-4 h-4 text-primary shrink-0" />
                             <span className="truncate">{doc.nome}</span>
-                          </a>
+                          </button>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-xs text-muted-foreground hidden sm:inline">
                               {formatFileSize(doc.tamanho_bytes)}
