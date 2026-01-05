@@ -245,9 +245,10 @@ export function useUpdateEvento() {
         .update(updates)
         .eq("id", id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) throw new Error("Evento não encontrado ou sem permissão para editar");
 
       // Update participants if provided
       if (participantes_ids !== undefined) {
