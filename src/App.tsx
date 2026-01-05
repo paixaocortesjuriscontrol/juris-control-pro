@@ -41,6 +41,7 @@ import AssistenteJuridico from "./pages/AssistenteJuridico";
 import PainelAudiencias from "./pages/PainelAudiencias";
 import AuditoriaDjenProcessos from "./pages/AuditoriaDjenProcessos";
 import MinhaAgenda from "./pages/MinhaAgenda";
+import CentralDelegacao from "./pages/CentralDelegacao";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +65,7 @@ const App = () => (
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+              <Route path="/central-delegacao" element={<ProtectedRoute><CentralDelegacao /></ProtectedRoute>} />
               <Route path="/minha-agenda" element={<ProtectedRoute><MinhaAgenda /></ProtectedRoute>} />
               <Route path="/minha-carteira" element={<ProtectedRoute><MinhaCarteira /></ProtectedRoute>} />
               <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
