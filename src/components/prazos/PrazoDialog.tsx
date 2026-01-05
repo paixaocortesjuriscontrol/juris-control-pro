@@ -114,6 +114,22 @@ export function PrazoDialog({
     enabled: open,
   });
 
+  // Buscar dados do processo atual quando editando
+  const { data: processoAtual } = useQuery({
+    queryKey: ["processo-atual-prazo", prazo?.processo_id],
+    queryFn: async () => {
+      if (!prazo?.processo_id) return null;
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, numero, assunto, polo_ativo, polo_passivo, coordenacao_id, cliente_id")
+        .eq("id", prazo.processo_id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!prazo?.processo_id,
+  });
+
   // Buscar processo padrão quando fornecido
   const { data: processoDefault } = useQuery({
     queryKey: ["processo-default", defaultProcessoId],
@@ -157,9 +173,10 @@ export function PrazoDialog({
     enabled: open && (!!coordenacaoId || !!clienteId || searchProcesso.length >= 3),
   });
 
-  // Combinar processo padrão com processos filtrados
-  const processos = processoDefault 
-    ? [processoDefault, ...(processosFiltrados?.filter(p => p.id !== processoDefault.id) || [])]
+  // Combinar processo atual/padrão com processos filtrados
+  const processoBase = processoAtual || processoDefault;
+  const processos = processoBase 
+    ? [processoBase, ...(processosFiltrados?.filter(p => p.id !== processoBase.id) || [])]
     : processosFiltrados;
 
   const { data: advogados } = useQuery({
@@ -207,7 +224,7 @@ export function PrazoDialog({
     }
   }, [prazo, open, defaultProcessoId]);
 
-  const showProcessoSelect = !!coordenacaoId || !!clienteId || searchProcesso.length >= 3 || !!processoDefault;
+  const showProcessoSelect = !!coordenacaoId || !!clienteId || searchProcesso.length >= 3 || !!processoDefault || !!processoAtual;
 
   const handleAddAnexo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -335,7 +352,7 @@ export function PrazoDialog({
 
               <div className="space-y-2">
                 <Label>Cliente</Label>
-                <Select value={clienteId} onValueChange={setClienteId} disabled={!coordenacaoId && clientes?.length === 0}>
+                <Select value={clienteId} onValueChange={setClienteId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Filtrar por cliente" />
                   </SelectTrigger>
