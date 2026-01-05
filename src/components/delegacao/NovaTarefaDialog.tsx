@@ -425,8 +425,8 @@ export function NovaTarefaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Nova Tarefa
             <Tooltip>
@@ -443,7 +443,7 @@ export function NovaTarefaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
+        <ScrollArea className="flex-1 min-h-0 px-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               {/* Tipo de Vínculo */}
@@ -864,24 +864,30 @@ export function NovaTarefaDialog({
                 )}
               </div>
 
-              {/* Actions */}
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  className="w-full sm:w-auto"
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={loading || uploadingAnexos} className="w-full sm:w-auto">
-                  {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
-                </Button>
-              </div>
             </form>
           </Form>
         </ScrollArea>
+
+        {/* Actions - fora do scroll para ficar sempre visível */}
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t px-6 pb-6 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="w-full sm:w-auto"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={loading || uploadingAnexos} 
+            className="w-full sm:w-auto"
+            onClick={form.handleSubmit(onSubmit)}
+          >
+            {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
