@@ -28,17 +28,18 @@ export function MentionInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Fetch users for mentions - using profiles_basic view (accessible to all users)
+  // Fetch users for mentions via RPC function (bypasses RLS restrictions)
   const { data: usuarios } = useQuery({
-    queryKey: ["usuarios-mention"],
+    queryKey: ["usuarios-mention", mentionSearch],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles_basic")
-        .select("id, nome")
-        .order("nome");
+      const { data, error } = await supabase.rpc("search_users_basic", {
+        _query: mentionSearch || null,
+        _limit: 10,
+      });
       if (error) throw error;
       return data || [];
     },
+    enabled: showSuggestions,
   });
 
   const filteredUsers = usuarios?.filter((u) =>

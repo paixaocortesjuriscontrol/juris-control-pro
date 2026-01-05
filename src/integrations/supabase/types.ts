@@ -2634,6 +2634,13 @@ export type Database = {
       }
       is_admin_or_coordenador: { Args: { _user_id: string }; Returns: boolean }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
+      search_users_basic: {
+        Args: { _limit?: number; _query?: string }
+        Returns: {
+          id: string
+          nome: string
+        }[]
+      }
     }
     Enums: {
       app_role:
