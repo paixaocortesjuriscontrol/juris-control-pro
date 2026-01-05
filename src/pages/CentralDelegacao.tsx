@@ -109,7 +109,7 @@ export default function CentralDelegacao() {
 
   // Fetch atividades (tarefas/prazos + eventos)
   const { data: atividades, isLoading: loadingAtividades } = useQuery({
-    queryKey: ["atividades-delegacao", coordenacaoId, membroId, tipoAtividade, statusFiltro, prioridadeFiltro, ordenacao, membros],
+    queryKey: ["atividades-delegacao", coordenacaoId, membroId, tipoAtividade, statusFiltro, prioridadeFiltro, ordenacao, membros, user?.id, isAdminOrCoordinator],
     queryFn: async () => {
       // Se uma coordenação está selecionada, pegar os IDs dos membros dela
       const membrosDaCoordenacao = coordenacaoId !== "todas" && membros
@@ -133,11 +133,15 @@ export default function CentralDelegacao() {
           processo:processos!prazos_processo_id_fkey(id, numero, polo_ativo, coordenacao_id, cliente:clientes!processos_cliente_id_fkey(id, nome))
         `);
 
+      // Aplicar filtro de responsável baseado em role
       if (membroId !== "todos") {
-        // Filtro específico por membro
+        // Filtro específico por membro selecionado no dropdown
         prazosQuery = prazosQuery.eq("responsavel_id", membroId);
+      } else if (!isAdminOrCoordinator && user?.id) {
+        // Usuário comum: ver apenas suas próprias tarefas
+        prazosQuery = prazosQuery.eq("responsavel_id", user.id);
       } else if (membrosDaCoordenacao && membrosDaCoordenacao.length > 0) {
-        // Filtro por todos os membros da coordenação selecionada
+        // Admin/Coordenador: filtro por coordenação selecionada
         prazosQuery = prazosQuery.in("responsavel_id", membrosDaCoordenacao);
       }
 
@@ -334,30 +338,34 @@ export default function CentralDelegacao() {
               Central de Delegação
             </h1>
             <p className="text-muted-foreground mt-1">
-              Gerencie e delegue atividades para sua equipe
+              {isAdminOrCoordinator 
+                ? "Gerencie e delegue atividades para sua equipe"
+                : "Visualize suas tarefas delegadas"}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nova Atividade
-                  <ChevronDown className="w-4 h-4 ml-2" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setNovaTarefaOpen(true)}>
-                  <ListChecks className="w-4 h-4 mr-2" />
-                  Nova Tarefa
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setNovoCompromissoOpen(true)}>
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Novo Compromisso
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {isAdminOrCoordinator && (
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="bg-primary hover:bg-primary/90">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nova Atividade
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setNovaTarefaOpen(true)}>
+                    <ListChecks className="w-4 h-4 mr-2" />
+                    Nova Tarefa
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setNovoCompromissoOpen(true)}>
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Novo Compromisso
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -434,33 +442,38 @@ export default function CentralDelegacao() {
               </div>
               
               <div className="flex flex-wrap gap-2">
-                <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Coordenação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas Coordenações</SelectItem>
-                    {coordenacoes?.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Filtros de coordenação e membro só para admin/coordenador */}
+                {isAdminOrCoordinator && (
+                  <>
+                    <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Coordenação" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todas">Todas Coordenações</SelectItem>
+                        {coordenacoes?.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
-                <Select value={membroId} onValueChange={setMembroId}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Responsável" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos Membros</SelectItem>
-                    {membrosUnicos.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <Select value={membroId} onValueChange={setMembroId}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos Membros</SelectItem>
+                        {membrosUnicos.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
 
                 <Select value={prioridadeFiltro} onValueChange={setPrioridadeFiltro}>
                   <SelectTrigger className="w-[140px]">
