@@ -2476,21 +2476,21 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "prazos_processo_id_fkey"
+            foreignKeyName: "tarefas_processo_id_fkey"
             columns: ["processo_id"]
             isOneToOne: false
             referencedRelation: "processos"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "prazos_responsavel_id_fkey"
+            foreignKeyName: "tarefas_responsavel_id_fkey"
             columns: ["responsavel_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "prazos_responsavel_id_fkey"
+            foreignKeyName: "tarefas_responsavel_id_fkey"
             columns: ["responsavel_id"]
             isOneToOne: false
             referencedRelation: "profiles_basic"
