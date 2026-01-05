@@ -77,16 +77,27 @@ const Processos = () => {
   // Debounce search to avoid too many API calls
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
 
-  // Atualizar URL quando filtros mudam
+  // Atualizar URL quando filtros mudam (preservando outros params, ex: grupo_clientes)
   useEffect(() => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams);
+
     if (searchQuery) params.set("q", searchQuery);
+    else params.delete("q");
+
     if (areaFilter !== "all") params.set("area", areaFilter);
+    else params.delete("area");
+
     if (statusFilter !== "all") params.set("status", statusFilter);
+    else params.delete("status");
+
     if (coordenacaoFilter !== "all") params.set("coordenacao", coordenacaoFilter);
-    
-    setSearchParams(params, { replace: true });
-  }, [searchQuery, areaFilter, statusFilter, coordenacaoFilter, setSearchParams]);
+    else params.delete("coordenacao");
+
+    // Evita loop/replace desnecessário
+    if (params.toString() !== searchParams.toString()) {
+      setSearchParams(params, { replace: true });
+    }
+  }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, setSearchParams]);
 
   const { 
     data, 
@@ -470,8 +481,8 @@ const Processos = () => {
               </Badge>
             )}
             {grupoNome && (
-              <Badge variant="secondary" className="cursor-pointer bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" onClick={clearGrupoFilter}>
-                Grupo: {decodeURIComponent(grupoNome)} ×
+              <Badge variant="outline" className="cursor-pointer" onClick={clearGrupoFilter}>
+                Grupo: {grupoNome} ×
               </Badge>
             )}
             <Button 
