@@ -280,6 +280,9 @@ export default function NovaTarefa() {
 
       if (error) throw error;
 
+      let uploadedCount = 0;
+      let failedUploads: string[] = [];
+      
       if (anexos.length > 0 && novaTarefa?.id) {
         setUploadingAnexos(true);
         const folder = values.processo_id || `tarefas/${novaTarefa.id}`;
@@ -293,6 +296,7 @@ export default function NovaTarefa() {
 
           if (uploadError) {
             console.error("Erro ao fazer upload:", uploadError);
+            failedUploads.push(anexo.file.name);
             continue;
           }
 
@@ -300,7 +304,7 @@ export default function NovaTarefa() {
             .from('documentos_processos')
             .getPublicUrl(fileName);
 
-          await supabase.from('documentos').insert({
+          const { error: insertError } = await supabase.from('documentos').insert({
             nome: anexo.file.name,
             tipo: anexo.analise?.categoria || anexo.file.type,
             url: publicUrl,
@@ -308,6 +312,13 @@ export default function NovaTarefa() {
             processo_id: values.processo_id || null,
             prazo_id: novaTarefa.id,
           });
+          
+          if (!insertError) {
+            uploadedCount++;
+          } else {
+            console.error("Erro ao salvar documento:", insertError);
+            failedUploads.push(anexo.file.name);
+          }
         }
         setUploadingAnexos(false);
       }
@@ -360,12 +371,24 @@ export default function NovaTarefa() {
         });
       }
 
-      toast({
-        title: "Tarefa criada!",
-        description: anexos.length > 0 
-          ? `Tarefa criada com ${anexos.length} documento(s) anexado(s).`
-          : "A tarefa foi criada e delegada com sucesso.",
-      });
+      // Mostrar resultado do upload com detalhes
+      if (failedUploads.length > 0) {
+        toast({
+          title: "Tarefa criada com avisos",
+          description: `${uploadedCount} documento(s) enviado(s). ${failedUploads.length} falhou: ${failedUploads.join(", ")}`,
+          variant: "destructive",
+        });
+      } else if (anexos.length > 0) {
+        toast({
+          title: "Tarefa criada!",
+          description: `Tarefa criada com ${uploadedCount} documento(s) anexado(s).`,
+        });
+      } else {
+        toast({
+          title: "Tarefa criada!",
+          description: "A tarefa foi criada e delegada com sucesso.",
+        });
+      }
 
       queryClient.invalidateQueries({ queryKey: ["prazos"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
