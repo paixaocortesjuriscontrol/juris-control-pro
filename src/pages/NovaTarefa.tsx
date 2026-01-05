@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, HelpCircle, ArrowLeft, Upload, FileText, Trash2, Sparkles, CheckCircle2, Link2, X } from "lucide-react";
+import { Loader2, HelpCircle, ArrowLeft, Upload, FileText, Trash2, Sparkles, CheckCircle2, Link2, X, Download, ExternalLink } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -122,6 +122,80 @@ export default function NovaTarefa() {
     },
     enabled: !!editarId,
   });
+
+  // Buscar tarefas relacionadas existentes (modo edição)
+  const { data: tarefasRelacionadasExistentes } = useQuery({
+    queryKey: ["tarefas-relacionadas-existentes", editarId],
+    queryFn: async () => {
+      if (!editarId) return [];
+      
+      // Buscar onde a tarefa atual é origem ou relacionada
+      const { data: relacoes, error } = await supabase
+        .from("tarefas_relacionadas")
+        .select(`
+          id,
+          tarefa_origem_id,
+          tarefa_relacionada_id,
+          tarefa_origem:tarefas!tarefas_relacionadas_tarefa_origem_id_fkey(id, titulo, tipo_tarefa, data_vencimento, processo:processos!tarefas_processo_id_fkey(numero)),
+          tarefa_relacionada:tarefas!tarefas_relacionadas_tarefa_relacionada_id_fkey(id, titulo, tipo_tarefa, data_vencimento, processo:processos!tarefas_processo_id_fkey(numero))
+        `)
+        .or(`tarefa_origem_id.eq.${editarId},tarefa_relacionada_id.eq.${editarId}`);
+      
+      if (error) throw error;
+      
+      // Mapear para retornar as tarefas que NÃO são a tarefa atual
+      return (relacoes || []).map((rel: any) => {
+        if (rel.tarefa_origem_id === editarId) {
+          return rel.tarefa_relacionada;
+        } else {
+          return rel.tarefa_origem;
+        }
+      }).filter(Boolean);
+    },
+    enabled: !!editarId,
+  });
+
+  // Buscar documentos existentes (modo edição)
+  const { data: documentosExistentes, refetch: refetchDocumentos } = useQuery({
+    queryKey: ["documentos-tarefa-edicao", editarId],
+    queryFn: async () => {
+      if (!editarId) return [];
+      const { data, error } = await supabase
+        .from("documentos")
+        .select("*")
+        .eq("tarefa_id", editarId)
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!editarId,
+  });
+
+  const handleDeleteDocumento = async (docId: string, url: string) => {
+    try {
+      // Extrair path do storage
+      const urlParts = url.split('/documentos_processos/');
+      if (urlParts.length > 1) {
+        const path = urlParts[1];
+        await supabase.storage.from('documentos_processos').remove([path]);
+      }
+      
+      await supabase.from('documentos').delete().eq('id', docId);
+      refetchDocumentos();
+      toast({
+        title: "Documento excluído",
+        description: "O documento foi removido com sucesso.",
+      });
+    } catch (error) {
+      console.error("Erro ao excluir documento:", error);
+      toast({
+        title: "Erro ao excluir",
+        description: "Não foi possível excluir o documento.",
+        variant: "destructive",
+      });
+    }
+  };
   
   // Buscar usuário atual para salvar criado_por
   const { data: userData } = useQuery({
@@ -985,11 +1059,87 @@ export default function NovaTarefa() {
                   )}
                 />
 
-                {/* Anexos */}
+                {/* Tarefas Relacionadas Existentes (modo edição) */}
+                {isEditMode && tarefasRelacionadasExistentes && tarefasRelacionadasExistentes.length > 0 && (
+                  <div className="space-y-3">
+                    <Label className="flex items-center gap-2">
+                      <Link2 className="w-4 h-4" />
+                      Tarefas Vinculadas
+                    </Label>
+                    <div className="border rounded-md divide-y">
+                      {tarefasRelacionadasExistentes.map((tarefa: any) => (
+                        <div key={tarefa.id} className="p-3 flex items-center gap-3 hover:bg-muted/50">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{tarefa.titulo}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {tarefa.tipo_tarefa}
+                              {tarefa.processo?.numero && ` • ${tarefa.processo.numero}`}
+                              {tarefa.data_vencimento && ` • ${format(new Date(tarefa.data_vencimento), "dd/MM/yyyy")}`}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(`/nova-tarefa?editar=${tarefa.id}`, '_blank')}
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Documentos Existentes (modo edição) */}
+                {isEditMode && documentosExistentes && documentosExistentes.length > 0 && (
+                  <div className="space-y-3">
+                    <Label className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Documentos Anexados
+                    </Label>
+                    <div className="border rounded-md divide-y">
+                      {documentosExistentes.map((doc: any) => (
+                        <div key={doc.id} className="p-3 flex items-center gap-3">
+                          <FileText className="w-4 h-4 text-primary shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{doc.nome}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {doc.tipo && <Badge variant="secondary" className="text-xs mr-2">{doc.tipo}</Badge>}
+                              {doc.tamanho_bytes && formatFileSize(doc.tamanho_bytes)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => window.open(doc.url, '_blank')}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleDeleteDocumento(doc.id, doc.url)}
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Anexos (novos) */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium flex items-center gap-2">
-                      Documentos para Análise
+                      {isEditMode ? "Adicionar Novos Documentos" : "Documentos para Análise"}
                       <Tooltip>
                         <TooltipTrigger>
                           <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -1017,7 +1167,7 @@ export default function NovaTarefa() {
                   
                   {anexos.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-                      Nenhum documento anexado. Clique em "Adicionar" para incluir arquivos.
+                      {isEditMode ? "Clique em \"Adicionar\" para incluir novos arquivos." : "Nenhum documento anexado. Clique em \"Adicionar\" para incluir arquivos."}
                       <br />
                       <span className="text-amber-600">A IA irá categorizar automaticamente.</span>
                     </p>
