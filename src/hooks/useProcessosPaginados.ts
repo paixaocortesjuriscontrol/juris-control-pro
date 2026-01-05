@@ -40,26 +40,16 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         _com_publicacao_djen: filters.comPublicacaoDjen ?? false,
         _periodo_inicio: filters.periodoInicio ? filters.periodoInicio.toISOString() : null,
         _periodo_fim: filters.periodoFim ? filters.periodoFim.toISOString() : null,
+        _cliente_ids: filters.clienteIds && filters.clienteIds.length > 0 ? filters.clienteIds : null,
       });
 
       if (error) throw error;
 
       const rows = data || [];
-      
-      // Filter by clienteIds client-side if provided
-      let filteredRows = rows;
-      if (filters.clienteIds && filters.clienteIds.length > 0) {
-        filteredRows = rows.filter((row: any) => 
-          row.cliente?.id && filters.clienteIds?.includes(row.cliente.id)
-        );
-      }
-      
-      const totalCount = filters.clienteIds && filters.clienteIds.length > 0 
-        ? filteredRows.length 
-        : (rows.length > 0 ? Number(rows[0].total_count) : 0);
+      const totalCount = rows.length > 0 ? Number(rows[0].total_count) : 0;
 
       // Map RPC result to the expected shape
-      const processos = filteredRows.map((row: any) => ({
+      const processos = rows.map((row: any) => ({
         id: row.id,
         numero: row.numero,
         assunto: row.assunto,
