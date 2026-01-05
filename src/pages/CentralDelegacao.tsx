@@ -129,6 +129,7 @@ export default function CentralDelegacao() {
           status,
           tipo_tarefa,
           created_at,
+          criado_por,
           responsavel:profiles!tarefas_responsavel_id_fkey(id, nome, email),
           processo:processos!tarefas_processo_id_fkey(id, numero, polo_ativo, coordenacao_id, cliente:clientes!processos_cliente_id_fkey(id, nome))
         `);
