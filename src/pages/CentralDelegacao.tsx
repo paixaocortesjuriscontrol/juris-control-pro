@@ -41,7 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
-import { TarefaDetalhesPanel } from "@/components/delegacao/TarefaDetalhesPanel";
+import { TarefaDetalhesDialog } from "@/components/delegacao/TarefaDetalhesDialog";
 import { AcoesEmLoteDialog } from "@/components/delegacao/AcoesEmLoteDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { useToast } from "@/hooks/use-toast";
@@ -648,20 +648,20 @@ export default function CentralDelegacao() {
             </Card>
           </div>
 
-          {/* Painel de Detalhes */}
-          {selectedTarefa && (
-            <div className="lg:w-[420px] shrink-0">
-              <TarefaDetalhesPanel
-                tarefa={selectedTarefa}
-                onClose={() => setSelectedTarefaId(null)}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
-                }}
-              />
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Dialog de Detalhes */}
+      <TarefaDetalhesDialog
+        tarefa={selectedTarefa}
+        open={!!selectedTarefaId}
+        onOpenChange={(open) => {
+          if (!open) setSelectedTarefaId(null);
+        }}
+        onUpdate={() => {
+          queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
+        }}
+      />
 
       {/* Dialogs */}
       <NovaTarefaDialog
