@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,7 +13,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { MentionInput } from "@/components/ui/mention-input";
-import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { VincularTarefaDialog } from "@/components/delegacao/VincularTarefaDialog";
 import {
   Dialog,
@@ -76,19 +76,21 @@ export function TarefaDetalhesDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [comentario, setComentario] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
   const [tarefasRelacionadasOpen, setTarefasRelacionadasOpen] = useState(false);
   const [documentosOpen, setDocumentosOpen] = useState(false);
   const [auditoriaOpen, setAuditoriaOpen] = useState(false);
   const [comentariosOpen, setComentariosOpen] = useState(true);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [novaTarefaRelacionadaOpen, setNovaTarefaRelacionadaOpen] = useState(false);
   const [vincularTarefaOpen, setVincularTarefaOpen] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
+
+  // Verifica se o usuário atual é o criador da tarefa
+  const isCreator = user?.id === tarefa?.criado_por;
 
   // Fetch comentários
   const { data: comentarios, isLoading: loadingComentarios } = useQuery({
@@ -494,20 +496,31 @@ export function TarefaDetalhesDialog({
                 </Button>
               )}
 
-              <Button size="sm" variant="outline" onClick={() => setEditDialogOpen(true)}>
-                <Edit className="w-3 h-3 mr-1" />
-                Editar
-              </Button>
+              {isCreator && (
+                <>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      onOpenChange(false);
+                      navigate(`/nova-tarefa?editar=${tarefa.id}`);
+                    }}
+                  >
+                    <Edit className="w-3 h-3 mr-1" />
+                    Editar
+                  </Button>
 
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="text-destructive hover:text-destructive"
-                onClick={() => setDeleteDialogOpen(true)}
-              >
-                <Trash2 className="w-3 h-3 mr-1" />
-                Excluir
-              </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    Excluir
+                  </Button>
+                </>
+              )}
             </div>
           </DialogHeader>
 
@@ -693,7 +706,10 @@ export function TarefaDetalhesDialog({
                       size="sm" 
                       variant="outline" 
                       className="flex-1"
-                      onClick={() => setNovaTarefaRelacionadaOpen(true)}
+                      onClick={() => {
+                        onOpenChange(false);
+                        navigate(`/nova-tarefa?relacionada=${tarefa.id}${tarefa.processo?.id ? `&processo=${tarefa.processo.id}` : ''}`);
+                      }}
                     >
                       <Plus className="w-3 h-3 mr-1" />
                       Criar Nova
@@ -912,45 +928,6 @@ export function TarefaDetalhesDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
-      <PrazoDialog
-        open={editDialogOpen}
-        onOpenChange={(open) => {
-          setEditDialogOpen(open);
-          if (!open) onUpdate();
-        }}
-        prazo={{
-          id: tarefa.id,
-          titulo: tarefa.titulo,
-          descricao: tarefa.descricao,
-          data_vencimento: tarefa.data_vencimento,
-          prioridade: tarefa.prioridade,
-          status: tarefa.status,
-          processo_id: tarefa.processo?.id || null,
-          processo: tarefa.processo,
-          responsavel_id: tarefa.responsavel?.id || null,
-          responsavel: tarefa.responsavel,
-          created_at: tarefa.created_at,
-          criado_por: tarefa.criado_por || null,
-          observacoes: null,
-          data_cumprimento: tarefa.data_cumprimento || null,
-          data_fatal: tarefa.data_fatal || null,
-          tipo_tarefa: tarefa.tipo_tarefa || null,
-        }}
-      />
-
-      {/* Nova Tarefa Relacionada Dialog */}
-      <PrazoDialog
-        open={novaTarefaRelacionadaOpen}
-        onOpenChange={(open) => {
-          setNovaTarefaRelacionadaOpen(open);
-          if (!open) {
-            queryClient.invalidateQueries({ queryKey: ["tarefas-relacionadas", tarefa.id, tarefa.processo?.id] });
-          }
-        }}
-        defaultProcessoId={tarefa.processo?.id}
-        defaultTarefaRelacionadaId={tarefa.id}
-      />
 
       {/* Vincular Tarefa Existente Dialog */}
       <VincularTarefaDialog
