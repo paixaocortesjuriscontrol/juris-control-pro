@@ -254,12 +254,14 @@ export function TarefaDetalhesPanel({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button size="sm" variant="outline" asChild>
-            <a href={`/processos/${tarefa.processo?.id}`} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="w-3 h-3 mr-1" />
-              Abrir
-            </a>
-          </Button>
+          {tarefa.processo?.id && (
+            <Button size="sm" variant="outline" asChild>
+              <a href={`/processos/${tarefa.processo.id}`} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="w-3 h-3 mr-1" />
+                Abrir
+              </a>
+            </Button>
+          )}
 
           <Button size="sm" variant="outline">
             <Edit className="w-3 h-3 mr-1" />
@@ -471,7 +473,7 @@ export function TarefaDetalhesPanel({
                   </p>
                 </div>
                 <Textarea
-                  placeholder="Utilize o @ antes de um nome para citar outros usuários do sistema."
+                  placeholder="Digite seu comentário..."
                   value={comentario}
                   onChange={(e) => setComentario(e.target.value.slice(0, 2000))}
                   rows={3}
