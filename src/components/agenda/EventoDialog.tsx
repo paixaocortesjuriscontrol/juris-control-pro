@@ -154,10 +154,12 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
       const dataInicio = toZonedTime(new Date(evento.data_inicio), 'America/Sao_Paulo');
       const dataFim = evento.data_fim ? toZonedTime(new Date(evento.data_fim), 'America/Sao_Paulo') : null;
       
-      // Usar alertas do banco se disponíveis, senão usar [30] como padrão
-      const alertas = alertasEvento && alertasEvento.length > 0 ? alertasEvento : [30];
+      // Só atualizar alertas quando a query terminou de carregar
+      // alertasEvento será undefined enquanto carrega, [] se não há alertas, ou array com valores
+      const alertas = alertasEvento !== undefined ? (alertasEvento.length > 0 ? alertasEvento : []) : formData.alerta_minutos;
       
-      setFormData({
+      setFormData(prev => ({
+        ...prev,
         titulo: evento.titulo,
         descricao: evento.descricao || "",
         tipo: evento.tipo,
@@ -175,8 +177,8 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
         participantes_ids: evento.participantes?.map(p => p.usuario_id) || [],
         alerta_minutos: alertas,
         enviar_whatsapp: evento.enviar_whatsapp ?? true,
-      });
-    } else {
+      }));
+    } else if (open) {
       setFormData({
         titulo: "",
         descricao: "",
