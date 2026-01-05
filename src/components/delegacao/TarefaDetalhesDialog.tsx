@@ -134,22 +134,28 @@ export function TarefaDetalhesDialog({
     enabled: !!tarefa?.processo?.id && open,
   });
 
-  // Fetch documentos do processo
+  // Fetch documentos (por processo OU por tarefa)
   const { data: documentos, isLoading: loadingDocumentos } = useQuery({
-    queryKey: ["documentos-tarefa", tarefa?.processo?.id],
+    queryKey: ["documentos-tarefa", tarefa?.id, tarefa?.processo?.id],
     queryFn: async () => {
-      if (!tarefa?.processo?.id) return [];
+      if (!tarefa?.id) return [];
+
+      const orFilters: string[] = [`prazo_id.eq.${tarefa.id}`];
+      if (tarefa?.processo?.id) {
+        orFilters.push(`processo_id.eq.${tarefa.processo.id}`);
+      }
+
       const { data, error } = await supabase
         .from("documentos")
         .select("id, nome, tipo, url, tamanho_bytes, created_at")
-        .eq("processo_id", tarefa.processo.id)
+        .or(orFilters.join(","))
         .order("created_at", { ascending: false })
         .limit(10);
 
       if (error) throw error;
       return data || [];
     },
-    enabled: !!tarefa?.processo?.id && open,
+    enabled: !!tarefa?.id && open,
   });
 
   const getInitials = (name: string) => {
@@ -313,13 +319,13 @@ export function TarefaDetalhesDialog({
 
   const handleUploadDocumento = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !tarefa?.processo?.id) return;
+    if (!file || !tarefa?.id) return;
 
     setUploadingDoc(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${tarefa.processo.id}/${Date.now()}.${fileExt}`;
-      
+      const folder = tarefa.processo?.id ? tarefa.processo.id : `tarefas/${tarefa.id}`;
+      const fileName = `${folder}/${Date.now()}_${file.name}`;
+
       const { error: uploadError } = await supabase.storage
         .from('documentos_processos')
         .upload(fileName, file);
@@ -335,13 +341,14 @@ export function TarefaDetalhesDialog({
         tipo: file.type,
         url: publicUrl,
         tamanho_bytes: file.size,
-        processo_id: tarefa.processo.id,
+        processo_id: tarefa.processo?.id || null,
+        prazo_id: tarefa.id,
         uploaded_by: user?.id,
       });
 
       if (dbError) throw dbError;
 
-      queryClient.invalidateQueries({ queryKey: ["documentos-tarefa", tarefa.processo.id] });
+      queryClient.invalidateQueries({ queryKey: ["documentos-tarefa", tarefa.id, tarefa.processo?.id] });
       toast({ title: "Documento enviado!" });
     } catch (error: any) {
       toast({
@@ -635,7 +642,7 @@ export function TarefaDetalhesDialog({
                     </div>
                   ) : documentos?.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-2">
-                      {tarefa.processo?.id ? "Nenhum documento encontrado" : "Vincule um processo para ver documentos"}
+                      Nenhum documento encontrado
                     </p>
                   ) : (
                     <div className="space-y-2">
@@ -658,7 +665,7 @@ export function TarefaDetalhesDialog({
                       ))}
                     </div>
                   )}
-                  {tarefa.processo?.id && (
+                  {tarefa?.id && (
                     <div className="relative">
                       <input
                         type="file"
