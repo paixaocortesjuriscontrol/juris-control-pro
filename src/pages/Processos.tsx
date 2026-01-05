@@ -65,6 +65,11 @@ const Processos = () => {
   const [comPublicacaoDjen, setComPublicacaoDjen] = useState(false);
   const [comAndamentos, setComAndamentos] = useState(false);
   
+  // Filtro de grupo de clientes
+  const grupoClientesParam = searchParams.get("grupo_clientes");
+  const grupoNome = searchParams.get("grupo_nome");
+  const clienteIds = grupoClientesParam ? grupoClientesParam.split(",") : undefined;
+  
   const { executarMonitoramento } = useConfiguracoesMonitoramento();
   const { data: coordenacoes } = useCoordenacoes();
   const queryClient = useQueryClient();
@@ -106,6 +111,7 @@ const Processos = () => {
     comPublicacaoDjen: comPublicacaoDjen,
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
+    clienteIds: clienteIds,
   });
 
   const { data: processosRedistribuidos } = useProcessosComRedistribuicaoRecente();
@@ -113,7 +119,7 @@ const Processos = () => {
   // Reset page when filters change
   useEffect(() => {
     resetPage();
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos]);
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos, clienteIds]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
   // so selecting a responsável / período filters immediately.
@@ -197,7 +203,15 @@ const Processos = () => {
     filtrosAplicados.responsavelId ||
     filtrosAplicados.instancia !== "todos" ||
     comPublicacaoDjen ||
-    comAndamentos;
+    comAndamentos ||
+    !!grupoClientesParam;
+
+  const clearGrupoFilter = () => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete("grupo_clientes");
+    newParams.delete("grupo_nome");
+    setSearchParams(newParams, { replace: true });
+  };
 
   return (
     <MainLayout 
@@ -453,6 +467,11 @@ const Processos = () => {
                 setFiltrosAplicados(prev => ({ ...prev, periodoInicio: undefined, periodoFim: undefined }));
               }}>
                 Período ×
+              </Badge>
+            )}
+            {grupoNome && (
+              <Badge variant="secondary" className="cursor-pointer bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" onClick={clearGrupoFilter}>
+                Grupo: {decodeURIComponent(grupoNome)} ×
               </Badge>
             )}
             <Button 
