@@ -85,6 +85,7 @@ export function TarefaDetalhesDialog({
   const [deleting, setDeleting] = useState(false);
   const [novaTarefaRelacionadaOpen, setNovaTarefaRelacionadaOpen] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
   // Fetch comentários
   const { data: comentarios, isLoading: loadingComentarios } = useQuery({
@@ -362,12 +363,44 @@ export function TarefaDetalhesDialog({
     }
   };
 
+  const handleDeleteDocumento = async (docId: string, docUrl: string | null) => {
+    setDeletingDocId(docId);
+    try {
+      // Delete from storage if URL exists
+      if (docUrl) {
+        const urlParts = docUrl.split('/documentos_processos/');
+        if (urlParts[1]) {
+          await supabase.storage.from('documentos_processos').remove([urlParts[1]]);
+        }
+      }
+
+      // Delete from database
+      const { error } = await supabase
+        .from("documentos")
+        .delete()
+        .eq("id", docId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["documentos-tarefa", tarefa.id, tarefa.processo?.id] });
+      toast({ title: "Documento excluído!" });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir documento",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingDocId(null);
+    }
+  };
+
   if (!tarefa) return null;
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
@@ -436,8 +469,8 @@ export function TarefaDetalhesDialog({
             </div>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 px-6">
-            <div className="space-y-6 py-4">
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="space-y-6 py-4 pb-6 px-6">
               {/* Processo vinculado */}
               {tarefa.processo && (
                 <div className="space-y-2">
@@ -647,21 +680,38 @@ export function TarefaDetalhesDialog({
                   ) : (
                     <div className="space-y-2">
                       {documentos?.map((doc) => (
-                        <a 
+                        <div 
                           key={doc.id} 
-                          href={doc.url || '#'} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between p-2 bg-muted/50 rounded-lg text-sm hover:bg-muted transition-colors"
+                          className="flex items-center justify-between p-2 bg-muted/50 rounded-lg text-sm hover:bg-muted transition-colors gap-2"
                         >
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-primary" />
-                            <span className="truncate max-w-[300px]">{doc.nome}</span>
+                          <a 
+                            href={doc.url || '#'} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 flex-1 min-w-0"
+                          >
+                            <FileText className="w-4 h-4 text-primary shrink-0" />
+                            <span className="truncate">{doc.nome}</span>
+                          </a>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-muted-foreground hidden sm:inline">
+                              {formatFileSize(doc.tamanho_bytes)}
+                            </span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleDeleteDocumento(doc.id, doc.url)}
+                              disabled={deletingDocId === doc.id}
+                            >
+                              {deletingDocId === doc.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3 h-3" />
+                              )}
+                            </Button>
                           </div>
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            {formatFileSize(doc.tamanho_bytes)}
-                          </span>
-                        </a>
+                        </div>
                       ))}
                     </div>
                   )}
