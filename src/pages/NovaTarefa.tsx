@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -88,15 +88,40 @@ export default function NovaTarefa() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const processoIdParam = searchParams.get("processo");
+  const editarId = searchParams.get("editar");
+  const relacionadaId = searchParams.get("relacionada");
   
   const [loading, setLoading] = useState(false);
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
-  const [tarefaRelacionadaId, setTarefaRelacionadaId] = useState<string>("");
+  const [tarefaRelacionadaId, setTarefaRelacionadaId] = useState<string>(relacionadaId || "");
   const [searchTarefa, setSearchTarefa] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  const isEditMode = !!editarId;
+  
+  // Buscar dados da tarefa para edição
+  const { data: tarefaParaEditar, isLoading: loadingTarefa } = useQuery({
+    queryKey: ["tarefa-editar", editarId],
+    queryFn: async () => {
+      if (!editarId) return null;
+      const { data, error } = await supabase
+        .from("tarefas")
+        .select(`
+          *,
+          processo:processos!tarefas_processo_id_fkey(id, numero, coordenacao_id),
+          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
+        `)
+        .eq("id", editarId)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!editarId,
+  });
   
   // Buscar usuário atual para salvar criado_por
   const { data: userData } = useQuery({
@@ -126,6 +151,28 @@ export default function NovaTarefa() {
       local: "",
     },
   });
+
+  // Preencher form quando carregar tarefa para edição
+  useEffect(() => {
+    if (tarefaParaEditar) {
+      form.reset({
+        tipo_vinculo: tarefaParaEditar.processo_id ? "processo" : "sem_vinculo",
+        coordenacao_id: tarefaParaEditar.processo?.coordenacao_id || "",
+        processo_id: tarefaParaEditar.processo_id || "",
+        tipo_tarefa: tarefaParaEditar.tipo_tarefa || "",
+        titulo: tarefaParaEditar.titulo || "",
+        descricao: tarefaParaEditar.descricao || "",
+        responsavel_id: tarefaParaEditar.responsavel_id || "",
+        data_base: tarefaParaEditar.data_base || format(new Date(), "yyyy-MM-dd"),
+        data_vencimento: tarefaParaEditar.data_vencimento || "",
+        hora_prevista: "",
+        data_fatal: tarefaParaEditar.data_fatal || "",
+        hora_fatal: "",
+        prioridade: tarefaParaEditar.prioridade || "media",
+        local: "",
+      });
+    }
+  }, [tarefaParaEditar, form]);
 
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
@@ -325,37 +372,59 @@ export default function NovaTarefa() {
   async function onSubmit(values: FormValues) {
     setLoading(true);
     try {
-      const { data: novaTarefa, error } = await supabase.from("tarefas").insert({
-        processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
-        responsavel_id: values.responsavel_id,
-        titulo: values.titulo,
-        descricao: values.descricao || null,
-        tipo_tarefa: values.tipo_tarefa,
-        data_base: values.data_base || null,
-        data_vencimento: values.data_vencimento,
-        data_fatal: values.data_fatal || null,
-        prioridade: values.prioridade,
-        status: "pendente",
-        criado_por: userData?.id || null,
-      } as any).select("id").single();
+      let tarefaId: string;
+      
+      if (isEditMode && editarId) {
+        // Modo edição - atualizar tarefa existente
+        const { error } = await supabase.from("tarefas").update({
+          processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
+          responsavel_id: values.responsavel_id,
+          titulo: values.titulo,
+          descricao: values.descricao || null,
+          tipo_tarefa: values.tipo_tarefa,
+          data_base: values.data_base || null,
+          data_vencimento: values.data_vencimento,
+          data_fatal: values.data_fatal || null,
+          prioridade: values.prioridade,
+        } as any).eq("id", editarId);
 
-      if (error) throw error;
+        if (error) throw error;
+        tarefaId = editarId;
+      } else {
+        // Modo criação - inserir nova tarefa
+        const { data: novaTarefa, error } = await supabase.from("tarefas").insert({
+          processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
+          responsavel_id: values.responsavel_id,
+          titulo: values.titulo,
+          descricao: values.descricao || null,
+          tipo_tarefa: values.tipo_tarefa,
+          data_base: values.data_base || null,
+          data_vencimento: values.data_vencimento,
+          data_fatal: values.data_fatal || null,
+          prioridade: values.prioridade,
+          status: "pendente",
+          criado_por: userData?.id || null,
+        } as any).select("id").single();
 
-      // Se tiver tarefa relacionada, criar o vínculo
-      if (novaTarefa?.id && tarefaRelacionadaId && userData?.id) {
-        await supabase.from("tarefas_relacionadas").insert({
-          tarefa_origem_id: tarefaRelacionadaId,
-          tarefa_relacionada_id: novaTarefa.id,
-          criado_por: userData.id,
-        });
+        if (error) throw error;
+        tarefaId = novaTarefa.id;
+
+        // Se tiver tarefa relacionada, criar o vínculo (apenas na criação)
+        if (tarefaId && tarefaRelacionadaId && userData?.id) {
+          await supabase.from("tarefas_relacionadas").insert({
+            tarefa_origem_id: tarefaRelacionadaId,
+            tarefa_relacionada_id: tarefaId,
+            criado_por: userData.id,
+          });
+        }
       }
 
       let uploadedCount = 0;
       let failedUploads: string[] = [];
       
-      if (anexos.length > 0 && novaTarefa?.id) {
+      if (anexos.length > 0 && tarefaId) {
         setUploadingAnexos(true);
-        const folder = values.processo_id || `tarefas/${novaTarefa.id}`;
+        const folder = values.processo_id || `tarefas/${tarefaId}`;
         
         for (const anexo of anexos) {
           // Sanitizar nome do arquivo - remover caracteres especiais
@@ -385,7 +454,7 @@ export default function NovaTarefa() {
             url: publicUrl,
             tamanho_bytes: anexo.file.size,
             processo_id: values.processo_id || null,
-            tarefa_id: novaTarefa.id,
+            tarefa_id: tarefaId,
           });
           
           if (!insertError) {
@@ -398,70 +467,76 @@ export default function NovaTarefa() {
         setUploadingAnexos(false);
       }
 
-      const { data: responsavel } = await supabase
-        .from("profiles")
-        .select("nome, telefone")
-        .eq("id", values.responsavel_id)
-        .single();
+      // Enviar WhatsApp apenas para novas tarefas (não edição)
+      if (!isEditMode) {
+        const { data: responsavel } = await supabase
+          .from("profiles")
+          .select("nome, telefone")
+          .eq("id", values.responsavel_id)
+          .single();
 
-      if (responsavel?.telefone) {
-        const dataFormatada = format(new Date(values.data_vencimento), "dd/MM/yyyy");
-        const prioridadeLabel = {
-          baixa: "Baixa",
-          media: "Média", 
-          alta: "Alta",
-          urgente: "🚨 URGENTE"
-        }[values.prioridade] || values.prioridade;
+        if (responsavel?.telefone) {
+          const dataFormatada = format(new Date(values.data_vencimento), "dd/MM/yyyy");
+          const prioridadeLabel = {
+            baixa: "Baixa",
+            media: "Média", 
+            alta: "Alta",
+            urgente: "🚨 URGENTE"
+          }[values.prioridade] || values.prioridade;
 
-        let mensagem = `📋 *NOVA TAREFA DELEGADA*\n\n`;
-        mensagem += `Olá ${responsavel.nome?.split(" ")[0] || ""}!\n`;
-        mensagem += `Você recebeu uma nova tarefa:\n\n`;
-        mensagem += `📌 *${values.titulo}*\n`;
-        mensagem += `📁 Tipo: ${values.tipo_tarefa}\n`;
-        mensagem += `📆 Prazo: ${dataFormatada}\n`;
-        mensagem += `⚡ Prioridade: ${prioridadeLabel}\n`;
-        if (values.descricao) {
-          mensagem += `\n📝 *Descrição:*\n${values.descricao}\n`;
-        }
-        if (anexos.length > 0) {
-          mensagem += `\n📎 ${anexos.length} documento(s) anexado(s)\n`;
-        }
-        mensagem += `\n_JurisControl - Sistema de Gestão Jurídica_`;
-
-        supabase.functions.invoke("enviar-whatsapp-zapi", {
-          body: {
-            telefones: [responsavel.telefone],
-            mensagem,
-            tipo: "evento",
-          },
-        }).then(({ data, error: whatsappError }) => {
-          if (whatsappError) {
-            console.error("Erro ao enviar WhatsApp:", whatsappError);
-          } else if (data?.enviados > 0) {
-            toast({
-              title: "WhatsApp enviado",
-              description: `Notificação enviada para ${responsavel.nome}`,
-            });
+          let mensagem = `📋 *NOVA TAREFA DELEGADA*\n\n`;
+          mensagem += `Olá ${responsavel.nome?.split(" ")[0] || ""}!\n`;
+          mensagem += `Você recebeu uma nova tarefa:\n\n`;
+          mensagem += `📌 *${values.titulo}*\n`;
+          mensagem += `📁 Tipo: ${values.tipo_tarefa}\n`;
+          mensagem += `📆 Prazo: ${dataFormatada}\n`;
+          mensagem += `⚡ Prioridade: ${prioridadeLabel}\n`;
+          if (values.descricao) {
+            mensagem += `\n📝 *Descrição:*\n${values.descricao}\n`;
           }
-        });
+          if (anexos.length > 0) {
+            mensagem += `\n📎 ${anexos.length} documento(s) anexado(s)\n`;
+          }
+          mensagem += `\n_JurisControl - Sistema de Gestão Jurídica_`;
+
+          supabase.functions.invoke("enviar-whatsapp-zapi", {
+            body: {
+              telefones: [responsavel.telefone],
+              mensagem,
+              tipo: "evento",
+            },
+          }).then(({ data, error: whatsappError }) => {
+            if (whatsappError) {
+              console.error("Erro ao enviar WhatsApp:", whatsappError);
+            } else if (data?.enviados > 0) {
+              toast({
+                title: "WhatsApp enviado",
+                description: `Notificação enviada para ${responsavel.nome}`,
+              });
+            }
+          });
+        }
       }
 
       // Mostrar resultado do upload com detalhes
+      const actionLabel = isEditMode ? "atualizada" : "criada";
       if (failedUploads.length > 0) {
         toast({
-          title: "Tarefa criada com avisos",
+          title: `Tarefa ${actionLabel} com avisos`,
           description: `${uploadedCount} documento(s) enviado(s). ${failedUploads.length} falhou: ${failedUploads.join(", ")}`,
           variant: "destructive",
         });
       } else if (anexos.length > 0) {
         toast({
-          title: "Tarefa criada!",
-          description: `Tarefa criada com ${uploadedCount} documento(s) anexado(s).`,
+          title: `Tarefa ${actionLabel}!`,
+          description: `Tarefa ${actionLabel} com ${uploadedCount} documento(s) anexado(s).`,
         });
       } else {
         toast({
-          title: "Tarefa criada!",
-          description: "A tarefa foi criada e delegada com sucesso.",
+          title: `Tarefa ${actionLabel}!`,
+          description: isEditMode 
+            ? "As alterações foram salvas com sucesso."
+            : "A tarefa foi criada e delegada com sucesso.",
         });
       }
 
@@ -486,15 +561,30 @@ export default function NovaTarefa() {
     ?.filter((m) => m.usuario?.id)
     .map((m) => ({ id: m.usuario!.id, nome: m.usuario!.nome })) || [];
 
+  if (loadingTarefa && isEditMode) {
+    return (
+      <MainLayout title="Carregando..." subtitle="">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
-    <MainLayout title="Nova Tarefa" subtitle="Crie e delegue uma nova tarefa para sua equipe">
+    <MainLayout 
+      title={isEditMode ? "Editar Tarefa" : "Nova Tarefa"} 
+      subtitle={isEditMode ? "Altere os dados da tarefa conforme necessário" : "Crie e delegue uma nova tarefa para sua equipe"}
+    >
       <div className="space-y-6">
 
         {/* Formulário */}
         <Card>
           <CardHeader>
             <CardTitle>Dados da Tarefa</CardTitle>
-            <CardDescription>Preencha os campos abaixo para criar uma nova tarefa</CardDescription>
+            <CardDescription>
+              {isEditMode ? "Edite os campos abaixo para atualizar a tarefa" : "Preencha os campos abaixo para criar uma nova tarefa"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -996,7 +1086,7 @@ export default function NovaTarefa() {
                   </Button>
                   <Button type="submit" disabled={loading || uploadingAnexos} className="w-full sm:w-auto">
                     {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar Tarefa"}
+                    {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : isEditMode ? "Salvar Alterações" : "Salvar Tarefa"}
                   </Button>
                 </div>
               </form>
