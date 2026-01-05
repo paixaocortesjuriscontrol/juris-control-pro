@@ -778,6 +778,8 @@ async function processBatch(supabase: any): Promise<{
     checked: 0,
     newMovements: 0,
     processesWithNewMovements: 0,
+    audienciasDetectadas: 0,
+    intimacoesDetectadas: 0,
     errors: 0,
     totalProcesses: totalCount || 0,
     currentOffset,
@@ -874,7 +876,7 @@ async function processBatch(supabase: any): Promise<{
                 await scanMovementForTerms(supabase, insertedMov.id, processo.id, descricaoCompleta);
                 
                 // Detectar audiências no andamento
-                await registrarAudienciaDetectada(
+                const audienciaResult = await registrarAudienciaDetectada(
                   supabase,
                   processo.id,
                   processo.numero,
@@ -882,9 +884,12 @@ async function processBatch(supabase: any): Promise<{
                   descricaoCompleta,
                   movDate
                 );
+                if (audienciaResult) {
+                  results.audienciasDetectadas++;
+                }
                 
                 // Detectar intimações no andamento
-                await registrarIntimacaoDetectada(
+                const intimacaoResult = await registrarIntimacaoDetectada(
                   supabase,
                   processo.id,
                   processo.numero,
@@ -892,6 +897,9 @@ async function processBatch(supabase: any): Promise<{
                   descricaoCompleta,
                   movDate
                 );
+                if (intimacaoResult) {
+                  results.intimacoesDetectadas++;
+                }
               }
             }
         }
@@ -1034,7 +1042,11 @@ async function processBatch(supabase: any): Promise<{
       });
   }
 
-  console.log("Batch monitoring completed:", results);
+  console.log("Batch monitoring completed:", {
+    ...results,
+    audienciasDetectadas: results.audienciasDetectadas,
+    intimacoesDetectadas: results.intimacoesDetectadas
+  });
   
   return {
     isComplete,
@@ -1077,6 +1089,8 @@ serve(async (req) => {
         checked: 0,
         newMovements: 0,
         processesWithNewMovements: 0,
+        audienciasDetectadas: 0,
+        intimacoesDetectadas: 0,
         errors: 0,
       };
       let batchCount = 0;
@@ -1091,6 +1105,8 @@ serve(async (req) => {
         totalResults.checked += results.checked;
         totalResults.newMovements += results.newMovements;
         totalResults.processesWithNewMovements += results.processesWithNewMovements;
+        totalResults.audienciasDetectadas += results.audienciasDetectadas || 0;
+        totalResults.intimacoesDetectadas += results.intimacoesDetectadas || 0;
         totalResults.errors += results.errors;
         lastProgress = progress;
 

@@ -110,13 +110,17 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
       const checked = data?.results?.checked || 0;
       const newMovements = data?.results?.newMovements || 0;
       const audienciasDetectadas = data?.results?.audienciasDetectadas || 0;
+      const intimacoesDetectadas = data?.results?.intimacoesDetectadas || 0;
       
-      toast.success(
-        `Lote concluído: ${checked} processos, ${newMovements} novos andamentos` +
-        (audienciasDetectadas > 0 ? `, ${audienciasDetectadas} audiências detectadas` : '')
-      );
+      let msg = `Lote concluído: ${checked} processos, ${newMovements} novos andamentos`;
+      if (audienciasDetectadas > 0) msg += `, ${audienciasDetectadas} audiências`;
+      if (intimacoesDetectadas > 0) msg += `, ${intimacoesDetectadas} intimações`;
+      
+      toast.success(msg);
       
       queryClient.invalidateQueries({ queryKey: ['config-monitoramento'] });
+      queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
+      queryClient.invalidateQueries({ queryKey: ['intimacoes-detectadas'] });
     } catch (error) {
       toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
@@ -134,6 +138,7 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
       let totalAndamentos = 0;
       let totalChecked = 0;
       let totalAudiencias = 0;
+      let totalIntimacoes = 0;
       
       while (!isComplete && !canceladoRef.current) {
         const { data, error } = await supabase.functions.invoke('monitorar-andamentos');
@@ -147,16 +152,17 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
         totalChecked += data?.results?.checked || 0;
         totalAndamentos += data?.results?.newMovements || 0;
         totalAudiencias += data?.results?.audienciasDetectadas || 0;
+        totalIntimacoes += data?.results?.intimacoesDetectadas || 0;
         isComplete = data?.isComplete || false;
       }
       
       if (canceladoRef.current) {
         toast.info(`Monitoramento cancelado: ${totalChecked} processos verificados`);
       } else {
-        toast.success(
-          `Monitoramento completo: ${totalChecked} processos, ${totalAndamentos} novos andamentos` +
-          (totalAudiencias > 0 ? `, ${totalAudiencias} audiências detectadas` : '')
-        );
+        let msg = `Monitoramento completo: ${totalChecked} processos, ${totalAndamentos} novos andamentos`;
+        if (totalAudiencias > 0) msg += `, ${totalAudiencias} audiências`;
+        if (totalIntimacoes > 0) msg += `, ${totalIntimacoes} intimações`;
+        toast.success(msg);
       }
     } catch (error) {
       toast.error(`Erro no monitoramento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
@@ -166,6 +172,7 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
       canceladoRef.current = false;
       queryClient.invalidateQueries({ queryKey: ['config-monitoramento'] });
       queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
+      queryClient.invalidateQueries({ queryKey: ['intimacoes-detectadas'] });
     }
   };
 
