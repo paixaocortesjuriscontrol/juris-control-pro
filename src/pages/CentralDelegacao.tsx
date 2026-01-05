@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +41,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { TarefaDetalhesDialog } from "@/components/delegacao/TarefaDetalhesDialog";
 import { AcoesEmLoteDialog } from "@/components/delegacao/AcoesEmLoteDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
@@ -51,6 +51,7 @@ type TipoAtividade = "todos" | "tarefas" | "audiencias" | "compromissos";
 type StatusFiltro = "todos" | "pendente" | "cumprido" | "atrasado";
 
 export default function CentralDelegacao() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { isAdminOrCoordinator, loading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
@@ -65,7 +66,6 @@ export default function CentralDelegacao() {
   const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>("todas");
   const [selectedTarefaId, setSelectedTarefaId] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
   const [novoCompromissoOpen, setNovoCompromissoOpen] = useState(false);
   const [acoesLoteOpen, setAcoesLoteOpen] = useState(false);
   const [ordenacao, setOrdenacao] = useState<string>("mais-antigas");
@@ -354,7 +354,7 @@ export default function CentralDelegacao() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setNovaTarefaOpen(true)}>
+                  <DropdownMenuItem onClick={() => navigate("/nova-tarefa")}>
                     <ListChecks className="w-4 h-4 mr-2" />
                     Nova Tarefa
                   </DropdownMenuItem>
@@ -664,14 +664,6 @@ export default function CentralDelegacao() {
       />
 
       {/* Dialogs */}
-      <NovaTarefaDialog
-        open={novaTarefaOpen}
-        onOpenChange={setNovaTarefaOpen}
-        coordenacoes={coordenacoes || []}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
-        }}
-      />
 
       <AcoesEmLoteDialog
         open={acoesLoteOpen}
