@@ -68,7 +68,7 @@ export function AcoesEmLoteDialog({
     setLoading(true);
     try {
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .update({
           status: "cumprido",
           data_cumprimento: new Date().toISOString(),
@@ -107,7 +107,7 @@ export function AcoesEmLoteDialog({
     setLoading(true);
     try {
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .update({
           responsavel_id: novoResponsavel,
         })
@@ -137,7 +137,7 @@ export function AcoesEmLoteDialog({
     setLoading(true);
     try {
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .delete()
         .in("id", selectedIds);
 

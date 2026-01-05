@@ -334,11 +334,11 @@ export default function ImportarTarefas() {
     // Check for existing identificadores to avoid duplicates
     const allIds = toImport.map(t => t.identificador);
     const { data: existingTarefas } = await supabase
-      .from("prazos")
+      .from("tarefas")
       .select("identificador_projuris")
       .in("identificador_projuris", allIds);
     
-    const existingSet = new Set((existingTarefas || []).map(t => t.identificador_projuris));
+    const existingSet = new Set((existingTarefas || []).map((t: any) => t.identificador_projuris));
 
     for (let i = 0; i < toImport.length; i += BATCH_SIZE) {
       if (cancelledRef.current) break;
@@ -373,12 +373,12 @@ export default function ImportarTarefas() {
         });
 
       if (insertPayload.length > 0) {
-        const { error } = await supabase.from("prazos").insert(insertPayload);
+        const { error } = await supabase.from("tarefas").insert(insertPayload as any);
         
         if (error) {
           // Fallback to individual inserts
           for (const payload of insertPayload) {
-            const { error: singleError } = await supabase.from("prazos").insert(payload);
+            const { error: singleError } = await supabase.from("tarefas").insert(payload as any);
             const idx = updatedTarefas.findIndex(t => t.identificador === payload.identificador_projuris);
             if (idx >= 0) {
               if (singleError) {

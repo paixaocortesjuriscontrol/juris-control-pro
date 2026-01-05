@@ -274,7 +274,7 @@ export default function NovaTarefa() {
   async function onSubmit(values: FormValues) {
     setLoading(true);
     try {
-      const { data: novaTarefa, error } = await supabase.from("prazos").insert({
+      const { data: novaTarefa, error } = await supabase.from("tarefas").insert({
         processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
         responsavel_id: values.responsavel_id,
         titulo: values.titulo,
@@ -286,7 +286,7 @@ export default function NovaTarefa() {
         prioridade: values.prioridade,
         status: "pendente",
         criado_por: userData?.id || null,
-      }).select("id").single();
+      } as any).select("id").single();
 
       if (error) throw error;
 

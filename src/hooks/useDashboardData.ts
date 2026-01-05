@@ -133,12 +133,12 @@ export function useRecentMovimentacoes(limit = 4) {
 
 export function useUpcomingPrazos(limit = 4) {
   return useQuery({
-    queryKey: ["upcoming-prazos", limit],
+    queryKey: ["upcoming-tarefas", limit],
     queryFn: async () => {
       const hoje = new Date().toISOString().split("T")[0];
       
       const { data, error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .select(`
           id,
           titulo,
@@ -146,7 +146,7 @@ export function useUpcomingPrazos(limit = 4) {
           data_vencimento,
           prioridade,
           status,
-          processo:processos!prazos_processo_id_fkey(numero)
+          processo:processos!tarefas_processo_id_fkey(numero)
         `)
         .eq("status", "pendente")
         .gte("data_vencimento", hoje)

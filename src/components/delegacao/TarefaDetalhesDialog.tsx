@@ -93,14 +93,14 @@ export function TarefaDetalhesDialog({
     queryFn: async () => {
       if (!tarefa?.id) return [];
       const { data, error } = await supabase
-        .from("comentarios_prazos")
+        .from("comentarios_tarefas")
         .select(`
           id,
           conteudo,
           created_at,
           autor:profiles!comentarios_prazos_autor_id_fkey(id, nome)
         `)
-        .eq("prazo_id", tarefa.id)
+        .eq("tarefa_id", tarefa.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -115,14 +115,14 @@ export function TarefaDetalhesDialog({
     queryFn: async () => {
       if (!tarefa?.processo?.id) return [];
       const { data, error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .select(`
           id,
           titulo,
           status,
           prioridade,
           data_vencimento,
-          responsavel:profiles!prazos_responsavel_id_fkey(id, nome)
+          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
         `)
         .eq("processo_id", tarefa.processo.id)
         .neq("id", tarefa.id)
@@ -196,7 +196,7 @@ export function TarefaDetalhesDialog({
   const handleConcluir = async () => {
     try {
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .update({
           status: "cumprido",
           data_cumprimento: new Date().toISOString(),
@@ -219,7 +219,7 @@ export function TarefaDetalhesDialog({
   const handleReabrir = async () => {
     try {
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .update({
           status: "pendente",
           data_cumprimento: null,
@@ -244,8 +244,8 @@ export function TarefaDetalhesDialog({
 
     setSendingComment(true);
     try {
-      const { error } = await supabase.from("comentarios_prazos").insert({
-        prazo_id: tarefa.id,
+      const { error } = await supabase.from("comentarios_tarefas").insert({
+        tarefa_id: tarefa.id,
         autor_id: user.id,
         conteudo: comentario.trim(),
       });
@@ -270,7 +270,7 @@ export function TarefaDetalhesDialog({
     setDeleting(true);
     try {
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .delete()
         .eq("id", tarefa.id);
 

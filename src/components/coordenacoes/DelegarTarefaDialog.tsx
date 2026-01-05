@@ -92,7 +92,7 @@ export function DelegarTarefaDialog({
     setLoading(true);
     try {
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .insert({
           processo_id: values.processo_id,
           responsavel_id: values.responsavel_id,
@@ -110,7 +110,7 @@ export function DelegarTarefaDialog({
         description: "A tarefa foi atribuída ao membro da equipe." 
       });
       
-      queryClient.invalidateQueries({ queryKey: ["prazos"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
       onOpenChange(false);
       form.reset();

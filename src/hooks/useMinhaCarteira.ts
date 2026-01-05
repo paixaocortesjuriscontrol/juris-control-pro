@@ -88,15 +88,15 @@ export function useMinhaCarteira() {
 
       if (error) throw error;
 
-      // Get prazos count for each processo
-      const processosWithPrazos = await Promise.all(
+      // Get tarefas count for each processo
+      const processosWithTarefas = await Promise.all(
         (processos || []).map(async (processo) => {
-          const { data: prazos, error: prazosError } = await supabase
-            .from("prazos")
+          const { data: tarefas, error: tarefasError } = await supabase
+            .from("tarefas")
             .select("id, status")
             .eq("processo_id", processo.id);
 
-          if (prazosError) {
+          if (tarefasError) {
             return {
               ...processo,
               prazos_count: 0,
@@ -106,13 +106,13 @@ export function useMinhaCarteira() {
 
           return {
             ...processo,
-            prazos_count: prazos?.length || 0,
-            prazos_pendentes: prazos?.filter(p => p.status === "pendente").length || 0,
+            prazos_count: tarefas?.length || 0,
+            prazos_pendentes: tarefas?.filter(t => t.status === "pendente").length || 0,
           };
         })
       );
 
-      return processosWithPrazos as ProcessoDelegado[];
+      return processosWithTarefas as ProcessoDelegado[];
     },
     enabled: !!user?.id,
   });
@@ -123,7 +123,7 @@ export function useMinhaCarteira() {
       if (!user?.id) return [];
 
       const { data: tarefas, error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .select(`
           id,
           titulo,
@@ -133,7 +133,7 @@ export function useMinhaCarteira() {
           prioridade,
           observacoes,
           created_at,
-          processo:processos!prazos_processo_id_fkey(id, numero, assunto)
+          processo:processos!tarefas_processo_id_fkey(id, numero, assunto)
         `)
         .eq("responsavel_id", user.id)
         .order("data_vencimento", { ascending: true });
@@ -142,7 +142,7 @@ export function useMinhaCarteira() {
 
       const today = startOfDay(new Date());
 
-      return (tarefas || []).map((tarefa) => {
+      return ((tarefas || []) as any[]).map((tarefa) => {
         const dataVencimento = parseISO(tarefa.data_vencimento);
         const isAtrasado = isAfter(today, dataVencimento);
         const dias = differenceInDays(dataVencimento, today);
@@ -170,7 +170,7 @@ export function useMinhaCarteira() {
       if (processosError) throw processosError;
 
       const { data: tarefas, error: tarefasError } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .select("id, status, prioridade, data_vencimento")
         .eq("responsavel_id", user.id);
 
