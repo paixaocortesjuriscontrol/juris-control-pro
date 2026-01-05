@@ -1,4 +1,5 @@
-import { Scale, Briefcase, Users, AlertTriangle, UserCheck, FolderX } from "lucide-react";
+import { useState } from "react";
+import { Scale, Briefcase, Users, AlertTriangle, UserCheck, FolderX, BarChart3, Clock, Activity } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ProcessCard } from "@/components/dashboard/ProcessCard";
@@ -9,12 +10,18 @@ import { ProcessosDistribuicaoChart } from "@/components/dashboard/ProcessosDist
 import { ProcessosStatusChart } from "@/components/dashboard/ProcessosStatusChart";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDashboardStats, useRecentProcessos, useCoordenacoes } from "@/hooks/useDashboardData";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("resumo");
+  
+  // Stats load first - fastest query
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  
+  // Only load heavy data when their tabs are active
   const { data: recentProcessos, isLoading: processosLoading } = useRecentProcessos(3);
   const { data: coordenacoes, isLoading: coordenacoesLoading } = useCoordenacoes();
 
@@ -35,7 +42,7 @@ const Index = () => {
     total: coord.processCount,
     distribuidos: coord.processosDistribuidos || 0,
     naoDistribuidos: coord.processosNaoDistribuidos || 0,
-    area: coord.area, // Agora aceita qualquer área (string)
+    area: coord.area,
   })) || [];
 
   const statusData = stats?.statusCount ? [
@@ -55,8 +62,8 @@ const Index = () => {
       title="Dashboard" 
       subtitle="Visão geral do escritório"
     >
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+      {/* Stats Grid - Always visible */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
         {statsLoading ? (
           <>
             {[...Array(6)].map((_, i) => (
@@ -123,18 +130,40 @@ const Index = () => {
         )}
       </div>
 
-      {/* Charts Row */}
-      {!coordenacoesLoading && !statsLoading && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <ProcessosDistribuicaoChart data={distribuicaoData} />
-          <ProcessosStatusChart data={statusData} />
-        </div>
-      )}
+      {/* Tabbed Content */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsTrigger value="resumo" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            <span className="hidden sm:inline">Resumo</span>
+          </TabsTrigger>
+          <TabsTrigger value="atividade" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            <span className="hidden sm:inline">Atividade</span>
+          </TabsTrigger>
+          <TabsTrigger value="prazos" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            <span className="hidden sm:inline">Prazos</span>
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - 2/3 */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Resumo Tab - Charts only */}
+        <TabsContent value="resumo" className="space-y-6">
+          {coordenacoesLoading || statsLoading ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Skeleton className="h-80 rounded-xl" />
+              <Skeleton className="h-80 rounded-xl" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ProcessosDistribuicaoChart data={distribuicaoData} />
+              <ProcessosStatusChart data={statusData} />
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Atividade Tab - Processes, Coordinations, Recent Activity */}
+        <TabsContent value="atividade" className="space-y-6">
           {/* Recent Processes */}
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -226,13 +255,13 @@ const Index = () => {
 
           {/* Recent Activity */}
           <RecentActivity />
-        </div>
+        </TabsContent>
 
-        {/* Right Column - 1/3 */}
-        <div className="space-y-6">
+        {/* Prazos Tab */}
+        <TabsContent value="prazos">
           <UpcomingDeadlines />
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </MainLayout>
   );
 };
