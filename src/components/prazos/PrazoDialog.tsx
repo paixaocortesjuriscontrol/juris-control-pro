@@ -131,7 +131,7 @@ export function PrazoDialog({
   });
 
   // Buscar processo padrão quando fornecido
-  const { data: processoDefault } = useQuery({
+  const { data: processoDefault, isLoading: loadingProcessoDefault } = useQuery({
     queryKey: ["processo-default", defaultProcessoId],
     queryFn: async () => {
       if (!defaultProcessoId) return null;
@@ -236,7 +236,7 @@ export function PrazoDialog({
     }
   }, [prazo, open, defaultProcessoId]);
 
-  const showProcessoSelect = !!coordenacaoId || !!clienteId || searchProcesso.length >= 3 || !!processoDefault || !!processoAtual;
+  const showProcessoSelect = !!coordenacaoId || !!clienteId || searchProcesso.length >= 3 || !!processoDefault || !!processoAtual || !!defaultProcessoId;
 
   const handleSelectCliente = (value: string) => {
     if (value.startsWith("__")) return;
@@ -413,7 +413,7 @@ export function PrazoDialog({
                 <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">
                   Selecione uma coordenação, cliente ou digite 3+ caracteres para buscar processos
                 </p>
-              ) : loadingProcessos ? (
+              ) : loadingProcessos || (defaultProcessoId && loadingProcessoDefault) ? (
                 <div className="flex items-center gap-2 p-3 border rounded-md">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span className="text-sm text-muted-foreground">Carregando processos...</span>
