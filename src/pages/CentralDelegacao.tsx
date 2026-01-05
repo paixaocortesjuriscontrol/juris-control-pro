@@ -109,8 +109,13 @@ export default function CentralDelegacao() {
 
   // Fetch atividades (tarefas/prazos + eventos)
   const { data: atividades, isLoading: loadingAtividades } = useQuery({
-    queryKey: ["atividades-delegacao", coordenacaoId, membroId, tipoAtividade, statusFiltro, prioridadeFiltro, ordenacao],
+    queryKey: ["atividades-delegacao", coordenacaoId, membroId, tipoAtividade, statusFiltro, prioridadeFiltro, ordenacao, membros],
     queryFn: async () => {
+      // Se uma coordenação está selecionada, pegar os IDs dos membros dela
+      const membrosDaCoordenacao = coordenacaoId !== "todas" && membros
+        ? membros.map((m) => m.usuario_id)
+        : null;
+
       // Fetch prazos
       let prazosQuery = supabase
         .from("prazos")
@@ -129,7 +134,11 @@ export default function CentralDelegacao() {
         `);
 
       if (membroId !== "todos") {
+        // Filtro específico por membro
         prazosQuery = prazosQuery.eq("responsavel_id", membroId);
+      } else if (membrosDaCoordenacao && membrosDaCoordenacao.length > 0) {
+        // Filtro por todos os membros da coordenação selecionada
+        prazosQuery = prazosQuery.in("responsavel_id", membrosDaCoordenacao);
       }
 
       if (statusFiltro === "pendente") {
