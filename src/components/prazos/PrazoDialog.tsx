@@ -25,7 +25,7 @@ import {
 import { CalendarIcon, Loader2, Search, Upload, FileText, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { cn, sanitizeFileName } from "@/lib/utils";
 import { useCreatePrazo, useUpdatePrazo, type Prazo } from "@/hooks/usePrazos";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -292,7 +292,8 @@ export function PrazoDialog({
       if (anexos.length > 0 && processoId) {
         setUploadingAnexos(true);
         for (const file of anexos) {
-          const fileName = `${processoId}/${Date.now()}_${file.name}`;
+          const sanitizedName = sanitizeFileName(file.name);
+          const fileName = `${processoId}/${Date.now()}_${sanitizedName}`;
           
           const { error: uploadError } = await supabase.storage
             .from('documentos_processos')
