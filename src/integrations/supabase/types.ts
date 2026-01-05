@@ -783,6 +783,7 @@ export type Database = {
           id: string
           nome: string
           pasta_id: string | null
+          prazo_id: string | null
           processo_id: string | null
           tamanho_bytes: number | null
           tipo: string | null
@@ -794,6 +795,7 @@ export type Database = {
           id?: string
           nome: string
           pasta_id?: string | null
+          prazo_id?: string | null
           processo_id?: string | null
           tamanho_bytes?: number | null
           tipo?: string | null
@@ -805,6 +807,7 @@ export type Database = {
           id?: string
           nome?: string
           pasta_id?: string | null
+          prazo_id?: string | null
           processo_id?: string | null
           tamanho_bytes?: number | null
           tipo?: string | null
@@ -817,6 +820,13 @@ export type Database = {
             columns: ["pasta_id"]
             isOneToOne: false
             referencedRelation: "pastas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_prazo_id_fkey"
+            columns: ["prazo_id"]
+            isOneToOne: false
+            referencedRelation: "prazos"
             referencedColumns: ["id"]
           },
           {

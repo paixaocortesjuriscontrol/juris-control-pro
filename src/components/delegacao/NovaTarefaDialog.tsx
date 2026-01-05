@@ -33,12 +33,26 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, HelpCircle, X, Upload, FileText, Trash2 } from "lucide-react";
+import { Loader2, HelpCircle, X, Upload, FileText, Trash2, Sparkles, CheckCircle2 } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+
+type AnexoComAnalise = {
+  file: File;
+  analise?: {
+    categoria: string;
+    tipo_documento: string | null;
+    descricao: string;
+    tags: string[];
+    confianca: string;
+  };
+  analisando?: boolean;
+  erro?: string;
+};
 
 const formSchema = z.object({
   tipo_vinculo: z.enum(["processo", "sem_vinculo"]),
@@ -91,7 +105,7 @@ export function NovaTarefaDialog({
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
   const [searchProcesso, setSearchProcesso] = useState("");
-  const [anexos, setAnexos] = useState<File[]>([]);
+  const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -194,12 +208,63 @@ export function NovaTarefaDialog({
     }
   }, [open, processoPreSelecionado, form]);
 
-  const handleAddAnexo = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
+    try {
+      // Ler o conteúdo do arquivo como texto (para PDFs/docs simples)
+      let content = "";
+      if (file.type === "text/plain" || file.name.endsWith('.txt')) {
+        content = await file.text();
+      } else {
+        // Para outros tipos, enviar apenas nome e tipo
+        content = `[Arquivo binário: ${file.name}]`;
+      }
+
+      const { data, error } = await supabase.functions.invoke("analisar-documento", {
+        body: {
+          fileName: file.name,
+          fileContent: content,
+          mimeType: file.type,
+        },
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.error("Erro ao analisar documento:", err);
+      return undefined;
+    }
+  };
+
+  const handleAddAnexo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      setAnexos(prev => [...prev, ...Array.from(files)]);
+      const novosAnexos: AnexoComAnalise[] = Array.from(files).map(file => ({
+        file,
+        analisando: true,
+      }));
+      
+      setAnexos(prev => [...prev, ...novosAnexos]);
+      e.target.value = '';
+
+      // Analisar cada arquivo com IA
+      for (let i = 0; i < novosAnexos.length; i++) {
+        const anexo = novosAnexos[i];
+        try {
+          const analise = await analisarDocumentoComIA(anexo.file);
+          setAnexos(prev => prev.map(a => 
+            a.file === anexo.file 
+              ? { ...a, analise, analisando: false }
+              : a
+          ));
+        } catch (err) {
+          setAnexos(prev => prev.map(a => 
+            a.file === anexo.file 
+              ? { ...a, analisando: false, erro: "Falha na análise" }
+              : a
+          ));
+        }
+      }
     }
-    e.target.value = '';
   };
 
   const handleRemoveAnexo = (index: number) => {
@@ -210,6 +275,20 @@ export function NovaTarefaDialog({
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getCategoriaLabel = (value: string) => {
+    const categorias: Record<string, string> = {
+      modelo: "Modelo",
+      peca_processual: "Peça Processual",
+      jurisprudencia: "Jurisprudência",
+      legislacao: "Legislação",
+      parecer: "Parecer",
+      contrato: "Contrato",
+      procuracao: "Procuração",
+      outros: "Outros",
+    };
+    return categorias[value] || value;
   };
 
   async function onSubmit(values: FormValues) {
@@ -231,16 +310,17 @@ export function NovaTarefaDialog({
 
       if (error) throw error;
 
-      // Upload de anexos se houver processo vinculado
-      if (anexos.length > 0 && values.processo_id) {
+      // Upload de anexos (funciona com ou sem processo)
+      if (anexos.length > 0 && novaTarefa?.id) {
         setUploadingAnexos(true);
-        for (const file of anexos) {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${values.processo_id}/${Date.now()}_${file.name}`;
+        const folder = values.processo_id || `tarefas/${novaTarefa.id}`;
+        
+        for (const anexo of anexos) {
+          const fileName = `${folder}/${Date.now()}_${anexo.file.name}`;
           
           const { error: uploadError } = await supabase.storage
             .from('documentos_processos')
-            .upload(fileName, file);
+            .upload(fileName, anexo.file);
 
           if (uploadError) {
             console.error("Erro ao fazer upload:", uploadError);
@@ -251,12 +331,14 @@ export function NovaTarefaDialog({
             .from('documentos_processos')
             .getPublicUrl(fileName);
 
+          // Inserir documento com categorização da IA
           await supabase.from('documentos').insert({
-            nome: file.name,
-            tipo: file.type,
+            nome: anexo.file.name,
+            tipo: anexo.analise?.categoria || anexo.file.type,
             url: publicUrl,
-            tamanho_bytes: file.size,
-            processo_id: values.processo_id,
+            tamanho_bytes: anexo.file.size,
+            processo_id: values.processo_id || null,
+            prazo_id: novaTarefa.id,
           });
         }
         setUploadingAnexos(false);
@@ -692,40 +774,52 @@ export function NovaTarefaDialog({
                 )}
               />
 
-              {/* Anexos - Disponível apenas quando vinculado a processo */}
-              {tipoVinculo === "processo" && form.watch("processo_id") && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">Documentos em Anexo</label>
-                    <div className="relative">
-                      <input
-                        type="file"
-                        id="anexos-upload"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={handleAddAnexo}
-                        multiple
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
-                      />
-                      <Button type="button" variant="outline" size="sm" className="pointer-events-none">
-                        <Upload className="w-3 h-3 mr-1" />
-                        Adicionar
-                      </Button>
-                    </div>
+              {/* Anexos - Sempre disponível */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    Documentos para Análise
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>A IA categoriza automaticamente os documentos anexados</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      id="anexos-upload"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={handleAddAnexo}
+                      multiple
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.txt"
+                    />
+                    <Button type="button" variant="outline" size="sm" className="pointer-events-none">
+                      <Upload className="w-3 h-3 mr-1" />
+                      Adicionar
+                    </Button>
                   </div>
-                  
-                  {anexos.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">
-                      Nenhum documento anexado. Clique em "Adicionar" para incluir arquivos.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {anexos.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg text-sm">
+                </div>
+                
+                {anexos.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+                    Nenhum documento anexado. Clique em "Adicionar" para incluir arquivos.
+                    <br />
+                    <span className="text-amber-600">A IA irá categorizar automaticamente.</span>
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {anexos.map((anexo, index) => (
+                      <div key={index} className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
+                        <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 min-w-0">
                             <FileText className="w-4 h-4 text-primary shrink-0" />
-                            <span className="truncate">{file.name}</span>
+                            <span className="truncate font-medium">{anexo.file.name}</span>
                             <span className="text-xs text-muted-foreground shrink-0">
-                              ({formatFileSize(file.size)})
+                              ({formatFileSize(anexo.file.size)})
                             </span>
                           </div>
                           <Button
@@ -738,11 +832,35 @@ export function NovaTarefaDialog({
                             <Trash2 className="w-3 h-3 text-destructive" />
                           </Button>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                        
+                        {/* Status da análise IA */}
+                        <div className="flex items-center gap-2 text-xs">
+                          {anexo.analisando ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
+                              <span className="text-muted-foreground">Analisando com IA...</span>
+                            </>
+                          ) : anexo.analise ? (
+                            <>
+                              <CheckCircle2 className="w-3 h-3 text-green-500" />
+                              <Badge variant="secondary" className="text-xs">
+                                {getCategoriaLabel(anexo.analise.categoria)}
+                              </Badge>
+                              {anexo.analise.descricao && (
+                                <span className="text-muted-foreground truncate">
+                                  {anexo.analise.descricao}
+                                </span>
+                              )}
+                            </>
+                          ) : anexo.erro ? (
+                            <span className="text-destructive">{anexo.erro}</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Actions */}
               <div className="flex justify-end gap-3 pt-4 border-t">
