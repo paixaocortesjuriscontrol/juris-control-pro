@@ -43,6 +43,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { TarefaDetalhesPanel } from "@/components/delegacao/TarefaDetalhesPanel";
 import { AcoesEmLoteDialog } from "@/components/delegacao/AcoesEmLoteDialog";
+import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +66,7 @@ export default function CentralDelegacao() {
   const [selectedTarefaId, setSelectedTarefaId] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
+  const [novoCompromissoOpen, setNovoCompromissoOpen] = useState(false);
   const [acoesLoteOpen, setAcoesLoteOpen] = useState(false);
   const [ordenacao, setOrdenacao] = useState<string>("mais-antigas");
 
@@ -338,7 +340,7 @@ export default function CentralDelegacao() {
                   <ListChecks className="w-4 h-4 mr-2" />
                   Nova Tarefa
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setNovoCompromissoOpen(true)}>
                   <Calendar className="w-4 h-4 mr-2" />
                   Novo Compromisso
                 </DropdownMenuItem>
@@ -655,6 +657,11 @@ export default function CentralDelegacao() {
           setSelectedItems([]);
           queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
         }}
+      />
+
+      <EventoDialog
+        open={novoCompromissoOpen}
+        onOpenChange={setNovoCompromissoOpen}
       />
     </MainLayout>
   );
