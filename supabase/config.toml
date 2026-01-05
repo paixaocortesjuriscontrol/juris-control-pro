@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.processar-lembretes-audiencia]
 verify_jwt = false
+
+[functions.notificar-evento]
+verify_jwt = true
