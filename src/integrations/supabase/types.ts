@@ -2498,6 +2498,59 @@ export type Database = {
           },
         ]
       }
+      tarefas_relacionadas: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          id: string
+          tarefa_origem_id: string
+          tarefa_relacionada_id: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          tarefa_origem_id: string
+          tarefa_relacionada_id: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          tarefa_origem_id?: string
+          tarefa_relacionada_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_relacionadas_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_relacionadas_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_relacionadas_tarefa_origem_id_fkey"
+            columns: ["tarefa_origem_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_relacionadas_tarefa_relacionada_id_fkey"
+            columns: ["tarefa_relacionada_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       termos_monitoramento: {
         Row: {
           ativo: boolean

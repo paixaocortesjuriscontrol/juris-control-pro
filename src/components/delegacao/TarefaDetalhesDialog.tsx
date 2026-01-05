@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { MentionInput } from "@/components/ui/mention-input";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
+import { VincularTarefaDialog } from "@/components/delegacao/VincularTarefaDialog";
 import {
   Dialog,
   DialogContent,
@@ -85,6 +86,7 @@ export function TarefaDetalhesDialog({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [novaTarefaRelacionadaOpen, setNovaTarefaRelacionadaOpen] = useState(false);
+  const [vincularTarefaOpen, setVincularTarefaOpen] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
@@ -110,11 +112,50 @@ export function TarefaDetalhesDialog({
     enabled: !!tarefa?.id && open,
   });
 
-  // Fetch tarefas relacionadas (mesmo processo)
+  // Fetch tarefas relacionadas (direto + mesmo processo)
   const { data: tarefasRelacionadas, isLoading: loadingRelacionadas } = useQuery({
-    queryKey: ["tarefas-relacionadas", tarefa?.processo?.id, tarefa?.id],
+    queryKey: ["tarefas-relacionadas", tarefa?.id, tarefa?.processo?.id],
     queryFn: async () => {
-      if (!tarefa?.processo?.id) return [];
+      if (!tarefa?.id) return [];
+
+      // 1. Buscar relacionamentos diretos (tabela tarefas_relacionadas)
+      const { data: relacionamentosDiretos, error: errRel } = await supabase
+        .from("tarefas_relacionadas")
+        .select("tarefa_relacionada_id")
+        .eq("tarefa_origem_id", tarefa.id);
+
+      if (errRel) throw errRel;
+
+      // 2. Buscar relacionamentos inversos (onde esta tarefa é a relacionada)
+      const { data: relacionamentosInversos, error: errInv } = await supabase
+        .from("tarefas_relacionadas")
+        .select("tarefa_origem_id")
+        .eq("tarefa_relacionada_id", tarefa.id);
+
+      if (errInv) throw errInv;
+
+      // 3. Coletar IDs de tarefas relacionadas
+      const idsRelacionados = new Set<string>();
+      relacionamentosDiretos?.forEach(r => idsRelacionados.add(r.tarefa_relacionada_id));
+      relacionamentosInversos?.forEach(r => idsRelacionados.add(r.tarefa_origem_id));
+
+      // 4. Se tiver processo, buscar tarefas do mesmo processo
+      if (tarefa.processo?.id) {
+        const { data: tarefasProcesso, error: errProc } = await supabase
+          .from("tarefas")
+          .select("id")
+          .eq("processo_id", tarefa.processo.id)
+          .neq("id", tarefa.id)
+          .limit(20);
+
+        if (!errProc && tarefasProcesso) {
+          tarefasProcesso.forEach(t => idsRelacionados.add(t.id));
+        }
+      }
+
+      if (idsRelacionados.size === 0) return [];
+
+      // 5. Buscar detalhes das tarefas relacionadas
       const { data, error } = await supabase
         .from("tarefas")
         .select(`
@@ -125,15 +166,14 @@ export function TarefaDetalhesDialog({
           data_vencimento,
           responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
         `)
-        .eq("processo_id", tarefa.processo.id)
-        .neq("id", tarefa.id)
+        .in("id", Array.from(idsRelacionados))
         .order("data_vencimento", { ascending: true })
-        .limit(10);
+        .limit(15);
 
       if (error) throw error;
       return data || [];
     },
-    enabled: !!tarefa?.processo?.id && open,
+    enabled: !!tarefa?.id && open,
   });
 
   // Fetch documentos (por processo OU por tarefa)
@@ -614,7 +654,7 @@ export function TarefaDetalhesDialog({
                     </div>
                   ) : tarefasRelacionadas?.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-2">
-                      {tarefa.processo?.id ? "Nenhuma tarefa relacionada encontrada" : "Vincule um processo para ver tarefas relacionadas"}
+                      Nenhuma tarefa relacionada encontrada
                     </p>
                   ) : (
                     <div className="space-y-2">
@@ -639,17 +679,26 @@ export function TarefaDetalhesDialog({
                       ))}
                     </div>
                   )}
-                  {tarefa.processo?.id && (
+                  <div className="flex gap-2">
                     <Button 
                       size="sm" 
                       variant="outline" 
-                      className="w-full"
+                      className="flex-1"
+                      onClick={() => setVincularTarefaOpen(true)}
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Vincular Existente
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="flex-1"
                       onClick={() => setNovaTarefaRelacionadaOpen(true)}
                     >
                       <Plus className="w-3 h-3 mr-1" />
-                      Adicionar Tarefa Relacionada
+                      Criar Nova
                     </Button>
-                  )}
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
 
@@ -896,10 +945,21 @@ export function TarefaDetalhesDialog({
         onOpenChange={(open) => {
           setNovaTarefaRelacionadaOpen(open);
           if (!open) {
-            queryClient.invalidateQueries({ queryKey: ["tarefas-relacionadas", tarefa.processo?.id, tarefa.id] });
+            queryClient.invalidateQueries({ queryKey: ["tarefas-relacionadas", tarefa.id, tarefa.processo?.id] });
           }
         }}
         defaultProcessoId={tarefa.processo?.id}
+        defaultTarefaRelacionadaId={tarefa.id}
+      />
+
+      {/* Vincular Tarefa Existente Dialog */}
+      <VincularTarefaDialog
+        open={vincularTarefaOpen}
+        onOpenChange={setVincularTarefaOpen}
+        tarefaOrigemId={tarefa.id}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["tarefas-relacionadas", tarefa.id, tarefa.processo?.id] });
+        }}
       />
 
       {/* Delete Confirmation Dialog */}
