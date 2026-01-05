@@ -106,8 +106,24 @@ export function PrazoDialog({
     enabled: open,
   });
 
+  // Buscar processo padrão quando fornecido
+  const { data: processoDefault } = useQuery({
+    queryKey: ["processo-default", defaultProcessoId],
+    queryFn: async () => {
+      if (!defaultProcessoId) return null;
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, numero, assunto, polo_ativo, polo_passivo")
+        .eq("id", defaultProcessoId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!defaultProcessoId && !prazo,
+  });
+
   // Buscar processos filtrados (só carrega quando tiver pelo menos um filtro)
-  const { data: processos, isLoading: loadingProcessos } = useQuery({
+  const { data: processosFiltrados, isLoading: loadingProcessos } = useQuery({
     queryKey: ["processos-prazo", coordenacaoId, clienteId, searchProcesso],
     queryFn: async () => {
       let query = supabase
@@ -132,6 +148,11 @@ export function PrazoDialog({
     },
     enabled: open && (!!coordenacaoId || !!clienteId || searchProcesso.length >= 3),
   });
+
+  // Combinar processo padrão com processos filtrados
+  const processos = processoDefault 
+    ? [processoDefault, ...(processosFiltrados?.filter(p => p.id !== processoDefault.id) || [])]
+    : processosFiltrados;
 
   const { data: advogados } = useQuery({
     queryKey: ["advogados"],
@@ -176,7 +197,7 @@ export function PrazoDialog({
     }
   }, [prazo, open, defaultProcessoId]);
 
-  const showProcessoSelect = !!coordenacaoId || !!clienteId || searchProcesso.length >= 3;
+  const showProcessoSelect = !!coordenacaoId || !!clienteId || searchProcesso.length >= 3 || !!processoDefault;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

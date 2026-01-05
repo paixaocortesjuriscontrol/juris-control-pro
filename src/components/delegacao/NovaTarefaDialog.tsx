@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, HelpCircle, X } from "lucide-react";
+import { Loader2, HelpCircle, X, Upload, FileText, Trash2 } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -91,6 +91,8 @@ export function NovaTarefaDialog({
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
   const [searchProcesso, setSearchProcesso] = useState("");
+  const [anexos, setAnexos] = useState<File[]>([]);
+  const [uploadingAnexos, setUploadingAnexos] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -188,13 +190,33 @@ export function NovaTarefaDialog({
         local: "",
       });
       setSearchProcesso("");
+      setAnexos([]);
     }
   }, [open, processoPreSelecionado, form]);
+
+  const handleAddAnexo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      setAnexos(prev => [...prev, ...Array.from(files)]);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemoveAnexo = (index: number) => {
+    setAnexos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   async function onSubmit(values: FormValues) {
     setLoading(true);
     try {
-      const { error } = await supabase.from("prazos").insert({
+      // Criar a tarefa primeiro
+      const { data: novaTarefa, error } = await supabase.from("prazos").insert({
         processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
         responsavel_id: values.responsavel_id,
         titulo: values.titulo,
@@ -205,9 +227,40 @@ export function NovaTarefaDialog({
         data_fatal: values.data_fatal || null,
         prioridade: values.prioridade,
         status: "pendente",
-      });
+      }).select("id").single();
 
       if (error) throw error;
+
+      // Upload de anexos se houver processo vinculado
+      if (anexos.length > 0 && values.processo_id) {
+        setUploadingAnexos(true);
+        for (const file of anexos) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${values.processo_id}/${Date.now()}_${file.name}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('documentos_processos')
+            .upload(fileName, file);
+
+          if (uploadError) {
+            console.error("Erro ao fazer upload:", uploadError);
+            continue;
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('documentos_processos')
+            .getPublicUrl(fileName);
+
+          await supabase.from('documentos').insert({
+            nome: file.name,
+            tipo: file.type,
+            url: publicUrl,
+            tamanho_bytes: file.size,
+            processo_id: values.processo_id,
+          });
+        }
+        setUploadingAnexos(false);
+      }
 
       // Buscar telefone do responsável para enviar WhatsApp
       const { data: responsavel } = await supabase
@@ -236,6 +289,9 @@ export function NovaTarefaDialog({
         if (values.descricao) {
           mensagem += `\n📝 *Descrição:*\n${values.descricao}\n`;
         }
+        if (anexos.length > 0) {
+          mensagem += `\n📎 ${anexos.length} documento(s) anexado(s)\n`;
+        }
         mensagem += `\n_JurisControl - Sistema de Gestão Jurídica_`;
 
         // Enviar WhatsApp (não bloqueia a criação da tarefa)
@@ -259,11 +315,14 @@ export function NovaTarefaDialog({
 
       toast({
         title: "Tarefa criada!",
-        description: "A tarefa foi criada e delegada com sucesso.",
+        description: anexos.length > 0 
+          ? `Tarefa criada com ${anexos.length} documento(s) anexado(s).`
+          : "A tarefa foi criada e delegada com sucesso.",
       });
 
       queryClient.invalidateQueries({ queryKey: ["prazos"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
+      queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
       onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
@@ -274,6 +333,7 @@ export function NovaTarefaDialog({
       });
     } finally {
       setLoading(false);
+      setUploadingAnexos(false);
     }
   }
 
@@ -632,6 +692,58 @@ export function NovaTarefaDialog({
                 )}
               />
 
+              {/* Anexos - Disponível apenas quando vinculado a processo */}
+              {tipoVinculo === "processo" && form.watch("processo_id") && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Documentos em Anexo</label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        id="anexos-upload"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={handleAddAnexo}
+                        multiple
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
+                      />
+                      <Button type="button" variant="outline" size="sm" className="pointer-events-none">
+                        <Upload className="w-3 h-3 mr-1" />
+                        Adicionar
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {anexos.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">
+                      Nenhum documento anexado. Clique em "Adicionar" para incluir arquivos.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {anexos.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg text-sm">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="w-4 h-4 text-primary shrink-0" />
+                            <span className="truncate">{file.name}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              ({formatFileSize(file.size)})
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => handleRemoveAnexo(index)}
+                          >
+                            <Trash2 className="w-3 h-3 text-destructive" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Actions */}
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <Button
@@ -641,9 +753,9 @@ export function NovaTarefaDialog({
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Salvar
+                <Button type="submit" disabled={loading || uploadingAnexos}>
+                  {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
                 </Button>
               </div>
             </form>
