@@ -2463,6 +2463,7 @@ export type Database = {
           total_processos: number
         }[]
       }
+      get_dashboard_stats: { Args: never; Returns: Json }
       get_processos_paginados: {
         Args: {
           _area?: string
