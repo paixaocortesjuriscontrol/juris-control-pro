@@ -5,75 +5,29 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      // Fetch total count first
-      const { count: totalProcessos } = await supabase
-        .from("processos")
-        .select("*", { count: "exact", head: true });
-
-      // Fetch all processos in batches if needed
-      let allProcessos: any[] = [];
-      const batchSize = 1000;
-      let from = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data } = await supabase
-          .from("processos")
-          .select("id, status, advogado_responsavel_id, coordenacao_id")
-          .range(from, from + batchSize - 1);
-        
-        if (data && data.length > 0) {
-          allProcessos = [...allProcessos, ...data];
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      const [prazosResult, advogadosResult, coordenacoesResult] = await Promise.all([
-        supabase.from("prazos").select("id, status, data_vencimento").eq("status", "pendente"),
-        supabase.from("profiles").select("id", { count: "exact" }),
-        supabase.from("coordenacoes").select("id", { count: "exact" }),
-      ]);
-
-      const processos = allProcessos;
-      const processosAtivos = processos.filter(p => p.status === "ativo" || p.status === "urgente" || p.status === "pendente").length;
-      const processosDistribuidos = processos.filter(p => p.advogado_responsavel_id !== null).length;
-      const processosSemCoordenacao = processos.filter(p => p.coordenacao_id === null).length;
+      const { data, error } = await supabase.rpc('get_dashboard_stats');
       
-      // Count by status
-      const statusCount = {
-        ativo: processos.filter(p => p.status === "ativo").length,
-        pendente: processos.filter(p => p.status === "pendente").length,
-        urgente: processos.filter(p => p.status === "urgente").length,
-        encerrado: processos.filter(p => p.status === "encerrado").length,
-        arquivado: processos.filter(p => p.status === "arquivado").length,
-      };
+      if (error) throw error;
       
-      const prazos = prazosResult.data || [];
-      const hoje = new Date();
-      const seteDias = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
-      const prazosUrgentes = prazos.filter(p => {
-        if (!p.data_vencimento) return false;
-        const dataVencimento = new Date(p.data_vencimento);
-        return dataVencimento <= seteDias;
-      }).length;
-
-      const totalAdvogados = advogadosResult.count || 0;
-      const totalCoordenacoes = coordenacoesResult.count || 0;
-
-      return {
-        totalProcessos: totalProcessos || processos.length,
-        processosAtivos,
-        processosDistribuidos,
-        processosSemCoordenacao,
-        statusCount,
-        prazosUrgentes,
-        totalAdvogados,
-        totalCoordenacoes,
+      // The RPC returns a JSON object with all stats
+      return data as {
+        totalProcessos: number;
+        processosAtivos: number;
+        processosDistribuidos: number;
+        processosSemCoordenacao: number;
+        statusCount: {
+          ativo: number;
+          pendente: number;
+          urgente: number;
+          encerrado: number;
+          arquivado: number;
+        };
+        prazosUrgentes: number;
+        totalAdvogados: number;
+        totalCoordenacoes: number;
       };
     },
+    staleTime: 30000, // Cache for 30 seconds
   });
 }
 
