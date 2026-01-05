@@ -288,7 +288,12 @@ export default function NovaTarefa() {
         const folder = values.processo_id || `tarefas/${novaTarefa.id}`;
         
         for (const anexo of anexos) {
-          const fileName = `${folder}/${Date.now()}_${anexo.file.name}`;
+          // Sanitizar nome do arquivo - remover caracteres especiais
+          const sanitizedName = anexo.file.name
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+            .replace(/[^a-zA-Z0-9._-]/g, '_'); // Substitui caracteres especiais por _
+          const fileName = `${folder}/${Date.now()}_${sanitizedName}`;
           
           const { error: uploadError } = await supabase.storage
             .from('documentos_processos')
