@@ -167,12 +167,15 @@ serve(async (req) => {
         });
 
         if (emailError) {
+          console.error(`Erro ao enviar email para ${participante.email}:`, emailError);
           erros.push(`${participante.email}: ${emailError.message}`);
         } else {
+          console.log(`Email enviado com sucesso para ${participante.email}`);
           emailsEnviados.push(participante.email);
         }
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error(`Exceção ao enviar email para ${participante.email}:`, errorMessage);
         erros.push(`${participante.email}: ${errorMessage}`);
       }
     }

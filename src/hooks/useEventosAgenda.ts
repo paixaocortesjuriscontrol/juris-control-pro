@@ -66,8 +66,7 @@ export function useEventosAgenda(filters: EventoFilters = {}) {
         .select(`
           *,
           processo:processos(id, numero)
-        `)
-        .order("data_inicio", { ascending: true });
+        `);
 
       if (filters.tipos && filters.tipos.length > 0) {
         query = query.in("tipo", filters.tipos);
@@ -98,8 +97,9 @@ export function useEventosAgenda(filters: EventoFilters = {}) {
           .in("evento_id", eventIds);
         
         // Filter by responsavel if needed
+        let resultData = data;
         if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-          const filteredEvents = data.filter(evento => {
+          resultData = data.filter(evento => {
             const eventParticipants = participantes?.filter(p => p.evento_id === evento.id) || [];
             const participantIds = eventParticipants.map(p => p.usuario_id);
             return (
@@ -107,13 +107,25 @@ export function useEventosAgenda(filters: EventoFilters = {}) {
               participantIds.some(id => filters.responsavelIds!.includes(id))
             );
           });
-          return filteredEvents as EventoAgenda[];
         }
         
-        return data.map(evento => ({
+        // Sort events: upcoming first (ascending by date), past events last
+        const now = new Date();
+        const eventsWithParticipants = resultData.map(evento => ({
           ...evento,
           participantes: participantes?.filter(p => p.evento_id === evento.id) || []
-        })) as EventoAgenda[];
+        }));
+        
+        // Separate future and past events
+        const futureEvents = eventsWithParticipants
+          .filter(e => new Date(e.data_inicio) >= now)
+          .sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
+        
+        const pastEvents = eventsWithParticipants
+          .filter(e => new Date(e.data_inicio) < now)
+          .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
+        
+        return [...futureEvents, ...pastEvents] as EventoAgenda[];
       }
       
       return data as EventoAgenda[];
