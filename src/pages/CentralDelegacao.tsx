@@ -116,9 +116,9 @@ export default function CentralDelegacao() {
         ? membros.map((m) => m.usuario_id)
         : null;
 
-      // Fetch prazos
-      let prazosQuery = supabase
-        .from("prazos")
+      // Fetch tarefas
+      let tarefasQuery = supabase
+        .from("tarefas")
         .select(`
           id,
           titulo,
@@ -129,55 +129,55 @@ export default function CentralDelegacao() {
           status,
           tipo_tarefa,
           created_at,
-          responsavel:profiles!prazos_responsavel_id_fkey(id, nome, email),
-          processo:processos!prazos_processo_id_fkey(id, numero, polo_ativo, coordenacao_id, cliente:clientes!processos_cliente_id_fkey(id, nome))
+          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome, email),
+          processo:processos!tarefas_processo_id_fkey(id, numero, polo_ativo, coordenacao_id, cliente:clientes!processos_cliente_id_fkey(id, nome))
         `);
 
       // Aplicar filtro de responsável baseado em role
       if (membroId !== "todos") {
         // Filtro específico por membro selecionado no dropdown
-        prazosQuery = prazosQuery.eq("responsavel_id", membroId);
+        tarefasQuery = tarefasQuery.eq("responsavel_id", membroId);
       } else if (!isAdminOrCoordinator && user?.id) {
         // Usuário comum: ver apenas suas próprias tarefas
-        prazosQuery = prazosQuery.eq("responsavel_id", user.id);
+        tarefasQuery = tarefasQuery.eq("responsavel_id", user.id);
       } else if (membrosDaCoordenacao && membrosDaCoordenacao.length > 0) {
         // Admin/Coordenador: filtro por coordenação selecionada
-        prazosQuery = prazosQuery.in("responsavel_id", membrosDaCoordenacao);
+        tarefasQuery = tarefasQuery.in("responsavel_id", membrosDaCoordenacao);
       }
 
       if (statusFiltro === "pendente") {
-        prazosQuery = prazosQuery.eq("status", "pendente");
+        tarefasQuery = tarefasQuery.eq("status", "pendente");
       } else if (statusFiltro === "cumprido") {
-        prazosQuery = prazosQuery.eq("status", "cumprido");
+        tarefasQuery = tarefasQuery.eq("status", "cumprido");
       }
 
       if (prioridadeFiltro !== "todas" && ["baixa", "media", "alta", "urgente"].includes(prioridadeFiltro)) {
-        prazosQuery = prazosQuery.eq("prioridade", prioridadeFiltro as "baixa" | "media" | "alta" | "urgente");
+        tarefasQuery = tarefasQuery.eq("prioridade", prioridadeFiltro as "baixa" | "media" | "alta" | "urgente");
       }
 
       // Ordenação
       if (ordenacao === "mais-antigas") {
-        prazosQuery = prazosQuery.order("data_vencimento", { ascending: true, nullsFirst: false });
+        tarefasQuery = tarefasQuery.order("data_vencimento", { ascending: true, nullsFirst: false });
       } else if (ordenacao === "mais-recentes") {
-        prazosQuery = prazosQuery.order("data_vencimento", { ascending: false });
+        tarefasQuery = tarefasQuery.order("data_vencimento", { ascending: false });
       } else if (ordenacao === "prioridade") {
-        prazosQuery = prazosQuery.order("prioridade", { ascending: false });
+        tarefasQuery = tarefasQuery.order("prioridade", { ascending: false });
       }
 
-      const { data: prazos, error: prazosError } = await prazosQuery.limit(200);
-      if (prazosError) throw prazosError;
+      const { data: tarefas, error: tarefasError } = await tarefasQuery.limit(200);
+      if (tarefasError) throw tarefasError;
 
       // Filter by coordination if needed
       // Importante: tarefas "sem vínculo" (processo_id null) não possuem coordenacao_id,
       // então devem continuar visíveis mesmo quando um filtro de coordenação estiver ativo.
-      let filteredPrazos = prazos || [];
+      let filteredTarefas = (tarefas || []) as any[];
       if (coordenacaoId !== "todas") {
-        filteredPrazos = filteredPrazos.filter((p) => !p.processo || p.processo.coordenacao_id === coordenacaoId);
+        filteredTarefas = filteredTarefas.filter((p: any) => !p.processo || p.processo.coordenacao_id === coordenacaoId);
       }
 
       // Mark atrasados
       const hoje = new Date();
-      const prazosProcessados = filteredPrazos.map(p => {
+      const tarefasProcessadas = filteredTarefas.map((p: any) => {
         const dataVenc = p.data_vencimento ? parseISO(p.data_vencimento) : null;
         const isAtrasado = dataVenc && isBefore(dataVenc, hoje) && p.status !== "cumprido";
         return {
@@ -189,10 +189,10 @@ export default function CentralDelegacao() {
 
       // Filter atrasados if needed
       if (statusFiltro === "atrasado") {
-        return prazosProcessados.filter(p => p.isAtrasado);
+        return tarefasProcessadas.filter((p: any) => p.isAtrasado);
       }
 
-      return prazosProcessados;
+      return tarefasProcessadas;
     },
   });
 

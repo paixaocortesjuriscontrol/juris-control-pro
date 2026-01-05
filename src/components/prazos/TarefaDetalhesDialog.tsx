@@ -259,7 +259,7 @@ export function TarefaDetalhesDialog({
 
         <Separator className="my-2" />
 
-        <TarefaComentarios prazoId={prazo.id} className="flex-1 min-h-[200px]" />
+        <TarefaComentarios tarefaId={prazo.id} className="flex-1 min-h-[200px]" />
       </DialogContent>
     </Dialog>
   );

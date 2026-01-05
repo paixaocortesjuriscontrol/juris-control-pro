@@ -61,13 +61,14 @@ export function UpcomingDeadlines() {
         </div>
       </div>
       <div className="p-4 space-y-3">
-        {prazos.map((prazo) => {
+        {prazos.map((prazo: any) => {
           const dataVencimento = new Date(prazo.data_vencimento);
           const hoje = new Date();
           hoje.setHours(0, 0, 0, 0);
           const daysRemaining = differenceInDays(dataVencimento, hoje);
           const priority = getPriorityFromDays(daysRemaining);
           const formattedDate = format(dataVencimento, "dd MMM yyyy", { locale: ptBR });
+          const processoNumero = Array.isArray(prazo.processo) ? prazo.processo[0]?.numero : prazo.processo?.numero;
 
           return (
             <div 
@@ -89,7 +90,7 @@ export function UpcomingDeadlines() {
                     </p>
                   )}
                   <p className="text-xs text-muted-foreground font-mono truncate mt-1">
-                    {prazo.processo?.numero || "Sem processo"}
+                    {processoNumero || "Sem processo"}
                   </p>
                 </div>
                 {priority === "high" && (

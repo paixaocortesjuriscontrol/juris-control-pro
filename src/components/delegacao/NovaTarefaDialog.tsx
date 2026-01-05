@@ -305,7 +305,7 @@ export function NovaTarefaDialog({
     setLoading(true);
     try {
       // Criar a tarefa primeiro
-      const { data: novaTarefa, error } = await supabase.from("prazos").insert({
+      const { data: novaTarefa, error } = await supabase.from("tarefas").insert({
         processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
         responsavel_id: values.responsavel_id,
         titulo: values.titulo,
@@ -354,7 +354,7 @@ export function NovaTarefaDialog({
             url: publicUrl,
             tamanho_bytes: anexo.file.size,
             processo_id: values.processo_id || null,
-            prazo_id: novaTarefa.id,
+            tarefa_id: novaTarefa.id,
           });
         }
         setUploadingAnexos(false);
@@ -418,7 +418,7 @@ export function NovaTarefaDialog({
           : "A tarefa foi criada e delegada com sucesso.",
       });
 
-      queryClient.invalidateQueries({ queryKey: ["prazos"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
       queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
       onOpenChange(false);

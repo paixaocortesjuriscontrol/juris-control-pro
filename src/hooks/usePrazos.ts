@@ -2,7 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export type Prazo = {
+// Main type - using Tarefa as main name, Prazo as alias
+export type Tarefa = {
   id: string;
   titulo: string;
   descricao: string | null;
@@ -36,7 +37,10 @@ export type Prazo = {
   } | null;
 };
 
-export type PrazosFilters = {
+// Alias for backwards compatibility
+export type Prazo = Tarefa;
+
+export type TarefasFilters = {
   status?: string;
   prioridade?: string;
   search?: string;
@@ -44,25 +48,31 @@ export type PrazosFilters = {
   pageSize?: number;
 };
 
-export type PrazosResult = {
-  data: Prazo[];
+// Alias for backwards compatibility
+export type PrazosFilters = TarefasFilters;
+
+export type TarefasResult = {
+  data: Tarefa[];
   count: number;
   page: number;
   pageSize: number;
   totalPages: number;
 };
 
-export function usePrazosPaginated(filters?: PrazosFilters) {
+// Alias for backwards compatibility
+export type PrazosResult = TarefasResult;
+
+export function useTarefasPaginated(filters?: TarefasFilters) {
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 50;
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
   
   return useQuery({
-    queryKey: ["prazos-paginated", filters],
-    queryFn: async (): Promise<PrazosResult> => {
+    queryKey: ["tarefas-paginated", filters],
+    queryFn: async (): Promise<TarefasResult> => {
       let query = supabase
-        .from("prazos")
+        .from("tarefas")
         .select(`
           id,
           titulo,
@@ -76,8 +86,8 @@ export function usePrazosPaginated(filters?: PrazosFilters) {
           data_cumprimento,
           created_at,
           criado_por,
-          processo:processos!prazos_processo_id_fkey(id, numero, assunto),
-          responsavel:profiles!prazos_responsavel_id_fkey(id, nome)
+          processo:processos!tarefas_processo_id_fkey(id, numero, assunto),
+          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
         `, { count: "exact" })
         .order("data_vencimento", { ascending: true, nullsFirst: false })
         .range(from, to);
@@ -100,7 +110,7 @@ export function usePrazosPaginated(filters?: PrazosFilters) {
       const totalCount = count || 0;
       
       return {
-        data: (data || []) as Prazo[],
+        data: (data || []) as unknown as Tarefa[],
         count: totalCount,
         page,
         pageSize,
@@ -110,15 +120,18 @@ export function usePrazosPaginated(filters?: PrazosFilters) {
   });
 }
 
+// Alias for backwards compatibility
+export const usePrazosPaginated = useTarefasPaginated;
+
 // Keep the old hook for calendar view and backwards compatibility
-export function usePrazos(filters?: PrazosFilters) {
+export function useTarefas(filters?: TarefasFilters) {
   const limit = 500;
   
   return useQuery({
-    queryKey: ["prazos", filters],
+    queryKey: ["tarefas", filters],
     queryFn: async () => {
       let query = supabase
-        .from("prazos")
+        .from("tarefas")
         .select(`
           id,
           titulo,
@@ -132,8 +145,8 @@ export function usePrazos(filters?: PrazosFilters) {
           data_cumprimento,
           created_at,
           criado_por,
-          processo:processos!prazos_processo_id_fkey(id, numero, assunto),
-          responsavel:profiles!prazos_responsavel_id_fkey(id, nome)
+          processo:processos!tarefas_processo_id_fkey(id, numero, assunto),
+          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
         `)
         .order("data_vencimento", { ascending: true, nullsFirst: false })
         .limit(limit);
@@ -152,35 +165,38 @@ export function usePrazos(filters?: PrazosFilters) {
       const { data, error } = await query;
 
       if (error) throw error;
-      return (data || []) as Prazo[];
+      return (data || []) as unknown as Tarefa[];
     },
   });
 }
 
-export function usePrazosStats() {
+// Alias for backwards compatibility
+export const usePrazos = useTarefas;
+
+export function useTarefasStats() {
   return useQuery({
-    queryKey: ["prazos-stats"],
+    queryKey: ["tarefas-stats"],
     queryFn: async () => {
       const today = new Date().toISOString().split("T")[0];
       
       // Get counts by status
       const [pendentesRes, cumpridosRes, atrasadosRes, urgentesRes] = await Promise.all([
         supabase
-          .from("prazos")
+          .from("tarefas")
           .select("*", { count: "exact", head: true })
           .eq("status", "pendente")
           .gte("data_vencimento", today),
         supabase
-          .from("prazos")
+          .from("tarefas")
           .select("*", { count: "exact", head: true })
           .eq("status", "cumprido"),
         supabase
-          .from("prazos")
+          .from("tarefas")
           .select("*", { count: "exact", head: true })
           .neq("status", "cumprido")
           .lt("data_vencimento", today),
         supabase
-          .from("prazos")
+          .from("tarefas")
           .select("*", { count: "exact", head: true })
           .eq("prioridade", "urgente")
           .neq("status", "cumprido"),
@@ -197,11 +213,14 @@ export function usePrazosStats() {
   });
 }
 
-export function useCreatePrazo() {
+// Alias for backwards compatibility
+export const usePrazosStats = useTarefasStats;
+
+export function useCreateTarefa() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (prazo: {
+    mutationFn: async (tarefa: {
       titulo: string;
       descricao?: string;
       data_vencimento?: string;
@@ -212,9 +231,9 @@ export function useCreatePrazo() {
       criado_por?: string;
     }) => {
       const { data, error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .insert({
-          ...prazo,
+          ...tarefa,
           status: "pendente",
         })
         .select()
@@ -224,18 +243,21 @@ export function useCreatePrazo() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["prazos"] });
-      queryClient.invalidateQueries({ queryKey: ["prazos-paginated"] });
-      queryClient.invalidateQueries({ queryKey: ["prazos-stats"] });
-      toast.success("Prazo criado com sucesso");
+      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
+      toast.success("Tarefa criada com sucesso");
     },
     onError: (error) => {
-      toast.error("Erro ao criar prazo: " + error.message);
+      toast.error("Erro ao criar tarefa: " + error.message);
     },
   });
 }
 
-export function useUpdatePrazo() {
+// Alias for backwards compatibility
+export const useCreatePrazo = useCreateTarefa;
+
+export function useUpdateTarefa() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -254,7 +276,7 @@ export function useUpdatePrazo() {
       data_cumprimento?: string;
     }) => {
       const { data, error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .update(updates)
         .eq("id", id)
         .select()
@@ -264,33 +286,39 @@ export function useUpdatePrazo() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["prazos"] });
-      queryClient.invalidateQueries({ queryKey: ["prazos-paginated"] });
-      queryClient.invalidateQueries({ queryKey: ["prazos-stats"] });
-      toast.success("Prazo atualizado com sucesso");
+      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
+      toast.success("Tarefa atualizada com sucesso");
     },
     onError: (error) => {
-      toast.error("Erro ao atualizar prazo: " + error.message);
+      toast.error("Erro ao atualizar tarefa: " + error.message);
     },
   });
 }
 
-export function useDeletePrazo() {
+// Alias for backwards compatibility
+export const useUpdatePrazo = useUpdateTarefa;
+
+export function useDeleteTarefa() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("prazos").delete().eq("id", id);
+      const { error } = await supabase.from("tarefas").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["prazos"] });
-      queryClient.invalidateQueries({ queryKey: ["prazos-paginated"] });
-      queryClient.invalidateQueries({ queryKey: ["prazos-stats"] });
-      toast.success("Prazo excluído com sucesso");
+      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
+      toast.success("Tarefa excluída com sucesso");
     },
     onError: (error) => {
-      toast.error("Erro ao excluir prazo: " + error.message);
+      toast.error("Erro ao excluir tarefa: " + error.message);
     },
   });
 }
+
+// Alias for backwards compatibility
+export const useDeletePrazo = useDeleteTarefa;

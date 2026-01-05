@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 interface Comentario {
   id: string;
-  prazo_id: string;
+  tarefa_id: string;
   autor_id: string;
   conteudo: string;
   created_at: string;
@@ -25,29 +25,29 @@ interface Comentario {
 }
 
 interface TarefaComentariosProps {
-  prazoId: string;
+  tarefaId: string;
   className?: string;
 }
 
-export function TarefaComentarios({ prazoId, className }: TarefaComentariosProps) {
+export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProps) {
   const [novoComentario, setNovoComentario] = useState("");
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: comentarios, isLoading } = useQuery({
-    queryKey: ["comentarios-prazo", prazoId],
+    queryKey: ["comentarios-tarefa", tarefaId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("comentarios_prazos")
+        .from("comentarios_tarefas")
         .select(`
           id,
-          prazo_id,
+          tarefa_id,
           autor_id,
           conteudo,
           created_at
         `)
-        .eq("prazo_id", prazoId)
+        .eq("tarefa_id", tarefaId)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
@@ -73,9 +73,9 @@ export function TarefaComentarios({ prazoId, className }: TarefaComentariosProps
       if (!user) throw new Error("Usuário não autenticado");
 
       const { error } = await supabase
-        .from("comentarios_prazos")
+        .from("comentarios_tarefas")
         .insert({
-          prazo_id: prazoId,
+          tarefa_id: tarefaId,
           autor_id: user.id,
           conteudo,
         });
@@ -83,7 +83,7 @@ export function TarefaComentarios({ prazoId, className }: TarefaComentariosProps
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["comentarios-prazo", prazoId] });
+      queryClient.invalidateQueries({ queryKey: ["comentarios-tarefa", tarefaId] });
       setNovoComentario("");
     },
     onError: (error: any) => {
@@ -98,14 +98,14 @@ export function TarefaComentarios({ prazoId, className }: TarefaComentariosProps
   const deleteComentario = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("comentarios_prazos")
+        .from("comentarios_tarefas")
         .delete()
         .eq("id", id);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["comentarios-prazo", prazoId] });
+      queryClient.invalidateQueries({ queryKey: ["comentarios-tarefa", tarefaId] });
       toast({ title: "Comentário excluído" });
     },
     onError: (error: any) => {

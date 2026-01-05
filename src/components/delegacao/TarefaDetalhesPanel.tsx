@@ -79,14 +79,14 @@ export function TarefaDetalhesPanel({
     queryKey: ["comentarios-tarefa", tarefa.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("comentarios_prazos")
+        .from("comentarios_tarefas")
         .select(`
           id,
           conteudo,
           created_at,
           autor:profiles!comentarios_prazos_autor_id_fkey(id, nome)
         `)
-        .eq("prazo_id", tarefa.id)
+        .eq("tarefa_id", tarefa.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -131,7 +131,7 @@ export function TarefaDetalhesPanel({
   const handleConcluir = async () => {
     try {
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .update({
           status: "cumprido",
           data_cumprimento: new Date().toISOString(),
@@ -154,7 +154,7 @@ export function TarefaDetalhesPanel({
   const handleReabrir = async () => {
     try {
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .update({
           status: "pendente",
           data_cumprimento: null,
@@ -179,8 +179,8 @@ export function TarefaDetalhesPanel({
 
     setSendingComment(true);
     try {
-      const { error } = await supabase.from("comentarios_prazos").insert({
-        prazo_id: tarefa.id,
+      const { error } = await supabase.from("comentarios_tarefas").insert({
+        tarefa_id: tarefa.id,
         autor_id: user.id,
         conteudo: comentario.trim(),
       });
@@ -205,7 +205,7 @@ export function TarefaDetalhesPanel({
     setDeleting(true);
     try {
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .delete()
         .eq("id", tarefa.id);
 

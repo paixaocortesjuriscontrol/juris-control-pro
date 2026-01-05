@@ -540,27 +540,27 @@ export type Database = {
           },
         ]
       }
-      comentarios_prazos: {
+      comentarios_tarefas: {
         Row: {
           autor_id: string
           conteudo: string
           created_at: string
           id: string
-          prazo_id: string
+          tarefa_id: string
         }
         Insert: {
           autor_id: string
           conteudo: string
           created_at?: string
           id?: string
-          prazo_id: string
+          tarefa_id: string
         }
         Update: {
           autor_id?: string
           conteudo?: string
           created_at?: string
           id?: string
-          prazo_id?: string
+          tarefa_id?: string
         }
         Relationships: [
           {
@@ -579,9 +579,9 @@ export type Database = {
           },
           {
             foreignKeyName: "comentarios_prazos_prazo_id_fkey"
-            columns: ["prazo_id"]
+            columns: ["tarefa_id"]
             isOneToOne: false
-            referencedRelation: "prazos"
+            referencedRelation: "tarefas"
             referencedColumns: ["id"]
           },
         ]
@@ -783,9 +783,9 @@ export type Database = {
           id: string
           nome: string
           pasta_id: string | null
-          prazo_id: string | null
           processo_id: string | null
           tamanho_bytes: number | null
+          tarefa_id: string | null
           tipo: string | null
           uploaded_by: string | null
           url: string | null
@@ -795,9 +795,9 @@ export type Database = {
           id?: string
           nome: string
           pasta_id?: string | null
-          prazo_id?: string | null
           processo_id?: string | null
           tamanho_bytes?: number | null
+          tarefa_id?: string | null
           tipo?: string | null
           uploaded_by?: string | null
           url?: string | null
@@ -807,9 +807,9 @@ export type Database = {
           id?: string
           nome?: string
           pasta_id?: string | null
-          prazo_id?: string | null
           processo_id?: string | null
           tamanho_bytes?: number | null
+          tarefa_id?: string | null
           tipo?: string | null
           uploaded_by?: string | null
           url?: string | null
@@ -824,9 +824,9 @@ export type Database = {
           },
           {
             foreignKeyName: "documentos_prazo_id_fkey"
-            columns: ["prazo_id"]
+            columns: ["tarefa_id"]
             isOneToOne: false
-            referencedRelation: "prazos"
+            referencedRelation: "tarefas"
             referencedColumns: ["id"]
           },
           {
@@ -1551,103 +1551,6 @@ export type Database = {
             columns: ["coordenacao_id"]
             isOneToOne: false
             referencedRelation: "coordenacoes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      prazos: {
-        Row: {
-          concluido_por_nome: string | null
-          created_at: string
-          criado_por: string | null
-          criado_por_nome: string | null
-          data_base: string | null
-          data_cumprimento: string | null
-          data_fatal: string | null
-          data_vencimento: string | null
-          descricao: string | null
-          grupos_trabalho: string | null
-          id: string
-          identificador_projuris: string | null
-          marcadores: string | null
-          observacoes: string | null
-          prioridade: Database["public"]["Enums"]["prioridade_prazo"]
-          processo_id: string | null
-          quadro_kanban: string | null
-          responsavel_id: string | null
-          status: Database["public"]["Enums"]["status_prazo"]
-          tipo_tarefa: string | null
-          titulo: string
-          updated_at: string
-        }
-        Insert: {
-          concluido_por_nome?: string | null
-          created_at?: string
-          criado_por?: string | null
-          criado_por_nome?: string | null
-          data_base?: string | null
-          data_cumprimento?: string | null
-          data_fatal?: string | null
-          data_vencimento?: string | null
-          descricao?: string | null
-          grupos_trabalho?: string | null
-          id?: string
-          identificador_projuris?: string | null
-          marcadores?: string | null
-          observacoes?: string | null
-          prioridade?: Database["public"]["Enums"]["prioridade_prazo"]
-          processo_id?: string | null
-          quadro_kanban?: string | null
-          responsavel_id?: string | null
-          status?: Database["public"]["Enums"]["status_prazo"]
-          tipo_tarefa?: string | null
-          titulo: string
-          updated_at?: string
-        }
-        Update: {
-          concluido_por_nome?: string | null
-          created_at?: string
-          criado_por?: string | null
-          criado_por_nome?: string | null
-          data_base?: string | null
-          data_cumprimento?: string | null
-          data_fatal?: string | null
-          data_vencimento?: string | null
-          descricao?: string | null
-          grupos_trabalho?: string | null
-          id?: string
-          identificador_projuris?: string | null
-          marcadores?: string | null
-          observacoes?: string | null
-          prioridade?: Database["public"]["Enums"]["prioridade_prazo"]
-          processo_id?: string | null
-          quadro_kanban?: string | null
-          responsavel_id?: string | null
-          status?: Database["public"]["Enums"]["status_prazo"]
-          tipo_tarefa?: string | null
-          titulo?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "prazos_processo_id_fkey"
-            columns: ["processo_id"]
-            isOneToOne: false
-            referencedRelation: "processos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "prazos_responsavel_id_fkey"
-            columns: ["responsavel_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "prazos_responsavel_id_fkey"
-            columns: ["responsavel_id"]
-            isOneToOne: false
-            referencedRelation: "profiles_basic"
             referencedColumns: ["id"]
           },
         ]
@@ -2498,6 +2401,103 @@ export type Database = {
           },
         ]
       }
+      tarefas: {
+        Row: {
+          concluido_por_nome: string | null
+          created_at: string
+          criado_por: string | null
+          criado_por_nome: string | null
+          data_base: string | null
+          data_cumprimento: string | null
+          data_fatal: string | null
+          data_vencimento: string | null
+          descricao: string | null
+          grupos_trabalho: string | null
+          id: string
+          identificador_projuris: string | null
+          marcadores: string | null
+          observacoes: string | null
+          prioridade: Database["public"]["Enums"]["prioridade_tarefa"]
+          processo_id: string | null
+          quadro_kanban: string | null
+          responsavel_id: string | null
+          status: Database["public"]["Enums"]["status_tarefa"]
+          tipo_tarefa: string | null
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          concluido_por_nome?: string | null
+          created_at?: string
+          criado_por?: string | null
+          criado_por_nome?: string | null
+          data_base?: string | null
+          data_cumprimento?: string | null
+          data_fatal?: string | null
+          data_vencimento?: string | null
+          descricao?: string | null
+          grupos_trabalho?: string | null
+          id?: string
+          identificador_projuris?: string | null
+          marcadores?: string | null
+          observacoes?: string | null
+          prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
+          processo_id?: string | null
+          quadro_kanban?: string | null
+          responsavel_id?: string | null
+          status?: Database["public"]["Enums"]["status_tarefa"]
+          tipo_tarefa?: string | null
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          concluido_por_nome?: string | null
+          created_at?: string
+          criado_por?: string | null
+          criado_por_nome?: string | null
+          data_base?: string | null
+          data_cumprimento?: string | null
+          data_fatal?: string | null
+          data_vencimento?: string | null
+          descricao?: string | null
+          grupos_trabalho?: string | null
+          id?: string
+          identificador_projuris?: string | null
+          marcadores?: string | null
+          observacoes?: string | null
+          prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
+          processo_id?: string | null
+          quadro_kanban?: string | null
+          responsavel_id?: string | null
+          status?: Database["public"]["Enums"]["status_tarefa"]
+          tipo_tarefa?: string | null
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prazos_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prazos_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prazos_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       termos_monitoramento: {
         Row: {
           ativo: boolean
@@ -2664,14 +2664,14 @@ export type Database = {
         | "assistente"
         | "secretaria"
       area_atuacao: "civil" | "trabalhista" | "empresarial" | "direito_privado"
-      prioridade_prazo: "baixa" | "media" | "alta" | "urgente"
-      status_prazo: "pendente" | "cumprido" | "atrasado"
+      prioridade_tarefa: "baixa" | "media" | "alta" | "urgente"
       status_processo:
         | "ativo"
         | "pendente"
         | "urgente"
         | "encerrado"
         | "arquivado"
+      status_tarefa: "pendente" | "cumprido" | "atrasado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2808,8 +2808,7 @@ export const Constants = {
         "secretaria",
       ],
       area_atuacao: ["civil", "trabalhista", "empresarial", "direito_privado"],
-      prioridade_prazo: ["baixa", "media", "alta", "urgente"],
-      status_prazo: ["pendente", "cumprido", "atrasado"],
+      prioridade_tarefa: ["baixa", "media", "alta", "urgente"],
       status_processo: [
         "ativo",
         "pendente",
@@ -2817,6 +2816,7 @@ export const Constants = {
         "encerrado",
         "arquivado",
       ],
+      status_tarefa: ["pendente", "cumprido", "atrasado"],
     },
   },
 } as const

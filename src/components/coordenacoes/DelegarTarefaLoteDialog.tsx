@@ -109,7 +109,7 @@ export function DelegarTarefaLoteDialog({
       }));
 
       const { error } = await supabase
-        .from("prazos")
+        .from("tarefas")
         .insert(tasks);
 
       if (error) throw error;
@@ -119,7 +119,7 @@ export function DelegarTarefaLoteDialog({
         description: `${values.processos_ids.length} tarefa(s) criada(s) com sucesso.` 
       });
       
-      queryClient.invalidateQueries({ queryKey: ["prazos"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
       onOpenChange(false);
       form.reset();

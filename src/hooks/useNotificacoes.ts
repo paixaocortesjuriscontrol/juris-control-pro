@@ -51,20 +51,20 @@ export function useNotificacoes() {
     enabled: !!user?.id,
   });
 
-  // Query for pending prazos where user is responsible
+  // Query for pending tarefas where user is responsible
   const { data: prazosPendentes = [], isLoading: isLoadingPrazos } = useQuery({
-    queryKey: ['prazos-pendentes', user?.id],
+    queryKey: ['tarefas-pendentes', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       
       const { data, error } = await supabase
-        .from('prazos')
+        .from('tarefas')
         .select(`
           id,
           titulo,
           data_vencimento,
           prioridade,
-          processo:processos!prazos_processo_id_fkey(id, numero, coordenacao_id)
+          processo:processos!tarefas_processo_id_fkey(id, numero, coordenacao_id)
         `)
         .eq('responsavel_id', user.id)
         .eq('status', 'pendente')
@@ -76,7 +76,7 @@ export function useNotificacoes() {
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
       
-      return (data || []).map(prazo => {
+      return ((data || []) as any[]).map(prazo => {
         const vencimento = new Date(prazo.data_vencimento + 'T00:00:00');
         const diffTime = vencimento.getTime() - hoje.getTime();
         const dias_restantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -140,21 +140,21 @@ export function useNotificacoes() {
     };
   }, [user?.id, queryClient]);
 
-  // Realtime subscription for prazos changes
+  // Realtime subscription for tarefas changes
   useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
-      .channel('prazos-realtime')
+      .channel('tarefas-realtime')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'prazos',
+          table: 'tarefas',
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['prazos-pendentes', user.id] });
+          queryClient.invalidateQueries({ queryKey: ['tarefas-pendentes', user.id] });
         }
       )
       .subscribe();

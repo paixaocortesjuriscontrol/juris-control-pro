@@ -60,7 +60,7 @@ export function useEquipeTarefasStats(coordenacaoId: string | null) {
       // Get tasks for each member
       const statsPromises = (membros || []).map(async (membro) => {
         const { data: tarefas, error: tarefasError } = await supabase
-          .from("prazos")
+          .from("tarefas")
           .select("id, status, prioridade, data_vencimento")
           .eq("responsavel_id", membro.usuario_id);
 
@@ -126,7 +126,7 @@ export function useEquipeTarefas(
       if (membroIds.length === 0) return [];
 
       let query = supabase
-        .from("prazos")
+        .from("tarefas")
         .select(`
           id,
           titulo,
@@ -138,8 +138,8 @@ export function useEquipeTarefas(
           responsavel_id,
           processo_id,
           created_at,
-          responsavel:profiles!prazos_responsavel_id_fkey(id, nome),
-          processo:processos!prazos_processo_id_fkey(numero)
+          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome),
+          processo:processos!tarefas_processo_id_fkey(numero)
         `)
         .in("responsavel_id", filters.membroId ? [filters.membroId] : membroIds)
         .order("data_vencimento", { ascending: true, nullsFirst: false });
@@ -160,7 +160,7 @@ export function useEquipeTarefas(
 
       if (error) throw error;
 
-      return (data || []) as TarefaEquipe[];
+      return (data || []) as unknown as TarefaEquipe[];
     },
     enabled: !!coordenacaoId && !!user,
   });
