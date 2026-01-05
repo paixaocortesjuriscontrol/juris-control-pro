@@ -1039,6 +1039,96 @@ export type Database = {
         }
         Relationships: []
       }
+      intimacoes_detectadas: {
+        Row: {
+          conteudo_publicacao: string | null
+          contexto: string | null
+          created_at: string
+          criado_por: string | null
+          data_intimacao: string | null
+          data_limite: string | null
+          descricao: string | null
+          id: string
+          movimentacao_id: string | null
+          observacoes: string | null
+          orgao_intimante: string | null
+          origem: string | null
+          prazo_dias: number | null
+          prioridade: string | null
+          processo_id: string | null
+          processo_numero: string | null
+          providencias_tomadas: string | null
+          status: string
+          tipo_intimacao: string | null
+          tratado_em: string | null
+          tratado_por: string | null
+          updated_at: string
+        }
+        Insert: {
+          conteudo_publicacao?: string | null
+          contexto?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_intimacao?: string | null
+          data_limite?: string | null
+          descricao?: string | null
+          id?: string
+          movimentacao_id?: string | null
+          observacoes?: string | null
+          orgao_intimante?: string | null
+          origem?: string | null
+          prazo_dias?: number | null
+          prioridade?: string | null
+          processo_id?: string | null
+          processo_numero?: string | null
+          providencias_tomadas?: string | null
+          status?: string
+          tipo_intimacao?: string | null
+          tratado_em?: string | null
+          tratado_por?: string | null
+          updated_at?: string
+        }
+        Update: {
+          conteudo_publicacao?: string | null
+          contexto?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_intimacao?: string | null
+          data_limite?: string | null
+          descricao?: string | null
+          id?: string
+          movimentacao_id?: string | null
+          observacoes?: string | null
+          orgao_intimante?: string | null
+          origem?: string | null
+          prazo_dias?: number | null
+          prioridade?: string | null
+          processo_id?: string | null
+          processo_numero?: string | null
+          providencias_tomadas?: string | null
+          status?: string
+          tipo_intimacao?: string | null
+          tratado_em?: string | null
+          tratado_por?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intimacoes_detectadas_movimentacao_id_fkey"
+            columns: ["movimentacao_id"]
+            isOneToOne: false
+            referencedRelation: "movimentacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intimacoes_detectadas_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lembretes_audiencia: {
         Row: {
           audiencia_id: string

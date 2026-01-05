@@ -26,7 +26,8 @@ import {
   ClipboardList,
   Brain,
   Library,
-  Send
+  Send,
+  FileWarning
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ const menuItems = [
   { icon: Send, label: "Central Delegação", path: "/central-delegacao" },
   { icon: Calendar, label: "Minha Agenda", path: "/minha-agenda" },
   { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
+  { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: ClipboardList, label: "Painel da Equipe", path: "/painel-equipe" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },
