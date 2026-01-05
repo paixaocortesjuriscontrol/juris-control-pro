@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Users, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Pencil, Trash2, Users, Loader2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -46,6 +47,7 @@ export function GruposClientesTab() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: grupos = [], isLoading } = useQuery({
     queryKey: ["grupos_clientes"],
@@ -89,6 +91,25 @@ export function GruposClientesTab() {
   const handleVincular = (grupo: GrupoCliente) => {
     setSelectedGrupo(grupo);
     setVincularDialogOpen(true);
+  };
+
+  const handleViewProcessos = async (grupo: GrupoCliente) => {
+    // Buscar todos os clientes do grupo
+    const { data: clientesDoGrupo } = await supabase
+      .from("clientes_grupos")
+      .select("cliente_id")
+      .eq("grupo_id", grupo.id);
+
+    if (clientesDoGrupo && clientesDoGrupo.length > 0) {
+      const clienteIds = clientesDoGrupo.map((c) => c.cliente_id).join(",");
+      navigate(`/processos?grupo_clientes=${clienteIds}&grupo_nome=${encodeURIComponent(grupo.nome)}`);
+    } else {
+      toast({
+        title: "Nenhum cliente no grupo",
+        description: "Este grupo não possui clientes vinculados.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDeleteClick = (grupo: GrupoCliente) => {
@@ -177,6 +198,14 @@ export function GruposClientesTab() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleViewProcessos(grupo)}
+                          title="Ver processos do grupo"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"

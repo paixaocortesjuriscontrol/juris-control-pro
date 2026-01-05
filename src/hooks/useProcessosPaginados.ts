@@ -15,6 +15,7 @@ interface ProcessosPaginadosFilters {
   comPublicacaoDjen?: boolean;
   periodoInicio?: Date;
   periodoFim?: Date;
+  clienteIds?: string[];
 }
 
 export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
@@ -44,10 +45,21 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
       if (error) throw error;
 
       const rows = data || [];
-      const totalCount = rows.length > 0 ? Number(rows[0].total_count) : 0;
+      
+      // Filter by clienteIds client-side if provided
+      let filteredRows = rows;
+      if (filters.clienteIds && filters.clienteIds.length > 0) {
+        filteredRows = rows.filter((row: any) => 
+          row.cliente?.id && filters.clienteIds?.includes(row.cliente.id)
+        );
+      }
+      
+      const totalCount = filters.clienteIds && filters.clienteIds.length > 0 
+        ? filteredRows.length 
+        : (rows.length > 0 ? Number(rows[0].total_count) : 0);
 
       // Map RPC result to the expected shape
-      const processos = rows.map((row: any) => ({
+      const processos = filteredRows.map((row: any) => ({
         id: row.id,
         numero: row.numero,
         assunto: row.assunto,
