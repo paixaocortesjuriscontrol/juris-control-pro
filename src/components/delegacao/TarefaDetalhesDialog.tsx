@@ -400,7 +400,7 @@ export function TarefaDetalhesDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="max-w-3xl h-[90dvh] !flex !flex-col !gap-0 !p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
