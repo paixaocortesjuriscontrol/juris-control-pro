@@ -155,9 +155,11 @@ export default function CentralDelegacao() {
       if (prazosError) throw prazosError;
 
       // Filter by coordination if needed
+      // Importante: tarefas "sem vínculo" (processo_id null) não possuem coordenacao_id,
+      // então devem continuar visíveis mesmo quando um filtro de coordenação estiver ativo.
       let filteredPrazos = prazos || [];
       if (coordenacaoId !== "todas") {
-        filteredPrazos = filteredPrazos.filter(p => p.processo?.coordenacao_id === coordenacaoId);
+        filteredPrazos = filteredPrazos.filter((p) => !p.processo || p.processo.coordenacao_id === coordenacaoId);
       }
 
       // Mark atrasados
