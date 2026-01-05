@@ -202,6 +202,21 @@ export function useCreateEvento() {
         if (alertError) console.error("Erro ao adicionar alertas:", alertError);
       }
 
+      // Send email notifications to participants
+      const allParticipants = [...(participantes_ids || []), userId];
+      try {
+        await supabase.functions.invoke('notificar-evento', {
+          body: {
+            evento_id: data.id,
+            participantes_ids: allParticipants,
+            tipo_notificacao: 'criacao'
+          }
+        });
+      } catch (emailError) {
+        console.error("Erro ao enviar notificações por email:", emailError);
+        // Don't fail the event creation if email fails
+      }
+
       return data;
     },
     onSuccess: () => {
