@@ -814,23 +814,25 @@ export function NovaTarefaDialog({
                   <div className="space-y-2">
                     {anexos.map((anexo, index) => (
                       <div key={index} className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
                             <FileText className="w-4 h-4 text-primary shrink-0" />
-                            <span className="truncate font-medium">{anexo.file.name}</span>
-                            <span className="text-xs text-muted-foreground shrink-0">
+                            <span className="truncate font-medium max-w-[150px] sm:max-w-none">{anexo.file.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-muted-foreground hidden sm:inline">
                               ({formatFileSize(anexo.file.size)})
                             </span>
-                          </div>
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 shrink-0"
+                            className="h-6 w-6"
                             onClick={() => handleRemoveAnexo(index)}
                           >
                             <Trash2 className="w-3 h-3 text-destructive" />
                           </Button>
+                          </div>
                         </div>
                         
                         {/* Status da análise IA */}
@@ -863,15 +865,16 @@ export function NovaTarefaDialog({
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => onOpenChange(false)}
+                  className="w-full sm:w-auto"
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={loading || uploadingAnexos}>
+                <Button type="submit" disabled={loading || uploadingAnexos} className="w-full sm:w-auto">
                   {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
                 </Button>
