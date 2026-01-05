@@ -38,6 +38,7 @@ type PrazoDialogProps = {
   onOpenChange: (open: boolean) => void;
   prazo?: Prazo | null;
   defaultProcessoId?: string;
+  defaultTarefaRelacionadaId?: string;
 };
 
 export function PrazoDialog({
@@ -45,6 +46,7 @@ export function PrazoDialog({
   onOpenChange,
   prazo,
   defaultProcessoId,
+  defaultTarefaRelacionadaId,
 }: PrazoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -279,12 +281,24 @@ export function PrazoDialog({
     };
 
     try {
+      let novaTarefaId: string | null = null;
+      
       if (prazo) {
         await updatePrazo.mutateAsync({ id: prazo.id, ...prazoData });
       } else {
-        await createPrazo.mutateAsync({
+        const result = await createPrazo.mutateAsync({
           ...prazoData,
           criado_por: user?.id,
+        });
+        novaTarefaId = result?.id || null;
+      }
+
+      // Se foi criada como tarefa relacionada, criar o vínculo
+      if (novaTarefaId && defaultTarefaRelacionadaId && user?.id) {
+        await supabase.from("tarefas_relacionadas").insert({
+          tarefa_origem_id: defaultTarefaRelacionadaId,
+          tarefa_relacionada_id: novaTarefaId,
+          criado_por: user.id,
         });
       }
 
