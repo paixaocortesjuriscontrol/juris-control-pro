@@ -264,7 +264,7 @@ export function PrazoDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!titulo || !dataVencimento || !processoId) {
+    if (!titulo || !dataVencimento) {
       return;
     }
 
@@ -273,7 +273,7 @@ export function PrazoDialog({
       descricao: descricao || undefined,
       data_vencimento: format(dataVencimento, "yyyy-MM-dd"),
       prioridade: prioridade as "baixa" | "media" | "alta" | "urgente",
-      processo_id: processoId,
+      processo_id: processoId || null,
       responsavel_id: responsavelId || undefined,
       observacoes: observacoes || undefined,
     };
@@ -332,7 +332,7 @@ export function PrazoDialog({
       <DialogContent className="sm:max-w-[550px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>
-            {prazo ? "Editar Prazo" : "Novo Prazo"}
+            {prazo ? "Alterar Tarefa" : "Nova Tarefa"}
           </DialogTitle>
         </DialogHeader>
 
@@ -404,7 +404,7 @@ export function PrazoDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="processo">Processo *</Label>
+              <Label htmlFor="processo">Processo (opcional)</Label>
               {!showProcessoSelect ? (
                 <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">
                   Selecione uma coordenação, cliente ou digite 3+ caracteres para buscar processos
@@ -421,9 +421,10 @@ export function PrazoDialog({
               ) : (
                 <Select value={processoId} onValueChange={setProcessoId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o processo" />
+                    <SelectValue placeholder="Sem vínculo com processo" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">Sem vínculo com processo</SelectItem>
                     <ScrollArea className="h-[200px]">
                       {processos?.map((processo) => (
                         <SelectItem key={processo.id} value={processo.id}>
@@ -585,7 +586,7 @@ export function PrazoDialog({
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {uploadingAnexos ? "Enviando anexos..." : prazo ? "Salvar" : "Criar Prazo"}
+                {uploadingAnexos ? "Enviando anexos..." : prazo ? "Salvar" : "Criar Tarefa"}
               </Button>
             </div>
           </form>
