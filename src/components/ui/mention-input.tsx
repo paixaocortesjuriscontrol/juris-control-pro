@@ -28,13 +28,13 @@ export function MentionInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Fetch users for mentions
+  // Fetch users for mentions - using profiles_basic view (accessible to all users)
   const { data: usuarios } = useQuery({
     queryKey: ["usuarios-mention"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("profiles")
-        .select("id, nome, email")
+        .from("profiles_basic")
+        .select("id, nome")
         .order("nome");
       if (error) throw error;
       return data || [];
@@ -154,12 +154,7 @@ export function MentionInput({
                     {user.nome ? getInitials(user.nome) : "?"}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{user.nome}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {user.email}
-                  </p>
-                </div>
+                <p className="font-medium truncate">{user.nome}</p>
               </button>
             ))}
           </div>
