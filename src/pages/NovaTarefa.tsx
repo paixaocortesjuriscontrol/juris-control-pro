@@ -325,7 +325,7 @@ export default function NovaTarefa() {
             url: publicUrl,
             tamanho_bytes: anexo.file.size,
             processo_id: values.processo_id || null,
-            prazo_id: novaTarefa.id,
+            tarefa_id: novaTarefa.id,
           });
           
           if (!insertError) {

@@ -141,7 +141,7 @@ export function TarefaDetalhesDialog({
     queryFn: async () => {
       if (!tarefa?.id) return [];
 
-      const orFilters: string[] = [`prazo_id.eq.${tarefa.id}`];
+      const orFilters: string[] = [`tarefa_id.eq.${tarefa.id}`];
       if (tarefa?.processo?.id) {
         orFilters.push(`processo_id.eq.${tarefa.processo.id}`);
       }
@@ -343,7 +343,7 @@ export function TarefaDetalhesDialog({
         url: publicUrl,
         tamanho_bytes: file.size,
         processo_id: tarefa.processo?.id || null,
-        prazo_id: tarefa.id,
+        tarefa_id: tarefa.id,
         uploaded_by: user?.id,
       });
 
