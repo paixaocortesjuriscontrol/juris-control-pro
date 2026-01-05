@@ -83,7 +83,7 @@ export function PrazoDialog({
   });
 
   // Buscar clientes (filtrados por coordenação se selecionada)
-  const { data: clientes } = useQuery({
+  const { data: clientes, isLoading: loadingClientes } = useQuery({
     queryKey: ["clientes-prazo", coordenacaoId],
     queryFn: async () => {
       let query = supabase
@@ -123,9 +123,9 @@ export function PrazoDialog({
         .from("processos")
         .select("id, numero, assunto, polo_ativo, polo_passivo, coordenacao_id, cliente_id")
         .eq("id", prazo.processo_id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      return data || null;
     },
     enabled: open && !!prazo?.processo_id,
   });
@@ -199,13 +199,25 @@ export function PrazoDialog({
     setProcessoId("");
   }, [coordenacaoId]);
 
+  // Ao editar, pré-preencher filtros com base no processo vinculado (se houver)
+  useEffect(() => {
+    if (!open || !prazo || !processoAtual) return;
+
+    if (!coordenacaoId && processoAtual.coordenacao_id) {
+      setCoordenacaoId(processoAtual.coordenacao_id);
+    }
+    if (!clienteId && processoAtual.cliente_id) {
+      setClienteId(processoAtual.cliente_id);
+    }
+  }, [open, prazo, processoAtual, coordenacaoId, clienteId]);
+
   useEffect(() => {
     if (prazo) {
       setTitulo(prazo.titulo);
       setDescricao(prazo.descricao || "");
       setDataVencimento(prazo.data_vencimento ? parseISO(prazo.data_vencimento) : undefined);
       setPrioridade(prazo.prioridade);
-      setProcessoId(prazo.processo_id);
+      setProcessoId(prazo.processo_id || "");
       setResponsavelId(prazo.responsavel_id || "");
       setObservacoes(prazo.observacoes || "");
       setAnexos([]);
@@ -225,6 +237,11 @@ export function PrazoDialog({
   }, [prazo, open, defaultProcessoId]);
 
   const showProcessoSelect = !!coordenacaoId || !!clienteId || searchProcesso.length >= 3 || !!processoDefault || !!processoAtual;
+
+  const handleSelectCliente = (value: string) => {
+    if (value.startsWith("__")) return;
+    setClienteId(value);
+  };
 
   const handleAddAnexo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -352,16 +369,22 @@ export function PrazoDialog({
 
               <div className="space-y-2">
                 <Label>Cliente</Label>
-                <Select value={clienteId} onValueChange={setClienteId}>
+                <Select value={clienteId} onValueChange={handleSelectCliente}>
                   <SelectTrigger>
                     <SelectValue placeholder="Filtrar por cliente" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clientes?.map((cliente) => (
-                      <SelectItem key={cliente.id} value={cliente.id}>
-                        {cliente.nome}
-                      </SelectItem>
-                    ))}
+                    {loadingClientes ? (
+                      <SelectItem value="__loading">Carregando clientes...</SelectItem>
+                    ) : clientes?.length ? (
+                      clientes.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="__empty">Nenhum cliente encontrado</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
