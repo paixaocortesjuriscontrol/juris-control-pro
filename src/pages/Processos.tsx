@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,8 +26,9 @@ import { useProcessosComRedistribuicaoRecente } from "@/hooks/useRedistribuicoes
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 import { CacheIndicator } from "@/components/ui/cache-indicator";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { supabase } from "@/integrations/supabase/client";
 
 type AreaType = "civil" | "trabalhista" | "empresarial";
 type StatusType = "pending" | "active" | "closed" | "urgent";
@@ -65,10 +66,63 @@ const Processos = () => {
   const [comPublicacaoDjen, setComPublicacaoDjen] = useState(false);
   const [comAndamentos, setComAndamentos] = useState(false);
   
-  // Filtro de grupo de clientes
+  // Filtro de grupo de clientes (da URL ou selecionado manualmente)
   const grupoClientesParam = searchParams.get("grupo_clientes");
-  const grupoNome = searchParams.get("grupo_nome");
-  const clienteIds = grupoClientesParam ? grupoClientesParam.split(",") : undefined;
+  const grupoNomeParam = searchParams.get("grupo_nome");
+  
+  // Estados para filtros de grupo e cliente
+  const [selectedGrupoId, setSelectedGrupoId] = useState<string>("all");
+  const [selectedClienteId, setSelectedClienteId] = useState<string>("all");
+  
+  // Buscar grupos de clientes
+  const { data: grupos = [] } = useQuery({
+    queryKey: ["grupos_clientes_filter"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("grupos_clientes")
+        .select("id, nome")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar clientes do grupo selecionado
+  const { data: clientesDoGrupo = [] } = useQuery({
+    queryKey: ["clientes_do_grupo", selectedGrupoId],
+    enabled: selectedGrupoId !== "all",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes_grupos")
+        .select("cliente_id, clientes(id, nome)")
+        .eq("grupo_id", selectedGrupoId);
+      if (error) throw error;
+      return (data || []).map((item: any) => ({
+        id: item.clientes?.id,
+        nome: item.clientes?.nome,
+      })).filter((c: any) => c.id);
+    },
+  });
+
+  // Calcular clienteIds baseado nos filtros
+  const clienteIds = useMemo(() => {
+    // Se veio da URL (clicou no ícone do grupo)
+    if (grupoClientesParam) {
+      return grupoClientesParam.split(",");
+    }
+    // Se selecionou um cliente específico
+    if (selectedClienteId !== "all") {
+      return [selectedClienteId];
+    }
+    // Se selecionou um grupo (filtra por todos os clientes do grupo)
+    if (selectedGrupoId !== "all" && clientesDoGrupo.length > 0) {
+      return clientesDoGrupo.map((c) => c.id);
+    }
+    return undefined;
+  }, [grupoClientesParam, selectedGrupoId, selectedClienteId, clientesDoGrupo]);
+
+  // Nome do grupo para exibição
+  const grupoNome = grupoNomeParam || (selectedGrupoId !== "all" ? grupos.find(g => g.id === selectedGrupoId)?.nome : undefined);
   
   const { executarMonitoramento } = useConfiguracoesMonitoramento();
   const { data: coordenacoes } = useCoordenacoes();
@@ -215,13 +269,32 @@ const Processos = () => {
     filtrosAplicados.instancia !== "todos" ||
     comPublicacaoDjen ||
     comAndamentos ||
-    !!grupoClientesParam;
+    !!grupoClientesParam ||
+    selectedGrupoId !== "all" ||
+    selectedClienteId !== "all";
 
   const clearGrupoFilter = () => {
+    // Limpar params da URL
     const newParams = new URLSearchParams(searchParams);
     newParams.delete("grupo_clientes");
     newParams.delete("grupo_nome");
     setSearchParams(newParams, { replace: true });
+    // Limpar seleções manuais
+    setSelectedGrupoId("all");
+    setSelectedClienteId("all");
+  };
+
+  // Ao mudar o grupo manualmente, limpar cliente selecionado
+  const handleGrupoChange = (value: string) => {
+    setSelectedGrupoId(value);
+    setSelectedClienteId("all");
+    // Limpar params da URL se existirem
+    if (grupoClientesParam) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("grupo_clientes");
+      newParams.delete("grupo_nome");
+      setSearchParams(newParams, { replace: true });
+    }
   };
 
   return (
@@ -308,6 +381,46 @@ const Processos = () => {
                 <SelectItem value="empresarial">Empresarial</SelectItem>
               </SelectContent>
             </Select>
+            
+            {/* Filtro de Grupo de Clientes */}
+            <Select 
+              value={grupoClientesParam ? "url" : selectedGrupoId} 
+              onValueChange={handleGrupoChange}
+              disabled={!!grupoClientesParam}
+            >
+              <SelectTrigger className="w-full sm:w-44">
+                <Users className="w-4 h-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Grupo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os grupos</SelectItem>
+                {grupoClientesParam && (
+                  <SelectItem value="url">{grupoNome || "Grupo selecionado"}</SelectItem>
+                )}
+                {grupos.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Filtro de Cliente do Grupo */}
+            {(selectedGrupoId !== "all" || grupoClientesParam) && clientesDoGrupo.length > 0 && !grupoClientesParam && (
+              <Select value={selectedClienteId} onValueChange={setSelectedClienteId}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="Cliente do grupo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos do grupo ({clientesDoGrupo.length})</SelectItem>
+                  {clientesDoGrupo.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             {/* Special filters for DJEN and Movements */}
             <Tooltip>
@@ -480,9 +593,14 @@ const Processos = () => {
                 Período ×
               </Badge>
             )}
-            {grupoNome && (
+            {(grupoNome || selectedGrupoId !== "all") && (
               <Badge variant="outline" className="cursor-pointer" onClick={clearGrupoFilter}>
-                Grupo: {grupoNome} ×
+                Grupo: {grupoNome || grupos.find(g => g.id === selectedGrupoId)?.nome} ×
+              </Badge>
+            )}
+            {selectedClienteId !== "all" && (
+              <Badge variant="outline" className="cursor-pointer" onClick={() => setSelectedClienteId("all")}>
+                Cliente: {clientesDoGrupo.find(c => c.id === selectedClienteId)?.nome} ×
               </Badge>
             )}
             <Button 
@@ -496,6 +614,9 @@ const Processos = () => {
                 setCoordenacaoFilter("all");
                 setComPublicacaoDjen(false);
                 setComAndamentos(false);
+                setSelectedGrupoId("all");
+                setSelectedClienteId("all");
+                clearGrupoFilter();
                 handleLimparFiltros();
               }}
             >
