@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -30,6 +30,7 @@ import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
+import { InfoSistemaTab } from "@/components/admin/InfoSistemaTab";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -658,14 +659,18 @@ const Administracao = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-3 max-w-lg">
             <TabsTrigger value="usuarios" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               Usuários
             </TabsTrigger>
             <TabsTrigger value="historico" className="flex items-center gap-2">
               <History className="w-4 h-4" />
-              Histórico de Acesso
+              Histórico
+            </TabsTrigger>
+            <TabsTrigger value="sistema" className="flex items-center gap-2">
+              <Server className="w-4 h-4" />
+              Info Sistema
             </TabsTrigger>
           </TabsList>
 
@@ -906,6 +911,10 @@ const Administracao = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="sistema" className="mt-6">
+            <InfoSistemaTab />
           </TabsContent>
         </Tabs>
 
