@@ -209,6 +209,54 @@ export function NovaTarefaDialog({
 
       if (error) throw error;
 
+      // Buscar telefone do responsável para enviar WhatsApp
+      const { data: responsavel } = await supabase
+        .from("profiles")
+        .select("nome, telefone")
+        .eq("id", values.responsavel_id)
+        .single();
+
+      if (responsavel?.telefone) {
+        // Montar mensagem de delegação
+        const dataFormatada = format(new Date(values.data_vencimento), "dd/MM/yyyy");
+        const prioridadeLabel = {
+          baixa: "Baixa",
+          media: "Média", 
+          alta: "Alta",
+          urgente: "🚨 URGENTE"
+        }[values.prioridade] || values.prioridade;
+
+        let mensagem = `📋 *NOVA TAREFA DELEGADA*\n\n`;
+        mensagem += `Olá ${responsavel.nome?.split(" ")[0] || ""}!\n`;
+        mensagem += `Você recebeu uma nova tarefa:\n\n`;
+        mensagem += `📌 *${values.titulo}*\n`;
+        mensagem += `📁 Tipo: ${values.tipo_tarefa}\n`;
+        mensagem += `📆 Prazo: ${dataFormatada}\n`;
+        mensagem += `⚡ Prioridade: ${prioridadeLabel}\n`;
+        if (values.descricao) {
+          mensagem += `\n📝 *Descrição:*\n${values.descricao}\n`;
+        }
+        mensagem += `\n_JurisControl - Sistema de Gestão Jurídica_`;
+
+        // Enviar WhatsApp (não bloqueia a criação da tarefa)
+        supabase.functions.invoke("enviar-whatsapp-zapi", {
+          body: {
+            telefones: [responsavel.telefone],
+            mensagem,
+            tipo: "evento",
+          },
+        }).then(({ data, error: whatsappError }) => {
+          if (whatsappError) {
+            console.error("Erro ao enviar WhatsApp:", whatsappError);
+          } else if (data?.enviados > 0) {
+            toast({
+              title: "WhatsApp enviado",
+              description: `Notificação enviada para ${responsavel.nome}`,
+            });
+          }
+        });
+      }
+
       toast({
         title: "Tarefa criada!",
         description: "A tarefa foi criada e delegada com sucesso.",
