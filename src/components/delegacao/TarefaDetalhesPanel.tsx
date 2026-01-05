@@ -8,10 +8,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { MentionInput } from "@/components/ui/mention-input";
+import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import {
   Collapsible,
   CollapsibleContent,
@@ -21,9 +22,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   X,
   ExternalLink,
@@ -34,13 +44,9 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  Send,
   Copy,
   Loader2,
   ListChecks,
-  Calendar,
-  User,
-  FileText,
   MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -64,6 +70,9 @@ export function TarefaDetalhesPanel({
   const [tarefasRelacionadasOpen, setTarefasRelacionadasOpen] = useState(false);
   const [auditoriaOpen, setAuditoriaOpen] = useState(false);
   const [comentariosOpen, setComentariosOpen] = useState(true);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Fetch comentários
   const { data: comentarios, isLoading: loadingComentarios } = useQuery({
@@ -192,6 +201,31 @@ export function TarefaDetalhesPanel({
     }
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("prazos")
+        .delete()
+        .eq("id", tarefa.id);
+
+      if (error) throw error;
+
+      toast({ title: "Tarefa excluída!" });
+      onClose();
+      onUpdate();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir tarefa",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+      setDeleteDialogOpen(false);
+    }
+  };
+
   const copyProcessNumber = () => {
     if (tarefa.processo?.numero) {
       navigator.clipboard.writeText(tarefa.processo.numero);
@@ -263,12 +297,17 @@ export function TarefaDetalhesPanel({
             </Button>
           )}
 
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" onClick={() => setEditDialogOpen(true)}>
             <Edit className="w-3 h-3 mr-1" />
             Editar
           </Button>
 
-          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className="text-destructive hover:text-destructive"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
             <Trash2 className="w-3 h-3 mr-1" />
             Excluir
           </Button>
@@ -472,11 +511,12 @@ export function TarefaDetalhesPanel({
                     {2000 - comentario.length} caracteres restantes
                   </p>
                 </div>
-                <Textarea
-                  placeholder="Digite seu comentário..."
+                <MentionInput
+                  placeholder="Digite seu comentário... Use @ para mencionar usuários"
                   value={comentario}
-                  onChange={(e) => setComentario(e.target.value.slice(0, 2000))}
+                  onChange={setComentario}
                   rows={3}
+                  maxLength={2000}
                 />
                 <Button
                   size="sm"
@@ -529,6 +569,56 @@ export function TarefaDetalhesPanel({
           </Collapsible>
         </CardContent>
       </ScrollArea>
+
+      {/* Edit Dialog */}
+      <PrazoDialog
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) onUpdate();
+        }}
+        prazo={{
+          id: tarefa.id,
+          titulo: tarefa.titulo,
+          descricao: tarefa.descricao,
+          data_vencimento: tarefa.data_vencimento,
+          prioridade: tarefa.prioridade,
+          status: tarefa.status,
+          processo_id: tarefa.processo?.id || null,
+          processo: tarefa.processo,
+          responsavel_id: tarefa.responsavel?.id || null,
+          responsavel: tarefa.responsavel,
+          created_at: tarefa.created_at,
+          observacoes: null,
+          data_cumprimento: tarefa.data_cumprimento || null,
+          data_fatal: tarefa.data_fatal || null,
+          tipo_tarefa: tarefa.tipo_tarefa || null,
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a tarefa "{tarefa.titulo}"? 
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
