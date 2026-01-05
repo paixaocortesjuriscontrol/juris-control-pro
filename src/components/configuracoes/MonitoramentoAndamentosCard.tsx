@@ -319,8 +319,8 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
         {/* Nota explicativa */}
         <div className="pt-4 border-t">
           <p className="text-xs text-muted-foreground">
-            <strong>Nota:</strong> Este monitoramento busca andamentos via DataJud/CNJ e detecta audiências 
-            automaticamente nas movimentações, exibindo-as no Painel de Audiências.
+            <strong>Nota:</strong> Este monitoramento busca andamentos via DataJud/CNJ e detecta automaticamente 
+            audiências e intimações nas movimentações, exibindo-as nos painéis correspondentes.
           </p>
         </div>
       </CardContent>
