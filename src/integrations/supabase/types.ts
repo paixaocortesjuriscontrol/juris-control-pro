@@ -1559,6 +1559,7 @@ export type Database = {
         Row: {
           concluido_por_nome: string | null
           created_at: string
+          criado_por: string | null
           criado_por_nome: string | null
           data_base: string | null
           data_cumprimento: string | null
@@ -1582,6 +1583,7 @@ export type Database = {
         Insert: {
           concluido_por_nome?: string | null
           created_at?: string
+          criado_por?: string | null
           criado_por_nome?: string | null
           data_base?: string | null
           data_cumprimento?: string | null
@@ -1605,6 +1607,7 @@ export type Database = {
         Update: {
           concluido_por_nome?: string | null
           created_at?: string
+          criado_por?: string | null
           criado_por_nome?: string | null
           data_base?: string | null
           data_cumprimento?: string | null

@@ -297,20 +297,25 @@ export function TarefaDetalhesPanel({
             </Button>
           )}
 
-          <Button size="sm" variant="outline" onClick={() => setEditDialogOpen(true)}>
-            <Edit className="w-3 h-3 mr-1" />
-            Editar
-          </Button>
+          {/* Só quem criou a tarefa pode editar/excluir */}
+          {(tarefa.criado_por === user?.id || !tarefa.criado_por) && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setEditDialogOpen(true)}>
+                <Edit className="w-3 h-3 mr-1" />
+                Alterar
+              </Button>
 
-          <Button 
-            size="sm" 
-            variant="outline" 
-            className="text-destructive hover:text-destructive"
-            onClick={() => setDeleteDialogOpen(true)}
-          >
-            <Trash2 className="w-3 h-3 mr-1" />
-            Excluir
-          </Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="text-destructive hover:text-destructive"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="w-3 h-3 mr-1" />
+                Excluir
+              </Button>
+            </>
+          )}
         </div>
       </CardHeader>
 
@@ -589,6 +594,7 @@ export function TarefaDetalhesPanel({
           responsavel_id: tarefa.responsavel?.id || null,
           responsavel: tarefa.responsavel,
           created_at: tarefa.created_at,
+          criado_por: tarefa.criado_por || null,
           observacoes: null,
           data_cumprimento: tarefa.data_cumprimento || null,
           data_fatal: tarefa.data_fatal || null,

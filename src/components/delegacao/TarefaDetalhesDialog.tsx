@@ -880,6 +880,7 @@ export function TarefaDetalhesDialog({
           responsavel_id: tarefa.responsavel?.id || null,
           responsavel: tarefa.responsavel,
           created_at: tarefa.created_at,
+          criado_por: tarefa.criado_por || null,
           observacoes: null,
           data_cumprimento: tarefa.data_cumprimento || null,
           data_fatal: tarefa.data_fatal || null,
