@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeFileName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -325,7 +326,8 @@ export function TarefaDetalhesDialog({
     setUploadingDoc(true);
     try {
       const folder = tarefa.processo?.id ? tarefa.processo.id : `tarefas/${tarefa.id}`;
-      const fileName = `${folder}/${Date.now()}_${file.name}`;
+      const sanitizedName = sanitizeFileName(file.name);
+      const fileName = `${folder}/${Date.now()}_${sanitizedName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('documentos_processos')
