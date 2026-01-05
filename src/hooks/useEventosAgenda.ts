@@ -276,6 +276,21 @@ export function useUpdateEvento() {
         }
       }
 
+      // Send email notifications to participants on update
+      if (participantes_ids && participantes_ids.length > 0) {
+        try {
+          await supabase.functions.invoke('notificar-evento', {
+            body: {
+              evento_id: id,
+              participantes_ids: participantes_ids,
+              tipo_notificacao: 'atualizacao'
+            }
+          });
+        } catch (emailError) {
+          console.error("Erro ao enviar notificações por email:", emailError);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
