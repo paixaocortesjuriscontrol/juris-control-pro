@@ -281,34 +281,25 @@ async function processProcessosBatch(
         }
         seenHashes.add(hashConteudo);
 
-        // Check for existing
-        const { data: existing } = await supabase
-          .from('publicacoes_djen_processos')
-          .select('id')
-          .eq('hash_conteudo', hashConteudo)
-          .limit(1);
-
-        if (existing && existing.length > 0) {
-          totalDuplicadas++;
-          continue;
-        }
-
-        // Insert new publication
+        // Upsert to avoid race conditions - onConflict ignores if already exists
         const { data: inserted, error: insertError } = await supabase
           .from('publicacoes_djen_processos')
-          .insert({
+          .upsert({
             processo_id: processo.id,
+            processo_numero: processo.numero,
             hash_conteudo: hashConteudo,
             data_publicacao: dataPublicacao,
             conteudo: conteudo.slice(0, 10000),
             fonte: 'pje_comunica',
-            tribunal: pub.tribunal || pub.siglaTribunal || null,
-            orgao_julgador: pub.orgaoJulgador || pub.vara || null,
-          })
+          }, { onConflict: 'hash_conteudo', ignoreDuplicates: true })
           .select('id')
           .single();
 
-        if (insertError) continue;
+        // If no data returned, it's a duplicate
+        if (insertError || !inserted) {
+          totalDuplicadas++;
+          continue;
+        }
 
         totalNovas++;
         novasDoProcesso++;
