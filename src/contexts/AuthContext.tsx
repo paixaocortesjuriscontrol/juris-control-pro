@@ -134,7 +134,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Atualiza o estado local imediatamente para garantir redirecionamento no mobile
+    setSession(null);
+    setUser(null);
+
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
   };
 
   return (
