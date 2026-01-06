@@ -24,7 +24,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, X, UserPlus, MessageCircle, Loader2 } from "lucide-react";
+import { Search, X, UserPlus, MessageCircle, Loader2, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
@@ -82,7 +82,9 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
   });
 
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
+  const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>("todas");
   const [participanteSearch, setParticipanteSearch] = useState("");
+  const [processoSearch, setProcessoSearch] = useState("");
 
   const { data: coordenacoes } = useQuery({
     queryKey: ["coordenacoes-agenda"],
@@ -123,6 +125,46 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
       if (error) throw error;
       return data;
     },
+  });
+
+  // Query para buscar processos com filtro por coordenação
+  const { data: processos } = useQuery({
+    queryKey: ["processos-agenda", coordenacaoProcessoFiltro, processoSearch],
+    queryFn: async () => {
+      let query = supabase
+        .from("processos")
+        .select("id, numero, polo_ativo, polo_passivo, coordenacao_id")
+        .order("numero")
+        .limit(50);
+      
+      if (coordenacaoProcessoFiltro && coordenacaoProcessoFiltro !== "todas") {
+        query = query.eq("coordenacao_id", coordenacaoProcessoFiltro);
+      }
+      
+      if (processoSearch) {
+        query = query.or(`numero.ilike.%${processoSearch}%,polo_ativo.ilike.%${processoSearch}%,polo_passivo.ilike.%${processoSearch}%`);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Buscar processo selecionado para exibir
+  const { data: processoSelecionado } = useQuery({
+    queryKey: ["processo-selecionado", formData.processo_id],
+    queryFn: async () => {
+      if (!formData.processo_id) return null;
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, numero, polo_ativo, polo_passivo")
+        .eq("id", formData.processo_id)
+        .single();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!formData.processo_id,
   });
 
   const filteredUsuarios = useMemo(() => {
@@ -477,6 +519,85 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
                     />
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Vincular Processo */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <Label className="font-medium flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Vincular Processo (opcional)
+              </Label>
+              
+              {/* Processo selecionado */}
+              {processoSelecionado && (
+                <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                  <div className="text-sm">
+                    <span className="font-medium">{processoSelecionado.numero}</span>
+                    <span className="text-muted-foreground ml-2">
+                      {processoSelecionado.polo_ativo} x {processoSelecionado.polo_passivo}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFormData({ ...formData, processo_id: "" })}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              
+              {!formData.processo_id && (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Select value={coordenacaoProcessoFiltro} onValueChange={setCoordenacaoProcessoFiltro}>
+                      <SelectTrigger className="w-full sm:w-48">
+                        <SelectValue placeholder="Filtrar por coordenação" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todas">Todas as coordenações</SelectItem>
+                        {coordenacoes?.map((coord) => (
+                          <SelectItem key={coord.id} value={coord.id}>
+                            {coord.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por número ou partes..."
+                        value={processoSearch}
+                        onChange={(e) => setProcessoSearch(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {processos?.map((processo) => (
+                      <div
+                        key={processo.id}
+                        className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer text-sm"
+                        onClick={() => setFormData({ ...formData, processo_id: processo.id })}
+                      >
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium">{processo.numero}</span>
+                        <span className="text-muted-foreground truncate">
+                          {processo.polo_ativo} x {processo.polo_passivo}
+                        </span>
+                      </div>
+                    ))}
+                    {processos?.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        Nenhum processo encontrado
+                      </p>
+                    )}
+                  </div>
+                </>
               )}
             </div>
 
