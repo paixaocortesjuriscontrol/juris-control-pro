@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Calendar, Clock, Search, CheckCircle, XCircle, AlertCircle, 
   CalendarDays, FileText, Eye, Plus, Building, AlertTriangle,
-  Timer, PlayCircle, Download, Settings
+  Timer, PlayCircle, Download, Settings, Users
 } from "lucide-react";
 import { useIntimacoesDetectadas, IntimacaoDetectada } from "@/hooks/useIntimacoesDetectadas";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
@@ -18,14 +19,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function PainelIntimacoes() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("pendente");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState("todas");
   const [selectedIntimacao, setSelectedIntimacao] = useState<IntimacaoDetectada | null>(null);
   const [observacoes, setObservacoes] = useState("");
   const [providencias, setProvidencias] = useState("");
   const [novaIntimacaoOpen, setNovaIntimacaoOpen] = useState(false);
+
+  // Buscar coordenações
+  const { data: coordenacoes = [] } = useQuery({
+    queryKey: ['coordenacoes-select'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('coordenacoes')
+        .select('id, nome')
+        .order('nome');
+      return data || [];
+    },
+  });
 
   // Form nova intimação
   const [novaIntimacao, setNovaIntimacao] = useState({
@@ -53,6 +68,7 @@ export default function PainelIntimacoes() {
   } = useIntimacoesDetectadas({ 
     status: statusFilter,
     search,
+    coordenacaoId: coordenacaoFilter,
   });
 
   const handleMarcarTratado = async (id: string) => {
@@ -297,6 +313,18 @@ export default function PainelIntimacoes() {
                 className="pl-10"
               />
             </div>
+            <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+              <SelectTrigger className="w-full md:w-[220px]">
+                <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as coordenações</SelectItem>
+                {coordenacoes.map((coord) => (
+                  <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Status" />

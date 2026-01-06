@@ -79,6 +79,7 @@ interface AudienciasFiltros {
   dataInicio?: string;
   dataFim?: string;
   search?: string;
+  coordenacaoId?: string;
 }
 
 export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
@@ -88,6 +89,62 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
   const { data: audiencias = [], isLoading } = useQuery({
     queryKey: ['audiencias-detectadas', filtros],
     queryFn: async () => {
+      // Se filtro de coordenação está ativo, precisamos filtrar pelo processo_numero
+      if (filtros.coordenacaoId && filtros.coordenacaoId !== 'todas') {
+        // Buscar números de processos da coordenação
+        const { data: processosCoord } = await supabase
+          .from('processos')
+          .select('numero')
+          .eq('coordenacao_id', filtros.coordenacaoId);
+
+        if (!processosCoord || processosCoord.length === 0) {
+          return [] as AudienciaDetectada[];
+        }
+
+        const processosNumeros = processosCoord.map(p => p.numero);
+
+        let query = supabase
+          .from('audiencias_detectadas')
+          .select(`
+            *,
+            monitoramento:monitoramentos_djen(termo_busca, descricao)
+          `)
+          .in('processo_numero', processosNumeros)
+          .order('data_audiencia', { ascending: true, nullsFirst: false });
+
+        if (filtros.status && filtros.status !== 'todos') {
+          query = query.eq('status', filtros.status);
+        }
+
+        if (filtros.dataInicio) {
+          query = query.gte('data_audiencia', filtros.dataInicio);
+        }
+
+        if (filtros.dataFim) {
+          query = query.lte('data_audiencia', filtros.dataFim);
+        }
+
+        const { data, error } = await query.limit(200);
+
+        if (error) throw error;
+        
+        let result = data as AudienciaDetectada[];
+        if (filtros.search) {
+          const searchLower = filtros.search.toLowerCase();
+          result = result.filter(a => 
+            a.processo_numero?.toLowerCase().includes(searchLower) ||
+            a.contexto?.toLowerCase().includes(searchLower) ||
+            a.tipo_audiencia?.toLowerCase().includes(searchLower) ||
+            a.cliente?.toLowerCase().includes(searchLower) ||
+            a.advogado?.toLowerCase().includes(searchLower) ||
+            a.comarca?.toLowerCase().includes(searchLower)
+          );
+        }
+        
+        return result;
+      }
+
+      // Sem filtro de coordenação - busca normal
       let query = supabase
         .from('audiencias_detectadas')
         .select(`
