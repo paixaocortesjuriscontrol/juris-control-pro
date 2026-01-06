@@ -75,14 +75,14 @@ export function RelatorioAtividades({ isActive }: RelatorioAtividadesProps) {
   }
 
   const {
-    totalPrazos,
-    prazosStatus,
-    atividadesConcluidas,
-    atividadesNaoConcluidas,
-    atividadesPorArea,
-    evolucaoAndamentos,
-    andamentosPorArea,
-  } = data;
+    totalPrazos = 0,
+    prazosStatus = [],
+    atividadesConcluidas = 0,
+    atividadesNaoConcluidas = 0,
+    atividadesPorArea = [],
+    evolucaoAndamentos = [],
+    andamentosPorArea = [],
+  } = data || {};
 
   return (
     <div className="space-y-6">
