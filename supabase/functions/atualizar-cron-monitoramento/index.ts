@@ -13,7 +13,7 @@ const frequenciaCron: Record<string, string> = {
 };
 
 // Tipos válidos de monitoramento
-const tiposValidos = ['redistribuicoes', 'andamentos', 'distribuicoes'];
+const tiposValidos = ['redistribuicoes', 'andamentos', 'distribuicoes', 'termos'];
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
