@@ -437,77 +437,69 @@ const Processos = () => {
             )}
 
             {/* Special filters for DJEN and Movements */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={comPublicacaoDjen ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "h-9 gap-2",
-                    comPublicacaoDjen && "bg-blue-600 hover:bg-blue-700 text-white"
-                  )}
-                  onClick={() => setComPublicacaoDjen(!comPublicacaoDjen)}
-                >
-                  <FileText className="w-4 h-4" />
-                  <span className="hidden sm:inline">Com DJEN</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Processos com publicação DJEN</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 gap-2 touch-manipulation",
+                comPublicacaoDjen && "bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+              )}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                setComPublicacaoDjen(prev => !prev);
+              }}
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Com DJEN</span>
+            </Button>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={comAndamentos ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "h-9 gap-2",
-                    comAndamentos && "bg-green-600 hover:bg-green-700 text-white"
-                  )}
-                  onClick={() => setComAndamentos(!comAndamentos)}
-                >
-                  <Activity className="w-4 h-4" />
-                  <span className="hidden sm:inline">Com Andamentos</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Processos com andamentos registrados</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 gap-2 touch-manipulation",
+                comAndamentos && "bg-green-600 hover:bg-green-700 text-white border-green-600"
+              )}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                setComAndamentos(prev => !prev);
+              }}
+            >
+              <Activity className="w-4 h-4" />
+              <span className="hidden sm:inline">Com Andamentos</span>
+            </Button>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={comAudiencias ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "h-9 gap-2",
-                    comAudiencias && "bg-amber-600 hover:bg-amber-700 text-white"
-                  )}
-                  onClick={() => setComAudiencias(!comAudiencias)}
-                >
-                  <Gavel className="w-4 h-4" />
-                  <span className="hidden sm:inline">Com Audiências</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Processos com audiências detectadas</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 gap-2 touch-manipulation",
+                comAudiencias && "bg-amber-600 hover:bg-amber-700 text-white border-amber-600"
+              )}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                setComAudiencias(prev => !prev);
+              }}
+            >
+              <Gavel className="w-4 h-4" />
+              <span className="hidden sm:inline">Com Audiências</span>
+            </Button>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={comIntimacoes ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "h-9 gap-2",
-                    comIntimacoes && "bg-red-600 hover:bg-red-700 text-white"
-                  )}
-                  onClick={() => setComIntimacoes(!comIntimacoes)}
-                >
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="hidden sm:inline">Com Intimações</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Processos com intimações detectadas</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 gap-2 touch-manipulation",
+                comIntimacoes && "bg-red-600 hover:bg-red-700 text-white border-red-600"
+              )}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                setComIntimacoes(prev => !prev);
+              }}
+            >
+              <AlertCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">Com Intimações</span>
+            </Button>
           </div>
 
           {/* Action Buttons Row */}
