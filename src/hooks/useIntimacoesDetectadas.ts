@@ -42,6 +42,7 @@ interface FiltrosIntimacao {
   search?: string;
   dataInicio?: Date;
   dataFim?: Date;
+  coordenacaoId?: string;
 }
 
 export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
@@ -51,6 +52,65 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
   const { data: intimacoes = [], isLoading } = useQuery({
     queryKey: ['intimacoes-detectadas', filtros],
     queryFn: async () => {
+      // Se filtro de coordenação está ativo, precisamos fazer JOIN com processos
+      if (filtros.coordenacaoId && filtros.coordenacaoId !== 'todas') {
+        // Buscar via processo_id ou processo_numero
+        const { data: processosCoord } = await supabase
+          .from('processos')
+          .select('id, numero')
+          .eq('coordenacao_id', filtros.coordenacaoId);
+
+        if (!processosCoord || processosCoord.length === 0) {
+          return [] as IntimacaoDetectada[];
+        }
+
+        const processosIds = processosCoord.map(p => p.id);
+        const processosNumeros = processosCoord.map(p => p.numero);
+
+        let query = supabase
+          .from('intimacoes_detectadas')
+          .select('*')
+          .order('data_limite', { ascending: true, nullsFirst: false });
+
+        if (filtros.status && filtros.status !== 'todos') {
+          query = query.eq('status', filtros.status);
+        }
+
+        if (filtros.dataInicio) {
+          query = query.gte('data_intimacao', filtros.dataInicio.toISOString());
+        }
+
+        if (filtros.dataFim) {
+          query = query.lte('data_intimacao', filtros.dataFim.toISOString());
+        }
+
+        // Filtrar por processo_id OU processo_numero que pertençam à coordenação
+        query = query.or(`processo_id.in.(${processosIds.join(',')}),processo_numero.in.(${processosNumeros.map(n => `"${n}"`).join(',')})`);
+
+        const { data, error } = await query;
+        
+        if (error) {
+          console.error('Erro ao buscar intimações:', error);
+          throw error;
+        }
+
+        let result = data || [];
+
+        // Filtro de busca client-side
+        if (filtros.search) {
+          const searchLower = filtros.search.toLowerCase();
+          result = result.filter(i => 
+            i.processo_numero?.toLowerCase().includes(searchLower) ||
+            i.descricao?.toLowerCase().includes(searchLower) ||
+            i.tipo_intimacao?.toLowerCase().includes(searchLower) ||
+            i.orgao_intimante?.toLowerCase().includes(searchLower)
+          );
+        }
+
+        return result as IntimacaoDetectada[];
+      }
+
+      // Sem filtro de coordenação - busca normal
       let query = supabase
         .from('intimacoes_detectadas')
         .select('*')

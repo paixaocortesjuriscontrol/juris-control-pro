@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, CalendarDays, FileText, Eye, Plus, User, Building, Upload, Download, Pencil, Settings, FileSpreadsheet } from "lucide-react";
+import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, CalendarDays, FileText, Eye, Plus, User, Building, Upload, Download, Pencil, Settings, FileSpreadsheet, Users } from "lucide-react";
 import { useAudienciasDetectadas, AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { useExportarAudiencias } from "@/hooks/useExportarAudiencias";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
@@ -19,16 +20,30 @@ import { ImportarAudienciasDialog } from "@/components/audiencias/ImportarAudien
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { ConfigAlertasAudienciasTab } from "@/components/audiencias/ConfigAlertasAudienciasTab";
 import { RelatorioAudienciasDiretoria } from "@/components/audiencias/RelatorioAudienciasDiretoria";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function PainelAudiencias() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("pendente");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState("todas");
   const [selectedAudiencia, setSelectedAudiencia] = useState<AudienciaDetectada | null>(null);
   const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);
   const [observacoes, setObservacoes] = useState("");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const { exportarExcel } = useExportarAudiencias();
+
+  // Buscar coordenações
+  const { data: coordenacoes = [] } = useQuery({
+    queryKey: ['coordenacoes-select'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('coordenacoes')
+        .select('id, nome')
+        .order('nome');
+      return data || [];
+    },
+  });
 
   const { 
     audiencias, 
@@ -41,6 +56,7 @@ export default function PainelAudiencias() {
   } = useAudienciasDetectadas({ 
     status: statusFilter,
     search,
+    coordenacaoId: coordenacaoFilter,
   });
 
   const handleMarcarTratado = async (id: string) => {
@@ -217,6 +233,18 @@ export default function PainelAudiencias() {
                 className="pl-10"
               />
             </div>
+            <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+              <SelectTrigger className="w-full md:w-[220px]">
+                <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as coordenações</SelectItem>
+                {coordenacoes.map((coord) => (
+                  <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Status" />
