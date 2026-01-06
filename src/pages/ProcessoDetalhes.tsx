@@ -1118,51 +1118,79 @@ export default function ProcessoDetalhes() {
         </Card>
 
         {/* Tabs de Eventos */}
-        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(prev => prev === val ? "" : val)} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-7 sm:w-auto sm:inline-flex">
-              <TabsTrigger value="audiencias" className="gap-1.5">
+              <TabsTrigger 
+                value="audiencias" 
+                className="gap-1.5"
+                onClick={() => activeTab === "audiencias" && setActiveTab("")}
+              >
                 <Gavel className="w-4 h-4" />
                 <span className="hidden sm:inline">Audiências</span>
                 {audiencias.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length}</Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="intimacoes" className="gap-1.5">
+              <TabsTrigger 
+                value="intimacoes" 
+                className="gap-1.5"
+                onClick={() => activeTab === "intimacoes" && setActiveTab("")}
+              >
                 <AlertCircle className="w-4 h-4" />
                 <span className="hidden sm:inline">Intimações</span>
                 {intimacoes.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{intimacoes.length}</Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="tarefas" className="gap-1.5">
+              <TabsTrigger 
+                value="tarefas" 
+                className="gap-1.5"
+                onClick={() => activeTab === "tarefas" && setActiveTab("")}
+              >
                 <ListTodo className="w-4 h-4" />
                 <span className="hidden sm:inline">Tarefas</span>
                 {tarefas.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.length}</Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="publicacoes" className="gap-1.5">
+              <TabsTrigger 
+                value="publicacoes" 
+                className="gap-1.5"
+                onClick={() => activeTab === "publicacoes" && setActiveTab("")}
+              >
                 <Newspaper className="w-4 h-4" />
                 <span className="hidden sm:inline">Pub. DJEN</span>
                 {publicacoesDjen.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{publicacoesDjen.length}</Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="andamentos" className="gap-1.5">
+              <TabsTrigger 
+                value="andamentos" 
+                className="gap-1.5"
+                onClick={() => activeTab === "andamentos" && setActiveTab("")}
+              >
                 <FileText className="w-4 h-4" />
                 <span className="hidden sm:inline">Andamentos</span>
                 {movimentacoes && movimentacoes.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{movimentacoes.length}</Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="redistribuicoes" className="gap-1.5">
+              <TabsTrigger 
+                value="redistribuicoes" 
+                className="gap-1.5"
+                onClick={() => activeTab === "redistribuicoes" && setActiveTab("")}
+              >
                 <Shuffle className="w-4 h-4" />
                 <span className="hidden sm:inline">Redistrib.</span>
                 {redistribuicoes.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{redistribuicoes.length}</Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="monitoramento360" className="gap-1.5">
+              <TabsTrigger 
+                value="monitoramento360" 
+                className="gap-1.5"
+                onClick={() => activeTab === "monitoramento360" && setActiveTab("")}
+              >
                 <Radar className="w-4 h-4" />
                 <span className="hidden sm:inline">360º</span>
                 {alertas360.length > 0 && (
