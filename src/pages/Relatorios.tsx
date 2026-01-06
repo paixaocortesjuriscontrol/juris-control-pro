@@ -1,14 +1,16 @@
 import { useState, useRef } from "react";
 import { 
   BarChart3, 
-  Download, 
   Calendar, 
   Filter,
   AlertTriangle,
   Activity,
   Users,
   Loader2,
-  FileDown
+  FileDown,
+  Clock,
+  CheckCircle,
+  TrendingUp,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -26,35 +28,43 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RelatorioResumo } from "@/components/relatorios/RelatorioResumo";
-import { RelatorioAtividades } from "@/components/relatorios/RelatorioAtividades";
+import { RelatorioPrazos } from "@/components/relatorios/RelatorioPrazos";
+import { RelatorioTarefas } from "@/components/relatorios/RelatorioTarefas";
+import { RelatorioAndamentos } from "@/components/relatorios/RelatorioAndamentos";
 import { RelatorioClientes } from "@/components/relatorios/RelatorioClientes";
 import { RelatorioPrintView } from "@/components/relatorios/RelatorioPrintView";
 import { useRelatorioResumoData } from "@/hooks/useRelatorioResumoData";
-import { useRelatorioAtividadesData } from "@/hooks/useRelatorioAtividadesData";
+import { useRelatorioPrazosData } from "@/hooks/useRelatorioPrazosData";
+import { useRelatorioTarefasData } from "@/hooks/useRelatorioTarefasData";
+import { useRelatorioAndamentosData } from "@/hooks/useRelatorioAndamentosData";
 import { useRelatorioClientesData } from "@/hooks/useRelatorioClientesData";
 
 const Relatorios = () => {
   const [periodo, setPeriodo] = useState("ultimo-mes");
   const [activeTab, setActiveTab] = useState("resumo");
+  const [activeSubTab, setActiveSubTab] = useState("prazos");
   const [exporting, setExporting] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   // Carregar dados de todos os relatórios para exportação
-  const { data: resumoData, isLoading: resumoLoading, isFetching: resumoFetching, refetch: refetchResumo } = useRelatorioResumoData(true);
-  const { data: atividadesData, isLoading: atividadesLoading, isFetching: atividadesFetching, refetch: refetchAtividades } = useRelatorioAtividadesData(true);
-  const { data: clientesData, isLoading: clientesLoading, isFetching: clientesFetching, refetch: refetchClientes } = useRelatorioClientesData(true);
+  const { data: resumoData, isLoading: resumoLoading, refetch: refetchResumo } = useRelatorioResumoData(true);
+  const { data: prazosData, isLoading: prazosLoading, refetch: refetchPrazos } = useRelatorioPrazosData(true);
+  const { data: tarefasData, isLoading: tarefasLoading, refetch: refetchTarefas } = useRelatorioTarefasData(true);
+  const { data: andamentosData, isLoading: andamentosLoading, refetch: refetchAndamentos } = useRelatorioAndamentosData(true);
+  const { data: clientesData, isLoading: clientesLoading, refetch: refetchClientes } = useRelatorioClientesData(true);
 
   // Permite exportar se tiver ao menos os dados de resumo
   const canExportPdf = Boolean(resumoData);
-  // Só mostra loading se estiver na carga inicial (isLoading), não no refetch
-  const loadingExportData = resumoLoading || atividadesLoading || clientesLoading;
+  // Só mostra loading se estiver na carga inicial (isLoading)
+  const allLoading = [resumoLoading, prazosLoading, tarefasLoading, andamentosLoading, clientesLoading];
+  const loadingExportData = allLoading.some(Boolean);
 
   // Calcular percentual de carregamento (0 a 100)
-  const loadedCount = [!resumoLoading, !atividadesLoading, !clientesLoading].filter(Boolean).length;
-  const loadingProgress = Math.round((loadedCount / 3) * 100);
+  const loadedCount = allLoading.filter(loading => !loading).length;
+  const loadingProgress = Math.round((loadedCount / 5) * 100);
 
   const handleExportPdf = async () => {
-    if (exporting || loadingExportData || !canExportPdf) return;
+    if (exporting || !canExportPdf) return;
 
     setExporting(true);
 
@@ -67,11 +77,13 @@ const Relatorios = () => {
     };
 
     try {
-      // Tenta atualizar dados com timeout de 5 segundos cada
+      // Tenta atualizar dados com timeout de 3 segundos cada
       await Promise.all([
-        withTimeout(refetchResumo(), 5000),
-        withTimeout(refetchAtividades(), 5000),
-        withTimeout(refetchClientes(), 5000)
+        withTimeout(refetchResumo(), 3000),
+        withTimeout(refetchPrazos(), 3000),
+        withTimeout(refetchTarefas(), 3000),
+        withTimeout(refetchAndamentos(), 3000),
+        withTimeout(refetchClientes(), 3000)
       ]);
     } catch (e) {
       console.error("Erro ao atualizar dados para exportação do PDF:", e);
@@ -93,6 +105,17 @@ const Relatorios = () => {
     });
 
     setTimeout(finish, 5000);
+  };
+
+  // Preparar dados combinados para o PrintView (mantendo compatibilidade)
+  const atividadesData = {
+    totalPrazos: prazosData?.totalPrazos ?? 0,
+    prazosStatus: prazosData?.prazosStatus ?? [],
+    atividadesConcluidas: tarefasData?.totalConcluidas ?? 0,
+    atividadesNaoConcluidas: tarefasData?.totalPendentes ?? 0,
+    atividadesPorArea: tarefasData?.atividadesPorArea ?? [],
+    evolucaoAndamentos: andamentosData?.evolucaoAndamentos ?? [],
+    andamentosPorArea: andamentosData?.andamentosPorArea ?? [],
   };
 
   return (
@@ -123,17 +146,17 @@ const Relatorios = () => {
               Mais Filtros
             </Button>
             <div className="ml-auto flex flex-col items-end gap-2">
-              <Button onClick={handleExportPdf} disabled={exporting || loadingExportData || !canExportPdf}>
+              <Button onClick={handleExportPdf} disabled={exporting || !canExportPdf}>
                 {exporting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <FileDown className="w-4 h-4 mr-2" />
                 )}
                 <span className="hidden sm:inline">
-                  {exporting ? "Gerando..." : loadingExportData ? "Carregando..." : "Exportar PDF"}
+                  {exporting ? "Gerando..." : "Exportar PDF"}
                 </span>
                 <span className="sm:hidden">
-                  {exporting ? "..." : loadingExportData ? "..." : "PDF"}
+                  {exporting ? "..." : "PDF"}
                 </span>
               </Button>
               {loadingExportData && (
@@ -177,7 +200,38 @@ const Relatorios = () => {
         </TabsContent>
 
         <TabsContent value="atividades" className="mt-6">
-          <RelatorioAtividades isActive={activeTab === "atividades"} />
+          {/* Sub-tabs para Atividades */}
+          <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
+              <TabsTrigger value="prazos" className="flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                <span className="hidden sm:inline">Prazos</span>
+                {prazosLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+              </TabsTrigger>
+              <TabsTrigger value="tarefas" className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Tarefas</span>
+                {tarefasLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+              </TabsTrigger>
+              <TabsTrigger value="andamentos" className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                <span className="hidden sm:inline">Andamentos</span>
+                {andamentosLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="prazos" className="mt-6">
+              <RelatorioPrazos isActive={activeTab === "atividades" && activeSubTab === "prazos"} />
+            </TabsContent>
+
+            <TabsContent value="tarefas" className="mt-6">
+              <RelatorioTarefas isActive={activeTab === "atividades" && activeSubTab === "tarefas"} />
+            </TabsContent>
+
+            <TabsContent value="andamentos" className="mt-6">
+              <RelatorioAndamentos isActive={activeTab === "atividades" && activeSubTab === "andamentos"} />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="clientes" className="mt-6">
