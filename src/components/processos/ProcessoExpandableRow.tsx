@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp } from "lucide-react";
+import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import DOMPurify from "dompurify";
@@ -43,7 +43,7 @@ export function ProcessoExpandableRow({
   onToggleSelection,
   onNavigate,
 }: ProcessoExpandableRowProps) {
-  const [expandedSection, setExpandedSection] = useState<"djen" | "andamentos" | null>(null);
+  const [expandedSection, setExpandedSection] = useState<"djen" | "andamentos" | "audiencias" | "intimacoes" | null>(null);
 
   // Check if process has DJEN publications
   const { data: countDjen } = useQuery({
@@ -66,6 +66,32 @@ export function ProcessoExpandableRow({
         .from("movimentacoes")
         .select("id", { count: "exact", head: true })
         .eq("processo_id", processo.id);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
+  // Check if process has audiencias
+  const { data: countAudiencias } = useQuery({
+    queryKey: ["count-audiencias-processo", processo.id, processo.numero],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("audiencias_detectadas")
+        .select("id", { count: "exact", head: true })
+        .or(`processo_id.eq.${processo.id},processo_numero.eq.${processo.numero}`);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
+  // Check if process has intimacoes
+  const { data: countIntimacoes } = useQuery({
+    queryKey: ["count-intimacoes-processo", processo.id, processo.numero],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("intimacoes_detectadas")
+        .select("id", { count: "exact", head: true })
+        .or(`processo_id.eq.${processo.id},processo_numero.eq.${processo.numero}`);
       if (error) throw error;
       return count || 0;
     },
@@ -103,10 +129,44 @@ export function ProcessoExpandableRow({
     },
   });
 
+  // Fetch audiencias when expanded
+  const { data: audiencias, isLoading: loadingAudiencias } = useQuery({
+    queryKey: ["audiencias-processo-expand", processo.id, processo.numero],
+    enabled: expandedSection === "audiencias" && (countAudiencias ?? 0) > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audiencias_detectadas")
+        .select("*")
+        .or(`processo_id.eq.${processo.id},processo_numero.eq.${processo.numero}`)
+        .order("data_audiencia", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch intimacoes when expanded
+  const { data: intimacoes, isLoading: loadingIntimacoes } = useQuery({
+    queryKey: ["intimacoes-processo-expand", processo.id, processo.numero],
+    enabled: expandedSection === "intimacoes" && (countIntimacoes ?? 0) > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("intimacoes_detectadas")
+        .select("*")
+        .or(`processo_id.eq.${processo.id},processo_numero.eq.${processo.numero}`)
+        .order("data_intimacao", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const hasDjen = (countDjen ?? 0) > 0;
   const hasMov = (countMov ?? 0) > 0;
+  const hasAudiencias = (countAudiencias ?? 0) > 0;
+  const hasIntimacoes = (countIntimacoes ?? 0) > 0;
 
-  const toggleSection = (section: "djen" | "andamentos") => {
+  const toggleSection = (section: "djen" | "andamentos" | "audiencias" | "intimacoes") => {
     setExpandedSection((prev) => (prev === section ? null : section));
   };
 
@@ -213,6 +273,40 @@ export function ProcessoExpandableRow({
                   <span className="text-xs">{countMov}</span>
                 </Button>
               )}
+              {hasAudiencias && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 px-2 gap-1",
+                    expandedSection === "audiencias" && "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("audiencias");
+                  }}
+                >
+                  <Gavel className="w-3.5 h-3.5" />
+                  <span className="text-xs">{countAudiencias}</span>
+                </Button>
+              )}
+              {hasIntimacoes && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 px-2 gap-1",
+                    expandedSection === "intimacoes" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("intimacoes");
+                  }}
+                >
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span className="text-xs">{countIntimacoes}</span>
+                </Button>
+              )}
               <span className="text-xs text-muted-foreground ml-auto">
                 {processo.data_distribuicao
                   ? new Date(processo.data_distribuicao).toLocaleDateString("pt-BR")
@@ -289,6 +383,52 @@ export function ProcessoExpandableRow({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Andamentos</TooltipContent>
+            </Tooltip>
+          )}
+
+          {hasAudiencias && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 px-2 gap-1",
+                    expandedSection === "audiencias" && "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("audiencias");
+                  }}
+                >
+                  <Gavel className="w-3.5 h-3.5" />
+                  <span className="text-xs">{countAudiencias}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Audiências</TooltipContent>
+            </Tooltip>
+          )}
+
+          {hasIntimacoes && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 px-2 gap-1",
+                    expandedSection === "intimacoes" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("intimacoes");
+                  }}
+                >
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span className="text-xs">{countIntimacoes}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Intimações</TooltipContent>
             </Tooltip>
           )}
 
@@ -406,6 +546,151 @@ export function ProcessoExpandableRow({
               ) : (
                 <p className="text-sm text-muted-foreground py-4 text-center">
                   Nenhum andamento encontrado
+                </p>
+              )}
+            </div>
+          )}
+
+          {expandedSection === "audiencias" && (
+            <div className="pt-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Gavel className="w-4 h-4 text-amber-600" />
+                <span className="font-medium text-sm">Audiências</span>
+                {audiencias && (
+                  <Badge variant="secondary" className="text-xs">
+                    {audiencias.length}
+                  </Badge>
+                )}
+              </div>
+
+              {loadingAudiencias ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : audiencias && audiencias.length > 0 ? (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3 pr-4">
+                    {audiencias.map((aud: any) => (
+                      <div
+                        key={aud.id}
+                        className={cn(
+                          "p-4 rounded-lg border",
+                          aud.status === "pendente"
+                            ? "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800"
+                            : "bg-background border-border/50"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            {aud.data_audiencia
+                              ? format(new Date(aud.data_audiencia), "dd/MM/yyyy")
+                              : "Data não informada"}
+                            {aud.hora && ` às ${aud.hora}`}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {aud.tipo_audiencia && (
+                              <Badge variant="outline" className="text-xs">
+                                {aud.tipo_audiencia}
+                              </Badge>
+                            )}
+                            <Badge
+                              variant={aud.status === "pendente" ? "default" : "secondary"}
+                              className={cn(
+                                "text-xs",
+                                aud.status === "pendente" && "bg-amber-600"
+                              )}
+                            >
+                              {aud.status === "pendente" ? "Pendente" : aud.status === "tratado" ? "Tratada" : "Ignorada"}
+                            </Badge>
+                          </div>
+                        </div>
+                        {aud.local_audiencia && (
+                          <p className="text-sm text-muted-foreground mb-1">Local: {aud.local_audiencia}</p>
+                        )}
+                        {aud.vara_camara && (
+                          <p className="text-sm text-muted-foreground">Vara: {aud.vara_camara}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  Nenhuma audiência encontrada
+                </p>
+              )}
+            </div>
+          )}
+
+          {expandedSection === "intimacoes" && (
+            <div className="pt-3">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertCircle className="w-4 h-4 text-red-600" />
+                <span className="font-medium text-sm">Intimações</span>
+                {intimacoes && (
+                  <Badge variant="secondary" className="text-xs">
+                    {intimacoes.length}
+                  </Badge>
+                )}
+              </div>
+
+              {loadingIntimacoes ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : intimacoes && intimacoes.length > 0 ? (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3 pr-4">
+                    {intimacoes.map((int: any) => (
+                      <div
+                        key={int.id}
+                        className={cn(
+                          "p-4 rounded-lg border",
+                          int.status === "pendente"
+                            ? "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"
+                            : "bg-background border-border/50"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            {int.data_intimacao
+                              ? format(new Date(int.data_intimacao), "dd/MM/yyyy")
+                              : "Data não informada"}
+                            {int.data_limite && (
+                              <span className="text-red-600 ml-2">
+                                Prazo: {format(new Date(int.data_limite), "dd/MM/yyyy")}
+                              </span>
+                            )}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {int.tipo_intimacao && (
+                              <Badge variant="outline" className="text-xs">
+                                {int.tipo_intimacao}
+                              </Badge>
+                            )}
+                            <Badge
+                              variant={int.status === "pendente" ? "destructive" : "secondary"}
+                              className="text-xs"
+                            >
+                              {int.status === "pendente" ? "Pendente" : int.status === "tratado" ? "Tratada" : "Ignorada"}
+                            </Badge>
+                          </div>
+                        </div>
+                        {int.descricao && (
+                          <p className="text-foreground text-sm whitespace-pre-wrap break-words">{int.descricao}</p>
+                        )}
+                        {int.orgao_intimante && (
+                          <p className="text-sm text-muted-foreground mt-1">Órgão: {int.orgao_intimante}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  Nenhuma intimação encontrada
                 </p>
               )}
             </div>
