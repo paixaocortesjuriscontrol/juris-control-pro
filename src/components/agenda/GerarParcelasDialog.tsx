@@ -397,7 +397,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6 pb-2 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-primary" />
@@ -410,7 +410,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-4 sm:px-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
             {/* Título do Parcelamento */}
             <div>
@@ -754,7 +754,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
               </div>
             )}
           </form>
-        </ScrollArea>
+        </div>
 
         {/* Footer */}
         <div className="flex justify-end gap-2 p-4 sm:px-6 border-t shrink-0">
