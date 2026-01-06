@@ -57,6 +57,20 @@ const statusFiltroLabel: Record<StatusFiltro, string> = {
   atrasado: "Atrasadas",
 };
 
+const prioridadeFiltroLabel: Record<string, string> = {
+  todas: "Todas",
+  baixa: "Baixa",
+  media: "Média",
+  alta: "Alta",
+  urgente: "Urgente",
+};
+
+const ordenacaoLabel: Record<string, string> = {
+  "mais-antigas": "Mais antigas",
+  "mais-recentes": "Mais recentes",
+  prioridade: "Prioridade",
+};
+
 export default function CentralDelegacao() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -76,6 +90,18 @@ export default function CentralDelegacao() {
   const [novoCompromissoOpen, setNovoCompromissoOpen] = useState(false);
   const [acoesLoteOpen, setAcoesLoteOpen] = useState(false);
   const [ordenacao, setOrdenacao] = useState<string>("mais-antigas");
+
+  const clearAllFilters = () => {
+    setSearch("");
+    setStatusFiltro("todos");
+    setPrioridadeFiltro("todas");
+    setOrdenacao("mais-antigas");
+
+    if (isAdminOrCoordinator) {
+      setCoordenacaoId("todas");
+      setMembroId("todos");
+    }
+  };
 
   // Fetch coordenações
   const { data: coordenacoes, isLoading: loadingCoord } = useQuery({
@@ -533,6 +559,59 @@ export default function CentralDelegacao() {
                 </Select>
               </div>
             </div>
+
+            {(search.trim() ||
+              statusFiltro !== "todos" ||
+              prioridadeFiltro !== "todas" ||
+              ordenacao !== "mais-antigas" ||
+              (isAdminOrCoordinator && (coordenacaoId !== "todas" || membroId !== "todos"))) && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {search.trim() && (
+                  <Badge variant="outline" className="text-xs max-w-full">
+                    Busca: <span className="truncate">{search}</span>
+                  </Badge>
+                )}
+
+                {isAdminOrCoordinator && coordenacaoId !== "todas" && (
+                  <Badge variant="outline" className="text-xs max-w-full">
+                    Coord.: {coordenacoes?.find((c) => c.id === coordenacaoId)?.nome || "Selecionada"}
+                  </Badge>
+                )}
+
+                {isAdminOrCoordinator && membroId !== "todos" && (
+                  <Badge variant="outline" className="text-xs max-w-full">
+                    Resp.: {membrosUnicos.find((m) => m.id === membroId)?.nome || "Selecionado"}
+                  </Badge>
+                )}
+
+                {statusFiltro !== "todos" && (
+                  <Badge variant="outline" className="text-xs">
+                    Status: {statusFiltroLabel[statusFiltro]}
+                  </Badge>
+                )}
+
+                {prioridadeFiltro !== "todas" && (
+                  <Badge variant="outline" className="text-xs">
+                    Prioridade: {prioridadeFiltroLabel[prioridadeFiltro] || prioridadeFiltro}
+                  </Badge>
+                )}
+
+                {ordenacao !== "mais-antigas" && (
+                  <Badge variant="outline" className="text-xs">
+                    Ordenação: {ordenacaoLabel[ordenacao] || ordenacao}
+                  </Badge>
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={clearAllFilters}
+                >
+                  Limpar filtros
+                </Button>
+              </div>
+            )}
 
             {/* Tabs */}
             <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
