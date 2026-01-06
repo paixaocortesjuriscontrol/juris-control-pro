@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { startOfDay, endOfDay, format } from "date-fns";
+import { dedupePublicacoesDjen } from "@/utils/djenDedup";
 
 export interface PublicacaoUnificada {
   id: string;
@@ -299,8 +300,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         });
       }
 
+      const deduped = dedupePublicacoesDjen(resultados);
+
       // Ordenar por data de criação (mais recentes primeiro)
-      return resultados.sort((a, b) => 
+      return deduped.sort((a, b) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
     },
