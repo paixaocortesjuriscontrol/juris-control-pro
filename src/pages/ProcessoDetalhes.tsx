@@ -755,7 +755,24 @@ export default function ProcessoDetalhes() {
             Voltar
           </Button>
           
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
+            {/* Monitoramento Toggle */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/30">
+              {processo.monitorar_andamentos ? (
+                <Bell className="w-4 h-4 text-green-600" />
+              ) : (
+                <BellOff className="w-4 h-4 text-muted-foreground" />
+              )}
+              <span className="text-sm font-medium hidden sm:inline">
+                {processo.monitorar_andamentos ? "Monitoramento ativo" : "Monitoramento inativo"}
+              </span>
+              <Switch
+                checked={processo.monitorar_andamentos ?? true}
+                onCheckedChange={handleToggleMonitoramento}
+                disabled={toglingMonitoramento}
+              />
+            </div>
+
             {editando ? (
               <>
                 <Button variant="outline" onClick={handleCancelarEdicao} disabled={salvando}>
@@ -809,10 +826,9 @@ export default function ProcessoDetalhes() {
           </CardContent>
         </Card>
 
-        {/* Tabs de Eventos e Monitoramento Toggle */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <Tabs defaultValue="audiencias" className="w-full lg:w-auto">
-            <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
+        {/* Tabs de Eventos */}
+        <Tabs defaultValue="audiencias" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 sm:w-auto sm:inline-flex">
               <TabsTrigger value="audiencias" className="gap-1.5">
                 <Gavel className="w-4 h-4" />
                 <span className="hidden sm:inline">Audiências</span>
@@ -1164,27 +1180,7 @@ export default function ProcessoDetalhes() {
                 </CardContent>
               </Card>
             </TabsContent>
-          </Tabs>
-
-          {/* Monitoramento Toggle */}
-          <div className="flex items-center gap-3 px-4 py-2 rounded-lg border bg-muted/30 shrink-0">
-            <div className="flex items-center gap-2">
-              {processo.monitorar_andamentos ? (
-                <Bell className="w-4 h-4 text-green-600" />
-              ) : (
-                <BellOff className="w-4 h-4 text-muted-foreground" />
-              )}
-              <span className="text-sm font-medium">
-                {processo.monitorar_andamentos ? "Monitoramento ativo" : "Monitoramento inativo"}
-              </span>
-            </div>
-            <Switch
-              checked={processo.monitorar_andamentos ?? true}
-              onCheckedChange={handleToggleMonitoramento}
-              disabled={toglingMonitoramento}
-            />
-          </div>
-        </div>
+        </Tabs>
 
         {/* Coordenação e Advogado Responsável - Quick Info */}
         <Card className="bg-muted/30">
