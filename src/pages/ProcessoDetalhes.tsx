@@ -1118,12 +1118,15 @@ export default function ProcessoDetalhes() {
         </Card>
 
         {/* Tabs de Eventos */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} className="w-full">
           <TabsList className="grid w-full grid-cols-7 sm:w-auto sm:inline-flex">
               <TabsTrigger 
                 value="audiencias" 
                 className="gap-1.5"
-                onClick={() => activeTab === "audiencias" && setActiveTab("")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(prev => prev === "audiencias" ? "" : "audiencias");
+                }}
               >
                 <Gavel className="w-4 h-4" />
                 <span className="hidden sm:inline">Audiências</span>
@@ -1134,7 +1137,10 @@ export default function ProcessoDetalhes() {
               <TabsTrigger 
                 value="intimacoes" 
                 className="gap-1.5"
-                onClick={() => activeTab === "intimacoes" && setActiveTab("")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(prev => prev === "intimacoes" ? "" : "intimacoes");
+                }}
               >
                 <AlertCircle className="w-4 h-4" />
                 <span className="hidden sm:inline">Intimações</span>
@@ -1145,7 +1151,10 @@ export default function ProcessoDetalhes() {
               <TabsTrigger 
                 value="tarefas" 
                 className="gap-1.5"
-                onClick={() => activeTab === "tarefas" && setActiveTab("")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(prev => prev === "tarefas" ? "" : "tarefas");
+                }}
               >
                 <ListTodo className="w-4 h-4" />
                 <span className="hidden sm:inline">Tarefas</span>
@@ -1156,7 +1165,10 @@ export default function ProcessoDetalhes() {
               <TabsTrigger 
                 value="publicacoes" 
                 className="gap-1.5"
-                onClick={() => activeTab === "publicacoes" && setActiveTab("")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(prev => prev === "publicacoes" ? "" : "publicacoes");
+                }}
               >
                 <Newspaper className="w-4 h-4" />
                 <span className="hidden sm:inline">Pub. DJEN</span>
@@ -1167,7 +1179,10 @@ export default function ProcessoDetalhes() {
               <TabsTrigger 
                 value="andamentos" 
                 className="gap-1.5"
-                onClick={() => activeTab === "andamentos" && setActiveTab("")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(prev => prev === "andamentos" ? "" : "andamentos");
+                }}
               >
                 <FileText className="w-4 h-4" />
                 <span className="hidden sm:inline">Andamentos</span>
@@ -1178,7 +1193,10 @@ export default function ProcessoDetalhes() {
               <TabsTrigger 
                 value="redistribuicoes" 
                 className="gap-1.5"
-                onClick={() => activeTab === "redistribuicoes" && setActiveTab("")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(prev => prev === "redistribuicoes" ? "" : "redistribuicoes");
+                }}
               >
                 <Shuffle className="w-4 h-4" />
                 <span className="hidden sm:inline">Redistrib.</span>
@@ -1189,7 +1207,10 @@ export default function ProcessoDetalhes() {
               <TabsTrigger 
                 value="monitoramento360" 
                 className="gap-1.5"
-                onClick={() => activeTab === "monitoramento360" && setActiveTab("")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(prev => prev === "monitoramento360" ? "" : "monitoramento360");
+                }}
               >
                 <Radar className="w-4 h-4" />
                 <span className="hidden sm:inline">360º</span>
@@ -1197,7 +1218,7 @@ export default function ProcessoDetalhes() {
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{alertas360.length}</Badge>
                 )}
               </TabsTrigger>
-            </TabsList>
+          </TabsList>
 
             {/* Audiências Tab */}
             <TabsContent value="audiencias" className="mt-4">
