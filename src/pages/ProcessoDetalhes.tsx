@@ -67,7 +67,10 @@ import {
   CheckCircle,
   XCircle,
   PlayCircle,
-  ClipboardList
+  ClipboardList,
+  Shuffle,
+  Radar,
+  ListTodo
 } from "lucide-react";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
@@ -115,6 +118,9 @@ export default function ProcessoDetalhes() {
   const [selectedIntimacao, setSelectedIntimacao] = useState<any>(null);
   const [updatingAudiencia, setUpdatingAudiencia] = useState<string | null>(null);
   const [updatingIntimacao, setUpdatingIntimacao] = useState<string | null>(null);
+  
+  // Tab toggle state
+  const [activeTab, setActiveTab] = useState<string>("");
   
   // Form state for all fields
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -246,7 +252,66 @@ export default function ProcessoDetalhes() {
     enabled: !!id && !!processo?.numero,
   });
 
-  // Initialize form when processo loads or editing starts
+  // Query para tarefas do processo
+  const { data: tarefas = [], isLoading: loadingTarefas } = useQuery({
+    queryKey: ["tarefas-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tarefas")
+        .select(`
+          *,
+          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome),
+          criador:profiles!tarefas_criado_por_fkey(id, nome)
+        `)
+        .eq("processo_id", id!)
+        .order("data_vencimento", { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Query para redistribuições encontradas do processo
+  const { data: redistribuicoes = [], isLoading: loadingRedistribuicoes } = useQuery({
+    queryKey: ["redistribuicoes-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("distribuicoes_encontradas")
+        .select(`
+          *,
+          monitoramento:monitoramentos_distribuicao!distribuicoes_encontradas_monitoramento_id_fkey(termo_busca, tipo)
+        `)
+        .eq("processo_id", id!)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Query para alertas de monitoramento 360 do processo
+  const { data: alertas360 = [], isLoading: loadingAlertas360 } = useQuery({
+    queryKey: ["alertas-360-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("alertas_monitoramento")
+        .select(`
+          *,
+          termo:termos_monitoramento!alertas_monitoramento_termo_id_fkey(termo, categoria, prioridade),
+          movimentacao:movimentacoes!alertas_monitoramento_movimentacao_id_fkey(descricao, data_movimentacao)
+        `)
+        .eq("processo_id", id!)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+
   useEffect(() => {
     if (processo && editando) {
       setFormData({
@@ -1053,8 +1118,8 @@ export default function ProcessoDetalhes() {
         </Card>
 
         {/* Tabs de Eventos */}
-        <Tabs defaultValue="" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 sm:w-auto sm:inline-flex">
+        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(prev => prev === val ? "" : val)} className="w-full">
+          <TabsList className="grid w-full grid-cols-7 sm:w-auto sm:inline-flex">
               <TabsTrigger value="audiencias" className="gap-1.5">
                 <Gavel className="w-4 h-4" />
                 <span className="hidden sm:inline">Audiências</span>
@@ -1069,6 +1134,13 @@ export default function ProcessoDetalhes() {
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{intimacoes.length}</Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="tarefas" className="gap-1.5">
+                <ListTodo className="w-4 h-4" />
+                <span className="hidden sm:inline">Tarefas</span>
+                {tarefas.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.length}</Badge>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="publicacoes" className="gap-1.5">
                 <Newspaper className="w-4 h-4" />
                 <span className="hidden sm:inline">Pub. DJEN</span>
@@ -1081,6 +1153,20 @@ export default function ProcessoDetalhes() {
                 <span className="hidden sm:inline">Andamentos</span>
                 {movimentacoes && movimentacoes.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{movimentacoes.length}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="redistribuicoes" className="gap-1.5">
+                <Shuffle className="w-4 h-4" />
+                <span className="hidden sm:inline">Redistrib.</span>
+                {redistribuicoes.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{redistribuicoes.length}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="monitoramento360" className="gap-1.5">
+                <Radar className="w-4 h-4" />
+                <span className="hidden sm:inline">360º</span>
+                {alertas360.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{alertas360.length}</Badge>
                 )}
               </TabsTrigger>
             </TabsList>
@@ -1601,6 +1687,266 @@ export default function ProcessoDetalhes() {
                         <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
                         Buscar andamentos da API
                       </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tarefas Tab */}
+            <TabsContent value="tarefas" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <ListTodo className="w-5 h-5" />
+                      Tarefas
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      onClick={() => navigate(`/nova-tarefa?processo=${id}`)}
+                    >
+                      <ClipboardList className="w-4 h-4 mr-2" />
+                      Nova Tarefa
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loadingTarefas ? (
+                    <div className="space-y-3">
+                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                    </div>
+                  ) : tarefas.length > 0 ? (
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-3">
+                        {tarefas.map((tarefa) => {
+                          const isVencida = tarefa.data_vencimento && new Date(tarefa.data_vencimento) < new Date() && tarefa.status !== 'cumprido';
+                          const isUrgente = tarefa.data_vencimento && !isVencida && 
+                            (new Date(tarefa.data_vencimento).getTime() - new Date().getTime()) / (1000*60*60*24) <= 3;
+                          
+                          return (
+                            <Card 
+                              key={tarefa.id} 
+                              className={`cursor-pointer hover:shadow-md transition-shadow ${
+                                isVencida ? 'border-destructive/50 bg-destructive/5' : 
+                                isUrgente ? 'border-yellow-500/50 bg-yellow-50/50 dark:bg-yellow-950/20' : ''
+                              }`}
+                              onClick={() => navigate(`/nova-tarefa?tarefa=${tarefa.id}`)}
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                      <Badge variant={
+                                        tarefa.status === 'cumprido' ? 'default' : 
+                                        tarefa.status === 'atrasado' ? 'destructive' : 
+                                        'secondary'
+                                      }>
+                                        {tarefa.status === 'cumprido' ? 'Cumprido' : 
+                                         tarefa.status === 'atrasado' ? 'Atrasado' : 'Pendente'}
+                                      </Badge>
+                                      {tarefa.prioridade && (
+                                        <Badge variant={tarefa.prioridade === 'alta' || tarefa.prioridade === 'urgente' ? 'destructive' : 'outline'}>
+                                          {tarefa.prioridade}
+                                        </Badge>
+                                      )}
+                                      {isVencida && <Badge variant="destructive">Vencida</Badge>}
+                                    </div>
+                                    <p className="font-medium truncate">{tarefa.titulo}</p>
+                                    {tarefa.descricao && (
+                                      <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{tarefa.descricao}</p>
+                                    )}
+                                    {tarefa.responsavel && (
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        <User className="w-3 h-3 inline mr-1" />
+                                        {tarefa.responsavel.nome}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    {tarefa.data_vencimento && (
+                                      <p className={`font-medium flex items-center gap-1 justify-end ${isVencida ? 'text-destructive' : isUrgente ? 'text-yellow-600' : 'text-primary'}`}>
+                                        <Clock className="w-4 h-4" />
+                                        {formatDate(tarefa.data_vencimento)}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8">
+                      <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground mb-4">Nenhuma tarefa vinculada</p>
+                      <Button variant="outline" onClick={() => navigate(`/nova-tarefa?processo=${id}`)}>
+                        <ClipboardList className="w-4 h-4 mr-2" />
+                        Criar primeira tarefa
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Redistribuições Tab */}
+            <TabsContent value="redistribuicoes" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Shuffle className="w-5 h-5" />
+                    Redistribuições
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingRedistribuicoes ? (
+                    <div className="space-y-3">
+                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                    </div>
+                  ) : redistribuicoes.length > 0 ? (
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-3">
+                        {redistribuicoes.map((red) => (
+                          <Card key={red.id} className="hover:shadow-md transition-shadow">
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0 space-y-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Badge variant={red.status === 'pendente' ? 'secondary' : red.status === 'vinculado' ? 'default' : 'outline'}>
+                                      {red.status}
+                                    </Badge>
+                                    {red.tribunal && <Badge variant="outline">{red.tribunal}</Badge>}
+                                  </div>
+                                  <p className="font-mono text-sm">{red.numero_processo}</p>
+                                  {red.vara && (
+                                    <p className="text-sm text-muted-foreground">
+                                      <MapPin className="w-3 h-3 inline mr-1" />
+                                      {red.vara}
+                                    </p>
+                                  )}
+                                  {red.polo_ativo && (
+                                    <p className="text-sm text-muted-foreground truncate">
+                                      <User className="w-3 h-3 inline mr-1" />
+                                      {red.polo_ativo}
+                                    </p>
+                                  )}
+                                  {red.assunto && (
+                                    <p className="text-sm text-muted-foreground line-clamp-2">{red.assunto}</p>
+                                  )}
+                                </div>
+                                <div className="text-right shrink-0">
+                                  {red.data_distribuicao && (
+                                    <p className="font-medium flex items-center gap-1 justify-end text-primary">
+                                      <Calendar className="w-4 h-4" />
+                                      {formatDate(red.data_distribuicao)}
+                                    </p>
+                                  )}
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Detectado: {formatDate(red.created_at)}
+                                  </p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Shuffle className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">Nenhuma redistribuição detectada</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Monitoramento 360 Tab */}
+            <TabsContent value="monitoramento360" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Radar className="w-5 h-5" />
+                    Alertas Monitoramento 360º
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingAlertas360 ? (
+                    <div className="space-y-3">
+                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                    </div>
+                  ) : alertas360.length > 0 ? (
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-3">
+                        {alertas360.map((alerta) => {
+                          const prioridadeColors: Record<string, string> = {
+                            urgente: 'border-red-500 bg-red-50 dark:bg-red-950/30',
+                            alta: 'border-orange-500 bg-orange-50 dark:bg-orange-950/30',
+                            media: 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30',
+                            baixa: '',
+                          };
+                          
+                          return (
+                            <Card 
+                              key={alerta.id} 
+                              className={`hover:shadow-md transition-shadow ${prioridadeColors[alerta.prioridade] || ''}`}
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0 space-y-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <Badge variant={alerta.status === 'pendente' ? 'secondary' : alerta.status === 'tratado' ? 'default' : 'outline'}>
+                                        {alerta.status}
+                                      </Badge>
+                                      <Badge variant={
+                                        alerta.prioridade === 'urgente' || alerta.prioridade === 'alta' ? 'destructive' : 
+                                        alerta.prioridade === 'media' ? 'secondary' : 'outline'
+                                      }>
+                                        {alerta.prioridade}
+                                      </Badge>
+                                      {alerta.termo?.categoria && (
+                                        <Badge variant="outline">{alerta.termo.categoria}</Badge>
+                                      )}
+                                    </div>
+                                    <p className="font-medium">
+                                      <AlertTriangle className="w-4 h-4 inline mr-1 text-yellow-600" />
+                                      Termo encontrado: <span className="text-primary">{alerta.termo_encontrado}</span>
+                                    </p>
+                                    {alerta.contexto && (
+                                      <p className="text-sm text-muted-foreground line-clamp-2">{alerta.contexto}</p>
+                                    )}
+                                    {alerta.movimentacao && (
+                                      <p className="text-xs text-muted-foreground line-clamp-1">
+                                        <FileText className="w-3 h-3 inline mr-1" />
+                                        {alerta.movimentacao.descricao}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <p className="font-medium flex items-center gap-1 justify-end text-primary">
+                                      <Calendar className="w-4 h-4" />
+                                      {formatDate(alerta.created_at)}
+                                    </p>
+                                    {alerta.tratado_em && (
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Tratado: {formatDate(alerta.tratado_em)}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Radar className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">Nenhum alerta 360º para este processo</p>
                     </div>
                   )}
                 </CardContent>
