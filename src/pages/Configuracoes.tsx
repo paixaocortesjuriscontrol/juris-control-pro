@@ -1,6 +1,7 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { User, Bell, Shield, Palette } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { User, Bell, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Mail, Settings } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -13,40 +14,131 @@ import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEm
 export default function Configuracoes() {
   return (
     <MainLayout title="Configurações" subtitle="Gerencie as configurações do sistema">
-      <div className="space-y-8">
-        {/* Seção de Monitoramento */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Monitoramento Automático</h2>
-          
-          {/* Cards de Monitoramento - layout vertical */}
-          <div className="space-y-4">
-            <MonitoramentoRedistribuicoesCard coordenacaoId="" />
-            <MonitoramentoAndamentosCard coordenacaoId="" />
-            <MonitoramentoDistribuicoesCard coordenacaoId="" />
-            <MonitoramentoDjenCard coordenacaoId="" />
-            <MonitoramentoDjenProcessosCard coordenacaoId="" />
-            <MonitoramentoTermosCard coordenacaoId="" />
-          </div>
-        </div>
+      <Tabs defaultValue="redistribuicoes" className="space-y-6">
+        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+          <TabsTrigger value="redistribuicoes" className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4" />
+            <span className="hidden sm:inline">Redistribuições</span>
+          </TabsTrigger>
+          <TabsTrigger value="andamentos" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            <span className="hidden sm:inline">Andamentos</span>
+          </TabsTrigger>
+          <TabsTrigger value="distribuicoes" className="flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            <span className="hidden sm:inline">Distribuições</span>
+          </TabsTrigger>
+          <TabsTrigger value="djen" className="flex items-center gap-2">
+            <Newspaper className="h-4 w-4" />
+            <span className="hidden sm:inline">DJEN</span>
+          </TabsTrigger>
+          <TabsTrigger value="djen-processos" className="flex items-center gap-2">
+            <FileSearch className="h-4 w-4" />
+            <span className="hidden sm:inline">DJEN Processos</span>
+          </TabsTrigger>
+          <TabsTrigger value="monitoracao-360" className="flex items-center gap-2">
+            <Radar className="h-4 w-4" />
+            <span className="hidden sm:inline">Monitoração 360</span>
+          </TabsTrigger>
+          <TabsTrigger value="relatorios" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            <span className="hidden sm:inline">Relatórios</span>
+          </TabsTrigger>
+          <TabsTrigger value="preferencias" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            <span className="hidden sm:inline">Preferências</span>
+          </TabsTrigger>
+        </TabsList>
 
-        {/* Seção de Relatório de Monitoramento */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Relatórios de Monitoramento</h2>
+        {/* Aba Redistribuições */}
+        <TabsContent value="redistribuicoes" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Monitoramento de Redistribuições</h2>
+            <p className="text-sm text-muted-foreground">
+              Verifica automaticamente mudanças de vara nos processos cadastrados
+            </p>
+          </div>
+          <MonitoramentoRedistribuicoesCard coordenacaoId="" />
+        </TabsContent>
+
+        {/* Aba Andamentos */}
+        <TabsContent value="andamentos" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Monitoramento de Andamentos</h2>
+            <p className="text-sm text-muted-foreground">
+              Busca novos andamentos processuais via API dos tribunais
+            </p>
+          </div>
+          <MonitoramentoAndamentosCard coordenacaoId="" />
+        </TabsContent>
+
+        {/* Aba Distribuições */}
+        <TabsContent value="distribuicoes" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Monitoramento de Distribuições</h2>
+            <p className="text-sm text-muted-foreground">
+              Detecta novas distribuições de processos nos tribunais configurados
+            </p>
+          </div>
+          <MonitoramentoDistribuicoesCard coordenacaoId="" />
+        </TabsContent>
+
+        {/* Aba DJEN */}
+        <TabsContent value="djen" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Monitoramento DJEN</h2>
+            <p className="text-sm text-muted-foreground">
+              Busca publicações no Diário de Justiça Eletrônico Nacional
+            </p>
+          </div>
+          <MonitoramentoDjenCard coordenacaoId="" />
+        </TabsContent>
+
+        {/* Aba DJEN Processos */}
+        <TabsContent value="djen-processos" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Busca DJEN por Processo</h2>
+            <p className="text-sm text-muted-foreground">
+              Busca publicações específicas para processos cadastrados
+            </p>
+          </div>
+          <MonitoramentoDjenProcessosCard coordenacaoId="" />
+        </TabsContent>
+
+        {/* Aba Monitoração 360 */}
+        <TabsContent value="monitoracao-360" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Monitoração 360º</h2>
+            <p className="text-sm text-muted-foreground">
+              Varredura automática de termos estratégicos nas movimentações
+            </p>
+          </div>
+          <MonitoramentoTermosCard coordenacaoId="" />
+        </TabsContent>
+
+        {/* Aba Relatórios */}
+        <TabsContent value="relatorios" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Relatórios de Monitoramento</h2>
+            <p className="text-sm text-muted-foreground">
+              Histórico e estatísticas das execuções de monitoramento
+            </p>
+          </div>
           <RelatorioMonitoramentoCard />
-        </div>
+        </TabsContent>
 
-        {/* Seção de Preferências Pessoais */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Preferências Pessoais</h2>
-          <div className="space-y-4">
-            <NotificacoesEmailCard />
+        {/* Aba Preferências */}
+        <TabsContent value="preferencias" className="space-y-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Preferências Pessoais</h2>
+            <p className="text-sm text-muted-foreground">
+              Configure suas preferências de notificações e aparência
+            </p>
           </div>
-        </div>
+          
+          <NotificacoesEmailCard />
 
-        {/* Seção de Configurações Gerais */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Configurações Gerais</h2>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 mt-6">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="flex flex-row items-center gap-4">
                 <div className="p-2 rounded-lg bg-primary/10">
@@ -95,8 +187,8 @@ export default function Configuracoes() {
               </CardHeader>
             </Card>
           </div>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </MainLayout>
   );
 }
