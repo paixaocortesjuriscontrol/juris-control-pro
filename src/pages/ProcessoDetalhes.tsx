@@ -33,6 +33,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useToast } from "@/hooks/use-toast";
@@ -59,7 +60,9 @@ import {
   AlertTriangle,
   Newspaper,
   Eye,
-  EyeOff
+  EyeOff,
+  Gavel,
+  AlertCircle
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -195,6 +198,38 @@ export default function ProcessoDetalhes() {
       return data || [];
     },
     enabled: !!id,
+  });
+
+  // Query para audiências do processo
+  const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery({
+    queryKey: ["audiencias-processo", id, processo?.numero],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audiencias_detectadas")
+        .select("*")
+        .or(`processo_id.eq.${id},processo_numero.eq.${processo?.numero}`)
+        .order("data_audiencia", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id && !!processo?.numero,
+  });
+
+  // Query para intimações do processo
+  const { data: intimacoes = [], isLoading: loadingIntimacoes } = useQuery({
+    queryKey: ["intimacoes-processo", id, processo?.numero],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("intimacoes_detectadas")
+        .select("*")
+        .or(`processo_id.eq.${id},processo_numero.eq.${processo?.numero}`)
+        .order("data_intimacao", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id && !!processo?.numero,
   });
 
   // Initialize form when processo loads or editing starts
@@ -750,11 +785,6 @@ export default function ProcessoDetalhes() {
                   {processo.pasta.nome}
                 </p>
               )}
-              {processo.assunto && (
-                <h1 className="text-lg md:text-xl font-semibold text-muted-foreground">
-                  {processo.assunto}
-                </h1>
-              )}
               <div className="flex items-center justify-center gap-3">
                 <Scale className="w-6 h-6 text-primary" />
                 <h2 className="text-2xl md:text-3xl font-bold text-foreground tracking-wide">
@@ -779,9 +809,365 @@ export default function ProcessoDetalhes() {
           </CardContent>
         </Card>
 
-        {/* Monitoramento Toggle */}
-        <div className="flex justify-end">
-          <div className="flex items-center gap-3 px-4 py-2 rounded-lg border bg-muted/30">
+        {/* Tabs de Eventos e Monitoramento Toggle */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <Tabs defaultValue="audiencias" className="w-full lg:w-auto">
+            <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
+              <TabsTrigger value="audiencias" className="gap-1.5">
+                <Gavel className="w-4 h-4" />
+                <span className="hidden sm:inline">Audiências</span>
+                {audiencias.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="intimacoes" className="gap-1.5">
+                <AlertCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Intimações</span>
+                {intimacoes.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{intimacoes.length}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="publicacoes" className="gap-1.5">
+                <Newspaper className="w-4 h-4" />
+                <span className="hidden sm:inline">Pub. DJEN</span>
+                {publicacoesDjen.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{publicacoesDjen.length}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="andamentos" className="gap-1.5">
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Andamentos</span>
+                {movimentacoes && movimentacoes.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{movimentacoes.length}</Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Audiências Tab */}
+            <TabsContent value="audiencias" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Gavel className="w-5 h-5" />
+                    Audiências
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingAudiencias ? (
+                    <div className="space-y-3">
+                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                    </div>
+                  ) : audiencias.length > 0 ? (
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-3">
+                        {audiencias.map((aud) => (
+                          <div key={aud.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap mb-2">
+                                  <Badge variant={aud.status === 'pendente' ? 'default' : 'secondary'}>
+                                    {aud.status}
+                                  </Badge>
+                                  {aud.tipo_audiencia && (
+                                    <Badge variant="outline">{aud.tipo_audiencia}</Badge>
+                                  )}
+                                </div>
+                                {aud.local_audiencia && (
+                                  <p className="text-sm text-muted-foreground">{aud.local_audiencia}</p>
+                                )}
+                                {aud.vara_camara && (
+                                  <p className="text-sm text-muted-foreground">{aud.vara_camara}</p>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                {aud.data_audiencia && (
+                                  <p className="font-medium flex items-center gap-1 justify-end">
+                                    <Calendar className="w-4 h-4" />
+                                    {formatDate(aud.data_audiencia)}
+                                  </p>
+                                )}
+                                {aud.hora_brasilia && (
+                                  <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
+                                    <Clock className="w-3 h-3" />
+                                    {aud.hora_brasilia}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Gavel className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">Nenhuma audiência registrada</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Intimações Tab */}
+            <TabsContent value="intimacoes" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5" />
+                    Intimações
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingIntimacoes ? (
+                    <div className="space-y-3">
+                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                    </div>
+                  ) : intimacoes.length > 0 ? (
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-3">
+                        {intimacoes.map((int) => (
+                          <div key={int.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap mb-2">
+                                  <Badge variant={int.status === 'pendente' ? 'default' : 'secondary'}>
+                                    {int.status}
+                                  </Badge>
+                                  {int.prioridade && (
+                                    <Badge variant={int.prioridade === 'alta' ? 'destructive' : 'outline'}>
+                                      {int.prioridade}
+                                    </Badge>
+                                  )}
+                                  {int.tipo_intimacao && (
+                                    <Badge variant="outline">{int.tipo_intimacao}</Badge>
+                                  )}
+                                </div>
+                                {int.descricao && (
+                                  <p className="text-sm text-foreground mb-1">{int.descricao}</p>
+                                )}
+                                {int.orgao_intimante && (
+                                  <p className="text-sm text-muted-foreground">{int.orgao_intimante}</p>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                {int.data_intimacao && (
+                                  <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
+                                    <Calendar className="w-3 h-3" />
+                                    {formatDate(int.data_intimacao)}
+                                  </p>
+                                )}
+                                {int.data_limite && (
+                                  <p className="font-medium text-destructive flex items-center gap-1 justify-end mt-1">
+                                    <Clock className="w-3 h-3" />
+                                    Prazo: {formatDate(int.data_limite)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8">
+                      <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">Nenhuma intimação registrada</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Publicações DJEN Tab */}
+            <TabsContent value="publicacoes" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Newspaper className="w-5 h-5" />
+                    Publicações DJEN
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingPublicacoes ? (
+                    <div className="space-y-4">
+                      {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+                    </div>
+                  ) : publicacoesDjen.length > 0 ? (
+                    <ScrollArea className="h-[500px] pr-4">
+                      <div className="space-y-4">
+                        {publicacoesDjen.map((pub) => (
+                          <div 
+                            key={pub.id}
+                            className={`p-5 border-2 rounded-xl transition-colors ${pub.lida ? 'bg-muted/30 border-muted' : 'bg-background border-primary/20 hover:border-primary/40'}`}
+                          >
+                            <div className="flex flex-col gap-3 mb-4 pb-3 border-b">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {pub.lida ? (
+                                  <Eye className="w-5 h-5 text-muted-foreground" />
+                                ) : (
+                                  <EyeOff className="w-5 h-5 text-primary" />
+                                )}
+                                <Badge variant={pub.lida ? "secondary" : "default"} className="text-sm">
+                                  {pub.lida ? "Lida" : "Não lida"}
+                                </Badge>
+                                {pub.fonte && (
+                                  <Badge variant="outline" className="text-sm">{pub.fonte}</Badge>
+                                )}
+                              </div>
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                                  <div>
+                                    <span className="text-xs">Diário:</span>{" "}
+                                    <span className="font-medium text-foreground">
+                                      {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-xs">Capturado:</span>{" "}
+                                    <span>{formatDateTime(pub.data_encontrado)}</span>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleToggleLida(pub.id, pub.lida)}
+                                  disabled={toglingLida === pub.id}
+                                  className="shrink-0 w-full sm:w-auto"
+                                >
+                                  {toglingLida === pub.id ? (
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                  ) : pub.lida ? (
+                                    <>
+                                      <EyeOff className="w-4 h-4 mr-1" />
+                                      Marcar não lida
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Eye className="w-4 h-4 mr-1" />
+                                      Marcar lida
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="bg-muted/20 rounded-lg p-3 sm:p-4 overflow-hidden">
+                              {pub.conteudo ? (
+                                <div 
+                                  className="text-sm text-foreground prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-headings:my-2 break-words overflow-wrap-anywhere [&_*]:max-w-full [&_table]:table-fixed [&_table]:w-full [&_td]:break-words [&_th]:break-words"
+                                  style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                                  dangerouslySetInnerHTML={{ 
+                                    __html: DOMPurify.sanitize(pub.conteudo, {
+                                      ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+                                      ALLOWED_ATTR: ['class', 'style', 'href', 'target']
+                                    })
+                                  }} 
+                                />
+                              ) : (
+                                <p className="text-sm text-muted-foreground">Conteúdo não disponível</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Newspaper className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">Nenhuma publicação DJEN encontrada</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Andamentos Tab */}
+            <TabsContent value="andamentos" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Andamentos
+                    </CardTitle>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleAtualizarAndamentos}
+                      disabled={atualizando}
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
+                      {atualizando ? "Atualizando..." : "Atualizar da API"}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loadingMovimentacoes ? (
+                    <div className="space-y-3">
+                      {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+                    </div>
+                  ) : movimentacoes && movimentacoes.length > 0 ? (
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-3">
+                        {movimentacoes.map((mov) => {
+                          const parts = mov.descricao.split(' - ');
+                          const nomeMovimento = parts[0];
+                          const complemento = parts.length > 1 ? parts.slice(1).join(' - ') : null;
+                          
+                          return (
+                            <div 
+                              key={mov.id}
+                              className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="font-medium text-foreground">{nomeMovimento}</p>
+                                    {mov.tipo && mov.tipo !== nomeMovimento && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {mov.tipo}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {complemento && (
+                                    <p className="text-sm text-muted-foreground mt-1 break-words">
+                                      {complemento}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
+                                    <Clock className="w-3 h-3" />
+                                    {formatDateTime(mov.data_movimentacao)}
+                                  </p>
+                                  {mov.fonte && (
+                                    <Badge variant="outline" className="text-xs mt-1">
+                                      {mov.fonte}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8">
+                      <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground mb-4">Nenhum andamento registrado</p>
+                      <Button variant="outline" onClick={handleAtualizarAndamentos} disabled={atualizando}>
+                        <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
+                        Buscar Andamentos
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          {/* Monitoramento Toggle */}
+          <div className="flex items-center gap-3 px-4 py-2 rounded-lg border bg-muted/30 shrink-0">
             <div className="flex items-center gap-2">
               {processo.monitorar_andamentos ? (
                 <Bell className="w-4 h-4 text-green-600" />
@@ -1285,205 +1671,6 @@ export default function ProcessoDetalhes() {
                   <FieldItem label="Custo do Encerramento" value={processo.custo_encerramento} field="custo_encerramento" type="number" />
                 </div>
               </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* Andamentos */}
-          <AccordionItem value="andamentos" className="border rounded-lg px-4">
-            <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                <span className="font-semibold">Andamentos ({movimentacoes?.length || 0})</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-4">
-              <div className="flex justify-end mb-4">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleAtualizarAndamentos}
-                  disabled={atualizando}
-                >
-                  <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
-                  {atualizando ? "Atualizando..." : "Atualizar da API"}
-                </Button>
-              </div>
-              
-              {loadingMovimentacoes ? (
-                <div className="space-y-3">
-                  {[...Array(3)].map((_, i) => (
-                    <Skeleton key={i} className="h-16 rounded-lg" />
-                  ))}
-                </div>
-              ) : movimentacoes && movimentacoes.length > 0 ? (
-                <ScrollArea className="h-[400px] pr-4">
-                  <div className="space-y-3">
-                    {movimentacoes.map((mov) => {
-                      const parts = mov.descricao.split(' - ');
-                      const nomeMovimento = parts[0];
-                      const complemento = parts.length > 1 ? parts.slice(1).join(' - ') : null;
-                      
-                      return (
-                        <div 
-                          key={mov.id}
-                          className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-medium text-foreground">{nomeMovimento}</p>
-                                {mov.tipo && mov.tipo !== nomeMovimento && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    {mov.tipo}
-                                  </Badge>
-                                )}
-                              </div>
-                              {complemento && (
-                                <p className="text-sm text-muted-foreground mt-1 break-words">
-                                  {complemento}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right shrink-0">
-                              <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
-                                <Clock className="w-3 h-3" />
-                                {formatDateTime(mov.data_movimentacao)}
-                              </p>
-                              {mov.fonte && (
-                                <Badge variant="outline" className="text-xs mt-1">
-                                  {mov.fonte}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              ) : (
-                <div className="text-center py-8">
-                  <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground mb-4">Nenhum andamento registrado</p>
-                  <Button variant="outline" onClick={handleAtualizarAndamentos} disabled={atualizando}>
-                    <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
-                    Buscar Andamentos
-                  </Button>
-                </div>
-              )}
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* Publicações DJEN */}
-          <AccordionItem value="publicacoes-djen" className="border rounded-lg px-4">
-            <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center gap-2">
-                <Newspaper className="w-5 h-5" />
-                <span className="font-semibold">Publicações DJEN</span>
-                {publicacoesDjen.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">
-                    {publicacoesDjen.length}
-                  </Badge>
-                )}
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-4">
-              {loadingPublicacoes ? (
-                <div className="space-y-4">
-                  {[...Array(3)].map((_, i) => (
-                    <Skeleton key={i} className="h-32 rounded-lg" />
-                  ))}
-                </div>
-              ) : publicacoesDjen.length > 0 ? (
-                <ScrollArea className="h-[600px] pr-4">
-                  <div className="space-y-4">
-                    {publicacoesDjen.map((pub) => (
-                      <div 
-                        key={pub.id}
-                        className={`p-5 border-2 rounded-xl transition-colors ${pub.lida ? 'bg-muted/30 border-muted' : 'bg-background border-primary/20 hover:border-primary/40'}`}
-                      >
-                        <div className="flex flex-col gap-3 mb-4 pb-3 border-b">
-                          {/* Linha 1: Status e Fonte */}
-                          <div className="flex flex-wrap items-center gap-2">
-                            {pub.lida ? (
-                              <Eye className="w-5 h-5 text-muted-foreground" />
-                            ) : (
-                              <EyeOff className="w-5 h-5 text-primary" />
-                            )}
-                            <Badge variant={pub.lida ? "secondary" : "default"} className="text-sm">
-                              {pub.lida ? "Lida" : "Não lida"}
-                            </Badge>
-                            {pub.fonte && (
-                              <Badge variant="outline" className="text-sm">{pub.fonte}</Badge>
-                            )}
-                          </div>
-                          
-                          {/* Linha 2: Datas e Botão */}
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                              <div>
-                                <span className="text-xs">Diário:</span>{" "}
-                                <span className="font-medium text-foreground">
-                                  {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-xs">Capturado:</span>{" "}
-                                <span>{formatDateTime(pub.data_encontrado)}</span>
-                              </div>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleToggleLida(pub.id, pub.lida)}
-                              disabled={toglingLida === pub.id}
-                              className="shrink-0 w-full sm:w-auto"
-                            >
-                              {toglingLida === pub.id ? (
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                              ) : pub.lida ? (
-                                <>
-                                  <EyeOff className="w-4 h-4 mr-1" />
-                                  Marcar não lida
-                                </>
-                              ) : (
-                                <>
-                                  <Eye className="w-4 h-4 mr-1" />
-                                  Marcar lida
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="bg-muted/20 rounded-lg p-3 sm:p-4 overflow-hidden">
-                          {pub.conteudo ? (
-                            <div 
-                              className="text-sm text-foreground prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-headings:my-2 break-words overflow-wrap-anywhere [&_*]:max-w-full [&_table]:table-fixed [&_table]:w-full [&_td]:break-words [&_th]:break-words"
-                              style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-                              dangerouslySetInnerHTML={{ 
-                                __html: DOMPurify.sanitize(pub.conteudo, {
-                                  ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-                                  ALLOWED_ATTR: ['class', 'style', 'href', 'target']
-                                })
-                              }} 
-                            />
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Conteúdo não disponível</p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              ) : (
-                <div className="text-center py-12">
-                  <Newspaper className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground text-lg">Nenhuma publicação DJEN encontrada</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    As publicações são capturadas automaticamente pelo monitoramento
-                  </p>
-                </div>
-              )}
             </AccordionContent>
           </AccordionItem>
 
