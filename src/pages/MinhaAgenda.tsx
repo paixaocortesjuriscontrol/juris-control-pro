@@ -90,6 +90,7 @@ export default function MinhaAgenda() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
+  const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [eventoToDelete, setEventoToDelete] = useState<string | null>(null);
 
@@ -181,8 +182,13 @@ export default function MinhaAgenda() {
   );
 
   const handleEditEvento = (evento: EventoAgenda) => {
-    setSelectedEvento(evento);
-    setDialogOpen(true);
+    if (evento.tipo === "parcelamento") {
+      setSelectedParcelamento(evento);
+      setParcelasDialogOpen(true);
+    } else {
+      setSelectedEvento(evento);
+      setDialogOpen(true);
+    }
   };
 
   const handleDeleteEvento = (id: string) => {
@@ -664,7 +670,11 @@ export default function MinhaAgenda() {
       {/* Gerar Parcelas Dialog */}
       <GerarParcelasDialog
         open={parcelasDialogOpen}
-        onOpenChange={setParcelasDialogOpen}
+        onOpenChange={(open) => {
+          setParcelasDialogOpen(open);
+          if (!open) setSelectedParcelamento(null);
+        }}
+        evento={selectedParcelamento}
       />
     </MainLayout>
   );

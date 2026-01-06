@@ -24,6 +24,7 @@ export interface EventoAgenda {
   created_at: string;
   updated_at: string;
   enviar_whatsapp: boolean;
+  total_parcelas: number | null;
   participantes?: { usuario_id: string; usuario?: { id: string; nome: string } }[];
   processo?: { id: string; numero: string } | null;
 }
