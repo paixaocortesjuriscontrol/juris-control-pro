@@ -352,14 +352,27 @@ Deno.serve(async (req) => {
     console.log(`Scan complete in ${totalTime}ms. Generated ${alertasGerados} alerts, ${audienciasDetectadas} hearings, ${intimacoesDetectadas} summons`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
+
+        // campos atuais
         alertasGerados,
         audienciasDetectadas,
         intimacoesDetectadas,
         movimentacoesVerificadas: movimentacoes.length,
         termosAtivos: termos.length,
         tempoExecucao: `${totalTime}ms`,
+
+        // compatibilidade com o front antigo (Configurações / barra de progresso)
+        alertasCriados: alertasGerados,
+        processosVerificados: movimentacoes.length,
+        isComplete: true,
+        completedRun: true,
+        progress: {
+          current: movimentacoes.length,
+          total: movimentacoes.length,
+          percentage: 100,
+        },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
