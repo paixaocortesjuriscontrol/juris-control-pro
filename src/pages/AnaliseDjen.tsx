@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FileText,
   Filter,
@@ -49,9 +49,30 @@ import { cn } from "@/lib/utils";
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 const AnaliseDjen = () => {
-  // Filtros
+  const { user } = useAuth();
+
+  // Buscar a coordenação do usuário logado
+  const { data: userCoordenacao, isLoading: loadingUserCoord } = useQuery({
+    queryKey: ['user-coordenacao', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data } = await supabase
+        .from('membros_coordenacao')
+        .select('coordenacao_id')
+        .eq('usuario_id', user.id)
+        .limit(1)
+        .maybeSingle();
+      return data?.coordenacao_id || null;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Filtros - inicializar com placeholder até carregar coordenação
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
@@ -59,6 +80,17 @@ const AnaliseDjen = () => {
   const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
   const [apenasHoje, setApenasHoje] = useState(true);
   const [tipoOrigem, setTipoOrigem] = useState<'todos' | 'termo' | 'processo'>('todos');
+  const [initialized, setInitialized] = useState(false);
+
+  // Quando carregar a coordenação do usuário, definir como padrão
+  useEffect(() => {
+    if (!loadingUserCoord && !initialized) {
+      if (userCoordenacao) {
+        setCoordenacaoId(userCoordenacao);
+      }
+      setInitialized(true);
+    }
+  }, [userCoordenacao, loadingUserCoord, initialized]);
   
   // States
   const [selectedIds, setSelectedIds] = useState<Map<string, 'termo' | 'processo'>>(new Map());
