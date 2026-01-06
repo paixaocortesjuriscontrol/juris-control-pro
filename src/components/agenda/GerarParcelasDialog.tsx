@@ -173,6 +173,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
   
   // Valores individuais por parcela
   const [valoresIndividuais, setValoresIndividuais] = useState<string[]>([]);
+  // Datas individuais por parcela (quando editadas manualmente)
+  const [datasIndividuais, setDatasIndividuais] = useState<string[]>([]);
 
   // Carregar dados do evento quando em modo edição
   useEffect(() => {
@@ -190,10 +192,12 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
         participantes_ids: evento.participantes?.map(p => p.usuario_id) || [],
       });
       
-      // Carregar valores individuais das parcelas existentes
+      // Carregar valores e datas individuais das parcelas existentes
       if (parcelasExistentes && parcelasExistentes.length > 0) {
         const valores = parcelasExistentes.map(p => p.valor?.toString() || "");
         setValoresIndividuais(valores);
+        const datas = parcelasExistentes.map(p => p.data_vencimento);
+        setDatasIndividuais(datas);
       }
     } else if (!evento && open) {
       setFormData({
@@ -207,6 +211,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
         participantes_ids: [],
       });
       setValoresIndividuais([]);
+      setDatasIndividuais([]);
     }
   }, [evento, open, parcelasExistentes]);
 
@@ -234,13 +239,19 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
     let dataAtual = new Date(formData.dataVencimento + "T12:00:00");
     
     for (let i = 1; i <= formData.totalParcelas; i++) {
+      // Usar data individual se existir, senão usar data calculada
+      const dataIndividual = datasIndividuais[i - 1];
+      const dataParcela = dataIndividual 
+        ? new Date(dataIndividual + "T12:00:00")
+        : new Date(dataAtual);
+      
       parcelas.push({
         numero: i,
-        data: new Date(dataAtual),
+        data: dataParcela,
         valor: valoresIndividuais[i - 1] || formData.valorPadrao,
       });
       
-      // Calcular próxima data
+      // Calcular próxima data (baseada na data atual calculada, não na individual)
       if (formData.intervalo === "semanal") {
         dataAtual = addWeeks(dataAtual, 1);
       } else if (formData.intervalo === "quinzenal") {
@@ -689,8 +700,19 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
             {parcelasPreview.length > 0 && (
               <div className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <Label className="font-medium">Valores das Parcelas</Label>
-                  <div className="flex gap-2">
+                  <Label className="font-medium">Datas e Valores das Parcelas</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Recalcular datas automáticas
+                        setDatasIndividuais([]);
+                      }}
+                    >
+                      Recalcular Datas
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"
@@ -702,7 +724,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
                       }}
                       disabled={!formData.valorPadrao}
                     >
-                      Preencher todas com valor padrão
+                      Preencher valores
                     </Button>
                     <Button
                       type="button"
@@ -713,24 +735,34 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
                         setValoresIndividuais(Array(formData.totalParcelas).fill(""));
                       }}
                     >
-                      Limpar para editar
+                      Limpar valores
                     </Button>
                   </div>
                 </div>
-                <ScrollArea className="h-48">
+                <ScrollArea className="h-64">
                   <div className="space-y-2">
                     {parcelasPreview.map((parcela) => (
                       <div
                         key={parcela.numero}
-                        className="flex items-center gap-2 text-sm py-1 px-2 rounded bg-muted/30"
+                        className="flex flex-wrap items-center gap-2 text-sm py-2 px-2 rounded bg-muted/30"
                       >
-                        <span className="font-medium w-24 shrink-0">
+                        <span className="font-medium w-20 shrink-0">
                           Parcela {parcela.numero}/{formData.totalParcelas}
                         </span>
-                        <span className="text-muted-foreground w-24 shrink-0">
-                          {format(parcela.data, "dd/MM/yyyy")}
-                        </span>
-                        <div className="flex items-center gap-1 flex-1">
+                        <Input
+                          type="date"
+                          value={datasIndividuais[parcela.numero - 1] || format(parcela.data, "yyyy-MM-dd")}
+                          onChange={(e) => {
+                            const novasDatas = [...datasIndividuais];
+                            while (novasDatas.length < formData.totalParcelas) {
+                              novasDatas.push("");
+                            }
+                            novasDatas[parcela.numero - 1] = e.target.value;
+                            setDatasIndividuais(novasDatas);
+                          }}
+                          className="h-8 w-36"
+                        />
+                        <div className="flex items-center gap-1">
                           <span className="text-muted-foreground">R$</span>
                           <Input
                             type="text"
@@ -744,7 +776,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
                               setValoresIndividuais(novosValores);
                             }}
                             placeholder="0,00"
-                            className="h-8 w-28"
+                            className="h-8 w-24"
                           />
                         </div>
                       </div>
