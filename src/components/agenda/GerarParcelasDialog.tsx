@@ -18,10 +18,10 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
-import { Loader2, Calendar, DollarSign, Hash, Clock, FileText } from "lucide-react";
+import { Loader2, Calendar, DollarSign, Hash, Clock, FileText, Search, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,64 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
     dataVencimento: format(new Date(), "yyyy-MM-dd"),
     valorPadrao: "",
     intervalo: "mensal",
+    processo_id: "",
+  });
+  
+  // Estados para busca de processo
+  const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>("todas");
+  const [processoSearch, setProcessoSearch] = useState("");
+
+  // Query para buscar coordenações
+  const { data: coordenacoes } = useQuery({
+    queryKey: ["coordenacoes-parcelas"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coordenacoes")
+        .select("id, nome")
+        .order("nome");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Query para buscar processos com filtro por coordenação
+  const { data: processos } = useQuery({
+    queryKey: ["processos-parcelas", coordenacaoProcessoFiltro, processoSearch],
+    queryFn: async () => {
+      let query = supabase
+        .from("processos")
+        .select("id, numero, polo_ativo, polo_passivo, coordenacao_id")
+        .order("numero")
+        .limit(50);
+      
+      if (coordenacaoProcessoFiltro && coordenacaoProcessoFiltro !== "todas") {
+        query = query.eq("coordenacao_id", coordenacaoProcessoFiltro);
+      }
+      
+      if (processoSearch) {
+        query = query.or(`numero.ilike.%${processoSearch}%,polo_ativo.ilike.%${processoSearch}%,polo_passivo.ilike.%${processoSearch}%`);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Buscar processo selecionado para exibir
+  const { data: processoSelecionado } = useQuery({
+    queryKey: ["processo-selecionado-parcelas", formData.processo_id],
+    queryFn: async () => {
+      if (!formData.processo_id) return null;
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, numero, polo_ativo, polo_passivo")
+        .eq("id", formData.processo_id)
+        .single();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!formData.processo_id,
   });
   
   // Valores individuais por parcela
@@ -138,6 +196,7 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
           criado_por: user.id,
           status: "pendente",
           total_parcelas: formData.totalParcelas,
+          processo_id: formData.processo_id || null,
         })
         .select("id")
         .single();
@@ -171,6 +230,7 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
         dataVencimento: format(new Date(), "yyyy-MM-dd"),
         valorPadrao: "",
         intervalo: "mensal",
+        processo_id: "",
       });
       setValoresIndividuais([]);
       
@@ -222,6 +282,84 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
                 onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
                 placeholder="Detalhes adicionais do parcelamento"
               />
+            </div>
+
+            {/* Vincular Processo */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <Label className="font-medium flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Vincular Processo (opcional)
+              </Label>
+              
+              {/* Processo selecionado */}
+              {processoSelecionado && (
+                <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                  <div className="text-sm">
+                    <span className="font-medium">{processoSelecionado.numero}</span>
+                    <span className="text-muted-foreground ml-2">
+                      {processoSelecionado.polo_ativo} x {processoSelecionado.polo_passivo}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="p-1 hover:bg-muted rounded"
+                    onClick={() => setFormData({ ...formData, processo_id: "" })}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              
+              {!formData.processo_id && (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Select value={coordenacaoProcessoFiltro} onValueChange={setCoordenacaoProcessoFiltro}>
+                      <SelectTrigger className="w-full sm:w-48">
+                        <SelectValue placeholder="Filtrar por coordenação" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todas">Todas as coordenações</SelectItem>
+                        {coordenacoes?.map((coord) => (
+                          <SelectItem key={coord.id} value={coord.id}>
+                            {coord.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por número ou partes..."
+                        value={processoSearch}
+                        onChange={(e) => setProcessoSearch(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {processos?.map((processo) => (
+                      <div
+                        key={processo.id}
+                        className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer text-sm"
+                        onClick={() => setFormData({ ...formData, processo_id: processo.id })}
+                      >
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium">{processo.numero}</span>
+                        <span className="text-muted-foreground truncate">
+                          {processo.polo_ativo} x {processo.polo_passivo}
+                        </span>
+                      </div>
+                    ))}
+                    {processos?.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        Nenhum processo encontrado
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
