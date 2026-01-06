@@ -6,6 +6,7 @@ export interface AudienciaDetectada {
   id: string;
   publicacao_id: string | null;
   monitoramento_id: string | null;
+  processo_id: string | null;
   processo_numero: string | null;
   data_audiencia: string | null;
   hora: string | null;
@@ -89,19 +90,21 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
   const { data: audiencias = [], isLoading } = useQuery({
     queryKey: ['audiencias-detectadas', filtros],
     queryFn: async () => {
-      // Se filtro de coordenação está ativo, buscar processo_ids dessa coordenação
+      // Se filtro de coordenação está ativo, buscar processos dessa coordenação
       let processosIdsFiltro: string[] | null = null;
+      let processosNumerosFiltro: string[] | null = null;
       
       if (filtros.coordenacaoId && filtros.coordenacaoId !== 'todas') {
         const { data: processosCoord } = await supabase
           .from('processos')
-          .select('id')
+          .select('id, numero')
           .eq('coordenacao_id', filtros.coordenacaoId);
 
         if (!processosCoord || processosCoord.length === 0) {
           return [] as AudienciaDetectada[];
         }
         processosIdsFiltro = processosCoord.map(p => p.id);
+        processosNumerosFiltro = processosCoord.map(p => p.numero);
       }
 
       let query = supabase
@@ -124,17 +127,21 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
         query = query.lte('data_audiencia', filtros.dataFim);
       }
 
-      // Filtro de coordenação via processo_id
-      if (processosIdsFiltro) {
-        query = query.in('processo_id', processosIdsFiltro);
-      }
-
-      const { data, error } = await query.limit(200);
+      const { data, error } = await query.limit(500);
 
       if (error) throw error;
       
-      // Filtrar por busca no client-side
       let result = data as AudienciaDetectada[];
+      
+      // Filtro de coordenação: por processo_id OU processo_numero
+      if (processosIdsFiltro && processosNumerosFiltro) {
+        result = result.filter(a => 
+          (a.processo_id && processosIdsFiltro!.includes(a.processo_id)) ||
+          (a.processo_numero && processosNumerosFiltro!.includes(a.processo_numero))
+        );
+      }
+      
+      // Filtrar por busca no client-side
       if (filtros.search) {
         const searchLower = filtros.search.toLowerCase();
         result = result.filter(a => 
