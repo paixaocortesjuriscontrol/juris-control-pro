@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,14 +21,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
-import { Loader2, Calendar, DollarSign, Hash, Clock, FileText, Search, X } from "lucide-react";
+import { Loader2, Calendar, DollarSign, Hash, Clock, FileText, Search, X, UserPlus } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EventoAgenda } from "@/hooks/useEventosAgenda";
 
 interface GerarParcelasDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  evento?: EventoAgenda | null; // Para modo edição
 }
 
 const INTERVALOS = [
@@ -37,10 +39,11 @@ const INTERVALOS = [
   { value: "mensal", label: "Mensal (30 dias)" },
 ];
 
-export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogProps) {
+export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcelasDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditing = !!evento;
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -50,11 +53,16 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
     valorPadrao: "",
     intervalo: "mensal",
     processo_id: "",
+    participantes_ids: [] as string[],
   });
   
   // Estados para busca de processo
   const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>("todas");
   const [processoSearch, setProcessoSearch] = useState("");
+  
+  // Estados para participantes
+  const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
+  const [participanteSearch, setParticipanteSearch] = useState("");
 
   // Query para buscar coordenações
   const { data: coordenacoes } = useQuery({
@@ -108,9 +116,99 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
     },
     enabled: !!formData.processo_id,
   });
+
+  // Query para buscar usuários (participantes)
+  const { data: usuarios } = useQuery({
+    queryKey: ["usuarios-parcelas", coordenacaoFiltro],
+    queryFn: async () => {
+      let query = supabase
+        .from("profiles")
+        .select("id, nome")
+        .eq("ativo", true)
+        .order("nome");
+      
+      if (coordenacaoFiltro && coordenacaoFiltro !== "todas") {
+        const { data: membros } = await supabase
+          .from("membros_coordenacao")
+          .select("usuario_id")
+          .eq("coordenacao_id", coordenacaoFiltro);
+        
+        const userIds = membros?.map(m => m.usuario_id) || [];
+        if (userIds.length > 0) {
+          query = query.in("id", userIds);
+        } else {
+          return [];
+        }
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Buscar parcelas existentes para edição
+  const { data: parcelasExistentes } = useQuery({
+    queryKey: ["parcelas-evento", evento?.id],
+    queryFn: async () => {
+      if (!evento?.id) return [];
+      const { data, error } = await supabase
+        .from("parcelas_evento")
+        .select("*")
+        .eq("evento_id", evento.id)
+        .order("numero");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!evento?.id && open,
+  });
+
+  const filteredUsuarios = useMemo(() => {
+    if (!usuarios) return [];
+    if (!participanteSearch) return usuarios;
+    return usuarios.filter(u => 
+      u.nome.toLowerCase().includes(participanteSearch.toLowerCase())
+    );
+  }, [usuarios, participanteSearch]);
   
   // Valores individuais por parcela
   const [valoresIndividuais, setValoresIndividuais] = useState<string[]>([]);
+
+  // Carregar dados do evento quando em modo edição
+  useEffect(() => {
+    if (evento && open) {
+      const primeiraData = parcelasExistentes?.[0]?.data_vencimento || format(new Date(evento.data_inicio), "yyyy-MM-dd");
+      
+      setFormData({
+        titulo: evento.titulo,
+        descricao: evento.descricao || "",
+        totalParcelas: evento.total_parcelas || parcelasExistentes?.length || 12,
+        dataVencimento: primeiraData,
+        valorPadrao: "",
+        intervalo: "mensal", // Detectar intervalo se possível
+        processo_id: evento.processo_id || "",
+        participantes_ids: evento.participantes?.map(p => p.usuario_id) || [],
+      });
+      
+      // Carregar valores individuais das parcelas existentes
+      if (parcelasExistentes && parcelasExistentes.length > 0) {
+        const valores = parcelasExistentes.map(p => p.valor?.toString() || "");
+        setValoresIndividuais(valores);
+      }
+    } else if (!evento && open) {
+      setFormData({
+        titulo: "",
+        descricao: "",
+        totalParcelas: 12,
+        dataVencimento: format(new Date(), "yyyy-MM-dd"),
+        valorPadrao: "",
+        intervalo: "mensal",
+        processo_id: "",
+        participantes_ids: [],
+      });
+      setValoresIndividuais([]);
+    }
+  }, [evento, open, parcelasExistentes]);
 
   // Atualizar valores individuais quando muda total de parcelas ou valor padrão
   const atualizarValoresIndividuais = (novoPadrao?: string, novoTotal?: number) => {
@@ -163,6 +261,15 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
     return acc + valor;
   }, 0).toFixed(2);
 
+  const toggleParticipante = (userId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      participantes_ids: prev.participantes_ids.includes(userId)
+        ? prev.participantes_ids.filter(id => id !== userId)
+        : [...prev.participantes_ids, userId],
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -184,60 +291,105 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
     setIsSubmitting(true);
 
     try {
-      // 1. Criar o evento principal (tipo parcelamento)
-      const { data: evento, error: eventoError } = await supabase
-        .from("eventos_agenda")
-        .insert({
-          titulo: formData.titulo,
-          descricao: formData.descricao || `Parcelamento com ${formData.totalParcelas} parcelas. Valor total: R$ ${valorTotal}`,
-          tipo: "parcelamento",
-          data_inicio: new Date(formData.dataVencimento + "T12:00:00").toISOString(),
-          dia_inteiro: true,
-          criado_por: user.id,
+      if (isEditing && evento) {
+        // Atualizar evento existente
+        const { error: updateError } = await supabase
+          .from("eventos_agenda")
+          .update({
+            titulo: formData.titulo,
+            descricao: formData.descricao || `Parcelamento com ${formData.totalParcelas} parcelas. Valor total: R$ ${valorTotal}`,
+            processo_id: formData.processo_id || null,
+            total_parcelas: formData.totalParcelas,
+          })
+          .eq("id", evento.id);
+
+        if (updateError) throw updateError;
+
+        // Atualizar participantes
+        await supabase.from("participantes_evento").delete().eq("evento_id", evento.id);
+        if (formData.participantes_ids.length > 0) {
+          await supabase.from("participantes_evento").insert(
+            formData.participantes_ids.map(userId => ({
+              evento_id: evento.id,
+              usuario_id: userId,
+            }))
+          );
+        }
+
+        // Atualizar parcelas - deletar antigas e criar novas
+        await supabase.from("parcelas_evento").delete().eq("evento_id", evento.id);
+        
+        const parcelasParaInserir = parcelasPreview.map((parcela) => ({
+          evento_id: evento.id,
+          numero: parcela.numero,
+          data_vencimento: format(parcela.data, "yyyy-MM-dd"),
+          valor: parcela.valor ? parseFloat(parcela.valor.replace(",", ".")) : null,
           status: "pendente",
-          total_parcelas: formData.totalParcelas,
-          processo_id: formData.processo_id || null,
-        })
-        .select("id")
-        .single();
+        }));
 
-      if (eventoError) throw eventoError;
+        const { error: parcelasError } = await supabase
+          .from("parcelas_evento")
+          .insert(parcelasParaInserir);
 
-      // 2. Criar as parcelas filhas
-      const parcelasParaInserir = parcelasPreview.map((parcela) => ({
-        evento_id: evento.id,
-        numero: parcela.numero,
-        data_vencimento: format(parcela.data, "yyyy-MM-dd"),
-        valor: parcela.valor ? parseFloat(parcela.valor.replace(",", ".")) : null,
-        status: "pendente",
-      }));
+        if (parcelasError) throw parcelasError;
 
-      const { error: parcelasError } = await supabase
-        .from("parcelas_evento")
-        .insert(parcelasParaInserir);
+        toast.success("Parcelamento atualizado!");
+      } else {
+        // Criar novo evento
+        const { data: novoEvento, error: eventoError } = await supabase
+          .from("eventos_agenda")
+          .insert({
+            titulo: formData.titulo,
+            descricao: formData.descricao || `Parcelamento com ${formData.totalParcelas} parcelas. Valor total: R$ ${valorTotal}`,
+            tipo: "parcelamento",
+            data_inicio: new Date(formData.dataVencimento + "T12:00:00").toISOString(),
+            dia_inteiro: true,
+            criado_por: user.id,
+            status: "pendente",
+            total_parcelas: formData.totalParcelas,
+            processo_id: formData.processo_id || null,
+          })
+          .select("id")
+          .single();
 
-      if (parcelasError) throw parcelasError;
+        if (eventoError) throw eventoError;
 
-      toast.success(`Parcelamento criado com ${formData.totalParcelas} parcelas!`);
+        // Criar participantes
+        if (formData.participantes_ids.length > 0) {
+          await supabase.from("participantes_evento").insert(
+            formData.participantes_ids.map(userId => ({
+              evento_id: novoEvento.id,
+              usuario_id: userId,
+            }))
+          );
+        }
+
+        // Criar as parcelas filhas
+        const parcelasParaInserir = parcelasPreview.map((parcela) => ({
+          evento_id: novoEvento.id,
+          numero: parcela.numero,
+          data_vencimento: format(parcela.data, "yyyy-MM-dd"),
+          valor: parcela.valor ? parseFloat(parcela.valor.replace(",", ".")) : null,
+          status: "pendente",
+        }));
+
+        const { error: parcelasError } = await supabase
+          .from("parcelas_evento")
+          .insert(parcelasParaInserir);
+
+        if (parcelasError) throw parcelasError;
+
+        toast.success(`Parcelamento criado com ${formData.totalParcelas} parcelas!`);
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
       queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
-      
-      // Reset form
-      setFormData({
-        titulo: "",
-        descricao: "",
-        totalParcelas: 12,
-        dataVencimento: format(new Date(), "yyyy-MM-dd"),
-        valorPadrao: "",
-        intervalo: "mensal",
-        processo_id: "",
-      });
-      setValoresIndividuais([]);
+      queryClient.invalidateQueries({ queryKey: ["parcelas-evento"] });
       
       onOpenChange(false);
     } catch (error) {
-      console.error("Erro ao criar parcelamento:", error);
-      toast.error("Erro ao criar parcelamento. Tente novamente.");
+      console.error("Erro ao salvar parcelamento:", error);
+      toast.error("Erro ao salvar parcelamento. Tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
@@ -249,10 +401,12 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
         <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6 pb-2 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-primary" />
-            Novo Parcelamento
+            {isEditing ? "Editar Parcelamento" : "Novo Parcelamento"}
           </DialogTitle>
           <DialogDescription>
-            Crie um parcelamento com múltiplas parcelas. Os lembretes serão enviados no vencimento de cada parcela.
+            {isEditing 
+              ? "Edite os dados do parcelamento e suas parcelas."
+              : "Crie um parcelamento com múltiplas parcelas. Os lembretes serão enviados no vencimento de cada parcela."}
           </DialogDescription>
         </DialogHeader>
 
@@ -360,6 +514,78 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Responsáveis/Participantes */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <Label className="font-medium flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                Responsáveis
+              </Label>
+              
+              {/* Selected participants as chips */}
+              {formData.participantes_ids.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-2 bg-muted/50 rounded-md">
+                  {formData.participantes_ids.map(id => {
+                    const user = usuarios?.find(u => u.id === id);
+                    return (
+                      <Badge
+                        key={id}
+                        variant="secondary"
+                        className="flex items-center gap-1 pr-1 cursor-pointer hover:bg-destructive/20"
+                        onClick={() => toggleParticipante(id)}
+                      >
+                        {user?.nome || "Carregando..."}
+                        <X className="w-3 h-3 ml-1" />
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+              
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Select value={coordenacaoFiltro} onValueChange={setCoordenacaoFiltro}>
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue placeholder="Filtrar por coordenação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as coordenações</SelectItem>
+                    {coordenacoes?.map((coord) => (
+                      <SelectItem key={coord.id} value={coord.id}>
+                        {coord.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar participante..."
+                    value={participanteSearch}
+                    onChange={(e) => setParticipanteSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                {filteredUsuarios?.filter(u => !formData.participantes_ids.includes(u.id)).map((usuario) => (
+                  <div 
+                    key={usuario.id} 
+                    className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer"
+                    onClick={() => toggleParticipante(usuario.id)}
+                  >
+                    <UserPlus className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">{usuario.nome}</span>
+                  </div>
+                ))}
+                {filteredUsuarios?.filter(u => !formData.participantes_ids.includes(u.id)).length === 0 && (
+                  <p className="col-span-2 text-sm text-muted-foreground text-center py-2">
+                    {formData.participantes_ids.length > 0 ? "Todos já adicionados" : "Nenhum participante encontrado"}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -539,11 +765,11 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Criando...
+                {isEditing ? "Salvando..." : "Criando..."}
               </>
             ) : (
               <>
-                Criar Parcelamento
+                {isEditing ? "Salvar" : "Criar Parcelamento"}
               </>
             )}
           </Button>
