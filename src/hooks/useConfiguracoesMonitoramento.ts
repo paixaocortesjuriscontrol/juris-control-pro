@@ -95,6 +95,11 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
         if (error) throw error;
         return data;
       }
+      if (tipo === 'termos') {
+        const { data, error } = await supabase.functions.invoke('monitorar-termos');
+        if (error) throw error;
+        return data;
+      }
       throw new Error("Tipo de monitoramento não suportado");
     },
     onSuccess: (data, tipo) => {
@@ -112,6 +117,10 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
         const novas = data?.novasPublicacoes || 0;
         const processados = data?.monitoramentosProcessados || 0;
         toast.success(`Monitoramento concluído: ${processados} monitoramentos verificados, ${novas} novas publicações`);
+      } else if (tipo === 'termos') {
+        const alertas = data?.alertasCriados || 0;
+        const processos = data?.processosVerificados || 0;
+        toast.success(`Varredura concluída: ${processos} processos verificados, ${alertas} alertas criados`);
       } else if (data?.isComplete) {
         const message = tipo === 'andamentos' 
           ? `Monitoramento completo: ${data?.results?.checked || 0} processos verificados, ${data?.results?.newMovements || 0} andamentos encontrados`
@@ -132,6 +141,7 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
   const configuracaoAndamentos = configuracoes.find(c => c.tipo === 'andamentos');
   const configuracaoDistribuicoes = configuracoes.find(c => c.tipo === 'distribuicoes');
   const configuracaoDjen = configuracoes.find(c => c.tipo === 'djen');
+  const configuracaoTermos = configuracoes.find(c => c.tipo === 'termos');
 
   return {
     configuracoes,
@@ -139,6 +149,7 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
     configuracaoAndamentos,
     configuracaoDistribuicoes,
     configuracaoDjen,
+    configuracaoTermos,
     isLoading,
     atualizarConfiguracao,
     executarMonitoramento,

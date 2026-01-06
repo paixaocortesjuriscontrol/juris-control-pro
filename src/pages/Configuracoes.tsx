@@ -1,11 +1,12 @@
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { User, Bell, Shield, Palette } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
 import { MonitoramentoDjenCard } from "@/components/configuracoes/MonitoramentoDjenCard";
 import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/MonitoramentoDjenProcessosCard";
+import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
 
@@ -17,13 +18,14 @@ export default function Configuracoes() {
         <div>
           <h2 className="text-lg font-semibold mb-4">Monitoramento Automático</h2>
           
-          {/* Cards de Monitoramento - sempre visíveis */}
-          <div className="grid gap-6 md:grid-cols-2">
+          {/* Cards de Monitoramento - layout vertical */}
+          <div className="space-y-4">
             <MonitoramentoRedistribuicoesCard coordenacaoId="" />
             <MonitoramentoAndamentosCard coordenacaoId="" />
             <MonitoramentoDistribuicoesCard coordenacaoId="" />
             <MonitoramentoDjenCard coordenacaoId="" />
             <MonitoramentoDjenProcessosCard coordenacaoId="" />
+            <MonitoramentoTermosCard coordenacaoId="" />
           </div>
         </div>
 
@@ -36,7 +38,7 @@ export default function Configuracoes() {
         {/* Seção de Preferências Pessoais */}
         <div>
           <h2 className="text-lg font-semibold mb-4">Preferências Pessoais</h2>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-4">
             <NotificacoesEmailCard />
           </div>
         </div>
@@ -44,7 +46,7 @@ export default function Configuracoes() {
         {/* Seção de Configurações Gerais */}
         <div>
           <h2 className="text-lg font-semibold mb-4">Configurações Gerais</h2>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="flex flex-row items-center gap-4">
                 <div className="p-2 rounded-lg bg-primary/10">
