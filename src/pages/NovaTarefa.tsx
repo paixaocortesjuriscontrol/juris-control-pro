@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -292,6 +292,28 @@ export default function NovaTarefa() {
     enabled: !!coordenacaoId,
   });
 
+  // Fetch processo pré-selecionado (quando vem via URL)
+  const { data: processoPreSelecionado } = useQuery({
+    queryKey: ["processo-pre-selecionado", processoIdParam],
+    queryFn: async () => {
+      if (!processoIdParam) return null;
+      const { data, error } = await supabase
+        .from("processos")
+        .select(`
+          id,
+          numero,
+          polo_ativo,
+          cliente:clientes!processos_cliente_id_fkey(nome)
+        `)
+        .eq("id", processoIdParam)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!processoIdParam,
+  });
+
   // Fetch processos based on coordination and search
   const { data: processos, isLoading: loadingProcessos } = useQuery({
     queryKey: ["processos-nova-tarefa", coordenacaoId, searchProcesso],
@@ -323,6 +345,15 @@ export default function NovaTarefa() {
     },
     enabled: tipoVinculo === "processo" && (!!coordenacaoId || searchProcesso.length >= 3),
   });
+
+  // Combinar processos da busca com o pré-selecionado (para garantir que apareça na lista)
+  const processosDisponiveis = useMemo(() => {
+    const lista = processos || [];
+    if (processoPreSelecionado && !lista.find(p => p.id === processoPreSelecionado.id)) {
+      return [processoPreSelecionado, ...lista];
+    }
+    return lista;
+  }, [processos, processoPreSelecionado]);
 
   // Fetch tarefas para vincular (quando sem vínculo de processo)
   const { data: tarefasParaVincular, isLoading: loadingTarefas } = useQuery({
@@ -760,12 +791,12 @@ export default function NovaTarefa() {
                                 <div className="p-2 text-center text-muted-foreground">
                                   <Loader2 className="w-4 h-4 animate-spin mx-auto" />
                                 </div>
-                              ) : processos?.length === 0 ? (
+                              ) : processosDisponiveis.length === 0 ? (
                                 <div className="p-2 text-center text-muted-foreground text-sm">
                                   Nenhum processo encontrado
                                 </div>
                               ) : (
-                                processos?.map((p) => (
+                                processosDisponiveis.map((p) => (
                                   <SelectItem key={p.id} value={p.id}>
                                     <span className="font-mono text-xs">{p.numero}</span>
                                     {p.cliente?.nome && (
