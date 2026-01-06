@@ -57,6 +57,177 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
+// Detect audiência in publication content
+interface AudienciaInfo {
+  dataAudiencia: string | null;
+  hora: string | null;
+  tipoAudiencia: string | null;
+  localAudiencia: string | null;
+  contexto: string;
+}
+
+function detectAudiencia(conteudo: string): AudienciaInfo | null {
+  const conteudoLower = conteudo.toLowerCase();
+  
+  const audienciaTerms = [
+    'audiência',
+    'audiencia',
+    'sessão de julgamento',
+    'sessao de julgamento',
+    'pauta de julgamento',
+  ];
+  
+  const hasAudiencia = audienciaTerms.some(term => conteudoLower.includes(term));
+  if (!hasAudiencia) return null;
+  
+  let contexto = '';
+  for (const term of audienciaTerms) {
+    const index = conteudoLower.indexOf(term);
+    if (index !== -1) {
+      const start = Math.max(0, index - 100);
+      const end = Math.min(conteudo.length, index + term.length + 200);
+      contexto = (start > 0 ? '...' : '') + 
+                 conteudo.slice(start, end) + 
+                 (end < conteudo.length ? '...' : '');
+      break;
+    }
+  }
+  
+  let dataAudiencia: string | null = null;
+  const datePatterns = [
+    /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/,
+    /(\d{1,2})\s+de\s+(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+(\d{4})/i,
+  ];
+  
+  for (const pattern of datePatterns) {
+    const match = contexto.match(pattern);
+    if (match) {
+      if (match[2] && isNaN(parseInt(match[2]))) {
+        const months: Record<string, string> = {
+          'janeiro': '01', 'fevereiro': '02', 'março': '03', 'marco': '03',
+          'abril': '04', 'maio': '05', 'junho': '06', 'julho': '07',
+          'agosto': '08', 'setembro': '09', 'outubro': '10', 'novembro': '11', 'dezembro': '12'
+        };
+        const month = months[match[2].toLowerCase()] || '01';
+        dataAudiencia = `${match[3]}-${month}-${match[1].padStart(2, '0')}`;
+      } else {
+        dataAudiencia = `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+      }
+      break;
+    }
+  }
+  
+  // Extract time
+  let hora: string | null = null;
+  const horaMatch = contexto.match(/(\d{1,2})[h:](\d{2})/);
+  if (horaMatch) {
+    hora = `${horaMatch[1].padStart(2, '0')}:${horaMatch[2]}`;
+  }
+  
+  let tipoAudiencia: string | null = null;
+  const tipoPatterns = [
+    /audiência\s+de\s+(conciliação|instrução|julgamento|instrução e julgamento|una|inicial|custódia)/i,
+    /audiencia\s+de\s+(conciliacao|instrucao|julgamento|instrucao e julgamento|una|inicial|custodia)/i,
+  ];
+  
+  for (const pattern of tipoPatterns) {
+    const match = conteudo.match(pattern);
+    if (match) {
+      tipoAudiencia = match[1];
+      break;
+    }
+  }
+  
+  let localAudiencia: string | null = null;
+  const localPatterns = [
+    /(?:local|sala|endereço|endereco|forum|fórum)[\s:]+([^,\n]{10,60})/i,
+    /(?:na|no|em)\s+(?:sala|fórum|forum)\s+([^,\n]{5,50})/i,
+  ];
+  
+  for (const pattern of localPatterns) {
+    const match = conteudo.match(pattern);
+    if (match) {
+      localAudiencia = match[1].trim();
+      break;
+    }
+  }
+  
+  return { dataAudiencia, hora, tipoAudiencia, localAudiencia, contexto };
+}
+
+// Detect intimação in publication content
+interface IntimacaoInfo {
+  tipoIntimacao: string | null;
+  prazoDias: number | null;
+  dataLimite: string | null;
+  contexto: string;
+}
+
+function detectIntimacao(conteudo: string): IntimacaoInfo | null {
+  const conteudoLower = conteudo.toLowerCase();
+  
+  const intimacaoTerms = [
+    'intimação',
+    'intimacao',
+    'intima-se',
+    'fica intimado',
+    'ficam intimados',
+    'prazo de',
+    'no prazo de',
+  ];
+  
+  const hasIntimacao = intimacaoTerms.some(term => conteudoLower.includes(term));
+  if (!hasIntimacao) return null;
+  
+  let contexto = '';
+  for (const term of intimacaoTerms) {
+    const index = conteudoLower.indexOf(term);
+    if (index !== -1) {
+      const start = Math.max(0, index - 50);
+      const end = Math.min(conteudo.length, index + term.length + 150);
+      contexto = (start > 0 ? '...' : '') + 
+                 conteudo.slice(start, end) + 
+                 (end < conteudo.length ? '...' : '');
+      break;
+    }
+  }
+  
+  // Detect deadline in days
+  let prazoDias: number | null = null;
+  const prazoPatterns = [
+    /prazo\s+de\s+(\d+)\s*(?:dias?|d)/i,
+    /(\d+)\s*dias?\s+(?:úteis|uteis)/i,
+    /(\d+)\s*\(?dias?\)?/i,
+  ];
+  
+  for (const pattern of prazoPatterns) {
+    const match = contexto.match(pattern);
+    if (match) {
+      prazoDias = parseInt(match[1]);
+      break;
+    }
+  }
+  
+  // Calculate deadline date
+  let dataLimite: string | null = null;
+  if (prazoDias) {
+    const hoje = new Date();
+    hoje.setDate(hoje.getDate() + prazoDias);
+    dataLimite = hoje.toISOString().split('T')[0];
+  }
+  
+  // Detect type
+  let tipoIntimacao: string | null = null;
+  if (conteudoLower.includes('manifestar')) tipoIntimacao = 'Manifestação';
+  else if (conteudoLower.includes('recurso')) tipoIntimacao = 'Recurso';
+  else if (conteudoLower.includes('contestar') || conteudoLower.includes('contestação')) tipoIntimacao = 'Contestação';
+  else if (conteudoLower.includes('pagamento') || conteudoLower.includes('pagar')) tipoIntimacao = 'Pagamento';
+  else if (conteudoLower.includes('cumprimento')) tipoIntimacao = 'Cumprimento de Sentença';
+  else tipoIntimacao = 'Intimação';
+  
+  return { tipoIntimacao, prazoDias, dataLimite, contexto };
+}
+
 function parseISODateOnly(dateStr: string): Date {
   // Force UTC to avoid timezone shifting the day
   return new Date(`${dateStr}T00:00:00.000Z`);
@@ -363,7 +534,7 @@ serve(async (req) => {
             'DJEN';
 
           // Inserir nova publicação
-          const { error: insertError } = await supabase
+          const { data: insertedPub, error: insertError } = await supabase
             .from('publicacoes_djen_processos')
             .insert({
               processo_id: processo.id,
@@ -372,11 +543,46 @@ serve(async (req) => {
               data_publicacao: dataPublicacao,
               fonte,
               hash_conteudo: hash,
-            });
+            })
+            .select('id')
+            .single();
 
-          if (!insertError) {
+          if (!insertError && insertedPub) {
             totalNovas++;
             novasDoProcesso++;
+            
+            // Detectar audiência
+            const audienciaInfo = detectAudiencia(conteudo);
+            if (audienciaInfo) {
+              await supabase.from('audiencias_detectadas').insert({
+                processo_numero: processo.numero,
+                data_audiencia: audienciaInfo.dataAudiencia,
+                hora: audienciaInfo.hora,
+                tipo_audiencia: audienciaInfo.tipoAudiencia,
+                local_audiencia: audienciaInfo.localAudiencia,
+                contexto: audienciaInfo.contexto,
+                conteudo_publicacao: conteudo.substring(0, 5000),
+                status: 'pendente',
+                origem: 'djen_processos',
+              });
+              console.log(`Audiência detectada para processo ${processo.numero}`);
+            }
+            
+            // Detectar intimação
+            const intimacaoInfo = detectIntimacao(conteudo);
+            if (intimacaoInfo) {
+              await supabase.from('intimacoes_detectadas').insert({
+                processo_numero: processo.numero,
+                tipo_intimacao: intimacaoInfo.tipoIntimacao,
+                prazo_dias: intimacaoInfo.prazoDias,
+                data_limite: intimacaoInfo.dataLimite,
+                contexto: intimacaoInfo.contexto,
+                conteudo_publicacao: conteudo.substring(0, 5000),
+                status: 'pendente',
+                origem: 'djen_processos',
+              });
+              console.log(`Intimação detectada para processo ${processo.numero}`);
+            }
           }
         }
 
