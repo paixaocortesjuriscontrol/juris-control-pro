@@ -115,7 +115,7 @@ export function RelatorioClientes({ isActive }: RelatorioClientesProps) {
                 </div>
                 <div className="text-center p-4 rounded-lg bg-amber-500/10">
                   <p className="text-2xl font-bold text-amber-500">
-                    {processosPorCliente.reduce((acc: number, c: any) => acc + c.prazosPendentes, 0)}
+                    {processosPorCliente.reduce((acc: number, c: any) => acc + (Number(c.prazosPendentes) || 0), 0)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">Prazos Pendentes</p>
                 </div>
@@ -143,7 +143,7 @@ export function RelatorioClientes({ isActive }: RelatorioClientesProps) {
                       <TableCell className="text-right font-medium">{cliente.total}</TableCell>
                       <TableCell className="text-right text-green-500">{cliente.ativos}</TableCell>
                       <TableCell className="text-right text-muted-foreground">{cliente.encerrados}</TableCell>
-                      <TableCell className="text-right text-amber-500">{cliente.prazosPendentes}</TableCell>
+                      <TableCell className="text-right text-amber-500">{Number(cliente.prazosPendentes) || 0}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
