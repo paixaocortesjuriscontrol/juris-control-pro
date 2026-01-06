@@ -871,44 +871,154 @@ export default function ProcessoDetalhes() {
                 <CardContent>
                   {loadingAudiencias ? (
                     <div className="space-y-3">
-                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
                     </div>
                   ) : audiencias.length > 0 ? (
-                    <ScrollArea className="h-[400px] pr-4">
-                      <div className="space-y-3">
+                    <ScrollArea className="h-[500px] pr-4">
+                      <div className="space-y-4">
                         {audiencias.map((aud) => (
-                          <div key={aud.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 flex-wrap mb-2">
-                                  <Badge variant={aud.status === 'pendente' ? 'default' : 'secondary'}>
-                                    {aud.status}
-                                  </Badge>
-                                  {aud.tipo_audiencia && (
-                                    <Badge variant="outline">{aud.tipo_audiencia}</Badge>
-                                  )}
-                                </div>
-                                {aud.local_audiencia && (
-                                  <p className="text-sm text-muted-foreground">{aud.local_audiencia}</p>
+                          <div key={aud.id} className="p-5 border-2 rounded-xl hover:bg-muted/30 transition-colors">
+                            {/* Header com Status e Data */}
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4 pb-3 border-b">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge variant={aud.status === 'pendente' ? 'default' : aud.status === 'tratado' ? 'secondary' : 'outline'}>
+                                  {aud.status}
+                                </Badge>
+                                {aud.tipo_audiencia && (
+                                  <Badge variant="outline">{aud.tipo_audiencia}</Badge>
                                 )}
-                                {aud.vara_camara && (
-                                  <p className="text-sm text-muted-foreground">{aud.vara_camara}</p>
+                                {aud.origem && (
+                                  <Badge variant="secondary" className="text-xs">{aud.origem}</Badge>
                                 )}
                               </div>
                               <div className="text-right shrink-0">
                                 {aud.data_audiencia && (
-                                  <p className="font-medium flex items-center gap-1 justify-end">
-                                    <Calendar className="w-4 h-4" />
+                                  <p className="font-semibold text-lg flex items-center gap-2 justify-end">
+                                    <Calendar className="w-5 h-5 text-primary" />
                                     {formatDate(aud.data_audiencia)}
                                   </p>
                                 )}
-                                {aud.hora_brasilia && (
-                                  <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
-                                    <Clock className="w-3 h-3" />
-                                    {aud.hora_brasilia}
+                                {(aud.hora_brasilia || aud.hora) && (
+                                  <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end mt-1">
+                                    <Clock className="w-4 h-4" />
+                                    {aud.hora_brasilia || aud.hora}
                                   </p>
                                 )}
                               </div>
+                            </div>
+
+                            {/* Detalhes da Audiência */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                              {aud.local_audiencia && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Local</p>
+                                  <p className="font-medium flex items-center gap-1">
+                                    <MapPin className="w-4 h-4 text-muted-foreground" />
+                                    {aud.local_audiencia}
+                                  </p>
+                                </div>
+                              )}
+                              {aud.vara_camara && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Vara/Câmara</p>
+                                  <p className="font-medium">{aud.vara_camara}</p>
+                                </div>
+                              )}
+                              {aud.comarca && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Comarca</p>
+                                  <p className="font-medium">{aud.comarca}</p>
+                                </div>
+                              )}
+                              {aud.cliente && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Cliente</p>
+                                  <p className="font-medium">{aud.cliente}</p>
+                                </div>
+                              )}
+                              {aud.polo_ativo && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Polo Ativo</p>
+                                  <p className="font-medium">{aud.polo_ativo}</p>
+                                </div>
+                              )}
+                              {aud.advogado && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Advogado</p>
+                                  <p className="font-medium flex items-center gap-1">
+                                    <User className="w-4 h-4 text-muted-foreground" />
+                                    {aud.advogado}
+                                  </p>
+                                </div>
+                              )}
+                              {aud.preposto && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Preposto</p>
+                                  <p className="font-medium">{aud.preposto}</p>
+                                </div>
+                              )}
+                              {aud.terceirizado && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Terceirizado</p>
+                                  <p className="font-medium">{aud.terceirizado}</p>
+                                </div>
+                              )}
+                              {aud.testemunhas && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Testemunhas</p>
+                                  <p className="font-medium">{aud.testemunhas}</p>
+                                </div>
+                              )}
+                              {aud.funcao && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Função</p>
+                                  <p className="font-medium">{aud.funcao}</p>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Resumo do Objeto */}
+                            {aud.resumo_objeto && (
+                              <div className="mt-4 pt-3 border-t">
+                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Resumo do Objeto</p>
+                                <p className="text-sm">{aud.resumo_objeto}</p>
+                              </div>
+                            )}
+
+                            {/* Observações */}
+                            {aud.observacoes && (
+                              <div className="mt-3 p-3 bg-muted/30 rounded-lg">
+                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Observações</p>
+                                <p className="text-sm">{aud.observacoes}</p>
+                              </div>
+                            )}
+
+                            {/* Providências Tomadas */}
+                            {aud.providencias_tomadas && (
+                              <div className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                                <p className="text-xs text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">Providências Tomadas</p>
+                                <p className="text-sm">{aud.providencias_tomadas}</p>
+                              </div>
+                            )}
+
+                            {/* Conteúdo da Publicação (colapsável) */}
+                            {aud.conteudo_publicacao && (
+                              <details className="mt-3">
+                                <summary className="cursor-pointer text-xs text-muted-foreground uppercase tracking-wide hover:text-foreground">
+                                  Ver conteúdo da publicação original
+                                </summary>
+                                <div className="mt-2 p-3 bg-muted/20 rounded-lg text-sm max-h-48 overflow-y-auto">
+                                  {aud.conteudo_publicacao}
+                                </div>
+                              </details>
+                            )}
+
+                            {/* Metadados */}
+                            <div className="mt-4 pt-3 border-t flex flex-wrap gap-4 text-xs text-muted-foreground">
+                              {aud.tratado_em && (
+                                <span>Tratado em: {formatDateTime(aud.tratado_em)}</span>
+                              )}
+                              <span>Criado em: {formatDateTime(aud.created_at)}</span>
                             </div>
                           </div>
                         ))}
@@ -936,49 +1046,121 @@ export default function ProcessoDetalhes() {
                 <CardContent>
                   {loadingIntimacoes ? (
                     <div className="space-y-3">
-                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
                     </div>
                   ) : intimacoes.length > 0 ? (
-                    <ScrollArea className="h-[400px] pr-4">
-                      <div className="space-y-3">
+                    <ScrollArea className="h-[500px] pr-4">
+                      <div className="space-y-4">
                         {intimacoes.map((int) => (
-                          <div key={int.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 flex-wrap mb-2">
-                                  <Badge variant={int.status === 'pendente' ? 'default' : 'secondary'}>
-                                    {int.status}
+                          <div key={int.id} className="p-5 border-2 rounded-xl hover:bg-muted/30 transition-colors">
+                            {/* Header com Status e Datas */}
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4 pb-3 border-b">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge variant={int.status === 'pendente' ? 'default' : int.status === 'tratado' ? 'secondary' : 'outline'}>
+                                  {int.status}
+                                </Badge>
+                                {int.prioridade && (
+                                  <Badge variant={int.prioridade === 'alta' ? 'destructive' : int.prioridade === 'media' ? 'default' : 'outline'}>
+                                    Prioridade: {int.prioridade}
                                   </Badge>
-                                  {int.prioridade && (
-                                    <Badge variant={int.prioridade === 'alta' ? 'destructive' : 'outline'}>
-                                      {int.prioridade}
-                                    </Badge>
-                                  )}
-                                  {int.tipo_intimacao && (
-                                    <Badge variant="outline">{int.tipo_intimacao}</Badge>
-                                  )}
-                                </div>
-                                {int.descricao && (
-                                  <p className="text-sm text-foreground mb-1">{int.descricao}</p>
                                 )}
-                                {int.orgao_intimante && (
-                                  <p className="text-sm text-muted-foreground">{int.orgao_intimante}</p>
+                                {int.tipo_intimacao && (
+                                  <Badge variant="outline">{int.tipo_intimacao}</Badge>
+                                )}
+                                {int.origem && (
+                                  <Badge variant="secondary" className="text-xs">{int.origem}</Badge>
                                 )}
                               </div>
-                              <div className="text-right shrink-0">
+                              <div className="text-right shrink-0 space-y-1">
                                 {int.data_intimacao && (
                                   <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
-                                    <Calendar className="w-3 h-3" />
-                                    {formatDate(int.data_intimacao)}
+                                    <Calendar className="w-4 h-4" />
+                                    Intimação: {formatDate(int.data_intimacao)}
                                   </p>
                                 )}
                                 {int.data_limite && (
-                                  <p className="font-medium text-destructive flex items-center gap-1 justify-end mt-1">
-                                    <Clock className="w-3 h-3" />
+                                  <p className="font-semibold text-lg text-destructive flex items-center gap-2 justify-end">
+                                    <Clock className="w-5 h-5" />
                                     Prazo: {formatDate(int.data_limite)}
                                   </p>
                                 )}
+                                {int.prazo_dias && (
+                                  <p className="text-xs text-muted-foreground">
+                                    ({int.prazo_dias} dias)
+                                  </p>
+                                )}
                               </div>
+                            </div>
+
+                            {/* Descrição */}
+                            {int.descricao && (
+                              <div className="mb-4">
+                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Descrição</p>
+                                <p className="text-sm font-medium">{int.descricao}</p>
+                              </div>
+                            )}
+
+                            {/* Detalhes da Intimação */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                              {int.orgao_intimante && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Órgão Intimante</p>
+                                  <p className="font-medium flex items-center gap-1">
+                                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                                    {int.orgao_intimante}
+                                  </p>
+                                </div>
+                              )}
+                              {int.processo_numero && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Nº Processo</p>
+                                  <p className="font-medium font-mono">{int.processo_numero}</p>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Contexto */}
+                            {int.contexto && (
+                              <div className="mt-4 pt-3 border-t">
+                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Contexto</p>
+                                <p className="text-sm">{int.contexto}</p>
+                              </div>
+                            )}
+
+                            {/* Observações */}
+                            {int.observacoes && (
+                              <div className="mt-3 p-3 bg-muted/30 rounded-lg">
+                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Observações</p>
+                                <p className="text-sm">{int.observacoes}</p>
+                              </div>
+                            )}
+
+                            {/* Providências Tomadas */}
+                            {int.providencias_tomadas && (
+                              <div className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                                <p className="text-xs text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">Providências Tomadas</p>
+                                <p className="text-sm">{int.providencias_tomadas}</p>
+                              </div>
+                            )}
+
+                            {/* Conteúdo da Publicação (colapsável) */}
+                            {int.conteudo_publicacao && (
+                              <details className="mt-3">
+                                <summary className="cursor-pointer text-xs text-muted-foreground uppercase tracking-wide hover:text-foreground">
+                                  Ver conteúdo da publicação original
+                                </summary>
+                                <div className="mt-2 p-3 bg-muted/20 rounded-lg text-sm max-h-48 overflow-y-auto">
+                                  {int.conteudo_publicacao}
+                                </div>
+                              </details>
+                            )}
+
+                            {/* Metadados */}
+                            <div className="mt-4 pt-3 border-t flex flex-wrap gap-4 text-xs text-muted-foreground">
+                              {int.tratado_em && (
+                                <span>Tratado em: {formatDateTime(int.tratado_em)}</span>
+                              )}
+                              <span>Criado em: {formatDateTime(int.created_at)}</span>
                             </div>
                           </div>
                         ))}
@@ -1016,6 +1198,7 @@ export default function ProcessoDetalhes() {
                             key={pub.id}
                             className={`p-5 border-2 rounded-xl transition-colors ${pub.lida ? 'bg-muted/30 border-muted' : 'bg-background border-primary/20 hover:border-primary/40'}`}
                           >
+                            {/* Header */}
                             <div className="flex flex-col gap-3 mb-4 pb-3 border-b">
                               <div className="flex flex-wrap items-center gap-2">
                                 {pub.lida ? (
@@ -1033,13 +1216,13 @@ export default function ProcessoDetalhes() {
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                                   <div>
-                                    <span className="text-xs">Diário:</span>{" "}
+                                    <span className="text-xs uppercase tracking-wide">Diário:</span>{" "}
                                     <span className="font-medium text-foreground">
                                       {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
                                     </span>
                                   </div>
                                   <div>
-                                    <span className="text-xs">Capturado:</span>{" "}
+                                    <span className="text-xs uppercase tracking-wide">Capturado:</span>{" "}
                                     <span>{formatDateTime(pub.data_encontrado)}</span>
                                   </div>
                                 </div>
@@ -1066,6 +1249,8 @@ export default function ProcessoDetalhes() {
                                 </Button>
                               </div>
                             </div>
+
+                            {/* Conteúdo */}
                             <div className="bg-muted/20 rounded-lg p-3 sm:p-4 overflow-hidden">
                               {pub.conteudo ? (
                                 <div 
@@ -1081,6 +1266,11 @@ export default function ProcessoDetalhes() {
                               ) : (
                                 <p className="text-sm text-muted-foreground">Conteúdo não disponível</p>
                               )}
+                            </div>
+
+                            {/* Metadados */}
+                            <div className="mt-3 pt-3 border-t flex flex-wrap gap-4 text-xs text-muted-foreground">
+                              <span>Publicado em: {formatDateTime(pub.created_at)}</span>
                             </div>
                           </div>
                         ))}
@@ -1119,11 +1309,11 @@ export default function ProcessoDetalhes() {
                 <CardContent>
                   {loadingMovimentacoes ? (
                     <div className="space-y-3">
-                      {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+                      {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                     </div>
                   ) : movimentacoes && movimentacoes.length > 0 ? (
-                    <ScrollArea className="h-[400px] pr-4">
-                      <div className="space-y-3">
+                    <ScrollArea className="h-[500px] pr-4">
+                      <div className="space-y-4">
                         {movimentacoes.map((mov) => {
                           const parts = mov.descricao.split(' - ');
                           const nomeMovimento = parts[0];
@@ -1132,34 +1322,37 @@ export default function ProcessoDetalhes() {
                           return (
                             <div 
                               key={mov.id}
-                              className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                              className="p-5 border-2 rounded-xl hover:bg-muted/30 transition-colors"
                             >
-                              <div className="flex items-start justify-between gap-4">
+                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="font-medium text-foreground">{nomeMovimento}</p>
+                                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                                    <p className="font-semibold text-foreground">{nomeMovimento}</p>
                                     {mov.tipo && mov.tipo !== nomeMovimento && (
                                       <Badge variant="secondary" className="text-xs">
                                         {mov.tipo}
                                       </Badge>
                                     )}
+                                    {mov.fonte && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {mov.fonte}
+                                      </Badge>
+                                    )}
                                   </div>
                                   {complemento && (
-                                    <p className="text-sm text-muted-foreground mt-1 break-words">
+                                    <p className="text-sm text-muted-foreground break-words">
                                       {complemento}
                                     </p>
                                   )}
                                 </div>
                                 <div className="text-right shrink-0">
-                                  <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
-                                    <Clock className="w-3 h-3" />
-                                    {formatDateTime(mov.data_movimentacao)}
+                                  <p className="font-medium flex items-center gap-2 justify-end text-primary">
+                                    <Calendar className="w-4 h-4" />
+                                    {formatDate(mov.data_movimentacao)}
                                   </p>
-                                  {mov.fonte && (
-                                    <Badge variant="outline" className="text-xs mt-1">
-                                      {mov.fonte}
-                                    </Badge>
-                                  )}
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Registrado em: {formatDateTime(mov.created_at)}
+                                  </p>
                                 </div>
                               </div>
                             </div>
@@ -1173,7 +1366,7 @@ export default function ProcessoDetalhes() {
                       <p className="text-muted-foreground mb-4">Nenhum andamento registrado</p>
                       <Button variant="outline" onClick={handleAtualizarAndamentos} disabled={atualizando}>
                         <RefreshCw className={`w-4 h-4 mr-2 ${atualizando ? "animate-spin" : ""}`} />
-                        Buscar Andamentos
+                        Buscar andamentos da API
                       </Button>
                     </div>
                   )}
