@@ -1,11 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * @deprecated Use useRelatorioPrazosData, useRelatorioTarefasData, and useRelatorioAndamentosData instead.
+ * This hook is kept for backward compatibility but calls the legacy RPC.
+ */
 export function useRelatorioAtividadesData(enabled: boolean) {
   return useQuery({
     queryKey: ["relatorio-atividades-data"],
-    staleTime: 0, // Sempre buscar dados frescos
-    gcTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
     enabled,
     retry: 2,
     retryDelay: 1000,
