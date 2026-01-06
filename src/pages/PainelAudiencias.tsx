@@ -290,24 +290,28 @@ export default function PainelAudiencias() {
           </div>
 
           {/* Audiências List */}
-          {isLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map(i => (
-                <Skeleton key={i} className="h-32 w-full" />
-              ))}
-            </div>
-          ) : audiencias.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">Nenhuma audiência encontrada</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Cadastre audiências manualmente ou aguarde a detecção automática
+          <div className="pb-8">
+            {isLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => (
+                  <Skeleton key={i} className="h-32 w-full" />
+                ))}
+              </div>
+            ) : audiencias.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">Nenhuma audiência encontrada</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Cadastre audiências manualmente ou aguarde a detecção automática
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Exibindo {audiencias.length} audiência{audiencias.length !== 1 ? 's' : ''}
                 </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
               {audiencias.map((audiencia) => {
                 const daysUntil = getDaysUntil(audiencia.data_audiencia);
                 
@@ -473,7 +477,8 @@ export default function PainelAudiencias() {
                 );
               })}
             </div>
-          )}
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="cadastro">
