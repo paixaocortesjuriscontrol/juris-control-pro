@@ -882,8 +882,10 @@ export type Database = {
           descricao: string | null
           dia_inteiro: boolean | null
           enviar_whatsapp: boolean
+          grupo_parcelas: string | null
           id: string
           local: string | null
+          numero_parcela: number | null
           processo_id: string | null
           recorrencia_dias_semana: number[] | null
           recorrencia_fim: string | null
@@ -893,7 +895,9 @@ export type Database = {
           status: string
           tipo: string
           titulo: string
+          total_parcelas: number | null
           updated_at: string
+          valor_parcela: number | null
         }
         Insert: {
           concluido_em?: string | null
@@ -904,8 +908,10 @@ export type Database = {
           descricao?: string | null
           dia_inteiro?: boolean | null
           enviar_whatsapp?: boolean
+          grupo_parcelas?: string | null
           id?: string
           local?: string | null
+          numero_parcela?: number | null
           processo_id?: string | null
           recorrencia_dias_semana?: number[] | null
           recorrencia_fim?: string | null
@@ -915,7 +921,9 @@ export type Database = {
           status?: string
           tipo?: string
           titulo: string
+          total_parcelas?: number | null
           updated_at?: string
+          valor_parcela?: number | null
         }
         Update: {
           concluido_em?: string | null
@@ -926,8 +934,10 @@ export type Database = {
           descricao?: string | null
           dia_inteiro?: boolean | null
           enviar_whatsapp?: boolean
+          grupo_parcelas?: string | null
           id?: string
           local?: string | null
+          numero_parcela?: number | null
           processo_id?: string | null
           recorrencia_dias_semana?: number[] | null
           recorrencia_fim?: string | null
@@ -937,7 +947,9 @@ export type Database = {
           status?: string
           tipo?: string
           titulo?: string
+          total_parcelas?: number | null
           updated_at?: string
+          valor_parcela?: number | null
         }
         Relationships: [
           {
