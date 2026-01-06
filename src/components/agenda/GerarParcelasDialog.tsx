@@ -21,6 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { Loader2, Calendar, DollarSign, Hash, Clock, FileText, Search, X, UserPlus, MessageCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
@@ -64,6 +65,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
     participantes_ids: [] as string[],
     enviar_whatsapp: false,
     alerta_minutos: [30] as number[],
+    // Para parcelas não existe "hora de vencimento". Este horário é a base para calcular os lembretes.
+    hora_alerta: "09:00",
   });
   
   // Estados para busca de processo
@@ -173,6 +176,21 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
     enabled: !!evento?.id && open,
   });
 
+  // Buscar alertas do evento (para evitar resetar sempre para 30min ao editar)
+  const { data: alertasEvento } = useQuery({
+    queryKey: ["alertas-evento-parcelas", evento?.id],
+    queryFn: async () => {
+      if (!evento?.id) return [];
+      const { data, error } = await supabase
+        .from("alertas_evento")
+        .select("minutos_antes")
+        .eq("evento_id", evento.id);
+      if (error) throw error;
+      return data?.map((a) => a.minutos_antes) || [];
+    },
+    enabled: !!evento?.id && open,
+  });
+
   const filteredUsuarios = useMemo(() => {
     if (!usuarios) return [];
     if (!participanteSearch) return usuarios;
@@ -188,10 +206,15 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
 
   // Carregar dados do evento quando em modo edição
   useEffect(() => {
-    if (evento && open) {
-      const primeiraData = parcelasExistentes?.[0]?.data_vencimento || format(new Date(evento.data_inicio), "yyyy-MM-dd");
-      
-      setFormData({
+    if (!open) return;
+
+    if (evento) {
+      const dataInicioSP = toZonedTime(new Date(evento.data_inicio), "America/Sao_Paulo");
+      const primeiraData =
+        parcelasExistentes?.[0]?.data_vencimento || format(dataInicioSP, "yyyy-MM-dd");
+
+      setFormData((prev) => ({
+        ...prev,
         titulo: evento.titulo,
         descricao: evento.descricao || "",
         totalParcelas: evento.total_parcelas || parcelasExistentes?.length || 12,
@@ -199,19 +222,23 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
         valorPadrao: "",
         intervalo: "mensal", // Detectar intervalo se possível
         processo_id: evento.processo_id || "",
-        participantes_ids: evento.participantes?.map(p => p.usuario_id) || [],
+        participantes_ids: evento.participantes?.map((p) => p.usuario_id) || [],
         enviar_whatsapp: evento.enviar_whatsapp || false,
-        alerta_minutos: [30],
-      });
-      
+        // quando a query de alertas carregar, usa o valor real (evita voltar para 30)
+        alerta_minutos:
+          alertasEvento !== undefined ? alertasEvento : prev.alerta_minutos,
+        // horário base para disparo dos lembretes (quando não há hora de vencimento)
+        hora_alerta: format(dataInicioSP, "HH:mm") || prev.hora_alerta || "09:00",
+      }));
+
       // Carregar valores e datas individuais das parcelas existentes
       if (parcelasExistentes && parcelasExistentes.length > 0) {
-        const valores = parcelasExistentes.map(p => p.valor?.toString() || "");
+        const valores = parcelasExistentes.map((p) => p.valor?.toString() || "");
         setValoresIndividuais(valores);
-        const datas = parcelasExistentes.map(p => p.data_vencimento);
+        const datas = parcelasExistentes.map((p) => p.data_vencimento);
         setDatasIndividuais(datas);
       }
-    } else if (!evento && open) {
+    } else {
       setFormData({
         titulo: "",
         descricao: "",
@@ -223,11 +250,12 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
         participantes_ids: [],
         enviar_whatsapp: false,
         alerta_minutos: [30],
+        hora_alerta: "09:00",
       });
       setValoresIndividuais([]);
       setDatasIndividuais([]);
     }
-  }, [evento, open, parcelasExistentes]);
+  }, [evento, open, parcelasExistentes, alertasEvento]);
 
   // Atualizar valores individuais quando muda total de parcelas ou valor padrão
   const atualizarValoresIndividuais = (novoPadrao?: string, novoTotal?: number) => {
@@ -327,16 +355,20 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
     try {
       if (isEditing && evento) {
         // Atualizar evento existente
-        const { error: updateError } = await supabase
-          .from("eventos_agenda")
-          .update({
-            titulo: formData.titulo,
-            descricao: formData.descricao || `Parcelamento com ${formData.totalParcelas} parcelas. Valor total: R$ ${valorTotal}`,
-            processo_id: formData.processo_id || null,
-            total_parcelas: formData.totalParcelas,
-            enviar_whatsapp: formData.enviar_whatsapp,
-          })
-          .eq("id", evento.id);
+          const { error: updateError } = await supabase
+            .from("eventos_agenda")
+            .update({
+              titulo: formData.titulo,
+              descricao:
+                formData.descricao ||
+                `Parcelamento com ${formData.totalParcelas} parcelas. Valor total: R$ ${valorTotal}`,
+              // mantém o evento de parcelamento apontando para a data da 1ª parcela, mas com um horário base para alertas
+              data_inicio: `${formData.dataVencimento}T${formData.hora_alerta || "09:00"}:00-03:00`,
+              processo_id: formData.processo_id || null,
+              total_parcelas: formData.totalParcelas,
+              enviar_whatsapp: formData.enviar_whatsapp,
+            })
+            .eq("id", evento.id);
 
         if (updateError) throw updateError;
 
@@ -386,9 +418,12 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
           .from("eventos_agenda")
           .insert({
             titulo: formData.titulo,
-            descricao: formData.descricao || `Parcelamento com ${formData.totalParcelas} parcelas. Valor total: R$ ${valorTotal}`,
+            descricao:
+              formData.descricao ||
+              `Parcelamento com ${formData.totalParcelas} parcelas. Valor total: R$ ${valorTotal}`,
             tipo: "parcelamento",
-            data_inicio: new Date(formData.dataVencimento + "T12:00:00").toISOString(),
+            // Como parcela não tem hora, guardamos um horário base para disparo dos lembretes
+            data_inicio: `${formData.dataVencimento}T${formData.hora_alerta || "09:00"}:00-03:00`,
             dia_inteiro: true,
             criado_por: user.id,
             status: "pendente",
@@ -851,7 +886,28 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
                   <p className="text-xs text-muted-foreground ml-7">
                     Os participantes com telefone cadastrado receberão lembretes via WhatsApp.
                   </p>
-                  
+
+                  <div className="ml-7">
+                    <Label htmlFor="hora-alerta-parcelas" className="text-sm font-medium">
+                      Horário base do alerta
+                    </Label>
+                    <div className="mt-2">
+                      <Input
+                        id="hora-alerta-parcelas"
+                        type="time"
+                        value={formData.hora_alerta}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, hora_alerta: e.target.value }))
+                        }
+                        className="h-8 w-36"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Como a parcela não tem horário de vencimento, este horário é usado como base
+                        para calcular os lembretes (ex.: 30min antes).
+                      </p>
+                    </div>
+                  </div>
+
                   {/* Alertas - só aparece se enviar_whatsapp estiver marcado */}
                   <div className="ml-7 pt-2 border-t mt-2">
                     <Label className="text-sm font-medium">Tempos de Lembrete</Label>
