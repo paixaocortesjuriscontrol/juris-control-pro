@@ -459,10 +459,38 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
               </div>
             </Card>
 
-            {/* Preview das Parcelas com valores editáveis */}
+            {/* Preview das Parcelas com valores */}
             {parcelasPreview.length > 0 && (
-              <div className="border rounded-lg p-4 space-y-2">
-                <Label className="font-medium">Parcelas (valores editáveis)</Label>
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <Label className="font-medium">Valores das Parcelas</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Preencher todas com valor padrão
+                        const novosValores = Array(formData.totalParcelas).fill(formData.valorPadrao);
+                        setValoresIndividuais(novosValores);
+                      }}
+                      disabled={!formData.valorPadrao}
+                    >
+                      Preencher todas com valor padrão
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        // Limpar para edição manual
+                        setValoresIndividuais(Array(formData.totalParcelas).fill(""));
+                      }}
+                    >
+                      Limpar para editar
+                    </Button>
+                  </div>
+                </div>
                 <ScrollArea className="h-48">
                   <div className="space-y-2">
                     {parcelasPreview.map((parcela) => (
@@ -480,11 +508,11 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
                           <span className="text-muted-foreground">R$</span>
                           <Input
                             type="text"
-                            value={valoresIndividuais[parcela.numero - 1] ?? formData.valorPadrao}
+                            value={valoresIndividuais[parcela.numero - 1] ?? ""}
                             onChange={(e) => {
                               const novosValores = [...valoresIndividuais];
                               while (novosValores.length < formData.totalParcelas) {
-                                novosValores.push(formData.valorPadrao);
+                                novosValores.push("");
                               }
                               novosValores[parcela.numero - 1] = e.target.value;
                               setValoresIndividuais(novosValores);
