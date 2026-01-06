@@ -5,12 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface TermoMonitoramento {
-  id: string;
-  termo: string;
-  categoria: string;
-  prioridade: string;
-}
+const BATCH_SIZE = 2000; // Movimentações por lote
 
 // Padrões para detectar audiências
 const AUDIENCIA_PATTERNS = [
@@ -107,45 +102,60 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const startTime = Date.now();
-    console.log('Starting optimized term monitoring scan...');
+    const body = await req.json().catch(() => ({}));
+    const completeRun = body.completeRun === true;
 
-    // Buscar termos ativos, movimentações recentes e alertas existentes EM PARALELO
-    const [termosResult, movimentacoesResult, alertasResult, audienciasResult, intimacoesResult] = await Promise.all([
-      supabase
-        .from('termos_monitoramento')
-        .select('id, termo, categoria, prioridade')
-        .eq('ativo', true),
-      supabase
-        .from('movimentacoes')
-        .select('id, processo_id, descricao, data_movimentacao, processo:processos(numero)')
-        .order('data_movimentacao', { ascending: false })
-        .limit(1000),
-      supabase
-        .from('alertas_monitoramento')
-        .select('movimentacao_id, termo_id'),
-      supabase
-        .from('audiencias_detectadas')
-        .select('movimentacao_id')
-        .not('movimentacao_id', 'is', null),
-      supabase
-        .from('intimacoes_detectadas')
-        .select('movimentacao_id')
-        .not('movimentacao_id', 'is', null),
+    const startTime = Date.now();
+    console.log(`Starting term monitoring scan... completeRun=${completeRun}`);
+
+    // Buscar configuração para obter/atualizar offset
+    const { data: configData } = await supabase
+      .from('configuracoes_monitoramento')
+      .select('id, metadata')
+      .eq('tipo', 'termos')
+      .is('coordenacao_id', null)
+      .single();
+
+    const currentOffset = completeRun ? (configData?.metadata?.next_offset || 0) : 0;
+
+    // Contar total de movimentações e buscar dados em paralelo
+    const [countResult, termosResult, alertasResult, audienciasResult, intimacoesResult] = await Promise.all([
+      supabase.from('movimentacoes').select('id', { count: 'exact', head: true }),
+      supabase.from('termos_monitoramento').select('id, termo, categoria, prioridade').eq('ativo', true),
+      supabase.from('alertas_monitoramento').select('movimentacao_id, termo_id'),
+      supabase.from('audiencias_detectadas').select('movimentacao_id').not('movimentacao_id', 'is', null),
+      supabase.from('intimacoes_detectadas').select('movimentacao_id').not('movimentacao_id', 'is', null),
     ]);
 
+    const totalMovimentacoes = countResult.count || 0;
     const termos = termosResult.data || [];
-    const movimentacoes = movimentacoesResult.data || [];
-    
+
     if (termos.length === 0) {
       console.log('No active terms configured');
       return new Response(
-        JSON.stringify({ success: true, message: 'Nenhum termo configurado', alertasGerados: 0 }),
+        JSON.stringify({ 
+          success: true, 
+          message: 'Nenhum termo configurado', 
+          alertasGerados: 0,
+          isComplete: true,
+          progress: { current: 0, total: 0, percentage: 100 },
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Loaded: ${termos.length} terms, ${movimentacoes.length} movements in ${Date.now() - startTime}ms`);
+    // Buscar lote de movimentações com offset
+    const { data: movimentacoes } = await supabase
+      .from('movimentacoes')
+      .select('id, processo_id, descricao, data_movimentacao, processo:processos(numero)')
+      .order('data_movimentacao', { ascending: false })
+      .range(currentOffset, currentOffset + BATCH_SIZE - 1);
+
+    const movimentacoesList = movimentacoes || [];
+    const processedCount = currentOffset + movimentacoesList.length;
+    const isComplete = processedCount >= totalMovimentacoes || movimentacoesList.length < BATCH_SIZE;
+
+    console.log(`Loaded: ${termos.length} terms, ${movimentacoesList.length} movements (offset ${currentOffset}/${totalMovimentacoes})`);
 
     // Criar Sets para verificação rápida de duplicatas
     const alertasSet = new Set(
@@ -164,11 +174,10 @@ Deno.serve(async (req) => {
     const novosAlertas: any[] = [];
     const novasAudiencias: any[] = [];
     const novasIntimacoes: any[] = [];
-    const alertasParaNotificar: Array<{ processoId: string; termo: string; prioridade: string; contexto: string }> = [];
     const movimentacoesProcessadas = new Set<string>();
 
-    // Processar movimentações (loop síncrono, sem awaits)
-    for (const mov of movimentacoes) {
+    // Processar movimentações
+    for (const mov of movimentacoesList) {
       const descricaoLower = mov.descricao.toLowerCase();
       const processoNumero = (mov.processo as any)?.numero || '';
 
@@ -195,15 +204,6 @@ Deno.serve(async (req) => {
               prioridade: termo.prioridade,
               status: 'pendente',
             });
-
-            if (alertasParaNotificar.length < 20) {
-              alertasParaNotificar.push({
-                processoId: mov.processo_id,
-                termo: termo.termo,
-                prioridade: termo.prioridade,
-                contexto,
-              });
-            }
 
             alertasSet.add(key);
             alertasGerados++;
@@ -276,102 +276,74 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Processed in ${Date.now() - startTime}ms. Inserting...`);
+    console.log(`Processed in ${Date.now() - startTime}ms. Inserting ${novosAlertas.length} alerts, ${novasAudiencias.length} hearings, ${novasIntimacoes.length} summons...`);
 
     // Inserir tudo em paralelo
     const insertPromises: Promise<any>[] = [];
 
-    // Alertas em lotes
     if (novosAlertas.length > 0) {
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < novosAlertas.length; i += BATCH_SIZE) {
-        const batch = novosAlertas.slice(i, i + BATCH_SIZE);
-        insertPromises.push(
-          Promise.resolve(supabase.from('alertas_monitoramento').insert(batch))
-        );
+      for (let i = 0; i < novosAlertas.length; i += 100) {
+        const batch = novosAlertas.slice(i, i + 100);
+        insertPromises.push(Promise.resolve(supabase.from('alertas_monitoramento').insert(batch)));
       }
     }
 
-    // Audiências em lotes
     if (novasAudiencias.length > 0) {
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < novasAudiencias.length; i += BATCH_SIZE) {
-        const batch = novasAudiencias.slice(i, i + BATCH_SIZE);
-        insertPromises.push(
-          Promise.resolve(supabase.from('audiencias_detectadas').insert(batch))
-        );
+      for (let i = 0; i < novasAudiencias.length; i += 100) {
+        const batch = novasAudiencias.slice(i, i + 100);
+        insertPromises.push(Promise.resolve(supabase.from('audiencias_detectadas').insert(batch)));
       }
     }
 
-    // Intimações em lotes
     if (novasIntimacoes.length > 0) {
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < novasIntimacoes.length; i += BATCH_SIZE) {
-        const batch = novasIntimacoes.slice(i, i + BATCH_SIZE);
-        insertPromises.push(
-          Promise.resolve(supabase.from('intimacoes_detectadas').insert(batch))
-        );
+      for (let i = 0; i < novasIntimacoes.length; i += 100) {
+        const batch = novasIntimacoes.slice(i, i + 100);
+        insertPromises.push(Promise.resolve(supabase.from('intimacoes_detectadas').insert(batch)));
       }
     }
 
-    // Executar todas as inserções em paralelo
     await Promise.all(insertPromises);
 
-    // Notificações em paralelo (apenas para alertas urgentes/altos, max 10)
-    const alertasUrgentes = alertasParaNotificar.filter(a => a.prioridade === 'urgente' || a.prioridade === 'alta').slice(0, 10);
-    
-    if (alertasUrgentes.length > 0) {
-      const notifPromises = alertasUrgentes.map(async (alerta) => {
-        try {
-          const { data: processo } = await supabase
-            .from('processos')
-            .select('numero, advogado_responsavel_id')
-            .eq('id', alerta.processoId)
-            .single();
+    // Atualizar metadata com próximo offset (ou resetar se completo)
+    if (configData?.id && completeRun) {
+      const newMetadata = {
+        ...configData.metadata,
+        next_offset: isComplete ? 0 : processedCount,
+        last_batch_size: movimentacoesList.length,
+        ...(isComplete && { last_complete_run: new Date().toISOString() }),
+      };
 
-          if (processo?.advogado_responsavel_id) {
-            const prioridadeEmoji = alerta.prioridade === 'urgente' ? '🚨' : '⚠️';
-            await supabase.from('notificacoes').insert({
-              usuario_id: processo.advogado_responsavel_id,
-              titulo: `${prioridadeEmoji} Alerta 360º: "${alerta.termo}"`,
-              mensagem: `Termo "${alerta.termo}" encontrado no processo ${processo.numero}.`,
-              tipo: 'warning',
-              link: `/monitoramento-360`,
-            });
-          }
-        } catch (e) {
-          console.error('Error sending notification:', e);
-        }
-      });
-      
-      // Fire and forget - não esperar notificações
-      Promise.all(notifPromises).catch(console.error);
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({ 
+          metadata: newMetadata,
+          ultima_execucao: new Date().toISOString(),
+        })
+        .eq('id', configData.id);
     }
 
+    const percentage = totalMovimentacoes > 0 ? Math.round((processedCount / totalMovimentacoes) * 100) : 100;
     const totalTime = Date.now() - startTime;
-    console.log(`Scan complete in ${totalTime}ms. Generated ${alertasGerados} alerts, ${audienciasDetectadas} hearings, ${intimacoesDetectadas} summons`);
+    
+    console.log(`Batch complete in ${totalTime}ms. Progress: ${processedCount}/${totalMovimentacoes} (${percentage}%). isComplete=${isComplete}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-
-        // campos atuais
         alertasGerados,
+        alertasCriados: alertasGerados,
         audienciasDetectadas,
         intimacoesDetectadas,
-        movimentacoesVerificadas: movimentacoes.length,
+        movimentacoesVerificadas: movimentacoesList.length,
+        processosVerificados: movimentacoesList.length,
         termosAtivos: termos.length,
         tempoExecucao: `${totalTime}ms`,
-
-        // compatibilidade com o front antigo (Configurações / barra de progresso)
-        alertasCriados: alertasGerados,
-        processosVerificados: movimentacoes.length,
-        isComplete: true,
-        completedRun: true,
+        isComplete,
+        completedRun: isComplete,
         progress: {
-          current: movimentacoes.length,
-          total: movimentacoes.length,
-          percentage: 100,
+          current: processedCount,
+          total: totalMovimentacoes,
+          percentage,
         },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
