@@ -670,46 +670,47 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
               </div>
             </div>
 
-            {/* Alertas */}
-            <div className="border rounded-lg p-4 space-y-3">
-              <Label className="font-medium">Alertas/Lembretes</Label>
-              <div className="flex flex-wrap gap-3">
-                {ALERTAS_OPCOES.map((opcao) => (
-                  <div key={opcao.value} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`alerta-${opcao.value}`}
-                      checked={formData.alerta_minutos.includes(opcao.value)}
-                      onCheckedChange={() => toggleAlerta(opcao.value)}
-                    />
-                    <Label htmlFor={`alerta-${opcao.value}`} className="cursor-pointer text-sm">
-                      {opcao.label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* Notificação WhatsApp */}
-            {formData.participantes_ids.length > 0 && (
-              <div className="border rounded-lg p-4 space-y-3 bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    id="enviar-whatsapp"
-                    checked={formData.enviar_whatsapp}
-                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enviar_whatsapp: checked === true }))}
-                  />
-                  <Label htmlFor="enviar-whatsapp" className="cursor-pointer flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4 text-green-600" />
-                    <span>Enviar alerta via WhatsApp aos participantes</span>
-                  </Label>
-                </div>
-                {formData.enviar_whatsapp && (
+            <div className="border rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  id="enviar-whatsapp"
+                  checked={formData.enviar_whatsapp}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enviar_whatsapp: checked === true }))}
+                />
+                <Label htmlFor="enviar-whatsapp" className="cursor-pointer flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-green-600" />
+                  <span>Enviar alerta via WhatsApp</span>
+                </Label>
+              </div>
+              
+              {formData.enviar_whatsapp && (
+                <>
                   <p className="text-xs text-muted-foreground ml-7">
                     Os participantes com telefone cadastrado receberão uma mensagem no WhatsApp com os detalhes do evento.
                   </p>
-                )}
-              </div>
-            )}
+                  
+                  {/* Alertas - só aparece se enviar_whatsapp estiver marcado */}
+                  <div className="ml-7 pt-2 border-t mt-2">
+                    <Label className="text-sm font-medium">Tempos de Lembrete</Label>
+                    <div className="flex flex-wrap gap-3 mt-2">
+                      {ALERTAS_OPCOES.map((opcao) => (
+                        <div key={opcao.value} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`alerta-${opcao.value}`}
+                            checked={formData.alerta_minutos.includes(opcao.value)}
+                            onCheckedChange={() => toggleAlerta(opcao.value)}
+                          />
+                          <Label htmlFor={`alerta-${opcao.value}`} className="cursor-pointer text-sm">
+                            {opcao.label}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 pb-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">

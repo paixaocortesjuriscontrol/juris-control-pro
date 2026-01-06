@@ -54,6 +54,7 @@ export interface NovoEvento {
   processo_id?: string;
   participantes_ids?: string[];
   alerta_minutos?: number[];
+  enviar_whatsapp?: boolean;
 }
 
 export function useEventosAgenda(filters: EventoFilters = {}) {
@@ -180,13 +181,14 @@ export function useCreateEvento() {
         throw new Error("Usuário não autenticado");
       }
 
-      const { participantes_ids, alerta_minutos, ...eventoData } = evento;
+      const { participantes_ids, alerta_minutos, enviar_whatsapp, ...eventoData } = evento;
       
       const { data, error } = await supabase
         .from("eventos_agenda")
         .insert({
           ...eventoData,
           criado_por: userId,
+          enviar_whatsapp: enviar_whatsapp ?? false,
         })
         .select()
         .single();
@@ -204,8 +206,8 @@ export function useCreateEvento() {
         if (partError) console.error("Erro ao adicionar participantes:", partError);
       }
 
-      // Add alerts
-      if (alerta_minutos && alerta_minutos.length > 0) {
+      // Add alerts only if enviar_whatsapp is enabled
+      if (enviar_whatsapp && alerta_minutos && alerta_minutos.length > 0) {
         const alertasData = alerta_minutos.map(minutos => ({
           evento_id: data.id,
           minutos_antes: minutos,
@@ -276,11 +278,12 @@ export function useUpdateEvento() {
         }
       }
 
-      // Update alerts if provided
+      // Update alerts if provided - only create if enviar_whatsapp is enabled
       if (alerta_minutos !== undefined) {
         await supabase.from("alertas_evento").delete().eq("evento_id", id);
         
-        if (alerta_minutos.length > 0) {
+        // Only insert new alerts if enviar_whatsapp is true
+        if (updates.enviar_whatsapp && alerta_minutos.length > 0) {
           const alertasData = alerta_minutos.map(minutos => ({
             evento_id: id,
             minutos_antes: minutos,
