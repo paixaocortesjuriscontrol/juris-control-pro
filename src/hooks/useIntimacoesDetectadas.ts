@@ -52,41 +52,34 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
   const { data: intimacoes = [], isLoading } = useQuery({
     queryKey: ['intimacoes-detectadas', filtros],
     queryFn: async () => {
-      // Se filtro de coordenação está ativo, buscar processo_ids dessa coordenação
-      let processosIdsFiltro: string[] | null = null;
-      
-      if (filtros.coordenacaoId && filtros.coordenacaoId !== 'todas') {
-        const { data: processosCoord } = await supabase
-          .from('processos')
-          .select('id')
-          .eq('coordenacao_id', filtros.coordenacaoId);
+      // Filtro por coordenação: evita buscar milhares de processo_ids (pode estourar limite de URL no PostgREST).
+      const coordAtiva = Boolean(
+        filtros.coordenacaoId && filtros.coordenacaoId !== "todas"
+      );
 
-        if (!processosCoord || processosCoord.length === 0) {
-          return [] as IntimacaoDetectada[];
-        }
-        processosIdsFiltro = processosCoord.map(p => p.id);
+      const selectClause = coordAtiva
+        ? "*, processos!inner(coordenacao_id)"
+        : "*";
+
+      let query = (supabase as any)
+        .from("intimacoes_detectadas")
+        .select(selectClause)
+        .order("data_limite", { ascending: true, nullsFirst: false });
+
+      if (coordAtiva) {
+        query = query.eq("processos.coordenacao_id", filtros.coordenacaoId as string);
       }
 
-      let query = supabase
-        .from('intimacoes_detectadas')
-        .select('*')
-        .order('data_limite', { ascending: true, nullsFirst: false });
-
-      if (filtros.status && filtros.status !== 'todos') {
-        query = query.eq('status', filtros.status);
+      if (filtros.status && filtros.status !== "todos") {
+        query = query.eq("status", filtros.status);
       }
 
       if (filtros.dataInicio) {
-        query = query.gte('data_intimacao', filtros.dataInicio.toISOString());
+        query = query.gte("data_intimacao", filtros.dataInicio.toISOString());
       }
 
       if (filtros.dataFim) {
-        query = query.lte('data_intimacao', filtros.dataFim.toISOString());
-      }
-
-      // Filtro de coordenação via processo_id
-      if (processosIdsFiltro) {
-        query = query.in('processo_id', processosIdsFiltro);
+        query = query.lte("data_intimacao", filtros.dataFim.toISOString());
       }
 
       const { data, error } = await query;
@@ -96,7 +89,13 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
         throw error;
       }
 
-      let result = data || [];
+      let result: any[] = (data as any[]) || [];
+
+      // Quando filtramos por coordenação via join, o PostgREST devolve o objeto aninhado "processos".
+      // Removemos antes de aplicar os demais filtros/retorno.
+      if (coordAtiva) {
+        result = result.map(({ processos, ...rest }) => rest);
+      }
 
       // Filtro de busca client-side
       if (filtros.search) {
