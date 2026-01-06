@@ -71,6 +71,7 @@ const TIPO_CORES: Record<string, string> = {
   prazo: "bg-red-500",
   audiencia: "bg-purple-500",
   prazo_parcela: "bg-emerald-500",
+  parcelamento: "bg-teal-500",
 };
 
 const TIPO_LABELS: Record<string, string> = {
@@ -79,6 +80,7 @@ const TIPO_LABELS: Record<string, string> = {
   prazo: "PRAZO",
   audiencia: "AUDIÊNCIA",
   prazo_parcela: "PARCELA",
+  parcelamento: "PARCELAMENTO",
 };
 
 export default function MinhaAgenda() {
@@ -92,7 +94,7 @@ export default function MinhaAgenda() {
   const [eventoToDelete, setEventoToDelete] = useState<string | null>(null);
 
   // Filters state
-  const [tiposFiltro, setTiposFiltro] = useState<string[]>(["tarefa", "evento", "prazo", "audiencia", "prazo_parcela"]);
+  const [tiposFiltro, setTiposFiltro] = useState<string[]>(["tarefa", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"]);
   const [statusFiltro, setStatusFiltro] = useState<string>("todas");
   const [pessoasFiltro, setPessoasFiltro] = useState<string[]>([]);
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);

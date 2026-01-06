@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -22,7 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
-import { Loader2, Calendar, DollarSign, Hash, Clock } from "lucide-react";
+import { Loader2, Calendar, DollarSign, Hash, Clock, FileText } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,9 +32,9 @@ interface GerarParcelasDialogProps {
 }
 
 const INTERVALOS = [
-  { value: "semanal", label: "Semanal (7 dias)", dias: 7 },
-  { value: "quinzenal", label: "Quinzenal (15 dias)", dias: 15 },
-  { value: "mensal", label: "Mensal (30 dias)", dias: 30 },
+  { value: "semanal", label: "Semanal (7 dias)" },
+  { value: "quinzenal", label: "Quinzenal (15 dias)" },
+  { value: "mensal", label: "Mensal (30 dias)" },
 ];
 
 export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogProps) {
@@ -44,6 +43,7 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
+    titulo: "",
     descricao: "",
     totalParcelas: 12,
     dataVencimento: format(new Date(), "yyyy-MM-dd"),
@@ -61,7 +61,6 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
     
     setValoresIndividuais(prev => {
       const novosValores = [...prev];
-      // Expandir ou reduzir array
       while (novosValores.length < total) {
         novosValores.push(padrao);
       }
@@ -75,8 +74,6 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
   // Calcular preview das parcelas
   const calcularParcelas = () => {
     const parcelas: { numero: number; data: Date; valor: string }[] = [];
-    const intervaloConfig = INTERVALOS.find(i => i.value === formData.intervalo);
-    if (!intervaloConfig) return parcelas;
 
     let dataAtual = new Date(formData.dataVencimento + "T12:00:00");
     
@@ -116,8 +113,8 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
       return;
     }
 
-    if (!formData.descricao.trim()) {
-      toast.error("Informe uma descrição para as parcelas");
+    if (!formData.titulo.trim()) {
+      toast.error("Informe um título para o parcelamento");
       return;
     }
 
@@ -129,40 +126,46 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
     setIsSubmitting(true);
 
     try {
-      const grupoId = crypto.randomUUID();
-
-      const eventosParaInserir = parcelasPreview.map((parcela) => {
-        const valorNumerico = parcela.valor 
-          ? parseFloat(parcela.valor.replace(",", ".")) 
-          : null;
-        
-        return {
-          titulo: `Parcela ${parcela.numero}/${formData.totalParcelas} - ${formData.descricao}`,
-          descricao: `Parcela ${parcela.numero} de ${formData.totalParcelas}. Valor: R$ ${parcela.valor || "0,00"}`,
-          tipo: "prazo_parcela",
-          data_inicio: parcela.data.toISOString(),
+      // 1. Criar o evento principal (tipo parcelamento)
+      const { data: evento, error: eventoError } = await supabase
+        .from("eventos_agenda")
+        .insert({
+          titulo: formData.titulo,
+          descricao: formData.descricao || `Parcelamento com ${formData.totalParcelas} parcelas. Valor total: R$ ${valorTotal}`,
+          tipo: "parcelamento",
+          data_inicio: new Date(formData.dataVencimento + "T12:00:00").toISOString(),
           dia_inteiro: true,
           criado_por: user.id,
           status: "pendente",
-          grupo_parcelas: grupoId,
-          numero_parcela: parcela.numero,
           total_parcelas: formData.totalParcelas,
-          valor_parcela: valorNumerico,
-        };
-      });
+        })
+        .select("id")
+        .single();
 
-      const { error } = await supabase
-        .from("eventos_agenda")
-        .insert(eventosParaInserir);
+      if (eventoError) throw eventoError;
 
-      if (error) throw error;
+      // 2. Criar as parcelas filhas
+      const parcelasParaInserir = parcelasPreview.map((parcela) => ({
+        evento_id: evento.id,
+        numero: parcela.numero,
+        data_vencimento: format(parcela.data, "yyyy-MM-dd"),
+        valor: parcela.valor ? parseFloat(parcela.valor.replace(",", ".")) : null,
+        status: "pendente",
+      }));
 
-      toast.success(`${formData.totalParcelas} parcelas criadas com sucesso!`);
+      const { error: parcelasError } = await supabase
+        .from("parcelas_evento")
+        .insert(parcelasParaInserir);
+
+      if (parcelasError) throw parcelasError;
+
+      toast.success(`Parcelamento criado com ${formData.totalParcelas} parcelas!`);
       queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
       queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
       
       // Reset form
       setFormData({
+        titulo: "",
         descricao: "",
         totalParcelas: 12,
         dataVencimento: format(new Date(), "yyyy-MM-dd"),
@@ -173,8 +176,8 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
       
       onOpenChange(false);
     } catch (error) {
-      console.error("Erro ao criar parcelas:", error);
-      toast.error("Erro ao criar parcelas. Tente novamente.");
+      console.error("Erro ao criar parcelamento:", error);
+      toast.error("Erro ao criar parcelamento. Tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
@@ -186,25 +189,38 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
         <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6 pb-2 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-primary" />
-            Gerar Parcelas
+            Novo Parcelamento
           </DialogTitle>
           <DialogDescription>
-            Crie múltiplas parcelas automaticamente. Preencha os dados e as datas serão calculadas.
+            Crie um parcelamento com múltiplas parcelas. Os lembretes serão enviados no vencimento de cada parcela.
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
+            {/* Título do Parcelamento */}
+            <div>
+              <Label htmlFor="titulo" className="flex items-center gap-1.5">
+                <FileText className="w-4 h-4" />
+                Título do Parcelamento *
+              </Label>
+              <Input
+                id="titulo"
+                value={formData.titulo}
+                onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+                placeholder="Ex: Parcelamento Eduardo - Acordo Trabalhista"
+                required
+              />
+            </div>
+
             {/* Descrição */}
             <div>
-              <Label htmlFor="descricao">Descrição do Parcelamento *</Label>
-              <Textarea
+              <Label htmlFor="descricao">Descrição (opcional)</Label>
+              <Input
                 id="descricao"
                 value={formData.descricao}
                 onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                placeholder="Ex: Acordo Trabalhista João Silva"
-                rows={2}
-                required
+                placeholder="Detalhes adicionais do parcelamento"
               />
             </div>
 
@@ -248,7 +264,7 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
                   placeholder="0,00"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Edite valores individuais no preview abaixo
+                  Edite valores individuais abaixo
                 </p>
               </div>
 
@@ -329,7 +345,6 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
                             value={valoresIndividuais[parcela.numero - 1] ?? formData.valorPadrao}
                             onChange={(e) => {
                               const novosValores = [...valoresIndividuais];
-                              // Garantir que array tem tamanho correto
                               while (novosValores.length < formData.totalParcelas) {
                                 novosValores.push(formData.valorPadrao);
                               }
@@ -354,15 +369,15 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || !formData.descricao.trim()}>
+          <Button onClick={handleSubmit} disabled={isSubmitting || !formData.titulo.trim()}>
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Gerando...
+                Criando...
               </>
             ) : (
               <>
-                Gerar {formData.totalParcelas} Parcelas
+                Criar Parcelamento
               </>
             )}
           </Button>
