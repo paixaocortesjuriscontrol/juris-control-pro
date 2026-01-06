@@ -91,6 +91,12 @@ export default function NovaTarefa() {
   const editarId = searchParams.get("editar");
   const relacionadaId = searchParams.get("relacionada");
   
+  // Parâmetros para pré-preenchimento (ex: vindo do Painel de Intimações)
+  const tipoTarefaParam = searchParams.get("tipo_tarefa");
+  const tituloParam = searchParams.get("titulo");
+  const coordenacaoIdParam = searchParams.get("coordenacao");
+  const descricaoParam = searchParams.get("descricao");
+  
   const [loading, setLoading] = useState(false);
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
@@ -206,20 +212,23 @@ export default function NovaTarefa() {
     },
   });
 
+  // Data de hoje para pré-preenchimento
+  const hoje = format(new Date(), "yyyy-MM-dd");
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       tipo_vinculo: processoIdParam ? "processo" : "processo",
-      coordenacao_id: "",
+      coordenacao_id: coordenacaoIdParam || "",
       processo_id: processoIdParam || "",
-      tipo_tarefa: "",
-      titulo: "",
-      descricao: "",
+      tipo_tarefa: tipoTarefaParam || "",
+      titulo: tituloParam || "",
+      descricao: descricaoParam || "",
       responsavel_id: "",
-      data_base: format(new Date(), "yyyy-MM-dd"),
-      data_vencimento: "",
+      data_base: hoje,
+      data_vencimento: processoIdParam && tipoTarefaParam ? hoje : "",
       hora_prevista: "",
-      data_fatal: "",
+      data_fatal: processoIdParam && tipoTarefaParam ? hoje : "",
       hora_fatal: "",
       prioridade: "media",
       local: "",

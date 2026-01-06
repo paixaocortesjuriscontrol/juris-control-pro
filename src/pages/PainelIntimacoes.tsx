@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Calendar, Clock, Search, CheckCircle, XCircle, AlertCircle, 
   CalendarDays, FileText, Eye, Plus, Building, AlertTriangle,
-  Timer, PlayCircle, Download, Settings, Users
+  Timer, PlayCircle, Download, Settings, Users, ClipboardList
 } from "lucide-react";
 import { useIntimacoesDetectadas, IntimacaoDetectada } from "@/hooks/useIntimacoesDetectadas";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
@@ -22,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function PainelIntimacoes() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("pendente");
   const [coordenacaoFilter, setCoordenacaoFilter] = useState("todas");
@@ -29,6 +31,30 @@ export default function PainelIntimacoes() {
   const [observacoes, setObservacoes] = useState("");
   const [providencias, setProvidencias] = useState("");
   const [novaIntimacaoOpen, setNovaIntimacaoOpen] = useState(false);
+
+  // Função para criar tarefa a partir da intimação
+  const handleCriarTarefa = async (intimacao: IntimacaoDetectada) => {
+    // Buscar coordenação do processo se houver processo_id
+    let coordenacaoId = "";
+    if (intimacao.processo_id) {
+      const { data: processo } = await supabase
+        .from("processos")
+        .select("coordenacao_id")
+        .eq("id", intimacao.processo_id)
+        .single();
+      coordenacaoId = processo?.coordenacao_id || "";
+    }
+
+    const params = new URLSearchParams({
+      tipo_tarefa: "ANÁLISE",
+      titulo: "ANALISAR INTIMAÇÃO",
+      ...(intimacao.processo_id && { processo: intimacao.processo_id }),
+      ...(coordenacaoId && { coordenacao: coordenacaoId }),
+      ...(intimacao.descricao && { descricao: intimacao.descricao }),
+    });
+
+    navigate(`/nova-tarefa?${params.toString()}`);
+  };
 
   // Buscar coordenações
   const { data: coordenacoes = [] } = useQuery({
@@ -437,6 +463,17 @@ export default function PainelIntimacoes() {
                             <Eye className="h-4 w-4 mr-1" />
                             Detalhes
                           </Button>
+
+                          {intimacao.processo_id && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCriarTarefa(intimacao)}
+                            >
+                              <ClipboardList className="h-4 w-4 mr-1" />
+                              Criar Tarefa
+                            </Button>
+                          )}
                           
                           {intimacao.status === 'pendente' && (
                             <>
