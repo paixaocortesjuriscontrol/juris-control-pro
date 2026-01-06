@@ -28,9 +28,14 @@ export function Header({ title, subtitle }: HeaderProps) {
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
-    await signOut();
-    toast.success("Logout realizado com sucesso");
-    navigate("/auth");
+    try {
+      await signOut();
+      toast.success("Logout realizado com sucesso");
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao sair");
+    } finally {
+      navigate("/auth", { replace: true });
+    }
   };
 
   const getInitials = () => {
