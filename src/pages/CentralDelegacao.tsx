@@ -370,58 +370,58 @@ export default function CentralDelegacao() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setStatusFiltro("todos")}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Total</p>
-                  <p className="text-2xl font-bold">{stats.total}</p>
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Total</p>
+                  <p className="text-xl sm:text-2xl font-bold">{stats.total}</p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <ListChecks className="w-5 h-5 text-primary" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <ListChecks className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
               </div>
             </CardContent>
           </Card>
           
           <Card className="cursor-pointer hover:border-blue-500/50 transition-colors" onClick={() => setStatusFiltro("pendente")}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Pendentes</p>
-                  <p className="text-2xl font-bold text-blue-600">{stats.pendentes}</p>
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Pendentes</p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-600">{stats.pendentes}</p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-blue-500" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                 </div>
               </div>
             </CardContent>
           </Card>
           
           <Card className="cursor-pointer hover:border-red-500/50 transition-colors" onClick={() => setStatusFiltro("atrasado")}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Atrasadas</p>
-                  <p className="text-2xl font-bold text-red-600">{stats.atrasadas}</p>
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Atrasadas</p>
+                  <p className="text-xl sm:text-2xl font-bold text-red-600">{stats.atrasadas}</p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
                 </div>
               </div>
             </CardContent>
           </Card>
           
           <Card className="cursor-pointer hover:border-green-500/50 transition-colors" onClick={() => setStatusFiltro("cumprido")}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Concluídas</p>
-                  <p className="text-2xl font-bold text-green-600">{stats.concluidas}</p>
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Concluídas</p>
+                  <p className="text-xl sm:text-2xl font-bold text-green-600">{stats.concluidas}</p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
                 </div>
               </div>
             </CardContent>
@@ -430,24 +430,24 @@ export default function CentralDelegacao() {
 
         {/* Filters Bar */}
         <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-col lg:flex-row gap-4">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-col gap-3 sm:gap-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por título, descrição, processo ou responsável..."
+                  placeholder="Buscar..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 text-sm"
                 />
               </div>
               
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                 {/* Filtros de coordenação e membro só para admin/coordenador */}
                 {isAdminOrCoordinator && (
                   <>
                     <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
-                      <SelectTrigger className="w-[180px]">
+                      <SelectTrigger className="w-full sm:w-[180px] text-xs sm:text-sm h-9">
                         <SelectValue placeholder="Coordenação" />
                       </SelectTrigger>
                       <SelectContent>
@@ -461,7 +461,7 @@ export default function CentralDelegacao() {
                     </Select>
 
                     <Select value={membroId} onValueChange={setMembroId}>
-                      <SelectTrigger className="w-[180px]">
+                      <SelectTrigger className="w-full sm:w-[180px] text-xs sm:text-sm h-9">
                         <SelectValue placeholder="Responsável" />
                       </SelectTrigger>
                       <SelectContent>
@@ -477,7 +477,7 @@ export default function CentralDelegacao() {
                 )}
 
                 <Select value={prioridadeFiltro} onValueChange={setPrioridadeFiltro}>
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-full sm:w-[140px] text-xs sm:text-sm h-9">
                     <SelectValue placeholder="Prioridade" />
                   </SelectTrigger>
                   <SelectContent>
@@ -490,7 +490,7 @@ export default function CentralDelegacao() {
                 </Select>
 
                 <Select value={ordenacao} onValueChange={setOrdenacao}>
-                  <SelectTrigger className="w-[150px]">
+                  <SelectTrigger className="w-full sm:w-[150px] text-xs sm:text-sm h-9">
                     <SelectValue placeholder="Ordenar" />
                   </SelectTrigger>
                   <SelectContent>
@@ -536,13 +536,13 @@ export default function CentralDelegacao() {
           {/* Lista de Atividades */}
           <div className="flex-1">
             <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    Lista de Atividades
-                    <Badge variant="secondary">{atividadesFiltradas.length}</Badge>
+              <CardHeader className="pb-2 px-3 sm:px-6">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                    <span className="hidden sm:inline">Lista de </span>Atividades
+                    <Badge variant="secondary" className="text-xs">{atividadesFiltradas.length}</Badge>
                   </CardTitle>
-                  <div className="flex items-center gap-2">
+                  <div className="hidden sm:flex items-center gap-2">
                     <Checkbox 
                       checked={selectedItems.length === atividadesFiltradas.length && atividadesFiltradas.length > 0}
                       onCheckedChange={toggleSelectAll}
@@ -564,19 +564,19 @@ export default function CentralDelegacao() {
                     <p>Nenhuma atividade encontrada</p>
                   </div>
                 ) : (
-                  <ScrollArea className="h-[600px]">
+                  <ScrollArea className="h-[calc(100vh-400px)] sm:h-[600px] min-h-[300px]">
                     <div className="divide-y">
                       {atividadesFiltradas.map((atividade) => (
                         <div
                           key={atividade.id}
                           className={cn(
-                            "p-4 hover:bg-muted/50 cursor-pointer transition-colors flex gap-4",
+                            "p-3 sm:p-4 hover:bg-muted/50 cursor-pointer transition-colors flex gap-2 sm:gap-4",
                             selectedTarefaId === atividade.id && "bg-muted/80",
                             atividade.isAtrasado && "border-l-4 border-l-red-500"
                           )}
                           onClick={() => setSelectedTarefaId(atividade.id)}
                         >
-                          <div className="pt-1">
+                          <div className="pt-1 hidden sm:block">
                             <Checkbox 
                               checked={selectedItems.includes(atividade.id)}
                               onCheckedChange={() => toggleSelectItem(atividade.id)}
@@ -584,60 +584,73 @@ export default function CentralDelegacao() {
                             />
                           </div>
 
-                          <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex-1 min-w-0 space-y-1.5 sm:space-y-2">
+                            {/* Header com status, prioridade e avatar */}
                             <div className="flex items-start justify-between gap-2">
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
+                              <div className="space-y-1 min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                                   {getStatusBadge(atividade)}
                                   {getPrioridadeBadge(atividade.prioridade)}
                                   {atividade.tipo_tarefa && (
-                                    <Badge variant="outline" className="text-xs">
+                                    <Badge variant="outline" className="text-[10px] sm:text-xs">
                                       {atividade.tipo_tarefa}
                                     </Badge>
                                   )}
                                 </div>
-                                <h3 className="font-medium truncate">
+                                <h3 className="font-medium text-sm sm:text-base line-clamp-2 sm:truncate break-words">
                                   {atividade.titulo || "Sem título"}
                                 </h3>
                               </div>
-                              <Avatar className="w-8 h-8 shrink-0">
-                                <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                                  {atividade.responsavel?.nome ? getInitials(atividade.responsavel.nome) : "?"}
-                                </AvatarFallback>
-                              </Avatar>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <Avatar className="w-7 h-7 sm:w-8 sm:h-8">
+                                  <AvatarFallback className="text-[10px] sm:text-xs bg-primary/10 text-primary">
+                                    {atividade.responsavel?.nome ? getInitials(atividade.responsavel.nome) : "?"}
+                                  </AvatarFallback>
+                                </Avatar>
+                              </div>
+                            </div>
+
+                            {/* Nome do responsável no mobile */}
+                            <div className="text-xs text-muted-foreground sm:hidden">
+                              {atividade.responsavel?.nome || "Sem responsável"}
                             </div>
 
                             {atividade.processo && (
-                              <div className="text-sm text-muted-foreground">
-                                <span className="font-mono text-xs">{atividade.processo.numero}</span>
+                              <div className="text-xs sm:text-sm text-muted-foreground break-words">
+                                <span className="font-mono text-[10px] sm:text-xs">{atividade.processo.numero}</span>
                                 {atividade.processo.cliente?.nome && (
-                                  <span className="ml-2">• {atividade.processo.cliente.nome}</span>
+                                  <span className="ml-1 sm:ml-2">• {atividade.processo.cliente.nome}</span>
                                 )}
                               </div>
                             )}
 
                             {atividade.descricao && (
-                              <p className="text-sm text-muted-foreground line-clamp-2">
+                              <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 break-words">
                                 {atividade.descricao}
                               </p>
                             )}
 
-                            <div className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-4 text-muted-foreground">
+                            {/* Datas - layout empilhado no mobile */}
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 text-[10px] sm:text-xs">
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-muted-foreground">
                                 {atividade.data_vencimento && (
                                   <span className="flex items-center gap-1">
                                     <Calendar className="w-3 h-3" />
-                                    Prevista: {format(parseISO(atividade.data_vencimento), "dd/MM/yyyy", { locale: ptBR })}
+                                    <span className="hidden sm:inline">Prevista: </span>
+                                    {format(parseISO(atividade.data_vencimento), "dd/MM/yy", { locale: ptBR })}
                                   </span>
                                 )}
                                 {atividade.data_fatal && (
                                   <span className="flex items-center gap-1 text-red-500">
                                     <AlertTriangle className="w-3 h-3" />
-                                    Fatal: {format(parseISO(atividade.data_fatal), "dd/MM/yyyy", { locale: ptBR })}
+                                    <span className="hidden sm:inline">Fatal: </span>
+                                    {format(parseISO(atividade.data_fatal), "dd/MM/yy", { locale: ptBR })}
                                   </span>
                                 )}
                               </div>
-                              {getDiasRestantes(atividade)}
+                              <div className="text-[10px] sm:text-xs">
+                                {getDiasRestantes(atividade)}
+                              </div>
                             </div>
                           </div>
                         </div>
