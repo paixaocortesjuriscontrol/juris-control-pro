@@ -32,6 +32,7 @@ interface EventoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   evento?: EventoAgenda | null;
+  defaultProcessoId?: string;
 }
 
 const TIPOS_EVENTO = [
@@ -55,7 +56,7 @@ const ALERTAS_OPCOES = [
   { value: 1440, label: "1 dia antes" },
 ];
 
-export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const enviarWhatsApp = useEnviarWhatsApp();
@@ -238,14 +239,14 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
         recorrencia_tipo: "",
         recorrencia_intervalo: 1,
         recorrencia_fim: "",
-        processo_id: "",
+        processo_id: defaultProcessoId || "",
         participantes_ids: [],
         alerta_minutos: [30],
         enviar_whatsapp: true,
         hora_alerta: "09:00",
       });
     }
-  }, [evento, open, alertasEvento]);
+  }, [evento, open, alertasEvento, defaultProcessoId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
