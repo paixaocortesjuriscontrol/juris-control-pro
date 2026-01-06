@@ -21,10 +21,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
-import { Loader2, Calendar, DollarSign, Hash, Clock, FileText, Search, X, UserPlus } from "lucide-react";
+import { Loader2, Calendar, DollarSign, Hash, Clock, FileText, Search, X, UserPlus, MessageCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EventoAgenda } from "@/hooks/useEventosAgenda";
 
 interface GerarParcelasDialogProps {
@@ -37,6 +38,13 @@ const INTERVALOS = [
   { value: "semanal", label: "Semanal (7 dias)" },
   { value: "quinzenal", label: "Quinzenal (15 dias)" },
   { value: "mensal", label: "Mensal (30 dias)" },
+];
+
+const ALERTAS_OPCOES = [
+  { value: 15, label: "15 minutos antes" },
+  { value: 30, label: "30 minutos antes" },
+  { value: 60, label: "1 hora antes" },
+  { value: 1440, label: "1 dia antes" },
 ];
 
 export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcelasDialogProps) {
@@ -54,6 +62,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
     intervalo: "mensal",
     processo_id: "",
     participantes_ids: [] as string[],
+    enviar_whatsapp: false,
+    alerta_minutos: [30] as number[],
   });
   
   // Estados para busca de processo
@@ -190,6 +200,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
         intervalo: "mensal", // Detectar intervalo se possível
         processo_id: evento.processo_id || "",
         participantes_ids: evento.participantes?.map(p => p.usuario_id) || [],
+        enviar_whatsapp: evento.enviar_whatsapp || false,
+        alerta_minutos: [30],
       });
       
       // Carregar valores e datas individuais das parcelas existentes
@@ -209,6 +221,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
         intervalo: "mensal",
         processo_id: "",
         participantes_ids: [],
+        enviar_whatsapp: false,
+        alerta_minutos: [30],
       });
       setValoresIndividuais([]);
       setDatasIndividuais([]);
@@ -281,6 +295,15 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
     }));
   };
 
+  const toggleAlerta = (minutos: number) => {
+    setFormData(prev => ({
+      ...prev,
+      alerta_minutos: prev.alerta_minutos.includes(minutos)
+        ? prev.alerta_minutos.filter(m => m !== minutos)
+        : [...prev.alerta_minutos, minutos],
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -311,6 +334,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
             descricao: formData.descricao || `Parcelamento com ${formData.totalParcelas} parcelas. Valor total: R$ ${valorTotal}`,
             processo_id: formData.processo_id || null,
             total_parcelas: formData.totalParcelas,
+            enviar_whatsapp: formData.enviar_whatsapp,
           })
           .eq("id", evento.id);
 
@@ -323,6 +347,17 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
             formData.participantes_ids.map(userId => ({
               evento_id: evento.id,
               usuario_id: userId,
+            }))
+          );
+        }
+
+        // Atualizar alertas - só criar se enviar_whatsapp estiver ativo
+        await supabase.from("alertas_evento").delete().eq("evento_id", evento.id);
+        if (formData.enviar_whatsapp && formData.alerta_minutos.length > 0) {
+          await supabase.from("alertas_evento").insert(
+            formData.alerta_minutos.map(minutos => ({
+              evento_id: evento.id,
+              minutos_antes: minutos,
             }))
           );
         }
@@ -359,6 +394,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
             status: "pendente",
             total_parcelas: formData.totalParcelas,
             processo_id: formData.processo_id || null,
+            enviar_whatsapp: formData.enviar_whatsapp,
           })
           .select("id")
           .single();
@@ -371,6 +407,16 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
             formData.participantes_ids.map(userId => ({
               evento_id: novoEvento.id,
               usuario_id: userId,
+            }))
+          );
+        }
+
+        // Criar alertas - só criar se enviar_whatsapp estiver ativo
+        if (formData.enviar_whatsapp && formData.alerta_minutos.length > 0) {
+          await supabase.from("alertas_evento").insert(
+            formData.alerta_minutos.map(minutos => ({
+              evento_id: novoEvento.id,
+              minutos_antes: minutos,
             }))
           );
         }
@@ -785,6 +831,48 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
                 </ScrollArea>
               </div>
             )}
+
+            {/* Notificação WhatsApp */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  id="enviar-whatsapp-parcelas"
+                  checked={formData.enviar_whatsapp}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enviar_whatsapp: checked === true }))}
+                />
+                <Label htmlFor="enviar-whatsapp-parcelas" className="cursor-pointer flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-green-600" />
+                  <span>Enviar alerta via WhatsApp</span>
+                </Label>
+              </div>
+              
+              {formData.enviar_whatsapp && (
+                <>
+                  <p className="text-xs text-muted-foreground ml-7">
+                    Os participantes com telefone cadastrado receberão lembretes via WhatsApp.
+                  </p>
+                  
+                  {/* Alertas - só aparece se enviar_whatsapp estiver marcado */}
+                  <div className="ml-7 pt-2 border-t mt-2">
+                    <Label className="text-sm font-medium">Tempos de Lembrete</Label>
+                    <div className="flex flex-wrap gap-3 mt-2">
+                      {ALERTAS_OPCOES.map((opcao) => (
+                        <div key={opcao.value} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`alerta-parcela-${opcao.value}`}
+                            checked={formData.alerta_minutos.includes(opcao.value)}
+                            onCheckedChange={() => toggleAlerta(opcao.value)}
+                          />
+                          <Label htmlFor={`alerta-parcela-${opcao.value}`} className="cursor-pointer text-sm">
+                            {opcao.label}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </form>
         </div>
 
