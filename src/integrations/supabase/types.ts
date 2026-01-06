@@ -262,6 +262,7 @@ export type Database = {
           id: string
           local_audiencia: string | null
           monitoramento_id: string | null
+          movimentacao_id: string | null
           observacoes: string | null
           origem: string | null
           polo_ativo: string | null
@@ -297,6 +298,7 @@ export type Database = {
           id?: string
           local_audiencia?: string | null
           monitoramento_id?: string | null
+          movimentacao_id?: string | null
           observacoes?: string | null
           origem?: string | null
           polo_ativo?: string | null
@@ -332,6 +334,7 @@ export type Database = {
           id?: string
           local_audiencia?: string | null
           monitoramento_id?: string | null
+          movimentacao_id?: string | null
           observacoes?: string | null
           origem?: string | null
           polo_ativo?: string | null
@@ -356,6 +359,13 @@ export type Database = {
             columns: ["monitoramento_id"]
             isOneToOne: false
             referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_detectadas_movimentacao_id_fkey"
+            columns: ["movimentacao_id"]
+            isOneToOne: false
+            referencedRelation: "movimentacoes"
             referencedColumns: ["id"]
           },
           {
