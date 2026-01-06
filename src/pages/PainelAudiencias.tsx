@@ -11,6 +11,7 @@ import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, Cal
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAudienciasDetectadas, AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { useExportarAudiencias } from "@/hooks/useExportarAudiencias";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -24,6 +25,8 @@ import { RelatorioAudienciasDiretoria } from "@/components/audiencias/RelatorioA
 import { supabase } from "@/integrations/supabase/client";
 
 export default function PainelAudiencias() {
+  const isMobile = useIsMobile();
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("pendente");
   const [coordenacaoFilter, setCoordenacaoFilter] = useState("todas");
@@ -234,32 +237,71 @@ export default function PainelAudiencias() {
                 className="pl-10"
               />
             </div>
-            <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
-              <SelectTrigger className="w-full md:w-[220px]">
-                <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Coordenação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas as coordenações</SelectItem>
-                {coordenacoes.map((coord) => (
-                  <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="pendente">⏳ Pendentes</SelectItem>
-                <SelectItem value="confirmado">✅ Confirmados</SelectItem>
-                <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
-                <SelectItem value="tratado">✔️ Tratados</SelectItem>
-                <SelectItem value="cancelado">❌ Cancelados</SelectItem>
-                <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
-              </SelectContent>
-            </Select>
+            {isMobile ? (
+              <div className="relative w-full">
+                <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <select
+                  value={coordenacaoFilter}
+                  onChange={(e) => setCoordenacaoFilter(e.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <option value="todas">Todas as coordenações</option>
+                  {coordenacoes.map((coord) => (
+                    <option key={coord.id} value={coord.id}>
+                      {coord.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+                <SelectTrigger className="w-full md:w-[220px]">
+                  <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as coordenações</SelectItem>
+                  {coordenacoes.map((coord) => (
+                    <SelectItem key={coord.id} value={coord.id}>
+                      {coord.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {isMobile ? (
+              <div className="relative w-full">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="pendente">⏳ Pendentes</option>
+                  <option value="confirmado">✅ Confirmados</option>
+                  <option value="reagendado">🔄 Reagendados</option>
+                  <option value="tratado">✔️ Tratados</option>
+                  <option value="cancelado">❌ Cancelados</option>
+                  <option value="ignorado">🚫 Ignorados</option>
+                </select>
+              </div>
+            ) : (
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="pendente">⏳ Pendentes</SelectItem>
+                  <SelectItem value="confirmado">✅ Confirmados</SelectItem>
+                  <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
+                  <SelectItem value="tratado">✔️ Tratados</SelectItem>
+                  <SelectItem value="cancelado">❌ Cancelados</SelectItem>
+                  <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" size="icon" className="md:hidden" onClick={() => setImportDialogOpen(true)}>
                 <Upload className="h-4 w-4" />
