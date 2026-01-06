@@ -47,9 +47,30 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
     descricao: "",
     totalParcelas: 12,
     dataVencimento: format(new Date(), "yyyy-MM-dd"),
-    valorParcela: "",
+    valorPadrao: "",
     intervalo: "mensal",
   });
+  
+  // Valores individuais por parcela
+  const [valoresIndividuais, setValoresIndividuais] = useState<string[]>([]);
+
+  // Atualizar valores individuais quando muda total de parcelas ou valor padrão
+  const atualizarValoresIndividuais = (novoPadrao?: string, novoTotal?: number) => {
+    const total = novoTotal ?? formData.totalParcelas;
+    const padrao = novoPadrao ?? formData.valorPadrao;
+    
+    setValoresIndividuais(prev => {
+      const novosValores = [...prev];
+      // Expandir ou reduzir array
+      while (novosValores.length < total) {
+        novosValores.push(padrao);
+      }
+      if (novosValores.length > total) {
+        novosValores.length = total;
+      }
+      return novosValores;
+    });
+  };
 
   // Calcular preview das parcelas
   const calcularParcelas = () => {
@@ -63,7 +84,7 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
       parcelas.push({
         numero: i,
         data: new Date(dataAtual),
-        valor: formData.valorParcela,
+        valor: valoresIndividuais[i - 1] || formData.valorPadrao,
       });
       
       // Calcular próxima data
@@ -80,9 +101,12 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
   };
 
   const parcelasPreview = calcularParcelas();
-  const valorTotal = formData.valorParcela 
-    ? (parseFloat(formData.valorParcela.replace(",", ".")) * formData.totalParcelas).toFixed(2)
-    : "0.00";
+  
+  // Calcular valor total considerando valores individuais
+  const valorTotal = parcelasPreview.reduce((acc, p) => {
+    const valor = parseFloat((p.valor || "0").replace(",", ".")) || 0;
+    return acc + valor;
+  }, 0).toFixed(2);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,23 +130,26 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
 
     try {
       const grupoId = crypto.randomUUID();
-      const valorNumerico = formData.valorParcela 
-        ? parseFloat(formData.valorParcela.replace(",", ".")) 
-        : null;
 
-      const eventosParaInserir = parcelasPreview.map((parcela) => ({
-        titulo: `Parcela ${parcela.numero}/${formData.totalParcelas} - ${formData.descricao}`,
-        descricao: `Parcela ${parcela.numero} de ${formData.totalParcelas}. Valor: R$ ${formData.valorParcela || "0,00"}`,
-        tipo: "prazo_parcela",
-        data_inicio: parcela.data.toISOString(),
-        dia_inteiro: true,
-        criado_por: user.id,
-        status: "pendente",
-        grupo_parcelas: grupoId,
-        numero_parcela: parcela.numero,
-        total_parcelas: formData.totalParcelas,
-        valor_parcela: valorNumerico,
-      }));
+      const eventosParaInserir = parcelasPreview.map((parcela) => {
+        const valorNumerico = parcela.valor 
+          ? parseFloat(parcela.valor.replace(",", ".")) 
+          : null;
+        
+        return {
+          titulo: `Parcela ${parcela.numero}/${formData.totalParcelas} - ${formData.descricao}`,
+          descricao: `Parcela ${parcela.numero} de ${formData.totalParcelas}. Valor: R$ ${parcela.valor || "0,00"}`,
+          tipo: "prazo_parcela",
+          data_inicio: parcela.data.toISOString(),
+          dia_inteiro: true,
+          criado_por: user.id,
+          status: "pendente",
+          grupo_parcelas: grupoId,
+          numero_parcela: parcela.numero,
+          total_parcelas: formData.totalParcelas,
+          valor_parcela: valorNumerico,
+        };
+      });
 
       const { error } = await supabase
         .from("eventos_agenda")
@@ -139,9 +166,10 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
         descricao: "",
         totalParcelas: 12,
         dataVencimento: format(new Date(), "yyyy-MM-dd"),
-        valorParcela: "",
+        valorPadrao: "",
         intervalo: "mensal",
       });
+      setValoresIndividuais([]);
       
       onOpenChange(false);
     } catch (error) {
@@ -193,24 +221,35 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
                   min={1}
                   max={120}
                   value={formData.totalParcelas}
-                  onChange={(e) => setFormData({ ...formData, totalParcelas: parseInt(e.target.value) || 1 })}
+                  onChange={(e) => {
+                    const novoTotal = parseInt(e.target.value) || 1;
+                    setFormData({ ...formData, totalParcelas: novoTotal });
+                    atualizarValoresIndividuais(undefined, novoTotal);
+                  }}
                   required
                 />
               </div>
 
-              {/* Valor da Parcela */}
+              {/* Valor Padrão */}
               <div>
-                <Label htmlFor="valorParcela" className="flex items-center gap-1.5">
+                <Label htmlFor="valorPadrao" className="flex items-center gap-1.5">
                   <DollarSign className="w-4 h-4" />
-                  Valor da Parcela (R$)
+                  Valor Padrão (R$)
                 </Label>
                 <Input
-                  id="valorParcela"
+                  id="valorPadrao"
                   type="text"
-                  value={formData.valorParcela}
-                  onChange={(e) => setFormData({ ...formData, valorParcela: e.target.value })}
+                  value={formData.valorPadrao}
+                  onChange={(e) => {
+                    const novoValor = e.target.value;
+                    setFormData({ ...formData, valorPadrao: novoValor });
+                    atualizarValoresIndividuais(novoValor);
+                  }}
                   placeholder="0,00"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Edite valores individuais no preview abaixo
+                </p>
               </div>
 
               {/* Data da Primeira Parcela */}
@@ -259,44 +298,50 @@ export function GerarParcelasDialog({ open, onOpenChange }: GerarParcelasDialogP
                   <span className="text-muted-foreground">Total de parcelas:</span>
                   <Badge variant="secondary" className="ml-2">{formData.totalParcelas}</Badge>
                 </div>
-                {formData.valorParcela && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Valor total:</span>
-                    <Badge variant="outline" className="ml-2">R$ {valorTotal}</Badge>
-                  </div>
-                )}
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Valor total:</span>
+                  <Badge variant="outline" className="ml-2">R$ {valorTotal}</Badge>
+                </div>
               </div>
             </Card>
 
-            {/* Preview das Parcelas */}
+            {/* Preview das Parcelas com valores editáveis */}
             {parcelasPreview.length > 0 && (
               <div className="border rounded-lg p-4 space-y-2">
-                <Label className="font-medium">Preview das Parcelas</Label>
-                <ScrollArea className="h-40">
-                  <div className="space-y-1">
-                    {parcelasPreview.slice(0, 24).map((parcela) => (
+                <Label className="font-medium">Parcelas (valores editáveis)</Label>
+                <ScrollArea className="h-48">
+                  <div className="space-y-2">
+                    {parcelasPreview.map((parcela) => (
                       <div
                         key={parcela.numero}
-                        className="flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-muted/50"
+                        className="flex items-center gap-2 text-sm py-1 px-2 rounded bg-muted/30"
                       >
-                        <span className="font-medium">
+                        <span className="font-medium w-24 shrink-0">
                           Parcela {parcela.numero}/{formData.totalParcelas}
                         </span>
-                        <span className="text-muted-foreground">
+                        <span className="text-muted-foreground w-24 shrink-0">
                           {format(parcela.data, "dd/MM/yyyy")}
                         </span>
-                        {formData.valorParcela && (
-                          <span className="text-green-600 dark:text-green-400">
-                            R$ {formData.valorParcela}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1 flex-1">
+                          <span className="text-muted-foreground">R$</span>
+                          <Input
+                            type="text"
+                            value={valoresIndividuais[parcela.numero - 1] ?? formData.valorPadrao}
+                            onChange={(e) => {
+                              const novosValores = [...valoresIndividuais];
+                              // Garantir que array tem tamanho correto
+                              while (novosValores.length < formData.totalParcelas) {
+                                novosValores.push(formData.valorPadrao);
+                              }
+                              novosValores[parcela.numero - 1] = e.target.value;
+                              setValoresIndividuais(novosValores);
+                            }}
+                            placeholder="0,00"
+                            className="h-8 w-28"
+                          />
+                        </div>
                       </div>
                     ))}
-                    {parcelasPreview.length > 24 && (
-                      <div className="text-sm text-muted-foreground text-center py-2">
-                        ... e mais {parcelasPreview.length - 24} parcelas
-                      </div>
-                    )}
                   </div>
                 </ScrollArea>
               </div>
