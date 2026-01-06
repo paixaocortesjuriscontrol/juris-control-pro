@@ -3,15 +3,17 @@ import {
   FileText,
   Filter,
   Eye,
-  Import,
   Sparkles,
   CheckCircle,
   Loader2,
   Search,
   Calendar,
-  Trash2,
-  RotateCcw,
-  Pencil,
+  Building2,
+  Gavel,
+  FileSearch,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -30,133 +32,93 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { useAnaliseDjen, PublicacaoAnalise } from "@/hooks/useAnaliseDjen";
-import { useDescartadasDjen, PublicacaoDescartada } from "@/hooks/useDescartadasDjen";
+import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
-import { useMonitoramentosDjen, MonitoramentoDjen } from "@/hooks/useMonitoramentosDjen";
-import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
+import { Link } from "react-router-dom";
 
 const AnaliseDjen = () => {
   // Filtros
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
-  const [monitoramentoId, setMonitoramentoId] = useState<string>("");
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
-  const [apenasNaoLidas, setApenasNaoLidas] = useState(false);
-  const [activeTab, setActiveTab] = useState("publicacoes");
-  const [resumoLocal, setResumoLocal] = useState<string | null>(null);
+  const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
+  const [apenasHoje, setApenasHoje] = useState(true);
+  const [tipoOrigem, setTipoOrigem] = useState<'todos' | 'termo' | 'processo'>('todos');
   
   // States
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectedDescartadasIds, setSelectedDescartadasIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Map<string, 'termo' | 'processo'>>(new Map());
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoAnalise | null>(null);
-  const [viewDescartadaDialogOpen, setViewDescartadaDialogOpen] = useState(false);
-  const [selectedDescartada, setSelectedDescartada] = useState<PublicacaoDescartada | null>(null);
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [importCoordenacaoId, setImportCoordenacaoId] = useState<string>("");
-  const [importing, setImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, imported: 0, movimentacoes: 0, errors: 0 });
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
+  const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   
-  const { publicacoes, isLoading, ultimoResumo, loadingResumo, gerarResumoIA, marcarComoLida } = useAnaliseDjen({
+  const { 
+    publicacoes, 
+    estatisticas, 
+    isLoading, 
+    loadingStats,
+    marcarComoLida,
+    totalHoje,
+    naoLidasHoje
+  } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoId || undefined,
-    monitoramentoId: monitoramentoId || undefined,
-    dataInicio: dataInicio || undefined,
-    dataFim: dataFim || undefined,
+    dataInicio: apenasHoje ? undefined : dataInicio || undefined,
+    dataFim: apenasHoje ? undefined : dataFim || undefined,
     termoBusca: termoBusca || undefined,
     apenasNaoLidas,
-  });
-
-  const { descartadas, isLoading: loadingDescartadas, importarDescartada, descartarDefinitivamente } = useDescartadasDjen({
-    coordenacaoId: coordenacaoId || undefined,
-    monitoramentoId: monitoramentoId || undefined,
-    dataInicio: dataInicio || undefined,
-    dataFim: dataFim || undefined,
-    termoBusca: termoBusca || undefined,
+    apenasHoje,
+    tipoOrigem: tipoOrigem === 'todos' ? undefined : tipoOrigem,
   });
 
   const { data: coordenacoes } = useCoordenacoes();
-  
-  const { monitoramentos: todosMonitoramentos } = useMonitoramentosDjen();
-  
-  const monitoramentos = coordenacaoId 
-    ? todosMonitoramentos?.filter(m => m.coordenacao_id === coordenacaoId)
-    : todosMonitoramentos;
 
-  const monitoramentoSelecionado = monitoramentos?.find(m => m.id === monitoramentoId);
-
-  const toggleSelect = (id: string) => {
-    const newSelected = new Set(selectedIds);
+  const toggleSelect = (id: string, tipo: 'termo' | 'processo') => {
+    const newSelected = new Map(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
     } else {
-      newSelected.add(id);
+      newSelected.set(id, tipo);
     }
     setSelectedIds(newSelected);
   };
 
   const toggleSelectAll = () => {
     if (selectedIds.size === publicacoes.length) {
-      setSelectedIds(new Set());
+      setSelectedIds(new Map());
     } else {
-      setSelectedIds(new Set(publicacoes.map(p => p.id)));
+      const newMap = new Map<string, 'termo' | 'processo'>();
+      publicacoes.forEach(p => newMap.set(p.id, p.tipo_origem));
+      setSelectedIds(newMap);
     }
   };
 
-  const toggleSelectDescartada = (id: string) => {
-    const newSelected = new Set(selectedDescartadasIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
+  const toggleCoordenacao = (coordId: string) => {
+    const newExpanded = new Set(expandedCoordenacoes);
+    if (newExpanded.has(coordId)) {
+      newExpanded.delete(coordId);
     } else {
-      newSelected.add(id);
+      newExpanded.add(coordId);
     }
-    setSelectedDescartadasIds(newSelected);
+    setExpandedCoordenacoes(newExpanded);
   };
 
-  const toggleSelectAllDescartadas = () => {
-    if (selectedDescartadasIds.size === descartadas.length) {
-      setSelectedDescartadasIds(new Set());
-    } else {
-      setSelectedDescartadasIds(new Set(descartadas.map(d => d.id)));
-    }
-  };
-
-  const handleView = (pub: PublicacaoAnalise) => {
+  const handleView = (pub: PublicacaoUnificada) => {
     setSelectedPublicacao(pub);
     setViewDialogOpen(true);
-  };
-
-  const handleViewDescartada = (pub: PublicacaoDescartada) => {
-    setSelectedDescartada(pub);
-    setViewDescartadaDialogOpen(true);
-  };
-
-  const handleGerarResumo = async () => {
-    if (selectedIds.size === 0) {
-      toast.error("Selecione ao menos uma publicação para gerar o resumo");
-      return;
-    }
-    const selectedPubs = publicacoes.filter(p => selectedIds.has(p.id));
-    const resumo = await gerarResumoIA.mutateAsync({ publicacoes: selectedPubs, monitoramentoId: monitoramentoId || undefined });
-    // Armazenar o resumo localmente para exibição imediata
-    if (resumo) {
-      setResumoLocal(resumo);
-    }
   };
 
   const handleMarcarLidas = async () => {
@@ -164,180 +126,9 @@ const AnaliseDjen = () => {
       toast.error("Selecione ao menos uma publicação");
       return;
     }
-    await marcarComoLida.mutateAsync(Array.from(selectedIds));
-    setSelectedIds(new Set());
-  };
-
-  const handleOpenImportDialog = () => {
-    if (selectedIds.size === 0) {
-      toast.error("Selecione ao menos uma publicação para importar");
-      return;
-    }
-    setImportCoordenacaoId("");
-    setImportDialogOpen(true);
-  };
-
-  const handleImportarDescartadas = async () => {
-    if (selectedDescartadasIds.size === 0) {
-      toast.error("Selecione ao menos uma publicação");
-      return;
-    }
-    
-    for (const id of selectedDescartadasIds) {
-      await importarDescartada.mutateAsync(id);
-    }
-    setSelectedDescartadasIds(new Set());
-  };
-
-  const handleDescartarDefinitivamente = async () => {
-    if (selectedDescartadasIds.size === 0) {
-      toast.error("Selecione ao menos uma publicação");
-      return;
-    }
-    await descartarDefinitivamente.mutateAsync(Array.from(selectedDescartadasIds));
-    setSelectedDescartadasIds(new Set());
-  };
-
-  const extractProcessNumbers = (text: string): string[] => {
-    const cnjRegex = /\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g;
-    const matches = text.match(cnjRegex) || [];
-    return [...new Set(matches)];
-  };
-
-  const handleImportSelected = async () => {
-    if (!importCoordenacaoId) {
-      toast.error("Selecione uma coordenação");
-      return;
-    }
-
-    setImporting(true);
-    const selectedPubs = publicacoes.filter(p => selectedIds.has(p.id));
-    const total = selectedPubs.length;
-    setImportProgress({ current: 0, total, imported: 0, movimentacoes: 0, errors: 0 });
-
-    try {
-      let imported = 0;
-      let movimentacoesAdded = 0;
-      let errors = 0;
-
-      // Preparar todos os números de processo antecipadamente
-      const pubsWithNumbers = selectedPubs.map(pub => {
-        let processNumbers: string[] = [];
-        if (pub.processo_numero) {
-          processNumbers = [pub.processo_numero];
-        } else if (pub.conteudo) {
-          processNumbers = extractProcessNumbers(pub.conteudo);
-        }
-        return { pub, processNumbers };
-      });
-
-      // Buscar todos os processos existentes de uma vez
-      const allNumbers = [...new Set(pubsWithNumbers.flatMap(p => p.processNumbers))];
-      const { data: existingProcesses } = await supabase
-        .from("processos")
-        .select("id, numero")
-        .in("numero", allNumbers.length > 0 ? allNumbers : ['__none__']);
-
-      const existingMap = new Map((existingProcesses || []).map(p => [p.numero, p.id]));
-
-      // Processar em lotes de 5 para melhor performance
-      const BATCH_SIZE = 5;
-      for (let i = 0; i < pubsWithNumbers.length; i += BATCH_SIZE) {
-        const batch = pubsWithNumbers.slice(i, i + BATCH_SIZE);
-        
-        await Promise.all(batch.map(async ({ pub, processNumbers }) => {
-          try {
-            if (processNumbers.length === 0) {
-              errors++;
-              return;
-            }
-
-            for (const numero of processNumbers) {
-              const existingId = existingMap.get(numero);
-
-              if (existingId) {
-                await supabase
-                  .from("movimentacoes")
-                  .insert({
-                    processo_id: existingId,
-                    descricao: `Intimação DJEN: ${pub.conteudo?.substring(0, 500) || ""}`,
-                    tipo: "intimacao",
-                    fonte: "DJEN",
-                    data_movimentacao: pub.data_publicacao || new Date().toISOString(),
-                  });
-                movimentacoesAdded++;
-              } else {
-                const { data: newProcess, error: createError } = await supabase
-                  .from("processos")
-                  .insert({
-                    numero,
-                    area: "civil",
-                    status: "ativo",
-                    tribunal: pub.fonte || "Não identificado",
-                    assunto: pub.conteudo?.substring(0, 200) || "Publicação DJEN",
-                    polo_ativo: "A identificar",
-                    coordenacao_id: importCoordenacaoId,
-                  })
-                  .select("id")
-                  .single();
-
-                if (!createError && newProcess) {
-                  existingMap.set(numero, newProcess.id);
-                  await supabase
-                    .from("movimentacoes")
-                    .insert({
-                      processo_id: newProcess.id,
-                      descricao: `Intimação DJEN: ${pub.conteudo?.substring(0, 500) || ""}`,
-                      tipo: "intimacao",
-                      fonte: "DJEN",
-                      data_movimentacao: pub.data_publicacao || new Date().toISOString(),
-                    });
-                  imported++;
-                } else {
-                  errors++;
-                }
-              }
-            }
-
-            await supabase
-              .from('publicacoes_djen')
-              .update({ lida: true })
-              .eq('id', pub.id);
-
-          } catch (e) {
-            errors++;
-          }
-        }));
-
-        // Atualizar progresso
-        setImportProgress({
-          current: Math.min(i + BATCH_SIZE, pubsWithNumbers.length),
-          total,
-          imported,
-          movimentacoes: movimentacoesAdded,
-          errors,
-        });
-      }
-
-      let msg = "";
-      if (imported > 0) msg += `${imported} processo(s) criado(s). `;
-      if (movimentacoesAdded > 0) msg += `${movimentacoesAdded} intimação(ões) adicionada(s). `;
-      if (errors > 0) msg += `${errors} sem número de processo.`;
-      
-      if (imported > 0 || movimentacoesAdded > 0) {
-        toast.success(msg);
-      } else {
-        toast.warning(msg || "Nenhuma publicação importada");
-      }
-
-      setImportDialogOpen(false);
-      setSelectedIds(new Set());
-    } catch (error: any) {
-      toast.error("Erro ao importar: " + error.message);
-    } finally {
-      setImporting(false);
-      setImportProgress({ current: 0, total: 0, imported: 0, movimentacoes: 0, errors: 0 });
-    }
+    const items = Array.from(selectedIds.entries()).map(([id, tipo]) => ({ id, tipo_origem: tipo }));
+    await marcarComoLida.mutateAsync(items);
+    setSelectedIds(new Map());
   };
 
   const formatDate = (dateString: string | null) => {
@@ -349,16 +140,97 @@ const AnaliseDjen = () => {
     }
   };
 
-  const getMonitoramentoLabel = () => {
-    if (!monitoramentoSelecionado) return "";
-    return monitoramentoSelecionado.tipo === 'advogado' 
-      ? `OAB ${monitoramentoSelecionado.oab || ''} ${monitoramentoSelecionado.uf || ''}`
-      : monitoramentoSelecionado.termo_busca;
+  const formatDateShort = (dateString: string | null) => {
+    if (!dateString) return "-";
+    try {
+      return format(parseISO(dateString), "dd/MM HH:mm", { locale: ptBR });
+    } catch {
+      return dateString;
+    }
   };
 
+  // Agrupar publicações por coordenação
+  const publicacoesPorCoordenacao = publicacoes.reduce((acc, pub) => {
+    const coordId = pub.coordenacao_id || 'sem-coordenacao';
+    if (!acc[coordId]) {
+      acc[coordId] = {
+        coordenacao_id: coordId,
+        coordenacao_nome: pub.coordenacao_nome || 'Sem Coordenação',
+        publicacoes: []
+      };
+    }
+    acc[coordId].publicacoes.push(pub);
+    return acc;
+  }, {} as Record<string, { coordenacao_id: string; coordenacao_nome: string; publicacoes: PublicacaoUnificada[] }>);
+
+  const coordenacoesOrdenadas = Object.values(publicacoesPorCoordenacao).sort((a, b) => 
+    b.publicacoes.length - a.publicacoes.length
+  );
+
   return (
-    <MainLayout title="Análise DJEN" subtitle="Resultados dos monitoramentos com análise de IA">
+    <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Hoje</p>
+                  <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                    {loadingStats ? <Loader2 className="w-6 h-6 animate-spin" /> : totalHoje}
+                  </p>
+                </div>
+                <FileText className="w-10 h-10 text-blue-500/50" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Não Lidas</p>
+                  <p className="text-3xl font-bold text-amber-700 dark:text-amber-300">
+                    {loadingStats ? <Loader2 className="w-6 h-6 animate-spin" /> : naoLidasHoje}
+                  </p>
+                </div>
+                <Eye className="w-10 h-10 text-amber-500/50" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200 dark:border-purple-800">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Por Termos</p>
+                  <p className="text-3xl font-bold text-purple-700 dark:text-purple-300">
+                    {loadingStats ? <Loader2 className="w-6 h-6 animate-spin" /> : 
+                      estatisticas.reduce((acc, s) => acc + s.por_tipo.termo, 0)}
+                  </p>
+                </div>
+                <FileSearch className="w-10 h-10 text-purple-500/50" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Por Processos</p>
+                  <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
+                    {loadingStats ? <Loader2 className="w-6 h-6 animate-spin" /> : 
+                      estatisticas.reduce((acc, s) => acc + s.por_tipo.processo, 0)}
+                  </p>
+                </div>
+                <Gavel className="w-10 h-10 text-emerald-500/50" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Filtros */}
         <Card>
           <CardHeader className="pb-4">
@@ -373,13 +245,10 @@ const AnaliseDjen = () => {
                 <Label>Coordenação</Label>
                 <Select 
                   value={coordenacaoId || "__all__"} 
-                  onValueChange={(val) => {
-                    setCoordenacaoId(val === "__all__" ? "" : val);
-                    setMonitoramentoId("");
-                  }}
+                  onValueChange={(val) => setCoordenacaoId(val === "__all__" ? "" : val)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione primeiro" />
+                    <SelectValue placeholder="Todas" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">Todas</SelectItem>
@@ -393,65 +262,50 @@ const AnaliseDjen = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Monitoramento</Label>
-                <div className="flex gap-2">
-                  <Select 
-                    value={monitoramentoId || "__all__"} 
-                    onValueChange={(val) => setMonitoramentoId(val === "__all__" ? "" : val)}
-                    disabled={!coordenacaoId}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder={coordenacaoId ? "Todos" : "Selecione coordenação"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">Todos</SelectItem>
-                      {monitoramentos?.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.descricao || (m.tipo === 'advogado' 
-                            ? `OAB ${m.oab || ''} ${m.uf || ''}`
-                            : m.termo_busca)
-                          }
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {monitoramentoSelecionado && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setEditDialogOpen(true)}
-                      title="Editar monitoramento"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                <Label>Tipo de Origem</Label>
+                <Select 
+                  value={tipoOrigem} 
+                  onValueChange={(val) => setTipoOrigem(val as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="termo">Por Termos/OAB</SelectItem>
+                    <SelectItem value="processo">Por Processos</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Data Início</Label>
-                <Input
-                  type="date"
-                  value={dataInicio}
-                  onChange={(e) => setDataInicio(e.target.value)}
-                />
-              </div>
+              {!apenasHoje && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Data Início</Label>
+                    <Input
+                      type="date"
+                      value={dataInicio}
+                      onChange={(e) => setDataInicio(e.target.value)}
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Data Fim</Label>
-                <Input
-                  type="date"
-                  value={dataFim}
-                  onChange={(e) => setDataFim(e.target.value)}
-                />
-              </div>
+                  <div className="space-y-2">
+                    <Label>Data Fim</Label>
+                    <Input
+                      type="date"
+                      value={dataFim}
+                      onChange={(e) => setDataFim(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label>Buscar</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Termo, processo..."
+                    placeholder="Termo, processo, parte..."
                     value={termoBusca}
                     onChange={(e) => setTermoBusca(e.target.value)}
                     className="pl-9"
@@ -460,540 +314,335 @@ const AnaliseDjen = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 mt-4">
-              <Checkbox 
-                id="naoLidas"
-                checked={apenasNaoLidas}
-                onCheckedChange={(checked) => setApenasNaoLidas(checked as boolean)}
-              />
-              <Label htmlFor="naoLidas" className="cursor-pointer">
-                Apenas não lidas
-              </Label>
+            <div className="flex flex-wrap items-center gap-4 mt-4">
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  id="apenasHoje"
+                  checked={apenasHoje}
+                  onCheckedChange={(checked) => setApenasHoje(checked as boolean)}
+                />
+                <Label htmlFor="apenasHoje" className="cursor-pointer font-medium">
+                  Apenas hoje
+                </Label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  id="naoLidas"
+                  checked={apenasNaoLidas}
+                  onCheckedChange={(checked) => setApenasNaoLidas(checked as boolean)}
+                />
+                <Label htmlFor="naoLidas" className="cursor-pointer">
+                  Apenas não lidas
+                </Label>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Resumo IA */}
-        <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2 text-green-800 dark:text-green-200">
-                <Sparkles className="w-5 h-5" />
-                Resumo IA {monitoramentoId && `- ${getMonitoramentoLabel()}`}
-              </CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleGerarResumo}
-                disabled={selectedIds.size === 0 || gerarResumoIA.isPending}
-                className="border-green-300 text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-300"
-              >
-                {gerarResumoIA.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <Sparkles className="w-4 h-4 mr-2" />
-                )}
-                Resumir Selecionados ({selectedIds.size})
-              </Button>
-            </div>
-            {ultimoResumo && (
-              <CardDescription className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                Gerado em: {formatDate(ultimoResumo.data_busca)}
-              </CardDescription>
-            )}
-          </CardHeader>
-          <CardContent>
-            {loadingResumo ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="w-6 h-6 animate-spin text-green-600" />
-              </div>
-            ) : (ultimoResumo || resumoLocal) ? (
-              <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-green-800 dark:prose-headings:text-green-200">
-                <div className="whitespace-pre-wrap text-green-700 dark:text-green-300">
-                  {ultimoResumo?.resumo || resumoLocal}
-                </div>
-              </div>
+        {/* Actions */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleSelectAll}
+            disabled={publicacoes.length === 0}
+          >
+            {selectedIds.size === publicacoes.length && publicacoes.length > 0
+              ? "Desmarcar Todos"
+              : `Selecionar Todos (${publicacoes.length})`}
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleMarcarLidas}
+            disabled={selectedIds.size === 0 || marcarComoLida.isPending}
+          >
+            {marcarComoLida.isPending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
-              <div className="text-center py-6 text-green-600 dark:text-green-400">
-                <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>Selecione publicações e clique em "Resumir Selecionados" para gerar um resumo com IA.</p>
+              <CheckCircle className="w-4 h-4 mr-2" />
+            )}
+            Marcar como Lida ({selectedIds.size})
+          </Button>
+        </div>
+
+        {/* Results by Coordination */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : publicacoes.length === 0 ? (
+          <Card>
+            <CardContent className="py-12">
+              <div className="text-center text-muted-foreground">
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">Nenhuma publicação encontrada</p>
                 <p className="text-sm mt-1">
-                  {publicacoes.length > 0 ? `${publicacoes.length} publicação(ões) disponível(is).` : "Nenhuma publicação encontrada com os filtros atuais."}
+                  {apenasHoje ? "Não há publicações novas para hoje com os filtros atuais." : "Ajuste os filtros para ver publicações."}
                 </p>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Tabs for Publicacoes and Descartadas */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="publicacoes" className="flex items-center gap-2">
-              <FileText className="w-4 h-4" />
-              Publicações ({publicacoes.length})
-            </TabsTrigger>
-            <TabsTrigger value="descartadas" className="flex items-center gap-2">
-              <Trash2 className="w-4 h-4" />
-              Descartadas ({descartadas.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="publicacoes" className="space-y-4">
-            {/* Actions */}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleSelectAll}
-                disabled={publicacoes.length === 0}
-              >
-                {selectedIds.size === publicacoes.length && publicacoes.length > 0
-                  ? "Desmarcar Todos"
-                  : "Selecionar Todos"}
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleMarcarLidas}
-                disabled={selectedIds.size === 0 || marcarComoLida.isPending}
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Marcar como Lida
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={handleOpenImportDialog}
-                disabled={selectedIds.size === 0}
-              >
-                <Import className="w-4 h-4 mr-2" />
-                Importar ({selectedIds.size})
-              </Button>
-            </div>
-
-            {/* Results */}
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Publicações ({publicacoes.length})
-                </CardTitle>
-                <CardDescription>
-                  Resultados dos monitoramentos DJEN configurados
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                  </div>
-                ) : publicacoes.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhuma publicação encontrada</p>
-                    <p className="text-sm mt-1">
-                      Configure monitoramentos DJEN em "Buscar DJEN" para receber publicações
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {publicacoes.map((pub) => (
-                      <div
-                        key={pub.id}
-                        className={cn(
-                          "border rounded-lg p-4 transition-colors",
-                          selectedIds.has(pub.id) && "bg-primary/5 border-primary/30",
-                          !pub.lida && "border-l-4 border-l-primary"
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Checkbox
-                            checked={selectedIds.has(pub.id)}
-                            onCheckedChange={() => toggleSelect(pub.id)}
-                          />
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 mb-2">
-                              <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                                {pub.monitoramento?.tipo === 'advogado' 
-                                  ? `OAB ${pub.monitoramento?.oab || ''} ${pub.monitoramento?.uf || ''}`
-                                  : pub.monitoramento?.tipo === 'processo'
-                                    ? `Processo: ${pub.monitoramento?.termo_busca}`
-                                    : pub.monitoramento?.termo_busca || "Monitoramento"
-                                }
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {coordenacoesOrdenadas.map((grupo) => (
+              <Card key={grupo.coordenacao_id}>
+                <Collapsible
+                  open={expandedCoordenacoes.has(grupo.coordenacao_id) || expandedCoordenacoes.has('all')}
+                  onOpenChange={() => toggleCoordenacao(grupo.coordenacao_id)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {expandedCoordenacoes.has(grupo.coordenacao_id) || expandedCoordenacoes.has('all') ? (
+                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                          )}
+                          <Building2 className="w-5 h-5 text-primary" />
+                          <div>
+                            <CardTitle className="text-lg">{grupo.coordenacao_nome}</CardTitle>
+                            <CardDescription className="flex items-center gap-2 mt-1">
+                              <Badge variant="secondary">{grupo.publicacoes.length} publicações</Badge>
+                              <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+                                {grupo.publicacoes.filter(p => p.tipo_origem === 'termo').length} termos
                               </Badge>
-                              {pub.monitoramento?.coordenacao?.nome && (
-                                <Badge variant="outline">
-                                  {pub.monitoramento.coordenacao.nome}
-                                </Badge>
-                              )}
-                              {!pub.lida && (
-                                <Badge variant="default" className="bg-primary">
-                                  Nova
-                                </Badge>
-                              )}
-                            </div>
+                              <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">
+                                {grupo.publicacoes.filter(p => p.tipo_origem === 'processo').length} processos
+                              </Badge>
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <Badge 
+                          variant="default" 
+                          className={cn(
+                            grupo.publicacoes.filter(p => !p.lida).length > 0 
+                              ? "bg-amber-500" 
+                              : "bg-green-500"
+                          )}
+                        >
+                          {grupo.publicacoes.filter(p => !p.lida).length} não lidas
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
 
-                            {pub.processo_numero && (
-                              <p className="text-sm font-medium text-primary mb-1">
-                                Processo: {pub.processo_numero}
-                              </p>
+                  <CollapsibleContent>
+                    <CardContent className="pt-0">
+                      <div className="space-y-3">
+                        {grupo.publicacoes.map((pub) => (
+                          <div
+                            key={pub.id}
+                            className={cn(
+                              "border rounded-lg p-4 transition-colors",
+                              selectedIds.has(pub.id) && "bg-primary/5 border-primary/30",
+                              !pub.lida && "border-l-4 border-l-primary"
                             )}
+                          >
+                            <div className="flex items-start gap-3">
+                              <Checkbox
+                                checked={selectedIds.has(pub.id)}
+                                onCheckedChange={() => toggleSelect(pub.id, pub.tipo_origem)}
+                              />
+                              
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                  {pub.tipo_origem === 'termo' ? (
+                                    <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100">
+                                      <FileSearch className="w-3 h-3 mr-1" />
+                                      {pub.monitoramento_tipo === 'advogado' 
+                                        ? `OAB ${pub.monitoramento_oab || ''} ${pub.monitoramento_uf || ''}`
+                                        : pub.monitoramento_termo || "Termo"
+                                      }
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                                      <Gavel className="w-3 h-3 mr-1" />
+                                      Processo Cadastrado
+                                    </Badge>
+                                  )}
+                                  
+                                  {!pub.lida && (
+                                    <Badge variant="default" className="bg-amber-500">
+                                      Nova
+                                    </Badge>
+                                  )}
+                                  
+                                  <span className="text-xs text-muted-foreground ml-auto">
+                                    {formatDateShort(pub.created_at)}
+                                  </span>
+                                </div>
 
-                            <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                              {pub.conteudo?.substring(0, 200) || "Sem conteúdo"}...
-                            </p>
+                                {pub.processo_numero && (
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-sm font-medium text-primary">
+                                      {pub.processo_numero}
+                                    </p>
+                                    {pub.tipo_origem === 'processo' && pub.processo_id && (
+                                      <Link 
+                                        to={`/processos/${pub.processo_id}`}
+                                        className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                        Ver processo
+                                      </Link>
+                                    )}
+                                  </div>
+                                )}
 
-                            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                              <span>
-                                <strong className="text-foreground">Diário:</strong> {pub.data_publicacao ? formatDate(pub.data_publicacao) : "Não informado"}
-                              </span>
-                              <span>
-                                <strong className="text-foreground">Capturado:</strong> {formatDate(pub.created_at)}
-                              </span>
-                              {pub.fonte && <span><strong className="text-foreground">Fonte:</strong> {pub.fonte}</span>}
+                                {pub.tipo_origem === 'processo' && (pub.polo_ativo || pub.polo_passivo) && (
+                                  <p className="text-xs text-muted-foreground mb-1">
+                                    {pub.polo_ativo && <span><strong>Ativo:</strong> {pub.polo_ativo}</span>}
+                                    {pub.polo_ativo && pub.polo_passivo && ' | '}
+                                    {pub.polo_passivo && <span><strong>Passivo:</strong> {pub.polo_passivo}</span>}
+                                  </p>
+                                )}
+
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                  {pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 250) || "Sem conteúdo"}...
+                                </p>
+
+                                {pub.tribunal && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    <strong>Tribunal:</strong> {pub.tribunal}
+                                  </p>
+                                )}
+                              </div>
+
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleView(pub)}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
                             </div>
                           </div>
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleView(pub)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="descartadas" className="space-y-4">
-            {/* Actions for Descartadas */}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleSelectAllDescartadas}
-                disabled={descartadas.length === 0}
-              >
-                {selectedDescartadasIds.size === descartadas.length && descartadas.length > 0
-                  ? "Desmarcar Todos"
-                  : "Selecionar Todos"}
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleImportarDescartadas}
-                disabled={selectedDescartadasIds.size === 0 || importarDescartada.isPending}
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Restaurar ({selectedDescartadasIds.size})
-              </Button>
-
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDescartarDefinitivamente}
-                disabled={selectedDescartadasIds.size === 0 || descartarDefinitivamente.isPending}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Excluir Definitivamente
-              </Button>
-            </div>
-
-            {/* Descartadas Results */}
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Trash2 className="w-5 h-5" />
-                  Publicações Descartadas ({descartadas.length})
-                </CardTitle>
-                <CardDescription>
-                  Publicações excluídas pelos critérios de exclusão configurados
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingDescartadas ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                  </div>
-                ) : descartadas.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Trash2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhuma publicação descartada</p>
-                    <p className="text-sm mt-1">
-                      Publicações que contiverem os termos de exclusão aparecerão aqui
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {descartadas.map((pub) => (
-                      <div
-                        key={pub.id}
-                        className={cn(
-                          "border rounded-lg p-4 transition-colors border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-800",
-                          selectedDescartadasIds.has(pub.id) && "bg-orange-100 border-orange-400"
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Checkbox
-                            checked={selectedDescartadasIds.has(pub.id)}
-                            onCheckedChange={() => toggleSelectDescartada(pub.id)}
-                          />
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 mb-2">
-                              <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-300">
-                                Descartada: {pub.motivo_descarte}
-                              </Badge>
-                              <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                                {pub.monitoramento?.tipo === 'advogado' 
-                                  ? `OAB ${pub.monitoramento?.oab || ''} ${pub.monitoramento?.uf || ''}`
-                                  : pub.monitoramento?.termo_busca || "Monitoramento"
-                                }
-                              </Badge>
-                              {pub.monitoramento?.coordenacao?.nome && (
-                                <Badge variant="outline">
-                                  {pub.monitoramento.coordenacao.nome}
-                                </Badge>
-                              )}
-                            </div>
-
-                            {pub.processo_numero && (
-                              <p className="text-sm font-medium text-orange-700 mb-1">
-                                Processo: {pub.processo_numero}
-                              </p>
-                            )}
-
-                            <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                              {pub.conteudo?.substring(0, 200) || "Sem conteúdo"}...
-                            </p>
-
-                            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                              <span>
-                                <strong className="text-foreground">Capturado:</strong> {formatDate(pub.created_at)}
-                              </span>
-                              {pub.fonte && <span><strong className="text-foreground">Fonte:</strong> {pub.fonte}</span>}
-                            </div>
-                          </div>
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewDescartada(pub)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+            ))}
+          </div>
+        )}
 
         {/* View Dialog */}
         <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh]">
+          <DialogContent className="max-w-4xl max-h-[90vh]">
             <DialogHeader>
-              <DialogTitle>Detalhes da Publicação</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Detalhes da Publicação
+              </DialogTitle>
               <DialogDescription>
-                {selectedPublicacao?.processo_numero && (
-                  <span className="font-medium">
-                    Processo: {selectedPublicacao.processo_numero}
-                  </span>
-                )}
+                {selectedPublicacao?.tipo_origem === 'termo' ? 'Monitoramento por Termo/OAB' : 'Monitoramento por Processo'}
               </DialogDescription>
             </DialogHeader>
-            
-            <ScrollArea className="max-h-[60vh]">
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {selectedPublicacao?.monitoramento?.coordenacao?.nome && (
-                    <Badge variant="outline">
-                      {selectedPublicacao.monitoramento.coordenacao.nome}
-                    </Badge>
-                  )}
-                  {selectedPublicacao?.fonte && (
-                    <Badge variant="secondary">{selectedPublicacao.fonte}</Badge>
-                  )}
-                </div>
 
-                <div>
-                  <h4 className="font-medium mb-2">Conteúdo Original</h4>
-                  <div className="bg-muted/50 rounded-lg p-4">
-                    <p className="text-sm whitespace-pre-wrap">
-                      {selectedPublicacao?.conteudo || "Sem conteúdo"}
-                    </p>
+            {selectedPublicacao && (
+              <ScrollArea className="max-h-[60vh]">
+                <div className="space-y-4 p-1">
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPublicacao.tipo_origem === 'termo' ? (
+                      <Badge className="bg-purple-100 text-purple-700">
+                        <FileSearch className="w-3 h-3 mr-1" />
+                        {selectedPublicacao.monitoramento_tipo === 'advogado'
+                          ? `OAB ${selectedPublicacao.monitoramento_oab} ${selectedPublicacao.monitoramento_uf}`
+                          : selectedPublicacao.monitoramento_termo
+                        }
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-emerald-100 text-emerald-700">
+                        <Gavel className="w-3 h-3 mr-1" />
+                        Processo Cadastrado
+                      </Badge>
+                    )}
+                    {selectedPublicacao.coordenacao_nome && (
+                      <Badge variant="outline">
+                        <Building2 className="w-3 h-3 mr-1" />
+                        {selectedPublicacao.coordenacao_nome}
+                      </Badge>
+                    )}
+                    {!selectedPublicacao.lida && (
+                      <Badge className="bg-amber-500">Nova</Badge>
+                    )}
+                  </div>
+
+                  {selectedPublicacao.processo_numero && (
+                    <div className="flex items-center gap-2">
+                      <strong className="text-sm">Processo:</strong>
+                      <span className="text-sm font-mono">{selectedPublicacao.processo_numero}</span>
+                      {selectedPublicacao.tipo_origem === 'processo' && selectedPublicacao.processo_id && (
+                        <Link 
+                          to={`/processos/${selectedPublicacao.processo_id}`}
+                          className="text-sm text-primary hover:underline flex items-center gap-1"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Abrir processo
+                        </Link>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedPublicacao.tipo_origem === 'processo' && (
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      {selectedPublicacao.polo_ativo && (
+                        <div>
+                          <strong>Polo Ativo:</strong>
+                          <p className="text-muted-foreground">{selectedPublicacao.polo_ativo}</p>
+                        </div>
+                      )}
+                      {selectedPublicacao.polo_passivo && (
+                        <div>
+                          <strong>Polo Passivo:</strong>
+                          <p className="text-muted-foreground">{selectedPublicacao.polo_passivo}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <strong>Data Publicação:</strong>
+                      <p className="text-muted-foreground">{formatDate(selectedPublicacao.data_publicacao)}</p>
+                    </div>
+                    <div>
+                      <strong>Capturado em:</strong>
+                      <p className="text-muted-foreground">{formatDate(selectedPublicacao.created_at)}</p>
+                    </div>
+                    {selectedPublicacao.fonte && (
+                      <div>
+                        <strong>Fonte:</strong>
+                        <p className="text-muted-foreground">{selectedPublicacao.fonte}</p>
+                      </div>
+                    )}
+                    {selectedPublicacao.tribunal && (
+                      <div>
+                        <strong>Tribunal:</strong>
+                        <p className="text-muted-foreground">{selectedPublicacao.tribunal}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <strong className="text-sm">Conteúdo:</strong>
+                    <div 
+                      className="mt-2 p-4 bg-muted/50 rounded-lg text-sm prose prose-sm max-w-none dark:prose-invert"
+                      dangerouslySetInnerHTML={{ 
+                        __html: selectedPublicacao.conteudo || "Sem conteúdo" 
+                      }}
+                    />
                   </div>
                 </div>
-
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>Capturado em: {formatDate(selectedPublicacao?.created_at || null)}</p>
-                  {selectedPublicacao?.data_publicacao && (
-                    <p>Data publicação: {formatDate(selectedPublicacao.data_publicacao)}</p>
-                  )}
-                </div>
-              </div>
-            </ScrollArea>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
-                Fechar
-              </Button>
-            </DialogFooter>
+              </ScrollArea>
+            )}
           </DialogContent>
         </Dialog>
-
-        {/* View Descartada Dialog */}
-        <Dialog open={viewDescartadaDialogOpen} onOpenChange={setViewDescartadaDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh]">
-            <DialogHeader>
-              <DialogTitle>Publicação Descartada</DialogTitle>
-              <DialogDescription>
-                <Badge variant="secondary" className="bg-orange-100 text-orange-700 mt-2">
-                  Motivo: {selectedDescartada?.motivo_descarte}
-                </Badge>
-              </DialogDescription>
-            </DialogHeader>
-            
-            <ScrollArea className="max-h-[60vh]">
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {selectedDescartada?.monitoramento?.coordenacao?.nome && (
-                    <Badge variant="outline">
-                      {selectedDescartada.monitoramento.coordenacao.nome}
-                    </Badge>
-                  )}
-                  {selectedDescartada?.fonte && (
-                    <Badge variant="secondary">{selectedDescartada.fonte}</Badge>
-                  )}
-                </div>
-
-                {selectedDescartada?.processo_numero && (
-                  <p className="text-sm font-medium text-orange-700">
-                    Processo: {selectedDescartada.processo_numero}
-                  </p>
-                )}
-
-                <div>
-                  <h4 className="font-medium mb-2">Conteúdo Original</h4>
-                  <div className="bg-muted/50 rounded-lg p-4">
-                    <p className="text-sm whitespace-pre-wrap">
-                      {selectedDescartada?.conteudo || "Sem conteúdo"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>Capturado em: {formatDate(selectedDescartada?.created_at || null)}</p>
-                </div>
-              </div>
-            </ScrollArea>
-
-            <DialogFooter className="flex gap-2">
-              <Button 
-                variant="outline" 
-                onClick={async () => {
-                  if (selectedDescartada) {
-                    await importarDescartada.mutateAsync(selectedDescartada.id);
-                    setViewDescartadaDialogOpen(false);
-                  }
-                }}
-                disabled={importarDescartada.isPending}
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Restaurar
-              </Button>
-              <Button variant="outline" onClick={() => setViewDescartadaDialogOpen(false)}>
-                Fechar
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Import Dialog */}
-        <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Importar Publicações</DialogTitle>
-              <DialogDescription>
-                {selectedIds.size} publicação(ões) selecionada(s). Selecione a coordenação para atribuir os processos.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Coordenação</Label>
-                <Select value={importCoordenacaoId} onValueChange={setImportCoordenacaoId} disabled={importing}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma coordenação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {coordenacoes?.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {importing && importProgress.total > 0 && (
-                <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Progresso</span>
-                    <span className="font-medium">{importProgress.current} / {importProgress.total}</span>
-                  </div>
-                  <Progress value={(importProgress.current / importProgress.total) * 100} className="h-2" />
-                  <div className="grid grid-cols-3 gap-2 text-xs text-center">
-                    <div className="p-2 bg-green-500/10 rounded">
-                      <div className="font-medium text-green-600">{importProgress.imported}</div>
-                      <div className="text-muted-foreground">Criados</div>
-                    </div>
-                    <div className="p-2 bg-blue-500/10 rounded">
-                      <div className="font-medium text-blue-600">{importProgress.movimentacoes}</div>
-                      <div className="text-muted-foreground">Intimações</div>
-                    </div>
-                    <div className="p-2 bg-orange-500/10 rounded">
-                      <div className="font-medium text-orange-600">{importProgress.errors}</div>
-                      <div className="text-muted-foreground">Sem nº</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button 
-                onClick={handleImportSelected} 
-                disabled={!importCoordenacaoId || importing}
-              >
-                {importing && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                Importar
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit Monitoramento Dialog */}
-        <MonitoramentoDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          monitoramento={monitoramentoSelecionado as MonitoramentoDjen | undefined}
-        />
       </div>
     </MainLayout>
   );
