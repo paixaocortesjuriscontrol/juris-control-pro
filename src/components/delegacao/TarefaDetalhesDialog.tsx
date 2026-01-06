@@ -881,7 +881,18 @@ export function TarefaDetalhesDialog({
                     />
                     <Button
                       size="sm"
-                      onClick={handleEnviarComentario}
+                      type="button"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleEnviarComentario();
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleEnviarComentario();
+                      }}
                       disabled={!comentario.trim() || sendingComment}
                     >
                       {sendingComment && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
