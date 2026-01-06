@@ -202,13 +202,12 @@ export default function CentralDelegacao() {
       const { data: tarefas, error: tarefasError } = await tarefasQuery.limit(200);
       if (tarefasError) throw tarefasError;
 
-      // Filter by coordination if needed
-      // Importante: tarefas "sem vínculo" (processo_id null) não possuem coordenacao_id,
-      // então devem continuar visíveis mesmo quando um filtro de coordenação estiver ativo.
-      let filteredTarefas = (tarefas || []) as any[];
-      if (coordenacaoId !== "todas") {
-        filteredTarefas = filteredTarefas.filter((p: any) => !p.processo || p.processo.coordenacao_id === coordenacaoId);
-      }
+      // Importante:
+      // Quando uma coordenação é selecionada, a query já filtra por responsáveis que são membros
+      // dessa coordenação (via `membrosDaCoordenacao`).
+      // Portanto, NÃO filtramos novamente por `processo.coordenacao_id` aqui, pois isso pode
+      // esconder tarefas do membro vinculadas a processos de outras coordenações.
+      const filteredTarefas = (tarefas || []) as any[];
 
       // Mark atrasados
       const hoje = new Date();
