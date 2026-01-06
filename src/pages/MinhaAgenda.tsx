@@ -35,6 +35,7 @@ import {
   Trash2,
   Edit,
   MapPin,
+  Coins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameDay, isToday, differenceInDays } from "date-fns";
@@ -42,6 +43,7 @@ import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { useEventosAgenda, useEventoStats, useUpdateEvento, useDeleteEvento, EventoAgenda, EventoFilters } from "@/hooks/useEventosAgenda";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
+import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -68,6 +70,7 @@ const TIPO_CORES: Record<string, string> = {
   tarefa: "bg-amber-500",
   prazo: "bg-red-500",
   audiencia: "bg-purple-500",
+  prazo_parcela: "bg-emerald-500",
 };
 
 const TIPO_LABELS: Record<string, string> = {
@@ -75,6 +78,7 @@ const TIPO_LABELS: Record<string, string> = {
   tarefa: "TAREFA",
   prazo: "PRAZO",
   audiencia: "AUDIÊNCIA",
+  prazo_parcela: "PARCELA",
 };
 
 export default function MinhaAgenda() {
@@ -82,12 +86,13 @@ export default function MinhaAgenda() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [eventoToDelete, setEventoToDelete] = useState<string | null>(null);
 
   // Filters state
-  const [tiposFiltro, setTiposFiltro] = useState<string[]>(["tarefa", "evento", "prazo", "audiencia"]);
+  const [tiposFiltro, setTiposFiltro] = useState<string[]>(["tarefa", "evento", "prazo", "audiencia", "prazo_parcela"]);
   const [statusFiltro, setStatusFiltro] = useState<string>("todas");
   const [pessoasFiltro, setPessoasFiltro] = useState<string[]>([]);
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
@@ -387,7 +392,11 @@ export default function MinhaAgenda() {
     <MainLayout title="Minha Agenda" subtitle="Gerencie seus eventos, tarefas, prazos e audiências">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-end mb-6">
+        <div className="flex justify-end gap-2 mb-6">
+          <Button variant="outline" onClick={() => setParcelasDialogOpen(true)}>
+            <Coins className="w-4 h-4 mr-2" />
+            Gerar Parcelas
+          </Button>
           <Button onClick={() => { setSelectedEvento(null); setDialogOpen(true); }}>
             <Plus className="w-4 h-4 mr-2" />
             Novo Evento
@@ -649,6 +658,12 @@ export default function MinhaAgenda() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Gerar Parcelas Dialog */}
+      <GerarParcelasDialog
+        open={parcelasDialogOpen}
+        onOpenChange={setParcelasDialogOpen}
+      />
     </MainLayout>
   );
 }
