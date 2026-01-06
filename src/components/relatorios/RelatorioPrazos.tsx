@@ -57,12 +57,17 @@ export function RelatorioPrazos({ isActive }: RelatorioPrazosProps) {
   }
 
   const {
-    totalPrazos = 0,
+    totalPrazos: rawTotal,
     prazosStatus = [],
-    prazosCumpridos = 0,
-    prazosPendentes = 0,
-    prazosAtrasados = 0,
+    prazosCumpridos: rawCumpridos,
+    prazosPendentes: rawPendentes,
+    prazosAtrasados: rawAtrasados,
   } = data || {};
+
+  const totalPrazos = Number(rawTotal) || 0;
+  const prazosCumpridos = Number(rawCumpridos) || 0;
+  const prazosPendentes = Number(rawPendentes) || 0;
+  const prazosAtrasados = Number(rawAtrasados) || 0;
 
   return (
     <div className="space-y-6">
