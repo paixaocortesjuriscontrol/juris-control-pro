@@ -438,64 +438,56 @@ const Processos = () => {
 
             {/* Special filters for DJEN and Movements */}
             <Button
+              type="button"
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation",
+                "h-9 gap-2 touch-manipulation select-none",
                 comPublicacaoDjen && "bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
               )}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                setComPublicacaoDjen(prev => !prev);
-              }}
+              onClick={() => setComPublicacaoDjen(prev => !prev)}
             >
               <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">Com DJEN</span>
             </Button>
 
             <Button
+              type="button"
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation",
+                "h-9 gap-2 touch-manipulation select-none",
                 comAndamentos && "bg-green-600 hover:bg-green-700 text-white border-green-600"
               )}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                setComAndamentos(prev => !prev);
-              }}
+              onClick={() => setComAndamentos(prev => !prev)}
             >
               <Activity className="w-4 h-4" />
               <span className="hidden sm:inline">Com Andamentos</span>
             </Button>
 
             <Button
+              type="button"
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation",
+                "h-9 gap-2 touch-manipulation select-none",
                 comAudiencias && "bg-amber-600 hover:bg-amber-700 text-white border-amber-600"
               )}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                setComAudiencias(prev => !prev);
-              }}
+              onClick={() => setComAudiencias(prev => !prev)}
             >
               <Gavel className="w-4 h-4" />
               <span className="hidden sm:inline">Com Audiências</span>
             </Button>
 
             <Button
+              type="button"
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation",
+                "h-9 gap-2 touch-manipulation select-none",
                 comIntimacoes && "bg-red-600 hover:bg-red-700 text-white border-red-600"
               )}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                setComIntimacoes(prev => !prev);
-              }}
+              onClick={() => setComIntimacoes(prev => !prev)}
             >
               <AlertCircle className="w-4 h-4" />
               <span className="hidden sm:inline">Com Intimações</span>
