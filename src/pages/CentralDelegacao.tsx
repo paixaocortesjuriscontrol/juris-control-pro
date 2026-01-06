@@ -141,10 +141,11 @@ export default function CentralDelegacao() {
       } else if (!isAdminOrCoordinator && user?.id) {
         // Usuário comum: ver apenas suas próprias tarefas
         tarefasQuery = tarefasQuery.eq("responsavel_id", user.id);
-      } else if (membrosDaCoordenacao && membrosDaCoordenacao.length > 0) {
-        // Admin/Coordenador: filtro por coordenação selecionada
+      } else if (isAdminOrCoordinator && coordenacaoId !== "todas" && membrosDaCoordenacao && membrosDaCoordenacao.length > 0) {
+        // Admin/Coordenador com coordenação específica selecionada: filtrar por membros dessa coordenação
         tarefasQuery = tarefasQuery.in("responsavel_id", membrosDaCoordenacao);
       }
+      // Se isAdminOrCoordinator e coordenacaoId === "todas", não aplica filtro - mostra todas as tarefas que o RLS permite
 
       if (statusFiltro === "pendente") {
         tarefasQuery = tarefasQuery.eq("status", "pendente");
