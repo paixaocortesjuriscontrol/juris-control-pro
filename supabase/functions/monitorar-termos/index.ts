@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const BATCH_SIZE = 2000; // Movimentações por lote
+const BATCH_SIZE = 1000; // Supabase/PostgREST limita retorno padrão a 1000 linhas por requisição
 
 // Padrões para detectar audiências
 const AUDIENCIA_PATTERNS = [
@@ -153,7 +153,10 @@ Deno.serve(async (req) => {
 
     const movimentacoesList = movimentacoes || [];
     const processedCount = currentOffset + movimentacoesList.length;
-    const isComplete = processedCount >= totalMovimentacoes || movimentacoesList.length < BATCH_SIZE;
+
+    // Importante: não usar "length < BATCH_SIZE" como condição de finalização,
+    // porque o PostgREST pode cortar em 1000 linhas mesmo havendo mais dados.
+    const isComplete = processedCount >= totalMovimentacoes || movimentacoesList.length === 0;
 
     console.log(`Loaded: ${termos.length} terms, ${movimentacoesList.length} movements (offset ${currentOffset}/${totalMovimentacoes})`);
 
