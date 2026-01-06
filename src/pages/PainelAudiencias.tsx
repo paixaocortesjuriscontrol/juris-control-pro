@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, CalendarDays, FileText, Eye, Plus, User, Building, Upload, Download, Pencil, Settings, FileSpreadsheet, Users } from "lucide-react";
+import { Calendar, Clock, MapPin, Search, CheckCircle, XCircle, AlertCircle, CalendarDays, FileText, Eye, Plus, User, Building, Upload, Download, Pencil, Settings, FileSpreadsheet, Users, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAudienciasDetectadas, AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { useExportarAudiencias } from "@/hooks/useExportarAudiencias";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
@@ -260,12 +261,25 @@ export default function PainelAudiencias() {
               </SelectContent>
             </Select>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+              <Button variant="outline" size="icon" className="md:hidden" onClick={() => setImportDialogOpen(true)}>
+                <Upload className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="outline" 
+                size="icon"
+                className="md:hidden"
+                onClick={() => exportarExcel(audiencias)}
+                disabled={audiencias.length === 0}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" className="hidden md:flex" onClick={() => setImportDialogOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
                 Importar
               </Button>
               <Button 
                 variant="outline" 
+                className="hidden md:flex"
                 onClick={() => exportarExcel(audiencias)}
                 disabled={audiencias.length === 0}
               >
@@ -364,7 +378,8 @@ export default function PainelAudiencias() {
                           )}
                         </div>
 
-                        <div className="flex gap-2">
+                        {/* Desktop buttons */}
+                        <div className="hidden md:flex gap-2">
                           <Button
                             variant="outline"
                             size="sm"
@@ -406,6 +421,51 @@ export default function PainelAudiencias() {
                               </Button>
                             </>
                           )}
+                        </div>
+
+                        {/* Mobile dropdown menu */}
+                        <div className="md:hidden">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="icon" className="h-9 w-9">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onSelect={() => {
+                                  setSelectedAudiencia(audiencia);
+                                  setObservacoes(audiencia.observacoes || "");
+                                }}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                Ver Detalhes
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => setEditingAudiencia(audiencia)}>
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                              {audiencia.status === 'pendente' && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onSelect={() => handleMarcarTratado(audiencia.id)}
+                                    disabled={atualizarAudiencia.isPending}
+                                  >
+                                    <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                                    Marcar como Tratado
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onSelect={() => handleIgnorar(audiencia.id)}
+                                    disabled={atualizarAudiencia.isPending}
+                                  >
+                                    <XCircle className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    Ignorar
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </CardContent>
