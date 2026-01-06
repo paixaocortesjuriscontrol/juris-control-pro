@@ -266,6 +266,7 @@ export type Database = {
           origem: string | null
           polo_ativo: string | null
           preposto: string | null
+          processo_id: string | null
           processo_numero: string | null
           providencias_tomadas: string | null
           publicacao_id: string | null
@@ -300,6 +301,7 @@ export type Database = {
           origem?: string | null
           polo_ativo?: string | null
           preposto?: string | null
+          processo_id?: string | null
           processo_numero?: string | null
           providencias_tomadas?: string | null
           publicacao_id?: string | null
@@ -334,6 +336,7 @@ export type Database = {
           origem?: string | null
           polo_ativo?: string | null
           preposto?: string | null
+          processo_id?: string | null
           processo_numero?: string | null
           providencias_tomadas?: string | null
           publicacao_id?: string | null
@@ -353,6 +356,13 @@ export type Database = {
             columns: ["monitoramento_id"]
             isOneToOne: false
             referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_detectadas_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
             referencedColumns: ["id"]
           },
           {
