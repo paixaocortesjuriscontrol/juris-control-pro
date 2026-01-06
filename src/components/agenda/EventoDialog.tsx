@@ -79,6 +79,8 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
     participantes_ids: [] as string[],
     alerta_minutos: [30] as number[],
     enviar_whatsapp: true,
+    // Para eventos "dia inteiro" (sem hora), este horário define quando os lembretes disparam
+    hora_alerta: "09:00",
   });
 
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
@@ -219,6 +221,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
         participantes_ids: evento.participantes?.map(p => p.usuario_id) || [],
         alerta_minutos: alertas,
         enviar_whatsapp: evento.enviar_whatsapp ?? true,
+        hora_alerta: format(dataInicio, "HH:mm") || "09:00",
       }));
     } else if (open) {
       setFormData({
@@ -239,6 +242,7 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
         participantes_ids: [],
         alerta_minutos: [30],
         enviar_whatsapp: true,
+        hora_alerta: "09:00",
       });
     }
   }, [evento, open, alertasEvento]);
@@ -248,7 +252,9 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
 
     // Salvar com offset de Brasília (-03:00) para garantir que o horário seja preservado
     const dataInicio = formData.dia_inteiro
-      ? `${formData.data_inicio}T00:00:00-03:00`
+      ? formData.enviar_whatsapp
+        ? `${formData.data_inicio}T${formData.hora_alerta || "09:00"}:00-03:00`
+        : `${formData.data_inicio}T00:00:00-03:00`
       : `${formData.data_inicio}T${formData.hora_inicio}:00-03:00`;
 
     const dataFim = formData.data_fim
@@ -689,6 +695,29 @@ export function EventoDialog({ open, onOpenChange, evento }: EventoDialogProps) 
                   <p className="text-xs text-muted-foreground ml-7">
                     Os participantes com telefone cadastrado receberão uma mensagem no WhatsApp com os detalhes do evento.
                   </p>
+
+                  {formData.dia_inteiro && (
+                    <div className="ml-7">
+                      <Label htmlFor="hora-alerta-evento" className="text-sm font-medium">
+                        Horário base do alerta
+                      </Label>
+                      <div className="mt-2">
+                        <Input
+                          id="hora-alerta-evento"
+                          type="time"
+                          value={formData.hora_alerta}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, hora_alerta: e.target.value }))
+                          }
+                          className="h-8 w-36"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Para eventos “Dia inteiro” (sem hora), este horário define quando os lembretes
+                          serão calculados.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Alertas - só aparece se enviar_whatsapp estiver marcado */}
                   <div className="ml-7 pt-2 border-t mt-2">
