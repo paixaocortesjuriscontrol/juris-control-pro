@@ -70,10 +70,12 @@ import {
   ClipboardList,
   Shuffle,
   Radar,
-  ListTodo
+  ListTodo,
+  CalendarDays
 } from "lucide-react";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
+import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -304,6 +306,21 @@ export default function ProcessoDetalhes() {
         `)
         .eq("processo_id", id!)
         .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Query para contar eventos de agenda vinculados ao processo
+  const { data: eventosAgenda = [] } = useQuery({
+    queryKey: ["eventos-agenda-processo-count", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("eventos_agenda")
+        .select("id")
+        .eq("processo_id", id!);
 
       if (error) throw error;
       return data || [];
@@ -1119,7 +1136,7 @@ export default function ProcessoDetalhes() {
 
         {/* Tabs de Eventos */}
         <Tabs value={activeTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7 sm:w-auto sm:inline-flex">
+          <TabsList className="grid w-full grid-cols-8 sm:w-auto sm:inline-flex">
               <TabsTrigger 
                 value="audiencias" 
                 className="gap-1.5"
@@ -1218,9 +1235,21 @@ export default function ProcessoDetalhes() {
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{alertas360.length}</Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger 
+                value="agenda" 
+                className="gap-1.5"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(prev => prev === "agenda" ? "" : "agenda");
+                }}
+              >
+                <CalendarDays className="w-4 h-4" />
+                <span className="hidden sm:inline">Agenda</span>
+                {eventosAgenda.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{eventosAgenda.length}</Badge>
+                )}
+              </TabsTrigger>
           </TabsList>
-
-            {/* Audiências Tab */}
             <TabsContent value="audiencias" className="mt-4">
               <Card>
                 <CardHeader className="pb-3">
@@ -2000,6 +2029,11 @@ export default function ProcessoDetalhes() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Agenda Tab */}
+            <TabsContent value="agenda" className="mt-4">
+              <ProcessoAgendaTab processoId={id!} />
             </TabsContent>
         </Tabs>
 

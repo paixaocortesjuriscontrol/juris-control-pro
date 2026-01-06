@@ -33,6 +33,7 @@ interface GerarParcelasDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   evento?: EventoAgenda | null; // Para modo edição
+  defaultProcessoId?: string;
 }
 
 const INTERVALOS = [
@@ -48,7 +49,7 @@ const ALERTAS_OPCOES = [
   { value: 1440, label: "1 dia antes" },
 ];
 
-export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcelasDialogProps) {
+export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcessoId }: GerarParcelasDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -246,7 +247,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
         dataVencimento: format(new Date(), "yyyy-MM-dd"),
         valorPadrao: "",
         intervalo: "mensal",
-        processo_id: "",
+        processo_id: defaultProcessoId || "",
         participantes_ids: [],
         enviar_whatsapp: false,
         alerta_minutos: [30],
@@ -255,7 +256,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento }: GerarParcela
       setValoresIndividuais([]);
       setDatasIndividuais([]);
     }
-  }, [evento, open, parcelasExistentes, alertasEvento]);
+  }, [evento, open, parcelasExistentes, alertasEvento, defaultProcessoId]);
 
   // Atualizar valores individuais quando muda total de parcelas ou valor padrão
   const atualizarValoresIndividuais = (novoPadrao?: string, novoTotal?: number) => {
