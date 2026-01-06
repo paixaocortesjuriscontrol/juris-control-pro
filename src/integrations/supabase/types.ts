@@ -1504,6 +1504,53 @@ export type Database = {
           },
         ]
       }
+      parcelas_evento: {
+        Row: {
+          created_at: string
+          data_vencimento: string
+          evento_id: string
+          id: string
+          numero: number
+          observacoes: string | null
+          pago_em: string | null
+          status: string
+          updated_at: string
+          valor: number | null
+        }
+        Insert: {
+          created_at?: string
+          data_vencimento: string
+          evento_id: string
+          id?: string
+          numero: number
+          observacoes?: string | null
+          pago_em?: string | null
+          status?: string
+          updated_at?: string
+          valor?: number | null
+        }
+        Update: {
+          created_at?: string
+          data_vencimento?: string
+          evento_id?: string
+          id?: string
+          numero?: number
+          observacoes?: string | null
+          pago_em?: string | null
+          status?: string
+          updated_at?: string
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parcelas_evento_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_agenda"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       participantes_evento: {
         Row: {
           created_at: string
