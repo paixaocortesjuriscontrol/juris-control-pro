@@ -62,8 +62,15 @@ import {
   Eye,
   EyeOff,
   Gavel,
-  AlertCircle
+  AlertCircle,
+  Pencil,
+  CheckCircle,
+  XCircle,
+  PlayCircle,
+  ClipboardList
 } from "lucide-react";
+import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
+import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -101,6 +108,13 @@ export default function ProcessoDetalhes() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [toglingMonitoramento, setToglingMonitoramento] = useState(false);
   const [toglingLida, setToglingLida] = useState<string | null>(null);
+  
+  // States for audiências and intimações actions
+  const [selectedAudiencia, setSelectedAudiencia] = useState<AudienciaDetectada | null>(null);
+  const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);
+  const [selectedIntimacao, setSelectedIntimacao] = useState<any>(null);
+  const [updatingAudiencia, setUpdatingAudiencia] = useState<string | null>(null);
+  const [updatingIntimacao, setUpdatingIntimacao] = useState<string | null>(null);
   
   // Form state for all fields
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -587,6 +601,218 @@ export default function ProcessoDetalhes() {
     }
   };
 
+  // Handlers for audiências
+  const handleMarcarAudienciaTratado = async (audienciaId: string) => {
+    setUpdatingAudiencia(audienciaId);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("audiencias_detectadas")
+        .update({ 
+          status: 'tratado',
+          tratado_por: user?.id,
+          tratado_em: new Date().toISOString()
+        })
+        .eq("id", audienciaId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["audiencias-processo", id, processo?.numero] });
+      toast({
+        title: "Audiência marcada como tratada",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingAudiencia(null);
+    }
+  };
+
+  const handleIgnorarAudiencia = async (audienciaId: string) => {
+    setUpdatingAudiencia(audienciaId);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("audiencias_detectadas")
+        .update({ 
+          status: 'ignorado',
+          tratado_por: user?.id,
+          tratado_em: new Date().toISOString()
+        })
+        .eq("id", audienciaId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["audiencias-processo", id, processo?.numero] });
+      toast({
+        title: "Audiência ignorada",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingAudiencia(null);
+    }
+  };
+
+  // Handlers for intimações
+  const handleMarcarIntimacaoTratado = async (intimacaoId: string) => {
+    setUpdatingIntimacao(intimacaoId);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("intimacoes_detectadas")
+        .update({ 
+          status: 'tratado',
+          tratado_por: user?.id,
+          tratado_em: new Date().toISOString()
+        })
+        .eq("id", intimacaoId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["intimacoes-processo", id, processo?.numero] });
+      toast({
+        title: "Intimação marcada como tratada",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingIntimacao(null);
+    }
+  };
+
+  const handleMarcarIntimacaoEmAndamento = async (intimacaoId: string) => {
+    setUpdatingIntimacao(intimacaoId);
+    try {
+      const { error } = await supabase
+        .from("intimacoes_detectadas")
+        .update({ status: 'em_andamento' })
+        .eq("id", intimacaoId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["intimacoes-processo", id, processo?.numero] });
+      toast({
+        title: "Intimação marcada como em andamento",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingIntimacao(null);
+    }
+  };
+
+  const handleIgnorarIntimacao = async (intimacaoId: string) => {
+    setUpdatingIntimacao(intimacaoId);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("intimacoes_detectadas")
+        .update({ 
+          status: 'ignorado',
+          tratado_por: user?.id,
+          tratado_em: new Date().toISOString()
+        })
+        .eq("id", intimacaoId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["intimacoes-processo", id, processo?.numero] });
+      toast({
+        title: "Intimação ignorada",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingIntimacao(null);
+    }
+  };
+
+  const handleCriarTarefaIntimacao = async (intimacao: any) => {
+    let coordenacaoId = "";
+    if (intimacao.processo_id) {
+      const { data: processoData } = await supabase
+        .from("processos")
+        .select("coordenacao_id")
+        .eq("id", intimacao.processo_id)
+        .single();
+      coordenacaoId = processoData?.coordenacao_id || "";
+    }
+
+    const params = new URLSearchParams({
+      tipo_tarefa: "ANÁLISE",
+      titulo: "ANALISAR INTIMAÇÃO",
+      ...(intimacao.processo_id && { processo: intimacao.processo_id }),
+      ...(coordenacaoId && { coordenacao: coordenacaoId }),
+      ...(intimacao.descricao && { descricao: intimacao.descricao }),
+    });
+
+    navigate(`/nova-tarefa?${params.toString()}`);
+  };
+
+  // Status badge helpers
+  const getAudienciaStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pendente':
+        return <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">⏳ Pendente</Badge>;
+      case 'confirmado':
+        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">✅ Confirmado</Badge>;
+      case 'reagendado':
+        return <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20">🔄 Reagendado</Badge>;
+      case 'tratado':
+        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">✔️ Tratado</Badge>;
+      case 'cancelado':
+        return <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20">❌ Cancelado</Badge>;
+      case 'ignorado':
+        return <Badge variant="outline" className="bg-muted text-muted-foreground">🚫 Ignorado</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getIntimacaoStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pendente':
+        return <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">⏳ Pendente</Badge>;
+      case 'em_andamento':
+        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">🔄 Em Andamento</Badge>;
+      case 'tratado':
+        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">✔️ Tratado</Badge>;
+      case 'ignorado':
+        return <Badge variant="outline" className="bg-muted text-muted-foreground">🚫 Ignorado</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getOrigemBadge = (origem: string | null) => {
+    if (!origem) return null;
+    if (origem === 'Manual') {
+      return <Badge variant="secondary">Manual</Badge>;
+    }
+    return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">Detectado</Badge>;
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "—";
     try {
@@ -877,150 +1103,122 @@ export default function ProcessoDetalhes() {
                     <ScrollArea className="h-[500px] pr-4">
                       <div className="space-y-4">
                         {audiencias.map((aud) => (
-                          <div key={aud.id} className="p-5 border-2 rounded-xl hover:bg-muted/30 transition-colors">
-                            {/* Header com Status e Data */}
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4 pb-3 border-b">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <Badge variant={aud.status === 'pendente' ? 'default' : aud.status === 'tratado' ? 'secondary' : 'outline'}>
-                                  {aud.status}
-                                </Badge>
-                                {aud.tipo_audiencia && (
-                                  <Badge variant="outline">{aud.tipo_audiencia}</Badge>
-                                )}
-                                {aud.origem && (
-                                  <Badge variant="secondary" className="text-xs">{aud.origem}</Badge>
-                                )}
+                          <Card key={aud.id} className="hover:shadow-md transition-shadow">
+                            <CardContent className="p-4">
+                              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                                {/* Left side - Info */}
+                                <div className="flex-1 space-y-2">
+                                  {/* Status badges */}
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {getAudienciaStatusBadge(aud.status)}
+                                    {getOrigemBadge(aud.origem)}
+                                    {aud.tipo_audiencia && (
+                                      <Badge variant="secondary">{aud.tipo_audiencia}</Badge>
+                                    )}
+                                  </div>
+
+                                  {/* Date highlight */}
+                                  <div className="flex items-center gap-4 text-sm flex-wrap">
+                                    <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg">
+                                      <Calendar className="h-5 w-5 text-primary" />
+                                      <span className="font-bold text-primary text-lg">{formatDate(aud.data_audiencia)}</span>
+                                      {(aud.hora_brasilia || aud.hora) && (
+                                        <span className="text-muted-foreground">às {aud.hora_brasilia || aud.hora}</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Process info */}
+                                  <div className="flex items-center gap-4 text-sm flex-wrap">
+                                    {aud.processo_numero && (
+                                      <div className="flex items-center gap-1 text-muted-foreground">
+                                        <FileText className="h-4 w-4" />
+                                        <span className="font-mono">{aud.processo_numero}</span>
+                                      </div>
+                                    )}
+                                    {(aud.vara_camara || aud.comarca) && (
+                                      <div className="flex items-center gap-1 text-muted-foreground">
+                                        <MapPin className="h-4 w-4" />
+                                        <span>{[aud.vara_camara, aud.comarca].filter(Boolean).join(' - ')}</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Client and Polo */}
+                                  <div className="flex items-center gap-4 text-sm flex-wrap">
+                                    {aud.cliente && (
+                                      <div className="flex items-center gap-1 text-muted-foreground">
+                                        <Building2 className="h-4 w-4" />
+                                        <span className="truncate max-w-[250px]">{aud.cliente}</span>
+                                      </div>
+                                    )}
+                                    {aud.polo_ativo && (
+                                      <div className="flex items-center gap-1 text-muted-foreground">
+                                        <User className="h-4 w-4" />
+                                        <span className="truncate max-w-[200px]">{aud.polo_ativo}</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Description */}
+                                  {aud.resumo_objeto && (
+                                    <p className="text-sm text-muted-foreground line-clamp-2">
+                                      {aud.resumo_objeto}
+                                    </p>
+                                  )}
+
+                                  {/* Lawyer */}
+                                  {aud.advogado && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Advogado: <span className="font-medium text-foreground">{aud.advogado}</span>
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Right side - Actions */}
+                                <div className="flex gap-2 flex-wrap">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditingAudiencia(aud as AudienciaDetectada)}
+                                  >
+                                    <Pencil className="h-4 w-4 mr-1" />
+                                    Editar
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSelectedAudiencia(aud as AudienciaDetectada)}
+                                  >
+                                    <Eye className="h-4 w-4 mr-1" />
+                                    Detalhes
+                                  </Button>
+                                  
+                                  {aud.status === 'pendente' && (
+                                    <>
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => handleMarcarAudienciaTratado(aud.id)}
+                                        disabled={updatingAudiencia === aud.id}
+                                      >
+                                        <CheckCircle className="h-4 w-4 mr-1" />
+                                        Tratado
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleIgnorarAudiencia(aud.id)}
+                                        disabled={updatingAudiencia === aud.id}
+                                      >
+                                        <XCircle className="h-4 w-4" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-right shrink-0">
-                                {aud.data_audiencia && (
-                                  <p className="font-semibold text-lg flex items-center gap-2 justify-end">
-                                    <Calendar className="w-5 h-5 text-primary" />
-                                    {formatDate(aud.data_audiencia)}
-                                  </p>
-                                )}
-                                {(aud.hora_brasilia || aud.hora) && (
-                                  <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end mt-1">
-                                    <Clock className="w-4 h-4" />
-                                    {aud.hora_brasilia || aud.hora}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Detalhes da Audiência */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                              {aud.local_audiencia && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Local</p>
-                                  <p className="font-medium flex items-center gap-1">
-                                    <MapPin className="w-4 h-4 text-muted-foreground" />
-                                    {aud.local_audiencia}
-                                  </p>
-                                </div>
-                              )}
-                              {aud.vara_camara && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Vara/Câmara</p>
-                                  <p className="font-medium">{aud.vara_camara}</p>
-                                </div>
-                              )}
-                              {aud.comarca && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Comarca</p>
-                                  <p className="font-medium">{aud.comarca}</p>
-                                </div>
-                              )}
-                              {aud.cliente && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Cliente</p>
-                                  <p className="font-medium">{aud.cliente}</p>
-                                </div>
-                              )}
-                              {aud.polo_ativo && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Polo Ativo</p>
-                                  <p className="font-medium">{aud.polo_ativo}</p>
-                                </div>
-                              )}
-                              {aud.advogado && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Advogado</p>
-                                  <p className="font-medium flex items-center gap-1">
-                                    <User className="w-4 h-4 text-muted-foreground" />
-                                    {aud.advogado}
-                                  </p>
-                                </div>
-                              )}
-                              {aud.preposto && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Preposto</p>
-                                  <p className="font-medium">{aud.preposto}</p>
-                                </div>
-                              )}
-                              {aud.terceirizado && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Terceirizado</p>
-                                  <p className="font-medium">{aud.terceirizado}</p>
-                                </div>
-                              )}
-                              {aud.testemunhas && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Testemunhas</p>
-                                  <p className="font-medium">{aud.testemunhas}</p>
-                                </div>
-                              )}
-                              {aud.funcao && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Função</p>
-                                  <p className="font-medium">{aud.funcao}</p>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Resumo do Objeto */}
-                            {aud.resumo_objeto && (
-                              <div className="mt-4 pt-3 border-t">
-                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Resumo do Objeto</p>
-                                <p className="text-sm">{aud.resumo_objeto}</p>
-                              </div>
-                            )}
-
-                            {/* Observações */}
-                            {aud.observacoes && (
-                              <div className="mt-3 p-3 bg-muted/30 rounded-lg">
-                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Observações</p>
-                                <p className="text-sm">{aud.observacoes}</p>
-                              </div>
-                            )}
-
-                            {/* Providências Tomadas */}
-                            {aud.providencias_tomadas && (
-                              <div className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                                <p className="text-xs text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">Providências Tomadas</p>
-                                <p className="text-sm">{aud.providencias_tomadas}</p>
-                              </div>
-                            )}
-
-                            {/* Conteúdo da Publicação (colapsável) */}
-                            {aud.conteudo_publicacao && (
-                              <details className="mt-3">
-                                <summary className="cursor-pointer text-xs text-muted-foreground uppercase tracking-wide hover:text-foreground">
-                                  Ver conteúdo da publicação original
-                                </summary>
-                                <div className="mt-2 p-3 bg-muted/20 rounded-lg text-sm max-h-48 overflow-y-auto">
-                                  {aud.conteudo_publicacao}
-                                </div>
-                              </details>
-                            )}
-
-                            {/* Metadados */}
-                            <div className="mt-4 pt-3 border-t flex flex-wrap gap-4 text-xs text-muted-foreground">
-                              {aud.tratado_em && (
-                                <span>Tratado em: {formatDateTime(aud.tratado_em)}</span>
-                              )}
-                              <span>Criado em: {formatDateTime(aud.created_at)}</span>
-                            </div>
-                          </div>
+                            </CardContent>
+                          </Card>
                         ))}
                       </div>
                     </ScrollArea>
@@ -1051,119 +1249,154 @@ export default function ProcessoDetalhes() {
                   ) : intimacoes.length > 0 ? (
                     <ScrollArea className="h-[500px] pr-4">
                       <div className="space-y-4">
-                        {intimacoes.map((int) => (
-                          <div key={int.id} className="p-5 border-2 rounded-xl hover:bg-muted/30 transition-colors">
-                            {/* Header com Status e Datas */}
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4 pb-3 border-b">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <Badge variant={int.status === 'pendente' ? 'default' : int.status === 'tratado' ? 'secondary' : 'outline'}>
-                                  {int.status}
-                                </Badge>
-                                {int.prioridade && (
-                                  <Badge variant={int.prioridade === 'alta' ? 'destructive' : int.prioridade === 'media' ? 'default' : 'outline'}>
-                                    Prioridade: {int.prioridade}
-                                  </Badge>
-                                )}
-                                {int.tipo_intimacao && (
-                                  <Badge variant="outline">{int.tipo_intimacao}</Badge>
-                                )}
-                                {int.origem && (
-                                  <Badge variant="secondary" className="text-xs">{int.origem}</Badge>
-                                )}
-                              </div>
-                              <div className="text-right shrink-0 space-y-1">
-                                {int.data_intimacao && (
-                                  <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
-                                    <Calendar className="w-4 h-4" />
-                                    Intimação: {formatDate(int.data_intimacao)}
-                                  </p>
-                                )}
-                                {int.data_limite && (
-                                  <p className="font-semibold text-lg text-destructive flex items-center gap-2 justify-end">
-                                    <Clock className="w-5 h-5" />
-                                    Prazo: {formatDate(int.data_limite)}
-                                  </p>
-                                )}
-                                {int.prazo_dias && (
-                                  <p className="text-xs text-muted-foreground">
-                                    ({int.prazo_dias} dias)
-                                  </p>
-                                )}
-                              </div>
-                            </div>
+                        {intimacoes.map((int) => {
+                          // Calculate days until deadline
+                          const getDaysUntil = (dateStr: string | null) => {
+                            if (!dateStr) return null;
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const target = new Date(dateStr);
+                            target.setHours(0, 0, 0, 0);
+                            return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                          };
+                          const daysUntil = getDaysUntil(int.data_limite);
+                          const getUrgencyBadge = (days: number | null) => {
+                            if (days === null) return null;
+                            if (days < 0) return <Badge variant="destructive">Vencido</Badge>;
+                            if (days <= 3) return <Badge variant="destructive">Vence em {days} dias</Badge>;
+                            if (days <= 7) return <Badge className="bg-yellow-500/80 text-white">Vence em {days} dias</Badge>;
+                            return null;
+                          };
 
-                            {/* Descrição */}
-                            {int.descricao && (
-                              <div className="mb-4">
-                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Descrição</p>
-                                <p className="text-sm font-medium">{int.descricao}</p>
-                              </div>
-                            )}
+                          return (
+                            <Card key={int.id} className="hover:shadow-md transition-shadow">
+                              <CardContent className="p-4">
+                                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                                  {/* Left side - Info */}
+                                  <div className="flex-1 space-y-2">
+                                    {/* Status badges */}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      {getIntimacaoStatusBadge(int.status)}
+                                      {getOrigemBadge(int.origem)}
+                                      {getUrgencyBadge(daysUntil)}
+                                      {int.prioridade && (
+                                        <Badge variant={int.prioridade === 'alta' ? 'destructive' : 'secondary'}>
+                                          {int.prioridade}
+                                        </Badge>
+                                      )}
+                                      {int.tipo_intimacao && (
+                                        <Badge variant="secondary">{int.tipo_intimacao}</Badge>
+                                      )}
+                                    </div>
 
-                            {/* Detalhes da Intimação */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                              {int.orgao_intimante && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Órgão Intimante</p>
-                                  <p className="font-medium flex items-center gap-1">
-                                    <Building2 className="w-4 h-4 text-muted-foreground" />
-                                    {int.orgao_intimante}
-                                  </p>
+                                    {/* Deadline highlight */}
+                                    <div className="flex items-center gap-4 text-sm flex-wrap">
+                                      {int.data_limite && (
+                                        <div className="flex items-center gap-2 bg-destructive/10 px-3 py-1.5 rounded-lg">
+                                          <Clock className="h-5 w-5 text-destructive" />
+                                          <span className="font-bold text-destructive text-lg">Prazo: {formatDate(int.data_limite)}</span>
+                                        </div>
+                                      )}
+                                      {int.processo_numero && (
+                                        <div className="flex items-center gap-1 text-muted-foreground">
+                                          <FileText className="h-4 w-4" />
+                                          <span className="font-mono">{int.processo_numero}</span>
+                                        </div>
+                                      )}
+                                      {int.prazo_dias && (
+                                        <div className="flex items-center gap-1 text-muted-foreground">
+                                          <Clock className="h-4 w-4" />
+                                          <span>{int.prazo_dias} dias</span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Órgão */}
+                                    {int.orgao_intimante && (
+                                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                        <Building2 className="h-4 w-4" />
+                                        <span>{int.orgao_intimante}</span>
+                                      </div>
+                                    )}
+
+                                    {/* Description */}
+                                    {int.descricao && (
+                                      <p className="text-sm text-muted-foreground line-clamp-2">
+                                        {int.descricao}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {/* Right side - Actions */}
+                                  <div className="flex gap-2 flex-wrap">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setSelectedIntimacao(int)}
+                                    >
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      Detalhes
+                                    </Button>
+
+                                    {int.processo_id && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleCriarTarefaIntimacao(int)}
+                                      >
+                                        <ClipboardList className="h-4 w-4 mr-1" />
+                                        Criar Tarefa
+                                      </Button>
+                                    )}
+                                    
+                                    {int.status === 'pendente' && (
+                                      <>
+                                        <Button
+                                          variant="secondary"
+                                          size="sm"
+                                          onClick={() => handleMarcarIntimacaoEmAndamento(int.id)}
+                                          disabled={updatingIntimacao === int.id}
+                                        >
+                                          <PlayCircle className="h-4 w-4 mr-1" />
+                                          Iniciar
+                                        </Button>
+                                        <Button
+                                          variant="default"
+                                          size="sm"
+                                          onClick={() => handleMarcarIntimacaoTratado(int.id)}
+                                          disabled={updatingIntimacao === int.id}
+                                        >
+                                          <CheckCircle className="h-4 w-4 mr-1" />
+                                          Tratado
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleIgnorarIntimacao(int.id)}
+                                          disabled={updatingIntimacao === int.id}
+                                        >
+                                          <XCircle className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
+
+                                    {int.status === 'em_andamento' && (
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => handleMarcarIntimacaoTratado(int.id)}
+                                        disabled={updatingIntimacao === int.id}
+                                      >
+                                        <CheckCircle className="h-4 w-4 mr-1" />
+                                        Concluir
+                                      </Button>
+                                    )}
+                                  </div>
                                 </div>
-                              )}
-                              {int.processo_numero && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Nº Processo</p>
-                                  <p className="font-medium font-mono">{int.processo_numero}</p>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Contexto */}
-                            {int.contexto && (
-                              <div className="mt-4 pt-3 border-t">
-                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Contexto</p>
-                                <p className="text-sm">{int.contexto}</p>
-                              </div>
-                            )}
-
-                            {/* Observações */}
-                            {int.observacoes && (
-                              <div className="mt-3 p-3 bg-muted/30 rounded-lg">
-                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Observações</p>
-                                <p className="text-sm">{int.observacoes}</p>
-                              </div>
-                            )}
-
-                            {/* Providências Tomadas */}
-                            {int.providencias_tomadas && (
-                              <div className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                                <p className="text-xs text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">Providências Tomadas</p>
-                                <p className="text-sm">{int.providencias_tomadas}</p>
-                              </div>
-                            )}
-
-                            {/* Conteúdo da Publicação (colapsável) */}
-                            {int.conteudo_publicacao && (
-                              <details className="mt-3">
-                                <summary className="cursor-pointer text-xs text-muted-foreground uppercase tracking-wide hover:text-foreground">
-                                  Ver conteúdo da publicação original
-                                </summary>
-                                <div className="mt-2 p-3 bg-muted/20 rounded-lg text-sm max-h-48 overflow-y-auto">
-                                  {int.conteudo_publicacao}
-                                </div>
-                              </details>
-                            )}
-
-                            {/* Metadados */}
-                            <div className="mt-4 pt-3 border-t flex flex-wrap gap-4 text-xs text-muted-foreground">
-                              {int.tratado_em && (
-                                <span>Tratado em: {formatDateTime(int.tratado_em)}</span>
-                              )}
-                              <span>Criado em: {formatDateTime(int.created_at)}</span>
-                            </div>
-                          </div>
-                        ))}
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
                       </div>
                     </ScrollArea>
                   ) : (
@@ -1908,6 +2141,13 @@ export default function ProcessoDetalhes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Editar Audiência Dialog */}
+      <EditarAudienciaDialog
+        audiencia={editingAudiencia}
+        open={!!editingAudiencia}
+        onOpenChange={(open) => !open && setEditingAudiencia(null)}
+      />
     </MainLayout>
   );
 }
