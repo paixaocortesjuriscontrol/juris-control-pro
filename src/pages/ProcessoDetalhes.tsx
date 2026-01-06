@@ -1053,7 +1053,7 @@ export default function ProcessoDetalhes() {
         </Card>
 
         {/* Tabs de Eventos */}
-        <Tabs defaultValue="audiencias" className="w-full">
+        <Tabs defaultValue="" className="w-full">
           <TabsList className="grid w-full grid-cols-4 sm:w-auto sm:inline-flex">
               <TabsTrigger value="audiencias" className="gap-1.5">
                 <Gavel className="w-4 h-4" />
@@ -1649,7 +1649,7 @@ export default function ProcessoDetalhes() {
           </CardContent>
         </Card>
 
-        <Accordion type="multiple" defaultValue={["info-basicas", "localizacao", "partes", "valores", "contingencial", "andamentos"]} className="space-y-4">
+        <Accordion type="multiple" defaultValue={[]} className="space-y-4">
           {/* Informações Básicas */}
           <AccordionItem value="info-basicas" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
