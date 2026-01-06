@@ -11,9 +11,9 @@ const PJE_COMUNICA_ENDPOINTS = [
   'https://comunicaapi.pje.jus.br/api/v1/comunicacao',
   'https://comunicaapi.pje.jus.br/api/v1/comunicacoes'
 ];
-const BATCH_SIZE = 50;
-const MAX_PAGES_PER_PROCESSO = 5;
-const PAGE_SIZE = 100;
+const BATCH_SIZE = 25; // Reduced to avoid WORKER_LIMIT
+const MAX_PAGES_PER_PROCESSO = 3; // Reduced to save resources
+const PAGE_SIZE = 50; // Reduced page size
 
 // Browser-like headers to avoid blocking
 const browserHeaders = {
@@ -551,37 +551,44 @@ serve(async (req) => {
             totalNovas++;
             novasDoProcesso++;
             
-            // Detectar audiência
+            // Detectar audiência e intimação
             const audienciaInfo = detectAudiencia(conteudo);
+            const intimacaoInfo = detectIntimacao(conteudo);
+            
+            // Fire-and-forget - não bloqueia o fluxo principal
             if (audienciaInfo) {
-              await supabase.from('audiencias_detectadas').insert({
-                processo_numero: processo.numero,
-                data_audiencia: audienciaInfo.dataAudiencia,
-                hora: audienciaInfo.hora,
-                tipo_audiencia: audienciaInfo.tipoAudiencia,
-                local_audiencia: audienciaInfo.localAudiencia,
-                contexto: audienciaInfo.contexto,
-                conteudo_publicacao: conteudo.substring(0, 5000),
-                status: 'pendente',
-                origem: 'djen_processos',
-              });
-              console.log(`Audiência detectada para processo ${processo.numero}`);
+              (async () => {
+                try {
+                  await supabase.from('audiencias_detectadas').insert({
+                    processo_numero: processo.numero,
+                    data_audiencia: audienciaInfo.dataAudiencia,
+                    hora: audienciaInfo.hora,
+                    tipo_audiencia: audienciaInfo.tipoAudiencia,
+                    local_audiencia: audienciaInfo.localAudiencia,
+                    contexto: audienciaInfo.contexto?.substring(0, 500),
+                    conteudo_publicacao: conteudo.substring(0, 3000),
+                    status: 'pendente',
+                    origem: 'djen_processos',
+                  });
+                } catch {}
+              })();
             }
             
-            // Detectar intimação
-            const intimacaoInfo = detectIntimacao(conteudo);
             if (intimacaoInfo) {
-              await supabase.from('intimacoes_detectadas').insert({
-                processo_numero: processo.numero,
-                tipo_intimacao: intimacaoInfo.tipoIntimacao,
-                prazo_dias: intimacaoInfo.prazoDias,
-                data_limite: intimacaoInfo.dataLimite,
-                contexto: intimacaoInfo.contexto,
-                conteudo_publicacao: conteudo.substring(0, 5000),
-                status: 'pendente',
-                origem: 'djen_processos',
-              });
-              console.log(`Intimação detectada para processo ${processo.numero}`);
+              (async () => {
+                try {
+                  await supabase.from('intimacoes_detectadas').insert({
+                    processo_numero: processo.numero,
+                    tipo_intimacao: intimacaoInfo.tipoIntimacao,
+                    prazo_dias: intimacaoInfo.prazoDias,
+                    data_limite: intimacaoInfo.dataLimite,
+                    contexto: intimacaoInfo.contexto?.substring(0, 500),
+                    conteudo_publicacao: conteudo.substring(0, 3000),
+                    status: 'pendente',
+                    origem: 'djen_processos',
+                  });
+                } catch {}
+              })();
             }
           }
         }
@@ -590,7 +597,7 @@ serve(async (req) => {
           processosComNovas++;
         }
 
-        await delay(500); // Rate limiting entre processos
+        await delay(300);
       } catch (error) {
         console.error(`Erro processando ${processo.numero}:`, error);
       }
