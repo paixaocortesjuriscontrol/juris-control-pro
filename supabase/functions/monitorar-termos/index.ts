@@ -278,7 +278,7 @@ Deno.serve(async (req) => {
 
     console.log(`Processed in ${Date.now() - startTime}ms. Inserting...`);
 
-    // Inserir tudo em paralelo (fire-and-forget para audiências e intimações)
+    // Inserir tudo em paralelo
     const insertPromises: Promise<any>[] = [];
 
     // Alertas em lotes
@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
       for (let i = 0; i < novosAlertas.length; i += BATCH_SIZE) {
         const batch = novosAlertas.slice(i, i + BATCH_SIZE);
         insertPromises.push(
-          supabase.from('alertas_monitoramento').insert(batch).then(() => {})
+          Promise.resolve(supabase.from('alertas_monitoramento').insert(batch))
         );
       }
     }
@@ -298,7 +298,7 @@ Deno.serve(async (req) => {
       for (let i = 0; i < novasAudiencias.length; i += BATCH_SIZE) {
         const batch = novasAudiencias.slice(i, i + BATCH_SIZE);
         insertPromises.push(
-          supabase.from('audiencias_detectadas').insert(batch).then(() => {})
+          Promise.resolve(supabase.from('audiencias_detectadas').insert(batch))
         );
       }
     }
@@ -309,7 +309,7 @@ Deno.serve(async (req) => {
       for (let i = 0; i < novasIntimacoes.length; i += BATCH_SIZE) {
         const batch = novasIntimacoes.slice(i, i + BATCH_SIZE);
         insertPromises.push(
-          supabase.from('intimacoes_detectadas').insert(batch).then(() => {})
+          Promise.resolve(supabase.from('intimacoes_detectadas').insert(batch))
         );
       }
     }
