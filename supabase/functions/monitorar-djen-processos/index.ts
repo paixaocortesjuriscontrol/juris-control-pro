@@ -6,20 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Use the correct PJE Comunica API endpoints
-const PJE_COMUNICA_ENDPOINTS = [
-  'https://comunicaapi.pje.jus.br/api/v1/comunicacao',
-  'https://comunicaapi.pje.jus.br/api/v1/comunicacoes'
-];
-const BATCH_SIZE = 25; // Reduced to avoid WORKER_LIMIT
-const MAX_PAGES_PER_PROCESSO = 3; // Reduced to save resources
-const PAGE_SIZE = 50; // Reduced page size
+// Single optimized endpoint
+const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
+const BATCH_SIZE = 50; // Increased batch for parallel processing
+const CONCURRENT_REQUESTS = 10; // Number of parallel requests
+const PAGE_SIZE = 100; // Max page size
+const MAX_PAGES = 2; // Limit pages per process
 
-// Browser-like headers to avoid blocking
+// Browser-like headers
 const browserHeaders = {
   'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept-Language': 'pt-BR,pt;q=0.9',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
   'Origin': 'https://comunica.pje.jus.br',
   'Referer': 'https://comunica.pje.jus.br/',
 };
@@ -28,23 +26,16 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3, baseDelay = 1500) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await fetch(url, options);
-      if (response.status === 429) {
-        const waitTime = baseDelay * Math.pow(2, i);
-        console.log(`Rate limited, waiting ${waitTime}ms...`);
-        await delay(waitTime);
-        continue;
-      }
-      return response;
-    } catch (error) {
-      if (i === maxRetries - 1) throw error;
-      await delay(baseDelay * Math.pow(2, i));
-    }
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeout);
   }
-  throw new Error('Max retries exceeded');
 }
 
 function generateHash(content: string): string {
@@ -69,14 +60,7 @@ interface AudienciaInfo {
 function detectAudiencia(conteudo: string): AudienciaInfo | null {
   const conteudoLower = conteudo.toLowerCase();
   
-  const audienciaTerms = [
-    'audiência',
-    'audiencia',
-    'sessão de julgamento',
-    'sessao de julgamento',
-    'pauta de julgamento',
-  ];
-  
+  const audienciaTerms = ['audiência', 'audiencia', 'sessão de julgamento', 'pauta de julgamento'];
   const hasAudiencia = audienciaTerms.some(term => conteudoLower.includes(term));
   if (!hasAudiencia) return null;
   
@@ -86,9 +70,7 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
     if (index !== -1) {
       const start = Math.max(0, index - 100);
       const end = Math.min(conteudo.length, index + term.length + 200);
-      contexto = (start > 0 ? '...' : '') + 
-                 conteudo.slice(start, end) + 
-                 (end < conteudo.length ? '...' : '');
+      contexto = (start > 0 ? '...' : '') + conteudo.slice(start, end) + (end < conteudo.length ? '...' : '');
       break;
     }
   }
@@ -117,7 +99,6 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
     }
   }
   
-  // Extract time
   let hora: string | null = null;
   const horaMatch = contexto.match(/(\d{1,2})[h:](\d{2})/);
   if (horaMatch) {
@@ -125,31 +106,15 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
   }
   
   let tipoAudiencia: string | null = null;
-  const tipoPatterns = [
-    /audiência\s+de\s+(conciliação|instrução|julgamento|instrução e julgamento|una|inicial|custódia)/i,
-    /audiencia\s+de\s+(conciliacao|instrucao|julgamento|instrucao e julgamento|una|inicial|custodia)/i,
-  ];
-  
-  for (const pattern of tipoPatterns) {
-    const match = conteudo.match(pattern);
-    if (match) {
-      tipoAudiencia = match[1];
-      break;
-    }
+  const tipoMatch = conteudo.match(/audiência\s+de\s+(conciliação|instrução|julgamento|instrução e julgamento|una|inicial|custódia)/i);
+  if (tipoMatch) {
+    tipoAudiencia = tipoMatch[1];
   }
   
   let localAudiencia: string | null = null;
-  const localPatterns = [
-    /(?:local|sala|endereço|endereco|forum|fórum)[\s:]+([^,\n]{10,60})/i,
-    /(?:na|no|em)\s+(?:sala|fórum|forum)\s+([^,\n]{5,50})/i,
-  ];
-  
-  for (const pattern of localPatterns) {
-    const match = conteudo.match(pattern);
-    if (match) {
-      localAudiencia = match[1].trim();
-      break;
-    }
+  const localMatch = conteudo.match(/(?:local|sala|forum|fórum)[\s:]+([^,\n]{10,60})/i);
+  if (localMatch) {
+    localAudiencia = localMatch[1].trim();
   }
   
   return { dataAudiencia, hora, tipoAudiencia, localAudiencia, contexto };
@@ -166,16 +131,7 @@ interface IntimacaoInfo {
 function detectIntimacao(conteudo: string): IntimacaoInfo | null {
   const conteudoLower = conteudo.toLowerCase();
   
-  const intimacaoTerms = [
-    'intimação',
-    'intimacao',
-    'intima-se',
-    'fica intimado',
-    'ficam intimados',
-    'prazo de',
-    'no prazo de',
-  ];
-  
+  const intimacaoTerms = ['intimação', 'intimacao', 'intima-se', 'fica intimado', 'prazo de'];
   const hasIntimacao = intimacaoTerms.some(term => conteudoLower.includes(term));
   if (!hasIntimacao) return null;
   
@@ -185,20 +141,13 @@ function detectIntimacao(conteudo: string): IntimacaoInfo | null {
     if (index !== -1) {
       const start = Math.max(0, index - 50);
       const end = Math.min(conteudo.length, index + term.length + 150);
-      contexto = (start > 0 ? '...' : '') + 
-                 conteudo.slice(start, end) + 
-                 (end < conteudo.length ? '...' : '');
+      contexto = (start > 0 ? '...' : '') + conteudo.slice(start, end) + (end < conteudo.length ? '...' : '');
       break;
     }
   }
   
-  // Detect deadline in days
   let prazoDias: number | null = null;
-  const prazoPatterns = [
-    /prazo\s+de\s+(\d+)\s*(?:dias?|d)/i,
-    /(\d+)\s*dias?\s+(?:úteis|uteis)/i,
-    /(\d+)\s*\(?dias?\)?/i,
-  ];
+  const prazoPatterns = [/prazo\s+de\s+(\d+)\s*(?:dias?|d)/i, /(\d+)\s*dias?\s+(?:úteis|uteis)/i];
   
   for (const pattern of prazoPatterns) {
     const match = contexto.match(pattern);
@@ -208,7 +157,6 @@ function detectIntimacao(conteudo: string): IntimacaoInfo | null {
     }
   }
   
-  // Calculate deadline date
   let dataLimite: string | null = null;
   if (prazoDias) {
     const hoje = new Date();
@@ -216,7 +164,6 @@ function detectIntimacao(conteudo: string): IntimacaoInfo | null {
     dataLimite = hoje.toISOString().split('T')[0];
   }
   
-  // Detect type
   let tipoIntimacao: string | null = null;
   if (conteudoLower.includes('manifestar')) tipoIntimacao = 'Manifestação';
   else if (conteudoLower.includes('recurso')) tipoIntimacao = 'Recurso';
@@ -228,155 +175,190 @@ function detectIntimacao(conteudo: string): IntimacaoInfo | null {
   return { tipoIntimacao, prazoDias, dataLimite, contexto };
 }
 
-function parseISODateOnly(dateStr: string): Date {
-  // Force UTC to avoid timezone shifting the day
-  return new Date(`${dateStr}T00:00:00.000Z`);
-}
-
-function formatISODateOnlyUTC(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function buildDateRanges(
-  dataInicio?: string,
-  dataFim?: string,
-  maxRangeDays = 180
-): Array<{ inicio: string; fim: string }> {
-  if (!dataInicio || !dataFim) return [];
-
-  const start = parseISODateOnly(dataInicio);
-  const end = parseISODateOnly(dataFim);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
-
-  const ranges: Array<{ inicio: string; fim: string }> = [];
-  const maxMs = maxRangeDays * 24 * 60 * 60 * 1000;
-
-  let cursor = start;
-  while (cursor.getTime() <= end.getTime()) {
-    const chunkEnd = new Date(Math.min(cursor.getTime() + maxMs, end.getTime()));
-    ranges.push({ inicio: formatISODateOnlyUTC(cursor), fim: formatISODateOnlyUTC(chunkEnd) });
-
-    // next day after chunkEnd
-    cursor = new Date(chunkEnd.getTime() + 24 * 60 * 60 * 1000);
-  }
-
-  return ranges;
-}
-
-async function fetchDJENPages(
-  endpoint: string,
-  textoBusca: string,
-  dataInicio?: string,
-  dataFim?: string,
-): Promise<any[]> {
-  const results: any[] = [];
-
-  for (let page = 0; page < MAX_PAGES_PER_PROCESSO; page++) {
-    const params = new URLSearchParams();
-    params.append('texto', textoBusca);
-    params.append('pagina', page.toString());
-    params.append('tamanhoPagina', PAGE_SIZE.toString());
-
-    // Alguns endpoints usam page/size
-    params.append('page', page.toString());
-    params.append('size', PAGE_SIZE.toString());
-
-    if (dataInicio) params.append('dataDisponibilizacaoInicio', dataInicio);
-    if (dataFim) params.append('dataDisponibilizacaoFim', dataFim);
-
-    const fullUrl = `${endpoint}?${params.toString()}`;
-
-    const response = await fetchWithRetry(fullUrl, {
-      method: 'GET',
-      headers: browserHeaders,
-    });
-
-    const contentType = response.headers.get('content-type') || '';
-
-    // Se recebemos HTML, a API bloqueou a requisição
-    if (contentType.includes('text/html')) {
-      console.log(`Bloqueado (HTML) para "${textoBusca}" em ${endpoint}`);
-      break;
-    }
-
-    // A API pode retornar 404 para "sem resultado" ou para endpoints específicos.
-    // Vamos tratar 404 como "sem itens" para não abortar o fluxo.
-    if (response.status === 404) {
-      console.log(`404 (sem resultado) para "${textoBusca}"`);
-      break;
-    }
-
-    if (response.status === 422) {
-      console.log(`422 (provável filtro inválido) para "${textoBusca}"`);
-      break;
-    }
-
-    if (!response.ok) {
-      console.log(`Erro ${response.status} na busca de "${textoBusca}"`);
-      break;
-    }
-
-    const data = await response.json();
-    const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
-
-    if (!Array.isArray(items) || items.length === 0) {
-      break;
-    }
-
-    results.push(...items);
-
-    const totalElements = data.totalElements || data.count || data.total;
-    if (totalElements && results.length >= totalElements) break;
-    if (items.length < PAGE_SIZE) break;
-
-    await delay(300);
-  }
-
-  return results;
-}
-
+// Fast single-request search per process
 async function searchDJENByProcesso(
   numeroProcesso: string,
   dataInicio?: string,
   dataFim?: string,
 ): Promise<any[]> {
-  const results: any[] = [];
-  const textoBusca = numeroProcesso;
+  const params = new URLSearchParams();
+  params.append('texto', numeroProcesso);
+  params.append('pagina', '0');
+  params.append('tamanhoPagina', PAGE_SIZE.toString());
+  if (dataInicio) params.append('dataDisponibilizacaoInicio', dataInicio);
+  if (dataFim) params.append('dataDisponibilizacaoFim', dataFim);
 
-  console.log(`Buscando publicações para processo: ${textoBusca}`);
+  const url = `${PJE_COMUNICA_ENDPOINT}?${params.toString()}`;
 
-  // A Comunica API costuma limitar intervalos grandes. Se o usuário mandar um ano inteiro,
-  // quebramos em blocos (ex.: 180 dias) para evitar retorno vazio.
-  const ranges = buildDateRanges(dataInicio, dataFim, 180);
-  const rangesToUse = ranges.length > 0 ? ranges : [{ inicio: dataInicio, fim: dataFim }];
+  try {
+    const response = await fetchWithTimeout(url, {
+      method: 'GET',
+      headers: browserHeaders,
+    });
 
-  for (const endpoint of PJE_COMUNICA_ENDPOINTS) {
-    try {
-      for (const range of rangesToUse) {
-        if (range.inicio && range.fim) {
-          console.log(`Processo ${numeroProcesso}: intervalo ${range.inicio} a ${range.fim}`);
+    if (!response.ok || response.headers.get('content-type')?.includes('text/html')) {
+      return [];
+    }
+
+    const data = await response.json();
+    const items = data.items || data.content || data.comunicacoes || [];
+    
+    // If there's more pages and we got a full page, fetch one more
+    if (Array.isArray(items) && items.length === PAGE_SIZE && MAX_PAGES > 1) {
+      const params2 = new URLSearchParams(params);
+      params2.set('pagina', '1');
+      const url2 = `${PJE_COMUNICA_ENDPOINT}?${params2.toString()}`;
+      
+      try {
+        const response2 = await fetchWithTimeout(url2, { method: 'GET', headers: browserHeaders });
+        if (response2.ok) {
+          const data2 = await response2.json();
+          const items2 = data2.items || data2.content || data2.comunicacoes || [];
+          if (Array.isArray(items2)) {
+            items.push(...items2);
+          }
         }
+      } catch {
+        // Ignore second page errors
+      }
+    }
 
-        const items = await fetchDJENPages(endpoint, textoBusca, range.inicio, range.fim);
+    return Array.isArray(items) ? items : [];
+  } catch (error) {
+    // Timeout or network error - skip silently
+    return [];
+  }
+}
 
-        if (items.length > 0) {
-          console.log(`Processo ${numeroProcesso}: ${items.length} itens no endpoint ${endpoint}`);
-          results.push(...items);
-        }
+// Process a batch of processes in parallel
+async function processProcessosBatch(
+  processos: Array<{ id: string; numero: string }>,
+  dataInicio?: string,
+  dataFim?: string,
+  supabase?: any,
+): Promise<{
+  totalNovas: number;
+  totalDuplicadas: number;
+  processosComNovas: number;
+  processosComResultados: number;
+}> {
+  let totalNovas = 0;
+  let totalDuplicadas = 0;
+  let processosComNovas = 0;
+  let processosComResultados = 0;
 
-        // Rate limiting entre intervalos
-        await delay(250);
+  // Process in chunks of CONCURRENT_REQUESTS
+  for (let i = 0; i < processos.length; i += CONCURRENT_REQUESTS) {
+    const chunk = processos.slice(i, i + CONCURRENT_REQUESTS);
+    
+    // Parallel fetch for this chunk
+    const results = await Promise.all(
+      chunk.map(async (processo) => {
+        const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
+        return { processo, publicacoes };
+      })
+    );
+
+    // Process results
+    for (const { processo, publicacoes } of results) {
+      if (publicacoes.length > 0) {
+        processosComResultados++;
       }
 
-      // Se achou algo em algum endpoint, não precisa tentar os outros
-      if (results.length > 0) break;
-    } catch (error) {
-      console.error(`Erro com endpoint ${endpoint} para ${numeroProcesso}:`, error);
-      continue;
+      let novasDoProcesso = 0;
+      const seenHashes = new Set<string>();
+
+      for (const pub of publicacoes) {
+        const conteudo = pub.texto ?? pub.teor ?? pub.conteudo ?? pub.conteudoPublicacao ?? pub.resumo ?? '';
+        if (!conteudo || typeof conteudo !== 'string') continue;
+
+        const dataPublicacao = pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || null;
+        const hashConteudo = generateHash(`${processo.numero}-${dataPublicacao}-${conteudo.slice(0, 500)}`);
+
+        if (seenHashes.has(hashConteudo)) {
+          totalDuplicadas++;
+          continue;
+        }
+        seenHashes.add(hashConteudo);
+
+        // Check for existing
+        const { data: existing } = await supabase
+          .from('publicacoes_djen_processos')
+          .select('id')
+          .eq('hash_conteudo', hashConteudo)
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          totalDuplicadas++;
+          continue;
+        }
+
+        // Insert new publication
+        const { data: inserted, error: insertError } = await supabase
+          .from('publicacoes_djen_processos')
+          .insert({
+            processo_id: processo.id,
+            hash_conteudo: hashConteudo,
+            data_publicacao: dataPublicacao,
+            conteudo: conteudo.slice(0, 10000),
+            fonte: 'pje_comunica',
+            tribunal: pub.tribunal || pub.siglaTribunal || null,
+            orgao_julgador: pub.orgaoJulgador || pub.vara || null,
+          })
+          .select('id')
+          .single();
+
+        if (insertError) continue;
+
+        totalNovas++;
+        novasDoProcesso++;
+
+        // Detect audiencias and intimacoes asynchronously
+        const audienciaInfo = detectAudiencia(conteudo);
+        if (audienciaInfo) {
+          supabase.from('audiencias_detectadas').insert({
+            processo_id: processo.id,
+            processo_numero: processo.numero,
+            publicacao_id: inserted.id,
+            data_audiencia: audienciaInfo.dataAudiencia,
+            hora: audienciaInfo.hora,
+            tipo_audiencia: audienciaInfo.tipoAudiencia,
+            local_audiencia: audienciaInfo.localAudiencia,
+            contexto: audienciaInfo.contexto,
+            conteudo_publicacao: conteudo.slice(0, 2000),
+            origem: 'monitoramento_djen_processos',
+            status: 'pendente',
+          }).then(() => {});
+        }
+
+        const intimacaoInfo = detectIntimacao(conteudo);
+        if (intimacaoInfo) {
+          supabase.from('intimacoes_detectadas').insert({
+            processo_id: processo.id,
+            processo_numero: processo.numero,
+            tipo_intimacao: intimacaoInfo.tipoIntimacao,
+            prazo_dias: intimacaoInfo.prazoDias,
+            data_limite: intimacaoInfo.dataLimite,
+            contexto: intimacaoInfo.contexto,
+            conteudo_publicacao: conteudo.slice(0, 2000),
+            origem: 'monitoramento_djen_processos',
+            status: 'pendente',
+          }).then(() => {});
+        }
+      }
+
+      if (novasDoProcesso > 0) {
+        processosComNovas++;
+      }
+    }
+
+    // Small delay between chunks to avoid rate limiting
+    if (i + CONCURRENT_REQUESTS < processos.length) {
+      await delay(100);
     }
   }
 
-  return results;
+  return { totalNovas, totalDuplicadas, processosComNovas, processosComResultados };
 }
 
 serve(async (req) => {
@@ -384,12 +366,13 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Parâmetros opcionais
     let dataInicio: string | undefined;
     let dataFim: string | undefined;
     let continuarDe: number | undefined;
@@ -400,26 +383,26 @@ serve(async (req) => {
       dataFim = body.dataFim;
       continuarDe = body.continuarDe;
     } catch {
-      // Sem body, usa valores padrão
+      // No body
     }
 
-    // Se não tiver datas, busca só do dia atual
+    // Default to today
     if (!dataInicio && !dataFim) {
       const hoje = new Date().toISOString().split('T')[0];
       dataInicio = hoje;
       dataFim = hoje;
     }
 
-    console.log(`Monitoramento DJEN por processos: ${dataInicio} a ${dataFim}`);
+    console.log(`[DJEN Processos] Início: ${dataInicio} a ${dataFim}`);
 
-    // Buscar configuração
+    // Get config
     const { data: config } = await supabase
       .from('configuracoes_monitoramento')
       .select('*')
       .eq('tipo', 'djen_processos')
       .single();
 
-    // Contar total de processos para monitorar
+    // Count total
     const { count: totalProcessos } = await supabase
       .from('processos')
       .select('*', { count: 'exact', head: true })
@@ -428,7 +411,7 @@ serve(async (req) => {
 
     const offset = continuarDe || 0;
 
-    // Buscar lote de processos
+    // Get batch
     const { data: processos, error: processosError } = await supabase
       .from('processos')
       .select('id, numero')
@@ -442,7 +425,7 @@ serve(async (req) => {
     }
 
     if (!processos || processos.length === 0) {
-      // Ciclo completo
+      // Complete cycle
       if (config) {
         await supabase
           .from('configuracoes_monitoramento')
@@ -463,206 +446,79 @@ serve(async (req) => {
           message: 'Ciclo completo', 
           processados: 0,
           totalProcessos: totalProcessos || 0,
-          concluido: true
+          concluido: true,
+          tempoMs: Date.now() - startTime,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Processando lote: ${processos.length} processos (offset: ${offset}, total: ${totalProcessos})`);
+    console.log(`[DJEN Processos] Processando ${processos.length} processos (offset: ${offset})`);
 
-    let totalNovas = 0;
-    let totalDuplicadas = 0;
-    let processosComNovas = 0;
-    let processosComResultados = 0;
+    // Process in parallel
+    const { totalNovas, totalDuplicadas, processosComNovas, processosComResultados } = 
+      await processProcessosBatch(processos, dataInicio, dataFim, supabase);
 
-    for (const processo of processos) {
-      try {
-        const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
-
-        if (publicacoes.length > 0) {
-          processosComResultados++;
-        }
-
-        let novasDoProcesso = 0;
-        const seenHashes = new Set<string>();
-
-        for (const pub of publicacoes) {
-          const conteudo =
-            pub.texto ??
-            pub.teor ??
-            pub.conteudo ??
-            pub.conteudoPublicacao ??
-            pub.resumo ??
-            '';
-
-          if (!conteudo || typeof conteudo !== 'string') continue;
-
-          const hash = generateHash(conteudo);
-          if (seenHashes.has(hash)) continue;
-          seenHashes.add(hash);
-
-          // Verificar se já existe
-          const { data: existing } = await supabase
-            .from('publicacoes_djen_processos')
-            .select('id')
-            .eq('processo_id', processo.id)
-            .eq('hash_conteudo', hash)
-            .maybeSingle();
-
-          if (existing) {
-            totalDuplicadas++;
-            continue;
-          }
-
-          const rawDataPublicacao =
-            pub.dataPublicacao ??
-            pub.dataDisponibilizacao ??
-            pub.data_publicacao ??
-            pub.data ??
-            null;
-
-          const dataPublicacao = typeof rawDataPublicacao === 'string'
-            ? rawDataPublicacao
-            : null;
-
-          const fonte =
-            pub.siglaTribunal ??
-            pub.tribunal ??
-            pub.orgao ??
-            pub.fonte ??
-            'DJEN';
-
-          // Inserir nova publicação
-          const { data: insertedPub, error: insertError } = await supabase
-            .from('publicacoes_djen_processos')
-            .insert({
-              processo_id: processo.id,
-              processo_numero: processo.numero,
-              conteudo: conteudo.substring(0, 10000),
-              data_publicacao: dataPublicacao,
-              fonte,
-              hash_conteudo: hash,
-            })
-            .select('id')
-            .single();
-
-          if (!insertError && insertedPub) {
-            totalNovas++;
-            novasDoProcesso++;
-            
-            // Detectar audiência e intimação
-            const audienciaInfo = detectAudiencia(conteudo);
-            const intimacaoInfo = detectIntimacao(conteudo);
-            
-            // Fire-and-forget - não bloqueia o fluxo principal
-            if (audienciaInfo) {
-              (async () => {
-                try {
-                  await supabase.from('audiencias_detectadas').insert({
-                    processo_numero: processo.numero,
-                    data_audiencia: audienciaInfo.dataAudiencia,
-                    hora: audienciaInfo.hora,
-                    tipo_audiencia: audienciaInfo.tipoAudiencia,
-                    local_audiencia: audienciaInfo.localAudiencia,
-                    contexto: audienciaInfo.contexto?.substring(0, 500),
-                    conteudo_publicacao: conteudo.substring(0, 3000),
-                    status: 'pendente',
-                    origem: 'djen_processos',
-                  });
-                } catch {}
-              })();
-            }
-            
-            if (intimacaoInfo) {
-              (async () => {
-                try {
-                  await supabase.from('intimacoes_detectadas').insert({
-                    processo_numero: processo.numero,
-                    tipo_intimacao: intimacaoInfo.tipoIntimacao,
-                    prazo_dias: intimacaoInfo.prazoDias,
-                    data_limite: intimacaoInfo.dataLimite,
-                    contexto: intimacaoInfo.contexto?.substring(0, 500),
-                    conteudo_publicacao: conteudo.substring(0, 3000),
-                    status: 'pendente',
-                    origem: 'djen_processos',
-                  });
-                } catch {}
-              })();
-            }
-          }
-        }
-
-        if (novasDoProcesso > 0) {
-          processosComNovas++;
-        }
-
-        await delay(300);
-      } catch (error) {
-        console.error(`Erro processando ${processo.numero}:`, error);
-      }
-    }
-
+    // Update next offset
     const nextOffset = offset + processos.length;
     const hasMore = nextOffset < (totalProcessos || 0);
 
-    // Atualizar metadata
     if (config) {
       await supabase
         .from('configuracoes_monitoramento')
         .update({
           ultima_execucao: new Date().toISOString(),
-          metadata: {
-            ...(config.metadata || {}),
+          metadata: { 
+            ...(config.metadata || {}), 
             next_offset: hasMore ? nextOffset : 0,
-            last_batch_size: processos.length,
-            last_complete_run: hasMore ? (config.metadata as any)?.last_complete_run : new Date().toISOString()
+            last_batch_processos: processos.length,
+            last_batch_novas: totalNovas,
           }
         })
         .eq('tipo', 'djen_processos');
     }
 
-    // Registrar no histórico
-    await supabase
-      .from('historico_monitoramento')
-      .insert({
-        tipo: 'djen_processos',
-        processos_verificados: processos.length,
-        novos_andamentos: totalNovas,
-        processos_com_novos: processosComNovas,
-        detalhes: {
-          offset,
-          duplicadas: totalDuplicadas,
-          hasMore,
-          dataInicio,
-          dataFim,
-          totalProcessos,
-          processosComResultados
-        }
-      });
+    // Log history
+    await supabase.from('historico_monitoramento').insert({
+      tipo: 'djen_processos',
+      processos_verificados: processos.length,
+      processos_com_novos: processosComNovas,
+      novos_andamentos: totalNovas,
+      erros: 0,
+      detalhes: {
+        offset,
+        duplicadas: totalDuplicadas,
+        comResultados: processosComResultados,
+        dataInicio,
+        dataFim,
+        tempoMs: Date.now() - startTime,
+      }
+    });
 
-    console.log(`Lote concluído: ${totalNovas} novas, ${totalDuplicadas} duplicadas, ${processosComResultados} com resultados, hasMore: ${hasMore}`);
+    const tempoMs = Date.now() - startTime;
+    console.log(`[DJEN Processos] Lote: ${totalNovas} novas, ${totalDuplicadas} dup, ${tempoMs}ms, hasMore: ${hasMore}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         processados: processos.length,
-        novas: totalNovas,
+        novasPublicacoes: totalNovas,
         duplicadas: totalDuplicadas,
         processosComNovas,
         processosComResultados,
+        totalProcessos: totalProcessos || 0,
         hasMore,
         nextOffset: hasMore ? nextOffset : 0,
-        totalProcessos: totalProcessos || 0,
-        concluido: !hasMore
+        tempoMs,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error: unknown) {
-    console.error('Erro no monitoramento:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+
+  } catch (error) {
+    console.error('[DJEN Processos] Erro:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: errorMessage, tempoMs: Date.now() - startTime }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
