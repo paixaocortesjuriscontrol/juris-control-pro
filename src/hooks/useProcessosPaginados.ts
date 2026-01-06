@@ -13,6 +13,8 @@ interface ProcessosPaginadosFilters {
   instancia?: string;
   comMovimento?: boolean;
   comPublicacaoDjen?: boolean;
+  comAudiencia?: boolean;
+  comIntimacao?: boolean;
   periodoInicio?: Date;
   periodoFim?: Date;
   clienteIds?: string[];
@@ -38,6 +40,8 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         _instancia: filters.instancia && filters.instancia !== "todos" ? filters.instancia : null,
         _com_movimento: filters.comMovimento ?? false,
         _com_publicacao_djen: filters.comPublicacaoDjen ?? false,
+        _com_audiencia: filters.comAudiencia ?? false,
+        _com_intimacao: filters.comIntimacao ?? false,
         _periodo_inicio: filters.periodoInicio ? filters.periodoInicio.toISOString() : null,
         _periodo_fim: filters.periodoFim ? filters.periodoFim.toISOString() : null,
         _cliente_ids: filters.clienteIds && filters.clienteIds.length > 0 ? filters.clienteIds : null,

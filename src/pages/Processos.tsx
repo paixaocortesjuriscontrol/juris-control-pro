@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +65,8 @@ const Processos = () => {
   const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   const [comPublicacaoDjen, setComPublicacaoDjen] = useState(false);
   const [comAndamentos, setComAndamentos] = useState(false);
+  const [comAudiencias, setComAudiencias] = useState(false);
+  const [comIntimacoes, setComIntimacoes] = useState(false);
   
   // Filtro de grupo de clientes (da URL ou selecionado manualmente)
   const grupoClientesParam = searchParams.get("grupo_clientes");
@@ -182,6 +184,8 @@ const Processos = () => {
     instancia: filtrosAplicados.instancia,
     comMovimento: comAndamentos,
     comPublicacaoDjen: comPublicacaoDjen,
+    comAudiencia: comAudiencias,
+    comIntimacao: comIntimacoes,
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
     clienteIds: clienteIds,
@@ -192,7 +196,7 @@ const Processos = () => {
   // Reset page when filters change
   useEffect(() => {
     resetPage();
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos, clienteIds]);
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, clienteIds]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
   // so selecting a responsável / período filters immediately.
@@ -277,6 +281,8 @@ const Processos = () => {
     filtrosAplicados.instancia !== "todos" ||
     comPublicacaoDjen ||
     comAndamentos ||
+    comAudiencias ||
+    comIntimacoes ||
     !!grupoClientesParam ||
     selectedGrupoId !== "all" ||
     selectedClienteId !== "all";
@@ -466,6 +472,42 @@ const Processos = () => {
               </TooltipTrigger>
               <TooltipContent>Processos com andamentos registrados</TooltipContent>
             </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={comAudiencias ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-9 gap-2",
+                    comAudiencias && "bg-amber-600 hover:bg-amber-700 text-white"
+                  )}
+                  onClick={() => setComAudiencias(!comAudiencias)}
+                >
+                  <Gavel className="w-4 h-4" />
+                  <span className="hidden sm:inline">Com Audiências</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Processos com audiências detectadas</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={comIntimacoes ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-9 gap-2",
+                    comIntimacoes && "bg-red-600 hover:bg-red-700 text-white"
+                  )}
+                  onClick={() => setComIntimacoes(!comIntimacoes)}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">Com Intimações</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Processos com intimações detectadas</TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Action Buttons Row */}
@@ -593,6 +635,16 @@ const Processos = () => {
                 Com Andamentos ×
               </Badge>
             )}
+            {comAudiencias && (
+              <Badge variant="secondary" className="cursor-pointer bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" onClick={() => setComAudiencias(false)}>
+                Com Audiências ×
+              </Badge>
+            )}
+            {comIntimacoes && (
+              <Badge variant="secondary" className="cursor-pointer bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" onClick={() => setComIntimacoes(false)}>
+                Com Intimações ×
+              </Badge>
+            )}
             {(filtrosAplicados.periodoInicio || filtrosAplicados.periodoFim) && (
               <Badge variant="secondary" className="cursor-pointer" onClick={() => {
                 setFiltrosAvancados(prev => ({ ...prev, periodoInicio: undefined, periodoFim: undefined }));
@@ -622,6 +674,8 @@ const Processos = () => {
                 setCoordenacaoFilter("all");
                 setComPublicacaoDjen(false);
                 setComAndamentos(false);
+                setComAudiencias(false);
+                setComIntimacoes(false);
                 setSelectedGrupoId("all");
                 setSelectedClienteId("all");
                 clearGrupoFilter();
