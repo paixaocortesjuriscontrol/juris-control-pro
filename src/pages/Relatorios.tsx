@@ -40,15 +40,17 @@ const Relatorios = () => {
   const printRef = useRef<HTMLDivElement>(null);
 
   // Carregar dados de todos os relatórios para exportação
-  const { data: resumoData, isLoading: resumoLoading, refetch: refetchResumo } = useRelatorioResumoData(true);
-  const { data: atividadesData, isLoading: atividadesLoading, refetch: refetchAtividades } = useRelatorioAtividadesData(true);
-  const { data: clientesData, isLoading: clientesLoading, refetch: refetchClientes } = useRelatorioClientesData(true);
+  const { data: resumoData, isLoading: resumoLoading, isFetching: resumoFetching, refetch: refetchResumo } = useRelatorioResumoData(true);
+  const { data: atividadesData, isLoading: atividadesLoading, isFetching: atividadesFetching, refetch: refetchAtividades } = useRelatorioAtividadesData(true);
+  const { data: clientesData, isLoading: clientesLoading, isFetching: clientesFetching, refetch: refetchClientes } = useRelatorioClientesData(true);
 
-  const canExportPdf = Boolean(resumoData && atividadesData && clientesData);
+  // Permite exportar se tiver ao menos os dados de resumo
+  const canExportPdf = Boolean(resumoData);
+  // Só mostra loading se estiver na carga inicial (isLoading), não no refetch
   const loadingExportData = resumoLoading || atividadesLoading || clientesLoading;
 
   // Calcular percentual de carregamento (0 a 100)
-  const loadedCount = [resumoData, atividadesData, clientesData].filter(Boolean).length;
+  const loadedCount = [!resumoLoading, !atividadesLoading, !clientesLoading].filter(Boolean).length;
   const loadingProgress = Math.round((loadedCount / 3) * 100);
 
   const handleExportPdf = async () => {
@@ -56,9 +58,21 @@ const Relatorios = () => {
 
     setExporting(true);
 
+    // Usa Promise.race com timeout para não travar se alguma query demorar muito
+    const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T | null> => {
+      return Promise.race([
+        promise,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))
+      ]);
+    };
+
     try {
-      // Garante que o PDF sempre reflita os dados mais atualizados do banco
-      await Promise.all([refetchResumo(), refetchAtividades(), refetchClientes()]);
+      // Tenta atualizar dados com timeout de 5 segundos cada
+      await Promise.all([
+        withTimeout(refetchResumo(), 5000),
+        withTimeout(refetchAtividades(), 5000),
+        withTimeout(refetchClientes(), 5000)
+      ]);
     } catch (e) {
       console.error("Erro ao atualizar dados para exportação do PDF:", e);
       // Mantém o fluxo de impressão com o que estiver disponível no cache
@@ -78,7 +92,7 @@ const Relatorios = () => {
       });
     });
 
-    setTimeout(finish, 8000);
+    setTimeout(finish, 5000);
   };
 
   return (
@@ -116,10 +130,10 @@ const Relatorios = () => {
                   <FileDown className="w-4 h-4 mr-2" />
                 )}
                 <span className="hidden sm:inline">
-                  {exporting ? "Gerando..." : loadingExportData || !canExportPdf ? "Carregando dados..." : "Exportar PDF"}
+                  {exporting ? "Gerando..." : loadingExportData ? "Carregando..." : "Exportar PDF"}
                 </span>
                 <span className="sm:hidden">
-                  {exporting ? "..." : loadingExportData || !canExportPdf ? "Car..." : "PDF"}
+                  {exporting ? "..." : loadingExportData ? "..." : "PDF"}
                 </span>
               </Button>
               {loadingExportData && (
