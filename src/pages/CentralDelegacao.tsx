@@ -50,6 +50,13 @@ import { cn } from "@/lib/utils";
 type TipoAtividade = "todos" | "tarefas" | "audiencias" | "compromissos";
 type StatusFiltro = "todos" | "pendente" | "cumprido" | "atrasado";
 
+const statusFiltroLabel: Record<StatusFiltro, string> = {
+  todos: "Todas",
+  pendente: "Pendentes",
+  cumprido: "Concluídas",
+  atrasado: "Atrasadas",
+};
+
 export default function CentralDelegacao() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -372,7 +379,13 @@ export default function CentralDelegacao() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-          <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setStatusFiltro("todos")}>
+          <Card
+            className={cn(
+              "cursor-pointer hover:border-primary/50 transition-colors",
+              statusFiltro === "todos" && "ring-1 ring-primary/30 border-primary/40"
+            )}
+            onClick={() => setStatusFiltro("todos")}
+          >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -386,7 +399,13 @@ export default function CentralDelegacao() {
             </CardContent>
           </Card>
           
-          <Card className="cursor-pointer hover:border-blue-500/50 transition-colors" onClick={() => setStatusFiltro("pendente")}>
+          <Card
+            className={cn(
+              "cursor-pointer hover:border-blue-500/50 transition-colors",
+              statusFiltro === "pendente" && "ring-1 ring-primary/30 border-primary/40"
+            )}
+            onClick={() => setStatusFiltro((prev) => (prev === "pendente" ? "todos" : "pendente"))}
+          >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -400,7 +419,13 @@ export default function CentralDelegacao() {
             </CardContent>
           </Card>
           
-          <Card className="cursor-pointer hover:border-red-500/50 transition-colors" onClick={() => setStatusFiltro("atrasado")}>
+          <Card
+            className={cn(
+              "cursor-pointer hover:border-red-500/50 transition-colors",
+              statusFiltro === "atrasado" && "ring-1 ring-primary/30 border-primary/40"
+            )}
+            onClick={() => setStatusFiltro((prev) => (prev === "atrasado" ? "todos" : "atrasado"))}
+          >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -414,7 +439,13 @@ export default function CentralDelegacao() {
             </CardContent>
           </Card>
           
-          <Card className="cursor-pointer hover:border-green-500/50 transition-colors" onClick={() => setStatusFiltro("cumprido")}>
+          <Card
+            className={cn(
+              "cursor-pointer hover:border-green-500/50 transition-colors",
+              statusFiltro === "cumprido" && "ring-1 ring-primary/30 border-primary/40"
+            )}
+            onClick={() => setStatusFiltro((prev) => (prev === "cumprido" ? "todos" : "cumprido"))}
+          >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -551,6 +582,22 @@ export default function CentralDelegacao() {
                     <span className="text-sm text-muted-foreground">Selecionar todos</span>
                   </div>
                 </div>
+
+                {statusFiltro !== "todos" && (
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      Status: {statusFiltroLabel[statusFiltro]}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setStatusFiltro("todos")}
+                    >
+                      Limpar
+                    </Button>
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="p-0">
                 {loadingAtividades ? (
