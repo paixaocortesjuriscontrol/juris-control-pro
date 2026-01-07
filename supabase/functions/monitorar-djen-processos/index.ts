@@ -331,7 +331,7 @@ async function processProcessosBatch(
             prazo_dias: intimacaoInfo.prazoDias,
             data_limite: intimacaoInfo.dataLimite,
             contexto: intimacaoInfo.contexto,
-            conteudo_publicacao: conteudo.slice(0, 2000),
+            conteudo_publicacao: conteudo,
             origem: 'monitoramento_djen_processos',
             status: 'pendente',
           }).then(() => {});

@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
                     movimentacao_id: mov.id,
                     tipo_intimacao: tipoIntimacao,
                     descricao: mov.descricao.substring(0, 500),
-                    conteudo_publicacao: mov.descricao.substring(0, 2000),
+                    conteudo_publicacao: mov.descricao,
                     contexto: mov.descricao.substring(0, 500),
                     prazo_dias: prazoDias,
                     data_limite: dataLimite,
