@@ -753,6 +753,31 @@ export default function ImportarProcessos() {
       return;
     }
 
+    const normalizeNumeroCnj = (numero: string) => numero.replace(/\D/g, "").padStart(20, "0");
+
+    const pickProcessoFromApi = (apiData: any, numeroInput: string) => {
+      if (!apiData?.found) return null;
+      if (apiData?.processo) return apiData.processo;
+
+      const processos = Array.isArray(apiData?.processos) ? apiData.processos : [];
+      if (processos.length === 0) return null;
+
+      const target = normalizeNumeroCnj(numeroInput);
+      return (
+        processos.find((p: any) => normalizeNumeroCnj(p?.numero ?? p?.numeroProcesso ?? "") === target) ||
+        processos[0]
+      );
+    };
+
+    const toDateOnly = (raw: any): string | null => {
+      if (!raw) return null;
+      const str = String(raw);
+      const isoLike = str.includes("-") ? str : str.replace(/(\d{4})(\d{2})(\d{2}).*/, "$1-$2-$3");
+      const d = new Date(isoLike);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toISOString().split("T")[0];
+    };
+
     setBatchImporting(true);
     startImport("Importação em lote");
     setBatchProgress(0);
@@ -781,21 +806,22 @@ export default function ImportarProcessos() {
         if (existingProcesso) {
           processoId = existingProcesso.id;
           isUpdate = true;
-          
+
           // Fetch current process data to check empty fields
           const { data: currentProcesso } = await supabase
             .from("processos")
             .select("*")
             .eq("id", existingProcesso.id)
             .single();
-          
-          // Fetch process details from external API to fill empty fields
-          const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
+
+          // Fetch process details from external API
+          const { data: apiData, error: apiError } = await supabase.functions.invoke("consultar-processo", {
             body: { numeroProcesso: processo.numero },
           });
+          if (apiError) throw apiError;
 
           const updateData: Record<string, any> = {};
-          
+
           // Update coordination and member if selected
           if (selectedCoordenacao) {
             updateData.coordenacao_id = selectedCoordenacao;
@@ -803,31 +829,29 @@ export default function ImportarProcessos() {
           if (selectedMembro) {
             updateData.advogado_responsavel_id = selectedMembro;
           }
-          if (selectedCliente && !currentProcesso?.cliente_id) {
+          if (selectedCliente && (forcarAtualizacao || !currentProcesso?.cliente_id)) {
             updateData.cliente_id = selectedCliente;
           }
-          
-          // Update with API data if found and fields are empty
-          if (apiData?.found && apiData?.processo) {
-            const processoApi = apiData.processo;
 
-            // Extract parties (polo ativo e passivo)
-            let poloAtivo: string | null = null;
-            let poloPassivo: string | null = null;
+          const processoApi = pickProcessoFromApi(apiData, processo.numero);
 
-            if (processoApi.poloAtivo && processoApi.poloAtivo.length > 0) {
-              poloAtivo = processoApi.poloAtivo.join(', ');
-            }
-            if (processoApi.poloPassivo && processoApi.poloPassivo.length > 0) {
-              poloPassivo = processoApi.poloPassivo.join(', ');
-            }
+          // Update with API data (force update all or only empty ones)
+          if (processoApi) {
+            const poloAtivoArr = Array.isArray(processoApi.poloAtivo) ? processoApi.poloAtivo : [];
+            const poloPassivoArr = Array.isArray(processoApi.poloPassivo) ? processoApi.poloPassivo : [];
 
-            // Fill fields (force update all or only empty ones)
-            if ((forcarAtualizacao || !currentProcesso?.tribunal) && (processoApi.tribunal || apiData.tribunal)) {
-              updateData.tribunal = processoApi.tribunal || apiData.tribunal;
+            const poloAtivo = poloAtivoArr.length > 0 ? poloAtivoArr.join(", ") : null;
+            const poloPassivo = poloPassivoArr.length > 0 ? poloPassivoArr.join(", ") : null;
+
+            const varaApi = processoApi.orgaoJulgador ?? processoApi.vara ?? null;
+            const dataAjuizamentoApi = processoApi.dataAjuizamento ?? processoApi.dataDistribuicao ?? null;
+            const valorCausaApi = processoApi.valorCausa ?? processoApi.valor_causa ?? null;
+
+            if ((forcarAtualizacao || !currentProcesso?.tribunal) && (processoApi.tribunal || apiData?.tribunal)) {
+              updateData.tribunal = processoApi.tribunal || apiData?.tribunal;
             }
-            if ((forcarAtualizacao || !currentProcesso?.vara) && processoApi.orgaoJulgador) {
-              updateData.vara = processoApi.orgaoJulgador;
+            if ((forcarAtualizacao || !currentProcesso?.vara) && varaApi) {
+              updateData.vara = varaApi;
             }
             if ((forcarAtualizacao || !currentProcesso?.classe) && processoApi.classe) {
               updateData.classe = processoApi.classe;
@@ -841,93 +865,102 @@ export default function ImportarProcessos() {
             if ((forcarAtualizacao || !currentProcesso?.polo_passivo) && poloPassivo) {
               updateData.polo_passivo = poloPassivo;
             }
-            if ((forcarAtualizacao || !currentProcesso?.data_distribuicao) && processoApi.dataAjuizamento) {
-              try {
-                updateData.data_distribuicao = new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0];
-              } catch (e) {
-                console.warn("Erro ao parsear data:", processoApi.dataAjuizamento);
-              }
+
+            const dataDistribuicao = toDateOnly(dataAjuizamentoApi);
+            if ((forcarAtualizacao || !currentProcesso?.data_distribuicao) && dataDistribuicao) {
+              updateData.data_distribuicao = dataDistribuicao;
             }
-            if ((forcarAtualizacao || !currentProcesso?.valor_causa) && processoApi.valorCausa) {
-              updateData.valor_causa = processoApi.valorCausa;
+
+            if ((forcarAtualizacao || !currentProcesso?.valor_causa) && valorCausaApi) {
+              updateData.valor_causa = valorCausaApi;
             }
-            
+
             // Determine area based on tribunal if current is default or force update
             if (forcarAtualizacao || currentProcesso?.area === "civil" || !currentProcesso?.area) {
-              const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
+              const tribunalLower = String(processoApi.tribunal || apiData?.tribunal || "").toLowerCase();
               if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
                 updateData.area = "trabalhista";
               }
             }
           }
-          
+
           if (Object.keys(updateData).length > 0) {
-            await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
+            const { error: updateError } = await supabase
+              .from("processos")
+              .update(updateData)
+              .eq("id", existingProcesso.id);
+            if (updateError) throw updateError;
           }
         } else {
           // Insert process with minimal data - system will fetch details from API
-          const { data: insertedProcesso, error } = await supabase.from("processos").insert({
-            numero: processo.numero,
-            area: "civil", // Default area
-            status: "ativo",
-            coordenacao_id: selectedCoordenacao || null,
-            advogado_responsavel_id: selectedMembro || null,
-            cliente_id: selectedCliente || null,
-            monitorar_andamentos: buscarAndamentos,
-          }).select("id").single();
+          const { data: insertedProcesso, error } = await supabase
+            .from("processos")
+            .insert({
+              numero: processo.numero,
+              area: "civil", // Default area
+              status: "ativo",
+              coordenacao_id: selectedCoordenacao || null,
+              advogado_responsavel_id: selectedMembro || null,
+              cliente_id: selectedCliente || null,
+              monitorar_andamentos: buscarAndamentos,
+            })
+            .select("id")
+            .single();
 
           if (error) {
-            updatedProcessos[i] = { 
-              ...processo, 
-              status: "erro", 
-              erroMensagem: error.message 
+            updatedProcessos[i] = {
+              ...processo,
+              status: "erro",
+              erroMensagem: error.message,
             };
             errorCount++;
             continue;
           }
-          
+
           processoId = insertedProcesso.id;
 
           // Fetch process details from external API
-          const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
+          const { data: apiData, error: apiError } = await supabase.functions.invoke("consultar-processo", {
             body: { numeroProcesso: processo.numero },
           });
+          if (apiError) throw apiError;
+
+          const processoApi = pickProcessoFromApi(apiData, processo.numero);
 
           // Update process with API data if found
-          if (apiData?.found && apiData?.processo) {
-            const processoApi = apiData.processo;
+          if (processoApi) {
+            const poloAtivoArr = Array.isArray(processoApi.poloAtivo) ? processoApi.poloAtivo : [];
+            const poloPassivoArr = Array.isArray(processoApi.poloPassivo) ? processoApi.poloPassivo : [];
 
-            // Extract parties (polo ativo e passivo)
-            let poloAtivo: string | null = null;
-            let poloPassivo: string | null = null;
-
-            if (processoApi.poloAtivo && processoApi.poloAtivo.length > 0) {
-              poloAtivo = processoApi.poloAtivo.join(', ');
-            }
-            if (processoApi.poloPassivo && processoApi.poloPassivo.length > 0) {
-              poloPassivo = processoApi.poloPassivo.join(', ');
-            }
+            const poloAtivo = poloAtivoArr.length > 0 ? poloAtivoArr.join(", ") : null;
+            const poloPassivo = poloPassivoArr.length > 0 ? poloPassivoArr.join(", ") : null;
 
             // Determine area based on tribunal
             let area: string = "civil";
-            const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
+            const tribunalLower = String(processoApi.tribunal || apiData?.tribunal || "").toLowerCase();
             if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
               area = "trabalhista";
             }
 
-            await supabase.from("processos").update({
-              tribunal: processoApi.tribunal || apiData.tribunal || null,
-              vara: processoApi.orgaoJulgador || null,
-              classe: processoApi.classe || null,
-              assunto: processoApi.assunto || null,
-              polo_ativo: poloAtivo,
-              polo_passivo: poloPassivo,
-              area: area,
-              valor_causa: processoApi.valorCausa || null,
-              data_distribuicao: processoApi.dataAjuizamento
-                ? new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0]
-                : null,
-            }).eq("id", processoId);
+            const varaApi = processoApi.orgaoJulgador ?? processoApi.vara ?? null;
+            const dataAjuizamentoApi = processoApi.dataAjuizamento ?? processoApi.dataDistribuicao ?? null;
+            const dataDistribuicao = toDateOnly(dataAjuizamentoApi);
+
+            const { error: updateError } = await supabase
+              .from("processos")
+              .update({
+                tribunal: processoApi.tribunal || apiData?.tribunal || null,
+                vara: varaApi,
+                classe: processoApi.classe || null,
+                assunto: processoApi.assunto || null,
+                polo_ativo: poloAtivo,
+                polo_passivo: poloPassivo,
+                area,
+                valor_causa: processoApi.valorCausa ?? null,
+                data_distribuicao: dataDistribuicao,
+              })
+              .eq("id", processoId);
+            if (updateError) throw updateError;
           }
         }
 
@@ -940,19 +973,19 @@ export default function ImportarProcessos() {
             console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
           }
         }
-        
-        updatedProcessos[i] = { 
-          ...processo, 
+
+        updatedProcessos[i] = {
+          ...processo,
           status: "sucesso",
           andamentosImportados,
           erroMensagem: isUpdate ? "Atualizado (já existia)" : undefined,
         };
         successCount++;
       } catch (err: any) {
-        updatedProcessos[i] = { 
-          ...processo, 
-          status: "erro", 
-          erroMensagem: err.message 
+        updatedProcessos[i] = {
+          ...processo,
+          status: "erro",
+          erroMensagem: err.message,
         };
         errorCount++;
       }
