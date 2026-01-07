@@ -57,7 +57,8 @@ export function useAuditoriaDjenProcessos() {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`Lote reprocessado: ${data.novas || 0} novas publicações`);
+      const novas = (data?.novas ?? data?.novasPublicacoes ?? 0) as number;
+      toast.success(`Lote reprocessado: ${novas} novas publicações`);
       queryClient.invalidateQueries({ queryKey: ['auditoria-djen-processos'] });
     },
     onError: (error) => {

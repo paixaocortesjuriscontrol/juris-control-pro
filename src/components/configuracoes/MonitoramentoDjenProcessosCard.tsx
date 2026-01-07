@@ -113,23 +113,37 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     }
   });
 
-  const executarLote = useCallback(async (continuarDe: number, dataInicioStr?: string, dataFimStr?: string): Promise<{ novas: number; concluido: boolean; nextOffset: number; totalProcessos: number }> => {
-    const { data, error } = await supabase.functions.invoke('monitorar-djen-processos', {
-      body: { 
-        dataInicio: dataInicioStr, 
-        dataFim: dataFimStr,
-        continuarDe 
-      }
-    });
+  const executarLote = useCallback(
+    async (
+      continuarDe: number,
+      dataInicioStr?: string,
+      dataFimStr?: string
+    ): Promise<{ novas: number; concluido: boolean; nextOffset: number; totalProcessos: number }> => {
+      const { data, error } = await supabase.functions.invoke('monitorar-djen-processos', {
+        body: {
+          dataInicio: dataInicioStr,
+          dataFim: dataFimStr,
+          continuarDe,
+        },
+      });
 
-    if (error) throw error;
-    return {
-      novas: data.novas || 0,
-      concluido: data.concluido || false,
-      nextOffset: data.nextOffset || 0,
-      totalProcessos: data.totalProcessos || 0
-    };
-  }, []);
+      if (error) throw error;
+
+      const novas = (data?.novas ?? data?.novasPublicacoes ?? 0) as number;
+      const totalProcessos = (data?.totalProcessos ?? 0) as number;
+      const hasMore = (data?.hasMore ?? false) as boolean;
+      const concluido = (data?.concluido ?? !hasMore) as boolean;
+      const nextOffset = (data?.nextOffset ?? 0) as number;
+
+      return {
+        novas,
+        concluido,
+        nextOffset,
+        totalProcessos,
+      };
+    },
+    []
+  );
 
   const handleExecutarManual = async () => {
     if (executando) return; // Prevenir duplo clique
