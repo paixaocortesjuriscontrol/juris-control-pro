@@ -329,6 +329,7 @@ export default function ImportarProcessos() {
   const [selectedMembro, setSelectedMembro] = useState<string>("");
   const [selectedCliente, setSelectedCliente] = useState<string>("");
   const [buscarAndamentos, setBuscarAndamentos] = useState(true);
+  const [forcarAtualizacao, setForcarAtualizacao] = useState(false);
 
   // Projuris import states
   const [projurisFile, setProjurisFile] = useState<File | null>(null);
@@ -821,38 +822,38 @@ export default function ImportarProcessos() {
               poloPassivo = processoApi.poloPassivo.join(', ');
             }
 
-            // Fill empty fields only
-            if (!currentProcesso?.tribunal && (processoApi.tribunal || apiData.tribunal)) {
+            // Fill fields (force update all or only empty ones)
+            if ((forcarAtualizacao || !currentProcesso?.tribunal) && (processoApi.tribunal || apiData.tribunal)) {
               updateData.tribunal = processoApi.tribunal || apiData.tribunal;
             }
-            if (!currentProcesso?.vara && processoApi.orgaoJulgador) {
+            if ((forcarAtualizacao || !currentProcesso?.vara) && processoApi.orgaoJulgador) {
               updateData.vara = processoApi.orgaoJulgador;
             }
-            if (!currentProcesso?.classe && processoApi.classe) {
+            if ((forcarAtualizacao || !currentProcesso?.classe) && processoApi.classe) {
               updateData.classe = processoApi.classe;
             }
-            if (!currentProcesso?.assunto && processoApi.assunto) {
+            if ((forcarAtualizacao || !currentProcesso?.assunto) && processoApi.assunto) {
               updateData.assunto = processoApi.assunto;
             }
-            if (!currentProcesso?.polo_ativo && poloAtivo) {
+            if ((forcarAtualizacao || !currentProcesso?.polo_ativo) && poloAtivo) {
               updateData.polo_ativo = poloAtivo;
             }
-            if (!currentProcesso?.polo_passivo && poloPassivo) {
+            if ((forcarAtualizacao || !currentProcesso?.polo_passivo) && poloPassivo) {
               updateData.polo_passivo = poloPassivo;
             }
-            if (!currentProcesso?.data_distribuicao && processoApi.dataAjuizamento) {
+            if ((forcarAtualizacao || !currentProcesso?.data_distribuicao) && processoApi.dataAjuizamento) {
               try {
                 updateData.data_distribuicao = new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0];
               } catch (e) {
                 console.warn("Erro ao parsear data:", processoApi.dataAjuizamento);
               }
             }
-            if (!currentProcesso?.valor_causa && processoApi.valorCausa) {
+            if ((forcarAtualizacao || !currentProcesso?.valor_causa) && processoApi.valorCausa) {
               updateData.valor_causa = processoApi.valorCausa;
             }
             
-            // Determine area based on tribunal if current is default
-            if (currentProcesso?.area === "civil" || !currentProcesso?.area) {
+            // Determine area based on tribunal if current is default or force update
+            if (forcarAtualizacao || currentProcesso?.area === "civil" || !currentProcesso?.area) {
               const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
               if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
                 updateData.area = "trabalhista";
@@ -4306,6 +4307,27 @@ export default function ImportarProcessos() {
                     id="buscar-andamentos"
                     checked={buscarAndamentos}
                     onCheckedChange={setBuscarAndamentos}
+                    disabled={batchImporting}
+                  />
+                </div>
+
+                {/* Opção de forçar atualização */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="forcar-atualizacao" className="flex items-center gap-2 font-medium">
+                      <ArrowRightLeft className="h-4 w-4" />
+                      Forçar atualização de todos os campos
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {forcarAtualizacao 
+                        ? "Os dados serão sobrescritos com as informações mais recentes da API (tribunal, vara, partes, valor, etc.)."
+                        : "Somente os campos vazios serão preenchidos com dados da API. Campos já preenchidos não serão alterados."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="forcar-atualizacao"
+                    checked={forcarAtualizacao}
+                    onCheckedChange={setForcarAtualizacao}
                     disabled={batchImporting}
                   />
                 </div>
