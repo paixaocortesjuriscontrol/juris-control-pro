@@ -750,7 +750,7 @@ export default function PainelIntimacoes() {
               {selectedIntimacao.conteudo_publicacao && (
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Conteúdo da Publicação</p>
-                  <div className="text-sm bg-muted/50 p-3 rounded-lg max-h-60 overflow-y-auto whitespace-pre-wrap break-words">
+                  <div className="text-sm bg-muted/50 p-3 rounded-lg whitespace-pre-wrap break-words">
                     {selectedIntimacao.conteudo_publicacao}
                   </div>
                 </div>

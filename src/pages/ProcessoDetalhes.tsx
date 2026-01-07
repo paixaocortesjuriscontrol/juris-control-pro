@@ -2712,8 +2712,8 @@ export default function ProcessoDetalhes() {
                 {selectedIntimacao.conteudo_publicacao && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Conteúdo da Publicação</p>
-                    <div className="p-3 bg-muted/50 rounded-lg max-h-60 overflow-y-auto">
-                      <p className="text-sm whitespace-pre-wrap">{selectedIntimacao.conteudo_publicacao}</p>
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-sm whitespace-pre-wrap break-words">{selectedIntimacao.conteudo_publicacao}</p>
                     </div>
                   </div>
                 )}
