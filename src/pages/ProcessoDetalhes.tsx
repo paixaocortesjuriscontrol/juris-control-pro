@@ -76,6 +76,7 @@ import {
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
+import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentosTab";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -2063,6 +2064,15 @@ export default function ProcessoDetalhes() {
             {/* Agenda Tab */}
             <TabsContent value="agenda" className="mt-4">
               <ProcessoAgendaTab processoId={id!} />
+            </TabsContent>
+
+            {/* Pasta / Documentos Tab */}
+            <TabsContent value="documentos" className="mt-4">
+              <ProcessoDocumentosTab 
+                processoId={id!} 
+                documentos={documentosProcesso} 
+                refetchDocumentos={refetchDocumentos}
+              />
             </TabsContent>
         </Tabs>
 
