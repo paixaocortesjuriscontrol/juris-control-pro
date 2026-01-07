@@ -778,21 +778,91 @@ export default function ImportarProcessos() {
         let andamentosImportados = 0;
 
         if (existingProcesso) {
-          // Update existing process with coordination and member if selected
+          processoId = existingProcesso.id;
+          isUpdate = true;
+          
+          // Fetch current process data to check empty fields
+          const { data: currentProcesso } = await supabase
+            .from("processos")
+            .select("*")
+            .eq("id", existingProcesso.id)
+            .single();
+          
+          // Fetch process details from external API to fill empty fields
+          const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
+            body: { numeroProcesso: processo.numero },
+          });
+
           const updateData: Record<string, any> = {};
+          
+          // Update coordination and member if selected
           if (selectedCoordenacao) {
             updateData.coordenacao_id = selectedCoordenacao;
           }
           if (selectedMembro) {
             updateData.advogado_responsavel_id = selectedMembro;
           }
+          if (selectedCliente && !currentProcesso?.cliente_id) {
+            updateData.cliente_id = selectedCliente;
+          }
+          
+          // Update with API data if found and fields are empty
+          if (apiData?.found && apiData?.processo) {
+            const processoApi = apiData.processo;
+
+            // Extract parties (polo ativo e passivo)
+            let poloAtivo: string | null = null;
+            let poloPassivo: string | null = null;
+
+            if (processoApi.poloAtivo && processoApi.poloAtivo.length > 0) {
+              poloAtivo = processoApi.poloAtivo.join(', ');
+            }
+            if (processoApi.poloPassivo && processoApi.poloPassivo.length > 0) {
+              poloPassivo = processoApi.poloPassivo.join(', ');
+            }
+
+            // Fill empty fields only
+            if (!currentProcesso?.tribunal && (processoApi.tribunal || apiData.tribunal)) {
+              updateData.tribunal = processoApi.tribunal || apiData.tribunal;
+            }
+            if (!currentProcesso?.vara && processoApi.orgaoJulgador) {
+              updateData.vara = processoApi.orgaoJulgador;
+            }
+            if (!currentProcesso?.classe && processoApi.classe) {
+              updateData.classe = processoApi.classe;
+            }
+            if (!currentProcesso?.assunto && processoApi.assunto) {
+              updateData.assunto = processoApi.assunto;
+            }
+            if (!currentProcesso?.polo_ativo && poloAtivo) {
+              updateData.polo_ativo = poloAtivo;
+            }
+            if (!currentProcesso?.polo_passivo && poloPassivo) {
+              updateData.polo_passivo = poloPassivo;
+            }
+            if (!currentProcesso?.data_distribuicao && processoApi.dataAjuizamento) {
+              try {
+                updateData.data_distribuicao = new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0];
+              } catch (e) {
+                console.warn("Erro ao parsear data:", processoApi.dataAjuizamento);
+              }
+            }
+            if (!currentProcesso?.valor_causa && processoApi.valorCausa) {
+              updateData.valor_causa = processoApi.valorCausa;
+            }
+            
+            // Determine area based on tribunal if current is default
+            if (currentProcesso?.area === "civil" || !currentProcesso?.area) {
+              const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
+              if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
+                updateData.area = "trabalhista";
+              }
+            }
+          }
           
           if (Object.keys(updateData).length > 0) {
             await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
           }
-          
-          processoId = existingProcesso.id;
-          isUpdate = true;
         } else {
           // Insert process with minimal data - system will fetch details from API
           const { data: insertedProcesso, error } = await supabase.from("processos").insert({
@@ -816,10 +886,8 @@ export default function ImportarProcessos() {
           }
           
           processoId = insertedProcesso.id;
-        }
 
-        // Fetch process details from external API (only for new processes)
-        if (!isUpdate) {
+          // Fetch process details from external API
           const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
             body: { numeroProcesso: processo.numero },
           });
@@ -832,27 +900,15 @@ export default function ImportarProcessos() {
             let poloAtivo: string | null = null;
             let poloPassivo: string | null = null;
 
-            if (processoApi.partes && processoApi.partes.length > 0) {
-              const partesAtivas = processoApi.partes
-                .filter((p: any) => p.tipo === 'POLO_ATIVO' || p.tipoParte === 'AUTOR' || p.tipoParte === 'REQUERENTE' || p.tipoParte === 'RECLAMANTE')
-                .map((p: any) => p.nome)
-                .filter(Boolean);
-
-              const partesPassivas = processoApi.partes
-                .filter((p: any) => p.tipo === 'POLO_PASSIVO' || p.tipoParte === 'REU' || p.tipoParte === 'REQUERIDO' || p.tipoParte === 'RECLAMADO')
-                .map((p: any) => p.nome)
-                .filter(Boolean);
-
-              if (partesAtivas.length > 0) {
-                poloAtivo = partesAtivas.join(', ');
-              }
-              if (partesPassivas.length > 0) {
-                poloPassivo = partesPassivas.join(', ');
-              }
+            if (processoApi.poloAtivo && processoApi.poloAtivo.length > 0) {
+              poloAtivo = processoApi.poloAtivo.join(', ');
+            }
+            if (processoApi.poloPassivo && processoApi.poloPassivo.length > 0) {
+              poloPassivo = processoApi.poloPassivo.join(', ');
             }
 
             // Determine area based on tribunal
-            let area: "civil" | "trabalhista" | "empresarial" = "civil";
+            let area: string = "civil";
             const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
             if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
               area = "trabalhista";
@@ -866,6 +922,7 @@ export default function ImportarProcessos() {
               polo_ativo: poloAtivo,
               polo_passivo: poloPassivo,
               area: area,
+              valor_causa: processoApi.valorCausa || null,
               data_distribuicao: processoApi.dataAjuizamento
                 ? new Date(processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, '$1-$2-$3')).toISOString().split('T')[0]
                 : null,
