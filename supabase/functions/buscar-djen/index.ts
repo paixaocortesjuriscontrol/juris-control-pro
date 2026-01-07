@@ -224,9 +224,9 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     destinatarioNome: item.destinatarioNome,
     destinatario: item.destinatarioNome,
 
-    // Truncate content to save memory
-    texto: typeof item.texto === "string" ? item.texto.substring(0, 2000) : undefined,
-    teor: typeof item.teor === "string" ? item.teor.substring(0, 2000) : undefined,
+    // Keep full content
+    texto: typeof item.texto === "string" ? item.texto : undefined,
+    teor: typeof item.teor === "string" ? item.teor : undefined,
   });
 
   // Prefer the endpoints that actually return JSON fast.

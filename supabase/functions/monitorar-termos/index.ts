@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
                     data_audiencia: dataAudiencia,
                     hora: horaAudiencia,
                     tipo_audiencia: tipoAudiencia,
-                    conteudo_publicacao: mov.descricao.substring(0, 2000),
+                    conteudo_publicacao: mov.descricao,
                     contexto: mov.descricao.substring(0, 500),
                     status: 'pendente',
                     origem: 'monitoracao_360',
