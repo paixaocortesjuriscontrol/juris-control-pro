@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Eye,
   Loader2,
@@ -8,6 +9,7 @@ import {
   PowerOff,
   Trash2,
   History,
+  Users,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -21,22 +23,41 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
 import { BackfillJobsPanel } from "@/components/djen/BackfillJobsPanel";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
+import { supabase } from "@/integrations/supabase/client";
 
 const MonitoramentoDjen = () => {
   const [monitoramentoDialogOpen, setMonitoramentoDialogOpen] = useState(false);
-  const [monitoramentoParaEditar, setMonitoramentoParaEditar] = useState<typeof monitoramentos[0] | null>(null);
+  const [monitoramentoParaEditar, setMonitoramentoParaEditar] = useState<any>(null);
   const [backfillPanelOpen, setBackfillPanelOpen] = useState(false);
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState("todas");
+
+  const { data: coordenacoes = [] } = useQuery({
+    queryKey: ['coordenacoes-select'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('coordenacoes')
+        .select('id, nome')
+        .order('nome');
+      return data || [];
+    },
+  });
 
   const { 
-    monitoramentos, 
+    monitoramentos: todosMonitoramentos, 
     publicacoes: publicacoesMonitoradas,
     atualizarMonitoramento, 
     excluirMonitoramento,
     isLoading
   } = useMonitoramentosDjen();
+
+  // Filtrar monitoramentos por coordenação
+  const monitoramentos = coordenacaoFilter === "todas"
+    ? todosMonitoramentos
+    : todosMonitoramentos.filter(m => m.coordenacao_id === coordenacaoFilter);
 
   return (
     <MainLayout
@@ -56,6 +77,18 @@ const MonitoramentoDjen = () => {
               </CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as coordenações</SelectItem>
+                  {coordenacoes.map((coord) => (
+                    <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button 
                 onClick={() => setBackfillPanelOpen(!backfillPanelOpen)} 
                 variant="outline" 

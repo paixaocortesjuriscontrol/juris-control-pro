@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -21,16 +21,58 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function PainelIntimacoes() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("pendente");
-  const [coordenacaoFilter, setCoordenacaoFilter] = useState("todas");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string | null>(null);
+  const [coordenacaoCarregada, setCoordenacaoCarregada] = useState(false);
   const [selectedIntimacao, setSelectedIntimacao] = useState<IntimacaoDetectada | null>(null);
   const [observacoes, setObservacoes] = useState("");
   const [providencias, setProvidencias] = useState("");
   const [novaIntimacaoOpen, setNovaIntimacaoOpen] = useState(false);
+
+  // Buscar coordenação do usuário logado
+  const { data: userCoordData } = useQuery({
+    queryKey: ['user-coordenacao', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      // Primeiro verifica se é coordenador
+      const { data: coordenador } = await supabase
+        .from('coordenacoes')
+        .select('id')
+        .eq('coordenador_id', user.id)
+        .maybeSingle();
+      
+      if (coordenador) return coordenador.id;
+
+      // Senão, verifica se é membro de alguma coordenação
+      const { data: membro } = await supabase
+        .from('membros_coordenacao')
+        .select('coordenacao_id')
+        .eq('usuario_id', user.id)
+        .maybeSingle();
+      
+      return membro?.coordenacao_id || null;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Auto-selecionar coordenação do usuário ao carregar
+  useEffect(() => {
+    if (!coordenacaoCarregada && userCoordData !== undefined) {
+      if (userCoordData) {
+        setCoordenacaoFilter(userCoordData);
+      } else {
+        setCoordenacaoFilter("todas");
+      }
+      setCoordenacaoCarregada(true);
+    }
+  }, [userCoordData, coordenacaoCarregada]);
 
   // Função para criar tarefa a partir da intimação
   const handleCriarTarefa = async (intimacao: IntimacaoDetectada) => {
@@ -94,7 +136,7 @@ export default function PainelIntimacoes() {
   } = useIntimacoesDetectadas({ 
     status: statusFilter,
     search,
-    coordenacaoId: coordenacaoFilter,
+    coordenacaoId: coordenacaoFilter || "todas",
   });
 
   const handleMarcarTratado = async (id: string) => {
@@ -339,7 +381,7 @@ export default function PainelIntimacoes() {
                 className="pl-10"
               />
             </div>
-            <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+            <Select value={coordenacaoFilter || ""} onValueChange={setCoordenacaoFilter}>
               <SelectTrigger className="w-full md:w-[220px]">
                 <Users className="h-4 w-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Coordenação" />
@@ -708,9 +750,9 @@ export default function PainelIntimacoes() {
               {selectedIntimacao.conteudo_publicacao && (
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Conteúdo da Publicação</p>
-                  <p className="text-sm bg-muted/50 p-3 rounded-lg max-h-40 overflow-y-auto">
+                  <div className="text-sm bg-muted/50 p-3 rounded-lg max-h-60 overflow-y-auto whitespace-pre-wrap break-words">
                     {selectedIntimacao.conteudo_publicacao}
-                  </p>
+                  </div>
                 </div>
               )}
 
