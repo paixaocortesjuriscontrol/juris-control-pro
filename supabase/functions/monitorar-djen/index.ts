@@ -380,7 +380,7 @@ async function processMonitoramento(
             tipo_audiencia: audienciaInfo.tipoAudiencia,
             local_audiencia: audienciaInfo.localAudiencia,
             contexto: audienciaInfo.contexto,
-            conteudo_publicacao: conteudo.substring(0, 5000),
+            conteudo_publicacao: conteudo,
             status: 'pendente',
           });
           

@@ -316,7 +316,7 @@ async function processProcessosBatch(
             tipo_audiencia: audienciaInfo.tipoAudiencia,
             local_audiencia: audienciaInfo.localAudiencia,
             contexto: audienciaInfo.contexto,
-            conteudo_publicacao: conteudo.slice(0, 2000),
+            conteudo_publicacao: conteudo,
             origem: 'monitoramento_djen_processos',
             status: 'pendente',
           }).then(() => {});

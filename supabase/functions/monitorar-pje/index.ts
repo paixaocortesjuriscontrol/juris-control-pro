@@ -129,7 +129,7 @@ serve(async (req) => {
             hash_conteudo: hashConteudo,
             data_publicacao: pub.dataDisponibilizacao || pub.dataPublicacao || pub.data || null,
             processo_numero: pub.numeroProcesso || pub.processo || null,
-            conteudo: conteudo.substring(0, 10000),
+            conteudo: conteudo,
             fonte: pub.orgaoJulgador || pub.tribunal || 'PJE',
           });
 
