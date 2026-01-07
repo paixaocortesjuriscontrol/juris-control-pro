@@ -174,6 +174,41 @@ export type Database = {
           },
         ]
       }
+      alertas_parcela: {
+        Row: {
+          created_at: string
+          enviado: boolean | null
+          enviado_em: string | null
+          id: string
+          minutos_antes: number
+          parcela_id: string
+        }
+        Insert: {
+          created_at?: string
+          enviado?: boolean | null
+          enviado_em?: string | null
+          id?: string
+          minutos_antes?: number
+          parcela_id: string
+        }
+        Update: {
+          created_at?: string
+          enviado?: boolean | null
+          enviado_em?: string | null
+          id?: string
+          minutos_antes?: number
+          parcela_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_parcela_parcela_id_fkey"
+            columns: ["parcela_id"]
+            isOneToOne: false
+            referencedRelation: "parcelas_evento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       areas_atuacao: {
         Row: {
           ativo: boolean

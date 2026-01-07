@@ -355,7 +355,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
 
     try {
       if (isEditing && evento) {
-        // Atualizar evento existente
+        // Atualizar evento existente - parcelamento é recorrente até todas parcelas serem pagas
           const { error: updateError } = await supabase
             .from("eventos_agenda")
             .update({
@@ -368,6 +368,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               processo_id: formData.processo_id || null,
               total_parcelas: formData.totalParcelas,
               enviar_whatsapp: formData.enviar_whatsapp,
+              recorrente: true, // Parcelamento é recorrente até terminar
             })
             .eq("id", evento.id);
 
@@ -384,18 +385,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           );
         }
 
-        // Atualizar alertas - só criar se enviar_whatsapp estiver ativo
-        await supabase.from("alertas_evento").delete().eq("evento_id", evento.id);
-        if (formData.enviar_whatsapp && formData.alerta_minutos.length > 0) {
-          await supabase.from("alertas_evento").insert(
-            formData.alerta_minutos.map(minutos => ({
-              evento_id: evento.id,
-              minutos_antes: minutos,
-            }))
-          );
-        }
-
         // Atualizar parcelas - deletar antigas e criar novas
+        // Isso também deleta os alertas_parcela em cascata
         await supabase.from("parcelas_evento").delete().eq("evento_id", evento.id);
         
         const parcelasParaInserir = parcelasPreview.map((parcela) => ({
@@ -406,15 +397,27 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           status: "pendente",
         }));
 
-        const { error: parcelasError } = await supabase
+        const { data: parcelasCriadas, error: parcelasError } = await supabase
           .from("parcelas_evento")
-          .insert(parcelasParaInserir);
+          .insert(parcelasParaInserir)
+          .select("id");
 
         if (parcelasError) throw parcelasError;
 
+        // Criar alertas por parcela se enviar_whatsapp estiver ativo
+        if (formData.enviar_whatsapp && formData.alerta_minutos.length > 0 && parcelasCriadas) {
+          const alertasParcelas = parcelasCriadas.flatMap((parcela) =>
+            formData.alerta_minutos.map((minutos) => ({
+              parcela_id: parcela.id,
+              minutos_antes: minutos,
+            }))
+          );
+          await supabase.from("alertas_parcela").insert(alertasParcelas);
+        }
+
         toast.success("Parcelamento atualizado!");
       } else {
-        // Criar novo evento
+        // Criar novo evento - parcelamento é recorrente até todas parcelas serem pagas
         const { data: novoEvento, error: eventoError } = await supabase
           .from("eventos_agenda")
           .insert({
@@ -431,6 +434,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             total_parcelas: formData.totalParcelas,
             processo_id: formData.processo_id || null,
             enviar_whatsapp: formData.enviar_whatsapp,
+            recorrente: true, // Parcelamento é recorrente até terminar
           })
           .select("id")
           .single();
@@ -447,16 +451,6 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           );
         }
 
-        // Criar alertas - só criar se enviar_whatsapp estiver ativo
-        if (formData.enviar_whatsapp && formData.alerta_minutos.length > 0) {
-          await supabase.from("alertas_evento").insert(
-            formData.alerta_minutos.map(minutos => ({
-              evento_id: novoEvento.id,
-              minutos_antes: minutos,
-            }))
-          );
-        }
-
         // Criar as parcelas filhas
         const parcelasParaInserir = parcelasPreview.map((parcela) => ({
           evento_id: novoEvento.id,
@@ -466,11 +460,23 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           status: "pendente",
         }));
 
-        const { error: parcelasError } = await supabase
+        const { data: parcelasCriadas, error: parcelasError } = await supabase
           .from("parcelas_evento")
-          .insert(parcelasParaInserir);
+          .insert(parcelasParaInserir)
+          .select("id");
 
         if (parcelasError) throw parcelasError;
+
+        // Criar alertas por parcela se enviar_whatsapp estiver ativo
+        if (formData.enviar_whatsapp && formData.alerta_minutos.length > 0 && parcelasCriadas) {
+          const alertasParcelas = parcelasCriadas.flatMap((parcela) =>
+            formData.alerta_minutos.map((minutos) => ({
+              parcela_id: parcela.id,
+              minutos_antes: minutos,
+            }))
+          );
+          await supabase.from("alertas_parcela").insert(alertasParcelas);
+        }
 
         toast.success(`Parcelamento criado com ${formData.totalParcelas} parcelas!`);
       }
