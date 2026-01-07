@@ -28,6 +28,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -2616,6 +2622,128 @@ export default function ProcessoDetalhes() {
         open={!!editingAudiencia}
         onOpenChange={(open) => !open && setEditingAudiencia(null)}
       />
+
+      {/* Detalhes Intimação Dialog */}
+      <Dialog open={!!selectedIntimacao} onOpenChange={(open) => !open && setSelectedIntimacao(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              Detalhes da Intimação
+            </DialogTitle>
+          </DialogHeader>
+          {selectedIntimacao && (
+            <div className="space-y-4">
+              {/* Status e Badges */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {getIntimacaoStatusBadge(selectedIntimacao.status)}
+                {getOrigemBadge(selectedIntimacao.origem)}
+                {selectedIntimacao.prioridade && (
+                  <Badge variant={selectedIntimacao.prioridade === 'alta' ? 'destructive' : 'secondary'}>
+                    {selectedIntimacao.prioridade}
+                  </Badge>
+                )}
+                {selectedIntimacao.tipo_intimacao && (
+                  <Badge variant="secondary">{selectedIntimacao.tipo_intimacao}</Badge>
+                )}
+              </div>
+
+              {/* Informações principais */}
+              <div className="grid gap-4">
+                {selectedIntimacao.data_limite && (
+                  <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg">
+                    <Clock className="h-5 w-5 text-destructive" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Data Limite</p>
+                      <p className="font-bold text-destructive">{formatDate(selectedIntimacao.data_limite)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {selectedIntimacao.processo_numero && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Processo</p>
+                    <p className="font-mono">{selectedIntimacao.processo_numero}</p>
+                  </div>
+                )}
+
+                {selectedIntimacao.orgao_intimante && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Órgão Intimante</p>
+                    <p>{selectedIntimacao.orgao_intimante}</p>
+                  </div>
+                )}
+
+                {selectedIntimacao.prazo_dias && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Prazo</p>
+                    <p>{selectedIntimacao.prazo_dias} dias</p>
+                  </div>
+                )}
+
+                {selectedIntimacao.data_intimacao && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Data da Intimação</p>
+                    <p>{formatDate(selectedIntimacao.data_intimacao)}</p>
+                  </div>
+                )}
+
+                {selectedIntimacao.descricao && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Descrição</p>
+                    <p className="text-sm">{selectedIntimacao.descricao}</p>
+                  </div>
+                )}
+
+                {selectedIntimacao.contexto && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Contexto</p>
+                    <p className="text-sm whitespace-pre-wrap">{selectedIntimacao.contexto}</p>
+                  </div>
+                )}
+
+                {selectedIntimacao.conteudo_publicacao && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Conteúdo da Publicação</p>
+                    <div className="p-3 bg-muted/50 rounded-lg max-h-60 overflow-y-auto">
+                      <p className="text-sm whitespace-pre-wrap">{selectedIntimacao.conteudo_publicacao}</p>
+                    </div>
+                  </div>
+                )}
+
+                {selectedIntimacao.observacoes && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Observações</p>
+                    <p className="text-sm">{selectedIntimacao.observacoes}</p>
+                  </div>
+                )}
+
+                {selectedIntimacao.providencias_tomadas && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Providências Tomadas</p>
+                    <p className="text-sm">{selectedIntimacao.providencias_tomadas}</p>
+                  </div>
+                )}
+
+                {selectedIntimacao.tratado_em && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Tratado em</p>
+                    <p className="text-sm">{formatDateTime(selectedIntimacao.tratado_em)}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Metadados */}
+              <div className="pt-4 border-t text-xs text-muted-foreground space-y-1">
+                <p>Criado em: {formatDateTime(selectedIntimacao.created_at)}</p>
+                {selectedIntimacao.updated_at && (
+                  <p>Atualizado em: {formatDateTime(selectedIntimacao.updated_at)}</p>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
