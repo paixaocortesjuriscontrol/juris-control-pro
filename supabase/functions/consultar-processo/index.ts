@@ -278,6 +278,66 @@ serve(async (req) => {
       dataFim,
       size = 20
     } = body;
+
+    // Input validation
+    const validationErrors: string[] = [];
+
+    // Validate numeroProcesso format if provided (allow 15-20 digits after removing non-digits)
+    if (numeroProcesso) {
+      const cleaned = String(numeroProcesso).replace(/\D/g, '');
+      if (cleaned.length > 0 && (cleaned.length < 5 || cleaned.length > 25)) {
+        validationErrors.push("Número do processo deve ter entre 5 e 25 dígitos");
+      }
+    }
+
+    // Validate uf format (2 uppercase letters)
+    if (uf && (typeof uf !== 'string' || !/^[A-Za-z]{2}$/.test(uf))) {
+      validationErrors.push("UF deve ter exatamente 2 letras");
+    }
+
+    // Validate oab format (up to 10 digits)
+    if (oab && (typeof oab !== 'string' || !/^\d{1,10}$/.test(oab.replace(/\D/g, '')))) {
+      validationErrors.push("OAB deve conter apenas números (até 10 dígitos)");
+    }
+
+    // Validate date formats (YYYY-MM-DD)
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (dataInicio && (typeof dataInicio !== 'string' || !datePattern.test(dataInicio))) {
+      validationErrors.push("Data início deve estar no formato YYYY-MM-DD");
+    }
+    if (dataFim && (typeof dataFim !== 'string' || !datePattern.test(dataFim))) {
+      validationErrors.push("Data fim deve estar no formato YYYY-MM-DD");
+    }
+
+    // Validate string length limits
+    if (nomeParte && (typeof nomeParte !== 'string' || nomeParte.length > 200)) {
+      validationErrors.push("Nome da parte deve ter no máximo 200 caracteres");
+    }
+    if (tribunal && (typeof tribunal !== 'string' || tribunal.length > 50)) {
+      validationErrors.push("Tribunal deve ter no máximo 50 caracteres");
+    }
+    if (classeJudicial && (typeof classeJudicial !== 'string' || classeJudicial.length > 100)) {
+      validationErrors.push("Classe judicial deve ter no máximo 100 caracteres");
+    }
+    if (cpfCnpj && (typeof cpfCnpj !== 'string' || cpfCnpj.length > 20)) {
+      validationErrors.push("CPF/CNPJ deve ter no máximo 20 caracteres");
+    }
+
+    // Validate size
+    const validatedSize = typeof size === 'number' ? Math.min(Math.max(size, 1), 100) : 20;
+
+    if (validationErrors.length > 0) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Dados de entrada inválidos",
+          details: validationErrors,
+          found: false,
+          total: 0,
+          processos: []
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     console.log("Consulta com filtros:", JSON.stringify({ numeroProcesso, tribunal, nomeParte, classeJudicial, cpfCnpj, oab, uf, dataInicio, dataFim }));
 

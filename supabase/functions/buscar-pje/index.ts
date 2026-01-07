@@ -297,25 +297,82 @@ serve(async (req) => {
 
     console.log("PJE Search request:", JSON.stringify(body));
 
-    // Validate inputs
+    // Input validation
+    const validationErrors: string[] = [];
+
+    // Validate tipo
+    const validTipos = ["advogado", "palavra-chave", "processo"];
+    if (!validTipos.includes(tipo)) {
+      validationErrors.push(`Tipo de busca inválido. Use: ${validTipos.join(", ")}`);
+    }
+
+    // Validate uf format (2 uppercase letters)
+    if (uf && (typeof uf !== 'string' || !/^[A-Za-z]{2}$/.test(uf))) {
+      validationErrors.push("UF deve ter exatamente 2 letras");
+    }
+
+    // Validate oab format
+    if (oab && (typeof oab !== 'string' || oab.length > 20)) {
+      validationErrors.push("OAB deve ter no máximo 20 caracteres");
+    }
+
+    // Validate date formats (YYYY-MM-DD)
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (dataInicio && (typeof dataInicio !== 'string' || !datePattern.test(dataInicio))) {
+      validationErrors.push("Data início deve estar no formato YYYY-MM-DD");
+    }
+    if (dataFim && (typeof dataFim !== 'string' || !datePattern.test(dataFim))) {
+      validationErrors.push("Data fim deve estar no formato YYYY-MM-DD");
+    }
+
+    // Validate palavraChave length
+    if (palavraChave && (typeof palavraChave !== 'string' || palavraChave.length > 200)) {
+      validationErrors.push("Palavra-chave deve ter no máximo 200 caracteres");
+    }
+
+    // Validate numeroProcesso
+    if (numeroProcesso) {
+      const cleaned = String(numeroProcesso).replace(/\D/g, '');
+      if (cleaned.length > 25) {
+        validationErrors.push("Número do processo muito longo");
+      }
+    }
+
+    // Validate pagination
+    const validatedPagina = typeof pagina === 'number' ? Math.max(0, pagina) : 0;
+    const validatedTamanhoPagina = typeof tamanhoPagina === 'number' ? Math.min(Math.max(1, tamanhoPagina), 100) : 20;
+
+    // Return validation errors
+    if (validationErrors.length > 0) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Dados de entrada inválidos",
+          details: validationErrors,
+          success: false 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate type-specific requirements
     if (tipo === "advogado") {
       if (!oab || !uf) {
         return new Response(
-          JSON.stringify({ error: "OAB e UF são obrigatórios para busca por advogado" }),
+          JSON.stringify({ error: "OAB e UF são obrigatórios para busca por advogado", success: false }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     } else if (tipo === "palavra-chave") {
       if (!palavraChave || palavraChave.length < 3) {
         return new Response(
-          JSON.stringify({ error: "Palavra-chave deve ter pelo menos 3 caracteres" }),
+          JSON.stringify({ error: "Palavra-chave deve ter pelo menos 3 caracteres", success: false }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     } else if (tipo === "processo") {
       if (!numeroProcesso) {
         return new Response(
-          JSON.stringify({ error: "Número do processo é obrigatório" }),
+          JSON.stringify({ error: "Número do processo é obrigatório", success: false }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -329,8 +386,8 @@ serve(async (req) => {
       numeroProcesso,
       dataInicio,
       dataFim,
-      pagina,
-      tamanhoPagina
+      pagina: validatedPagina,
+      tamanhoPagina: validatedTamanhoPagina
     });
 
     return new Response(
