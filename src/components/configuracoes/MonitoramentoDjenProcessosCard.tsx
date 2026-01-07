@@ -132,6 +132,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   }, []);
 
   const handleExecutarManual = async () => {
+    if (executando) return; // Prevenir duplo clique
     setExecutando(true);
     canceladoRef.current = false;
     setProgresso(null);
