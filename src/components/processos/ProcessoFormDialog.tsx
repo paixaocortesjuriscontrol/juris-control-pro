@@ -3,7 +3,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -33,10 +33,14 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { usePastas } from "@/hooks/usePastas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast as sonnerToast } from "sonner";
 
 
 const formSchema = z.object({
+  pasta_id: z.string().optional(),
   numero: z.string().min(5, "Número do processo deve ter no mínimo 5 caracteres"),
   assunto: z.string().optional(),
   area: z.enum(["civil", "trabalhista", "empresarial"]),
@@ -45,15 +49,25 @@ const formSchema = z.object({
   tribunal: z.string().optional(),
   vara: z.string().optional(),
   comarca: z.string().optional(),
+  uf: z.string().optional(),
   classe: z.string().optional(),
+  natureza: z.string().optional(),
+  materia: z.string().optional(),
+  fase: z.string().optional(),
+  instancia: z.string().optional(),
+  justica: z.string().optional(),
+  esfera: z.string().optional(),
   data_distribuicao: z.string().optional(),
+  data_recebimento: z.string().optional(),
+  data_citacao: z.string().optional(),
   valor_causa: z.string().optional(),
   polo_ativo: z.string().optional(),
   polo_passivo: z.string().optional(),
+  terceiro_envolvido: z.string().optional(),
   coordenacao_id: z.string().optional(),
   advogado_responsavel_id: z.string().optional(),
   cliente_id: z.string().optional(),
-  // Campos contingenciais (Dra. Janaina)
+  // Campos contingenciais
   ativo_passivo: z.string().optional(),
   reclamante: z.string().optional(),
   reclamados: z.string().optional(),
@@ -62,6 +76,10 @@ const formSchema = z.object({
   valor_condenacao: z.string().optional(),
   funcao: z.string().optional(),
   advogado_externo: z.string().optional(),
+  risco: z.string().optional(),
+  probabilidade: z.string().optional(),
+  valor_provisionado: z.string().optional(),
+  pedidos: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -94,12 +112,21 @@ const formatCNJ = (value: string): string => {
 export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFormDialogProps) {
   const [loading, setLoading] = useState(false);
   const [fetchingFromApi, setFetchingFromApi] = useState(false);
+  const [activeTab, setActiveTab] = useState("basico");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  // Files state for documents tab
+  const [files, setFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [newProcessoId, setNewProcessoId] = useState<string | null>(null);
 
   const isEditing = !!processo;
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const { data: pastas = [] } = usePastas();
 
   // Fetch clientes
   const { data: clientes = [] } = useQuery({
@@ -118,6 +145,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      pasta_id: "",
       numero: "",
       assunto: "",
       area: "civil",
@@ -126,11 +154,21 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       tribunal: "",
       vara: "",
       comarca: "",
+      uf: "",
       classe: "",
+      natureza: "",
+      materia: "",
+      fase: "",
+      instancia: "",
+      justica: "",
+      esfera: "",
       data_distribuicao: "",
+      data_recebimento: "",
+      data_citacao: "",
       valor_causa: "",
       polo_ativo: "",
       polo_passivo: "",
+      terceiro_envolvido: "",
       coordenacao_id: "",
       advogado_responsavel_id: "",
       cliente_id: "",
@@ -142,14 +180,23 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       valor_condenacao: "",
       funcao: "",
       advogado_externo: "",
+      risco: "",
+      probabilidade: "",
+      valor_provisionado: "",
+      pedidos: "",
     },
   });
 
   // Reset form when dialog opens or processo changes
   useEffect(() => {
     if (open) {
+      setActiveTab("basico");
+      setFiles([]);
+      setNewProcessoId(null);
+      
       if (processo) {
         form.reset({
+          pasta_id: processo.pasta_id || "",
           numero: processo.numero || "",
           assunto: processo.assunto || "",
           area: processo.area,
@@ -158,11 +205,21 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           tribunal: processo.tribunal || "",
           vara: processo.vara || "",
           comarca: processo.comarca || "",
+          uf: processo.uf || "",
           classe: processo.classe || "",
+          natureza: processo.natureza || "",
+          materia: processo.materia || "",
+          fase: processo.fase || "",
+          instancia: processo.instancia || "",
+          justica: processo.justica || "",
+          esfera: processo.esfera || "",
           data_distribuicao: processo.data_distribuicao || "",
+          data_recebimento: processo.data_recebimento || "",
+          data_citacao: processo.data_citacao || "",
           valor_causa: processo.valor_causa?.toString() || "",
           polo_ativo: processo.polo_ativo || "",
           polo_passivo: processo.polo_passivo || "",
+          terceiro_envolvido: processo.terceiro_envolvido || "",
           coordenacao_id: processo.coordenacao_id || "",
           advogado_responsavel_id: processo.advogado_responsavel_id || "",
           cliente_id: processo.cliente_id || "",
@@ -174,9 +231,14 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           valor_condenacao: processo.valor_condenacao?.toString() || "",
           funcao: processo.funcao || "",
           advogado_externo: processo.advogado_externo || "",
+          risco: processo.risco || "",
+          probabilidade: processo.probabilidade || "",
+          valor_provisionado: processo.valor_provisionado?.toString() || "",
+          pedidos: processo.pedidos || "",
         });
       } else {
         form.reset({
+          pasta_id: "",
           numero: "",
           assunto: "",
           area: "civil",
@@ -185,11 +247,21 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           tribunal: "",
           vara: "",
           comarca: "",
+          uf: "",
           classe: "",
+          natureza: "",
+          materia: "",
+          fase: "",
+          instancia: "",
+          justica: "",
+          esfera: "",
           data_distribuicao: "",
+          data_recebimento: "",
+          data_citacao: "",
           valor_causa: "",
           polo_ativo: "",
           polo_passivo: "",
+          terceiro_envolvido: "",
           coordenacao_id: "",
           advogado_responsavel_id: "",
           cliente_id: "",
@@ -201,6 +273,10 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           valor_condenacao: "",
           funcao: "",
           advogado_externo: "",
+          risco: "",
+          probabilidade: "",
+          valor_provisionado: "",
+          pedidos: "",
         });
       }
     }
@@ -299,11 +375,81 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
     }
   };
 
+  // File handling functions
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const uploadDocuments = async (processoId: string) => {
+    if (files.length === 0 || !user) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const totalFiles = files.length;
+      let uploadedCount = 0;
+
+      for (const file of files) {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `processos/${processoId}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("documentos_processos")
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from("documentos_processos")
+          .getPublicUrl(filePath);
+
+        const { error: insertError } = await supabase.from("documentos").insert({
+          nome: file.name,
+          tipo: file.type || "application/octet-stream",
+          url: urlData.publicUrl,
+          tamanho_bytes: file.size,
+          processo_id: processoId,
+          uploaded_by: user.id,
+        });
+
+        if (insertError) throw insertError;
+
+        uploadedCount++;
+        setUploadProgress((uploadedCount / totalFiles) * 100);
+      }
+
+      sonnerToast.success(`${files.length} documento(s) enviado(s) com sucesso`);
+      queryClient.invalidateQueries({ queryKey: ["documentos"] });
+    } catch (error: any) {
+      sonnerToast.error("Erro ao enviar documentos: " + error.message);
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
   const onSubmit = async (values: FormValues) => {
     setLoading(true);
     try {
       const processData = {
         numero: values.numero.trim(),
+        pasta_id: values.pasta_id || null,
         assunto: values.assunto || null,
         area: values.area,
         status: values.status,
@@ -311,11 +457,21 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         tribunal: values.tribunal || null,
         vara: values.vara || null,
         comarca: values.comarca || null,
+        uf: values.uf || null,
         classe: values.classe || null,
+        natureza: values.natureza || null,
+        materia: values.materia || null,
+        fase: values.fase || null,
+        instancia: values.instancia || null,
+        justica: values.justica || null,
+        esfera: values.esfera || null,
         data_distribuicao: values.data_distribuicao || null,
+        data_recebimento: values.data_recebimento || null,
+        data_citacao: values.data_citacao || null,
         valor_causa: values.valor_causa ? parseFloat(values.valor_causa.replace(/[^\d.,]/g, "").replace(",", ".")) : null,
         polo_ativo: values.polo_ativo || null,
         polo_passivo: values.polo_passivo || null,
+        terceiro_envolvido: values.terceiro_envolvido || null,
         coordenacao_id: values.coordenacao_id || null,
         advogado_responsavel_id: values.advogado_responsavel_id || null,
         cliente_id: values.cliente_id || null,
@@ -328,6 +484,10 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         valor_condenacao: values.valor_condenacao ? parseFloat(values.valor_condenacao.replace(/[^\d.,]/g, "").replace(",", ".")) : null,
         funcao: values.funcao || null,
         advogado_externo: values.advogado_externo || null,
+        risco: values.risco || null,
+        probabilidade: values.probabilidade || null,
+        valor_provisionado: values.valor_provisionado ? parseFloat(values.valor_provisionado.replace(/[^\d.,]/g, "").replace(",", ".")) : null,
+        pedidos: values.pedidos || null,
       };
 
       if (isEditing && processo) {
@@ -338,6 +498,11 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           .eq("id", processo.id);
 
         if (error) throw error;
+
+        // Upload documents if any
+        if (files.length > 0) {
+          await uploadDocuments(processo.id);
+        }
 
         toast({
           title: "Processo atualizado",
@@ -366,6 +531,11 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
         if (error) throw error;
 
+        // Upload documents if any
+        if (files.length > 0) {
+          await uploadDocuments(newProcesso.id);
+        }
+
         // Fetch and insert movements from API
         try {
           const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
@@ -385,7 +555,6 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           }
         } catch (apiError) {
           console.error("Error fetching movements:", apiError);
-          // Continue even if API fails
         }
 
         toast({
@@ -396,7 +565,9 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
       queryClient.invalidateQueries({ queryKey: ["processos"] });
       queryClient.invalidateQueries({ queryKey: ["processo"] });
+      queryClient.invalidateQueries({ queryKey: ["pastas"] });
       form.reset();
+      setFiles([]);
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error saving process:", error);
@@ -428,15 +599,46 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <Tabs defaultValue="basico" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="basico">Dados Básicos</TabsTrigger>
                 <TabsTrigger value="tribunal">Tribunal</TabsTrigger>
                 <TabsTrigger value="partes">Partes</TabsTrigger>
                 <TabsTrigger value="contingencial">Contingencial</TabsTrigger>
+                <TabsTrigger value="documentos">Documentos</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basico" className="space-y-4 mt-4">
+                {/* Pasta field - Before processo number */}
+                <FormField
+                  control={form.control}
+                  name="pasta_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <FolderOpen className="w-4 h-4" />
+                        Pasta
+                      </FormLabel>
+                      <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a pasta" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhuma pasta</SelectItem>
+                          {pastas.map((pasta) => (
+                            <SelectItem key={pasta.id} value={pasta.id}>
+                              {pasta.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <div className="flex gap-2">
                   <FormField
                     control={form.control}
@@ -536,21 +738,37 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="classe"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Classe CNJ</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: Ação de Cobrança" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="classe"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Classe CNJ</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: Ação de Cobrança" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="natureza"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Natureza</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: Cível" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
                   <FormField
                     control={form.control}
                     name="data_distribuicao"
@@ -567,18 +785,46 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
                   <FormField
                     control={form.control}
-                    name="valor_causa"
+                    name="data_recebimento"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Valor da Causa</FormLabel>
+                        <FormLabel>Data de Recebimento</FormLabel>
                         <FormControl>
-                          <Input placeholder="R$ 0,00" {...field} />
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="data_citacao"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Data de Citação</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="valor_causa"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Valor da Causa</FormLabel>
+                      <FormControl>
+                        <Input placeholder="R$ 0,00" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
@@ -622,47 +868,165 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
               </TabsContent>
 
               <TabsContent value="tribunal" className="space-y-4 mt-4">
-                <FormField
-                  control={form.control}
-                  name="tribunal"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Órgão (Comarca / Tribunal)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: TJSP, TRT-2" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="tribunal"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tribunal</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: TJSP, TRT-2" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="vara"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Órgão Julgador (Vara / Câmara)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: 1ª Vara Cível" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="justica"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Justiça</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Estadual">Estadual</SelectItem>
+                            <SelectItem value="Federal">Federal</SelectItem>
+                            <SelectItem value="Trabalho">Trabalho</SelectItem>
+                            <SelectItem value="Eleitoral">Eleitoral</SelectItem>
+                            <SelectItem value="Militar">Militar</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="comarca"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cidade/Comarca</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: São Paulo" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="vara"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vara / Câmara</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: 1ª Vara Cível" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="instancia"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Instância</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="1ª Instância">1ª Instância</SelectItem>
+                            <SelectItem value="2ª Instância">2ª Instância</SelectItem>
+                            <SelectItem value="Instância Superior">Instância Superior</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="comarca"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cidade/Comarca</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: São Paulo" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="uf"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>UF</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: SP" maxLength={2} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="fase"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fase Processual</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Conhecimento">Conhecimento</SelectItem>
+                            <SelectItem value="Recursal">Recursal</SelectItem>
+                            <SelectItem value="Execução">Execução</SelectItem>
+                            <SelectItem value="Cumprimento de Sentença">Cumprimento de Sentença</SelectItem>
+                            <SelectItem value="Liquidação">Liquidação</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="esfera"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Esfera</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Judicial">Judicial</SelectItem>
+                            <SelectItem value="Extrajudicial">Extrajudicial</SelectItem>
+                            <SelectItem value="Administrativo">Administrativo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
@@ -751,10 +1115,38 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name="terceiro_envolvido"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Terceiros Envolvidos</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Nome(s) de terceiros envolvidos" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="pedidos"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pedidos</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Descreva os pedidos do processo" className="min-h-[100px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </TabsContent>
 
               <TabsContent value="contingencial" className="space-y-4 mt-4">
-                <p className="text-sm text-muted-foreground mb-4">Campos específicos para processos trabalhistas/contingenciais (opcionais)</p>
+                <p className="text-sm text-muted-foreground mb-4">Campos específicos para processos trabalhistas/contingenciais</p>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
@@ -829,10 +1221,49 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
                   <FormField
                     control={form.control}
+                    name="probabilidade"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Probabilidade</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Remota">Remota</SelectItem>
+                            <SelectItem value="Possível">Possível</SelectItem>
+                            <SelectItem value="Provável">Provável</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
                     name="valor_condenacao"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Valor da Condenação</FormLabel>
+                        <FormControl>
+                          <Input placeholder="R$ 0,00" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="valor_provisionado"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Valor Provisionado</FormLabel>
                         <FormControl>
                           <Input placeholder="R$ 0,00" {...field} />
                         </FormControl>
@@ -869,6 +1300,109 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name="reclamante"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Reclamante</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nome do reclamante" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="reclamados"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Reclamados</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Nome(s) dos reclamados" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value="documentos" className="space-y-4 mt-4">
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Anexe documentos relacionados ao processo. Os arquivos serão enviados ao salvar.
+                  </p>
+
+                  {/* File upload area */}
+                  <div 
+                    className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => document.getElementById("file-upload-input")?.click()}
+                  >
+                    <Upload className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-sm font-medium">Clique para selecionar arquivos</p>
+                    <p className="text-xs text-muted-foreground mt-1">ou arraste e solte aqui</p>
+                    <input
+                      id="file-upload-input"
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+
+                  {/* Selected files list */}
+                  {files.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Arquivos selecionados ({files.length}):</p>
+                      <div className="max-h-48 overflow-y-auto space-y-2">
+                        {files.map((file, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <FileText className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{file.name}</p>
+                                <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeFile(index);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Upload progress */}
+                  {isUploading && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Enviando documentos...</span>
+                        <span>{Math.round(uploadProgress)}%</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
 
@@ -876,8 +1410,8 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              <Button type="submit" disabled={loading || isUploading}>
+                {(loading || isUploading) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {isEditing ? "Salvar Alterações" : "Cadastrar Processo"}
               </Button>
             </DialogFooter>

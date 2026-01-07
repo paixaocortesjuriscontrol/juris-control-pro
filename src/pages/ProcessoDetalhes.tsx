@@ -313,6 +313,21 @@ export default function ProcessoDetalhes() {
     enabled: !!id,
   });
 
+  // Query para documentos do processo
+  const { data: documentosProcesso = [], refetch: refetchDocumentos } = useQuery({
+    queryKey: ["documentos-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("documentos")
+        .select("*, uploader:profiles!documentos_uploaded_by_fkey(id, nome)")
+        .eq("processo_id", id!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
   // Query para contar eventos de agenda vinculados ao processo
   const { data: eventosAgenda = [] } = useQuery({
     queryKey: ["eventos-agenda-processo-count", id],
@@ -1136,7 +1151,7 @@ export default function ProcessoDetalhes() {
 
         {/* Tabs de Eventos */}
         <Tabs value={activeTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-8 sm:w-auto sm:inline-flex">
+          <TabsList className="grid w-full grid-cols-9 sm:w-auto sm:inline-flex">
               <TabsTrigger 
                 value="audiencias" 
                 className="gap-1.5"
@@ -1177,6 +1192,20 @@ export default function ProcessoDetalhes() {
                 <span className="hidden sm:inline">Tarefas</span>
                 {tarefas.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.length}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="documentos" 
+                className="gap-1.5"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(prev => prev === "documentos" ? "" : "documentos");
+                }}
+              >
+                <FileBox className="w-4 h-4" />
+                <span className="hidden sm:inline">Pasta</span>
+                {documentosProcesso.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{documentosProcesso.length}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger 
