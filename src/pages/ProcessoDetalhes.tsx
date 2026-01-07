@@ -1489,7 +1489,7 @@ export default function ProcessoDetalhes() {
                                       )}
                                     </div>
 
-                                    {/* Deadline highlight */}
+                                    {/* Deadline and dates */}
                                     <div className="flex items-center gap-4 text-sm flex-wrap">
                                       {int.data_limite && (
                                         <div className="flex items-center gap-2 bg-destructive/10 px-3 py-1.5 rounded-lg">
@@ -1497,10 +1497,10 @@ export default function ProcessoDetalhes() {
                                           <span className="font-bold text-destructive text-lg">Prazo: {formatDate(int.data_limite)}</span>
                                         </div>
                                       )}
-                                      {int.processo_numero && (
+                                      {int.data_intimacao && (
                                         <div className="flex items-center gap-1 text-muted-foreground">
-                                          <FileText className="h-4 w-4" />
-                                          <span className="font-mono">{int.processo_numero}</span>
+                                          <Calendar className="h-4 w-4" />
+                                          <span>Intimado em: {formatDate(int.data_intimacao)}</span>
                                         </div>
                                       )}
                                       {int.prazo_dias && (
@@ -1521,8 +1521,15 @@ export default function ProcessoDetalhes() {
 
                                     {/* Description */}
                                     {int.descricao && (
-                                      <p className="text-sm text-muted-foreground line-clamp-2">
+                                      <p className="text-sm font-medium line-clamp-2">
                                         {int.descricao}
+                                      </p>
+                                    )}
+
+                                    {/* Contexto preview */}
+                                    {int.contexto && !int.descricao && (
+                                      <p className="text-sm text-muted-foreground line-clamp-2">
+                                        {int.contexto}
                                       </p>
                                     )}
                                   </div>
