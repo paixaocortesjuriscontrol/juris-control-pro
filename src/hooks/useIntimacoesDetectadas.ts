@@ -7,8 +7,9 @@ export interface IntimacaoDetectada {
   processo_numero: string | null;
   processo_id: string | null;
   movimentacao_id: string | null;
-  data_intimacao: string | null;
-  data_limite: string | null;
+  data_disponibilizacao: string | null; // Data que o DJEN publicou
+  data_intimacao: string | null; // Primeiro dia útil seguinte (publicação oficial)
+  data_limite: string | null; // Prazo final
   tipo_intimacao: string | null;
   orgao_intimante: string | null;
   descricao: string | null;
@@ -23,6 +24,7 @@ export interface IntimacaoDetectada {
   tratado_em: string | null;
   origem: string | null;
   criado_por: string | null;
+  hash_dedup: string | null;
   created_at: string;
   updated_at: string;
 }
