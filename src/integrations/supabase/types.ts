@@ -2874,6 +2874,10 @@ export type Database = {
           nome: string
         }[]
       }
+      subtrair_dias_uteis: {
+        Args: { data_base: string; dias_uteis_subtrair: number }
+        Returns: string
+      }
     }
     Enums: {
       app_role:
