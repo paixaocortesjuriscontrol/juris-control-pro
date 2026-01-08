@@ -456,10 +456,17 @@ export default function PainelIntimacoes() {
                               </div>
                             )}
 
+                            {intimacao.data_disponibilizacao && (
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <CalendarDays className="h-4 w-4" />
+                                <span>Disp.: {formatDate(intimacao.data_disponibilizacao)}</span>
+                              </div>
+                            )}
+
                             {intimacao.data_intimacao && (
                               <div className="flex items-center gap-1 text-muted-foreground">
                                 <Calendar className="h-4 w-4" />
-                                <span>Intimação: {formatDate(intimacao.data_intimacao)}</span>
+                                <span>Pub.: {formatDate(intimacao.data_intimacao)}</span>
                               </div>
                             )}
                             
@@ -473,7 +480,7 @@ export default function PainelIntimacoes() {
                             {intimacao.prazo_dias && (
                               <div className="flex items-center gap-1 text-muted-foreground">
                                 <Clock className="h-4 w-4" />
-                                <span>{intimacao.prazo_dias} dias</span>
+                                <span>{intimacao.prazo_dias} dias úteis</span>
                               </div>
                             )}
                           </div>
@@ -723,17 +730,31 @@ export default function PainelIntimacoes() {
                   <p className="font-medium">{selectedIntimacao.processo_numero || "Não informado"}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Data da Intimação</p>
-                  <p className="font-medium">{formatDate(selectedIntimacao.data_intimacao)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Data Limite</p>
-                  <p className="font-medium text-primary">{formatDate(selectedIntimacao.data_limite)}</p>
-                </div>
-                <div>
                   <p className="text-muted-foreground">Prazo</p>
-                  <p className="font-medium">{selectedIntimacao.prazo_dias ? `${selectedIntimacao.prazo_dias} dias` : "Não informado"}</p>
+                  <p className="font-medium">{selectedIntimacao.prazo_dias ? `${selectedIntimacao.prazo_dias} dias úteis` : "Não informado"}</p>
                 </div>
+                
+                <div className="col-span-2 bg-muted/30 p-3 rounded-lg space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Datas</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">📅 Disponibilização</p>
+                      <p className="font-medium text-sm">{formatDate(selectedIntimacao.data_disponibilizacao)}</p>
+                      <p className="text-xs text-muted-foreground">Quando o DJEN lançou</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">📰 Publicação</p>
+                      <p className="font-medium text-sm">{formatDate(selectedIntimacao.data_intimacao)}</p>
+                      <p className="text-xs text-muted-foreground">1º dia útil seguinte</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">⏰ Data Limite</p>
+                      <p className="font-medium text-sm text-primary">{formatDate(selectedIntimacao.data_limite)}</p>
+                      <p className="text-xs text-muted-foreground">Pub + {selectedIntimacao.prazo_dias || '?'} dias úteis</p>
+                    </div>
+                  </div>
+                </div>
+                
                 <div className="col-span-2">
                   <p className="text-muted-foreground">Órgão Intimante</p>
                   <p className="font-medium">{selectedIntimacao.orgao_intimante || "Não informado"}</p>
