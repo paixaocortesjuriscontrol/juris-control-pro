@@ -124,11 +124,64 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
 interface IntimacaoInfo {
   tipoIntimacao: string | null;
   prazoDias: number | null;
-  dataLimite: string | null;
   contexto: string;
+  hashDedup: string;
 }
 
-function detectIntimacao(conteudo: string): IntimacaoInfo | null {
+// Calcular primeiro dia útil considerando recesso forense (20/dez a 6/jan)
+function calcularPrimeiroDiaUtil(dataBase: Date, diasUteisAdicionar: number = 0): Date {
+  const resultado = new Date(dataBase);
+  
+  // Função para verificar se está no recesso
+  const estaNoRecesso = (d: Date): boolean => {
+    const mes = d.getMonth(); // 0-11
+    const dia = d.getDate();
+    return (mes === 11 && dia >= 20) || (mes === 0 && dia <= 6);
+  };
+  
+  // Função para avançar para próximo dia útil
+  const proximoDiaUtil = (d: Date): Date => {
+    while (d.getDay() === 0 || d.getDay() === 6) {
+      d.setDate(d.getDate() + 1);
+    }
+    if (estaNoRecesso(d)) {
+      d.setMonth(0); // Janeiro
+      d.setDate(7);
+      if (d.getMonth() === 11) d.setFullYear(d.getFullYear() + 1);
+      while (d.getDay() === 0 || d.getDay() === 6) {
+        d.setDate(d.getDate() + 1);
+      }
+    }
+    return d;
+  };
+  
+  // Ajustar data base para dia útil
+  proximoDiaUtil(resultado);
+  
+  // Adicionar dias úteis
+  let contador = 0;
+  while (contador < diasUteisAdicionar) {
+    resultado.setDate(resultado.getDate() + 1);
+    proximoDiaUtil(resultado);
+    contador++;
+  }
+  
+  return resultado;
+}
+
+// Gerar hash MD5 simples para deduplicação
+function generateDedupHash(processoNumero: string, tipoIntimacao: string, conteudo: string): string {
+  const str = `${processoNumero}|${tipoIntimacao}|${conteudo.slice(0, 500)}`;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16).padStart(8, '0');
+}
+
+function detectIntimacao(conteudo: string, processoNumero: string): IntimacaoInfo | null {
   const conteudoLower = conteudo.toLowerCase();
   
   const intimacaoTerms = ['intimação', 'intimacao', 'intima-se', 'fica intimado', 'prazo de'];
@@ -157,13 +210,6 @@ function detectIntimacao(conteudo: string): IntimacaoInfo | null {
     }
   }
   
-  let dataLimite: string | null = null;
-  if (prazoDias) {
-    const hoje = new Date();
-    hoje.setDate(hoje.getDate() + prazoDias);
-    dataLimite = hoje.toISOString().split('T')[0];
-  }
-  
   let tipoIntimacao: string | null = null;
   if (conteudoLower.includes('manifestar')) tipoIntimacao = 'Manifestação';
   else if (conteudoLower.includes('recurso')) tipoIntimacao = 'Recurso';
@@ -172,7 +218,9 @@ function detectIntimacao(conteudo: string): IntimacaoInfo | null {
   else if (conteudoLower.includes('cumprimento')) tipoIntimacao = 'Cumprimento de Sentença';
   else tipoIntimacao = 'Intimação';
   
-  return { tipoIntimacao, prazoDias, dataLimite, contexto };
+  const hashDedup = generateDedupHash(processoNumero, tipoIntimacao || '', conteudo);
+  
+  return { tipoIntimacao, prazoDias, contexto, hashDedup };
 }
 
 // Fast single-request search per process
@@ -322,19 +370,37 @@ async function processProcessosBatch(
           }).then(() => {});
         }
 
-        const intimacaoInfo = detectIntimacao(conteudo);
+        const intimacaoInfo = detectIntimacao(conteudo, processo.numero);
         if (intimacaoInfo) {
-          supabase.from('intimacoes_detectadas').insert({
-            processo_id: processo.id,
-            processo_numero: processo.numero,
-            tipo_intimacao: intimacaoInfo.tipoIntimacao,
-            prazo_dias: intimacaoInfo.prazoDias,
-            data_limite: intimacaoInfo.dataLimite,
-            contexto: intimacaoInfo.contexto,
-            conteudo_publicacao: conteudo,
-            origem: 'monitoramento_djen_processos',
-            status: 'pendente',
-          }).then(() => {});
+          // Calcular datas corretamente
+          // data_disponibilizacao = data da API (quando foi publicado no DJEN)
+          // data_intimacao = primeiro dia útil seguinte (considerando recesso)
+          const dataDisponibilizacao = dataPublicacao ? new Date(dataPublicacao) : new Date();
+          const dataIntimacao = calcularPrimeiroDiaUtil(new Date(dataDisponibilizacao.getTime() + 86400000)); // +1 dia
+          
+          let dataLimite: string | null = null;
+          if (intimacaoInfo.prazoDias) {
+            const limite = calcularPrimeiroDiaUtil(dataIntimacao, intimacaoInfo.prazoDias);
+            dataLimite = limite.toISOString().split('T')[0];
+          }
+          
+          // Usar upsert com hash_dedup para evitar duplicatas
+          supabase.from('intimacoes_detectadas')
+            .upsert({
+              processo_id: processo.id,
+              processo_numero: processo.numero,
+              tipo_intimacao: intimacaoInfo.tipoIntimacao,
+              prazo_dias: intimacaoInfo.prazoDias,
+              data_disponibilizacao: dataDisponibilizacao.toISOString(),
+              data_intimacao: dataIntimacao.toISOString(),
+              data_limite: dataLimite,
+              contexto: intimacaoInfo.contexto,
+              conteudo_publicacao: conteudo,
+              origem: 'monitoramento_djen_processos',
+              status: 'pendente',
+              hash_dedup: intimacaoInfo.hashDedup,
+            }, { onConflict: 'hash_dedup', ignoreDuplicates: true })
+            .then(() => {});
         }
       }
 

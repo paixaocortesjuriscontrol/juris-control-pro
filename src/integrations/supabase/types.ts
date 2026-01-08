@@ -1122,9 +1122,11 @@ export type Database = {
           contexto: string | null
           created_at: string
           criado_por: string | null
+          data_disponibilizacao: string | null
           data_intimacao: string | null
           data_limite: string | null
           descricao: string | null
+          hash_dedup: string | null
           id: string
           movimentacao_id: string | null
           observacoes: string | null
@@ -1146,9 +1148,11 @@ export type Database = {
           contexto?: string | null
           created_at?: string
           criado_por?: string | null
+          data_disponibilizacao?: string | null
           data_intimacao?: string | null
           data_limite?: string | null
           descricao?: string | null
+          hash_dedup?: string | null
           id?: string
           movimentacao_id?: string | null
           observacoes?: string | null
@@ -1170,9 +1174,11 @@ export type Database = {
           contexto?: string | null
           created_at?: string
           criado_por?: string | null
+          data_disponibilizacao?: string | null
           data_intimacao?: string | null
           data_limite?: string | null
           descricao?: string | null
+          hash_dedup?: string | null
           id?: string
           movimentacao_id?: string | null
           observacoes?: string | null
@@ -2741,6 +2747,10 @@ export type Database = {
       }
     }
     Functions: {
+      calcular_primeiro_dia_util: {
+        Args: { data_base: string; dias_uteis_adicionar?: number }
+        Returns: string
+      }
       can_access_evento: {
         Args: { _evento_id: string; _user_id: string }
         Returns: boolean
