@@ -470,11 +470,16 @@ async function processMonitoramento(
 async function fetchDJENResultsWithStats(
   params: SearchParams
 ): Promise<{ items: any[]; pages: number }> {
-  // IMPORTANT:
-  // PJe Comunica sometimes "shifts" the disponibilização date vs. what users see in the Diário (and also has timezone effects).
-  // To avoid missing publications, we search in a small rolling window (last 3 UTC days).
-  const endDate = new Date().toISOString().split('T')[0];
-  const startDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Use only TODAY in Brasilia timezone (UTC-3) to avoid duplicates and excessive data.
+  // The nomeAdvogado parameter now correctly finds publications, so we don't need the 3-day window.
+  const now = new Date();
+  // Adjust to Brasilia timezone (UTC-3)
+  const brasiliaOffset = -3 * 60 * 60 * 1000;
+  const brasiliaTime = new Date(now.getTime() + brasiliaOffset + now.getTimezoneOffset() * 60 * 1000);
+  const todayBrasilia = brasiliaTime.toISOString().split('T')[0];
+  
+  const startDate = todayBrasilia;
+  const endDate = todayBrasilia;
 
   const allResults: any[] = [];
   let page = 0;
