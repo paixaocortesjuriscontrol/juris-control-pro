@@ -8,7 +8,8 @@ const corsHeaders = {
 };
 
 interface ConviteRequest {
-  clienteId: string;
+  clienteId?: string;
+  cliente_id?: string;
   email: string;
 }
 
@@ -56,7 +57,10 @@ serve(async (req) => {
       throw new Error("Apenas administradores podem enviar convites");
     }
 
-    const { clienteId, email }: ConviteRequest = await req.json();
+    const body: ConviteRequest = await req.json();
+    // Accept both camelCase and snake_case
+    const clienteId = body.clienteId || body.cliente_id;
+    const email = body.email;
 
     if (!clienteId || !email) {
       throw new Error("clienteId e email são obrigatórios");
