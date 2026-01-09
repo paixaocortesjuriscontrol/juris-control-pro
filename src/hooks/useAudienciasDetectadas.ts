@@ -86,7 +86,54 @@ interface AudienciasFiltros {
 export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
   const queryClient = useQueryClient();
 
-  // Buscar audiências
+  // Stats via COUNT no banco (sem limite)
+  const { data: statsData } = useQuery({
+    queryKey: ['audiencias-stats', filtros.coordenacaoId],
+    queryFn: async () => {
+      const coordAtiva = filtros.coordenacaoId && filtros.coordenacaoId !== 'todas';
+      
+      let processosIds: string[] | null = null;
+      if (coordAtiva) {
+        const { data: processosCoord } = await supabase
+          .from('processos')
+          .select('id')
+          .eq('coordenacao_id', filtros.coordenacaoId as string);
+        processosIds = (processosCoord || []).map(p => p.id);
+        if (processosIds.length === 0) {
+          return { pendentes: 0, tratadas: 0, ignoradas: 0, proximas: 0 };
+        }
+      }
+
+      // Build base query helper
+      const buildQuery = (status?: string) => {
+        let q = supabase.from('audiencias_detectadas').select('*', { count: 'exact', head: true });
+        if (status) q = q.eq('status', status);
+        if (processosIds) q = q.in('processo_id', processosIds);
+        return q;
+      };
+
+      const hoje = new Date().toISOString().split('T')[0];
+      const em7Dias = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const [pendentesRes, tratadasRes, ignoradasRes, proximasRes] = await Promise.all([
+        buildQuery('pendente'),
+        buildQuery('tratado'),
+        buildQuery('ignorado'),
+        // Próximas: pendente E data_audiencia entre hoje e 7 dias
+        buildQuery('pendente').gte('data_audiencia', hoje).lte('data_audiencia', em7Dias),
+      ]);
+
+      return {
+        pendentes: pendentesRes.count || 0,
+        tratadas: tratadasRes.count || 0,
+        ignoradas: ignoradasRes.count || 0,
+        proximas: proximasRes.count || 0,
+      };
+    },
+    staleTime: 30000,
+  });
+
+  // Buscar audiências com paginação para a lista
   const { data: audiencias = [], isLoading } = useQuery({
     queryKey: ['audiencias-detectadas', filtros],
     queryFn: async () => {
@@ -127,11 +174,21 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
         query = query.lte('data_audiencia', filtros.dataFim);
       }
 
-      const { data, error } = await query.limit(500);
+      // Paginar em lotes de 1000 para evitar limite
+      const PAGE_SIZE = 1000;
+      const MAX_PAGES = 10;
+      const allData: any[] = [];
 
-      if (error) throw error;
-      
-      let result = data as AudienciaDetectada[];
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        const { data: pageData, error } = await query.range(from, to);
+        if (error) throw error;
+        allData.push(...(pageData || []));
+        if (!pageData || pageData.length < PAGE_SIZE) break;
+      }
+
+      let result = allData as AudienciaDetectada[];
       
       // Filtro de coordenação: por processo_id OU processo_numero
       if (processosIdsFiltro && processosNumerosFiltro) {
@@ -322,19 +379,11 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
     },
   });
 
-  // Estatísticas
-  const pendentes = audiencias.filter(a => a.status === 'pendente').length;
-  const tratadas = audiencias.filter(a => a.status === 'tratado').length;
-  const ignoradas = audiencias.filter(a => a.status === 'ignorado').length;
-  
-  // Audiências próximas (nos próximos 7 dias)
-  const hoje = new Date();
-  const em7Dias = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const proximas = audiencias.filter(a => {
-    if (!a.data_audiencia || a.status !== 'pendente') return false;
-    const dataAud = new Date(a.data_audiencia);
-    return dataAud >= hoje && dataAud <= em7Dias;
-  }).length;
+  // Estatísticas via COUNT no banco
+  const pendentes = statsData?.pendentes ?? 0;
+  const tratadas = statsData?.tratadas ?? 0;
+  const ignoradas = statsData?.ignoradas ?? 0;
+  const proximas = statsData?.proximas ?? 0;
 
   return {
     audiencias,
