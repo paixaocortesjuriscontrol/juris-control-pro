@@ -272,7 +272,8 @@ export default function CentralDelegacao() {
       }
       // Se isAdminOrCoordinator e coordenacaoId === "todas", não aplica filtro - mostra todas as tarefas que o RLS permite
 
-      if (statusFiltro === "pendente") {
+      if (statusFiltro === "pendente" || statusFiltro === "atrasado") {
+        // Atrasado = pendente com data_vencimento < hoje (filtrado após busca)
         tarefasQuery = tarefasQuery.eq("status", "pendente");
       } else if (statusFiltro === "cumprido") {
         tarefasQuery = tarefasQuery.eq("status", "cumprido");
