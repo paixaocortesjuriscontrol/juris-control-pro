@@ -25,6 +25,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   ArrowLeft, 
@@ -39,7 +49,8 @@ import {
   Loader2,
   Clock,
   CheckCircle,
-  XCircle
+  XCircle,
+  Trash2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -65,7 +76,8 @@ export default function ClienteDetalhes() {
   const queryClient = useQueryClient();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [conviteToDelete, setConviteToDelete] = useState<{ id: string; email: string } | null>(null);
   const { data: cliente, isLoading: loadingCliente } = useQuery({
     queryKey: ["cliente", id],
     queryFn: async () => {
@@ -144,12 +156,44 @@ export default function ClienteDetalhes() {
     },
   });
 
+  // Delete invitation mutation
+  const deleteInviteMutation = useMutation({
+    mutationFn: async (conviteId: string) => {
+      const { error } = await supabase
+        .from("convites_cliente")
+        .delete()
+        .eq("id", conviteId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Convite excluído com sucesso!");
+      setDeleteDialogOpen(false);
+      setConviteToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ["convites-cliente", id] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao excluir convite: ${error.message}`);
+    },
+  });
+
   const handleSendInvite = () => {
     if (!inviteEmail.trim()) {
       toast.error("Informe o email do cliente");
       return;
     }
     sendInviteMutation.mutate(inviteEmail.trim());
+  };
+
+  const handleDeleteInvite = (convite: { id: string; email: string }) => {
+    setConviteToDelete(convite);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteInvite = () => {
+    if (conviteToDelete) {
+      deleteInviteMutation.mutate(conviteToDelete.id);
+    }
   };
 
   const formatDate = (dateString: string | null) => {
@@ -263,15 +307,28 @@ export default function ClienteDetalhes() {
                   {convites.length > 0 && (
                     <div className="space-y-2">
                       <Label>Convites Anteriores</Label>
-                      <div className="border rounded-md divide-y max-h-32 overflow-y-auto">
-                        {convites.slice(0, 5).map((convite) => (
-                          <div key={convite.id} className="p-2 text-sm flex items-center justify-between">
-                            <span className="truncate">{convite.email}</span>
-                            <div className="flex items-center gap-1">
-                              {getStatusIcon(convite.status || "pendente")}
-                              <span className="text-muted-foreground">
-                                {getStatusLabel(convite.status || "pendente")}
-                              </span>
+                      <div className="border rounded-md divide-y max-h-40 overflow-y-auto">
+                        {convites.slice(0, 10).map((convite) => (
+                          <div key={convite.id} className="p-2 text-sm flex items-center justify-between gap-2">
+                            <span className="truncate flex-1">{convite.email}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                {getStatusIcon(convite.status || "pendente")}
+                                <span className="text-muted-foreground text-xs">
+                                  {getStatusLabel(convite.status || "pendente")}
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteInvite({ id: convite.id, email: convite.email });
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
                           </div>
                         ))}
@@ -290,6 +347,35 @@ export default function ClienteDetalhes() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir Convite</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tem certeza que deseja excluir o convite enviado para{" "}
+                    <strong>{conviteToDelete?.email}</strong>? 
+                    Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setConviteToDelete(null)}>
+                    Cancelar
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={confirmDeleteInvite}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    disabled={deleteInviteMutation.isPending}
+                  >
+                    {deleteInviteMutation.isPending && (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    )}
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
