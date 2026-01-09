@@ -583,9 +583,9 @@ export default function CentralDelegacao() {
           <Card
             className={cn(
               "cursor-pointer hover:border-primary/50 transition-colors",
-              statusFiltro === "todos" && "ring-1 ring-primary/30 border-primary/40"
+              statusFiltro === "todos" && "border-primary ring-1 ring-primary"
             )}
-            onClick={() => setStatusFiltro("todos")}
+            onClick={() => { setStatusFiltro("todos"); setPrioridadeFiltro("todas"); setSearch(""); }}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
@@ -603,9 +603,9 @@ export default function CentralDelegacao() {
           <Card
             className={cn(
               "cursor-pointer hover:border-blue-500/50 transition-colors",
-              statusFiltro === "pendente" && "ring-1 ring-primary/30 border-primary/40"
+              statusFiltro === "pendente" && "border-primary ring-1 ring-primary"
             )}
-            onClick={() => setStatusFiltro((prev) => (prev === "pendente" ? "todos" : "pendente"))}
+            onClick={() => { setStatusFiltro("pendente"); setPrioridadeFiltro("todas"); setSearch(""); }}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
@@ -623,9 +623,9 @@ export default function CentralDelegacao() {
           <Card
             className={cn(
               "cursor-pointer hover:border-red-500/50 transition-colors",
-              statusFiltro === "atrasado" && "ring-1 ring-primary/30 border-primary/40"
+              statusFiltro === "atrasado" && "border-primary ring-1 ring-primary"
             )}
-            onClick={() => setStatusFiltro((prev) => (prev === "atrasado" ? "todos" : "atrasado"))}
+            onClick={() => { setStatusFiltro("atrasado"); setPrioridadeFiltro("todas"); setSearch(""); }}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
@@ -643,9 +643,9 @@ export default function CentralDelegacao() {
           <Card
             className={cn(
               "cursor-pointer hover:border-green-500/50 transition-colors",
-              statusFiltro === "cumprido" && "ring-1 ring-primary/30 border-primary/40"
+              statusFiltro === "cumprido" && "border-primary ring-1 ring-primary"
             )}
-            onClick={() => setStatusFiltro((prev) => (prev === "cumprido" ? "todos" : "cumprido"))}
+            onClick={() => { setStatusFiltro("cumprido"); setPrioridadeFiltro("todas"); setSearch(""); }}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
