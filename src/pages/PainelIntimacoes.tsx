@@ -382,7 +382,7 @@ export default function PainelIntimacoes() {
               />
             </div>
             <Select value={coordenacaoFilter || ""} onValueChange={setCoordenacaoFilter}>
-              <SelectTrigger className="w-full md:w-[220px]">
+              <SelectTrigger className="w-full md:w-[280px]">
                 <Users className="h-4 w-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Coordenação" />
               </SelectTrigger>

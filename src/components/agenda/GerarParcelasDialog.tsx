@@ -578,7 +578,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 <>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Select value={coordenacaoProcessoFiltro} onValueChange={setCoordenacaoProcessoFiltro}>
-                      <SelectTrigger className="w-full sm:w-48">
+                      <SelectTrigger className="w-full sm:w-72">
                         <SelectValue placeholder="Filtrar por coordenação" />
                       </SelectTrigger>
                       <SelectContent>
@@ -655,7 +655,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               
               <div className="flex flex-col sm:flex-row gap-2">
                 <Select value={coordenacaoFiltro} onValueChange={setCoordenacaoFiltro}>
-                  <SelectTrigger className="w-full sm:w-48">
+                  <SelectTrigger className="w-full sm:w-72">
                     <SelectValue placeholder="Filtrar por coordenação" />
                   </SelectTrigger>
                   <SelectContent>
