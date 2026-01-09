@@ -232,55 +232,94 @@ export default function CentralDelegacao() {
     return range;
   }, [TIME_ZONE, periodoFiltro]);
 
-  // Fetch atividades (tarefas/prazos + eventos)
-  const { data: atividades, isLoading: loadingAtividades } = useQuery({
-    queryKey: ["atividades-delegacao", coordenacaoId, membroId, tipoAtividade, statusFiltro, prioridadeFiltro, periodoFiltro, ordenacao, membros, user?.id, isAdminOrCoordinator],
-    queryFn: async () => {
+  // Fetch atividades (tarefas) - paginado (Carregar mais) para evitar travamentos
+  const PAGE_SIZE = 100;
+
+  const {
+    data: atividadesPages,
+    isLoading: loadingAtividades,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: [
+      "atividades-delegacao",
+      coordenacaoId,
+      membroId,
+      tipoAtividade,
+      statusFiltro,
+      prioridadeFiltro,
+      periodoFiltro,
+      ordenacao,
+      membros,
+      user?.id,
+      isAdminOrCoordinator,
+      getDateRange,
+    ],
+    queryFn: async ({ pageParam }) => {
+      const page = typeof pageParam === "number" ? pageParam : 0;
+
       // Se uma coordenação está selecionada, pegar os IDs dos membros dela
       const membrosDaCoordenacao = coordenacaoId !== "todas" && membros
         ? membros.map((m) => m.usuario_id)
         : null;
 
-      // Fetch tarefas
       let tarefasQuery = supabase
         .from("tarefas")
-        .select(`
-          id,
-          titulo,
-          descricao,
-          data_vencimento,
-          data_fatal,
-          prioridade,
-          status,
-          tipo_tarefa,
-          created_at,
-          criado_por,
-          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome, email),
-          processo:processos!tarefas_processo_id_fkey(id, numero, polo_ativo, coordenacao_id, cliente:clientes!processos_cliente_id_fkey(id, nome))
-        `);
+        .select(
+          `
+            id,
+            titulo,
+            descricao,
+            data_vencimento,
+            data_fatal,
+            prioridade,
+            status,
+            tipo_tarefa,
+            created_at,
+            criado_por,
+            responsavel:profiles!tarefas_responsavel_id_fkey(id, nome, email),
+            processo:processos!tarefas_processo_id_fkey(id, numero, polo_ativo, coordenacao_id, cliente:clientes!processos_cliente_id_fkey(id, nome))
+          `
+        );
 
       // Aplicar filtro de responsável baseado em role
       if (membroId !== "todos") {
-        // Filtro específico por membro selecionado no dropdown
         tarefasQuery = tarefasQuery.eq("responsavel_id", membroId);
       } else if (!isAdminOrCoordinator && user?.id) {
-        // Usuário comum: ver apenas suas próprias tarefas
         tarefasQuery = tarefasQuery.eq("responsavel_id", user.id);
-      } else if (isAdminOrCoordinator && coordenacaoId !== "todas" && membrosDaCoordenacao && membrosDaCoordenacao.length > 0) {
-        // Admin/Coordenador com coordenação específica selecionada: filtrar por membros dessa coordenação
+      } else if (
+        isAdminOrCoordinator &&
+        coordenacaoId !== "todas" &&
+        membrosDaCoordenacao &&
+        membrosDaCoordenacao.length > 0
+      ) {
         tarefasQuery = tarefasQuery.in("responsavel_id", membrosDaCoordenacao);
       }
-      // Se isAdminOrCoordinator e coordenacaoId === "todas", não aplica filtro - mostra todas as tarefas que o RLS permite
 
-      if (statusFiltro === "pendente" || statusFiltro === "atrasado") {
-        // Atrasado = pendente com data_vencimento < hoje (filtrado após busca)
+      const hojeBrtStr = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
+
+      // Status
+      if (statusFiltro === "pendente") {
         tarefasQuery = tarefasQuery.eq("status", "pendente");
       } else if (statusFiltro === "cumprido") {
         tarefasQuery = tarefasQuery.eq("status", "cumprido");
+      } else if (statusFiltro === "atrasado") {
+        // Já filtra atrasadas no banco para reduzir carga no client
+        tarefasQuery = tarefasQuery.eq("status", "pendente").lt("data_vencimento", hojeBrtStr);
       }
 
+      // Prioridade
       if (prioridadeFiltro !== "todas" && ["baixa", "media", "alta", "urgente"].includes(prioridadeFiltro)) {
         tarefasQuery = tarefasQuery.eq("prioridade", prioridadeFiltro as "baixa" | "media" | "alta" | "urgente");
+      }
+
+      // Período (no banco; vencimento OU fatal)
+      if (getDateRange) {
+        const { inicio, fim } = getDateRange;
+        tarefasQuery = tarefasQuery.or(
+          `and(data_vencimento.gte.${inicio},data_vencimento.lte.${fim}),and(data_fatal.gte.${inicio},data_fatal.lte.${fim})`
+        );
       }
 
       // Ordenação
@@ -292,61 +331,14 @@ export default function CentralDelegacao() {
         tarefasQuery = tarefasQuery.order("prioridade", { ascending: false });
       }
 
-      // Supabase/PostgREST costuma limitar 1000 linhas por request; buscamos em páginas via range.
-      const PAGE_SIZE = 1000;
-      const MAX_PAGES = 20; // até 20k registros
-      const tarefasAll: any[] = [];
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-      for (let page = 0; page < MAX_PAGES; page++) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
+      const { data: pageData, error: pageError } = await tarefasQuery.range(from, to);
+      if (pageError) throw pageError;
 
-        const { data: pageData, error: pageError } = await tarefasQuery.range(from, to);
-        if (pageError) throw pageError;
-
-        tarefasAll.push(...(pageData || []));
-
-        if (!pageData || pageData.length < PAGE_SIZE) break;
-      }
-
-      const tarefas = tarefasAll;
-
-      // Apply period filter on data_vencimento OR data_fatal (comparação por DATA em BRT)
-      let filteredByPeriod = tarefas || [];
-      if (getDateRange) {
-        const inicio = getDateRange.inicio;
-        const fim = getDateRange.fim;
-
-        const normalizeToBrtDateStr = (value?: string | null) => {
-          if (!value) return null;
-          // Se vier timestamp, normaliza para data em BRT
-          if (value.includes("T")) {
-            return format(toZonedTime(new Date(value), TIME_ZONE), "yyyy-MM-dd");
-          }
-          // Se vier só data (YYYY-MM-DD), já está no formato correto
-          return value.slice(0, 10);
-        };
-
-        filteredByPeriod = filteredByPeriod.filter((t: any) => {
-          const vencStr = normalizeToBrtDateStr(t.data_vencimento);
-          const fatalStr = normalizeToBrtDateStr(t.data_fatal);
-
-          const vencNoPeriodo = !!vencStr && vencStr >= inicio && vencStr <= fim;
-          const fatalNoPeriodo = !!fatalStr && fatalStr >= inicio && fatalStr <= fim;
-
-          return vencNoPeriodo || fatalNoPeriodo;
-        });
-      }
-
-      // Importante:
-      // Quando uma coordenação é selecionada, a query já filtra por responsáveis que são membros
-      // dessa coordenação (via `membrosDaCoordenacao`).
-      // Portanto, NÃO filtramos novamente por `processo.coordenacao_id` aqui, pois isso pode
-      // esconder tarefas do membro vinculadas a processos de outras coordenações.
-
-      // Mark atrasados (por DATA em BRT)
-      const hojeBrtStr = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
-      const tarefasProcessadas = filteredByPeriod.map((p: any) => {
+      // Marcar atrasado (por DATA em BRT) apenas para UI (borda/vermelho)
+      const tarefasProcessadas = (pageData || []).map((p: any) => {
         const vencStr = p.data_vencimento
           ? (p.data_vencimento.includes("T")
               ? format(toZonedTime(new Date(p.data_vencimento), TIME_ZONE), "yyyy-MM-dd")
@@ -361,14 +353,19 @@ export default function CentralDelegacao() {
         };
       });
 
-      // Filter atrasados if needed
-      if (statusFiltro === "atrasado") {
-        return tarefasProcessadas.filter((p: any) => p.isAtrasado);
-      }
-
       return tarefasProcessadas;
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage) return undefined;
+      return lastPage.length === PAGE_SIZE ? allPages.length : undefined;
+    },
+    enabled: !!user?.id,
   });
+
+  const atividades = useMemo(() => {
+    return (atividadesPages?.pages?.flat() || []) as any[];
+  }, [atividadesPages]);
 
   // Stats via COUNT no banco (sem limite de registros)
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -940,7 +937,7 @@ export default function CentralDelegacao() {
                           onClick={() => setSelectedTarefaId(atividade.id)}
                         >
                           <div className="pt-1 hidden sm:block">
-                            <Checkbox 
+                            <Checkbox
                               checked={selectedItems.includes(atividade.id)}
                               onCheckedChange={() => toggleSelectItem(atividade.id)}
                               onClick={(e) => e.stopPropagation()}
@@ -1011,15 +1008,33 @@ export default function CentralDelegacao() {
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[10px] sm:text-xs">
-                                {getDiasRestantes(atividade)}
-                              </div>
+                              <div className="text-[10px] sm:text-xs">{getDiasRestantes(atividade)}</div>
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
                   </ScrollArea>
+
+                  {hasNextPage && (
+                    <div className="p-3 border-t flex items-center justify-center">
+                      <Button
+                        variant="outline"
+                        onClick={() => fetchNextPage()}
+                        disabled={isFetchingNextPage}
+                        className="min-w-[160px]"
+                      >
+                        {isFetchingNextPage ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Carregando...
+                          </>
+                        ) : (
+                          "Carregar mais"
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 )}
               </CardContent>
             </Card>
