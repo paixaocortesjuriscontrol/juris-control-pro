@@ -97,11 +97,27 @@ SELECT cron.schedule(
   );
   $$
 );
+-- =============================================
+-- 4. PROCESSAR ALERTAS DJEN COORDENAÇÃO
+-- Executa a cada minuto para verificar horários configurados
+-- =============================================
+
+SELECT cron.schedule(
+  'processar-alertas-djen-coordenacao',
+  '* * * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/processar-alertas-djen-coordenacao',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
+    body := '{}'::jsonb
+  );
+  $$
+);
 
 -- =============================================
 -- VERIFICAR JOBS CONFIGURADOS
 -- =============================================
 SELECT jobid, jobname, schedule, active 
 FROM cron.job 
-WHERE jobname LIKE 'monitorar%'
+WHERE jobname LIKE 'monitorar%' OR jobname LIKE 'processar-alertas%'
 ORDER BY jobname;

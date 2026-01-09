@@ -80,3 +80,6 @@ verify_jwt = false
 
 [functions.capturar-processo-tribunal]
 verify_jwt = true
+
+[functions.processar-alertas-djen-coordenacao]
+verify_jwt = false
