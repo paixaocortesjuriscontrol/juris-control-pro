@@ -62,6 +62,10 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
         filtros.coordenacaoId && filtros.coordenacaoId !== "todas"
       );
 
+      // Check if status is a special filter (vencidas, proximas)
+      const isSpecialFilter = filtros.status === "vencidas" || filtros.status === "proximas";
+      const statusToQuery = isSpecialFilter ? "pendente" : filtros.status;
+
       // Sempre buscar dados do processo para exibir polo_ativo/polo_passivo
       const selectClause = coordAtiva
         ? "*, processos!inner(coordenacao_id, polo_ativo, polo_passivo)"
@@ -76,8 +80,8 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
         query = query.eq("processos.coordenacao_id", filtros.coordenacaoId as string);
       }
 
-      if (filtros.status && filtros.status !== "todos") {
-        query = query.eq("status", filtros.status);
+      if (statusToQuery && statusToQuery !== "todos") {
+        query = query.eq("status", statusToQuery);
       }
 
       if (filtros.dataInicio) {
@@ -103,6 +107,31 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
         polo_ativo: processos?.polo_ativo || null,
         polo_passivo: processos?.polo_passivo || null,
       }));
+
+      // Normalizar datas para meia-noite no horário de Brasília
+      const agora = new Date();
+      const hojeBrt = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      hojeBrt.setHours(0, 0, 0, 0);
+      const seteDias = new Date(hojeBrt.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+      // Apply special filters for vencidas and proximas
+      if (filtros.status === "vencidas") {
+        result = result.filter((i: any) => {
+          if (!i.data_limite) return false;
+          const [ano, mes, dia] = i.data_limite.split('T')[0].split('-').map(Number);
+          const dataLimite = new Date(ano, mes - 1, dia);
+          dataLimite.setHours(0, 0, 0, 0);
+          return dataLimite < hojeBrt;
+        });
+      } else if (filtros.status === "proximas") {
+        result = result.filter((i: any) => {
+          if (!i.data_limite) return false;
+          const [ano, mes, dia] = i.data_limite.split('T')[0].split('-').map(Number);
+          const dataLimite = new Date(ano, mes - 1, dia);
+          dataLimite.setHours(0, 0, 0, 0);
+          return dataLimite >= hojeBrt && dataLimite <= seteDias;
+        });
+      }
 
       // Filtro de busca client-side
       if (filtros.search) {
