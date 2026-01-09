@@ -1,10 +1,13 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -13,6 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   ArrowLeft, 
@@ -22,10 +34,16 @@ import {
   Phone, 
   MapPin, 
   Scale,
-  FileText
+  FileText,
+  Send,
+  Loader2,
+  Clock,
+  CheckCircle,
+  XCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 const areaLabels: Record<string, string> = {
   civil: "Cível",
@@ -44,6 +62,9 @@ const statusLabels: Record<string, string> = {
 export default function ClienteDetalhes() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
 
   const { data: cliente, isLoading: loadingCliente } = useQuery({
     queryKey: ["cliente", id],
@@ -85,6 +106,52 @@ export default function ClienteDetalhes() {
     enabled: !!id,
   });
 
+  // Fetch existing invitations
+  const { data: convites = [] } = useQuery({
+    queryKey: ["convites-cliente", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("convites_cliente")
+        .select("*")
+        .eq("cliente_id", id!)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Send invitation mutation
+  const sendInviteMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const { data, error } = await supabase.functions.invoke("enviar-convite-cliente", {
+        body: { cliente_id: id, email },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Convite enviado com sucesso!");
+      setInviteDialogOpen(false);
+      setInviteEmail("");
+      queryClient.invalidateQueries({ queryKey: ["convites-cliente", id] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao enviar convite: ${error.message}`);
+    },
+  });
+
+  const handleSendInvite = () => {
+    if (!inviteEmail.trim()) {
+      toast.error("Informe o email do cliente");
+      return;
+    }
+    sendInviteMutation.mutate(inviteEmail.trim());
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "—";
     try {
@@ -92,6 +159,30 @@ export default function ClienteDetalhes() {
     } catch {
       return dateString;
     }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "aceito":
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case "pendente":
+        return <Clock className="w-4 h-4 text-yellow-500" />;
+      case "expirado":
+      case "cancelado":
+        return <XCircle className="w-4 h-4 text-red-500" />;
+      default:
+        return <Clock className="w-4 h-4" />;
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      pendente: "Pendente",
+      aceito: "Aceito",
+      expirado: "Expirado",
+      cancelado: "Cancelado",
+    };
+    return labels[status] || status;
   };
 
   if (loadingCliente) {
@@ -132,7 +223,7 @@ export default function ClienteDetalhes() {
 
         {/* Client Info Card */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               {cliente.tipo === "pessoa_fisica" ? (
                 <User className="w-5 h-5" />
@@ -141,6 +232,64 @@ export default function ClienteDetalhes() {
               )}
               Informações do Cliente
             </CardTitle>
+            
+            <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Send className="w-4 h-4 mr-2" />
+                  Enviar Convite de Acesso
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Enviar Convite ao Cliente</DialogTitle>
+                  <DialogDescription>
+                    O cliente receberá um email com link para criar sua conta e acessar o portal.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-email">Email do Cliente</Label>
+                    <Input
+                      id="invite-email"
+                      type="email"
+                      placeholder="cliente@email.com"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      defaultValue={cliente.email || ""}
+                    />
+                  </div>
+                  
+                  {convites.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Convites Anteriores</Label>
+                      <div className="border rounded-md divide-y max-h-32 overflow-y-auto">
+                        {convites.slice(0, 5).map((convite) => (
+                          <div key={convite.id} className="p-2 text-sm flex items-center justify-between">
+                            <span className="truncate">{convite.email}</span>
+                            <div className="flex items-center gap-1">
+                              {getStatusIcon(convite.status || "pendente")}
+                              <span className="text-muted-foreground">
+                                {getStatusLabel(convite.status || "pendente")}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSendInvite} disabled={sendInviteMutation.isPending}>
+                    {sendInviteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Enviar Convite
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
