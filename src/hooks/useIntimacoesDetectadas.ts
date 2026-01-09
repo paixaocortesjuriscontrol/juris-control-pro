@@ -128,11 +128,28 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
       );
 
       if (coordAtiva) {
-        // Buscar apenas intimações de processos da coordenação selecionada
-        const { data, error } = await (supabase as any)
+        // Buscar IDs de processos da coordenação
+        const { data: processosCoord, error: errProc } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("coordenacao_id", filtros.coordenacaoId as string);
+
+        if (errProc) {
+          console.error('Erro ao buscar processos da coordenação:', errProc);
+          return [];
+        }
+
+        const processosIds = (processosCoord || []).map(p => p.id);
+        
+        if (processosIds.length === 0) {
+          return [];
+        }
+
+        // Buscar intimações desses processos
+        const { data, error } = await supabase
           .from("intimacoes_detectadas")
-          .select("id, status, data_limite, processos!inner(coordenacao_id)")
-          .eq("processos.coordenacao_id", filtros.coordenacaoId as string);
+          .select("id, status, data_limite")
+          .in("processo_id", processosIds);
 
         if (error) {
           console.error('Erro ao buscar stats intimações:', error);
@@ -141,7 +158,7 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
         return (data as any[]) || [];
       } else {
         // Buscar TODAS as intimações (sem filtro de coordenação)
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabase
           .from("intimacoes_detectadas")
           .select("id, status, data_limite");
 
