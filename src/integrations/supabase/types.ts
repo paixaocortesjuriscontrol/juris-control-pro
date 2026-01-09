@@ -1971,6 +1971,7 @@ export type Database = {
           materia: string | null
           materia_mpt: string | null
           monitorar_andamentos: boolean
+          monitorar_djen: boolean | null
           motivo_encerramento: string | null
           mudanca_risco: boolean | null
           natureza: string | null
@@ -2100,6 +2101,7 @@ export type Database = {
           materia?: string | null
           materia_mpt?: string | null
           monitorar_andamentos?: boolean
+          monitorar_djen?: boolean | null
           motivo_encerramento?: string | null
           mudanca_risco?: boolean | null
           natureza?: string | null
@@ -2229,6 +2231,7 @@ export type Database = {
           materia?: string | null
           materia_mpt?: string | null
           monitorar_andamentos?: boolean
+          monitorar_djen?: boolean | null
           motivo_encerramento?: string | null
           mudanca_risco?: boolean | null
           natureza?: string | null

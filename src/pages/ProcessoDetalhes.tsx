@@ -119,6 +119,7 @@ export default function ProcessoDetalhes() {
   const [salvando, setSalvando] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [toglingMonitoramento, setToglingMonitoramento] = useState(false);
+  const [toglingMonitoramentoDjen, setToglingMonitoramentoDjen] = useState(false);
   const [toglingLida, setToglingLida] = useState<string | null>(null);
   
   // States for audiências and intimações actions
@@ -660,10 +661,10 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       
       toast({
-        title: newValue ? "Monitoramento habilitado" : "Monitoramento desabilitado",
+        title: newValue ? "Monitoramento de andamentos habilitado" : "Monitoramento de andamentos desabilitado",
         description: newValue 
-          ? "Os andamentos serão buscados automaticamente pelo monitoramento." 
-          : "Os andamentos não serão buscados pelo monitoramento automático.",
+          ? "Os andamentos serão buscados automaticamente." 
+          : "Os andamentos não serão buscados automaticamente.",
       });
       queryClient.invalidateQueries({ queryKey: ["processo", id] });
     } catch (error: any) {
@@ -674,6 +675,37 @@ export default function ProcessoDetalhes() {
       });
     } finally {
       setToglingMonitoramento(false);
+    }
+  };
+
+  const handleToggleMonitoramentoDjen = async () => {
+    if (!processo) return;
+    
+    setToglingMonitoramentoDjen(true);
+    try {
+      const newValue = !(processo as any).monitorar_djen;
+      const { error } = await supabase
+        .from("processos")
+        .update({ monitorar_djen: newValue })
+        .eq("id", processo.id);
+      
+      if (error) throw error;
+      
+      toast({
+        title: newValue ? "Monitoramento DJEN habilitado" : "Monitoramento DJEN desabilitado",
+        description: newValue 
+          ? "O DJEN será monitorado automaticamente para este processo." 
+          : "O DJEN não será monitorado para este processo.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["processo", id] });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setToglingMonitoramentoDjen(false);
     }
   };
 
@@ -1085,8 +1117,8 @@ export default function ProcessoDetalhes() {
             Voltar
           </Button>
           
-          <div className="flex items-center gap-3">
-            {/* Monitoramento Toggle */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Monitoramento Andamentos Toggle */}
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/30">
               {processo.monitorar_andamentos ? (
                 <Bell className="w-4 h-4 text-green-600" />
@@ -1094,12 +1126,29 @@ export default function ProcessoDetalhes() {
                 <BellOff className="w-4 h-4 text-muted-foreground" />
               )}
               <span className="text-sm font-medium hidden sm:inline">
-                {processo.monitorar_andamentos ? "Monitoramento ativo" : "Monitoramento inativo"}
+                Andamentos
               </span>
               <Switch
-                checked={processo.monitorar_andamentos ?? true}
+                checked={processo.monitorar_andamentos ?? false}
                 onCheckedChange={handleToggleMonitoramento}
                 disabled={toglingMonitoramento}
+              />
+            </div>
+
+            {/* Monitoramento DJEN Toggle */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/30">
+              {(processo as any).monitorar_djen ? (
+                <Newspaper className="w-4 h-4 text-blue-600" />
+              ) : (
+                <Newspaper className="w-4 h-4 text-muted-foreground" />
+              )}
+              <span className="text-sm font-medium hidden sm:inline">
+                DJEN
+              </span>
+              <Switch
+                checked={(processo as any).monitorar_djen ?? false}
+                onCheckedChange={handleToggleMonitoramentoDjen}
+                disabled={toglingMonitoramentoDjen}
               />
             </div>
 
