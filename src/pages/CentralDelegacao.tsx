@@ -853,11 +853,11 @@ export default function CentralDelegacao() {
               <Tabs value={tipoAtividade} onValueChange={(v) => setTipoAtividade(v as TipoAtividade)}>
                 <TabsList>
                   <TabsTrigger value="todos" className="gap-2">
-                    <Badge variant="secondary" className="text-xs">{stats.total}</Badge>
+                    <Badge variant="secondary" className="text-xs">{stats?.total ?? 0}</Badge>
                     Todos
                   </TabsTrigger>
                   <TabsTrigger value="tarefas" className="gap-2">
-                    <Badge variant="secondary" className="text-xs">{stats.total}</Badge>
+                    <Badge variant="secondary" className="text-xs">{stats?.total ?? 0}</Badge>
                     Tarefas
                   </TabsTrigger>
                 </TabsList>
