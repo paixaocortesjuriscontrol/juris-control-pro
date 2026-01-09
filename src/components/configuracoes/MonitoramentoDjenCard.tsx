@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,22 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       return data;
     },
     refetchInterval: 60000, // Refresh every minute
+  });
+
+  // Fetch configured tribunals (from active DJEN terms) so the report can show
+  // tribunals even when the last execution batch didn't reach those terms yet.
+  const { data: monitoramentosTribunais } = useQuery({
+    queryKey: ['djen-tribunais-configurados'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('monitoramentos_djen')
+        .select('tribunais')
+        .eq('ativo', true);
+
+      if (error) throw error;
+      return (data || []) as Array<{ tribunais: string[] | null }>;
+    },
+    staleTime: 5 * 60 * 1000,
   });
 
   const handleExecutarManual = async () => {
@@ -260,6 +276,61 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     : 0;
 
   const statsToShow = ultimoResultado || lastRunFromHistorico;
+
+  const termosPorTribunal = useMemo(() => {
+    const map = new Map<string, number>();
+    const keyOf = (tribunal: string | null) => tribunal ?? "__ALL__";
+
+    for (const row of monitoramentosTribunais ?? []) {
+      const tribunais = row.tribunais && row.tribunais.length > 0 ? row.tribunais : [null];
+      for (const t of tribunais) {
+        const key = keyOf(t);
+        map.set(key, (map.get(key) ?? 0) + 1);
+      }
+    }
+
+    return map;
+  }, [monitoramentosTribunais]);
+
+  const linhasTribunais = useMemo(() => {
+    const keyOf = (tribunal: string | null) => tribunal ?? "__ALL__";
+
+    const execMap = new Map<string, TribunalStat>();
+    for (const ts of statsToShow?.tribunaisStats ?? []) {
+      execMap.set(keyOf(ts.tribunal ?? null), ts);
+    }
+
+    const allKeys = new Set<string>([
+      ...termosPorTribunal.keys(),
+      ...execMap.keys(),
+    ]);
+
+    const rows = Array.from(allKeys).map((key) => {
+      const tribunal = key === "__ALL__" ? null : key;
+      const termos = termosPorTribunal.get(key) ?? 0;
+      const exec = execMap.get(key);
+
+      return {
+        tribunal,
+        termos,
+        paginas: exec?.paginas ?? 0,
+        resultados: exec?.resultados ?? 0,
+        novas: exec?.novas ?? 0,
+        descartadas: exec?.descartadas ?? 0,
+        duplicatas: exec?.duplicatas ?? 0,
+      };
+    });
+
+    rows.sort((a, b) => {
+      if (b.resultados !== a.resultados) return b.resultados - a.resultados;
+      if (b.termos !== a.termos) return b.termos - a.termos;
+      const ta = a.tribunal ?? "TODOS";
+      const tb = b.tribunal ?? "TODOS";
+      return ta.localeCompare(tb);
+    });
+
+    return rows;
+  }, [statsToShow, termosPorTribunal]);
 
   return (
     <Card>
