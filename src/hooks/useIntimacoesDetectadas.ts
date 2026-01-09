@@ -27,6 +27,9 @@ export interface IntimacaoDetectada {
   hash_dedup: string | null;
   created_at: string;
   updated_at: string;
+  // Campos do processo vinculado
+  polo_ativo: string | null;
+  polo_passivo: string | null;
 }
 
 export type StatusIntimacao = 'pendente' | 'tratado' | 'ignorado' | 'em_andamento';
@@ -59,9 +62,10 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
         filtros.coordenacaoId && filtros.coordenacaoId !== "todas"
       );
 
+      // Sempre buscar dados do processo para exibir polo_ativo/polo_passivo
       const selectClause = coordAtiva
-        ? "*, processos!inner(coordenacao_id)"
-        : "*";
+        ? "*, processos!inner(coordenacao_id, polo_ativo, polo_passivo)"
+        : "*, processos(polo_ativo, polo_passivo)";
 
       let query = (supabase as any)
         .from("intimacoes_detectadas")
@@ -93,11 +97,12 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
 
       let result: any[] = (data as any[]) || [];
 
-      // Quando filtramos por coordenação via join, o PostgREST devolve o objeto aninhado "processos".
-      // Removemos antes de aplicar os demais filtros/retorno.
-      if (coordAtiva) {
-        result = result.map(({ processos, ...rest }) => rest);
-      }
+      // Extrair polo_ativo e polo_passivo do processo aninhado
+      result = result.map(({ processos, ...rest }) => ({
+        ...rest,
+        polo_ativo: processos?.polo_ativo || null,
+        polo_passivo: processos?.polo_passivo || null,
+      }));
 
       // Filtro de busca client-side
       if (filtros.search) {

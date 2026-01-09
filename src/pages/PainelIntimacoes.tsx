@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Calendar, Clock, Search, CheckCircle, XCircle, AlertCircle, 
   CalendarDays, FileText, Eye, Plus, Building, AlertTriangle,
-  Timer, PlayCircle, Download, Settings, Users, ClipboardList
+  Timer, PlayCircle, Download, Settings, Users, ClipboardList, User
 } from "lucide-react";
 import { useIntimacoesDetectadas, IntimacaoDetectada } from "@/hooks/useIntimacoesDetectadas";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
@@ -484,6 +484,18 @@ export default function PainelIntimacoes() {
                               </div>
                             )}
                           </div>
+
+                          {/* Partes do processo */}
+                          {(intimacao.polo_ativo || intimacao.polo_passivo) && (
+                            <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                              <User className="h-4 w-4 mt-0.5 shrink-0" />
+                              <span className="line-clamp-1">
+                                {intimacao.polo_ativo && <><strong>Autor:</strong> {intimacao.polo_ativo}</>}
+                                {intimacao.polo_ativo && intimacao.polo_passivo && " × "}
+                                {intimacao.polo_passivo && <><strong>Réu:</strong> {intimacao.polo_passivo}</>}
+                              </span>
+                            </div>
+                          )}
 
                           {intimacao.orgao_intimante && (
                             <div className="flex items-center gap-1 text-sm text-muted-foreground">
