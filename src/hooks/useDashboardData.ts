@@ -34,7 +34,6 @@ export function useDashboardStats(coordenacaoId?: string | null) {
           arquivadoResult,
           distribuidosResult,
           membrosResult,
-          prazosResult,
         ] = await Promise.all([
           // Total de processos da coordenação
           supabase
@@ -82,18 +81,28 @@ export function useDashboardStats(coordenacaoId?: string | null) {
             .from("membros_coordenacao")
             .select("id", { count: "exact", head: true })
             .eq("coordenacao_id", coordenacaoId),
-          // Prazos urgentes (próximos 7 dias) - usar RPC para evitar limite
-          supabase.rpc('count_tarefas_urgentes_coordenacao', { 
-            p_coordenacao_id: coordenacaoId 
-          }),
         ]);
+        
+        // Prazos urgentes - usar query separada com COUNT
+        const hoje = new Date();
+        const hojeStr = hoje.toISOString().split("T")[0];
+        const seteDias = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const seteDiasStr = seteDias.toISOString().split("T")[0];
+        
+        // Contar tarefas urgentes via join com processos
+        const { count: prazosUrgentesCount } = await supabase
+          .from("tarefas")
+          .select("id, processos!inner(coordenacao_id)", { count: "exact", head: true })
+          .eq("processos.coordenacao_id", coordenacaoId)
+          .eq("status", "pendente")
+          .gte("data_vencimento", hojeStr)
+          .lte("data_vencimento", seteDiasStr);
 
         const totalProcessos = totalResult.count || 0;
-        const processosAtivos = ativoResult.count || 0;
         
         return {
           totalProcessos,
-          processosAtivos,
+          processosAtivos: ativoResult.count || 0,
           processosDistribuidos: distribuidosResult.count || 0,
           processosSemCoordenacao: 0,
           statusCount: {
@@ -103,7 +112,7 @@ export function useDashboardStats(coordenacaoId?: string | null) {
             encerrado: encerradoResult.count || 0,
             arquivado: arquivadoResult.count || 0,
           },
-          prazosUrgentes: typeof prazosResult.data === 'number' ? prazosResult.data : 0,
+          prazosUrgentes: prazosUrgentesCount || 0,
           totalAdvogados: membrosResult.count || 0,
           totalCoordenacoes: 1,
         } as DashboardStats;
