@@ -423,7 +423,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         )}
 
         {/* Relatório de Execução Detalhado */}
-        {statsToShow && statsToShow.tribunaisStats.length > 0 && (
+        {linhasTribunais.length > 0 && (
           <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between p-2 h-auto">
@@ -440,28 +440,29 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                   <div className="p-2 bg-background rounded text-center">
                     <p className="text-muted-foreground">Páginas</p>
-                    <p className="font-bold text-lg">{statsToShow.totalPaginas}</p>
+                    <p className="font-bold text-lg">{statsToShow?.totalPaginas ?? 0}</p>
                   </div>
                   <div className="p-2 bg-background rounded text-center">
                     <p className="text-muted-foreground">Resultados</p>
-                    <p className="font-bold text-lg">{statsToShow.totalResultados}</p>
+                    <p className="font-bold text-lg">{statsToShow?.totalResultados ?? 0}</p>
                   </div>
                   <div className="p-2 bg-background rounded text-center">
                     <p className="text-muted-foreground">Novas</p>
-                    <p className="font-bold text-lg text-green-600">{statsToShow.novas}</p>
+                    <p className="font-bold text-lg text-green-600">{statsToShow?.novas ?? 0}</p>
                   </div>
                   <div className="p-2 bg-background rounded text-center">
                     <p className="text-muted-foreground">Duração</p>
-                    <p className="font-bold text-lg">{statsToShow.duracaoSegundos}s</p>
+                    <p className="font-bold text-lg">{statsToShow?.duracaoSegundos ?? 0}s</p>
                   </div>
                 </div>
 
                 {/* Tribunais Table */}
-                <ScrollArea className="h-[200px]">
+                <ScrollArea className="h-[280px]">
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-muted">
                       <tr className="border-b">
                         <th className="text-left p-1.5 font-medium">Tribunal</th>
+                        <th className="text-right p-1.5 font-medium">Termos</th>
                         <th className="text-right p-1.5 font-medium">Págs</th>
                         <th className="text-right p-1.5 font-medium">Res</th>
                         <th className="text-right p-1.5 font-medium text-green-600">Novas</th>
@@ -470,11 +471,12 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
                       </tr>
                     </thead>
                     <tbody>
-                        {statsToShow.tribunaisStats.map((t, i) => (
+                        {linhasTribunais.map((t, i) => (
                           <tr key={i} className="border-b border-border/50 hover:bg-muted/50">
                             <td className="p-1.5 font-mono">{t.tribunal ?? 'TODOS'}</td>
-                            <td className="p-1.5 text-right">{t.paginas}</td>
-                            <td className="p-1.5 text-right">{t.resultados}</td>
+                            <td className="p-1.5 text-right text-muted-foreground">{t.termos}</td>
+                            <td className="p-1.5 text-right">{t.paginas || '-'}</td>
+                            <td className="p-1.5 text-right">{t.resultados || '-'}</td>
                             <td className="p-1.5 text-right text-green-600 font-medium">{t.novas || '-'}</td>
                             <td className="p-1.5 text-right text-yellow-600">{t.descartadas || '-'}</td>
                             <td className="p-1.5 text-right text-muted-foreground">{t.duplicatas || '-'}</td>
