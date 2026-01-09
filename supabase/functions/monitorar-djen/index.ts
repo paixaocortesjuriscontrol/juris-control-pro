@@ -244,6 +244,14 @@ interface TribunalStats {
   duplicatas: number;
 }
 
+// Search parameters interface for PJe Comunica API
+interface SearchParams {
+  texto?: string;
+  numeroOab?: string;
+  ufOab?: string;
+  siglaTribunal?: string | null;
+}
+
 async function processMonitoramento(
   supabase: any,
   monitoramento: Monitoramento
@@ -252,21 +260,24 @@ async function processMonitoramento(
   const tribunaisStats: TribunalStats[] = [];
   const dataAtual = new Date().toISOString().split('T')[0];
   
-  // Build search term based on type
-  let searchText = '';
+  // Build search params based on type
+  // For advogado, use text search with OAB number (API may not support dedicated OAB params)
+  let baseParams: Omit<SearchParams, 'siglaTribunal'> = {};
+  
   if (monitoramento.tipo === "advogado" && monitoramento.oab) {
-    // For advogado, search by OAB number with UF
+    // Try multiple search formats to maximize matches
+    // Format: "OAB DF-15553" or just the number
     const uf = monitoramento.uf || 'DF';
-    searchText = `OAB ${monitoramento.oab} ${uf}`;
-    console.log(`Advogado search: ${searchText}`);
+    baseParams = { texto: `OAB ${uf}-${monitoramento.oab}` };
+    console.log(`Advogado search: OAB ${uf}-${monitoramento.oab}`);
   } else if (monitoramento.tipo === "palavra-chave") {
-    searchText = monitoramento.termo_busca;
+    baseParams = { texto: monitoramento.termo_busca };
   } else if (monitoramento.tipo === "processo") {
-    searchText = monitoramento.termo_busca.replace(/\D/g, '');
+    baseParams = { texto: monitoramento.termo_busca.replace(/\D/g, '') };
   }
   
-  if (!searchText) {
-    console.log(`No search text for monitoramento ${monitoramento.id}`);
+  if (!baseParams.texto && !baseParams.numeroOab) {
+    console.log(`No search params for monitoramento ${monitoramento.id}`);
     return { ...stats, tribunaisStats };
   }
   
@@ -289,7 +300,8 @@ async function processMonitoramento(
     };
     
     // Fetch publications for this tribunal with pagination tracking
-    const { items: publications, pages } = await fetchDJENResultsWithStats(searchText, tribunal);
+    const searchParams: SearchParams = { ...baseParams, siglaTribunal: tribunal };
+    const { items: publications, pages } = await fetchDJENResultsWithStats(searchParams);
     tribunalStat.paginas = pages;
     tribunalStat.resultados = publications.length;
     
@@ -419,11 +431,10 @@ async function processMonitoramento(
 }
 
 async function fetchDJENResultsWithStats(
-  searchText: string,
-  siglaTribunal?: string | null
+  params: SearchParams
 ): Promise<{ items: any[]; pages: number }> {
   // IMPORTANT:
-  // PJe Comunica sometimes “shifts” the disponibilização date vs. what users see in the Diário (and also has timezone effects).
+  // PJe Comunica sometimes "shifts" the disponibilização date vs. what users see in the Diário (and also has timezone effects).
   // To avoid missing publications, we search in a small rolling window (last 3 UTC days).
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -435,17 +446,29 @@ async function fetchDJENResultsWithStats(
 
   while (page < maxPages) {
     const queryParams = new URLSearchParams();
-    queryParams.append("texto", searchText);
+    
+    // Use specific OAB parameters when available (required for lawyer searches in PJe Comunica API)
+    // This is more accurate than text search for finding publications by lawyer
+    if (params.numeroOab) {
+      queryParams.append("numeroOab", params.numeroOab);
+      if (params.ufOab) {
+        queryParams.append("ufOab", params.ufOab);
+      }
+    } else if (params.texto) {
+      queryParams.append("texto", params.texto);
+    }
+    
     queryParams.append("dataDisponibilizacaoInicio", startDate);
     queryParams.append("dataDisponibilizacaoFim", endDate);
     queryParams.append("pagina", page.toString());
     queryParams.append("itensPorPagina", pageSize.toString());
     
-    if (siglaTribunal && siglaTribunal !== 'TODOS' && !siglaTribunal.startsWith('TODOS_')) {
-      queryParams.append("siglaTribunal", siglaTribunal);
+    if (params.siglaTribunal && params.siglaTribunal !== 'TODOS' && !params.siglaTribunal.startsWith('TODOS_')) {
+      queryParams.append("siglaTribunal", params.siglaTribunal);
     }
     
     const fullUrl = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
+    console.log(`Fetching: ${fullUrl}`);
     
     try {
       const response = await fetchWithRetry(fullUrl, {
