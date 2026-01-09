@@ -42,13 +42,15 @@ export default function ClienteCadastro() {
 
     const fetchConvite = async () => {
       try {
+        // First, fetch the invite without the join (anonymous users can't access clientes)
         const { data, error: fetchError } = await supabase
           .from("convites_cliente")
-          .select("id, email, status, expira_em, cliente:clientes(nome)")
+          .select("id, email, status, expira_em, cliente_id")
           .eq("token", token)
           .single();
 
         if (fetchError || !data) {
+          console.error("Error fetching invite:", fetchError);
           setError("Convite não encontrado ou inválido");
           return;
         }
@@ -63,13 +65,14 @@ export default function ClienteCadastro() {
           return;
         }
 
-        // Handle nested client object
-        const clienteData = Array.isArray(data.cliente) ? data.cliente[0] : data.cliente;
+        // Set convite without cliente name (will be handled by the edge function)
         setConvite({
-          ...data,
-          cliente: clienteData,
+          id: data.id,
+          email: data.email,
+          status: data.status,
+          expira_em: data.expira_em,
+          cliente: null,
         });
-        setNome(clienteData?.nome || "");
       } catch (err) {
         console.error("Error fetching invite:", err);
         setError("Erro ao carregar convite");
