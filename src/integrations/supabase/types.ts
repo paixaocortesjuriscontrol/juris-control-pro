@@ -3183,6 +3183,33 @@ export type Database = {
         Args: { _user_id: string }
         Returns: string[]
       }
+      get_cliente_portal_stats: { Args: { _user_id: string }; Returns: Json }
+      get_cliente_processos_paginados: {
+        Args: {
+          _area?: string
+          _page?: number
+          _page_size?: number
+          _search?: string
+          _status?: string
+          _user_id: string
+        }
+        Returns: {
+          advogado_responsavel: Json
+          area: string
+          assunto: string
+          comarca: string
+          created_at: string
+          data_distribuicao: string
+          id: string
+          numero: string
+          polo_ativo: string
+          polo_passivo: string
+          status: string
+          total_count: number
+          tribunal: string
+          vara: string
+        }[]
+      }
       get_coordenacao_stats: {
         Args: never
         Returns: {
