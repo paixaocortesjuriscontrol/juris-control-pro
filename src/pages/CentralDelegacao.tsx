@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO, differenceInDays, isBefore, startOfDay, endOfDay, startOfWeek, endOfWeek, addDays } from "date-fns";
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { toZonedTime } from "date-fns-tz";
 import { ptBR } from "date-fns/locale";
 import { 
   Plus,
@@ -87,6 +87,8 @@ export default function CentralDelegacao() {
   const { isAdminOrCoordinator, loading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const TIME_ZONE = "America/Sao_Paulo";
   
   // State
   const [search, setSearch] = useState("");
@@ -181,11 +183,11 @@ export default function CentralDelegacao() {
     },
   });
 
-  // Calculate date range for period filter (sempre em Horário de Brasília)
+  // Calculate date range for period filter (sempre por DATA em Horário de Brasília)
+  // Motivo: quando o banco devolve datas sem horário (YYYY-MM-DD), o JS interpreta como UTC 00:00,
+  // o que "puxa" para o dia anterior em BRT (ex: 2026-01-09T00:00Z = 08/01 21:00 BRT).
+  // Então aqui comparamos por "data" (yyyy-MM-dd) em BRT.
   const getDateRange = useMemo(() => {
-    const TIME_ZONE = "America/Sao_Paulo";
-
-    // Constrói o "hoje" em BRT e converte os limites para UTC (para comparar com timestamps do banco)
     const nowBrt = toZonedTime(new Date(), TIME_ZONE);
     const hojeBrtStart = startOfDay(nowBrt);
 
@@ -194,26 +196,22 @@ export default function CentralDelegacao() {
 
     switch (periodoFiltro) {
       case "hoje":
-        // Somente tarefas com data prevista ou fatal na data de hoje (BRT)
-        inicioBrt = startOfDay(nowBrt);
+        inicioBrt = hojeBrtStart;
         fimBrt = endOfDay(nowBrt);
         break;
 
-      case "semana": {
-        // Semana corrente (segunda a domingo) em BRT
+      case "semana":
+        // Semana corrente (segunda a domingo)
         inicioBrt = startOfWeek(hojeBrtStart, { weekStartsOn: 1 });
         fimBrt = endOfWeek(hojeBrtStart, { weekStartsOn: 1 });
         break;
-      }
 
       case "quinzena":
-        // De hoje até hoje + 15 dias (BRT)
         inicioBrt = hojeBrtStart;
         fimBrt = endOfDay(addDays(hojeBrtStart, 15));
         break;
 
       case "mes":
-        // De hoje até hoje + 30 dias (BRT)
         inicioBrt = hojeBrtStart;
         fimBrt = endOfDay(addDays(hojeBrtStart, 30));
         break;
@@ -223,11 +221,14 @@ export default function CentralDelegacao() {
         return null;
     }
 
-    return {
-      inicio: fromZonedTime(inicioBrt, TIME_ZONE),
-      fim: fromZonedTime(fimBrt, TIME_ZONE),
+    const range = {
+      inicio: format(inicioBrt, "yyyy-MM-dd"),
+      fim: format(fimBrt, "yyyy-MM-dd"),
     };
-  }, [periodoFiltro]);
+
+    console.log(`[CentralDelegacao] periodo=${periodoFiltro} range(BRT) ${range.inicio}..${range.fim}`);
+    return range;
+  }, [TIME_ZONE, periodoFiltro]);
 
   // Fetch atividades (tarefas/prazos + eventos)
   const { data: atividades, isLoading: loadingAtividades } = useQuery({
@@ -291,20 +292,28 @@ export default function CentralDelegacao() {
       const { data: tarefas, error: tarefasError } = await tarefasQuery.limit(500);
       if (tarefasError) throw tarefasError;
 
-      // Apply period filter on data_vencimento OR data_fatal (client-side to support OR logic)
-      // OBS: getDateRange já está em UTC (limites calculados a partir do BRT)
+      // Apply period filter on data_vencimento OR data_fatal (comparação por DATA em BRT)
       let filteredByPeriod = tarefas || [];
       if (getDateRange) {
-        const inicio = getDateRange.inicio.getTime();
-        const fim = getDateRange.fim.getTime();
+        const inicio = getDateRange.inicio;
+        const fim = getDateRange.fim;
+
+        const normalizeToBrtDateStr = (value?: string | null) => {
+          if (!value) return null;
+          // Se vier timestamp, normaliza para data em BRT
+          if (value.includes("T")) {
+            return format(toZonedTime(new Date(value), TIME_ZONE), "yyyy-MM-dd");
+          }
+          // Se vier só data (YYYY-MM-DD), já está no formato correto
+          return value.slice(0, 10);
+        };
 
         filteredByPeriod = filteredByPeriod.filter((t: any) => {
-          const dataVenc = t.data_vencimento ? new Date(t.data_vencimento).getTime() : null;
-          const dataFatal = t.data_fatal ? new Date(t.data_fatal).getTime() : null;
+          const vencStr = normalizeToBrtDateStr(t.data_vencimento);
+          const fatalStr = normalizeToBrtDateStr(t.data_fatal);
 
-          // Tarefa deve ter data_vencimento OU data_fatal dentro do período
-          const vencNoPeriodo = dataVenc !== null && dataVenc >= inicio && dataVenc <= fim;
-          const fatalNoPeriodo = dataFatal !== null && dataFatal >= inicio && dataFatal <= fim;
+          const vencNoPeriodo = !!vencStr && vencStr >= inicio && vencStr <= fim;
+          const fatalNoPeriodo = !!fatalStr && fatalStr >= inicio && fatalStr <= fim;
 
           return vencNoPeriodo || fatalNoPeriodo;
         });
@@ -316,11 +325,16 @@ export default function CentralDelegacao() {
       // Portanto, NÃO filtramos novamente por `processo.coordenacao_id` aqui, pois isso pode
       // esconder tarefas do membro vinculadas a processos de outras coordenações.
 
-      // Mark atrasados
-      const hoje = new Date();
+      // Mark atrasados (por DATA em BRT)
+      const hojeBrtStr = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
       const tarefasProcessadas = filteredByPeriod.map((p: any) => {
-        const dataVenc = p.data_vencimento ? parseISO(p.data_vencimento) : null;
-        const isAtrasado = dataVenc && isBefore(dataVenc, hoje) && p.status !== "cumprido";
+        const vencStr = p.data_vencimento
+          ? (p.data_vencimento.includes("T")
+              ? format(toZonedTime(new Date(p.data_vencimento), TIME_ZONE), "yyyy-MM-dd")
+              : p.data_vencimento.slice(0, 10))
+          : null;
+
+        const isAtrasado = !!vencStr && vencStr < hojeBrtStr && p.status !== "cumprido";
         return {
           ...p,
           tipo: "tarefa" as const,
@@ -498,8 +512,14 @@ export default function CentralDelegacao() {
 
   const getDiasRestantes = (tarefa: any) => {
     if (!tarefa.data_vencimento) return null;
-    const dataVenc = parseISO(tarefa.data_vencimento);
-    const dias = differenceInDays(dataVenc, new Date());
+
+    const todayBrtStr = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
+    const dueBrtStr = tarefa.data_vencimento.includes("T")
+      ? format(toZonedTime(new Date(tarefa.data_vencimento), TIME_ZONE), "yyyy-MM-dd")
+      : tarefa.data_vencimento.slice(0, 10);
+
+    const dias = differenceInDays(parseISO(dueBrtStr), parseISO(todayBrtStr));
+
     if (dias < 0) return <span className="text-red-500 font-medium">{Math.abs(dias)} dias atrasado</span>;
     if (dias === 0) return <span className="text-orange-500 font-medium">Vence hoje</span>;
     if (dias <= 3) return <span className="text-yellow-600 font-medium">{dias} dias restantes</span>;
