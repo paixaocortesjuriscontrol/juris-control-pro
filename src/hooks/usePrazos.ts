@@ -107,6 +107,8 @@ export function useTarefasPaginated(filters?: TarefasFilters) {
           responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
         `;
 
+      const today = new Date().toISOString().split("T")[0];
+      
       let query = supabase
         .from("tarefas")
         .select(selectFields, { count: "exact" })
@@ -119,11 +121,20 @@ export function useTarefasPaginated(filters?: TarefasFilters) {
       }
 
       // Apply server-side filters
-      if (filters?.status && filters.status !== "all" && filters.status !== "atrasado") {
-        query = query.eq("status", filters.status as "pendente" | "cumprido" | "atrasado");
+      if (filters?.status && filters.status !== "all") {
+        if (filters.status === "atrasado") {
+          // Atrasado = not cumprido AND data_vencimento < today
+          query = query.neq("status", "cumprido").lt("data_vencimento", today);
+        } else {
+          query = query.eq("status", filters.status as "pendente" | "cumprido" | "atrasado");
+        }
       }
       if (filters?.prioridade && filters.prioridade !== "all") {
         query = query.eq("prioridade", filters.prioridade as "baixa" | "media" | "alta" | "urgente");
+        // For urgente, also filter out cumprido
+        if (filters.prioridade === "urgente") {
+          query = query.neq("status", "cumprido");
+        }
       }
       if (filters?.search) {
         query = query.ilike("titulo", `%${filters.search}%`);

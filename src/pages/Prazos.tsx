@@ -189,16 +189,31 @@ const Prazos = () => {
   // Reset page when filters change
   const handleStatusChange = useCallback((value: string) => {
     setStatusFilter(value);
+    setPrioridadeFilter("all"); // Reset priority when filtering by status
     setCurrentPage(1);
   }, []);
 
   const handlePrioridadeChange = useCallback((value: string) => {
     setPrioridadeFilter(value);
+    setStatusFilter("all"); // Reset status when filtering by priority
     setCurrentPage(1);
   }, []);
 
   const handleCoordenacaoChange = useCallback((value: string) => {
     setCoordenacaoFilter(value === "all" ? "" : value);
+    setCurrentPage(1);
+  }, []);
+
+  // Handler for clicking on stat cards - resets other filters
+  const handleStatCardClick = useCallback((type: "pendente" | "atrasado" | "cumprido" | "urgente") => {
+    setSearchQuery("");
+    if (type === "urgente") {
+      setStatusFilter("all");
+      setPrioridadeFilter("urgente");
+    } else {
+      setStatusFilter(type);
+      setPrioridadeFilter("all");
+    }
     setCurrentPage(1);
   }, []);
 
@@ -343,7 +358,13 @@ const Prazos = () => {
     >
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => handleStatusChange("pendente")}>
+        <Card 
+          className={cn(
+            "cursor-pointer hover:border-primary/50 transition-colors",
+            statusFilter === "pendente" && prioridadeFilter === "all" && "border-primary ring-1 ring-primary"
+          )} 
+          onClick={() => handleStatCardClick("pendente")}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/10">
@@ -357,7 +378,13 @@ const Prazos = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => handleStatusChange("atrasado")}>
+        <Card 
+          className={cn(
+            "cursor-pointer hover:border-primary/50 transition-colors",
+            statusFilter === "atrasado" && prioridadeFilter === "all" && "border-primary ring-1 ring-primary"
+          )} 
+          onClick={() => handleStatCardClick("atrasado")}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-destructive/10">
@@ -371,7 +398,13 @@ const Prazos = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => handlePrioridadeChange("urgente")}>
+        <Card 
+          className={cn(
+            "cursor-pointer hover:border-primary/50 transition-colors",
+            prioridadeFilter === "urgente" && "border-primary ring-1 ring-primary"
+          )} 
+          onClick={() => handleStatCardClick("urgente")}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-red-500/10">
@@ -385,7 +418,13 @@ const Prazos = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => handleStatusChange("cumprido")}>
+        <Card 
+          className={cn(
+            "cursor-pointer hover:border-primary/50 transition-colors",
+            statusFilter === "cumprido" && prioridadeFilter === "all" && "border-primary ring-1 ring-primary"
+          )} 
+          onClick={() => handleStatCardClick("cumprido")}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-emerald-500/10">
