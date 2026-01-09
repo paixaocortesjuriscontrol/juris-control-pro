@@ -388,7 +388,7 @@ async function processMonitoramento(
           hash_conteudo: hashConteudo,
           data_publicacao: dataPublicacao,
           processo_numero: processoNumero,
-          conteudo: conteudo.substring(0, 10000),
+          conteudo: conteudo,
           fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
           motivo_descarte: `Termo de exclusão: ${motivoExclusao}`,
         });
@@ -411,7 +411,7 @@ async function processMonitoramento(
           hash_conteudo: hashConteudo,
           data_publicacao: dataPublicacao,
           processo_numero: processoNumero,
-          conteudo: conteudo.substring(0, 10000),
+          conteudo: conteudo,
           fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
         })
         .select('id')
