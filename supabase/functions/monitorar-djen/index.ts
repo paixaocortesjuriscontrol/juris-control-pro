@@ -418,18 +418,26 @@ async function processMonitoramento(
   return { ...stats, tribunaisStats };
 }
 
-async function fetchDJENResultsWithStats(searchText: string, siglaTribunal?: string | null): Promise<{ items: any[]; pages: number }> {
-  const dataAtual = new Date().toISOString().split('T')[0];
+async function fetchDJENResultsWithStats(
+  searchText: string,
+  siglaTribunal?: string | null
+): Promise<{ items: any[]; pages: number }> {
+  // IMPORTANT:
+  // PJe Comunica sometimes “shifts” the disponibilização date vs. what users see in the Diário (and also has timezone effects).
+  // To avoid missing publications, we search in a small rolling window (last 3 UTC days).
+  const endDate = new Date().toISOString().split('T')[0];
+  const startDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
   const allResults: any[] = [];
   let page = 0;
   const pageSize = 100;
   const maxPages = 50;
-  
+
   while (page < maxPages) {
     const queryParams = new URLSearchParams();
     queryParams.append("texto", searchText);
-    queryParams.append("dataDisponibilizacaoInicio", dataAtual);
-    queryParams.append("dataDisponibilizacaoFim", dataAtual);
+    queryParams.append("dataDisponibilizacaoInicio", startDate);
+    queryParams.append("dataDisponibilizacaoFim", endDate);
     queryParams.append("pagina", page.toString());
     queryParams.append("itensPorPagina", pageSize.toString());
     
