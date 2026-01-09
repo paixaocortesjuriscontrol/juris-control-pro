@@ -481,6 +481,68 @@ export type Database = {
         }
         Relationships: []
       }
+      capturas_intimacoes: {
+        Row: {
+          ativo: boolean
+          cofre_senha_id: string
+          created_at: string
+          id: string
+          instancia: string
+          justica: string
+          mensagem_status: string | null
+          oab_numero: string
+          oab_uf: string
+          orgao: string
+          proxima_captura: string | null
+          status: string
+          total_intimacoes_capturadas: number
+          ultima_captura: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cofre_senha_id: string
+          created_at?: string
+          id?: string
+          instancia: string
+          justica: string
+          mensagem_status?: string | null
+          oab_numero: string
+          oab_uf: string
+          orgao: string
+          proxima_captura?: string | null
+          status?: string
+          total_intimacoes_capturadas?: number
+          ultima_captura?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cofre_senha_id?: string
+          created_at?: string
+          id?: string
+          instancia?: string
+          justica?: string
+          mensagem_status?: string | null
+          oab_numero?: string
+          oab_uf?: string
+          orgao?: string
+          proxima_captura?: string | null
+          status?: string
+          total_intimacoes_capturadas?: number
+          ultima_captura?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capturas_intimacoes_cofre_senha_id_fkey"
+            columns: ["cofre_senha_id"]
+            isOneToOne: false
+            referencedRelation: "cofre_senhas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       carteiras_processos: {
         Row: {
           ativo: boolean
@@ -594,6 +656,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cofre_senhas: {
+        Row: {
+          aceite_termos_em: string | null
+          ativo: boolean
+          certificado_a1_path: string | null
+          certificado_a1_senha: string | null
+          created_at: string
+          id: string
+          login: string
+          mensagem_erro: string | null
+          nome: string
+          qrcode_2fa_path: string | null
+          senha_hash: string
+          sistema: string
+          status_validacao: string | null
+          tribunal: string
+          ultima_validacao: string | null
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          aceite_termos_em?: string | null
+          ativo?: boolean
+          certificado_a1_path?: string | null
+          certificado_a1_senha?: string | null
+          created_at?: string
+          id?: string
+          login: string
+          mensagem_erro?: string | null
+          nome: string
+          qrcode_2fa_path?: string | null
+          senha_hash: string
+          sistema: string
+          status_validacao?: string | null
+          tribunal: string
+          ultima_validacao?: string | null
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          aceite_termos_em?: string | null
+          ativo?: boolean
+          certificado_a1_path?: string | null
+          certificado_a1_senha?: string | null
+          created_at?: string
+          id?: string
+          login?: string
+          mensagem_erro?: string | null
+          nome?: string
+          qrcode_2fa_path?: string | null
+          senha_hash?: string
+          sistema?: string
+          status_validacao?: string | null
+          tribunal?: string
+          ultima_validacao?: string | null
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
       }
       comentarios_tarefas: {
         Row: {
@@ -1052,6 +1174,50 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      historico_capturas: {
+        Row: {
+          captura_id: string
+          detalhes: Json | null
+          erro: string | null
+          executado_em: string
+          id: string
+          intimacoes_encontradas: number
+          intimacoes_novas: number
+          sucesso: boolean
+          tempo_execucao_ms: number | null
+        }
+        Insert: {
+          captura_id: string
+          detalhes?: Json | null
+          erro?: string | null
+          executado_em?: string
+          id?: string
+          intimacoes_encontradas?: number
+          intimacoes_novas?: number
+          sucesso: boolean
+          tempo_execucao_ms?: number | null
+        }
+        Update: {
+          captura_id?: string
+          detalhes?: Json | null
+          erro?: string | null
+          executado_em?: string
+          id?: string
+          intimacoes_encontradas?: number
+          intimacoes_novas?: number
+          sucesso?: boolean
+          tempo_execucao_ms?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historico_capturas_captura_id_fkey"
+            columns: ["captura_id"]
+            isOneToOne: false
+            referencedRelation: "capturas_intimacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       historico_login: {
         Row: {
