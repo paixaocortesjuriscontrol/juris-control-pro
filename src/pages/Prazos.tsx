@@ -15,6 +15,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Building2,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -62,7 +63,11 @@ import {
   useDeletePrazo, 
   type Prazo 
 } from "@/hooks/usePrazos";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { PrazosCalendar } from "@/components/prazos/PrazosCalendar";
 import { TarefaDetalhesDialog } from "@/components/prazos/TarefaDetalhesDialog";
@@ -89,10 +94,12 @@ const PAGE_SIZE = 50;
 const Prazos = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("all");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedPrazo, setSelectedPrazo] = useState<Prazo | null>(null);
@@ -100,12 +107,53 @@ const Prazos = () => {
   const [prazoDetalhes, setPrazoDetalhes] = useState<Prazo | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [prazoToDelete, setPrazoToDelete] = useState<string | null>(null);
+  const [coordenacaoAutoSelected, setCoordenacaoAutoSelected] = useState(false);
 
   // Debounce search for better performance
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
 
+  // Get coordenações
+  const { data: coordenacoes } = useCoordenacoesFull();
+
+  // Auto-detect user's coordination
+  const { data: userCoordenacaoId } = useQuery({
+    queryKey: ["user-coordenacao", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      // Check if user is coordinator
+      const { data: coordenadorData } = await supabase
+        .from("coordenacoes")
+        .select("id")
+        .eq("coordenador_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      
+      if (coordenadorData) return coordenadorData.id;
+      
+      // Check if user is a member of any coordination
+      const { data: membroData } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      
+      return membroData?.coordenacao_id || null;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Auto-select user's coordination on first load
+  useEffect(() => {
+    if (userCoordenacaoId && !coordenacaoAutoSelected && coordenacaoFilter === "") {
+      setCoordenacaoFilter(userCoordenacaoId);
+      setCoordenacaoAutoSelected(true);
+    }
+  }, [userCoordenacaoId, coordenacaoAutoSelected, coordenacaoFilter]);
+
   // Stats from server
-  const { data: stats, isLoading: statsLoading } = usePrazosStats();
+  const { data: stats, isLoading: statsLoading } = usePrazosStats(coordenacaoFilter || undefined);
 
   // Paginated data for list view
   const { data: paginatedResult, isLoading: listLoading } = usePrazosPaginated({
@@ -114,6 +162,7 @@ const Prazos = () => {
     search: debouncedSearch,
     page: currentPage,
     pageSize: PAGE_SIZE,
+    coordenacaoId: coordenacaoFilter || undefined,
   });
 
   // All data for calendar view (limited)
@@ -145,6 +194,11 @@ const Prazos = () => {
 
   const handlePrioridadeChange = useCallback((value: string) => {
     setPrioridadeFilter(value);
+    setCurrentPage(1);
+  }, []);
+
+  const handleCoordenacaoChange = useCallback((value: string) => {
+    setCoordenacaoFilter(value === "all" ? "" : value);
     setCurrentPage(1);
   }, []);
 
@@ -269,10 +323,11 @@ const Prazos = () => {
     setSearchQuery("");
     setStatusFilter("all");
     setPrioridadeFilter("all");
+    setCoordenacaoFilter("");
     setCurrentPage(1);
   };
 
-  const hasActiveFilters = searchQuery || statusFilter !== "all" || prioridadeFilter !== "all";
+  const hasActiveFilters = searchQuery || statusFilter !== "all" || prioridadeFilter !== "all" || coordenacaoFilter !== "";
 
   const handleUpdatePrazoDate = async (prazoId: string, newDate: string) => {
     await updatePrazo.mutateAsync({
@@ -378,6 +433,22 @@ const Prazos = () => {
           <Card className="mb-6">
             <CardContent className="pt-6">
               <div className="flex flex-col md:flex-row gap-4">
+                {/* Coordination Filter */}
+                <Select value={coordenacaoFilter || "all"} onValueChange={handleCoordenacaoChange}>
+                  <SelectTrigger className="w-full md:w-72">
+                    <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="Coordenação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Coordenações</SelectItem>
+                    {coordenacoes?.map((coord) => (
+                      <SelectItem key={coord.id} value={coord.id}>
+                        {coord.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input
@@ -415,8 +486,13 @@ const Prazos = () => {
               </div>
 
               {hasActiveFilters && (
-                <div className="flex items-center gap-2 mt-4">
+                <div className="flex flex-wrap items-center gap-2 mt-4">
                   <span className="text-sm text-muted-foreground">Filtros ativos:</span>
+                  {coordenacaoFilter && (
+                    <Badge variant="secondary" className="cursor-pointer" onClick={() => handleCoordenacaoChange("all")}>
+                      {coordenacoes?.find(c => c.id === coordenacaoFilter)?.nome || "Coordenação"} ×
+                    </Badge>
+                  )}
                   {searchQuery && (
                     <Badge variant="secondary" className="cursor-pointer" onClick={() => { setSearchQuery(""); setCurrentPage(1); }}>
                       Busca: {searchQuery} ×

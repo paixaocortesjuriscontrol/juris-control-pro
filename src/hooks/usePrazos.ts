@@ -46,6 +46,7 @@ export type TarefasFilters = {
   search?: string;
   page?: number;
   pageSize?: number;
+  coordenacaoId?: string;
 };
 
 // Alias for backwards compatibility
@@ -71,9 +72,25 @@ export function useTarefasPaginated(filters?: TarefasFilters) {
   return useQuery({
     queryKey: ["tarefas-paginated", filters],
     queryFn: async (): Promise<TarefasResult> => {
-      let query = supabase
-        .from("tarefas")
-        .select(`
+      // Build select with or without inner join on processos
+      const selectFields = filters?.coordenacaoId
+        ? `
+          id,
+          titulo,
+          descricao,
+          data_vencimento,
+          status,
+          prioridade,
+          processo_id,
+          responsavel_id,
+          observacoes,
+          data_cumprimento,
+          created_at,
+          criado_por,
+          processo:processos!inner(id, numero, assunto, coordenacao_id),
+          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
+        `
+        : `
           id,
           titulo,
           descricao,
@@ -88,9 +105,18 @@ export function useTarefasPaginated(filters?: TarefasFilters) {
           criado_por,
           processo:processos!tarefas_processo_id_fkey(id, numero, assunto),
           responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
-        `, { count: "exact" })
+        `;
+
+      let query = supabase
+        .from("tarefas")
+        .select(selectFields, { count: "exact" })
         .order("data_vencimento", { ascending: true, nullsFirst: false })
         .range(from, to);
+
+      // Apply coordination filter
+      if (filters?.coordenacaoId) {
+        query = query.eq("processo.coordenacao_id", filters.coordenacaoId);
+      }
 
       // Apply server-side filters
       if (filters?.status && filters.status !== "all" && filters.status !== "atrasado") {
@@ -173,13 +199,49 @@ export function useTarefas(filters?: TarefasFilters) {
 // Alias for backwards compatibility
 export const usePrazos = useTarefas;
 
-export function useTarefasStats() {
+export function useTarefasStats(coordenacaoId?: string) {
   return useQuery({
-    queryKey: ["tarefas-stats"],
+    queryKey: ["tarefas-stats", coordenacaoId],
     queryFn: async () => {
       const today = new Date().toISOString().split("T")[0];
       
-      // Get counts by status
+      if (coordenacaoId) {
+        // With coordination filter - need to join with processos
+        const [pendentesRes, cumpridosRes, atrasadosRes, urgentesRes] = await Promise.all([
+          supabase
+            .from("tarefas")
+            .select("id, processos!inner(coordenacao_id)", { count: "exact", head: true })
+            .eq("processos.coordenacao_id", coordenacaoId)
+            .eq("status", "pendente")
+            .gte("data_vencimento", today),
+          supabase
+            .from("tarefas")
+            .select("id, processos!inner(coordenacao_id)", { count: "exact", head: true })
+            .eq("processos.coordenacao_id", coordenacaoId)
+            .eq("status", "cumprido"),
+          supabase
+            .from("tarefas")
+            .select("id, processos!inner(coordenacao_id)", { count: "exact", head: true })
+            .eq("processos.coordenacao_id", coordenacaoId)
+            .neq("status", "cumprido")
+            .lt("data_vencimento", today),
+          supabase
+            .from("tarefas")
+            .select("id, processos!inner(coordenacao_id)", { count: "exact", head: true })
+            .eq("processos.coordenacao_id", coordenacaoId)
+            .eq("prioridade", "urgente")
+            .neq("status", "cumprido"),
+        ]);
+
+        return {
+          pendentes: pendentesRes.count || 0,
+          cumpridos: cumpridosRes.count || 0,
+          atrasados: atrasadosRes.count || 0,
+          urgentes: urgentesRes.count || 0,
+        };
+      }
+      
+      // Without coordination filter
       const [pendentesRes, cumpridosRes, atrasadosRes, urgentesRes] = await Promise.all([
         supabase
           .from("tarefas")
