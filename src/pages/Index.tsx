@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Scale, Briefcase, Users, AlertTriangle, UserCheck, FolderX, BarChart3, Clock, Activity } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -11,15 +11,61 @@ import { ProcessosStatusChart } from "@/components/dashboard/ProcessosStatusChar
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDashboardStats, useRecentProcessos, useCoordenacoes } from "@/hooks/useDashboardData";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("resumo");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string | null>(null);
+  const [coordenacaoCarregada, setCoordenacaoCarregada] = useState(false);
   
-  // Stats load first - fastest query
-  const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  // Buscar coordenação do usuário logado
+  const { data: userCoordData } = useQuery({
+    queryKey: ['user-coordenacao-dashboard', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      // Primeiro verifica se é coordenador
+      const { data: coordenador } = await supabase
+        .from('coordenacoes')
+        .select('id')
+        .eq('coordenador_id', user.id)
+        .maybeSingle();
+      
+      if (coordenador) return coordenador.id;
+
+      // Senão, verifica se é membro de alguma coordenação
+      const { data: membro } = await supabase
+        .from('membros_coordenacao')
+        .select('coordenacao_id')
+        .eq('usuario_id', user.id)
+        .maybeSingle();
+      
+      return membro?.coordenacao_id || null;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Auto-selecionar coordenação do usuário ao carregar
+  useEffect(() => {
+    if (!coordenacaoCarregada && userCoordData !== undefined) {
+      if (userCoordData) {
+        setCoordenacaoFilter(userCoordData);
+      } else {
+        setCoordenacaoFilter("todas");
+      }
+      setCoordenacaoCarregada(true);
+    }
+  }, [userCoordData, coordenacaoCarregada]);
+  
+  // Stats com filtro de coordenação
+  const { data: stats, isLoading: statsLoading } = useDashboardStats(coordenacaoFilter);
   
   // Only load heavy data when their tabs are active
   const { data: recentProcessos, isLoading: processosLoading } = useRecentProcessos(3);
@@ -61,6 +107,20 @@ const Index = () => {
     <MainLayout 
       title="Dashboard" 
       subtitle="Visão geral do escritório"
+      headerActions={
+        <Select value={coordenacaoFilter || ""} onValueChange={setCoordenacaoFilter}>
+          <SelectTrigger className="w-72">
+            <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+            <SelectValue placeholder="Filtrar por coordenação" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas as coordenações</SelectItem>
+            {coordenacoes?.map((coord) => (
+              <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      }
     >
       {/* Stats Grid - Always visible */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">

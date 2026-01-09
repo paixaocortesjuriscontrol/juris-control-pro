@@ -248,20 +248,31 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
   const ignoradas = stats.filter((i: any) => i.status === 'ignorado').length;
   const emAndamento = stats.filter((i: any) => i.status === 'em_andamento').length;
   
-  // Próximas 7 dias
-  const hoje = new Date();
-  const seteDias = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
+  // Normalizar datas para meia-noite no horário de Brasília
+  const agora = new Date();
+  // Criar data de hoje às 00:00 BRT (UTC-3)
+  const hojeBrt = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  hojeBrt.setHours(0, 0, 0, 0);
+  
+  // Próximas 7 dias (de hoje até 7 dias no futuro)
+  const seteDias = new Date(hojeBrt.getTime() + 7 * 24 * 60 * 60 * 1000);
+  
   const proximas = stats.filter((i: any) => {
     if (i.status !== 'pendente' || !i.data_limite) return false;
-    const dataLimite = new Date(i.data_limite);
-    return dataLimite >= hoje && dataLimite <= seteDias;
+    // Parsear data_limite como meia-noite local
+    const [ano, mes, dia] = i.data_limite.split('T')[0].split('-').map(Number);
+    const dataLimite = new Date(ano, mes - 1, dia);
+    dataLimite.setHours(0, 0, 0, 0);
+    return dataLimite >= hojeBrt && dataLimite <= seteDias;
   }).length;
 
-  // Vencidas
+  // Vencidas (data_limite < hoje)
   const vencidas = stats.filter((i: any) => {
     if (i.status !== 'pendente' || !i.data_limite) return false;
-    const dataLimite = new Date(i.data_limite);
-    return dataLimite < hoje;
+    const [ano, mes, dia] = i.data_limite.split('T')[0].split('-').map(Number);
+    const dataLimite = new Date(ano, mes - 1, dia);
+    dataLimite.setHours(0, 0, 0, 0);
+    return dataLimite < hojeBrt;
   }).length;
 
   return {
