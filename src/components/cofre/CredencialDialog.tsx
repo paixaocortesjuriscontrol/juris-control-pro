@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,8 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Eye, EyeOff, Upload, ShieldCheck } from "lucide-react";
+import { Loader2, Eye, EyeOff, Upload, ShieldCheck, X, FileKey } from "lucide-react";
 import { CofreSenha } from "@/hooks/useCofreSenhas";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { sanitizeFileName } from "@/lib/utils";
 
 interface CredencialDialogProps {
   open: boolean;
@@ -92,6 +96,7 @@ const TRIBUNAIS = [
 ];
 
 export function CredencialDialog({ open, onOpenChange, credencial, onSave, saving }: CredencialDialogProps) {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     nome: "",
     sistema: "",
@@ -105,6 +110,110 @@ export function CredencialDialog({ open, onOpenChange, credencial, onSave, savin
   });
   const [showPassword, setShowPassword] = useState(false);
   const [aceitouTermos, setAceitouTermos] = useState(false);
+  const [uploadingCert, setUploadingCert] = useState(false);
+  const [uploadingQR, setUploadingQR] = useState(false);
+  const certInputRef = useRef<HTMLInputElement>(null);
+  const qrInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCertificadoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validar extensão
+    if (!file.name.toLowerCase().endsWith('.pfx') && !file.name.toLowerCase().endsWith('.p12')) {
+      toast.error("Formato inválido. Selecione um arquivo .pfx ou .p12");
+      return;
+    }
+
+    // Validar tamanho (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 5MB");
+      return;
+    }
+
+    setUploadingCert(true);
+    try {
+      const fileName = `${user.id}/${Date.now()}_${sanitizeFileName(file.name)}`;
+      const { error } = await supabase.storage
+        .from('cofre_certificados')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      setFormData({ ...formData, certificado_a1_path: fileName });
+      toast.success("Certificado enviado com sucesso");
+    } catch (err: any) {
+      console.error("Erro ao enviar certificado:", err);
+      toast.error("Erro ao enviar certificado: " + err.message);
+    } finally {
+      setUploadingCert(false);
+    }
+  };
+
+  const handleQRCodeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validar extensão
+    const validExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+    const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    if (!validExts.includes(ext)) {
+      toast.error("Formato inválido. Selecione uma imagem PNG, JPG ou GIF");
+      return;
+    }
+
+    // Validar tamanho (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 2MB");
+      return;
+    }
+
+    setUploadingQR(true);
+    try {
+      const fileName = `${user.id}/qrcode_${Date.now()}_${sanitizeFileName(file.name)}`;
+      const { error } = await supabase.storage
+        .from('cofre_certificados')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      setFormData({ ...formData, qrcode_2fa_path: fileName });
+      toast.success("QR Code enviado com sucesso");
+    } catch (err: any) {
+      console.error("Erro ao enviar QR Code:", err);
+      toast.error("Erro ao enviar QR Code: " + err.message);
+    } finally {
+      setUploadingQR(false);
+    }
+  };
+
+  const removeCertificado = async () => {
+    if (!formData.certificado_a1_path) return;
+    
+    try {
+      await supabase.storage
+        .from('cofre_certificados')
+        .remove([formData.certificado_a1_path]);
+      setFormData({ ...formData, certificado_a1_path: "" });
+      toast.success("Certificado removido");
+    } catch (err) {
+      console.error("Erro ao remover certificado:", err);
+    }
+  };
+
+  const removeQRCode = async () => {
+    if (!formData.qrcode_2fa_path) return;
+    
+    try {
+      await supabase.storage
+        .from('cofre_certificados')
+        .remove([formData.qrcode_2fa_path]);
+      setFormData({ ...formData, qrcode_2fa_path: "" });
+      toast.success("QR Code removido");
+    } catch (err) {
+      console.error("Erro ao remover QR Code:", err);
+    }
+  };
 
   useEffect(() => {
     if (credencial) {
@@ -257,18 +366,46 @@ export function CredencialDialog({ open, onOpenChange, credencial, onSave, savin
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Certificado A1</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={formData.certificado_a1_path}
-                    onChange={(e) => setFormData({ ...formData, certificado_a1_path: e.target.value })}
-                    placeholder="Caminho do certificado"
-                    disabled
-                  />
-                  <Button type="button" variant="outline" size="icon" disabled>
-                    <Upload className="h-4 w-4" />
+                <input
+                  ref={certInputRef}
+                  type="file"
+                  accept=".pfx,.p12"
+                  className="hidden"
+                  onChange={handleCertificadoUpload}
+                />
+                {formData.certificado_a1_path ? (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200">
+                    <FileKey className="h-4 w-4 text-green-600" />
+                    <span className="text-sm text-green-700 dark:text-green-300 truncate flex-1">
+                      {formData.certificado_a1_path.split('/').pop()}
+                    </span>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6"
+                      onClick={removeCertificado}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => certInputRef.current?.click()}
+                    disabled={uploadingCert}
+                  >
+                    {uploadingCert ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    Enviar .pfx ou .p12
                   </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Upload em breve</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">Arquivo .pfx ou .p12 (máx. 5MB)</p>
               </div>
 
               <div>
@@ -283,17 +420,44 @@ export function CredencialDialog({ open, onOpenChange, credencial, onSave, savin
 
               <div className="col-span-2">
                 <Label>QR Code 2FA</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={formData.qrcode_2fa_path}
-                    onChange={(e) => setFormData({ ...formData, qrcode_2fa_path: e.target.value })}
-                    placeholder="Imagem do QR Code"
-                    disabled
-                  />
-                  <Button type="button" variant="outline" size="icon" disabled>
-                    <Upload className="h-4 w-4" />
+                <input
+                  ref={qrInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleQRCodeUpload}
+                />
+                {formData.qrcode_2fa_path ? (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200">
+                    <span className="text-sm text-blue-700 dark:text-blue-300 truncate flex-1">
+                      {formData.qrcode_2fa_path.split('/').pop()}
+                    </span>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6"
+                      onClick={removeQRCode}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => qrInputRef.current?.click()}
+                    disabled={uploadingQR}
+                  >
+                    {uploadingQR ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    Enviar imagem do QR Code
                   </Button>
-                </div>
+                )}
                 <p className="text-xs text-muted-foreground mt-1">Para tribunais com 2FA obrigatório</p>
               </div>
             </div>
