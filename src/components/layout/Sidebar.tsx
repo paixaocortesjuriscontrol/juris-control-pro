@@ -51,7 +51,7 @@ const menuItems = [
   { icon: Bell, label: "Notificações", path: "/notificacoes" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
-  { icon: Calendar, label: "Prazos", path: "/prazos" },
+  { icon: Calendar, label: "Controle de Prazos", path: "/prazos" },
   { icon: RefreshCw, label: "Redistribuições", path: "/redistribuicoes" },
   { icon: Radar, label: "Monit. Distribuição", path: "/monitoramento-distribuicao" },
   { icon: Radar, label: "Monitoração 360º", path: "/monitoramento-360" },
