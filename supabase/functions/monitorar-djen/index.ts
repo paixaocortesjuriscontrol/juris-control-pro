@@ -302,6 +302,14 @@ async function processMonitoramento(
     searchCandidates.push({ texto: monitoramento.termo_busca });
   } else if (monitoramento.tipo === "processo") {
     searchCandidates.push({ texto: monitoramento.termo_busca.replace(/\D/g, "") });
+  } else if (monitoramento.tipo === "parte") {
+    // Busca por nome da parte (empresa, pessoa, etc.)
+    // Uses generic text search - API will match against all parties in publications
+    const termo = (monitoramento.termo_busca || "").trim();
+    if (termo.length >= 3) {
+      searchCandidates.push({ texto: termo });
+      console.log(`Parte search: "${termo}"`);
+    }
   }
 
   if (searchCandidates.length === 0) {
