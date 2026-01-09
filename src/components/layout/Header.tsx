@@ -17,12 +17,15 @@ import { toast } from "sonner";
 import { NotificacoesDropdown } from "./NotificacoesDropdown";
 import { Badge } from "@/components/ui/badge";
 
+import { ReactNode } from "react";
+
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  headerActions?: ReactNode;
 }
 
-export function Header({ title, subtitle }: HeaderProps) {
+export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const { user, signOut } = useAuth();
   const { isImporting, importLabel } = useImport();
   const navigate = useNavigate();
@@ -62,6 +65,8 @@ export function Header({ title, subtitle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 lg:gap-4">
+        {/* Header Actions (filters, etc) */}
+        {headerActions}
         {/* Import Indicator */}
         {isImporting && (
           <Badge variant="secondary" className="flex items-center gap-1.5 bg-amber-500/20 text-amber-600 border-amber-500/30 animate-pulse">
