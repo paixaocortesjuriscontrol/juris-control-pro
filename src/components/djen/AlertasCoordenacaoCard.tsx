@@ -62,19 +62,34 @@ export function AlertasCoordenacaoCard({ coordenacoes }: AlertasCoordenacaoCardP
 
   // Buscar membros da coordenação selecionada
   const { data: membros = [], isLoading: loadingMembros } = useQuery({
-    queryKey: ['membros-coordenacao', coordenacaoSelecionada],
+    queryKey: ['membros-coordenacao-alertas', coordenacaoSelecionada],
     queryFn: async () => {
       if (!coordenacaoSelecionada) return [];
-      const { data, error } = await supabase
+      
+      // Primeiro busca os IDs dos membros
+      const { data: membroData, error: membroError } = await supabase
         .from('membros_coordenacao')
-        .select('usuario_id, profiles:usuario_id(id, nome, telefone)')
+        .select('usuario_id')
         .eq('coordenacao_id', coordenacaoSelecionada);
-      if (error) throw error;
-      return data?.map(m => ({
-        id: m.usuario_id,
-        nome: (m.profiles as any)?.nome || 'Sem nome',
-        telefone: (m.profiles as any)?.telefone || null
-      })) as Membro[] || [];
+      
+      if (membroError) throw membroError;
+      if (!membroData || membroData.length === 0) return [];
+      
+      const usuarioIds = membroData.map(m => m.usuario_id);
+      
+      // Depois busca os profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, nome, telefone')
+        .in('id', usuarioIds);
+      
+      if (profilesError) throw profilesError;
+      
+      return (profiles || []).map(p => ({
+        id: p.id,
+        nome: p.nome || 'Sem nome',
+        telefone: p.telefone
+      })) as Membro[];
     },
     enabled: !!coordenacaoSelecionada,
   });
