@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  ChevronsUpDown,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,7 @@ const AnaliseDjen = () => {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
+  const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
   
   const { 
     publicacoes, 
@@ -151,6 +153,24 @@ const AnaliseDjen = () => {
   const handleView = (pub: PublicacaoUnificada) => {
     setSelectedPublicacao(pub);
     setViewDialogOpen(true);
+  };
+
+  const toggleExpandPublicacao = (id: string) => {
+    const newExpanded = new Set(expandedPublicacoes);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedPublicacoes(newExpanded);
+  };
+
+  const toggleExpandAll = () => {
+    if (expandedPublicacoes.size === publicacoes.length && publicacoes.length > 0) {
+      setExpandedPublicacoes(new Set());
+    } else {
+      setExpandedPublicacoes(new Set(publicacoes.map(p => p.id)));
+    }
   };
 
   const handleMarcarLidas = async () => {
@@ -398,6 +418,18 @@ const AnaliseDjen = () => {
             )}
             Marcar como Lida ({selectedIds.size})
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleExpandAll}
+            disabled={publicacoes.length === 0}
+          >
+            <ChevronsUpDown className="w-4 h-4 mr-2" />
+            {expandedPublicacoes.size === publicacoes.length && publicacoes.length > 0
+              ? "Recolher Todos"
+              : "Expandir Todos"}
+          </Button>
         </div>
 
         {/* Results by Coordination */}
@@ -465,7 +497,9 @@ const AnaliseDjen = () => {
                   <CollapsibleContent>
                     <CardContent className="pt-0">
                       <div className="space-y-3">
-                        {grupo.publicacoes.map((pub) => (
+                        {grupo.publicacoes.map((pub) => {
+                          const isExpanded = expandedPublicacoes.has(pub.id);
+                          return (
                           <div
                             key={pub.id}
                             className={cn(
@@ -508,37 +542,102 @@ const AnaliseDjen = () => {
                                   </span>
                                 </div>
 
-                                {pub.processo_numero && (
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <p className="text-sm font-medium text-primary">
-                                      {pub.processo_numero}
+                                {/* Clickable process number / text to expand */}
+                                <div 
+                                  className="cursor-pointer select-none"
+                                  onClick={() => toggleExpandPublicacao(pub.id)}
+                                >
+                                  {pub.processo_numero && (
+                                    <div className="flex items-center gap-2 mb-1">
+                                      {isExpanded ? (
+                                        <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                      )}
+                                      <p className="text-sm font-medium text-primary hover:underline">
+                                        {pub.processo_numero}
+                                      </p>
+                                      {pub.tipo_origem === 'processo' && pub.processo_id && (
+                                        <Link 
+                                          to={`/processos/${pub.processo_id}`}
+                                          className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                          Ver processo
+                                        </Link>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {!pub.processo_numero && (
+                                    <div className="flex items-center gap-2 mb-1">
+                                      {isExpanded ? (
+                                        <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                      )}
+                                      <span className="text-sm text-muted-foreground hover:text-foreground">
+                                        Clique para ver detalhes
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {pub.tipo_origem === 'processo' && (pub.polo_ativo || pub.polo_passivo) && (
+                                    <p className="text-xs text-muted-foreground mb-1 ml-6">
+                                      {pub.polo_ativo && <span><strong>Ativo:</strong> {pub.polo_ativo}</span>}
+                                      {pub.polo_ativo && pub.polo_passivo && ' | '}
+                                      {pub.polo_passivo && <span><strong>Passivo:</strong> {pub.polo_passivo}</span>}
                                     </p>
-                                    {pub.tipo_origem === 'processo' && pub.processo_id && (
-                                      <Link 
-                                        to={`/processos/${pub.processo_id}`}
-                                        className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
-                                      >
-                                        <ExternalLink className="w-3 h-3" />
-                                        Ver processo
-                                      </Link>
-                                    )}
+                                  )}
+
+                                  {!isExpanded && (
+                                    <p className="text-sm text-muted-foreground line-clamp-2 ml-6">
+                                      {pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 250) || "Sem conteúdo"}...
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Expanded inline content */}
+                                {isExpanded && (
+                                  <div className="mt-3 ml-6 space-y-3 border-t pt-3">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                      <div>
+                                        <strong>Data Publicação:</strong>
+                                        <p className="text-muted-foreground">{formatDate(pub.data_publicacao)}</p>
+                                      </div>
+                                      <div>
+                                        <strong>Capturado em:</strong>
+                                        <p className="text-muted-foreground">{formatDate(pub.created_at)}</p>
+                                      </div>
+                                      {pub.fonte && (
+                                        <div>
+                                          <strong>Fonte:</strong>
+                                          <p className="text-muted-foreground">{pub.fonte}</p>
+                                        </div>
+                                      )}
+                                      {pub.tribunal && (
+                                        <div>
+                                          <strong>Tribunal:</strong>
+                                          <p className="text-muted-foreground">{pub.tribunal}</p>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div>
+                                      <strong className="text-xs">Conteúdo:</strong>
+                                      <div 
+                                        className="mt-2 p-3 bg-muted/50 rounded-lg text-sm prose prose-sm max-w-none dark:prose-invert"
+                                        dangerouslySetInnerHTML={{ 
+                                          __html: pub.conteudo || "Sem conteúdo" 
+                                        }}
+                                      />
+                                    </div>
                                   </div>
                                 )}
 
-                                {pub.tipo_origem === 'processo' && (pub.polo_ativo || pub.polo_passivo) && (
-                                  <p className="text-xs text-muted-foreground mb-1">
-                                    {pub.polo_ativo && <span><strong>Ativo:</strong> {pub.polo_ativo}</span>}
-                                    {pub.polo_ativo && pub.polo_passivo && ' | '}
-                                    {pub.polo_passivo && <span><strong>Passivo:</strong> {pub.polo_passivo}</span>}
-                                  </p>
-                                )}
-
-                                <p className="text-sm text-muted-foreground line-clamp-2">
-                                  {pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 250) || "Sem conteúdo"}...
-                                </p>
-
-                                {pub.tribunal && (
-                                  <p className="text-xs text-muted-foreground mt-1">
+                                {!isExpanded && pub.tribunal && (
+                                  <p className="text-xs text-muted-foreground mt-1 ml-6">
                                     <strong>Tribunal:</strong> {pub.tribunal}
                                   </p>
                                 )}
@@ -548,12 +647,14 @@ const AnaliseDjen = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleView(pub)}
+                                title="Ver detalhes em modal"
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
                             </div>
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
                     </CardContent>
                   </CollapsibleContent>
