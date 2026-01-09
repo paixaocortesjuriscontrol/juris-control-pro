@@ -121,8 +121,8 @@ export default function ClienteCadastro() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 p-4">
-        <Card className="w-full max-w-md border-border/50 bg-card/80 backdrop-blur-sm">
+      <div className="min-h-screen flex items-center justify-center bg-primary p-4">
+        <Card className="w-full max-w-md border-border/50 bg-card/95 backdrop-blur-sm">
           <CardHeader>
             <Skeleton className="h-8 w-48 mx-auto" />
             <Skeleton className="h-4 w-64 mx-auto mt-2" />
@@ -139,8 +139,8 @@ export default function ClienteCadastro() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 p-4">
-        <Card className="w-full max-w-md border-border/50 bg-card/80 backdrop-blur-sm text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-primary p-4">
+        <Card className="w-full max-w-md border-border/50 bg-card/95 backdrop-blur-sm text-center">
           <CardHeader>
             <div className="mx-auto p-4 bg-destructive/10 rounded-full mb-4">
               <XCircle className="w-12 h-12 text-destructive" />
@@ -163,11 +163,11 @@ export default function ClienteCadastro() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 p-4">
-        <Card className="w-full max-w-md border-border/50 bg-card/80 backdrop-blur-sm text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-primary p-4">
+        <Card className="w-full max-w-md border-border/50 bg-card/95 backdrop-blur-sm text-center">
           <CardHeader>
-            <div className="mx-auto p-4 bg-emerald-500/10 rounded-full mb-4">
-              <CheckCircle2 className="w-12 h-12 text-emerald-500" />
+            <div className="mx-auto p-4 bg-green-500/10 rounded-full mb-4">
+              <CheckCircle2 className="w-12 h-12 text-green-500" />
             </div>
             <CardTitle>Conta Criada!</CardTitle>
             <CardDescription className="text-base">
@@ -187,20 +187,20 @@ export default function ClienteCadastro() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-primary p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gold/20 rounded-xl">
-              <Scale className="w-10 h-10 text-gold" />
+            <div className="p-3 bg-accent/20 rounded-xl">
+              <Scale className="w-10 h-10 text-accent" />
             </div>
           </div>
-          <h1 className="text-3xl font-serif font-bold text-white">JurisControl</h1>
-          <p className="text-gold mt-2">Portal do Cliente</p>
+          <h1 className="text-3xl font-serif font-bold text-primary-foreground">JurisControl</h1>
+          <p className="text-accent mt-2">Portal do Cliente</p>
         </div>
 
-        <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+        <Card className="border-border/50 bg-card/95 backdrop-blur-sm">
           <CardHeader className="text-center">
             <CardTitle className="text-xl">Criar sua conta</CardTitle>
             <CardDescription>
@@ -273,7 +273,7 @@ export default function ClienteCadastro() {
         <div className="mt-6 text-center">
           <Link 
             to="/cliente/login" 
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-gold transition-colors"
+            className="inline-flex items-center gap-2 text-sm text-primary-foreground/70 hover:text-accent transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Já tenho uma conta
