@@ -433,12 +433,14 @@ serve(async (req) => {
     let dataInicio: string | undefined;
     let dataFim: string | undefined;
     let continuarDe: number | undefined;
+    let completeRun = false;
 
     try {
       const body = await req.json();
       dataInicio = body.dataInicio;
       dataFim = body.dataFim;
       continuarDe = body.continuarDe;
+      completeRun = body.completeRun === true;
     } catch {
       // No body
     }
@@ -450,7 +452,7 @@ serve(async (req) => {
       dataFim = hoje;
     }
 
-    console.log(`[DJEN Processos] Início: ${dataInicio} a ${dataFim}`);
+    console.log(`[DJEN Processos] Início: ${dataInicio} a ${dataFim} | completeRun=${completeRun}`);
 
     // Get config
     const { data: config } = await supabase
@@ -466,7 +468,11 @@ serve(async (req) => {
       .eq('status', 'ativo')
       .eq('monitorar_andamentos', true);
 
-    const offset = continuarDe || 0;
+    const meta: any = config?.metadata || {};
+    const metaOffset = typeof meta?.next_offset === 'number' ? meta.next_offset : 0;
+
+    // Se for execução completa (cron), continuar do offset salvo no metadata
+    const offset = (typeof continuarDe === 'number' ? continuarDe : (completeRun ? metaOffset : 0));
 
     // Get batch
     const { data: processos, error: processosError } = await supabase

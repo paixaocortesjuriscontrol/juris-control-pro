@@ -490,11 +490,33 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check for offset parameter (for paginated processing)
     const url = new URL(req.url);
-    const offset = parseInt(url.searchParams.get('offset') || '0');
 
-    console.log(`=== DJEN Monitor (offset: ${offset}) ===`);
+    // Body flags (cron usa { scheduled: true })
+    const body = await req.json().catch(() => ({} as any));
+    const scheduled = body?.scheduled === true;
+    const completeRun = body?.completeRun === true || scheduled;
+
+    // Se não vier offset na URL, usar o next_offset persistido (para execuções agendadas/complete)
+    const urlOffsetRaw = url.searchParams.get('offset');
+    const urlOffset = urlOffsetRaw !== null ? Number.parseInt(urlOffsetRaw, 10) : NaN;
+
+    let offset = Number.isFinite(urlOffset) ? urlOffset : 0;
+
+    if (!Number.isFinite(urlOffset) && completeRun) {
+      const { data: configRow } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .limit(1)
+        .maybeSingle();
+
+      const meta: any = configRow?.metadata || {};
+      const metaOffset = typeof meta?.next_offset === 'number' ? meta.next_offset : 0;
+      offset = metaOffset;
+    }
+
+    console.log(`=== DJEN Monitor (offset: ${offset}) | scheduled=${scheduled} | completeRun=${completeRun} ===`);
     const startTime = Date.now();
 
     // Total active monitoramentos (used to compute hasMore correctly)
