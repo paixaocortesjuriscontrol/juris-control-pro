@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useAudienciasDetectadas, AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { useExportarAudiencias } from "@/hooks/useExportarAudiencias";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -26,16 +27,51 @@ import { supabase } from "@/integrations/supabase/client";
 
 export default function PainelAudiencias() {
   const isMobile = useIsMobile();
+  const { user } = useAuth();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("pendente");
-  const [coordenacaoFilter, setCoordenacaoFilter] = useState("todas");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string | null>(null);
   const [selectedAudiencia, setSelectedAudiencia] = useState<AudienciaDetectada | null>(null);
   const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);
   const [observacoes, setObservacoes] = useState("");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const { exportarExcel } = useExportarAudiencias();
+
+  // Buscar coordenação do usuário logado
+  const { data: userCoordenacao } = useQuery({
+    queryKey: ['user-coordenacao', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      // Primeiro verifica se é coordenador
+      const { data: coordenador } = await supabase
+        .from('coordenacoes')
+        .select('id')
+        .eq('coordenador_id', user.id)
+        .maybeSingle();
+      
+      if (coordenador) return coordenador.id;
+      
+      // Depois verifica se é membro
+      const { data: membro } = await supabase
+        .from('membros_coordenacao')
+        .select('coordenacao_id')
+        .eq('usuario_id', user.id)
+        .maybeSingle();
+      
+      return membro?.coordenacao_id || null;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Definir filtro inicial quando a coordenação do usuário for carregada
+  useEffect(() => {
+    if (coordenacaoFilter === null && userCoordenacao !== undefined) {
+      setCoordenacaoFilter(userCoordenacao || "todas");
+    }
+  }, [userCoordenacao, coordenacaoFilter]);
 
   // Buscar coordenações
   const { data: coordenacoes = [] } = useQuery({
@@ -60,7 +96,7 @@ export default function PainelAudiencias() {
   } = useAudienciasDetectadas({ 
     status: statusFilter,
     search,
-    coordenacaoId: coordenacaoFilter,
+    coordenacaoId: coordenacaoFilter || "todas",
   });
 
   const handleMarcarTratado = async (id: string) => {
@@ -241,7 +277,7 @@ export default function PainelAudiencias() {
               <div className="relative w-full">
                 <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <select
-                  value={coordenacaoFilter}
+                  value={coordenacaoFilter || "todas"}
                   onChange={(e) => setCoordenacaoFilter(e.target.value)}
                   className="h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 >
@@ -254,7 +290,7 @@ export default function PainelAudiencias() {
                 </select>
               </div>
             ) : (
-              <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+              <Select value={coordenacaoFilter || "todas"} onValueChange={setCoordenacaoFilter}>
                 <SelectTrigger className="w-full md:w-[220px]">
                   <Users className="h-4 w-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="Coordenação" />
