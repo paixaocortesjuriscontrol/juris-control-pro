@@ -370,7 +370,7 @@ export default function CentralDelegacao() {
   });
 
   // Stats via COUNT no banco (sem limite de registros)
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["tarefas-stats-delegacao", coordenacaoId, membros, user?.id, isAdminOrCoordinator],
     queryFn: async () => {
       // Get members IDs for the selected coordination
@@ -383,6 +383,16 @@ export default function CentralDelegacao() {
           .eq("coordenacao_id", coordenacaoId);
         
         membroIds = membrosCoordenacao?.map(m => m.usuario_id) || [];
+        
+        // Se coordenação não tem membros, retornar zeros
+        if (membroIds.length === 0) {
+          return {
+            total: 0,
+            pendentes: 0,
+            atrasadas: 0,
+            concluidas: 0,
+          };
+        }
       }
 
       // Helper to build base query with filters
@@ -398,32 +408,29 @@ export default function CentralDelegacao() {
         return q;
       };
 
-      // Count total
-      const { count: total } = await buildQuery();
-
-      // Count pendentes (status = pendente AND não atrasado)
-      // Precisamos contar pendentes que NÃO estão atrasados
       const hoje = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
-      
-      // Count status = pendente
-      const { count: pendentesTotal } = await buildQuery().eq("status", "pendente");
 
-      // Count atrasadas (status = pendente AND data_vencimento < hoje)
-      const { count: atrasadas } = await buildQuery()
-        .eq("status", "pendente")
-        .lt("data_vencimento", hoje);
+      // Executar todas as queries em paralelo
+      const [totalRes, pendentesTotalRes, atrasadasRes, concluidasRes] = await Promise.all([
+        buildQuery(),
+        buildQuery().eq("status", "pendente"),
+        buildQuery().eq("status", "pendente").lt("data_vencimento", hoje),
+        buildQuery().eq("status", "cumprido"),
+      ]);
 
-      // Count cumpridas
-      const { count: concluidas } = await buildQuery().eq("status", "cumprido");
+      const total = totalRes.count ?? 0;
+      const pendentesTotal = pendentesTotalRes.count ?? 0;
+      const atrasadas = atrasadasRes.count ?? 0;
+      const concluidas = concluidasRes.count ?? 0;
 
       // Pendentes = pendentesTotal - atrasadas
-      const pendentes = (pendentesTotal || 0) - (atrasadas || 0);
+      const pendentes = pendentesTotal - atrasadas;
 
       return {
-        total: total || 0,
-        pendentes: pendentes,
-        atrasadas: atrasadas || 0,
-        concluidas: concluidas || 0,
+        total,
+        pendentes,
+        atrasadas,
+        concluidas,
       };
     },
     enabled: !!user?.id,
