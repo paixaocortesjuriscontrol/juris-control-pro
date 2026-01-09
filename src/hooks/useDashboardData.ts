@@ -22,60 +22,89 @@ export function useDashboardStats(coordenacaoId?: string | null) {
   return useQuery({
     queryKey: ["dashboard-stats", coordenacaoId],
     queryFn: async () => {
-      // Se filtrar por coordenação, calcular stats localmente
+      // Se filtrar por coordenação, usar COUNTs ao invés de buscar registros
       if (coordenacaoId && coordenacaoId !== "todas") {
-        // Buscar processos da coordenação
-        const { data: processos, error: procError } = await supabase
-          .from("processos")
-          .select("id, status, advogado_responsavel_id")
-          .eq("coordenacao_id", coordenacaoId);
-        
-        if (procError) throw procError;
-        
-        const procs = processos || [];
-        const processosIds = procs.map(p => p.id);
-        
-        // Buscar tarefas urgentes (próximos 7 dias)
-        const hoje = new Date();
-        const hojeStr = hoje.toISOString().split("T")[0];
-        const seteDias = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const seteDiasStr = seteDias.toISOString().split("T")[0];
-        
-        let prazosUrgentes = 0;
-        if (processosIds.length > 0) {
-          const { count } = await supabase
-            .from("tarefas")
+        // Usar Promise.all para paralelizar as queries de contagem
+        const [
+          totalResult,
+          ativoResult,
+          pendenteResult,
+          urgenteResult,
+          encerradoResult,
+          arquivadoResult,
+          distribuidosResult,
+          membrosResult,
+          prazosResult,
+        ] = await Promise.all([
+          // Total de processos da coordenação
+          supabase
+            .from("processos")
             .select("id", { count: "exact", head: true })
-            .in("processo_id", processosIds)
-            .eq("status", "pendente")
-            .gte("data_vencimento", hojeStr)
-            .lte("data_vencimento", seteDiasStr);
-          prazosUrgentes = count || 0;
-        }
-        
-        // Calcular status counts
-        const statusCount = {
-          ativo: procs.filter(p => p.status === "ativo").length,
-          pendente: procs.filter(p => p.status === "pendente").length,
-          urgente: procs.filter(p => p.status === "urgente").length,
-          encerrado: procs.filter(p => p.status === "encerrado").length,
-          arquivado: procs.filter(p => p.status === "arquivado").length,
-        };
-        
-        // Buscar membros da coordenação
-        const { count: totalMembros } = await supabase
-          .from("membros_coordenacao")
-          .select("id", { count: "exact", head: true })
-          .eq("coordenacao_id", coordenacaoId);
+            .eq("coordenacao_id", coordenacaoId),
+          // Ativos
+          supabase
+            .from("processos")
+            .select("id", { count: "exact", head: true })
+            .eq("coordenacao_id", coordenacaoId)
+            .eq("status", "ativo"),
+          // Pendentes
+          supabase
+            .from("processos")
+            .select("id", { count: "exact", head: true })
+            .eq("coordenacao_id", coordenacaoId)
+            .eq("status", "pendente"),
+          // Urgentes
+          supabase
+            .from("processos")
+            .select("id", { count: "exact", head: true })
+            .eq("coordenacao_id", coordenacaoId)
+            .eq("status", "urgente"),
+          // Encerrados
+          supabase
+            .from("processos")
+            .select("id", { count: "exact", head: true })
+            .eq("coordenacao_id", coordenacaoId)
+            .eq("status", "encerrado"),
+          // Arquivados
+          supabase
+            .from("processos")
+            .select("id", { count: "exact", head: true })
+            .eq("coordenacao_id", coordenacaoId)
+            .eq("status", "arquivado"),
+          // Distribuídos (com advogado responsável)
+          supabase
+            .from("processos")
+            .select("id", { count: "exact", head: true })
+            .eq("coordenacao_id", coordenacaoId)
+            .not("advogado_responsavel_id", "is", null),
+          // Membros da coordenação
+          supabase
+            .from("membros_coordenacao")
+            .select("id", { count: "exact", head: true })
+            .eq("coordenacao_id", coordenacaoId),
+          // Prazos urgentes (próximos 7 dias) - usar RPC para evitar limite
+          supabase.rpc('count_tarefas_urgentes_coordenacao', { 
+            p_coordenacao_id: coordenacaoId 
+          }),
+        ]);
+
+        const totalProcessos = totalResult.count || 0;
+        const processosAtivos = ativoResult.count || 0;
         
         return {
-          totalProcessos: procs.length,
-          processosAtivos: statusCount.ativo,
-          processosDistribuidos: procs.filter(p => p.advogado_responsavel_id).length,
+          totalProcessos,
+          processosAtivos,
+          processosDistribuidos: distribuidosResult.count || 0,
           processosSemCoordenacao: 0,
-          statusCount,
-          prazosUrgentes,
-          totalAdvogados: totalMembros || 0,
+          statusCount: {
+            ativo: ativoResult.count || 0,
+            pendente: pendenteResult.count || 0,
+            urgente: urgenteResult.count || 0,
+            encerrado: encerradoResult.count || 0,
+            arquivado: arquivadoResult.count || 0,
+          },
+          prazosUrgentes: typeof prazosResult.data === 'number' ? prazosResult.data : 0,
+          totalAdvogados: membrosResult.count || 0,
           totalCoordenacoes: 1,
         } as DashboardStats;
       }
