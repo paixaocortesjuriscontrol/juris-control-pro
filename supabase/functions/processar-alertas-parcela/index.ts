@@ -87,8 +87,10 @@ serve(async (req) => {
       // ignore
     }
 
-    const now = new Date();
-    console.log(`[processar-alertas-parcela] Início ${now.toISOString()} | limit=${limit}`);
+    // Usar horário de Brasília (UTC-3)
+    const nowUtc = new Date();
+    const nowBrt = new Date(nowUtc.getTime() - 3 * 60 * 60 * 1000);
+    console.log(`[processar-alertas-parcela] Início ${nowUtc.toISOString()} (BRT: ${nowBrt.toISOString()}) | limit=${limit}`);
 
     // Buscar alertas de parcelas pendentes
     const { data: alertas, error: alertasError } = await supabase
@@ -144,7 +146,7 @@ serve(async (req) => {
           // Parcela já foi paga ou está atrasada - marca como enviado para não processar novamente
           await supabase
             .from("alertas_parcela")
-            .update({ enviado: true, enviado_em: now.toISOString() })
+            .update({ enviado: true, enviado_em: nowUtc.toISOString() })
             .eq("id", alertaId);
           results.push({ alerta_id: alertaId, parcela_id: parcela.id, status: "ignorado" });
           continue;
@@ -162,16 +164,16 @@ serve(async (req) => {
         const dueAt = new Date(dataHoraVencimento.getTime() - alerta.minutos_antes * 60_000);
 
         // Se ainda não chegou no horário de disparo, deixa pendente
-        if (now.getTime() < dueAt.getTime()) {
+        if (nowUtc.getTime() < dueAt.getTime()) {
           results.push({ alerta_id: alertaId, parcela_id: parcela.id, status: "nao_devido" });
           continue;
         }
 
         // Evitar envio para parcelas muito no passado (mais de 1 hora depois do vencimento)
-        if (now.getTime() > dataHoraVencimento.getTime() + 60 * 60_000) {
+        if (nowUtc.getTime() > dataHoraVencimento.getTime() + 60 * 60_000) {
           await supabase
             .from("alertas_parcela")
-            .update({ enviado: true, enviado_em: now.toISOString() })
+            .update({ enviado: true, enviado_em: nowUtc.toISOString() })
             .eq("id", alertaId);
 
           results.push({ alerta_id: alertaId, parcela_id: parcela.id, status: "ignorado" });
@@ -257,7 +259,7 @@ serve(async (req) => {
 
         await supabase
           .from("alertas_parcela")
-          .update({ enviado: true, enviado_em: now.toISOString() })
+          .update({ enviado: true, enviado_em: nowUtc.toISOString() })
           .eq("id", alertaId);
 
         results.push({ alerta_id: alertaId, parcela_id: parcela.id, status: "enviado", enviados, falhas });
@@ -289,7 +291,7 @@ serve(async (req) => {
           .update({ 
             status: "concluido", 
             recorrente: false,
-            concluido_em: now.toISOString(),
+            concluido_em: nowUtc.toISOString(),
           })
           .eq("id", eventoId);
         console.log(`[processar-alertas-parcela] Evento ${eventoId} marcado como concluído (todas parcelas pagas)`);
