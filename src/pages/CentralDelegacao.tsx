@@ -1,11 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
-import { format, parseISO, differenceInDays, isBefore } from "date-fns";
+import { format, parseISO, differenceInDays, isBefore, startOfDay, addDays, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
   Plus,
@@ -49,12 +49,21 @@ import { cn } from "@/lib/utils";
 
 type TipoAtividade = "todos" | "tarefas" | "audiencias" | "compromissos";
 type StatusFiltro = "todos" | "pendente" | "cumprido" | "atrasado";
+type PeriodoFiltro = "hoje" | "semana" | "quinzena" | "mes" | "todas";
 
 const statusFiltroLabel: Record<StatusFiltro, string> = {
   todos: "Todas",
   pendente: "Pendentes",
   cumprido: "Concluídas",
   atrasado: "Atrasadas",
+};
+
+const periodoFiltroLabel: Record<PeriodoFiltro, string> = {
+  hoje: "Hoje",
+  semana: "Semana",
+  quinzena: "15 dias",
+  mes: "Mês",
+  todas: "Todas",
 };
 
 const prioridadeFiltroLabel: Record<string, string> = {
@@ -85,20 +94,51 @@ export default function CentralDelegacao() {
   const [tipoAtividade, setTipoAtividade] = useState<TipoAtividade>("todos");
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("todos");
   const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>("todas");
+  const [periodoFiltro, setPeriodoFiltro] = useState<PeriodoFiltro>("hoje");
   const [selectedTarefaId, setSelectedTarefaId] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [novoCompromissoOpen, setNovoCompromissoOpen] = useState(false);
   const [acoesLoteOpen, setAcoesLoteOpen] = useState(false);
   const [ordenacao, setOrdenacao] = useState<string>("mais-antigas");
+  const [coordenacaoAutoDetected, setCoordenacaoAutoDetected] = useState(false);
+
+  // Auto-detect user's coordination
+  const { data: userCoordenacao } = useQuery({
+    queryKey: ["user-coordenacao", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        console.error("Error fetching user coordination:", error);
+        return null;
+      }
+      return data?.coordenacao_id || null;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Auto-set coordination when detected
+  useEffect(() => {
+    if (userCoordenacao && !coordenacaoAutoDetected) {
+      setCoordenacaoId(userCoordenacao);
+      setCoordenacaoAutoDetected(true);
+    }
+  }, [userCoordenacao, coordenacaoAutoDetected]);
 
   const clearAllFilters = () => {
     setSearch("");
     setStatusFiltro("todos");
     setPrioridadeFiltro("todas");
+    setPeriodoFiltro("hoje");
     setOrdenacao("mais-antigas");
 
     if (isAdminOrCoordinator) {
-      setCoordenacaoId("todas");
+      setCoordenacaoId(userCoordenacao || "todas");
       setMembroId("todos");
     }
   };
@@ -140,9 +180,27 @@ export default function CentralDelegacao() {
     },
   });
 
+  // Calculate date range for period filter
+  const getDateRange = useMemo(() => {
+    const hoje = startOfDay(new Date());
+    switch (periodoFiltro) {
+      case "hoje":
+        return { inicio: hoje, fim: addDays(hoje, 1) };
+      case "semana":
+        return { inicio: hoje, fim: addDays(hoje, 7) };
+      case "quinzena":
+        return { inicio: hoje, fim: addDays(hoje, 15) };
+      case "mes":
+        return { inicio: hoje, fim: addMonths(hoje, 1) };
+      case "todas":
+      default:
+        return null;
+    }
+  }, [periodoFiltro]);
+
   // Fetch atividades (tarefas/prazos + eventos)
   const { data: atividades, isLoading: loadingAtividades } = useQuery({
-    queryKey: ["atividades-delegacao", coordenacaoId, membroId, tipoAtividade, statusFiltro, prioridadeFiltro, ordenacao, membros, user?.id, isAdminOrCoordinator],
+    queryKey: ["atividades-delegacao", coordenacaoId, membroId, tipoAtividade, statusFiltro, prioridadeFiltro, periodoFiltro, ordenacao, membros, user?.id, isAdminOrCoordinator],
     queryFn: async () => {
       // Se uma coordenação está selecionada, pegar os IDs dos membros dela
       const membrosDaCoordenacao = coordenacaoId !== "todas" && membros
@@ -199,7 +257,14 @@ export default function CentralDelegacao() {
         tarefasQuery = tarefasQuery.order("prioridade", { ascending: false });
       }
 
-      const { data: tarefas, error: tarefasError } = await tarefasQuery.limit(200);
+      // Apply period filter
+      if (getDateRange) {
+        tarefasQuery = tarefasQuery
+          .gte("data_vencimento", getDateRange.inicio.toISOString())
+          .lt("data_vencimento", getDateRange.fim.toISOString());
+      }
+
+      const { data: tarefas, error: tarefasError } = await tarefasQuery.limit(500);
       if (tarefasError) throw tarefasError;
 
       // Importante:
@@ -230,16 +295,63 @@ export default function CentralDelegacao() {
     },
   });
 
-  // Stats
+  // Stats - Fetch all tasks for the selected coordination to calculate accurate stats
+  const { data: allTarefasForStats } = useQuery({
+    queryKey: ["tarefas-stats-delegacao", coordenacaoId, membros, user?.id, isAdminOrCoordinator],
+    queryFn: async () => {
+      // Get members IDs for the selected coordination
+      let membroIds: string[] | null = null;
+      
+      if (coordenacaoId !== "todas") {
+        const { data: membrosCoordenacao } = await supabase
+          .from("membros_coordenacao")
+          .select("usuario_id")
+          .eq("coordenacao_id", coordenacaoId);
+        
+        membroIds = membrosCoordenacao?.map(m => m.usuario_id) || [];
+      }
+
+      let query = supabase
+        .from("tarefas")
+        .select("id, status, data_vencimento");
+
+      // Apply same responsibility filter logic
+      if (!isAdminOrCoordinator && user?.id) {
+        query = query.eq("responsavel_id", user.id);
+      } else if (isAdminOrCoordinator && coordenacaoId !== "todas" && membroIds && membroIds.length > 0) {
+        query = query.in("responsavel_id", membroIds);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
   const stats = useMemo(() => {
-    if (!atividades) return { total: 0, pendentes: 0, atrasadas: 0, concluidas: 0 };
-    return {
-      total: atividades.length,
-      pendentes: atividades.filter(a => a.status === "pendente" && !a.isAtrasado).length,
-      atrasadas: atividades.filter(a => a.isAtrasado).length,
-      concluidas: atividades.filter(a => a.status === "cumprido").length,
-    };
-  }, [atividades]);
+    if (!allTarefasForStats) return { total: 0, pendentes: 0, atrasadas: 0, concluidas: 0 };
+    
+    const hoje = new Date();
+    let total = 0, pendentes = 0, atrasadas = 0, concluidas = 0;
+    
+    allTarefasForStats.forEach((tarefa: any) => {
+      total++;
+      if (tarefa.status === "cumprido") {
+        concluidas++;
+      } else {
+        const dataVenc = tarefa.data_vencimento ? parseISO(tarefa.data_vencimento) : null;
+        const isAtrasado = dataVenc && isBefore(dataVenc, hoje);
+        if (isAtrasado) {
+          atrasadas++;
+        } else {
+          pendentes++;
+        }
+      }
+    });
+    
+    return { total, pendentes, atrasadas, concluidas };
+  }, [allTarefasForStats]);
 
   // Filtered atividades
   const atividadesFiltradas = useMemo(() => {
@@ -530,7 +642,35 @@ export default function CentralDelegacao() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <Select value={periodoFiltro} onValueChange={(v) => setPeriodoFiltro(v as PeriodoFiltro)}>
+                      <SelectTrigger className="w-full sm:w-[130px] text-xs sm:text-sm h-9">
+                        <SelectValue placeholder="Período" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="hoje">Hoje</SelectItem>
+                        <SelectItem value="semana">Semana</SelectItem>
+                        <SelectItem value="quinzena">15 dias</SelectItem>
+                        <SelectItem value="mes">Mês</SelectItem>
+                        <SelectItem value="todas">Todas</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </>
+                )}
+
+                {/* Period filter for regular users too */}
+                {!isAdminOrCoordinator && (
+                  <Select value={periodoFiltro} onValueChange={(v) => setPeriodoFiltro(v as PeriodoFiltro)}>
+                    <SelectTrigger className="w-full sm:w-[130px] text-xs sm:text-sm h-9">
+                      <SelectValue placeholder="Período" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hoje">Hoje</SelectItem>
+                      <SelectItem value="semana">Semana</SelectItem>
+                      <SelectItem value="quinzena">15 dias</SelectItem>
+                      <SelectItem value="mes">Mês</SelectItem>
+                      <SelectItem value="todas">Todas</SelectItem>
+                    </SelectContent>
+                  </Select>
                 )}
 
                 <Select value={prioridadeFiltro} onValueChange={setPrioridadeFiltro}>
@@ -562,6 +702,7 @@ export default function CentralDelegacao() {
             {(search.trim() ||
               statusFiltro !== "todos" ||
               prioridadeFiltro !== "todas" ||
+              periodoFiltro !== "hoje" ||
               ordenacao !== "mais-antigas" ||
               (isAdminOrCoordinator && (coordenacaoId !== "todas" || membroId !== "todos"))) && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -592,6 +733,12 @@ export default function CentralDelegacao() {
                 {prioridadeFiltro !== "todas" && (
                   <Badge variant="outline" className="text-xs">
                     Prioridade: {prioridadeFiltroLabel[prioridadeFiltro] || prioridadeFiltro}
+                  </Badge>
+                )}
+
+                {periodoFiltro !== "hoje" && (
+                  <Badge variant="outline" className="text-xs">
+                    Período: {periodoFiltroLabel[periodoFiltro]}
                   </Badge>
                 )}
 
