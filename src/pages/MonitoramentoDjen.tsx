@@ -10,6 +10,7 @@ import {
   Trash2,
   History,
   Users,
+  Bell,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
 import { BackfillJobsPanel } from "@/components/djen/BackfillJobsPanel";
+import { AlertasCoordenacaoCard } from "@/components/djen/AlertasCoordenacaoCard";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -216,6 +218,9 @@ const MonitoramentoDjen = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Card de Alertas por Coordenação */}
+      <AlertasCoordenacaoCard coordenacoes={coordenacoes} />
 
       <MonitoramentoDialog
         open={monitoramentoDialogOpen}

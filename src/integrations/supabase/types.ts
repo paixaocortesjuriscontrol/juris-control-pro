@@ -58,6 +58,44 @@ export type Database = {
           },
         ]
       }
+      alertas_coordenacao_djen: {
+        Row: {
+          ativo: boolean
+          coordenacao_id: string
+          created_at: string
+          horario_envio: string
+          id: string
+          membros_ids: string[]
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          coordenacao_id: string
+          created_at?: string
+          horario_envio?: string
+          id?: string
+          membros_ids?: string[]
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          coordenacao_id?: string
+          created_at?: string
+          horario_envio?: string
+          id?: string
+          membros_ids?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_coordenacao_djen_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: true
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alertas_evento: {
         Row: {
           created_at: string
@@ -170,44 +208,6 @@ export type Database = {
             columns: ["tratado_por"]
             isOneToOne: false
             referencedRelation: "profiles_basic"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      alertas_monitoramento_djen: {
-        Row: {
-          ativo: boolean
-          created_at: string
-          horario_envio: string
-          id: string
-          membros_ids: string[]
-          monitoramento_id: string
-          updated_at: string
-        }
-        Insert: {
-          ativo?: boolean
-          created_at?: string
-          horario_envio?: string
-          id?: string
-          membros_ids?: string[]
-          monitoramento_id: string
-          updated_at?: string
-        }
-        Update: {
-          ativo?: boolean
-          created_at?: string
-          horario_envio?: string
-          id?: string
-          membros_ids?: string[]
-          monitoramento_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "alertas_monitoramento_djen_monitoramento_id_fkey"
-            columns: ["monitoramento_id"]
-            isOneToOne: true
-            referencedRelation: "monitoramentos_djen"
             referencedColumns: ["id"]
           },
         ]
