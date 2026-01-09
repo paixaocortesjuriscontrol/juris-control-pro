@@ -177,17 +177,26 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     enabled: !!evento?.id && open,
   });
 
-  // Buscar alertas do evento (para evitar resetar sempre para 30min ao editar)
-  const { data: alertasEvento } = useQuery({
-    queryKey: ["alertas-evento-parcelas", evento?.id],
+  // Buscar alertas do parcelamento (tempos de lembrete) para modo edição
+  // OBS: Parcelamento usa a tabela `alertas_parcela` (não `alertas_evento`).
+  const { data: alertasParcelaMinutos } = useQuery({
+    queryKey: ["alertas-parcela-minutos", evento?.id],
     queryFn: async () => {
       if (!evento?.id) return [];
+
       const { data, error } = await supabase
-        .from("alertas_evento")
-        .select("minutos_antes")
-        .eq("evento_id", evento.id);
+        .from("alertas_parcela")
+        .select("minutos_antes, parcelas_evento!inner(evento_id)")
+        .eq("parcelas_evento.evento_id", evento.id);
+
       if (error) throw error;
-      return data?.map((a) => a.minutos_antes) || [];
+
+      const minutos = (data ?? [])
+        .map((a: any) => a.minutos_antes)
+        .filter((m: any) => typeof m === "number") as number[];
+
+      // Dedup + ordena para manter UI estável
+      return Array.from(new Set(minutos)).sort((a, b) => a - b);
     },
     enabled: !!evento?.id && open,
   });
@@ -227,7 +236,9 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         enviar_whatsapp: evento.enviar_whatsapp || false,
         // quando a query de alertas carregar, usa o valor real (evita voltar para 30)
         alerta_minutos:
-          alertasEvento !== undefined ? alertasEvento : prev.alerta_minutos,
+          alertasParcelaMinutos !== undefined
+            ? alertasParcelaMinutos
+            : prev.alerta_minutos,
         // horário base para disparo dos lembretes (quando não há hora de vencimento)
         hora_alerta: format(dataInicioSP, "HH:mm") || prev.hora_alerta || "09:00",
       }));
@@ -256,7 +267,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       setValoresIndividuais([]);
       setDatasIndividuais([]);
     }
-  }, [evento, open, parcelasExistentes, alertasEvento, defaultProcessoId]);
+  }, [evento, open, parcelasExistentes, alertasParcelaMinutos, defaultProcessoId]);
 
   // Atualizar valores individuais quando muda total de parcelas ou valor padrão
   const atualizarValoresIndividuais = (novoPadrao?: string, novoTotal?: number) => {
