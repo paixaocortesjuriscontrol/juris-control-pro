@@ -71,3 +71,9 @@ verify_jwt = false
 
 [functions.notificar-evento]
 verify_jwt = true
+
+[functions.capturar-intimacoes]
+verify_jwt = false
+
+[functions.processar-alertas-parcela]
+verify_jwt = false
