@@ -461,12 +461,12 @@ serve(async (req) => {
       .eq('tipo', 'djen_processos')
       .single();
 
-    // Count total
+    // Count total (using monitorar_djen column)
     const { count: totalProcessos } = await supabase
       .from('processos')
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'ativo')
-      .eq('monitorar_andamentos', true);
+      .in('status', ['ativo', 'pendente', 'urgente'])
+      .eq('monitorar_djen', true);
 
     const meta: any = config?.metadata || {};
     const metaOffset = typeof meta?.next_offset === 'number' ? meta.next_offset : 0;
@@ -474,12 +474,12 @@ serve(async (req) => {
     // Se for execução completa (cron), continuar do offset salvo no metadata
     const offset = (typeof continuarDe === 'number' ? continuarDe : (completeRun ? metaOffset : 0));
 
-    // Get batch
+    // Get batch (using monitorar_djen column)
     const { data: processos, error: processosError } = await supabase
       .from('processos')
       .select('id, numero')
-      .eq('status', 'ativo')
-      .eq('monitorar_andamentos', true)
+      .in('status', ['ativo', 'pendente', 'urgente'])
+      .eq('monitorar_djen', true)
       .order('created_at', { ascending: true })
       .range(offset, offset + BATCH_SIZE - 1);
 
