@@ -291,8 +291,24 @@ export default function CentralDelegacao() {
         tarefasQuery = tarefasQuery.order("prioridade", { ascending: false });
       }
 
-      const { data: tarefas, error: tarefasError } = await tarefasQuery.limit(2000);
-      if (tarefasError) throw tarefasError;
+      // Supabase/PostgREST costuma limitar 1000 linhas por request; buscamos em páginas via range.
+      const PAGE_SIZE = 1000;
+      const MAX_PAGES = 20; // até 20k registros
+      const tarefasAll: any[] = [];
+
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: pageData, error: pageError } = await tarefasQuery.range(from, to);
+        if (pageError) throw pageError;
+
+        tarefasAll.push(...(pageData || []));
+
+        if (!pageData || pageData.length < PAGE_SIZE) break;
+      }
+
+      const tarefas = tarefasAll;
 
       // Apply period filter on data_vencimento OR data_fatal (comparação por DATA em BRT)
       let filteredByPeriod = tarefas || [];
@@ -371,7 +387,8 @@ export default function CentralDelegacao() {
 
       let query = supabase
         .from("tarefas")
-        .select("id, status, data_vencimento");
+        .select("id, status, data_vencimento")
+        .order("id", { ascending: true });
 
       // Apply same responsibility filter logic
       if (!isAdminOrCoordinator && user?.id) {
@@ -380,9 +397,23 @@ export default function CentralDelegacao() {
         query = query.in("responsavel_id", membroIds);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+      const PAGE_SIZE = 1000;
+      const MAX_PAGES = 20;
+      const all: any[] = [];
+
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: pageData, error } = await query.range(from, to);
+        if (error) throw error;
+
+        all.push(...(pageData || []));
+
+        if (!pageData || pageData.length < PAGE_SIZE) break;
+      }
+
+      return all;
     },
     enabled: !!user?.id,
   });
