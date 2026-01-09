@@ -46,6 +46,7 @@ serve(async (req) => {
         ativo,
         horario_envio,
         membros_ids,
+        updated_at,
         coordenacoes!inner (
           id,
           nome
@@ -66,6 +67,16 @@ serve(async (req) => {
       const horarioEnvio = alerta.horario_envio?.slice(0, 5) || "08:00"; // "HH:MM"
       
       console.log(`[processar-alertas-djen-coordenacao] Verificando alerta ${alerta.id}: horario_envio=${horarioEnvio}, hora_atual=${horaBrt}`);
+
+      // Verificar se já foi enviado hoje (updated_at >= início do dia BRT)
+      const updatedAt = alerta.updated_at ? new Date(alerta.updated_at) : null;
+      const inicioDiaBrt = new Date(`${dataBrt}T00:00:00-03:00`);
+      
+      if (!forceRun && updatedAt && updatedAt >= inicioDiaBrt) {
+        console.log(`[processar-alertas-djen-coordenacao] Alerta ${alerta.id} já enviado hoje (updated_at: ${updatedAt.toISOString()})`);
+        resultados.push({ alertaId: alerta.id, status: 'ja_enviado_hoje' });
+        continue;
+      }
 
       // Verificar se está no horário de envio (com tolerância de 5 minutos)
       const [horaEnvio, minEnvio] = horarioEnvio.split(':').map(Number);
