@@ -61,14 +61,32 @@ export function useEventosAgenda(filters: EventoFilters = {}) {
   const { user } = useAuth();
   
   return useQuery({
-    queryKey: ["eventos-agenda", filters],
+    queryKey: ["eventos-agenda", filters, user?.id],
     queryFn: async () => {
+      if (!user?.id) return [];
+
+      // First get events where user is a participant
+      const { data: participacoesUsuario } = await supabase
+        .from("participantes_evento")
+        .select("evento_id")
+        .eq("usuario_id", user.id);
+      
+      const eventosParticipante = participacoesUsuario?.map(p => p.evento_id) || [];
+
+      // Build query for events
       let query = supabase
         .from("eventos_agenda")
         .select(`
           *,
           processo:processos(id, numero)
         `);
+
+      // Filter: created by user OR user is participant
+      if (eventosParticipante.length > 0) {
+        query = query.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(',')})`);
+      } else {
+        query = query.eq("criado_por", user.id);
+      }
 
       if (filters.tipos && filters.tipos.length > 0) {
         query = query.in("tipo", filters.tipos);
@@ -142,11 +160,30 @@ export function useEventoStats() {
   hoje.setHours(0, 0, 0, 0);
   
   return useQuery({
-    queryKey: ["eventos-stats"],
+    queryKey: ["eventos-stats", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!user?.id) return { concluidas: 0, pendentes: 0, atrasadas: 0 };
+
+      // Get events where user is participant
+      const { data: participacoesUsuario } = await supabase
+        .from("participantes_evento")
+        .select("evento_id")
+        .eq("usuario_id", user.id);
+      
+      const eventosParticipante = participacoesUsuario?.map(p => p.evento_id) || [];
+
+      let query = supabase
         .from("eventos_agenda")
         .select("id, status, data_inicio");
+
+      // Filter: created by user OR user is participant
+      if (eventosParticipante.length > 0) {
+        query = query.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(',')})`);
+      } else {
+        query = query.eq("criado_por", user.id);
+      }
+
+      const { data, error } = await query;
       
       if (error) throw error;
       
