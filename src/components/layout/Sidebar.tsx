@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Calendar, label: "Controle de Prazos", path: "/prazos" },
   { icon: Send, label: "Central Delegação", path: "/central-delegacao" },
   { icon: Calendar, label: "Minha Agenda", path: "/minha-agenda" },
@@ -45,7 +46,6 @@ const menuItems = [
   { icon: Scale, label: "Processos Internos", path: "/processos" },
   { icon: Upload, label: "Importar Processos", path: "/importar" },
   { icon: Upload, label: "Importar Tarefas", path: "/importar-tarefas" },
-  { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: Radar, label: "Monit. DJEN", path: "/monitoramento-djen" },
   { icon: FolderKanban, label: "Minhas Tarefas", path: "/minha-carteira" },
