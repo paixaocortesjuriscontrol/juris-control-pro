@@ -17,13 +17,18 @@ import {
   XCircle, 
   Clock,
   AlertTriangle,
-  History
+  History,
+  Play,
+  Loader2,
+  RefreshCw
 } from "lucide-react";
 import { useCofreSenhas } from "@/hooks/useCofreSenhas";
 import { CredencialDialog } from "@/components/cofre/CredencialDialog";
 import { CapturaDialog } from "@/components/cofre/CapturaDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +60,8 @@ export default function CofreSenhas() {
   const [capturaSelecionada, setCapturaSelecionada] = useState<any>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ type: "credencial" | "captura"; id: string } | null>(null);
+  const [executingCaptura, setExecutingCaptura] = useState(false);
+  const [capturaResult, setCapturaResult] = useState<any>(null);
 
   const handleSaveCredencial = async (dados: any) => {
     if (credencialSelecionada) {
@@ -85,6 +92,32 @@ export default function CofreSenhas() {
     }
     setDeleteDialogOpen(false);
     setItemToDelete(null);
+  };
+
+  const handleExecutarCaptura = async (capturaId?: string) => {
+    setExecutingCaptura(true);
+    setCapturaResult(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("capturar-intimacoes", {
+        body: capturaId ? { capturaId, forceAll: true } : { forceAll: true },
+      });
+
+      if (error) throw error;
+
+      setCapturaResult(data);
+      
+      if (data.success) {
+        toast.success(`Captura finalizada: ${data.sucessos} sucesso(s), ${data.falhas} falha(s)`);
+      } else {
+        toast.error("Erro na captura: " + data.error);
+      }
+    } catch (err: any) {
+      console.error("Erro ao executar captura:", err);
+      toast.error("Erro ao executar captura: " + err.message);
+    } finally {
+      setExecutingCaptura(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -240,7 +273,21 @@ export default function CofreSenhas() {
 
           {/* Tab Capturas */}
           <TabsContent value="capturas" className="space-y-4">
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline"
+                  onClick={() => handleExecutarCaptura()}
+                  disabled={executingCaptura || capturas.length === 0}
+                >
+                  {executingCaptura ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4 mr-2" />
+                  )}
+                  Executar Todas as Capturas
+                </Button>
+              </div>
               <Button 
                 onClick={() => { setCapturaSelecionada(null); setCapturaDialogOpen(true); }}
                 disabled={credenciais.length === 0}
@@ -249,6 +296,43 @@ export default function CofreSenhas() {
                 Configurar Captura
               </Button>
             </div>
+
+            {/* Resultado da última captura */}
+            {capturaResult && (
+              <Card className={capturaResult.success ? "border-green-200 bg-green-50 dark:bg-green-950/30" : "border-red-200 bg-red-50 dark:bg-red-950/30"}>
+                <CardContent className="pt-4">
+                  <div className="flex items-start gap-3">
+                    {capturaResult.success ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    )}
+                    <div className="flex-1">
+                      <p className="font-medium">
+                        {capturaResult.success ? "Captura executada" : "Erro na captura"}
+                      </p>
+                      {capturaResult.success ? (
+                        <p className="text-sm text-muted-foreground">
+                          Processadas: {capturaResult.processed} | Sucessos: {capturaResult.sucessos} | Falhas: {capturaResult.falhas}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-red-600">{capturaResult.error}</p>
+                      )}
+                      {capturaResult.results?.some((r: any) => r.erro) && (
+                        <div className="mt-2 text-xs">
+                          {capturaResult.results.filter((r: any) => r.erro).map((r: any, i: number) => (
+                            <p key={i} className="text-red-600">• {r.erro}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => setCapturaResult(null)}>
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>
@@ -311,6 +395,19 @@ export default function CofreSenhas() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex gap-1 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Executar captura"
+                                onClick={() => handleExecutarCaptura(cap.id)}
+                                disabled={executingCaptura}
+                              >
+                                {executingCaptura ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Play className="h-4 w-4 text-green-600" />
+                                )}
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
