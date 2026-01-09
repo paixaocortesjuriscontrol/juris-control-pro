@@ -10,9 +10,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Info } from "lucide-react";
+import { X, Plus, Info, Bell } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const UFS = [
   'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 
@@ -54,6 +58,7 @@ interface MonitoramentoDialogProps {
 export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: MonitoramentoDialogProps) {
   const { criarMonitoramento, atualizarMonitoramento } = useMonitoramentosDjen();
   const { data: coordenacoes = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
+  const queryClient = useQueryClient();
   
   const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo'>(
     monitoramento?.tipo || 'palavra-chave'
@@ -70,6 +75,59 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
   const [novaExclusao, setNovaExclusao] = useState('');
   const [condicaoConcomitante, setCondicaoConcomitante] = useState(monitoramento?.condicao_concomitante || '');
   const [tribunaisSelecionados, setTribunaisSelecionados] = useState<string[]>(monitoramento?.tribunais || []);
+
+  // Estados para aba de alertas
+  const [alertaAtivo, setAlertaAtivo] = useState(false);
+  const [horarioEnvio, setHorarioEnvio] = useState('08:00');
+  const [membrosSelecionados, setMembrosSelecionados] = useState<string[]>([]);
+
+  // Buscar membros da coordenação selecionada
+  const { data: membrosCoordenacao = [] } = useQuery({
+    queryKey: ['membros-coordenacao', coordenacaoId],
+    queryFn: async () => {
+      if (!coordenacaoId) return [];
+      const { data, error } = await supabase
+        .from('membros_coordenacao')
+        .select('usuario_id, profiles:usuario_id(id, nome, telefone)')
+        .eq('coordenacao_id', coordenacaoId);
+      if (error) throw error;
+      return data?.map(m => ({
+        id: m.usuario_id,
+        nome: (m.profiles as any)?.nome || 'Sem nome',
+        telefone: (m.profiles as any)?.telefone || null
+      })) || [];
+    },
+    enabled: !!coordenacaoId,
+  });
+
+  // Buscar configuração de alerta existente
+  const { data: alertaExistente } = useQuery({
+    queryKey: ['alerta-monitoramento-djen', monitoramento?.id],
+    queryFn: async () => {
+      if (!monitoramento?.id) return null;
+      const { data, error } = await supabase
+        .from('alertas_monitoramento_djen')
+        .select('*')
+        .eq('monitoramento_id', monitoramento.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!monitoramento?.id,
+  });
+
+  // Carregar configuração de alerta existente
+  useEffect(() => {
+    if (alertaExistente) {
+      setAlertaAtivo(alertaExistente.ativo);
+      setHorarioEnvio(alertaExistente.horario_envio?.slice(0, 5) || '08:00');
+      setMembrosSelecionados(alertaExistente.membros_ids || []);
+    } else {
+      setAlertaAtivo(false);
+      setHorarioEnvio('08:00');
+      setMembrosSelecionados([]);
+    }
+  }, [alertaExistente]);
 
   useEffect(() => {
     if (monitoramento) {
@@ -103,6 +161,9 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       setTribunaisSelecionados([]);
       setSelectedUfs([]);
       setTodasRegioes(false);
+      setAlertaAtivo(false);
+      setHorarioEnvio('08:00');
+      setMembrosSelecionados([]);
     }
   }, [monitoramento, open]);
 
@@ -140,6 +201,38 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
     );
   };
 
+  const handleToggleMembro = (membroId: string) => {
+    setMembrosSelecionados(prev =>
+      prev.includes(membroId)
+        ? prev.filter(id => id !== membroId)
+        : [...prev, membroId]
+    );
+  };
+
+  const salvarAlerta = async (monitoramentoId: string) => {
+    if (!alertaAtivo && !alertaExistente) return;
+
+    const alertaData = {
+      monitoramento_id: monitoramentoId,
+      ativo: alertaAtivo,
+      horario_envio: horarioEnvio + ':00',
+      membros_ids: membrosSelecionados,
+    };
+
+    if (alertaExistente) {
+      await supabase
+        .from('alertas_monitoramento_djen')
+        .update(alertaData)
+        .eq('id', alertaExistente.id);
+    } else if (alertaAtivo) {
+      await supabase
+        .from('alertas_monitoramento_djen')
+        .insert(alertaData);
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['alerta-monitoramento-djen'] });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -159,13 +252,20 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       tribunais: tribunaisSelecionados.length > 0 ? tribunaisSelecionados : undefined,
     };
 
-    if (monitoramento) {
-      await atualizarMonitoramento.mutateAsync({ id: monitoramento.id, ...dados });
-    } else {
-      await criarMonitoramento.mutateAsync(dados);
+    try {
+      if (monitoramento) {
+        await atualizarMonitoramento.mutateAsync({ id: monitoramento.id, ...dados });
+        await salvarAlerta(monitoramento.id);
+      } else {
+        const result = await criarMonitoramento.mutateAsync(dados);
+        if (result?.id) {
+          await salvarAlerta(result.id);
+        }
+      }
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Erro ao salvar monitoramento:', error);
     }
-    
-    onOpenChange(false);
   };
 
   const isUfValid = tipo !== 'advogado' || todasRegioes || selectedUfs.length > 0;
@@ -181,10 +281,14 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <Tabs defaultValue="basico" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="basico">Básico</TabsTrigger>
               <TabsTrigger value="filtros">Filtros</TabsTrigger>
               <TabsTrigger value="tribunais">Tribunais</TabsTrigger>
+              <TabsTrigger value="alertas" className="flex items-center gap-1">
+                <Bell className="h-3 w-3" />
+                Alertas
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="basico" className="space-y-4 mt-4">
@@ -428,6 +532,115 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
                       <Badge key={t} variant="outline">{t}</Badge>
                     ))}
                   </div>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="alertas" className="space-y-4 mt-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                  <div className="space-y-1">
+                    <Label className="text-base font-medium">Alertas WhatsApp</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Enviar notificações quando novas publicações forem encontradas
+                    </p>
+                  </div>
+                  <Switch
+                    checked={alertaAtivo}
+                    onCheckedChange={setAlertaAtivo}
+                  />
+                </div>
+
+                {alertaAtivo && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="horario">Horário de Envio</Label>
+                      <Input
+                        id="horario"
+                        type="time"
+                        value={horarioEnvio}
+                        onChange={(e) => setHorarioEnvio(e.target.value)}
+                        className="w-40"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Os alertas serão enviados diariamente neste horário se houver novas publicações
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Label>Membros que receberão alertas</Label>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Info className="h-4 w-4 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p>Selecione os membros da coordenação que receberão alertas via WhatsApp. Apenas membros com telefone cadastrado podem receber alertas.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+
+                      {!coordenacaoId ? (
+                        <p className="text-sm text-muted-foreground italic">
+                          Selecione uma coordenação na aba "Básico" para ver os membros disponíveis
+                        </p>
+                      ) : membrosCoordenacao.length === 0 ? (
+                        <p className="text-sm text-muted-foreground italic">
+                          Nenhum membro encontrado nesta coordenação
+                        </p>
+                      ) : (
+                        <ScrollArea className="h-48 border rounded-md p-3">
+                          <div className="space-y-2">
+                            {membrosCoordenacao.map((membro) => (
+                              <div key={membro.id} className="flex items-center space-x-3 p-2 rounded hover:bg-muted/50">
+                                <Checkbox
+                                  id={`membro-${membro.id}`}
+                                  checked={membrosSelecionados.includes(membro.id)}
+                                  onCheckedChange={() => handleToggleMembro(membro.id)}
+                                  disabled={!membro.telefone}
+                                />
+                                <div className="flex-1">
+                                  <label 
+                                    htmlFor={`membro-${membro.id}`} 
+                                    className={`text-sm cursor-pointer ${!membro.telefone ? 'text-muted-foreground' : ''}`}
+                                  >
+                                    {membro.nome}
+                                  </label>
+                                  {membro.telefone ? (
+                                    <p className="text-xs text-muted-foreground">{membro.telefone}</p>
+                                  ) : (
+                                    <p className="text-xs text-destructive">Sem telefone cadastrado</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      )}
+
+                      {membrosSelecionados.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {membrosSelecionados.map((id) => {
+                            const membro = membrosCoordenacao.find(m => m.id === id);
+                            return membro ? (
+                              <Badge key={id} variant="secondary" className="gap-1">
+                                {membro.nome}
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleMembro(id)}
+                                  className="ml-1 hover:text-destructive"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </TabsContent>

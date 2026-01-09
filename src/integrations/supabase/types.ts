@@ -174,6 +174,44 @@ export type Database = {
           },
         ]
       }
+      alertas_monitoramento_djen: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          horario_envio: string
+          id: string
+          membros_ids: string[]
+          monitoramento_id: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          horario_envio?: string
+          id?: string
+          membros_ids?: string[]
+          monitoramento_id: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          horario_envio?: string
+          id?: string
+          membros_ids?: string[]
+          monitoramento_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_monitoramento_djen_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: true
+            referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alertas_parcela: {
         Row: {
           created_at: string
