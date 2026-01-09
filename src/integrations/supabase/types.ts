@@ -3224,6 +3224,7 @@ export type Database = {
         | "estagiario"
         | "assistente"
         | "secretaria"
+        | "cliente"
       area_atuacao: "civil" | "trabalhista" | "empresarial" | "direito_privado"
       prioridade_tarefa: "baixa" | "media" | "alta" | "urgente"
       status_processo:
@@ -3367,6 +3368,7 @@ export const Constants = {
         "estagiario",
         "assistente",
         "secretaria",
+        "cliente",
       ],
       area_atuacao: ["civil", "trabalhista", "empresarial", "direito_privado"],
       prioridade_tarefa: ["baixa", "media", "alta", "urgente"],
