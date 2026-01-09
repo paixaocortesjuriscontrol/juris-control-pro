@@ -53,12 +53,16 @@ export function useEquipeTarefasStats(coordenacaoId: string | null) {
         .eq("coordenacao_id", coordenacaoId);
 
       if (membrosError) throw membrosError;
+      if (!membros || membros.length === 0) return [];
 
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
 
       // Get tasks for each member
-      const statsPromises = (membros || []).map(async (membro) => {
+      const statsPromises = membros.map(async (membro) => {
+        // Handle nested usuario object
+        const usuario = Array.isArray(membro.usuario) ? membro.usuario[0] : membro.usuario;
+        
         const { data: tarefas, error: tarefasError } = await supabase
           .from("tarefas")
           .select("id, status, prioridade, data_vencimento")
@@ -79,8 +83,8 @@ export function useEquipeTarefasStats(coordenacaoId: string | null) {
 
         return {
           usuario_id: membro.usuario_id,
-          nome: membro.usuario?.nome || "Sem nome",
-          email: membro.usuario?.email || "",
+          nome: usuario?.nome || "Sem nome",
+          email: usuario?.email || "",
           cargo: membro.cargo,
           total_tarefas: total,
           pendentes,
@@ -125,6 +129,11 @@ export function useEquipeTarefas(
       
       if (membroIds.length === 0) return [];
 
+      // Determine which IDs to query
+      const targetIds = filters.membroId && filters.membroId !== "all" 
+        ? [filters.membroId] 
+        : membroIds;
+
       let query = supabase
         .from("tarefas")
         .select(`
@@ -141,7 +150,7 @@ export function useEquipeTarefas(
           responsavel:profiles!tarefas_responsavel_id_fkey(id, nome),
           processo:processos!tarefas_processo_id_fkey(numero)
         `)
-        .in("responsavel_id", filters.membroId ? [filters.membroId] : membroIds)
+        .in("responsavel_id", targetIds)
         .order("data_vencimento", { ascending: true, nullsFirst: false });
 
       if (filters.status && filters.status !== "all") {
@@ -160,7 +169,14 @@ export function useEquipeTarefas(
 
       if (error) throw error;
 
-      return (data || []) as unknown as TarefaEquipe[];
+      // Normalize nested objects
+      const normalized = (data || []).map(item => ({
+        ...item,
+        responsavel: Array.isArray(item.responsavel) ? item.responsavel[0] : item.responsavel,
+        processo: Array.isArray(item.processo) ? item.processo[0] : item.processo,
+      }));
+
+      return normalized as unknown as TarefaEquipe[];
     },
     enabled: !!coordenacaoId && !!user,
   });
@@ -203,7 +219,16 @@ export function useMinhasCoordenacoes() {
 
       if (memberError) throw memberError;
 
-      return memberships?.map(m => m.coordenacao).filter(Boolean) || [];
+      // Flatten the nested coordenacao objects properly
+      const coordenacoes = memberships?.map(m => {
+        const coord = m.coordenacao;
+        if (Array.isArray(coord)) {
+          return coord[0];
+        }
+        return coord;
+      }).filter(Boolean) || [];
+
+      return coordenacoes as { id: string; nome: string; area: string }[];
     },
     enabled: !!user,
   });
