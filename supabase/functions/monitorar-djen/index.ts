@@ -236,7 +236,7 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
 // Function removed - using fetchDJENResultsWithStats below
 
 interface TribunalStats {
-  tribunal: string;
+  tribunal: string | null;
   paginas: number;
   resultados: number;
   novas: number;
@@ -271,11 +271,12 @@ async function processMonitoramento(
   }
   
   // Get list of tribunais to search
+  // When tribunais is empty/null, we pass [null] to search ALL tribunals without filter
   const tribunais = monitoramento.tribunais && monitoramento.tribunais.length > 0 
     ? monitoramento.tribunais 
-    : ['TODOS'];
+    : [null]; // null means search all tribunals (no siglaTribunal filter)
   
-  console.log(`Searching tribunais: ${tribunais.join(', ')}`);
+  console.log(`Searching tribunais: ${tribunais.length === 1 && tribunais[0] === null ? 'TODOS (sem filtro)' : tribunais.join(', ')}`);
   
   for (const tribunal of tribunais) {
     const tribunalStat: TribunalStats = {
@@ -417,7 +418,7 @@ async function processMonitoramento(
   return { ...stats, tribunaisStats };
 }
 
-async function fetchDJENResultsWithStats(searchText: string, siglaTribunal?: string): Promise<{ items: any[]; pages: number }> {
+async function fetchDJENResultsWithStats(searchText: string, siglaTribunal?: string | null): Promise<{ items: any[]; pages: number }> {
   const dataAtual = new Date().toISOString().split('T')[0];
   const allResults: any[] = [];
   let page = 0;
@@ -688,17 +689,18 @@ serve(async (req) => {
 
     // Accumulate tribunal breakdown for the full run
     for (const ts of allTribunaisStats) {
-      const existing = run.tribunais[ts.tribunal];
-      run.tribunais[ts.tribunal] = existing
+      const tribunalKey = ts.tribunal ?? 'TODOS';
+      const existing = run.tribunais[tribunalKey];
+      run.tribunais[tribunalKey] = existing
         ? {
-            tribunal: ts.tribunal,
+            tribunal: tribunalKey,
             paginas: (existing.paginas || 0) + (ts.paginas || 0),
             resultados: (existing.resultados || 0) + (ts.resultados || 0),
             novas: (existing.novas || 0) + (ts.novas || 0),
             descartadas: (existing.descartadas || 0) + (ts.descartadas || 0),
             duplicatas: (existing.duplicatas || 0) + (ts.duplicatas || 0),
           }
-        : { ...ts };
+        : { ...ts, tribunal: tribunalKey };
     }
 
     const updatedMeta: Record<string, any> = {
