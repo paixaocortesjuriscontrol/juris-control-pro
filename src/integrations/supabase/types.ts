@@ -3096,6 +3096,10 @@ export type Database = {
         Args: { _evento_id: string; _user_id: string }
         Returns: boolean
       }
+      count_tarefas_urgentes_coordenacao: {
+        Args: { p_coordenacao_id: string }
+        Returns: number
+      }
       get_coordenacao_stats: {
         Args: never
         Returns: {
