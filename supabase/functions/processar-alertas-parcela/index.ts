@@ -240,7 +240,7 @@ serve(async (req) => {
 
           const resp = await fetch(zapiUrl, {
             method: "POST",
-            headers: { 
+            headers: {
               "Content-Type": "application/json",
               "Client-Token": ZAPI_CLIENT_TOKEN,
             },
@@ -257,12 +257,29 @@ serve(async (req) => {
           }
         }
 
-        await supabase
-          .from("alertas_parcela")
-          .update({ enviado: true, enviado_em: nowUtc.toISOString() })
-          .eq("id", alertaId);
+        // Só marcar como enviado se pelo menos 1 mensagem tiver sido enviada com sucesso.
+        // Isso evita “falso positivo” (alerta marcado como enviado quando a Z-API falha).
+        if (enviados > 0) {
+          await supabase
+            .from("alertas_parcela")
+            .update({ enviado: true, enviado_em: nowUtc.toISOString() })
+            .eq("id", alertaId);
 
-        results.push({ alerta_id: alertaId, parcela_id: parcela.id, status: "enviado", enviados, falhas });
+          results.push({ alerta_id: alertaId, parcela_id: parcela.id, status: "enviado", enviados, falhas });
+        } else {
+          console.log(
+            `[processar-alertas-parcela] Nenhuma mensagem enviada (alerta_id=${alertaId}). Mantendo pendente para retry. falhas=${falhas}`
+          );
+
+          results.push({
+            alerta_id: alertaId,
+            parcela_id: parcela.id,
+            status: "erro",
+            enviados,
+            falhas,
+            erro: "Nenhuma mensagem enviada pela Z-API (sem sucesso)",
+          });
+        }
       } catch (err: any) {
         console.error(`[processar-alertas-parcela] Erro alerta_id=${alertaId}`, err);
         results.push({
