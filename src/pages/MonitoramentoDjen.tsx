@@ -78,7 +78,7 @@ const MonitoramentoDjen = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
-                <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectTrigger className="w-full sm:w-[280px]">
                   <Users className="h-4 w-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="Coordenação" />
                 </SelectTrigger>

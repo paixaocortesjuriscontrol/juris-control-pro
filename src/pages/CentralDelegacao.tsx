@@ -680,7 +680,7 @@ export default function CentralDelegacao() {
                 {isAdminOrCoordinator && (
                   <>
                     <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
-                      <SelectTrigger className="w-full sm:w-[180px] text-xs sm:text-sm h-9">
+                      <SelectTrigger className="w-full sm:w-[280px] text-xs sm:text-sm h-9">
                         <SelectValue placeholder="Coordenação" />
                       </SelectTrigger>
                       <SelectContent>

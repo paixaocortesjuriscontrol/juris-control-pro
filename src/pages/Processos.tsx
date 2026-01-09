@@ -372,7 +372,7 @@ const Processos = () => {
           {/* Additional Filters */}
           <div className="flex flex-wrap gap-3">
             <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
-              <SelectTrigger className="w-full sm:w-48">
+              <SelectTrigger className="w-full sm:w-72">
                 <SelectValue placeholder="Coordenação" />
               </SelectTrigger>
               <SelectContent>

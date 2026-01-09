@@ -65,7 +65,7 @@ export default function Monitoramento360() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-[280px]">
                 <Building2 className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Coordenação" />
               </SelectTrigger>

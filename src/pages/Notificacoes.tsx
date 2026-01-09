@@ -152,7 +152,7 @@ export default function Notificacoes() {
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-muted-foreground" />
           <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className="w-[280px]">
               <SelectValue placeholder="Filtrar por coordenação" />
             </SelectTrigger>
             <SelectContent>

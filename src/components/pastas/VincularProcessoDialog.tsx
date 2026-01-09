@@ -145,7 +145,7 @@ export function VincularProcessoDialog({
                 />
               </div>
               <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[280px]">
                   <SelectValue placeholder="Coordenação" />
                 </SelectTrigger>
                 <SelectContent>
