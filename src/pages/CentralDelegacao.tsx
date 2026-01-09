@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
-import { format, parseISO, differenceInDays, isBefore, startOfDay, endOfDay, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { format, parseISO, differenceInDays, isBefore, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { ptBR } from "date-fns/locale";
 import { 
@@ -207,13 +207,15 @@ export default function CentralDelegacao() {
         break;
 
       case "quinzena":
+        // Próximos 15 dias a partir de hoje
         inicioBrt = hojeBrtStart;
         fimBrt = endOfDay(addDays(hojeBrtStart, 15));
         break;
 
       case "mes":
-        inicioBrt = hojeBrtStart;
-        fimBrt = endOfDay(addDays(hojeBrtStart, 30));
+        // Mês inteiro (do dia 1 ao último dia do mês corrente)
+        inicioBrt = startOfMonth(hojeBrtStart);
+        fimBrt = endOfMonth(hojeBrtStart);
         break;
 
       case "todas":
