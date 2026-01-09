@@ -8,8 +8,8 @@ const corsHeaders = {
 
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 
-// Max monitoramentos per invocation to stay within compute limits
-const MAX_PER_INVOCATION = 10;
+// Max monitoramentos per invocation - increased for faster daily completion
+const MAX_PER_INVOCATION = 20;
 
 interface Monitoramento {
   id: string;
@@ -608,8 +608,8 @@ serve(async (req) => {
           }
         }
 
-        // Delay between monitoramentos
-        await delay(1200);
+        // Reduced delay between monitoramentos for faster completion
+        await delay(600);
 
       } catch (error) {
         errorCount++;
