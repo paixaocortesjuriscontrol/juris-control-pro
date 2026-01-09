@@ -337,7 +337,7 @@ async function processProcessosBatch(
             processo_numero: processo.numero,
             hash_conteudo: hashConteudo,
             data_publicacao: dataPublicacao,
-            conteudo: conteudo.slice(0, 10000),
+            conteudo: conteudo,
             fonte: 'pje_comunica',
           }, { onConflict: 'hash_conteudo', ignoreDuplicates: true })
           .select('id')
