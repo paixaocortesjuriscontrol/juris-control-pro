@@ -22,7 +22,7 @@ interface Props {
 }
 
 interface TribunalStat {
-  tribunal: string;
+  tribunal: string | null;
   paginas: number;
   resultados: number;
   novas: number;
@@ -101,18 +101,37 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       
       while (hasMore) {
         toast.info(`Processando lote ${Math.floor(offset / 10) + 1}...`);
-        
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL || 'https://bfxahrrvoqxcdmfsvnrk.supabase.co'}/functions/v1/monitorar-djen?offset=${offset}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            },
+
+        const url = `${import.meta.env.VITE_SUPABASE_URL || 'https://bfxahrrvoqxcdmfsvnrk.supabase.co'}/functions/v1/monitorar-djen?offset=${offset}`;
+
+        let response: Response | null = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const controller = new AbortController();
+            const timeout = window.setTimeout(() => controller.abort(), 120000);
+
+            response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+              },
+              signal: controller.signal,
+            });
+
+            window.clearTimeout(timeout);
+            break;
+          } catch (e) {
+            // Network-level errors like "Failed to fetch"/timeouts.
+            if (attempt === 2) throw e;
+            await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
           }
-        );
-        
+        }
+
+        if (!response) {
+          throw new Error('Falha ao executar o monitoramento (sem resposta do servidor)');
+        }
+
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Erro: ${response.status} - ${errorText}`);
@@ -380,16 +399,16 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
                       </tr>
                     </thead>
                     <tbody>
-                      {statsToShow.tribunaisStats.map((t, i) => (
-                        <tr key={i} className="border-b border-border/50 hover:bg-muted/50">
-                          <td className="p-1.5 font-mono">{t.tribunal}</td>
-                          <td className="p-1.5 text-right">{t.paginas}</td>
-                          <td className="p-1.5 text-right">{t.resultados}</td>
-                          <td className="p-1.5 text-right text-green-600 font-medium">{t.novas || '-'}</td>
-                          <td className="p-1.5 text-right text-yellow-600">{t.descartadas || '-'}</td>
-                          <td className="p-1.5 text-right text-muted-foreground">{t.duplicatas || '-'}</td>
-                        </tr>
-                      ))}
+                        {statsToShow.tribunaisStats.map((t, i) => (
+                          <tr key={i} className="border-b border-border/50 hover:bg-muted/50">
+                            <td className="p-1.5 font-mono">{t.tribunal ?? 'TODOS'}</td>
+                            <td className="p-1.5 text-right">{t.paginas}</td>
+                            <td className="p-1.5 text-right">{t.resultados}</td>
+                            <td className="p-1.5 text-right text-green-600 font-medium">{t.novas || '-'}</td>
+                            <td className="p-1.5 text-right text-yellow-600">{t.descartadas || '-'}</td>
+                            <td className="p-1.5 text-right text-muted-foreground">{t.duplicatas || '-'}</td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </ScrollArea>

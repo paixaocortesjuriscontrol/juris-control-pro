@@ -8,8 +8,12 @@ const corsHeaders = {
 
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 
-// Max monitoramentos per invocation - increased for faster daily completion
-const MAX_PER_INVOCATION = 20;
+// Max monitoramentos per invocation.
+// Keep this conservative to avoid edge-function timeouts on heavier queries.
+const MAX_PER_INVOCATION = 10;
+
+// Soft time limit (ms) to ensure we respond before the platform/browser cuts the request.
+const SOFT_TIMEOUT_MS = 75_000;
 
 interface Monitoramento {
   id: string;
@@ -613,6 +617,12 @@ serve(async (req) => {
     const allTribunaisStats: TribunalStats[] = [];
 
     for (const mon of (monitoramentos || [])) {
+      // Soft timeout guard: stop early and let the caller continue with nextOffset.
+      if (Date.now() - startTime > SOFT_TIMEOUT_MS) {
+        console.log(`Soft timeout reached at ${Math.round((Date.now() - startTime) / 1000)}s. Stopping batch early.`);
+        break;
+      }
+
       try {
         processedCount++;
         console.log(`[${processedCount}/${count}] ${mon.descricao || mon.termo_busca}`);
@@ -652,9 +662,9 @@ serve(async (req) => {
     const nowIso = new Date().toISOString();
     const duration = Math.max(1, Math.round((Date.now() - startTime) / 1000));
 
-    // Correct hasMore logic (prevents false positives when total === MAX_PER_INVOCATION)
-    const hasMore = (offset + count) < total;
-    const nextOffset = hasMore ? offset + MAX_PER_INVOCATION : null;
+    // Correct hasMore logic
+    const hasMore = (offset + processedCount) < total;
+    const nextOffset = hasMore ? offset + processedCount : null;
 
     // Sort tribunais by resultados descending
     allTribunaisStats.sort((a, b) => b.resultados - a.resultados);
