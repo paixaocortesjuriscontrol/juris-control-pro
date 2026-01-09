@@ -47,6 +47,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
   try {
     const { frequencia, tipo } = await req.json();
 
@@ -57,7 +61,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Se tipo não for especificado, usar 'redistribuicoes' por compatibilidade
     let tipoMonitoramento: TipoMonitoramento = 'redistribuicoes';
 
     if (tipo !== undefined) {
@@ -78,7 +81,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Atualizar configuração no banco para o tipo especificado
     const { error: updateError } = await supabase
       .from('configuracoes_monitoramento')
       .update({ frequencia })
@@ -90,6 +92,8 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Configuração de ${tipoMonitoramento} atualizada para frequência: ${frequencia} (${cronExpression})`);
+    
+    return new Response(
       JSON.stringify({ 
         success: true, 
         tipo: tipoMonitoramento,
