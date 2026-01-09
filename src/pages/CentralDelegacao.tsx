@@ -924,117 +924,116 @@ export default function CentralDelegacao() {
                     <p>Nenhuma atividade encontrada</p>
                   </div>
                 ) : (
-                  <ScrollArea className="h-[calc(100vh-400px)] sm:h-[600px] min-h-[300px]">
-                    <div className="divide-y">
-                      {atividadesFiltradas.map((atividade) => (
-                        <div
-                          key={atividade.id}
-                          className={cn(
-                            "p-3 sm:p-4 hover:bg-muted/50 cursor-pointer transition-colors flex gap-2 sm:gap-4",
-                            selectedTarefaId === atividade.id && "bg-muted/80",
-                            atividade.isAtrasado && "border-l-4 border-l-red-500"
-                          )}
-                          onClick={() => setSelectedTarefaId(atividade.id)}
-                        >
-                          <div className="pt-1 hidden sm:block">
-                            <Checkbox
-                              checked={selectedItems.includes(atividade.id)}
-                              onCheckedChange={() => toggleSelectItem(atividade.id)}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
+                  <>
+                    <ScrollArea className="h-[calc(100vh-400px)] sm:h-[600px] min-h-[300px]">
+                      <div className="divide-y">
+                        {atividadesFiltradas.map((atividade) => (
+                          <div
+                            key={atividade.id}
+                            className={cn(
+                              "p-3 sm:p-4 hover:bg-muted/50 cursor-pointer transition-colors flex gap-2 sm:gap-4",
+                              selectedTarefaId === atividade.id && "bg-muted/80",
+                              atividade.isAtrasado && "border-l-4 border-l-red-500"
+                            )}
+                            onClick={() => setSelectedTarefaId(atividade.id)}
+                          >
+                            <div className="pt-1 hidden sm:block">
+                              <Checkbox
+                                checked={selectedItems.includes(atividade.id)}
+                                onCheckedChange={() => toggleSelectItem(atividade.id)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
 
-                          <div className="flex-1 min-w-0 space-y-1.5 sm:space-y-2">
-                            {/* Header com status, prioridade e avatar */}
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="space-y-1 min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                  {getStatusBadge(atividade)}
-                                  {getPrioridadeBadge(atividade.prioridade)}
-                                  {atividade.tipo_tarefa && (
-                                    <Badge variant="outline" className="text-[10px] sm:text-xs">
-                                      {atividade.tipo_tarefa}
-                                    </Badge>
+                            <div className="flex-1 min-w-0 space-y-1.5 sm:space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-1 min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                    {getStatusBadge(atividade)}
+                                    {getPrioridadeBadge(atividade.prioridade)}
+                                    {atividade.tipo_tarefa && (
+                                      <Badge variant="outline" className="text-[10px] sm:text-xs">
+                                        {atividade.tipo_tarefa}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <h3 className="font-medium text-sm sm:text-base line-clamp-2 sm:truncate break-words">
+                                    {atividade.titulo || "Sem título"}
+                                  </h3>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <Avatar className="w-7 h-7 sm:w-8 sm:h-8">
+                                    <AvatarFallback className="text-[10px] sm:text-xs bg-primary/10 text-primary">
+                                      {atividade.responsavel?.nome ? getInitials(atividade.responsavel.nome) : "?"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                </div>
+                              </div>
+
+                              <div className="text-xs text-muted-foreground sm:hidden">
+                                {atividade.responsavel?.nome || "Sem responsável"}
+                              </div>
+
+                              {atividade.processo && (
+                                <div className="text-xs sm:text-sm text-muted-foreground break-words">
+                                  <span className="font-mono text-[10px] sm:text-xs">{atividade.processo.numero}</span>
+                                  {atividade.processo.cliente?.nome && (
+                                    <span className="ml-1 sm:ml-2">• {atividade.processo.cliente.nome}</span>
                                   )}
                                 </div>
-                                <h3 className="font-medium text-sm sm:text-base line-clamp-2 sm:truncate break-words">
-                                  {atividade.titulo || "Sem título"}
-                                </h3>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <Avatar className="w-7 h-7 sm:w-8 sm:h-8">
-                                  <AvatarFallback className="text-[10px] sm:text-xs bg-primary/10 text-primary">
-                                    {atividade.responsavel?.nome ? getInitials(atividade.responsavel.nome) : "?"}
-                                  </AvatarFallback>
-                                </Avatar>
-                              </div>
-                            </div>
+                              )}
 
-                            {/* Nome do responsável no mobile */}
-                            <div className="text-xs text-muted-foreground sm:hidden">
-                              {atividade.responsavel?.nome || "Sem responsável"}
-                            </div>
+                              {atividade.descricao && (
+                                <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 break-words">
+                                  {atividade.descricao}
+                                </p>
+                              )}
 
-                            {atividade.processo && (
-                              <div className="text-xs sm:text-sm text-muted-foreground break-words">
-                                <span className="font-mono text-[10px] sm:text-xs">{atividade.processo.numero}</span>
-                                {atividade.processo.cliente?.nome && (
-                                  <span className="ml-1 sm:ml-2">• {atividade.processo.cliente.nome}</span>
-                                )}
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 text-[10px] sm:text-xs">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-muted-foreground">
+                                  {atividade.data_vencimento && (
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="w-3 h-3" />
+                                      <span className="hidden sm:inline">Prevista: </span>
+                                      {format(parseISO(atividade.data_vencimento), "dd/MM/yy", { locale: ptBR })}
+                                    </span>
+                                  )}
+                                  {atividade.data_fatal && (
+                                    <span className="flex items-center gap-1 text-red-500">
+                                      <AlertTriangle className="w-3 h-3" />
+                                      <span className="hidden sm:inline">Fatal: </span>
+                                      {format(parseISO(atividade.data_fatal), "dd/MM/yy", { locale: ptBR })}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] sm:text-xs">{getDiasRestantes(atividade)}</div>
                               </div>
-                            )}
-
-                            {atividade.descricao && (
-                              <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 break-words">
-                                {atividade.descricao}
-                              </p>
-                            )}
-
-                            {/* Datas - layout empilhado no mobile */}
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 text-[10px] sm:text-xs">
-                              <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-muted-foreground">
-                                {atividade.data_vencimento && (
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3" />
-                                    <span className="hidden sm:inline">Prevista: </span>
-                                    {format(parseISO(atividade.data_vencimento), "dd/MM/yy", { locale: ptBR })}
-                                  </span>
-                                )}
-                                {atividade.data_fatal && (
-                                  <span className="flex items-center gap-1 text-red-500">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    <span className="hidden sm:inline">Fatal: </span>
-                                    {format(parseISO(atividade.data_fatal), "dd/MM/yy", { locale: ptBR })}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[10px] sm:text-xs">{getDiasRestantes(atividade)}</div>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                        ))}
+                      </div>
+                    </ScrollArea>
 
-                  {hasNextPage && (
-                    <div className="p-3 border-t flex items-center justify-center">
-                      <Button
-                        variant="outline"
-                        onClick={() => fetchNextPage()}
-                        disabled={isFetchingNextPage}
-                        className="min-w-[160px]"
-                      >
-                        {isFetchingNextPage ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Carregando...
-                          </>
-                        ) : (
-                          "Carregar mais"
-                        )}
-                      </Button>
-                    </div>
-                  )}
+                    {hasNextPage && (
+                      <div className="p-3 border-t flex items-center justify-center">
+                        <Button
+                          variant="outline"
+                          onClick={() => fetchNextPage()}
+                          disabled={isFetchingNextPage}
+                          className="min-w-[160px]"
+                        >
+                          {isFetchingNextPage ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Carregando...
+                            </>
+                          ) : (
+                            "Carregar mais"
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
