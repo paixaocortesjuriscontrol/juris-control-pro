@@ -158,10 +158,20 @@ serve(async (req) => {
         }
 
         // Para parcelas, a data base é a data de vencimento + hora base do evento
+        // O data_inicio está armazenado em UTC no banco. Precisamos extrair a hora em BRT.
         const dataVencimento = parcela.data_vencimento; // "YYYY-MM-DD"
-        const horaBase = new Date(evento.data_inicio).toTimeString().slice(0, 5); // "HH:MM"
-        const dataHoraVencimento = new Date(`${dataVencimento}T${horaBase}:00-03:00`);
-        const dueAt = new Date(dataHoraVencimento.getTime() - alerta.minutos_antes * 60_000);
+        const dataInicioEvento = new Date(evento.data_inicio);
+        // Converter para BRT (UTC-3) para extrair a hora corretamente
+        const dataInicioBrt = new Date(dataInicioEvento.getTime() - 3 * 60 * 60 * 1000);
+        const horaBaseBrt = dataInicioBrt.toISOString().slice(11, 16); // "HH:MM" em BRT
+        
+        // Criar o horário de vencimento já em UTC
+        // dataVencimento é "YYYY-MM-DD" e horaBaseBrt é a hora em BRT
+        // Então dataVencimento + horaBaseBrt + offset BRT = horário UTC correto
+        const dataHoraVencimentoUtc = new Date(`${dataVencimento}T${horaBaseBrt}:00-03:00`);
+        const dueAt = new Date(dataHoraVencimentoUtc.getTime() - alerta.minutos_antes * 60_000);
+
+        console.log(`[processar-alertas-parcela] Debug alerta ${alertaId}: dataVencimento=${dataVencimento}, horaBaseBrt=${horaBaseBrt}, dataHoraVencimentoUtc=${dataHoraVencimentoUtc.toISOString()}, dueAt=${dueAt.toISOString()}, nowUtc=${nowUtc.toISOString()}`);
 
         // Se ainda não chegou no horário de disparo, deixa pendente
         if (nowUtc.getTime() < dueAt.getTime()) {
@@ -170,7 +180,7 @@ serve(async (req) => {
         }
 
         // Evitar envio para parcelas muito no passado (mais de 1 hora depois do vencimento)
-        if (nowUtc.getTime() > dataHoraVencimento.getTime() + 60 * 60_000) {
+        if (nowUtc.getTime() > dataHoraVencimentoUtc.getTime() + 60 * 60_000) {
           await supabase
             .from("alertas_parcela")
             .update({ enviado: true, enviado_em: nowUtc.toISOString() })
@@ -223,7 +233,7 @@ serve(async (req) => {
           numero_parcela: parcela.numero,
           total_parcelas: evento.total_parcelas || 1,
           minutos_antes: alerta.minutos_antes,
-          hora_base: horaBase,
+          hora_base: horaBaseBrt,
         });
 
         const zapiUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`;
