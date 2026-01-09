@@ -1413,6 +1413,51 @@ export type Database = {
           },
         ]
       }
+      logs_captura_tribunal: {
+        Row: {
+          captura_id: string | null
+          cofre_senha_id: string | null
+          created_at: string
+          detalhes: Json | null
+          id: string
+          mensagem: string
+          tipo: string
+        }
+        Insert: {
+          captura_id?: string | null
+          cofre_senha_id?: string | null
+          created_at?: string
+          detalhes?: Json | null
+          id?: string
+          mensagem: string
+          tipo: string
+        }
+        Update: {
+          captura_id?: string | null
+          cofre_senha_id?: string | null
+          created_at?: string
+          detalhes?: Json | null
+          id?: string
+          mensagem?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logs_captura_tribunal_captura_id_fkey"
+            columns: ["captura_id"]
+            isOneToOne: false
+            referencedRelation: "capturas_intimacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logs_captura_tribunal_cofre_senha_id_fkey"
+            columns: ["cofre_senha_id"]
+            isOneToOne: false
+            referencedRelation: "cofre_senhas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       membros_coordenacao: {
         Row: {
           cargo: string | null
@@ -2263,6 +2308,87 @@ export type Database = {
             columns: ["pasta_id"]
             isOneToOne: false
             referencedRelation: "pastas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      processos_capturados: {
+        Row: {
+          assunto: string | null
+          captura_id: string | null
+          classe: string | null
+          cofre_senha_id: string | null
+          created_at: string
+          dados_completos: Json | null
+          data_distribuicao: string | null
+          documentos: Json | null
+          id: string
+          movimentacoes: Json | null
+          partes: Json | null
+          processo_numero: string
+          sistema: string
+          situacao: string | null
+          tribunal: string | null
+          ultima_atualizacao: string | null
+          updated_at: string
+          valor_causa: number | null
+          vara: string | null
+        }
+        Insert: {
+          assunto?: string | null
+          captura_id?: string | null
+          classe?: string | null
+          cofre_senha_id?: string | null
+          created_at?: string
+          dados_completos?: Json | null
+          data_distribuicao?: string | null
+          documentos?: Json | null
+          id?: string
+          movimentacoes?: Json | null
+          partes?: Json | null
+          processo_numero: string
+          sistema: string
+          situacao?: string | null
+          tribunal?: string | null
+          ultima_atualizacao?: string | null
+          updated_at?: string
+          valor_causa?: number | null
+          vara?: string | null
+        }
+        Update: {
+          assunto?: string | null
+          captura_id?: string | null
+          classe?: string | null
+          cofre_senha_id?: string | null
+          created_at?: string
+          dados_completos?: Json | null
+          data_distribuicao?: string | null
+          documentos?: Json | null
+          id?: string
+          movimentacoes?: Json | null
+          partes?: Json | null
+          processo_numero?: string
+          sistema?: string
+          situacao?: string | null
+          tribunal?: string | null
+          ultima_atualizacao?: string | null
+          updated_at?: string
+          valor_causa?: number | null
+          vara?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processos_capturados_captura_id_fkey"
+            columns: ["captura_id"]
+            isOneToOne: false
+            referencedRelation: "capturas_intimacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processos_capturados_cofre_senha_id_fkey"
+            columns: ["cofre_senha_id"]
+            isOneToOne: false
+            referencedRelation: "cofre_senhas"
             referencedColumns: ["id"]
           },
         ]
