@@ -265,34 +265,42 @@ async function processMonitoramento(
   const dataAtual = new Date().toISOString().split('T')[0];
   
   // Build search params based on type
-  // For advogado, use text search with OAB number (API may not support dedicated OAB params)
-  let baseParams: Omit<SearchParams, 'siglaTribunal'> = {};
-  
+  // IMPORTANT: the Comunica UI filters (https://comunica.pje.jus.br/consulta) uses structured OAB filters.
+  // When we search "all tribunals" the result-set can be large; prefer OAB params to avoid missing items due to pagination caps.
+  const searchCandidates: Array<Omit<SearchParams, 'siglaTribunal'>> = [];
+
   if (monitoramento.tipo === "advogado" && monitoramento.oab) {
-    // Try multiple search formats to maximize matches
-    // Format: "OAB DF-15553" or just the number
-    const uf = monitoramento.uf || 'DF';
-    baseParams = { texto: `OAB ${uf}-${monitoramento.oab}` };
-    console.log(`Advogado search: OAB ${uf}-${monitoramento.oab}`);
+    const uf = (monitoramento.uf || "DF").toUpperCase();
+    const numeroOab = monitoramento.oab.replace(/\D/g, "");
+
+    // 1) Prefer dedicated parameters (matches the Comunica filters)
+    searchCandidates.push({ numeroOab, ufOab: uf });
+
+    // 2) Fallbacks: API variants / indexing differences
+    searchCandidates.push({ texto: `OAB ${uf}-${numeroOab}` });
+    searchCandidates.push({ texto: `OAB ${numeroOab} ${uf}` });
+    searchCandidates.push({ texto: numeroOab });
+
+    console.log(`Advogado search candidates: numeroOab=${numeroOab}, uf=${uf}`);
   } else if (monitoramento.tipo === "palavra-chave") {
-    baseParams = { texto: monitoramento.termo_busca };
+    searchCandidates.push({ texto: monitoramento.termo_busca });
   } else if (monitoramento.tipo === "processo") {
-    baseParams = { texto: monitoramento.termo_busca.replace(/\D/g, '') };
+    searchCandidates.push({ texto: monitoramento.termo_busca.replace(/\D/g, "") });
   }
-  
-  if (!baseParams.texto && !baseParams.numeroOab) {
+
+  if (searchCandidates.length === 0) {
     console.log(`No search params for monitoramento ${monitoramento.id}`);
     return { ...stats, tribunaisStats };
   }
-  
+
   // Get list of tribunais to search
   // When tribunais is empty/null, we pass [null] to search ALL tribunals without filter
-  const tribunais = monitoramento.tribunais && monitoramento.tribunais.length > 0 
-    ? monitoramento.tribunais 
+  const tribunais = monitoramento.tribunais && monitoramento.tribunais.length > 0
+    ? monitoramento.tribunais
     : [null]; // null means search all tribunals (no siglaTribunal filter)
-  
+
   console.log(`Searching tribunais: ${tribunais.length === 1 && tribunais[0] === null ? 'TODOS (sem filtro)' : tribunais.join(', ')}`);
-  
+
   for (const tribunal of tribunais) {
     const tribunalStat: TribunalStats = {
       tribunal,
@@ -302,15 +310,24 @@ async function processMonitoramento(
       descartadas: 0,
       duplicatas: 0,
     };
-    
+
     // Fetch publications for this tribunal with pagination tracking
-    const searchParams: SearchParams = { ...baseParams, siglaTribunal: tribunal };
-    const { items: publications, pages } = await fetchDJENResultsWithStats(searchParams);
+    let publications: any[] = [];
+    let pages = 0;
+
+    for (const candidate of searchCandidates) {
+      const searchParams: SearchParams = { ...candidate, siglaTribunal: tribunal };
+      const result = await fetchDJENResultsWithStats(searchParams);
+      publications = result.items;
+      pages = result.pages;
+      if (publications.length > 0) break;
+    }
+
     tribunalStat.paginas = pages;
     tribunalStat.resultados = publications.length;
-    
+
     console.log(`Found ${publications.length} publications for tribunal ${tribunal} (${pages} pages)`);
-    
+
     for (const pub of publications) {
       const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
       const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
