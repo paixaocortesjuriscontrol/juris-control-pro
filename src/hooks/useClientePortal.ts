@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -16,6 +16,7 @@ export interface ProcessoCliente {
   data_distribuicao: string | null;
   created_at: string;
   advogado_responsavel: {
+    id: string;
     nome: string;
   } | null;
 }
@@ -28,6 +29,92 @@ export interface MovimentacaoCliente {
   processo_id: string;
 }
 
+export interface ClientePortalStats {
+  totalProcessos: number;
+  ativos: number;
+  encerrados: number;
+  totalMovimentacoes: number;
+  processosPorStatus: { name: string; value: number; color: string }[];
+  processosPorArea: { name: string; value: number; color: string }[];
+  movimentacoesPorMes: { mes: string; total: number }[];
+  audienciasProximas: number;
+  intimacoesPendentes: number;
+}
+
+// Use the new database function for stats (no 1000 limit)
+export function useClienteStats() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["cliente-portal-stats", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+
+      const { data, error } = await supabase.rpc("get_cliente_portal_stats", {
+        _user_id: user.id,
+      });
+
+      if (error) {
+        console.error("Error fetching client stats:", error);
+        throw error;
+      }
+
+      return data as unknown as ClientePortalStats;
+    },
+    enabled: !!user,
+    staleTime: 30000,
+  });
+}
+
+// Use the new paginated function for processes
+export function useClienteProcessosPaginados(
+  filters: {
+    status?: string;
+    area?: string;
+    search?: string;
+  } = {}
+) {
+  const { user } = useAuth();
+  const pageSize = 50;
+
+  return useInfiniteQuery({
+    queryKey: ["cliente-processos-paginados", user?.id, filters],
+    queryFn: async ({ pageParam = 1 }) => {
+      if (!user) return { processos: [], totalCount: 0, hasMore: false };
+
+      const { data, error } = await supabase.rpc("get_cliente_processos_paginados", {
+        _user_id: user.id,
+        _page: pageParam,
+        _page_size: pageSize,
+        _status: filters.status || null,
+        _area: filters.area || null,
+        _search: filters.search || null,
+      });
+
+      if (error) {
+        console.error("Error fetching client processes:", error);
+        throw error;
+      }
+
+      const processos = (data || []).map((p: any) => ({
+        ...p,
+        advogado_responsavel: p.advogado_responsavel?.id ? p.advogado_responsavel : null,
+      })) as ProcessoCliente[];
+
+      const totalCount = data?.[0]?.total_count || 0;
+      const hasMore = pageParam * pageSize < totalCount;
+
+      return { processos, totalCount, hasMore };
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      return lastPage.hasMore ? allPages.length + 1 : undefined;
+    },
+    initialPageParam: 1,
+    enabled: !!user,
+  });
+}
+
+// Legacy function for backward compatibility - now uses paginated version internally
 export function useClienteProcessos() {
   const { user } = useAuth();
 
@@ -36,47 +123,23 @@ export function useClienteProcessos() {
     queryFn: async () => {
       if (!user) return [];
 
-      // Get client IDs linked to this user
-      const { data: links, error: linksError } = await supabase
-        .from("clientes_usuarios")
-        .select("cliente_id")
-        .eq("user_id", user.id)
-        .eq("ativo", true);
+      const { data, error } = await supabase.rpc("get_cliente_processos_paginados", {
+        _user_id: user.id,
+        _page: 1,
+        _page_size: 100,
+        _status: null,
+        _area: null,
+        _search: null,
+      });
 
-      if (linksError) throw linksError;
+      if (error) {
+        console.error("Error fetching client processes:", error);
+        throw error;
+      }
 
-      const clienteIds = links?.map(l => l.cliente_id) || [];
-      if (clienteIds.length === 0) return [];
-
-      // Get processes for these clients
-      const { data, error } = await supabase
-        .from("processos")
-        .select(`
-          id,
-          numero,
-          assunto,
-          area,
-          status,
-          polo_ativo,
-          polo_passivo,
-          tribunal,
-          vara,
-          comarca,
-          data_distribuicao,
-          created_at,
-          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(nome)
-        `)
-        .in("cliente_id", clienteIds)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Normalize nested objects
-      return (data || []).map(p => ({
+      return (data || []).map((p: any) => ({
         ...p,
-        advogado_responsavel: Array.isArray(p.advogado_responsavel) 
-          ? p.advogado_responsavel[0] 
-          : p.advogado_responsavel,
+        advogado_responsavel: p.advogado_responsavel?.id ? p.advogado_responsavel : null,
       })) as ProcessoCliente[];
     },
     enabled: !!user,
@@ -91,28 +154,7 @@ export function useClienteMovimentacoes(processoId?: string) {
     queryFn: async () => {
       if (!user || !processoId) return [];
 
-      // Verify user has access to this process
-      const { data: links } = await supabase
-        .from("clientes_usuarios")
-        .select("cliente_id")
-        .eq("user_id", user.id)
-        .eq("ativo", true);
-
-      const clienteIds = links?.map(l => l.cliente_id) || [];
-      if (clienteIds.length === 0) return [];
-
-      // Check if process belongs to one of the user's clients
-      const { data: processo } = await supabase
-        .from("processos")
-        .select("id, cliente_id")
-        .eq("id", processoId)
-        .single();
-
-      if (!processo || !clienteIds.includes(processo.cliente_id || "")) {
-        return [];
-      }
-
-      // Get movements
+      // Get movements directly - RLS will handle access control
       const { data, error } = await supabase
         .from("movimentacoes")
         .select("id, data_movimentacao, descricao, tipo, processo_id")
@@ -120,62 +162,14 @@ export function useClienteMovimentacoes(processoId?: string) {
         .order("data_movimentacao", { ascending: false })
         .limit(100);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching movements:", error);
+        throw error;
+      }
 
       return data as MovimentacaoCliente[];
     },
     enabled: !!user && !!processoId,
-  });
-}
-
-export function useClienteStats() {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ["cliente-stats", user?.id],
-    queryFn: async () => {
-      if (!user) return null;
-
-      // Get client IDs linked to this user
-      const { data: links } = await supabase
-        .from("clientes_usuarios")
-        .select("cliente_id")
-        .eq("user_id", user.id)
-        .eq("ativo", true);
-
-      const clienteIds = links?.map(l => l.cliente_id) || [];
-      if (clienteIds.length === 0) {
-        return { totalProcessos: 0, ativos: 0, encerrados: 0, totalMovimentacoes: 0 };
-      }
-
-      // Get process stats
-      const { data: processos, error: processosError } = await supabase
-        .from("processos")
-        .select("id, status")
-        .in("cliente_id", clienteIds);
-
-      if (processosError) throw processosError;
-
-      const processosIds = processos?.map(p => p.id) || [];
-      
-      // Get movement count
-      let totalMovimentacoes = 0;
-      if (processosIds.length > 0) {
-        const { count } = await supabase
-          .from("movimentacoes")
-          .select("id", { count: "exact", head: true })
-          .in("processo_id", processosIds);
-        totalMovimentacoes = count || 0;
-      }
-
-      return {
-        totalProcessos: processos?.length || 0,
-        ativos: processos?.filter(p => ["ativo", "urgente", "pendente"].includes(p.status)).length || 0,
-        encerrados: processos?.filter(p => ["encerrado", "arquivado"].includes(p.status)).length || 0,
-        totalMovimentacoes,
-      };
-    },
-    enabled: !!user,
   });
 }
 
