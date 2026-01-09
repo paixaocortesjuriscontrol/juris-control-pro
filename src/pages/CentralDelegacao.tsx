@@ -97,7 +97,7 @@ export default function CentralDelegacao() {
   const [tipoAtividade, setTipoAtividade] = useState<TipoAtividade>("todos");
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("todos");
   const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>("todas");
-  const [periodoFiltro, setPeriodoFiltro] = useState<PeriodoFiltro>("hoje");
+  const [periodoFiltro, setPeriodoFiltro] = useState<PeriodoFiltro>("todas");
   const [selectedTarefaId, setSelectedTarefaId] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [novoCompromissoOpen, setNovoCompromissoOpen] = useState(false);
