@@ -20,7 +20,9 @@ import {
   History,
   Play,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  TestTube,
+  Zap
 } from "lucide-react";
 import { useCofreSenhas } from "@/hooks/useCofreSenhas";
 import { CredencialDialog } from "@/components/cofre/CredencialDialog";
@@ -39,6 +41,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function CofreSenhas() {
   const {
@@ -62,6 +72,11 @@ export default function CofreSenhas() {
   const [itemToDelete, setItemToDelete] = useState<{ type: "credencial" | "captura"; id: string } | null>(null);
   const [executingCaptura, setExecutingCaptura] = useState(false);
   const [capturaResult, setCapturaResult] = useState<any>(null);
+  
+  // Estados para teste de conexão
+  const [testingCredencial, setTestingCredencial] = useState<string | null>(null);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
 
   const handleSaveCredencial = async (dados: any) => {
     if (credencialSelecionada) {
@@ -92,6 +107,39 @@ export default function CofreSenhas() {
     }
     setDeleteDialogOpen(false);
     setItemToDelete(null);
+  };
+
+  // Testar conexão com o tribunal via Browserless
+  const handleTestarConexao = async (credencialId: string) => {
+    setTestingCredencial(credencialId);
+    setTestResult(null);
+    setTestDialogOpen(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("capturar-processo-tribunal", {
+        body: { 
+          cofre_senha_id: credencialId,
+          capturar_intimacoes: false,
+          capturar_processos: false
+        },
+      });
+
+      if (error) throw error;
+      setTestResult(data);
+      
+      if (data.success) {
+        toast.success("Teste de conexão realizado!");
+      }
+    } catch (err: any) {
+      console.error("Erro no teste:", err);
+      setTestResult({ 
+        success: false, 
+        error: err.message || "Erro ao testar conexão" 
+      });
+      toast.error("Erro no teste: " + err.message);
+    } finally {
+      setTestingCredencial(null);
+    }
   };
 
   const handleExecutarCaptura = async (capturaId?: string) => {
@@ -248,6 +296,20 @@ export default function CofreSenhas() {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                title="Testar conexão"
+                                onClick={() => handleTestarConexao(cred.id)}
+                                disabled={testingCredencial === cred.id}
+                              >
+                                {testingCredencial === cred.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Zap className="h-4 w-4 text-amber-500" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Editar"
                                 onClick={() => { setCredencialSelecionada(cred); setCredencialDialogOpen(true); }}
                               >
                                 <Edit className="h-4 w-4" />
@@ -256,6 +318,7 @@ export default function CofreSenhas() {
                                 variant="ghost"
                                 size="icon"
                                 className="text-destructive"
+                                title="Excluir"
                                 onClick={() => { setItemToDelete({ type: "credencial", id: cred.id }); setDeleteDialogOpen(true); }}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -479,6 +542,96 @@ export default function CofreSenhas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog de Teste de Conexão */}
+      <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-amber-500" />
+              Teste de Conexão com Tribunal
+            </DialogTitle>
+            <DialogDescription>
+              Verificando conexão via Browserless com o sistema do tribunal
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {testingCredencial && !testResult && (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center space-y-3">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                  <p className="text-sm text-muted-foreground">Conectando ao tribunal...</p>
+                </div>
+              </div>
+            )}
+
+            {testResult && (
+              <div className="space-y-4">
+                {/* Status */}
+                <div className={`p-4 rounded-lg border ${
+                  testResult.success 
+                    ? "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-900" 
+                    : "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900"
+                }`}>
+                  <div className="flex items-start gap-3">
+                    {testResult.success ? (
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <p className="font-medium">
+                        {testResult.success ? "Conexão estabelecida!" : "Falha na conexão"}
+                      </p>
+                      {testResult.error && (
+                        <p className="text-sm text-red-600 mt-1">{testResult.error}</p>
+                      )}
+                      {testResult.mensagem && (
+                        <p className="text-sm text-muted-foreground mt-1">{testResult.mensagem}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Detalhes do resultado */}
+                {testResult.sistema && (
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-muted-foreground">Sistema</p>
+                      <p className="font-medium uppercase">{testResult.sistema}</p>
+                    </div>
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-muted-foreground">Tribunal</p>
+                      <p className="font-medium">{testResult.tribunal || "-"}</p>
+                    </div>
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-muted-foreground">Processos Capturados</p>
+                      <p className="font-medium">{testResult.processosCapturados || 0}</p>
+                    </div>
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-muted-foreground">Intimações Capturadas</p>
+                      <p className="font-medium">{testResult.intimacoesCapturadas || 0}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Logs se houver */}
+                {testResult.logs && testResult.logs.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">Logs</p>
+                    <ScrollArea className="h-32 rounded border bg-muted/30 p-2">
+                      {testResult.logs.map((log: string, i: number) => (
+                        <p key={i} className="text-xs font-mono text-muted-foreground">{log}</p>
+                      ))}
+                    </ScrollArea>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
