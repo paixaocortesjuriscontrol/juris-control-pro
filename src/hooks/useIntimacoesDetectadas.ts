@@ -148,56 +148,58 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
     },
   });
 
-  // Query separada para estatísticas (todas as intimações da coordenação, sem filtro de status)
-  const { data: allIntimacoesForStats = [] } = useQuery({
-    queryKey: ['intimacoes-detectadas-stats', filtros.coordenacaoId],
+  // Stats via COUNT no banco (sem limite)
+  const { data: statsData } = useQuery({
+    queryKey: ['intimacoes-stats', filtros.coordenacaoId],
     queryFn: async () => {
       const coordAtiva = Boolean(
         filtros.coordenacaoId && filtros.coordenacaoId !== "todas"
       );
 
+      let processosIds: string[] | null = null;
       if (coordAtiva) {
-        // Buscar IDs de processos da coordenação
-        const { data: processosCoord, error: errProc } = await supabase
+        const { data: processosCoord } = await supabase
           .from("processos")
           .select("id")
           .eq("coordenacao_id", filtros.coordenacaoId as string);
-
-        if (errProc) {
-          console.error('Erro ao buscar processos da coordenação:', errProc);
-          return [];
-        }
-
-        const processosIds = (processosCoord || []).map(p => p.id);
-        
+        processosIds = (processosCoord || []).map(p => p.id);
         if (processosIds.length === 0) {
-          return [];
+          return { pendentes: 0, tratadas: 0, ignoradas: 0, emAndamento: 0, proximas: 0, vencidas: 0 };
         }
-
-        // Buscar intimações desses processos
-        const { data, error } = await supabase
-          .from("intimacoes_detectadas")
-          .select("id, status, data_limite")
-          .in("processo_id", processosIds);
-
-        if (error) {
-          console.error('Erro ao buscar stats intimações:', error);
-          return [];
-        }
-        return (data as any[]) || [];
-      } else {
-        // Buscar TODAS as intimações (sem filtro de coordenação)
-        const { data, error } = await supabase
-          .from("intimacoes_detectadas")
-          .select("id, status, data_limite");
-
-        if (error) {
-          console.error('Erro ao buscar stats intimações:', error);
-          return [];
-        }
-        return (data as any[]) || [];
       }
+
+      // Build base query helper
+      const buildQuery = (status?: string) => {
+        let q = supabase.from('intimacoes_detectadas').select('*', { count: 'exact', head: true });
+        if (status) q = q.eq('status', status);
+        if (processosIds) q = q.in('processo_id', processosIds);
+        return q;
+      };
+
+      const hoje = new Date().toISOString().split('T')[0];
+      const seteDias = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const [pendentesRes, tratadasRes, ignoradasRes, emAndamentoRes, vencidasRes, proximasRes] = await Promise.all([
+        buildQuery('pendente'),
+        buildQuery('tratado'),
+        buildQuery('ignorado'),
+        buildQuery('em_andamento'),
+        // Vencidas: pendente E data_limite < hoje
+        buildQuery('pendente').lt('data_limite', hoje),
+        // Próximas: pendente E data_limite entre hoje e 7 dias
+        buildQuery('pendente').gte('data_limite', hoje).lte('data_limite', seteDias),
+      ]);
+
+      return {
+        pendentes: pendentesRes.count || 0,
+        tratadas: tratadasRes.count || 0,
+        ignoradas: ignoradasRes.count || 0,
+        emAndamento: emAndamentoRes.count || 0,
+        vencidas: vencidasRes.count || 0,
+        proximas: proximasRes.count || 0,
+      };
     },
+    staleTime: 30000,
   });
 
   const atualizarIntimacao = useMutation({
@@ -270,39 +272,13 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
     },
   });
 
-  // Estatísticas - usar query separada que inclui todas as intimações da coordenação
-  const stats = allIntimacoesForStats || [];
-  const pendentes = stats.filter((i: any) => i.status === 'pendente').length;
-  const tratadas = stats.filter((i: any) => i.status === 'tratado').length;
-  const ignoradas = stats.filter((i: any) => i.status === 'ignorado').length;
-  const emAndamento = stats.filter((i: any) => i.status === 'em_andamento').length;
-  
-  // Normalizar datas para meia-noite no horário de Brasília
-  const agora = new Date();
-  // Criar data de hoje às 00:00 BRT (UTC-3)
-  const hojeBrt = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-  hojeBrt.setHours(0, 0, 0, 0);
-  
-  // Próximas 7 dias (de hoje até 7 dias no futuro)
-  const seteDias = new Date(hojeBrt.getTime() + 7 * 24 * 60 * 60 * 1000);
-  
-  const proximas = stats.filter((i: any) => {
-    if (i.status !== 'pendente' || !i.data_limite) return false;
-    // Parsear data_limite como meia-noite local
-    const [ano, mes, dia] = i.data_limite.split('T')[0].split('-').map(Number);
-    const dataLimite = new Date(ano, mes - 1, dia);
-    dataLimite.setHours(0, 0, 0, 0);
-    return dataLimite >= hojeBrt && dataLimite <= seteDias;
-  }).length;
-
-  // Vencidas (data_limite < hoje)
-  const vencidas = stats.filter((i: any) => {
-    if (i.status !== 'pendente' || !i.data_limite) return false;
-    const [ano, mes, dia] = i.data_limite.split('T')[0].split('-').map(Number);
-    const dataLimite = new Date(ano, mes - 1, dia);
-    dataLimite.setHours(0, 0, 0, 0);
-    return dataLimite < hojeBrt;
-  }).length;
+  // Estatísticas via COUNT no banco
+  const pendentes = statsData?.pendentes ?? 0;
+  const tratadas = statsData?.tratadas ?? 0;
+  const ignoradas = statsData?.ignoradas ?? 0;
+  const emAndamento = statsData?.emAndamento ?? 0;
+  const proximas = statsData?.proximas ?? 0;
+  const vencidas = statsData?.vencidas ?? 0;
 
   return {
     intimacoes,

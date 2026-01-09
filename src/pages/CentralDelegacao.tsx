@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
@@ -369,8 +369,8 @@ export default function CentralDelegacao() {
     },
   });
 
-  // Stats - Fetch all tasks for the selected coordination to calculate accurate stats
-  const { data: allTarefasForStats } = useQuery({
+  // Stats via COUNT no banco (sem limite de registros)
+  const { data: stats } = useQuery({
     queryKey: ["tarefas-stats-delegacao", coordenacaoId, membros, user?.id, isAdminOrCoordinator],
     queryFn: async () => {
       // Get members IDs for the selected coordination
@@ -385,62 +385,49 @@ export default function CentralDelegacao() {
         membroIds = membrosCoordenacao?.map(m => m.usuario_id) || [];
       }
 
-      let query = supabase
-        .from("tarefas")
-        .select("id, status, data_vencimento")
-        .order("id", { ascending: true });
+      // Helper to build base query with filters
+      const buildQuery = () => {
+        let q = supabase.from("tarefas").select("*", { count: "exact", head: true });
+        
+        if (!isAdminOrCoordinator && user?.id) {
+          q = q.eq("responsavel_id", user.id);
+        } else if (isAdminOrCoordinator && coordenacaoId !== "todas" && membroIds && membroIds.length > 0) {
+          q = q.in("responsavel_id", membroIds);
+        }
+        
+        return q;
+      };
 
-      // Apply same responsibility filter logic
-      if (!isAdminOrCoordinator && user?.id) {
-        query = query.eq("responsavel_id", user.id);
-      } else if (isAdminOrCoordinator && coordenacaoId !== "todas" && membroIds && membroIds.length > 0) {
-        query = query.in("responsavel_id", membroIds);
-      }
+      // Count total
+      const { count: total } = await buildQuery();
 
-      const PAGE_SIZE = 1000;
-      const MAX_PAGES = 20;
-      const all: any[] = [];
+      // Count pendentes (status = pendente AND não atrasado)
+      // Precisamos contar pendentes que NÃO estão atrasados
+      const hoje = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
+      
+      // Count status = pendente
+      const { count: pendentesTotal } = await buildQuery().eq("status", "pendente");
 
-      for (let page = 0; page < MAX_PAGES; page++) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
+      // Count atrasadas (status = pendente AND data_vencimento < hoje)
+      const { count: atrasadas } = await buildQuery()
+        .eq("status", "pendente")
+        .lt("data_vencimento", hoje);
 
-        const { data: pageData, error } = await query.range(from, to);
-        if (error) throw error;
+      // Count cumpridas
+      const { count: concluidas } = await buildQuery().eq("status", "cumprido");
 
-        all.push(...(pageData || []));
+      // Pendentes = pendentesTotal - atrasadas
+      const pendentes = (pendentesTotal || 0) - (atrasadas || 0);
 
-        if (!pageData || pageData.length < PAGE_SIZE) break;
-      }
-
-      return all;
+      return {
+        total: total || 0,
+        pendentes: pendentes,
+        atrasadas: atrasadas || 0,
+        concluidas: concluidas || 0,
+      };
     },
     enabled: !!user?.id,
   });
-
-  const stats = useMemo(() => {
-    if (!allTarefasForStats) return { total: 0, pendentes: 0, atrasadas: 0, concluidas: 0 };
-    
-    const hoje = new Date();
-    let total = 0, pendentes = 0, atrasadas = 0, concluidas = 0;
-    
-    allTarefasForStats.forEach((tarefa: any) => {
-      total++;
-      if (tarefa.status === "cumprido") {
-        concluidas++;
-      } else {
-        const dataVenc = tarefa.data_vencimento ? parseISO(tarefa.data_vencimento) : null;
-        const isAtrasado = dataVenc && isBefore(dataVenc, hoje);
-        if (isAtrasado) {
-          atrasadas++;
-        } else {
-          pendentes++;
-        }
-      }
-    });
-    
-    return { total, pendentes, atrasadas, concluidas };
-  }, [allTarefasForStats]);
 
   // Filtered atividades
   const atividadesFiltradas = useMemo(() => {
@@ -622,7 +609,7 @@ export default function CentralDelegacao() {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Total</p>
-                  <p className="text-xl sm:text-2xl font-bold">{stats.total}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{stats?.total ?? 0}</p>
                 </div>
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <ListChecks className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
@@ -642,7 +629,7 @@ export default function CentralDelegacao() {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Pendentes</p>
-                  <p className="text-xl sm:text-2xl font-bold text-blue-600">{stats.pendentes}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-600">{stats?.pendentes ?? 0}</p>
                 </div>
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
                   <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
@@ -662,7 +649,7 @@ export default function CentralDelegacao() {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Atrasadas</p>
-                  <p className="text-xl sm:text-2xl font-bold text-red-600">{stats.atrasadas}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-red-600">{stats?.atrasadas ?? 0}</p>
                 </div>
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
                   <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
@@ -682,7 +669,7 @@ export default function CentralDelegacao() {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Concluídas</p>
-                  <p className="text-xl sm:text-2xl font-bold text-green-600">{stats.concluidas}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-green-600">{stats?.concluidas ?? 0}</p>
                 </div>
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
