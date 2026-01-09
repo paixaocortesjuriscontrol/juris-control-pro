@@ -253,6 +253,8 @@ interface SearchParams {
   texto?: string;
   numeroOab?: string;
   ufOab?: string;
+  // Matches the "Nome do advogado" field on https://comunica.pje.jus.br/consulta
+  nomeAdvogado?: string;
   siglaTribunal?: string | null;
 }
 
@@ -269,19 +271,33 @@ async function processMonitoramento(
   // When we search "all tribunals" the result-set can be large; prefer OAB params to avoid missing items due to pagination caps.
   const searchCandidates: Array<Omit<SearchParams, 'siglaTribunal'>> = [];
 
-  if (monitoramento.tipo === "advogado" && monitoramento.oab) {
-    const uf = (monitoramento.uf || "DF").toUpperCase();
-    const numeroOab = monitoramento.oab.replace(/\D/g, "");
+  if (monitoramento.tipo === "advogado") {
+    const termo = (monitoramento.termo_busca || "").trim();
+    const hasNome = termo.length >= 3 && /[A-Za-zÀ-ÿ]/.test(termo);
 
-    // 1) Prefer dedicated parameters (matches the Comunica filters)
-    searchCandidates.push({ numeroOab, ufOab: uf });
+    if (monitoramento.oab) {
+      const uf = (monitoramento.uf || "DF").toUpperCase();
+      const numeroOab = monitoramento.oab.replace(/\D/g, "");
 
-    // 2) Fallbacks: API variants / indexing differences
-    searchCandidates.push({ texto: `OAB ${uf}-${numeroOab}` });
-    searchCandidates.push({ texto: `OAB ${numeroOab} ${uf}` });
-    searchCandidates.push({ texto: numeroOab });
+      // 1) Prefer dedicated parameters (matches the Comunica filters)
+      searchCandidates.push({ numeroOab, ufOab: uf });
 
-    console.log(`Advogado search candidates: numeroOab=${numeroOab}, uf=${uf}`);
+      // 2) Fallbacks: API variants / indexing differences
+      searchCandidates.push({ texto: `OAB ${uf}-${numeroOab}` });
+      searchCandidates.push({ texto: `OAB ${numeroOab} ${uf}` });
+      searchCandidates.push({ texto: numeroOab });
+    }
+
+    // 3) Name-based search (matches the Comunica UI field "Nome do advogado")
+    if (hasNome) {
+      searchCandidates.push({ nomeAdvogado: termo });
+      // fallback (some endpoints/indexes still work better with a generic text query)
+      searchCandidates.push({ texto: termo });
+    }
+
+    console.log(
+      `Advogado search candidates: oab=${monitoramento.oab || "(none)"}, uf=${(monitoramento.uf || "DF").toUpperCase()}, nome=${hasNome ? termo : "(none)"}`
+    );
   } else if (monitoramento.tipo === "palavra-chave") {
     searchCandidates.push({ texto: monitoramento.termo_busca });
   } else if (monitoramento.tipo === "processo") {
@@ -468,9 +484,11 @@ async function fetchDJENResultsWithStats(
   while (page < maxPages) {
     const queryParams = new URLSearchParams();
     
-    // Use specific OAB parameters when available (required for lawyer searches in PJe Comunica API)
-    // This is more accurate than text search for finding publications by lawyer
-    if (params.numeroOab) {
+    // Prefer nomeAdvogado when provided (matches the Comunica UI "Nome do advogado")
+    // Then fallback to structured OAB, then to generic text.
+    if (params.nomeAdvogado) {
+      queryParams.append("nomeAdvogado", params.nomeAdvogado);
+    } else if (params.numeroOab) {
       queryParams.append("numeroOab", params.numeroOab);
       if (params.ufOab) {
         queryParams.append("ufOab", params.ufOab);
@@ -478,7 +496,7 @@ async function fetchDJENResultsWithStats(
     } else if (params.texto) {
       queryParams.append("texto", params.texto);
     }
-    
+
     queryParams.append("dataDisponibilizacaoInicio", startDate);
     queryParams.append("dataDisponibilizacaoFim", endDate);
     queryParams.append("pagina", page.toString());
