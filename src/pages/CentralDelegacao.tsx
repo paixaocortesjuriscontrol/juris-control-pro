@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO, differenceInDays, isBefore, startOfDay, endOfDay, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { toZonedTime, fromZonedTime } from "date-fns-tz";
 import { ptBR } from "date-fns/locale";
 import { 
   Plus,
@@ -180,30 +181,52 @@ export default function CentralDelegacao() {
     },
   });
 
-  // Calculate date range for period filter
+  // Calculate date range for period filter (sempre em Horário de Brasília)
   const getDateRange = useMemo(() => {
-    const hoje = startOfDay(new Date());
-    const fimHoje = endOfDay(new Date());
-    
+    const TIME_ZONE = "America/Sao_Paulo";
+
+    // Constrói o "hoje" em BRT e converte os limites para UTC (para comparar com timestamps do banco)
+    const nowBrt = toZonedTime(new Date(), TIME_ZONE);
+    const hojeBrtStart = startOfDay(nowBrt);
+
+    let inicioBrt: Date;
+    let fimBrt: Date;
+
     switch (periodoFiltro) {
       case "hoje":
-        // Somente tarefas com data prevista ou fatal na data de hoje
-        return { inicio: hoje, fim: fimHoje };
-      case "semana":
-        // Tarefas para todos os dias da semana corrente (domingo a sábado)
-        const inicioSemana = startOfWeek(hoje, { weekStartsOn: 0 }); // Domingo
-        const fimSemana = endOfWeek(hoje, { weekStartsOn: 0 }); // Sábado
-        return { inicio: inicioSemana, fim: fimSemana };
+        // Somente tarefas com data prevista ou fatal na data de hoje (BRT)
+        inicioBrt = startOfDay(nowBrt);
+        fimBrt = endOfDay(nowBrt);
+        break;
+
+      case "semana": {
+        // Semana corrente (segunda a domingo) em BRT
+        inicioBrt = startOfWeek(hojeBrtStart, { weekStartsOn: 1 });
+        fimBrt = endOfWeek(hojeBrtStart, { weekStartsOn: 1 });
+        break;
+      }
+
       case "quinzena":
-        // De hoje até hoje + 15 dias
-        return { inicio: hoje, fim: endOfDay(addDays(hoje, 15)) };
+        // De hoje até hoje + 15 dias (BRT)
+        inicioBrt = hojeBrtStart;
+        fimBrt = endOfDay(addDays(hojeBrtStart, 15));
+        break;
+
       case "mes":
-        // De hoje até hoje + 30 dias
-        return { inicio: hoje, fim: endOfDay(addDays(hoje, 30)) };
+        // De hoje até hoje + 30 dias (BRT)
+        inicioBrt = hojeBrtStart;
+        fimBrt = endOfDay(addDays(hojeBrtStart, 30));
+        break;
+
       case "todas":
       default:
         return null;
     }
+
+    return {
+      inicio: fromZonedTime(inicioBrt, TIME_ZONE),
+      fim: fromZonedTime(fimBrt, TIME_ZONE),
+    };
   }, [periodoFiltro]);
 
   // Fetch atividades (tarefas/prazos + eventos)
@@ -269,19 +292,20 @@ export default function CentralDelegacao() {
       if (tarefasError) throw tarefasError;
 
       // Apply period filter on data_vencimento OR data_fatal (client-side to support OR logic)
+      // OBS: getDateRange já está em UTC (limites calculados a partir do BRT)
       let filteredByPeriod = tarefas || [];
       if (getDateRange) {
         const inicio = getDateRange.inicio.getTime();
         const fim = getDateRange.fim.getTime();
-        
+
         filteredByPeriod = filteredByPeriod.filter((t: any) => {
           const dataVenc = t.data_vencimento ? new Date(t.data_vencimento).getTime() : null;
           const dataFatal = t.data_fatal ? new Date(t.data_fatal).getTime() : null;
-          
+
           // Tarefa deve ter data_vencimento OU data_fatal dentro do período
-          const vencNoPeriodo = dataVenc && dataVenc >= inicio && dataVenc <= fim;
-          const fatalNoPeriodo = dataFatal && dataFatal >= inicio && dataFatal <= fim;
-          
+          const vencNoPeriodo = dataVenc !== null && dataVenc >= inicio && dataVenc <= fim;
+          const fatalNoPeriodo = dataFatal !== null && dataFatal >= inicio && dataFatal <= fim;
+
           return vencNoPeriodo || fatalNoPeriodo;
         });
       }
