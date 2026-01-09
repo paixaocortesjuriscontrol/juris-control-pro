@@ -127,26 +127,30 @@ export function useIntimacoesDetectadas(filtros: FiltrosIntimacao = {}) {
         filtros.coordenacaoId && filtros.coordenacaoId !== "todas"
       );
 
-      const selectClause = coordAtiva
-        ? "id, status, data_limite, processos!inner(coordenacao_id)"
-        : "id, status, data_limite";
-
-      let query = (supabase as any)
-        .from("intimacoes_detectadas")
-        .select(selectClause);
-
       if (coordAtiva) {
-        query = query.eq("processos.coordenacao_id", filtros.coordenacaoId as string);
-      }
+        // Buscar apenas intimações de processos da coordenação selecionada
+        const { data, error } = await (supabase as any)
+          .from("intimacoes_detectadas")
+          .select("id, status, data_limite, processos!inner(coordenacao_id)")
+          .eq("processos.coordenacao_id", filtros.coordenacaoId as string);
 
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error('Erro ao buscar stats intimações:', error);
-        return [];
-      }
+        if (error) {
+          console.error('Erro ao buscar stats intimações:', error);
+          return [];
+        }
+        return (data as any[]) || [];
+      } else {
+        // Buscar TODAS as intimações (sem filtro de coordenação)
+        const { data, error } = await (supabase as any)
+          .from("intimacoes_detectadas")
+          .select("id, status, data_limite");
 
-      return (data as any[]) || [];
+        if (error) {
+          console.error('Erro ao buscar stats intimações:', error);
+          return [];
+        }
+        return (data as any[]) || [];
+      }
     },
   });
 
