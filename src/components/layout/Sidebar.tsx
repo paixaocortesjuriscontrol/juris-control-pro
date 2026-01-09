@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
+  { icon: Scale, label: "Processos Internos", path: "/processos" },
   { icon: Calendar, label: "Controle de Prazos", path: "/prazos" },
   { icon: Send, label: "Central Delegação", path: "/central-delegacao" },
   { icon: Calendar, label: "Minha Agenda", path: "/minha-agenda" },
@@ -43,7 +44,6 @@ const menuItems = [
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: ClipboardList, label: "Painel da Equipe", path: "/painel-equipe" },
-  { icon: Scale, label: "Processos Internos", path: "/processos" },
   { icon: Upload, label: "Importar Processos", path: "/importar" },
   { icon: Upload, label: "Importar Tarefas", path: "/importar-tarefas" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
