@@ -14,6 +14,7 @@ import {
   Timer, PlayCircle, Download, Settings, Users, ClipboardList, User
 } from "lucide-react";
 import { useIntimacoesDetectadas, IntimacaoDetectada } from "@/hooks/useIntimacoesDetectadas";
+import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -28,6 +29,7 @@ export default function PainelIntimacoes() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("pendente");
+  const [statCardFilter, setStatCardFilter] = useState<string | null>("pendente"); // tracks which stat card is active
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string | null>(null);
   const [coordenacaoCarregada, setCoordenacaoCarregada] = useState(false);
   const [selectedIntimacao, setSelectedIntimacao] = useState<IntimacaoDetectada | null>(null);
@@ -297,7 +299,13 @@ export default function PainelIntimacoes() {
         <TabsContent value="lista" className="space-y-6">
           {/* Stats Cards */}
           <div className="grid gap-4 md:grid-cols-6">
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStatusFilter('pendente')}>
+            <Card 
+              className={cn(
+                "cursor-pointer hover:shadow-md transition-shadow",
+                statCardFilter === "pendente" && "border-primary ring-1 ring-primary"
+              )} 
+              onClick={() => { setStatusFilter('pendente'); setStatCardFilter('pendente'); setSearch(''); }}
+            >
               <CardHeader className="pb-2">
                 <CardDescription>Pendentes</CardDescription>
               </CardHeader>
@@ -309,7 +317,13 @@ export default function PainelIntimacoes() {
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStatusFilter('todos')}>
+            <Card 
+              className={cn(
+                "cursor-pointer hover:shadow-md transition-shadow",
+                statCardFilter === "vencidas" && "border-primary ring-1 ring-primary"
+              )} 
+              onClick={() => { setStatusFilter('vencidas'); setStatCardFilter('vencidas'); setSearch(''); }}
+            >
               <CardHeader className="pb-2">
                 <CardDescription>Vencidas</CardDescription>
               </CardHeader>
@@ -321,7 +335,13 @@ export default function PainelIntimacoes() {
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStatusFilter('todos')}>
+            <Card 
+              className={cn(
+                "cursor-pointer hover:shadow-md transition-shadow",
+                statCardFilter === "proximas" && "border-primary ring-1 ring-primary"
+              )} 
+              onClick={() => { setStatusFilter('proximas'); setStatCardFilter('proximas'); setSearch(''); }}
+            >
               <CardHeader className="pb-2">
                 <CardDescription>Próx. 7 dias</CardDescription>
               </CardHeader>
@@ -333,7 +353,13 @@ export default function PainelIntimacoes() {
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStatusFilter('em_andamento')}>
+            <Card 
+              className={cn(
+                "cursor-pointer hover:shadow-md transition-shadow",
+                statCardFilter === "em_andamento" && "border-primary ring-1 ring-primary"
+              )} 
+              onClick={() => { setStatusFilter('em_andamento'); setStatCardFilter('em_andamento'); setSearch(''); }}
+            >
               <CardHeader className="pb-2">
                 <CardDescription>Em Andamento</CardDescription>
               </CardHeader>
@@ -345,7 +371,13 @@ export default function PainelIntimacoes() {
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStatusFilter('tratado')}>
+            <Card 
+              className={cn(
+                "cursor-pointer hover:shadow-md transition-shadow",
+                statCardFilter === "tratado" && "border-primary ring-1 ring-primary"
+              )} 
+              onClick={() => { setStatusFilter('tratado'); setStatCardFilter('tratado'); setSearch(''); }}
+            >
               <CardHeader className="pb-2">
                 <CardDescription>Tratadas</CardDescription>
               </CardHeader>
@@ -357,7 +389,13 @@ export default function PainelIntimacoes() {
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStatusFilter('ignorado')}>
+            <Card 
+              className={cn(
+                "cursor-pointer hover:shadow-md transition-shadow",
+                statCardFilter === "ignorado" && "border-primary ring-1 ring-primary"
+              )} 
+              onClick={() => { setStatusFilter('ignorado'); setStatCardFilter('ignorado'); setSearch(''); }}
+            >
               <CardHeader className="pb-2">
                 <CardDescription>Ignoradas</CardDescription>
               </CardHeader>
@@ -393,13 +431,21 @@ export default function PainelIntimacoes() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select 
+              value={statusFilter} 
+              onValueChange={(value) => { 
+                setStatusFilter(value); 
+                setStatCardFilter(null); // Clear card selection when using dropdown 
+              }}
+            >
               <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="pendente">⏳ Pendentes</SelectItem>
+                <SelectItem value="vencidas">⚠️ Vencidas</SelectItem>
+                <SelectItem value="proximas">📅 Próx. 7 dias</SelectItem>
                 <SelectItem value="em_andamento">🔄 Em Andamento</SelectItem>
                 <SelectItem value="tratado">✔️ Tratados</SelectItem>
                 <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
