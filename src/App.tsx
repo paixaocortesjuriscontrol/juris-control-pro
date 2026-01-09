@@ -45,6 +45,9 @@ import CentralDelegacao from "./pages/CentralDelegacao";
 import PainelIntimacoes from "./pages/PainelIntimacoes";
 import NovaTarefa from "./pages/NovaTarefa";
 import CofreSenhas from "./pages/CofreSenhas";
+import ClienteLogin from "./pages/cliente/ClienteLogin";
+import ClienteCadastro from "./pages/cliente/ClienteCadastro";
+import ClientePortal from "./pages/cliente/ClientePortal";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,6 +69,11 @@ const App = () => (
         <AuthProvider>
           <ImportProvider>
             <Routes>
+              {/* Client Portal Routes (separate from internal system) */}
+              <Route path="/cliente/login" element={<ClienteLogin />} />
+              <Route path="/cliente/cadastro" element={<ClienteCadastro />} />
+              <Route path="/cliente" element={<ClientePortal />} />
+              
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/central-delegacao" element={<ProtectedRoute><CentralDelegacao /></ProtectedRoute>} />

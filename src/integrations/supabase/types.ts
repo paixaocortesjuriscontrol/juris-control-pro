@@ -695,6 +695,41 @@ export type Database = {
           },
         ]
       }
+      clientes_usuarios: {
+        Row: {
+          ativo: boolean | null
+          cliente_id: string
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          cliente_id: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean | null
+          cliente_id?: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clientes_usuarios_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cofre_senhas: {
         Row: {
           aceite_termos_em: string | null
@@ -877,6 +912,50 @@ export type Database = {
             columns: ["coordenacao_id"]
             isOneToOne: false
             referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      convites_cliente: {
+        Row: {
+          aceito_em: string | null
+          cliente_id: string
+          created_at: string | null
+          email: string
+          enviado_por: string | null
+          expira_em: string | null
+          id: string
+          status: string | null
+          token: string
+        }
+        Insert: {
+          aceito_em?: string | null
+          cliente_id: string
+          created_at?: string | null
+          email: string
+          enviado_por?: string | null
+          expira_em?: string | null
+          id?: string
+          status?: string | null
+          token?: string
+        }
+        Update: {
+          aceito_em?: string | null
+          cliente_id?: string
+          created_at?: string | null
+          email?: string
+          enviado_por?: string | null
+          expira_em?: string | null
+          id?: string
+          status?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convites_cliente_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
             referencedColumns: ["id"]
           },
         ]
@@ -3100,6 +3179,10 @@ export type Database = {
         Args: { p_coordenacao_id: string }
         Returns: number
       }
+      get_cliente_ids_for_user: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
       get_coordenacao_stats: {
         Args: never
         Returns: {
@@ -3203,6 +3286,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_coordenador: { Args: { _user_id: string }; Returns: boolean }
+      is_cliente: { Args: { _user_id: string }; Returns: boolean }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
       search_users_basic: {
         Args: { _limit?: number; _query?: string }

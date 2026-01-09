@@ -54,6 +54,7 @@ const roleLabels: Record<AppRole, string> = {
   estagiario: "Estagiário",
   assistente: "Assistente",
   secretaria: "Secretária",
+  cliente: "Cliente",
 };
 
 const roleBadgeColors: Record<AppRole, string> = {
@@ -63,6 +64,7 @@ const roleBadgeColors: Record<AppRole, string> = {
   estagiario: "bg-[hsl(var(--area-civil))] text-white",
   assistente: "bg-[hsl(var(--area-trabalhista))] text-white",
   secretaria: "bg-accent text-accent-foreground",
+  cliente: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400",
 };
 
 const Administracao = () => {
