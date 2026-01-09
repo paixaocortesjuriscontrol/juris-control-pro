@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
-import { format, parseISO, differenceInDays, isBefore, startOfDay, addDays, addMonths } from "date-fns";
+import { format, parseISO, differenceInDays, isBefore, startOfDay, endOfDay, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
   Plus,
@@ -183,15 +183,23 @@ export default function CentralDelegacao() {
   // Calculate date range for period filter
   const getDateRange = useMemo(() => {
     const hoje = startOfDay(new Date());
+    const fimHoje = endOfDay(new Date());
+    
     switch (periodoFiltro) {
       case "hoje":
-        return { inicio: hoje, fim: addDays(hoje, 1) };
+        // Somente tarefas com data prevista ou fatal na data de hoje
+        return { inicio: hoje, fim: fimHoje };
       case "semana":
-        return { inicio: hoje, fim: addDays(hoje, 7) };
+        // Tarefas para todos os dias da semana corrente (domingo a sábado)
+        const inicioSemana = startOfWeek(hoje, { weekStartsOn: 0 }); // Domingo
+        const fimSemana = endOfWeek(hoje, { weekStartsOn: 0 }); // Sábado
+        return { inicio: inicioSemana, fim: fimSemana };
       case "quinzena":
-        return { inicio: hoje, fim: addDays(hoje, 15) };
+        // De hoje até hoje + 15 dias
+        return { inicio: hoje, fim: endOfDay(addDays(hoje, 15)) };
       case "mes":
-        return { inicio: hoje, fim: addMonths(hoje, 1) };
+        // De hoje até hoje + 30 dias
+        return { inicio: hoje, fim: endOfDay(addDays(hoje, 30)) };
       case "todas":
       default:
         return null;
@@ -257,26 +265,36 @@ export default function CentralDelegacao() {
         tarefasQuery = tarefasQuery.order("prioridade", { ascending: false });
       }
 
-      // Apply period filter
-      if (getDateRange) {
-        tarefasQuery = tarefasQuery
-          .gte("data_vencimento", getDateRange.inicio.toISOString())
-          .lt("data_vencimento", getDateRange.fim.toISOString());
-      }
-
       const { data: tarefas, error: tarefasError } = await tarefasQuery.limit(500);
       if (tarefasError) throw tarefasError;
+
+      // Apply period filter on data_vencimento OR data_fatal (client-side to support OR logic)
+      let filteredByPeriod = tarefas || [];
+      if (getDateRange) {
+        const inicio = getDateRange.inicio.getTime();
+        const fim = getDateRange.fim.getTime();
+        
+        filteredByPeriod = filteredByPeriod.filter((t: any) => {
+          const dataVenc = t.data_vencimento ? new Date(t.data_vencimento).getTime() : null;
+          const dataFatal = t.data_fatal ? new Date(t.data_fatal).getTime() : null;
+          
+          // Tarefa deve ter data_vencimento OU data_fatal dentro do período
+          const vencNoPeriodo = dataVenc && dataVenc >= inicio && dataVenc <= fim;
+          const fatalNoPeriodo = dataFatal && dataFatal >= inicio && dataFatal <= fim;
+          
+          return vencNoPeriodo || fatalNoPeriodo;
+        });
+      }
 
       // Importante:
       // Quando uma coordenação é selecionada, a query já filtra por responsáveis que são membros
       // dessa coordenação (via `membrosDaCoordenacao`).
       // Portanto, NÃO filtramos novamente por `processo.coordenacao_id` aqui, pois isso pode
       // esconder tarefas do membro vinculadas a processos de outras coordenações.
-      const filteredTarefas = (tarefas || []) as any[];
 
       // Mark atrasados
       const hoje = new Date();
-      const tarefasProcessadas = filteredTarefas.map((p: any) => {
+      const tarefasProcessadas = filteredByPeriod.map((p: any) => {
         const dataVenc = p.data_vencimento ? parseISO(p.data_vencimento) : null;
         const isAtrasado = dataVenc && isBefore(dataVenc, hoje) && p.status !== "cumprido";
         return {
