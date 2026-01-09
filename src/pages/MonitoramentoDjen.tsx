@@ -12,6 +12,7 @@ import {
   Users,
   Filter,
   Search,
+  BarChart3,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -27,9 +28,11 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
 import { BackfillJobsPanel } from "@/components/djen/BackfillJobsPanel";
 import { AlertasCoordenacaoCard } from "@/components/djen/AlertasCoordenacaoCard";
+import { RelatorioMonitoramentosTab } from "@/components/djen/RelatorioMonitoramentosTab";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -37,6 +40,7 @@ const MonitoramentoDjen = () => {
   const [monitoramentoDialogOpen, setMonitoramentoDialogOpen] = useState(false);
   const [monitoramentoParaEditar, setMonitoramentoParaEditar] = useState<any>(null);
   const [backfillPanelOpen, setBackfillPanelOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("configuracoes");
   
   // Filtros
   const [coordenacaoFilter, setCoordenacaoFilter] = useState("todas");
@@ -144,35 +148,48 @@ const MonitoramentoDjen = () => {
       title="Monitoramento DJEN"
       subtitle="Configure buscas automáticas no Diário de Justiça Eletrônico Nacional"
     >
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                  <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
-                  Monitoramentos Automáticos
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  Verificação automática 2x ao dia • {monitoramentos.length} de {todosMonitoramentos.length} monitoramentos
-                </CardDescription>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <Button 
-                  onClick={() => setBackfillPanelOpen(!backfillPanelOpen)} 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full sm:w-auto"
-                >
-                  <History className="w-4 h-4 mr-2" />
-                  {backfillPanelOpen ? "Ocultar Backfill" : "Backfill Histórico"}
-                </Button>
-                <Button onClick={() => setMonitoramentoDialogOpen(true)} size="sm" className="w-full sm:w-auto">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Novo Monitoramento
-                </Button>
-              </div>
-            </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="configuracoes" className="gap-2">
+            <Eye className="w-4 h-4" />
+            Configurações
+          </TabsTrigger>
+          <TabsTrigger value="relatorio" className="gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Relatório
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="configuracoes" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                      <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+                      Monitoramentos Automáticos
+                    </CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Verificação automática 2x ao dia • {monitoramentos.length} de {todosMonitoramentos.length} monitoramentos
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <Button 
+                      onClick={() => setBackfillPanelOpen(!backfillPanelOpen)} 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full sm:w-auto"
+                    >
+                      <History className="w-4 h-4 mr-2" />
+                      {backfillPanelOpen ? "Ocultar Backfill" : "Backfill Histórico"}
+                    </Button>
+                    <Button onClick={() => setMonitoramentoDialogOpen(true)} size="sm" className="w-full sm:w-auto">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Monitoramento
+                    </Button>
+                  </div>
+                </div>
 
             {/* Linha de Filtros */}
             <div className="flex flex-col lg:flex-row gap-2 p-3 bg-muted/30 rounded-lg border">
@@ -403,6 +420,15 @@ const MonitoramentoDjen = () => {
 
       {/* Card de Alertas por Coordenação */}
       <AlertasCoordenacaoCard coordenacoes={coordenacoes} />
+        </TabsContent>
+
+        <TabsContent value="relatorio">
+          <RelatorioMonitoramentosTab 
+            monitoramentos={todosMonitoramentos} 
+            coordenacoes={coordenacoes} 
+          />
+        </TabsContent>
+      </Tabs>
 
       <MonitoramentoDialog
         open={monitoramentoDialogOpen}
