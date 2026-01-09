@@ -129,7 +129,7 @@ export function MembroDialog({ open, onOpenChange, coordenacaoId, membrosAtuais 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Usuário</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um usuário" />
@@ -154,7 +154,7 @@ export function MembroDialog({ open, onOpenChange, coordenacaoId, membrosAtuais 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Cargo</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione o cargo" />
