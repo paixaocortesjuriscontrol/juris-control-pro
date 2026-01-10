@@ -59,35 +59,13 @@ export function CoordenacaoDialog({ open, onOpenChange, coordenacao }: Coordenac
   const queryClient = useQueryClient();
 
   const { data: coordenadores } = useQuery({
-    queryKey: ["coordenadores-disponiveis"],
+    queryKey: ["todos-usuarios-escritorio"],
     queryFn: async () => {
-      // Get users with admin/coordenador role
-      const { data: roleUsers, error: roleError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .in("role", ["admin", "coordenador"]);
-
-      if (roleError) throw roleError;
-
-      // Get members with cargo "coordenador"
-      const { data: membrosCoord, error: membrosError } = await supabase
-        .from("membros_coordenacao")
-        .select("usuario_id")
-        .eq("cargo", "coordenador");
-
-      if (membrosError) throw membrosError;
-
-      // Combine unique user IDs
-      const roleUserIds = roleUsers?.map(r => r.user_id) || [];
-      const membroUserIds = membrosCoord?.map(m => m.usuario_id) || [];
-      const allUserIds = [...new Set([...roleUserIds, ...membroUserIds])];
-      
-      if (allUserIds.length === 0) return [];
-
+      // Buscar todos os usuários do escritório para poderem ser coordenadores
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id, nome")
-        .in("id", allUserIds);
+        .order("nome");
 
       if (profilesError) throw profilesError;
       return profiles || [];
