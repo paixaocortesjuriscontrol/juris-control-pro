@@ -361,29 +361,45 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
         if (apiData?.found && apiData?.processo) {
           const processoApi = apiData.processo;
+          let camposPreenchidos = 0;
 
           // Preencher campos administrativos
-          form.setValue("orgao_origem", processoApi.orgaoOrigem || "");
-          form.setValue("assunto", processoApi.assunto || "");
-
+          if (processoApi.orgaoOrigem) {
+            form.setValue("orgao_origem", processoApi.orgaoOrigem);
+            camposPreenchidos++;
+          }
+          if (processoApi.assunto) {
+            form.setValue("assunto", processoApi.assunto);
+            camposPreenchidos++;
+          }
+          if (processoApi.situacao) {
+            form.setValue("status", processoApi.situacao.toLowerCase().includes("arquivado") ? "arquivado" : "ativo");
+            camposPreenchidos++;
+          }
           if (processoApi.interessados && processoApi.interessados.length > 0) {
             form.setValue("polo_ativo", processoApi.interessados.join(", "));
+            camposPreenchidos++;
+          }
+          if (processoApi.dataAutuacao) {
+            form.setValue("data_distribuicao", processoApi.dataAutuacao);
+            camposPreenchidos++;
           }
 
-          if (processoApi.dataAuutacao) {
-            form.setValue("data_distribuicao", processoApi.dataAuutacao);
-          }
+          console.log("Dados recebidos do e-Processo:", processoApi);
+          console.log("Campos preenchidos:", camposPreenchidos);
 
           toast({
-            title: "Dados carregados",
-            description: "Informações do processo administrativo foram preenchidas.",
+            title: camposPreenchidos > 0 ? "Dados carregados" : "Processo encontrado",
+            description: camposPreenchidos > 0 
+              ? `${camposPreenchidos} campo(s) do processo administrativo foram preenchidos.`
+              : "Processo encontrado mas sem dados detalhados. Preencha manualmente.",
           });
         } else {
           const rawError = (apiData as any)?.error as string | undefined;
-          const needsBrowserless = !!rawError && rawError.includes("BROWSERLESS_TOKEN");
+          const needsFirecrawl = !!rawError && rawError.includes("não configurada");
 
           toast({
-            title: needsBrowserless ? "Integração não configurada" : "Processo não encontrado",
+            title: needsFirecrawl ? "Integração não configurada" : "Processo não encontrado",
             description:
               rawError || (apiData as any)?.message || "Não foi possível encontrar dados no e-Processo.",
             variant: "destructive",

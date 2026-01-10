@@ -22,11 +22,14 @@ interface EProcessoResponse {
   message?: string;
 }
 
-// Função para extrair dados do HTML do e-Processo
-function parseEProcessoHtml(html: string, numeroProcesso: string): EProcessoResponse["processo"] | null {
+// Função para extrair dados do Markdown/HTML do e-Processo
+function parseEProcessoContent(markdown: string, html: string, numeroProcesso: string): EProcessoResponse["processo"] | null {
   try {
     // Verificar se encontrou o processo
-    if (html.includes("Processo não encontrado") || html.includes("Nenhum resultado")) {
+    if (markdown.includes("Processo não encontrado") || 
+        markdown.includes("Nenhum resultado") ||
+        html.includes("Processo não encontrado")) {
+      console.log("Processo não encontrado na página");
       return null;
     }
 
@@ -35,56 +38,93 @@ function parseEProcessoHtml(html: string, numeroProcesso: string): EProcessoResp
       andamentos: [],
     };
 
-    // Extrair situação/status
-    const situacaoMatch = html.match(/Situa[çc][ãa]o[:\s]*<[^>]*>([^<]+)/i) ||
-                          html.match(/Status[:\s]*<[^>]*>([^<]+)/i);
-    if (situacaoMatch) {
-      processo.situacao = situacaoMatch[1].trim();
+    console.log("Parseando conteúdo, markdown length:", markdown.length, "html length:", html.length);
+
+    // Tentar extrair do Markdown primeiro (mais limpo)
+    const lines = markdown.split("\n").map(l => l.trim()).filter(Boolean);
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const nextLine = lines[i + 1] || "";
+      
+      // Situação/Status
+      if (/situa[çc][ãa]o|status/i.test(line) && !processo.situacao) {
+        const value = nextLine || line.replace(/.*[:]\s*/, "").trim();
+        if (value && !/situa[çc][ãa]o|status/i.test(value)) {
+          processo.situacao = value;
+          console.log("Situação encontrada:", processo.situacao);
+        }
+      }
+      
+      // Órgão de origem/Unidade
+      if (/[óo]rg[ãa]o|unidade/i.test(line) && !processo.orgaoOrigem) {
+        const value = nextLine || line.replace(/.*[:]\s*/, "").trim();
+        if (value && !/[óo]rg[ãa]o|unidade/i.test(value)) {
+          processo.orgaoOrigem = value;
+          console.log("Órgão encontrado:", processo.orgaoOrigem);
+        }
+      }
+      
+      // Data de autuação
+      if (/autua[çc][ãa]o|data.*autua/i.test(line) && !processo.dataAutuacao) {
+        const dateMatch = line.match(/(\d{2}\/\d{2}\/\d{4})/);
+        if (dateMatch) {
+          processo.dataAutuacao = dateMatch[1];
+          console.log("Data autuação encontrada:", processo.dataAutuacao);
+        }
+      }
+      
+      // Assunto
+      if (/assunto/i.test(line) && !processo.assunto) {
+        const value = nextLine || line.replace(/.*[:]\s*/, "").trim();
+        if (value && !/assunto/i.test(value)) {
+          processo.assunto = value;
+          console.log("Assunto encontrado:", processo.assunto);
+        }
+      }
+      
+      // Interessados
+      if (/interessado/i.test(line)) {
+        const value = nextLine || line.replace(/.*[:]\s*/, "").trim();
+        if (value && !/interessado/i.test(value)) {
+          processo.interessados = processo.interessados || [];
+          processo.interessados.push(value);
+          console.log("Interessado encontrado:", value);
+        }
+      }
     }
 
-    // Extrair órgão de origem
-    const orgaoMatch = html.match(/[ÓO]rg[ãa]o[:\s]*<[^>]*>([^<]+)/i) ||
-                       html.match(/Unidade[:\s]*<[^>]*>([^<]+)/i);
-    if (orgaoMatch) {
-      processo.orgaoOrigem = orgaoMatch[1].trim();
+    // Fallback para regex no HTML se não encontrou no markdown
+    if (!processo.situacao) {
+      const situacaoMatch = html.match(/Situa[çc][ãa]o[:\s]*<[^>]*>([^<]+)/i) ||
+                            html.match(/Status[:\s]*<[^>]*>([^<]+)/i);
+      if (situacaoMatch) {
+        processo.situacao = situacaoMatch[1].trim();
+        console.log("Situação via HTML:", processo.situacao);
+      }
     }
 
-    // Extrair data de autuação
-    const dataMatch = html.match(/Data\s*(de\s*)?Autua[çc][ãa]o[:\s]*<[^>]*>([^<]+)/i) ||
-                      html.match(/Autua[çc][ãa]o[:\s]*(\d{2}\/\d{2}\/\d{4})/i);
-    if (dataMatch) {
-      processo.dataAutuacao = (dataMatch[2] || dataMatch[1]).trim();
+    if (!processo.orgaoOrigem) {
+      const orgaoMatch = html.match(/[ÓO]rg[ãa]o[:\s]*<[^>]*>([^<]+)/i) ||
+                         html.match(/Unidade[:\s]*<[^>]*>([^<]+)/i);
+      if (orgaoMatch) {
+        processo.orgaoOrigem = orgaoMatch[1].trim();
+        console.log("Órgão via HTML:", processo.orgaoOrigem);
+      }
     }
 
-    // Extrair assunto
-    const assuntoMatch = html.match(/Assunto[:\s]*<[^>]*>([^<]+)/i);
-    if (assuntoMatch) {
-      processo.assunto = assuntoMatch[1].trim();
+    if (!processo.dataAutuacao) {
+      const dataMatch = html.match(/Autua[çc][ãa]o[:\s]*(\d{2}\/\d{2}\/\d{4})/i);
+      if (dataMatch) {
+        processo.dataAutuacao = dataMatch[1];
+        console.log("Data autuação via HTML:", processo.dataAutuacao);
+      }
     }
 
-    // Extrair interessados
-    const interessadosMatch = html.match(/Interessado[s]?[:\s]*<[^>]*>([^<]+)/gi);
-    if (interessadosMatch) {
-      processo.interessados = interessadosMatch.map(m => {
-        const match = m.match(/>([^<]+)$/);
-        return match ? match[1].trim() : "";
-      }).filter(Boolean);
-    }
-
-    // Extrair andamentos da tabela
-    const andamentosRegex = /<tr[^>]*>[\s\S]*?<td[^>]*>(\d{2}\/\d{2}\/\d{4})<\/td>[\s\S]*?<td[^>]*>([^<]+)<\/td>[\s\S]*?(?:<td[^>]*>([^<]*)<\/td>)?[\s\S]*?<\/tr>/gi;
-    let andamentoMatch;
-    while ((andamentoMatch = andamentosRegex.exec(html)) !== null) {
-      processo.andamentos?.push({
-        data: andamentoMatch[1],
-        descricao: andamentoMatch[2].trim(),
-        unidade: andamentoMatch[3]?.trim(),
-      });
-    }
-
+    console.log("Processo parseado:", JSON.stringify(processo));
     return processo;
   } catch (error) {
-    console.error("Erro ao parsear HTML:", error);
+    console.error("Erro ao parsear conteúdo:", error);
     return null;
   }
 }
@@ -199,7 +239,7 @@ Deno.serve(async (req) => {
         }
 
         // Tentar parsear os dados do processo
-        const processo = parseEProcessoHtml(htmlContent, numeroOriginal);
+        const processo = parseEProcessoContent(markdownContent, htmlContent, numeroOriginal);
 
         if (processo) {
           console.log("Processo encontrado:", processo.numero);
