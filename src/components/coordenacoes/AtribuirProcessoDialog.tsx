@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Scale, Search } from "lucide-react";
+import { CheckSquare, Loader2, Scale, Search, Square } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const formSchema = z.object({
@@ -52,6 +52,7 @@ const areaLabels: Record<string, string> = {
   civil: "Civil",
   trabalhista: "Trabalhista",
   empresarial: "Empresarial",
+  administrativo: "Administrativo",
 };
 
 export function AtribuirProcessoDialog({ 
@@ -64,19 +65,50 @@ export function AtribuirProcessoDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>(coordenacaoId);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: processosNaoAtribuidos } = useQuery({
-    queryKey: ["processos-nao-atribuidos", coordenacaoId],
+  // Fetch all coordinations
+  const { data: coordenacoes } = useQuery({
+    queryKey: ["coordenacoes-atribuir"],
     queryFn: async () => {
       const { data, error } = await supabase
+        .from("coordenacoes")
+        .select("id, nome, area")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open,
+  });
+
+  // Fetch all processes without responsible lawyer (optionally filtered by coordination)
+  const { data: processosNaoAtribuidos } = useQuery({
+    queryKey: ["processos-nao-atribuidos-all", coordenacaoFilter],
+    queryFn: async () => {
+      let query = supabase
         .from("processos")
-        .select("id, numero, assunto, polo_ativo, area, advogado_responsavel_id, cliente_id, cliente:clientes(id, nome)")
-        .eq("coordenacao_id", coordenacaoId)
+        .select(`
+          id, 
+          numero, 
+          assunto, 
+          polo_ativo, 
+          area, 
+          advogado_responsavel_id, 
+          cliente_id, 
+          coordenacao_id,
+          cliente:clientes(id, nome),
+          coordenacao:coordenacoes(id, nome)
+        `)
         .is("advogado_responsavel_id", null)
         .order("created_at", { ascending: false });
 
+      if (coordenacaoFilter && coordenacaoFilter !== "all") {
+        query = query.eq("coordenacao_id", coordenacaoFilter);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -134,7 +166,7 @@ export function AtribuirProcessoDialog({
       });
       
       queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
-      queryClient.invalidateQueries({ queryKey: ["processos-nao-atribuidos"] });
+      queryClient.invalidateQueries({ queryKey: ["processos-nao-atribuidos-all"] });
       queryClient.invalidateQueries({ queryKey: ["processos"] });
       onOpenChange(false);
       form.reset();
@@ -153,9 +185,26 @@ export function AtribuirProcessoDialog({
     .filter(m => m.usuario?.id)
     .map(m => ({ id: m.usuario!.id, nome: m.usuario!.nome }));
 
+  const handleSelectAll = () => {
+    const allIds = processosFiltrados.map((p) => p.id);
+    const currentSelected = form.getValues("processos");
+    const allSelected = allIds.every((id) => currentSelected.includes(id));
+
+    if (allSelected) {
+      form.setValue("processos", currentSelected.filter((id) => !allIds.includes(id)));
+    } else {
+      const newSelection = [...new Set([...currentSelected, ...allIds])];
+      form.setValue("processos", newSelection);
+    }
+  };
+
+  const allFilteredSelected =
+    processosFiltrados.length > 0 &&
+    processosFiltrados.every((p) => form.watch("processos").includes(p.id));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Atribuir Processos</DialogTitle>
           <DialogDescription>
@@ -164,7 +213,7 @@ export function AtribuirProcessoDialog({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 flex-1 overflow-hidden flex flex-col">
             <FormField
               control={form.control}
               name="advogado_id"
@@ -194,8 +243,31 @@ export function AtribuirProcessoDialog({
               control={form.control}
               name="processos"
               render={() => (
-                <FormItem>
-                  <FormLabel>Processos sem Responsável ({processosNaoAtribuidos?.length || 0})</FormLabel>
+                <FormItem className="flex-1 overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Processos sem Responsável ({processosFiltrados?.length || 0})</FormLabel>
+                    {processosFiltrados.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSelectAll}
+                        className="h-7 text-xs"
+                      >
+                        {allFilteredSelected ? (
+                          <>
+                            <Square className="w-3.5 h-3.5 mr-1" />
+                            Desmarcar todos
+                          </>
+                        ) : (
+                          <>
+                            <CheckSquare className="w-3.5 h-3.5 mr-1" />
+                            Selecionar todos
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                   
                   {/* Filters */}
                   <div className="flex flex-col gap-2 mb-2">
@@ -208,9 +280,22 @@ export function AtribuirProcessoDialog({
                         className="pl-8"
                       />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Coordenação" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas Coordenações</SelectItem>
+                          {coordenacoes?.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Select value={areaFilter} onValueChange={setAreaFilter}>
-                        <SelectTrigger className="flex-1">
+                        <SelectTrigger>
                           <SelectValue placeholder="Área" />
                         </SelectTrigger>
                         <SelectContent>
@@ -218,10 +303,11 @@ export function AtribuirProcessoDialog({
                           <SelectItem value="civil">Civil</SelectItem>
                           <SelectItem value="trabalhista">Trabalhista</SelectItem>
                           <SelectItem value="empresarial">Empresarial</SelectItem>
+                          <SelectItem value="administrativo">Administrativo</SelectItem>
                         </SelectContent>
                       </Select>
                       <Select value={clienteFilter} onValueChange={setClienteFilter}>
-                        <SelectTrigger className="flex-1">
+                        <SelectTrigger>
                           <SelectValue placeholder="Cliente" />
                         </SelectTrigger>
                         <SelectContent>
@@ -237,7 +323,7 @@ export function AtribuirProcessoDialog({
                   </div>
 
                   {processosFiltrados.length > 0 ? (
-                    <ScrollArea className="h-[200px] border rounded-md p-3">
+                    <ScrollArea className="h-[250px] border rounded-md p-3">
                       <div className="space-y-3">
                         {processosFiltrados.map((processo) => (
                           <FormField
@@ -258,15 +344,15 @@ export function AtribuirProcessoDialog({
                                     }}
                                   />
                                 </FormControl>
-                                <div className="space-y-1 leading-none flex-1">
-                                  <div className="flex items-center gap-2">
+                                <div className="space-y-1 leading-none flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-mono">{processo.numero}</p>
                                     <Badge variant="outline" className="text-xs">
                                       {areaLabels[processo.area] || processo.area}
                                     </Badge>
                                   </div>
                                   <p className="text-xs text-muted-foreground truncate">
-                                    {processo.polo_ativo || processo.assunto || "Sem descrição"}
+                                    {processo.cliente?.nome || processo.polo_ativo || processo.assunto || "Sem descrição"}
                                   </p>
                                 </div>
                               </FormItem>
@@ -286,7 +372,7 @@ export function AtribuirProcessoDialog({
                     <div className="text-center py-6 border rounded-md">
                       <Scale className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">
-                        Todos os processos desta coordenação já foram atribuídos
+                        Todos os processos já foram atribuídos
                       </p>
                     </div>
                   )}
@@ -307,7 +393,7 @@ export function AtribuirProcessoDialog({
               </Button>
               <Button 
                 type="submit" 
-                disabled={loading || !processosNaoAtribuidos?.length}
+                disabled={loading || !form.watch("processos").length}
               >
                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Atribuir
