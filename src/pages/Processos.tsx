@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2 } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useProcessosPaginados } from "@/hooks/useProcessosPaginados";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AtribuirCoordenacaoLoteDialog } from "@/components/processos/AtribuirCoordenacaoLoteDialog";
+import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { FiltrosAvancadosProcessos, FiltrosAvancados, defaultFiltrosAvancados } from "@/components/processos/FiltrosAvancadosProcessos";
 import { ProcessoExpandableRow } from "@/components/processos/ProcessoExpandableRow";
@@ -58,6 +59,7 @@ const Processos = () => {
   const [selectedProcessos, setSelectedProcessos] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showAtribuirDialog, setShowAtribuirDialog] = useState(false);
+  const [showTransferirDialog, setShowTransferirDialog] = useState(false);
   const [showFormDialog, setShowFormDialog] = useState(false);
   const [processoToEdit, setProcessoToEdit] = useState<any>(null);
   const [monitorandoRedistribuicoes, setMonitorandoRedistribuicoes] = useState(false);
@@ -547,6 +549,14 @@ const Processos = () => {
                 <Button 
                   variant="outline" 
                   className="flex-1 sm:flex-none"
+                  onClick={() => setShowTransferirDialog(true)}
+                >
+                  <Repeat className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Transferir</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-1 sm:flex-none"
                   onClick={() => setIsSelectionMode(true)}
                 >
                   <CheckSquare className="w-4 h-4 mr-2" />
@@ -849,6 +859,11 @@ const Processos = () => {
           if (!open) setProcessoToEdit(null);
         }}
         processo={processoToEdit}
+      />
+
+      <TransferirProcessosDialog
+        open={showTransferirDialog}
+        onOpenChange={setShowTransferirDialog}
       />
     </MainLayout>
   );
