@@ -246,7 +246,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 {clientesData.processosPorVara?.length > 0 && (
                   <PrintHorizontalBarChart
                     data={clientesData.processosPorVara.slice(0, 8).map((v: any) => ({
-                      name: v.vara?.substring(0, 20) || "N/A",
+                      name: v.vara || "N/A",
                       value: v.total,
                       color: "#8B5CF6"
                     }))}
@@ -258,7 +258,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 {clientesData.produtividadeAdvogados?.length > 0 && (
                   <PrintHorizontalBarChart
                     data={clientesData.produtividadeAdvogados.map((a: any, i: number) => ({
-                      name: a.nome?.substring(0, 15) || "N/A",
+                      name: a.nome || "N/A",
                       value: a.processos,
                       color: ["#3B82F6", "#22C55E", "#F59E0B", "#EF4444", "#8B5CF6"][i % 5]
                     }))}

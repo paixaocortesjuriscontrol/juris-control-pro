@@ -150,9 +150,11 @@ export function PrintHorizontalBarChart({
       <h4 className="text-sm font-semibold text-gray-700 mb-3">{title}</h4>
       <div className="space-y-2">
         {filteredData.map((item) => (
-          <div key={item.name} className="flex items-center gap-2">
-            <span className="w-24 text-xs text-gray-600 truncate">{item.name}</span>
-            <div className="flex-1 h-5 bg-gray-100 rounded overflow-hidden">
+          <div key={item.name} className="flex items-start gap-2">
+            <span className="w-40 min-w-[10rem] text-xs text-gray-600 leading-tight break-words flex-shrink-0">
+              {item.name}
+            </span>
+            <div className="flex-1 h-5 bg-gray-100 rounded overflow-hidden self-center">
               <div 
                 className="h-full rounded flex items-center justify-end pr-2"
                 style={{ 
