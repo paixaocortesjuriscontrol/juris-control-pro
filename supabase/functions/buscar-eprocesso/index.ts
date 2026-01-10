@@ -22,6 +22,73 @@ interface EProcessoResponse {
   message?: string;
 }
 
+// Função para extrair dados do HTML do e-Processo
+function parseEProcessoHtml(html: string, numeroProcesso: string): EProcessoResponse["processo"] | null {
+  try {
+    // Verificar se encontrou o processo
+    if (html.includes("Processo não encontrado") || html.includes("Nenhum resultado")) {
+      return null;
+    }
+
+    const processo: EProcessoResponse["processo"] = {
+      numero: numeroProcesso,
+      andamentos: [],
+    };
+
+    // Extrair situação/status
+    const situacaoMatch = html.match(/Situa[çc][ãa]o[:\s]*<[^>]*>([^<]+)/i) ||
+                          html.match(/Status[:\s]*<[^>]*>([^<]+)/i);
+    if (situacaoMatch) {
+      processo.situacao = situacaoMatch[1].trim();
+    }
+
+    // Extrair órgão de origem
+    const orgaoMatch = html.match(/[ÓO]rg[ãa]o[:\s]*<[^>]*>([^<]+)/i) ||
+                       html.match(/Unidade[:\s]*<[^>]*>([^<]+)/i);
+    if (orgaoMatch) {
+      processo.orgaoOrigem = orgaoMatch[1].trim();
+    }
+
+    // Extrair data de autuação
+    const dataMatch = html.match(/Data\s*(de\s*)?Autua[çc][ãa]o[:\s]*<[^>]*>([^<]+)/i) ||
+                      html.match(/Autua[çc][ãa]o[:\s]*(\d{2}\/\d{2}\/\d{4})/i);
+    if (dataMatch) {
+      processo.dataAutuacao = (dataMatch[2] || dataMatch[1]).trim();
+    }
+
+    // Extrair assunto
+    const assuntoMatch = html.match(/Assunto[:\s]*<[^>]*>([^<]+)/i);
+    if (assuntoMatch) {
+      processo.assunto = assuntoMatch[1].trim();
+    }
+
+    // Extrair interessados
+    const interessadosMatch = html.match(/Interessado[s]?[:\s]*<[^>]*>([^<]+)/gi);
+    if (interessadosMatch) {
+      processo.interessados = interessadosMatch.map(m => {
+        const match = m.match(/>([^<]+)$/);
+        return match ? match[1].trim() : "";
+      }).filter(Boolean);
+    }
+
+    // Extrair andamentos da tabela
+    const andamentosRegex = /<tr[^>]*>[\s\S]*?<td[^>]*>(\d{2}\/\d{2}\/\d{4})<\/td>[\s\S]*?<td[^>]*>([^<]+)<\/td>[\s\S]*?(?:<td[^>]*>([^<]*)<\/td>)?[\s\S]*?<\/tr>/gi;
+    let andamentoMatch;
+    while ((andamentoMatch = andamentosRegex.exec(html)) !== null) {
+      processo.andamentos?.push({
+        data: andamentoMatch[1],
+        descricao: andamentoMatch[2].trim(),
+        unidade: andamentoMatch[3]?.trim(),
+      });
+    }
+
+    return processo;
+  } catch (error) {
+    console.error("Erro ao parsear HTML:", error);
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -53,149 +120,155 @@ Deno.serve(async (req) => {
 
     // URL do e-Processo para consulta
     const eprocessoUrl = `https://eprocesso.sit.trabalho.gov.br/ProcessoEletronico/AndamentoProcessual`;
+    const consultaUrl = `${eprocessoUrl}?NumeroPAT=${encodeURIComponent(numeroOriginal)}`;
 
-    // Verificar se temos o secret do Browserless configurado
-    const browserlessToken = Deno.env.get("BROWSERLESS_API_KEY") || Deno.env.get("BROWSERLESS_TOKEN");
+    // Verificar se temos o Firecrawl configurado (preferencial)
+    const firecrawlApiKey = Deno.env.get("FIRECRAWL_API_KEY");
 
-    if (!browserlessToken) {
-      console.log("BROWSERLESS_API_KEY não configurado");
+    if (firecrawlApiKey) {
+      console.log("Usando Firecrawl para scraping...");
       
-      return new Response(
-        JSON.stringify({
-          found: false,
-          error: "Integração com e-Processo requer configuração do BROWSERLESS_API_KEY.",
-          message: "O portal e-Processo do MTE não possui API pública. A consulta automática requer automação de navegador.",
-          url: eprocessoUrl,
-          numeroProcesso: numeroOriginal,
-        } as EProcessoResponse),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Tentar buscar via Browserless usando a API /scrape
-    try {
-      console.log("Iniciando scraping via Browserless...");
-      
-      // Primeiro, acessar a página de consulta
-      const browserlessUrl = `https://chrome.browserless.io/scrape?token=${browserlessToken}`;
-      
-      // Step 1: Carregar a página principal e identificar o formulário
-      // URL de consulta direta com o número do processo
-      const consultaUrl = `https://eprocesso.sit.trabalho.gov.br/ProcessoEletronico/AndamentoProcessual?NumeroPAT=${encodeURIComponent(numeroOriginal)}`;
-      
-      console.log("URL de consulta:", consultaUrl);
-      
-      const initialResponse = await fetch(browserlessUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: consultaUrl,
-          elements: [
-            { selector: "body", timeout: 10000 },
-            { selector: ".capa-processo, .processo-info, #capa" },
-            { selector: "table, .eventos, .andamentos" },
-          ],
-          gotoOptions: {
-            waitUntil: "networkidle2",
-            timeout: 30000
-          }
-        }),
-      });
-
-      if (!initialResponse.ok) {
-        const errorText = await initialResponse.text();
-        console.error("Erro no Browserless (scrape inicial):", initialResponse.status, errorText);
-        
-        // Retornar informação útil para o usuário
-        return new Response(
-          JSON.stringify({
-            found: false,
-            error: `O portal e-Processo está temporariamente indisponível (${initialResponse.status}).`,
-            message: "Tente novamente em alguns minutos ou consulte diretamente no portal.",
-            url: eprocessoUrl,
-            numeroProcesso: numeroOriginal,
+      try {
+        const firecrawlResponse = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${firecrawlApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: consultaUrl,
+            formats: ["markdown", "html"],
+            onlyMainContent: false,
+            waitFor: 3000, // Aguardar carregamento dinâmico
           }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+        });
 
-      const initialResult = await initialResponse.json();
-      console.log("Página inicial carregada, elementos encontrados:", initialResult?.data?.length || 0);
-
-      // Nota: O e-Processo requer interação JavaScript complexa
-      // A API /scrape do Browserless é limitada para formulários interativos
-      // Para uma automação completa, seria necessário usar /content com Puppeteer script
-
-      // Por enquanto, retornamos informação sobre como consultar manualmente
-      // mas indicamos que a estrutura está preparada para automação futura
-      
-      // Tentar usar a API /content para execução de script
-      const contentUrl = `https://chrome.browserless.io/content?token=${browserlessToken}`;
-      
-      const contentResponse = await fetch(contentUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: consultaUrl,
-          gotoOptions: {
-            waitUntil: "networkidle2",
-            timeout: 30000
-          }
-        }),
-      });
-
-      if (contentResponse.ok) {
-        const htmlContent = await contentResponse.text();
-        console.log("HTML obtido, tamanho:", htmlContent.length);
-        
-        // Verificar se a página carregou corretamente
-        const pageLoaded = htmlContent.includes("Andamento") || htmlContent.includes("Processo") || htmlContent.includes("e-Processo");
-        
-        if (pageLoaded) {
-          // Página carregou - informar que automação está em desenvolvimento
+        if (!firecrawlResponse.ok) {
+          const errorData = await firecrawlResponse.text();
+          console.error("Erro Firecrawl:", firecrawlResponse.status, errorData);
+          
+          // Se Firecrawl falhar, retornar mensagem informativa
           return new Response(
             JSON.stringify({
               found: false,
-              error: "Automação do e-Processo em desenvolvimento",
-              message: `O portal e-Processo foi acessado com sucesso. A automação completa do formulário de busca está sendo implementada. Por enquanto, acesse o portal diretamente: ${eprocessoUrl}`,
-              url: eprocessoUrl,
+              error: `Erro ao acessar e-Processo (${firecrawlResponse.status})`,
+              message: "O portal pode estar com verificação anti-bot ativa. Tente acessar diretamente.",
+              url: consultaUrl,
+              numeroProcesso: numeroOriginal,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const firecrawlData = await firecrawlResponse.json();
+        console.log("Firecrawl sucesso, dados recebidos");
+
+        // Verificar se obtivemos conteúdo
+        const htmlContent = firecrawlData.data?.html || firecrawlData.html || "";
+        const markdownContent = firecrawlData.data?.markdown || firecrawlData.markdown || "";
+
+        if (!htmlContent && !markdownContent) {
+          return new Response(
+            JSON.stringify({
+              found: false,
+              error: "Página carregada mas sem conteúdo",
+              message: "O portal pode estar exigindo verificação humana. Acesse diretamente.",
+              url: consultaUrl,
+              numeroProcesso: numeroOriginal,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Verificar se há verificação CAPTCHA ou anti-bot
+        if (htmlContent.includes("captcha") || 
+            htmlContent.includes("robot") || 
+            htmlContent.includes("verificação") ||
+            htmlContent.includes("challenge")) {
+          return new Response(
+            JSON.stringify({
+              found: false,
+              error: "Portal exige verificação humana",
+              message: "O e-Processo está solicitando verificação anti-bot. Acesse o portal diretamente.",
+              url: consultaUrl,
+              numeroProcesso: numeroOriginal,
+              requiresHumanVerification: true,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Tentar parsear os dados do processo
+        const processo = parseEProcessoHtml(htmlContent, numeroOriginal);
+
+        if (processo) {
+          console.log("Processo encontrado:", processo.numero);
+          return new Response(
+            JSON.stringify({
+              found: true,
+              processo,
+              message: "Processo encontrado com sucesso",
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Processo não encontrado no HTML
+        // Verificar se a página carregou corretamente
+        if (htmlContent.includes("e-Processo") || htmlContent.includes("Andamento")) {
+          return new Response(
+            JSON.stringify({
+              found: false,
+              error: "Processo não encontrado",
+              message: `O processo ${numeroOriginal} não foi encontrado no e-Processo. Verifique o número e tente novamente.`,
+              url: consultaUrl,
               numeroProcesso: numeroOriginal,
               portalAcessivel: true,
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+
+        // Página não carregou como esperado
+        return new Response(
+          JSON.stringify({
+            found: false,
+            error: "Resposta inesperada do portal",
+            message: "O portal retornou uma página diferente do esperado. Tente acessar diretamente.",
+            url: consultaUrl,
+            numeroProcesso: numeroOriginal,
+            debug: markdownContent.substring(0, 500),
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+
+      } catch (firecrawlError) {
+        console.error("Erro na chamada Firecrawl:", firecrawlError);
+        return new Response(
+          JSON.stringify({
+            found: false,
+            error: `Erro ao consultar: ${firecrawlError instanceof Error ? firecrawlError.message : "Erro desconhecido"}`,
+            message: "Ocorreu um erro ao acessar o portal. Tente novamente.",
+            url: consultaUrl,
+            numeroProcesso: numeroOriginal,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-
-      // Fallback - portal pode estar com problemas
-      return new Response(
-        JSON.stringify({
-          found: false,
-          error: "Não foi possível acessar o portal e-Processo",
-          message: "O portal pode estar temporariamente indisponível. Tente acessar diretamente.",
-          url: eprocessoUrl,
-          numeroProcesso: numeroOriginal,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-
-    } catch (browserlessError) {
-      console.error("Erro na automação Browserless:", browserlessError);
-      return new Response(
-        JSON.stringify({
-          found: false,
-          error: `Erro na automação: ${browserlessError instanceof Error ? browserlessError.message : "Erro desconhecido"}`,
-          message: "Ocorreu um erro ao consultar o portal e-Processo. Tente novamente.",
-          url: eprocessoUrl,
-          numeroProcesso: numeroOriginal,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
+
+    // Fallback: sem Firecrawl configurado
+    console.log("FIRECRAWL_API_KEY não configurado");
+    return new Response(
+      JSON.stringify({
+        found: false,
+        error: "Integração com e-Processo não configurada",
+        message: "O conector Firecrawl precisa estar habilitado para consultas automáticas ao e-Processo.",
+        url: consultaUrl,
+        numeroProcesso: numeroOriginal,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
 
   } catch (error) {
     console.error("Erro na busca e-Processo:", error);
