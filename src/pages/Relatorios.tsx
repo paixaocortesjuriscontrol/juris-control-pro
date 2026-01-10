@@ -46,6 +46,7 @@ const Relatorios = () => {
   const [activeSubTab, setActiveSubTab] = useState("prazos");
   const [exporting, setExporting] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const originalTitle = useRef("");
 
   // Carregar dados de todos os relatórios para exportação
   const { data: resumoData, isLoading: resumoLoading, refetch: refetchResumo } = useRelatorioResumoData(true);
@@ -114,9 +115,6 @@ const Relatorios = () => {
 
     setTimeout(finish, 5000);
   };
-
-  // Ref para guardar o título original do documento
-  const originalTitle = useRef(document.title);
 
   // Preparar dados combinados para o PrintView (mantendo compatibilidade)
   const atividadesData = {
