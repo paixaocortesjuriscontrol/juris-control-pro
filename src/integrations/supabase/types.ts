@@ -2054,6 +2054,7 @@ export type Database = {
           motivo_encerramento: string | null
           mudanca_risco: boolean | null
           natureza: string | null
+          nome_cliente_envolvido: string | null
           numero: string
           observacao_advogado: string | null
           observacao_resp_subsidiaria: string | null
@@ -2184,6 +2185,7 @@ export type Database = {
           motivo_encerramento?: string | null
           mudanca_risco?: boolean | null
           natureza?: string | null
+          nome_cliente_envolvido?: string | null
           numero: string
           observacao_advogado?: string | null
           observacao_resp_subsidiaria?: string | null
@@ -2314,6 +2316,7 @@ export type Database = {
           motivo_encerramento?: string | null
           mudanca_risco?: boolean | null
           natureza?: string | null
+          nome_cliente_envolvido?: string | null
           numero?: string
           observacao_advogado?: string | null
           observacao_resp_subsidiaria?: string | null
