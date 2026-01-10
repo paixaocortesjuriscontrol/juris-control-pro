@@ -26,6 +26,7 @@ interface ProcessoExpandableRowProps {
     data_distribuicao: string | null;
     created_at: string;
     cliente?: { id: string; nome: string; tipo: string } | null;
+    pasta?: { id: string; nome: string } | null;
     advogado_responsavel?: { id: string; nome: string } | null;
   };
   isSelectionMode: boolean;
@@ -236,6 +237,7 @@ export function ProcessoExpandableRow({
           <div className="md:hidden mt-2 space-y-2">
             <div className="text-xs text-muted-foreground space-y-1">
               {processo.cliente?.nome && <div>Cliente: {processo.cliente.nome}</div>}
+              {processo.pasta?.nome && <div>Pasta: {processo.pasta.nome}</div>}
               <div>{processo.vara || processo.tribunal || "-"}</div>
             </div>
             <div className="flex items-center gap-2 pt-1">
@@ -320,6 +322,9 @@ export function ProcessoExpandableRow({
         <div className="hidden md:block min-w-0">
           <div className="text-sm font-medium text-foreground truncate">
             {processo.cliente?.nome || "-"}
+          </div>
+          <div className="text-xs text-muted-foreground truncate">
+            {processo.pasta?.nome || "-"}
           </div>
           {processo.cliente?.tipo && (
             <div className="text-xs text-muted-foreground">
