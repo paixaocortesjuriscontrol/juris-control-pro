@@ -46,8 +46,6 @@ const Relatorios = () => {
   const [activeSubTab, setActiveSubTab] = useState("prazos");
   const [exporting, setExporting] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
-  const originalTitle = useRef("");
-  const originalTopTitle = useRef<string | null>(null);
 
   // Carregar dados de todos os relatórios para exportação
   const { data: resumoData, isLoading: resumoLoading, refetch: refetchResumo } = useRelatorioResumoData(true);
@@ -93,52 +91,108 @@ const Relatorios = () => {
       // Mantém o fluxo de impressão com o que estiver disponível no cache
     }
 
-    const finish = () => {
+    // Nome do arquivo (muitos navegadores usam o <title> do documento impresso)
+    const dataAtual = format(new Date(), "ddMMyyyy");
+    const documentTitle = `Juris_Control_Relatorio_gerencial_${dataAtual}`;
+
+    const printNode = printRef.current;
+
+    if (!printNode) {
       setExporting(false);
-      window.removeEventListener("afterprint", finish);
+      window.print();
+      return;
+    }
 
-      // Restaura o título original (usado por alguns navegadores no nome do PDF)
-      document.title = originalTitle.current;
+    const stylesHtml = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((el) => (el as HTMLElement).outerHTML)
+      .join("\n");
 
-      // Alguns navegadores (em preview/iframe) usam o título do frame pai
-      if (originalTopTitle.current !== null) {
+    const html = `<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${documentTitle}</title>
+    ${stylesHtml}
+  </head>
+  <body>
+    ${printNode.innerHTML}
+  </body>
+</html>`;
+
+    // Preferência: abrir uma nova janela (top-level) para evitar que o navegador use o título do preview ("- Lovable")
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+
+    if (printWindow?.document) {
+      const finish = () => {
+        setExporting(false);
         try {
-          if (window.top && window.top !== window) {
-            window.top.document.title = originalTopTitle.current;
-          }
+          printWindow.close();
         } catch {
-          // Ignora se não for possível acessar (cross-origin)
+          // ignore
         }
+      };
+
+      printWindow.addEventListener("afterprint", finish, { once: true });
+      setTimeout(finish, 8000);
+
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          printWindow.focus();
+          printWindow.print();
+        });
+      });
+
+      return;
+    }
+
+    // Fallback: imprime via iframe dedicado
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.setAttribute("aria-hidden", "true");
+    document.body.appendChild(iframe);
+
+    const cleanup = () => {
+      setExporting(false);
+      try {
+        document.body.removeChild(iframe);
+      } catch {
+        // ignore
       }
     };
 
-    // Define o nome do arquivo PDF com data formatada
-    const dataAtual = format(new Date(), "ddMMyyyy");
-    const novoTitulo = `Juris_Control_Relatorio_gerencial_${dataAtual}`;
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    const iframeWin = iframe.contentWindow;
 
-    originalTitle.current = document.title;
-    document.title = novoTitulo;
-
-    // Tenta ajustar também o título do documento pai (Lovable/iframe)
-    try {
-      if (window.top && window.top !== window) {
-        originalTopTitle.current = window.top.document.title;
-        window.top.document.title = novoTitulo;
-      }
-    } catch {
-      // Ignora se não for possível acessar (cross-origin)
+    if (!iframeDoc || !iframeWin) {
+      cleanup();
+      window.print();
+      return;
     }
 
-    // Em alguns navegadores mobile o afterprint pode não disparar; mantemos fallback.
-    window.addEventListener("afterprint", finish);
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
+
+    const finish = () => cleanup();
+    iframeWin.addEventListener("afterprint", finish, { once: true });
+    setTimeout(finish, 8000);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        window.print();
+        iframeWin.focus();
+        iframeWin.print();
       });
     });
-
-    setTimeout(finish, 5000);
   };
 
   // Preparar dados combinados para o PrintView (mantendo compatibilidade)
