@@ -121,7 +121,22 @@ function parseEProcessoContent(markdown: string, html: string, numeroProcesso: s
       }
     }
 
+    const hasAnyDetail = Boolean(
+      processo.situacao ||
+      processo.orgaoOrigem ||
+      processo.dataAutuacao ||
+      processo.assunto ||
+      (processo.interessados && processo.interessados.length > 0)
+    );
+
     console.log("Processo parseado:", JSON.stringify(processo));
+
+    // Se não conseguimos extrair nenhum campo útil, consideramos que o portal não entregou dados parseáveis
+    if (!hasAnyDetail) {
+      console.log("Nenhum dado estruturado extraído. Trecho markdown:", markdown.substring(0, 300));
+      return null;
+    }
+
     return processo;
   } catch (error) {
     console.error("Erro ao parsear conteúdo:", error);
@@ -220,16 +235,30 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Verificar se há verificação CAPTCHA ou anti-bot
-        if (htmlContent.includes("captcha") || 
-            htmlContent.includes("robot") || 
-            htmlContent.includes("verificação") ||
-            htmlContent.includes("challenge")) {
+        // Verificar se há verificação CAPTCHA ou anti-bot (HTML ou Markdown)
+        const combined = `${markdownContent}\n${htmlContent}`.toLowerCase();
+        const humanCheckKeywords = [
+          "captcha",
+          "recaptcha",
+          "hcaptcha",
+          "robot",
+          "verifica",
+          "verificação",
+          "confirme que você é humano",
+          "humano",
+          "challenge",
+          "cloudflare",
+          "access denied",
+          "segurança",
+          "security check",
+        ];
+
+        if (humanCheckKeywords.some((k) => combined.includes(k))) {
           return new Response(
             JSON.stringify({
               found: false,
               error: "Portal exige verificação humana",
-              message: "O e-Processo está solicitando verificação anti-bot. Acesse o portal diretamente.",
+              message: "O e-Processo está solicitando verificação anti-bot. A automação não consegue prosseguir; acesse o portal diretamente.",
               url: consultaUrl,
               numeroProcesso: numeroOriginal,
               requiresHumanVerification: true,
@@ -248,22 +277,30 @@ Deno.serve(async (req) => {
               found: true,
               processo,
               message: "Processo encontrado com sucesso",
+              url: consultaUrl,
+              portalAcessivel: true,
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
 
-        // Processo não encontrado no HTML
-        // Verificar se a página carregou corretamente
-        if (htmlContent.includes("e-Processo") || htmlContent.includes("Andamento")) {
+        // Não conseguimos extrair dados estruturados
+        // Se a página carregou, é provável que tenha verificação humana, JS dinâmico ou markup não compatível
+        if (
+          htmlContent.includes("e-Processo") ||
+          htmlContent.includes("Andamento") ||
+          markdownContent.includes("e-Processo")
+        ) {
           return new Response(
             JSON.stringify({
               found: false,
-              error: "Processo não encontrado",
-              message: `O processo ${numeroOriginal} não foi encontrado no e-Processo. Verifique o número e tente novamente.`,
+              error: "Não foi possível extrair dados do e-Processo",
+              message:
+                "O portal carregou, mas não foi possível extrair os campos automaticamente (possível verificação humana ou conteúdo dinâmico). Acesse o link e consulte manualmente.",
               url: consultaUrl,
               numeroProcesso: numeroOriginal,
               portalAcessivel: true,
+              debug: markdownContent.substring(0, 500),
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );

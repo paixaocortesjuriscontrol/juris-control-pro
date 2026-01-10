@@ -363,6 +363,13 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           const processoApi = apiData.processo;
           let camposPreenchidos = 0;
 
+          const toIsoDate = (value?: string) => {
+            if (!value) return "";
+            const m = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+            return value;
+          };
+
           // Preencher campos administrativos
           if (processoApi.orgaoOrigem) {
             form.setValue("orgao_origem", processoApi.orgaoOrigem);
@@ -373,7 +380,10 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
             camposPreenchidos++;
           }
           if (processoApi.situacao) {
-            form.setValue("status", processoApi.situacao.toLowerCase().includes("arquivado") ? "arquivado" : "ativo");
+            form.setValue(
+              "status",
+              processoApi.situacao.toLowerCase().includes("arquivado") ? "arquivado" : "ativo"
+            );
             camposPreenchidos++;
           }
           if (processoApi.interessados && processoApi.interessados.length > 0) {
@@ -381,18 +391,22 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
             camposPreenchidos++;
           }
           if (processoApi.dataAutuacao) {
-            form.setValue("data_distribuicao", processoApi.dataAutuacao);
+            form.setValue("data_distribuicao", toIsoDate(processoApi.dataAutuacao));
             camposPreenchidos++;
           }
 
           console.log("Dados recebidos do e-Processo:", processoApi);
           console.log("Campos preenchidos:", camposPreenchidos);
 
+          const url = (apiData as any)?.url as string | undefined;
+
           toast({
-            title: camposPreenchidos > 0 ? "Dados carregados" : "Processo encontrado",
-            description: camposPreenchidos > 0 
-              ? `${camposPreenchidos} campo(s) do processo administrativo foram preenchidos.`
-              : "Processo encontrado mas sem dados detalhados. Preencha manualmente.",
+            title: camposPreenchidos > 0 ? "Dados carregados" : "Não foi possível preencher automaticamente",
+            description:
+              camposPreenchidos > 0
+                ? `${camposPreenchidos} campo(s) do processo administrativo foram preenchidos.`
+                : `O e-Processo retornou o processo, mas não trouxe dados estruturados para preencher os campos (provável verificação humana/JS).${url ? ` Abra: ${url}` : ""}`,
+            variant: camposPreenchidos > 0 ? undefined : "destructive",
           });
         } else {
           const rawError = (apiData as any)?.error as string | undefined;
