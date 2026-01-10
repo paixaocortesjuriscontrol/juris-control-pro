@@ -337,6 +337,8 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
   const handleFetchFromApi = async () => {
     const numero = form.getValues("numero");
+    const tipo = form.getValues("tipo_processo");
+    
     if (!numero || numero.length < 5) {
       toast({
         title: "Número inválido",
@@ -348,65 +350,103 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
     setFetchingFromApi(true);
     try {
-      const { data: apiData, error } = await supabase.functions.invoke("consultar-processo", {
-        body: { numeroProcesso: numero.trim() },
-      });
-
-      if (error) throw error;
-
-      if (apiData?.found && apiData?.processo) {
-        const processoApi = apiData.processo;
-
-        // Extract parties
-        let poloAtivo = "";
-        let poloPassivo = "";
-        
-        if (processoApi.partes && processoApi.partes.length > 0) {
-          const partesAtivas = processoApi.partes
-            .filter((p: any) => p.tipo === "POLO_ATIVO" || p.tipoParte === "AUTOR" || p.tipoParte === "REQUERENTE" || p.tipoParte === "RECLAMANTE")
-            .map((p: any) => p.nome)
-            .filter(Boolean);
-            
-          const partesPassivas = processoApi.partes
-            .filter((p: any) => p.tipo === "POLO_PASSIVO" || p.tipoParte === "REU" || p.tipoParte === "REQUERIDO" || p.tipoParte === "RECLAMADO")
-            .map((p: any) => p.nome)
-            .filter(Boolean);
-            
-          poloAtivo = partesAtivas.join(", ");
-          poloPassivo = partesPassivas.join(", ");
-        }
-
-        // Determine area based on tribunal
-        let area: "civil" | "trabalhista" | "empresarial" = "civil";
-        const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
-        if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
-          area = "trabalhista";
-        }
-
-        // Update form values
-        form.setValue("tribunal", processoApi.tribunal || apiData.tribunal || "");
-        form.setValue("vara", processoApi.orgaoJulgador || "");
-        form.setValue("classe", processoApi.classe || "");
-        form.setValue("assunto", processoApi.assunto || "");
-        form.setValue("polo_ativo", poloAtivo);
-        form.setValue("polo_passivo", poloPassivo);
-        form.setValue("area", area);
-        
-        if (processoApi.dataAjuizamento) {
-          const dateStr = processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, "$1-$2-$3");
-          form.setValue("data_distribuicao", dateStr);
-        }
-
-        toast({
-          title: "Dados carregados",
-          description: "Informações do processo foram preenchidas automaticamente.",
+      // Verificar tipo de processo para decidir qual função invocar
+      if (tipo === "administrativo") {
+        // Buscar no e-Processo (processos administrativos)
+        const { data: apiData, error } = await supabase.functions.invoke("buscar-eprocesso", {
+          body: { numeroProcesso: numero.trim() },
         });
+
+        if (error) throw error;
+
+        if (apiData?.found && apiData?.processo) {
+          const processoApi = apiData.processo;
+
+          // Preencher campos administrativos
+          form.setValue("orgao_origem", processoApi.orgaoOrigem || "");
+          form.setValue("assunto", processoApi.assunto || "");
+          
+          if (processoApi.interessados && processoApi.interessados.length > 0) {
+            form.setValue("polo_ativo", processoApi.interessados.join(", "));
+          }
+          
+          if (processoApi.dataAuutacao) {
+            form.setValue("data_distribuicao", processoApi.dataAuutacao);
+          }
+
+          toast({
+            title: "Dados carregados",
+            description: "Informações do processo administrativo foram preenchidas.",
+          });
+        } else {
+          toast({
+            title: "Processo não encontrado",
+            description: apiData?.message || "Não foi possível encontrar dados no e-Processo.",
+            variant: "destructive",
+          });
+        }
       } else {
-        toast({
-          title: "Processo não encontrado",
-          description: "Não foi possível encontrar dados externos para este número.",
-          variant: "destructive",
+        // Buscar processo judicial (rotina existente)
+        const { data: apiData, error } = await supabase.functions.invoke("consultar-processo", {
+          body: { numeroProcesso: numero.trim() },
         });
+
+        if (error) throw error;
+
+        if (apiData?.found && apiData?.processo) {
+          const processoApi = apiData.processo;
+
+          // Extract parties
+          let poloAtivo = "";
+          let poloPassivo = "";
+          
+          if (processoApi.partes && processoApi.partes.length > 0) {
+            const partesAtivas = processoApi.partes
+              .filter((p: any) => p.tipo === "POLO_ATIVO" || p.tipoParte === "AUTOR" || p.tipoParte === "REQUERENTE" || p.tipoParte === "RECLAMANTE")
+              .map((p: any) => p.nome)
+              .filter(Boolean);
+              
+            const partesPassivas = processoApi.partes
+              .filter((p: any) => p.tipo === "POLO_PASSIVO" || p.tipoParte === "REU" || p.tipoParte === "REQUERIDO" || p.tipoParte === "RECLAMADO")
+              .map((p: any) => p.nome)
+              .filter(Boolean);
+              
+            poloAtivo = partesAtivas.join(", ");
+            poloPassivo = partesPassivas.join(", ");
+          }
+
+          // Determine area based on tribunal
+          let area: "civil" | "trabalhista" | "empresarial" = "civil";
+          const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
+          if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
+            area = "trabalhista";
+          }
+
+          // Update form values
+          form.setValue("tribunal", processoApi.tribunal || apiData.tribunal || "");
+          form.setValue("vara", processoApi.orgaoJulgador || "");
+          form.setValue("classe", processoApi.classe || "");
+          form.setValue("assunto", processoApi.assunto || "");
+          form.setValue("polo_ativo", poloAtivo);
+          form.setValue("polo_passivo", poloPassivo);
+          form.setValue("area", area);
+          
+          if (processoApi.dataAjuizamento) {
+            const dateStr = processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, "$1-$2-$3");
+            form.setValue("data_distribuicao", dateStr);
+          }
+
+          toast({
+            title: "Dados carregados",
+            description: "Informações do processo foram preenchidas automaticamente.",
+          });
+        } else {
+          toast({
+            title: "Processo não encontrado",
+            description: "Não foi possível encontrar dados externos para este número.",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       console.error("Error fetching from API:", error);
