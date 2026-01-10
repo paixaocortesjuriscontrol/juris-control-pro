@@ -476,6 +476,17 @@ export default function ProcessoDetalhes() {
         motivo_encerramento: processo.motivo_encerramento || "",
         custo_encerramento: processo.custo_encerramento || "",
         categoria_importacao: processo.categoria_importacao || "",
+        // Campos administrativos
+        auto_infracao: processo.auto_infracao || "",
+        nit_fiscalizado: processo.nit_fiscalizado || "",
+        cnpj_fiscalizado: processo.cnpj_fiscalizado || "",
+        valor_multa: processo.valor_multa || "",
+        data_lavratura: processo.data_lavratura || "",
+        fiscal_responsavel: processo.fiscal_responsavel || "",
+        orgao_origem: processo.orgao_origem || "",
+        data_situacao: processo.data_situacao || "",
+        cargo_reconhecimento_vinculo: processo.cargo_reconhecimento_vinculo || "",
+        tipo_processo: processo.tipo_processo || "judicial",
       });
     }
   }, [processo, editando]);
@@ -524,7 +535,10 @@ export default function ProcessoDetalhes() {
         "pedido_adicional_noturno", "pedido_sobrecarga_trabalho", "pedido_reconhecimento_vinculo",
         "pedido_danos_morais_assedio", "pedido_danos_morais_outros", "pedido_acidente_doenca",
         "pedido_danos_morais_acidente", "pedido_estabilidade", "pedido_multas_clt", "pedido_multas_ccts",
-        "status_pedido", "motivo_encerramento", "categoria_importacao"
+        "status_pedido", "motivo_encerramento", "categoria_importacao",
+        // Campos administrativos
+        "auto_infracao", "nit_fiscalizado", "cnpj_fiscalizado", "fiscal_responsavel",
+        "orgao_origem", "data_situacao", "cargo_reconhecimento_vinculo", "tipo_processo"
       ];
       
       const numericFields = [
@@ -534,7 +548,9 @@ export default function ProcessoDetalhes() {
         // Campos contingenciais numéricos
         "valor_perda_anterior", "valor_perda_atual", "responsabilidade_antes_data", "responsabilidade_apos_data",
         // Campos de Pedidos numéricos
-        "custo_encerramento"
+        "custo_encerramento",
+        // Campos administrativos numéricos
+        "valor_multa"
       ];
       
       const booleanFields = [
@@ -2647,6 +2663,41 @@ export default function ProcessoDetalhes() {
               </div>
             </AccordionContent>
           </AccordionItem>
+
+          {/* Dados Administrativos - Exibe apenas para processos administrativos */}
+          {(processo.tipo_processo === 'administrativo' || processo.auto_infracao || processo.nit_fiscalizado || processo.cnpj_fiscalizado) && (
+            <AccordionItem value="administrativo" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-5 h-5" />
+                  <span className="font-semibold">Dados Administrativos (e-Processo)</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FieldItem 
+                    label="Tipo de Processo" 
+                    value={processo.tipo_processo} 
+                    field="tipo_processo" 
+                    type="select"
+                    options={[
+                      { value: "judicial", label: "Judicial" },
+                      { value: "administrativo", label: "Administrativo" }
+                    ]}
+                  />
+                  <FieldItem label="Auto de Infração" value={processo.auto_infracao} field="auto_infracao" />
+                  <FieldItem label="NIT Fiscalizado" value={processo.nit_fiscalizado} field="nit_fiscalizado" />
+                  <FieldItem label="CNPJ Fiscalizado" value={processo.cnpj_fiscalizado} field="cnpj_fiscalizado" />
+                  <FieldItem label="Valor da Multa" value={processo.valor_multa} field="valor_multa" type="number" />
+                  <FieldItem label="Data da Lavratura" value={processo.data_lavratura} field="data_lavratura" type="date" />
+                  <FieldItem label="Data da Situação" value={processo.data_situacao} field="data_situacao" type="date" />
+                  <FieldItem label="Fiscal Responsável" value={processo.fiscal_responsavel} field="fiscal_responsavel" />
+                  <FieldItem label="Órgão de Origem" value={processo.orgao_origem} field="orgao_origem" />
+                  <FieldItem label="Cargo (Reconhec. Vínculo)" value={processo.cargo_reconhecimento_vinculo} field="cargo_reconhecimento_vinculo" />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
           {/* Metadados */}
           <AccordionItem value="metadados" className="border rounded-lg px-4">
