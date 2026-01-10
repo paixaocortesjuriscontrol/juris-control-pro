@@ -321,7 +321,7 @@ export function ProcessoExpandableRow({
         {/* Cliente/Pasta Column */}
         <div className="hidden md:block min-w-0">
           <div className="text-sm font-medium text-foreground truncate">
-            {processo.cliente?.nome || "-"}
+            {processo.cliente?.nome || "Cliente não Informado"}
           </div>
           <div className="text-xs text-muted-foreground truncate">
             {processo.pasta?.nome || "-"}
