@@ -131,9 +131,9 @@ function parseEProcessoContent(markdown: string, html: string, numeroProcesso: s
 
     console.log("Processo parseado:", JSON.stringify(processo));
 
-    // Se não conseguimos extrair nenhum campo útil, consideramos que o portal não entregou dados parseáveis
+    // Se não conseguimos extrair nenhum campo útil, retornamos null
     if (!hasAnyDetail) {
-      console.log("Nenhum dado estruturado extraído. Trecho markdown:", markdown.substring(0, 300));
+      console.log("Nenhum dado estruturado extraído");
       return null;
     }
 
@@ -160,7 +160,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Limpar número do processo - manter pontos e barras para formato administrativo
     const numeroOriginal = numeroProcesso.trim();
     const numeroLimpo = numeroProcesso.replace(/\D/g, "");
 
@@ -171,17 +170,60 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Buscando processo administrativo: ${numeroOriginal} (limpo: ${numeroLimpo})`);
+    console.log(`Buscando processo administrativo: ${numeroOriginal}`);
 
-    // URL do e-Processo para consulta
     const eprocessoUrl = `https://eprocesso.sit.trabalho.gov.br/ProcessoEletronico/AndamentoProcessual`;
     const consultaUrl = `${eprocessoUrl}?NumeroPAT=${encodeURIComponent(numeroOriginal)}`;
 
-    // Verificar se temos o Firecrawl configurado (preferencial)
+    // ========== 1. Tentar Jina Reader primeiro ==========
+    const jinaApiKey = Deno.env.get("JINA_API_KEY");
+    
+    if (jinaApiKey) {
+      console.log("Tentando com Jina Reader...");
+      
+      try {
+        const jinaResponse = await fetch(`https://r.jina.ai/${consultaUrl}`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${jinaApiKey}`,
+            "X-Return-Format": "markdown",
+          },
+        });
+
+        if (jinaResponse.ok) {
+          const jinaMarkdown = await jinaResponse.text();
+          console.log("Jina retornou conteúdo, tamanho:", jinaMarkdown.length);
+          console.log("Jina preview:", jinaMarkdown.substring(0, 800));
+          
+          const processo = parseEProcessoContent(jinaMarkdown, "", numeroOriginal);
+          
+          if (processo) {
+            console.log("Jina: Processo encontrado com dados");
+            return new Response(
+              JSON.stringify({
+                found: true,
+                processo,
+                message: "Processo encontrado com sucesso",
+                url: consultaUrl,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          } else {
+            console.log("Jina: Página carregou mas sem dados estruturados extraíveis");
+          }
+        } else {
+          console.log("Jina falhou com status:", jinaResponse.status);
+        }
+      } catch (jinaError) {
+        console.error("Erro Jina:", jinaError);
+      }
+    }
+
+    // ========== 2. Fallback para Firecrawl ==========
     const firecrawlApiKey = Deno.env.get("FIRECRAWL_API_KEY");
 
     if (firecrawlApiKey) {
-      console.log("Usando Firecrawl para scraping...");
+      console.log("Tentando com Firecrawl...");
       
       try {
         const firecrawlResponse = await fetch("https://api.firecrawl.dev/v1/scrape", {
@@ -194,153 +236,63 @@ Deno.serve(async (req) => {
             url: consultaUrl,
             formats: ["markdown", "html"],
             onlyMainContent: false,
-            waitFor: 3000, // Aguardar carregamento dinâmico
+            waitFor: 5000,
           }),
         });
 
-        if (!firecrawlResponse.ok) {
-          const errorData = await firecrawlResponse.text();
-          console.error("Erro Firecrawl:", firecrawlResponse.status, errorData);
+        if (firecrawlResponse.ok) {
+          const firecrawlData = await firecrawlResponse.json();
+          console.log("Firecrawl sucesso");
+
+          const htmlContent = firecrawlData.data?.html || firecrawlData.html || "";
+          const markdownContent = firecrawlData.data?.markdown || firecrawlData.markdown || "";
           
-          // Se Firecrawl falhar, retornar mensagem informativa
-          return new Response(
-            JSON.stringify({
-              found: false,
-              error: `Erro ao acessar e-Processo (${firecrawlResponse.status})`,
-              message: "O portal pode estar com verificação anti-bot ativa. Tente acessar diretamente.",
-              url: consultaUrl,
-              numeroProcesso: numeroOriginal,
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          console.log("Firecrawl markdown preview:", markdownContent.substring(0, 800));
+
+          if (markdownContent || htmlContent) {
+            const processo = parseEProcessoContent(markdownContent, htmlContent, numeroOriginal);
+            
+            if (processo) {
+              console.log("Firecrawl: Processo encontrado");
+              return new Response(
+                JSON.stringify({
+                  found: true,
+                  processo,
+                  message: "Processo encontrado com sucesso",
+                  url: consultaUrl,
+                }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+          }
+        } else {
+          console.log("Firecrawl falhou com status:", firecrawlResponse.status);
         }
-
-        const firecrawlData = await firecrawlResponse.json();
-        console.log("Firecrawl sucesso, dados recebidos");
-
-        // Verificar se obtivemos conteúdo
-        const htmlContent = firecrawlData.data?.html || firecrawlData.html || "";
-        const markdownContent = firecrawlData.data?.markdown || firecrawlData.markdown || "";
-
-        if (!htmlContent && !markdownContent) {
-          return new Response(
-            JSON.stringify({
-              found: false,
-              error: "Página carregada mas sem conteúdo",
-              message: "O portal pode estar exigindo verificação humana. Acesse diretamente.",
-              url: consultaUrl,
-              numeroProcesso: numeroOriginal,
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        // Verificar se há verificação CAPTCHA ou anti-bot (HTML ou Markdown)
-        const combined = `${markdownContent}\n${htmlContent}`.toLowerCase();
-        const humanCheckKeywords = [
-          "captcha",
-          "recaptcha",
-          "hcaptcha",
-          "robot",
-          "verifica",
-          "verificação",
-          "confirme que você é humano",
-          "humano",
-          "challenge",
-          "cloudflare",
-          "access denied",
-          "segurança",
-          "security check",
-        ];
-
-        if (humanCheckKeywords.some((k) => combined.includes(k))) {
-          return new Response(
-            JSON.stringify({
-              found: false,
-              error: "Portal exige verificação humana",
-              message: "O e-Processo está solicitando verificação anti-bot. A automação não consegue prosseguir; acesse o portal diretamente.",
-              url: consultaUrl,
-              numeroProcesso: numeroOriginal,
-              requiresHumanVerification: true,
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        // Tentar parsear os dados do processo
-        const processo = parseEProcessoContent(markdownContent, htmlContent, numeroOriginal);
-
-        if (processo) {
-          console.log("Processo encontrado:", processo.numero);
-          return new Response(
-            JSON.stringify({
-              found: true,
-              processo,
-              message: "Processo encontrado com sucesso",
-              url: consultaUrl,
-              portalAcessivel: true,
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        // Não conseguimos extrair dados estruturados
-        // Se a página carregou, é provável que tenha verificação humana, JS dinâmico ou markup não compatível
-        if (
-          htmlContent.includes("e-Processo") ||
-          htmlContent.includes("Andamento") ||
-          markdownContent.includes("e-Processo")
-        ) {
-          return new Response(
-            JSON.stringify({
-              found: false,
-              error: "Não foi possível extrair dados do e-Processo",
-              message:
-                "O portal carregou, mas não foi possível extrair os campos automaticamente (possível verificação humana ou conteúdo dinâmico). Acesse o link e consulte manualmente.",
-              url: consultaUrl,
-              numeroProcesso: numeroOriginal,
-              portalAcessivel: true,
-              debug: markdownContent.substring(0, 500),
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        // Página não carregou como esperado
-        return new Response(
-          JSON.stringify({
-            found: false,
-            error: "Resposta inesperada do portal",
-            message: "O portal retornou uma página diferente do esperado. Tente acessar diretamente.",
-            url: consultaUrl,
-            numeroProcesso: numeroOriginal,
-            debug: markdownContent.substring(0, 500),
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-
       } catch (firecrawlError) {
-        console.error("Erro na chamada Firecrawl:", firecrawlError);
-        return new Response(
-          JSON.stringify({
-            found: false,
-            error: `Erro ao consultar: ${firecrawlError instanceof Error ? firecrawlError.message : "Erro desconhecido"}`,
-            message: "Ocorreu um erro ao acessar o portal. Tente novamente.",
-            url: consultaUrl,
-            numeroProcesso: numeroOriginal,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        console.error("Erro Firecrawl:", firecrawlError);
       }
     }
 
-    // Fallback: sem Firecrawl configurado
-    console.log("FIRECRAWL_API_KEY não configurado");
+    // ========== 3. Nenhum serviço conseguiu ==========
+    if (!jinaApiKey && !firecrawlApiKey) {
+      return new Response(
+        JSON.stringify({
+          found: false,
+          error: "Integração com e-Processo não configurada",
+          message: "Configure JINA_API_KEY ou FIRECRAWL_API_KEY para consultas automáticas.",
+          url: consultaUrl,
+          numeroProcesso: numeroOriginal,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Serviços configurados mas não extraíram dados
     return new Response(
       JSON.stringify({
         found: false,
-        error: "Integração com e-Processo não configurada",
-        message: "O conector Firecrawl precisa estar habilitado para consultas automáticas ao e-Processo.",
+        error: "Não foi possível extrair dados do e-Processo",
+        message: "O portal pode ter proteção anti-bot ou conteúdo dinâmico. Acesse o link diretamente para consultar.",
         url: consultaUrl,
         numeroProcesso: numeroOriginal,
       }),
