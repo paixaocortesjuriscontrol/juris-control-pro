@@ -273,10 +273,16 @@
     display: block !important;
   }
   
-  /* Configurações de página */
+  /* Configurações de página - remove cabeçalho/rodapé padrão do navegador */
   @page {
     size: A4;
-    margin: 15mm 15mm 20mm 15mm;
+    margin: 10mm 15mm 10mm 15mm;
+  }
+  
+  /* Remove data, URL e título do cabeçalho/rodapé da impressão */
+  html {
+    margin: 0;
+    padding: 0;
   }
   
   /* Quebras de página */
