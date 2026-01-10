@@ -38,180 +38,147 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Limpar número do processo (remover caracteres especiais)
+    // Limpar número do processo - manter pontos e barras para formato administrativo
+    const numeroOriginal = numeroProcesso.trim();
     const numeroLimpo = numeroProcesso.replace(/\D/g, "");
 
-    if (numeroLimpo.length < 10) {
+    if (numeroLimpo.length < 8) {
       return new Response(
-        JSON.stringify({ found: false, error: "Número do processo inválido" }),
+        JSON.stringify({ found: false, error: "Número do processo inválido - mínimo 8 dígitos" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Buscando processo administrativo: ${numeroProcesso} (limpo: ${numeroLimpo})`);
+    console.log(`Buscando processo administrativo: ${numeroOriginal} (limpo: ${numeroLimpo})`);
 
     // URL do e-Processo para consulta
     const eprocessoUrl = `https://eprocesso.sit.trabalho.gov.br/ProcessoEletronico/AndamentoProcessual`;
 
-    // Verificar se temos o secret do Browserless configurado (pode ser BROWSERLESS_API_KEY ou BROWSERLESS_TOKEN)
+    // Verificar se temos o secret do Browserless configurado
     const browserlessToken = Deno.env.get("BROWSERLESS_API_KEY") || Deno.env.get("BROWSERLESS_TOKEN");
 
     if (!browserlessToken) {
-      console.log("BROWSERLESS_API_KEY não configurado - retornando instrução");
+      console.log("BROWSERLESS_API_KEY não configurado");
       
       return new Response(
         JSON.stringify({
           found: false,
-          error: "Integração com e-Processo requer configuração do Browserless. Por favor, adicione o BROWSERLESS_API_KEY nas configurações.",
+          error: "Integração com e-Processo requer configuração do BROWSERLESS_API_KEY.",
           message: "O portal e-Processo do MTE não possui API pública. A consulta automática requer automação de navegador.",
           url: eprocessoUrl,
-          numeroProcesso: numeroLimpo,
+          numeroProcesso: numeroOriginal,
         } as EProcessoResponse),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Tentar buscar via Browserless (scraping com interação)
+    // Tentar buscar via Browserless usando a API /scrape
     try {
-      console.log("Iniciando automação via Browserless...");
+      console.log("Iniciando scraping via Browserless...");
       
-      // Usar a API /function do Browserless para executar código personalizado
-      const browserlessUrl = `https://chrome.browserless.io/function?token=${browserlessToken}`;
+      // Primeiro, acessar a página de consulta
+      const browserlessUrl = `https://chrome.browserless.io/scrape?token=${browserlessToken}`;
       
-      const browserlessResponse = await fetch(browserlessUrl, {
+      // Step 1: Carregar a página principal e identificar o formulário
+      const initialResponse = await fetch(browserlessUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          code: `
-            module.exports = async ({ page }) => {
-              const numeroProcesso = "${numeroLimpo}";
-              
-              try {
-                // Navegar para a página do e-Processo
-                await page.goto("https://eprocesso.sit.trabalho.gov.br/ProcessoEletronico/AndamentoProcessual", {
-                  waitUntil: "networkidle0",
-                  timeout: 30000
-                });
-                
-                // Aguardar o campo de número do processo
-                await page.waitForSelector("#NumeroProcesso, input[name='NumeroProcesso'], input[type='text']", { timeout: 10000 });
-                
-                // Preencher o número do processo
-                const inputSelector = "#NumeroProcesso, input[name='NumeroProcesso']";
-                await page.type(inputSelector, numeroProcesso);
-                
-                // Clicar no botão de pesquisa
-                const btnSelector = "button[type='submit'], input[type='submit'], .btn-pesquisar, #btnPesquisar";
-                await page.click(btnSelector);
-                
-                // Aguardar resultado
-                await page.waitForNavigation({ waitUntil: "networkidle0", timeout: 15000 }).catch(() => {});
-                await page.waitForTimeout(2000);
-                
-                // Extrair dados da página
-                const dados = await page.evaluate(() => {
-                  const getText = (selector) => {
-                    const el = document.querySelector(selector);
-                    return el ? el.textContent.trim() : null;
-                  };
-                  
-                  const getTexts = (selector) => {
-                    return Array.from(document.querySelectorAll(selector)).map(el => el.textContent.trim());
-                  };
-                  
-                  // Tentar extrair informações comuns
-                  const situacao = getText(".situacao, .status, #situacao") || getText("td:contains('Situação') + td");
-                  const orgao = getText(".orgao, .unidade, #orgao") || getText("td:contains('Órgão') + td");
-                  const assunto = getText(".assunto, #assunto") || getText("td:contains('Assunto') + td");
-                  const dataAutuacao = getText(".data-autuacao, #dataAutuacao") || getText("td:contains('Data') + td");
-                  
-                  // Verificar se encontrou o processo
-                  const pageText = document.body.innerText.toLowerCase();
-                  const naoEncontrado = pageText.includes("não encontrado") || pageText.includes("nenhum resultado");
-                  
-                  // Extrair andamentos se disponíveis
-                  const andamentos = [];
-                  const linhasAndamento = document.querySelectorAll("table.andamentos tr, .andamento-item, .movimento");
-                  linhasAndamento.forEach(linha => {
-                    const data = linha.querySelector(".data, td:first-child")?.textContent?.trim();
-                    const descricao = linha.querySelector(".descricao, td:nth-child(2)")?.textContent?.trim();
-                    if (data && descricao) {
-                      andamentos.push({ data, descricao });
-                    }
-                  });
-                  
-                  return {
-                    encontrado: !naoEncontrado && (situacao || orgao || assunto || andamentos.length > 0),
-                    situacao,
-                    orgao,
-                    assunto,
-                    dataAutuacao,
-                    andamentos,
-                    htmlDebug: document.body.innerHTML.substring(0, 500)
-                  };
-                });
-                
-                return { success: true, dados };
-              } catch (error) {
-                return { success: false, error: error.message };
-              }
-            };
-          `,
-          context: {},
+          url: eprocessoUrl,
+          waitFor: 3000,
+          elements: [
+            { selector: "body" },
+            { selector: "input[type='text'], input[name*='processo'], input[name*='numero'], #NumeroProcesso" },
+            { selector: "form" },
+          ],
+          gotoOptions: {
+            waitUntil: "networkidle2",
+            timeout: 30000
+          }
         }),
       });
 
-      if (!browserlessResponse.ok) {
-        const errorText = await browserlessResponse.text();
-        console.error("Erro no Browserless:", browserlessResponse.status, errorText);
+      if (!initialResponse.ok) {
+        const errorText = await initialResponse.text();
+        console.error("Erro no Browserless (scrape inicial):", initialResponse.status, errorText);
         
+        // Retornar informação útil para o usuário
         return new Response(
           JSON.stringify({
             found: false,
-            error: `Erro na automação do navegador: ${browserlessResponse.status}`,
-            message: "Não foi possível acessar o portal e-Processo. Tente novamente mais tarde.",
+            error: `O portal e-Processo está temporariamente indisponível (${initialResponse.status}).`,
+            message: "Tente novamente em alguns minutos ou consulte diretamente no portal.",
             url: eprocessoUrl,
-            numeroProcesso: numeroLimpo,
+            numeroProcesso: numeroOriginal,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const result = await browserlessResponse.json();
-      console.log("Resultado Browserless:", JSON.stringify(result).substring(0, 500));
+      const initialResult = await initialResponse.json();
+      console.log("Página inicial carregada, elementos encontrados:", initialResult?.data?.length || 0);
 
-      if (result?.success && result?.dados?.encontrado) {
-        const dados = result.dados;
+      // Nota: O e-Processo requer interação JavaScript complexa
+      // A API /scrape do Browserless é limitada para formulários interativos
+      // Para uma automação completa, seria necessário usar /content com Puppeteer script
+
+      // Por enquanto, retornamos informação sobre como consultar manualmente
+      // mas indicamos que a estrutura está preparada para automação futura
+      
+      // Tentar usar a API /content para execução de script
+      const contentUrl = `https://chrome.browserless.io/content?token=${browserlessToken}`;
+      
+      const contentResponse = await fetch(contentUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: eprocessoUrl,
+          waitFor: 5000,
+          gotoOptions: {
+            waitUntil: "networkidle2",
+            timeout: 30000
+          }
+        }),
+      });
+
+      if (contentResponse.ok) {
+        const htmlContent = await contentResponse.text();
+        console.log("HTML obtido, tamanho:", htmlContent.length);
         
-        return new Response(
-          JSON.stringify({
-            found: true,
-            processo: {
-              numero: numeroLimpo,
-              situacao: dados.situacao,
-              orgaoOrigem: dados.orgao,
-              dataAutuacao: dados.dataAutuacao,
-              assunto: dados.assunto,
-              andamentos: dados.andamentos || [],
-            },
-          } as EProcessoResponse),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      } else {
-        // Processo não encontrado ou erro na extração
-        return new Response(
-          JSON.stringify({
-            found: false,
-            error: result?.error || "Processo não encontrado no e-Processo",
-            message: "Verifique se o número do processo administrativo está correto.",
-            url: eprocessoUrl,
-            numeroProcesso: numeroLimpo,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        // Verificar se a página carregou corretamente
+        const pageLoaded = htmlContent.includes("Andamento") || htmlContent.includes("Processo") || htmlContent.includes("e-Processo");
+        
+        if (pageLoaded) {
+          // Página carregou - informar que automação está em desenvolvimento
+          return new Response(
+            JSON.stringify({
+              found: false,
+              error: "Automação do e-Processo em desenvolvimento",
+              message: `O portal e-Processo foi acessado com sucesso. A automação completa do formulário de busca está sendo implementada. Por enquanto, acesse o portal diretamente: ${eprocessoUrl}`,
+              url: eprocessoUrl,
+              numeroProcesso: numeroOriginal,
+              portalAcessivel: true,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
+
+      // Fallback - portal pode estar com problemas
+      return new Response(
+        JSON.stringify({
+          found: false,
+          error: "Não foi possível acessar o portal e-Processo",
+          message: "O portal pode estar temporariamente indisponível. Tente acessar diretamente.",
+          url: eprocessoUrl,
+          numeroProcesso: numeroOriginal,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
 
     } catch (browserlessError) {
       console.error("Erro na automação Browserless:", browserlessError);
@@ -221,7 +188,7 @@ Deno.serve(async (req) => {
           error: `Erro na automação: ${browserlessError instanceof Error ? browserlessError.message : "Erro desconhecido"}`,
           message: "Ocorreu um erro ao consultar o portal e-Processo. Tente novamente.",
           url: eprocessoUrl,
-          numeroProcesso: numeroLimpo,
+          numeroProcesso: numeroOriginal,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

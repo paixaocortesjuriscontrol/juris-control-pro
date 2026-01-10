@@ -863,11 +863,18 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                         <FormLabel>Número do Processo *</FormLabel>
                         <FormControl>
                           <Input 
-                            placeholder="0000000-00.0000.0.00.0000" 
+                            placeholder={tipoProcesso === "administrativo" ? "14152.127256/2023-39" : "0000000-00.0000.0.00.0000"}
                             value={field.value}
-                            onChange={(e) => handleNumeroChange(e, field.onChange)}
+                            onChange={(e) => {
+                              // Só aplica máscara CNJ para processos judiciais
+                              if (tipoProcesso === "administrativo") {
+                                field.onChange(e.target.value);
+                              } else {
+                                handleNumeroChange(e, field.onChange);
+                              }
+                            }}
                             disabled={isEditing}
-                            maxLength={25}
+                            maxLength={30}
                           />
                         </FormControl>
                         <FormMessage />
