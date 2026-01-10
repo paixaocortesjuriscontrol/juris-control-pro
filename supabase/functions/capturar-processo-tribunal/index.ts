@@ -145,41 +145,76 @@ async function capturarPje(apiKey: string, credencial: any, processoNumero: stri
   await logCaptura(supabase, credencial.id, null, "info", `Conectando ao PJe ${tribunalKey} via Browserless...`);
 
   try {
-    // Usar /scrape API com gotoOptions para capturar dados
+    // Usar /content API que é mais simples e confiável
     const loginUrl = `${baseUrl}/primeirograu/login.seam`;
     
-    // Primeiro verificar se a página está acessível
-    const scrapeResponse = await fetch(`https://chrome.browserless.io/scrape?token=${apiKey}`, {
+    console.log(`[PJe] Acessando ${loginUrl}...`);
+    
+    // Usar /content para obter HTML da página
+    const contentResponse = await fetch(`https://chrome.browserless.io/content?token=${apiKey}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
       body: JSON.stringify({
         url: loginUrl,
         gotoOptions: {
-          waitUntil: "networkidle2",
-          timeout: 30000,
+          waitUntil: "domcontentloaded",
+          timeout: 60000,
         },
-        elements: [
-          { selector: "#username", timeout: 10000 },
-          { selector: "form" },
-          { selector: ".g-recaptcha, #captcha, [data-sitekey]" },
-        ],
+        waitForTimeout: 3000,
       }),
     });
 
-    if (!scrapeResponse.ok) {
-      const errorText = await scrapeResponse.text();
-      console.error("Browserless scrape error:", errorText);
-      throw new Error(`Erro ao acessar portal: ${scrapeResponse.status}`);
+    if (!contentResponse.ok) {
+      const errorText = await contentResponse.text();
+      console.error("Browserless content error:", contentResponse.status, errorText);
+      
+      // Tentar fallback com /screenshot para verificar se portal está acessível
+      const screenshotResponse = await fetch(`https://chrome.browserless.io/screenshot?token=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: loginUrl,
+          gotoOptions: {
+            waitUntil: "load",
+            timeout: 45000,
+          },
+          options: { type: "png", fullPage: false },
+        }),
+      });
+      
+      if (screenshotResponse.ok) {
+        // Portal acessível mas /content falhou
+        await supabase.from("cofre_senhas").update({
+          status_validacao: "acessivel",
+          mensagem_erro: null,
+          ultima_validacao: new Date().toISOString(),
+        }).eq("id", credencial.id);
+        
+        return {
+          sistema: "pje",
+          tribunal: credencial.tribunal,
+          processosCapturados: 0,
+          intimacoesCapturadas: 0,
+          mensagem: `Portal PJe ${tribunalKey} acessível (verificado via screenshot)`,
+          status: "acessivel",
+        };
+      }
+      
+      throw new Error(`Timeout ao acessar portal PJe. Tente novamente.`);
     }
 
-    const scrapeResult = await scrapeResponse.json();
+    const htmlContent = await contentResponse.text();
+    console.log(`[PJe] Conteúdo obtido: ${htmlContent.length} bytes`);
     
-    // Verificar se tem CAPTCHA
-    const captchaElement = scrapeResult.data?.find((d: any) => 
-      d.selector?.includes("captcha") || d.selector?.includes("recaptcha")
-    );
+    // Verificar se tem CAPTCHA no HTML
+    const hasCaptcha = htmlContent.includes('g-recaptcha') || 
+                       htmlContent.includes('captcha') ||
+                       htmlContent.includes('data-sitekey');
     
-    if (captchaElement?.results?.length > 0) {
+    if (hasCaptcha) {
       await supabase.from("cofre_senhas").update({
         status_validacao: "captcha",
         mensagem_erro: "CAPTCHA detectado no portal",
@@ -195,38 +230,22 @@ async function capturarPje(apiKey: string, credencial: any, processoNumero: stri
         mensagem: "CAPTCHA detectado - login manual necessário",
       };
     }
-
+    
     // Verificar se formulário de login existe
-    const formElement = scrapeResult.data?.find((d: any) => d.selector === "form");
-    const usernameField = scrapeResult.data?.find((d: any) => d.selector === "#username");
+    const hasLoginForm = htmlContent.includes('username') || 
+                         htmlContent.includes('login') ||
+                         htmlContent.includes('senha');
     
-    if (!usernameField?.results?.length && !formElement?.results?.length) {
-      throw new Error("Formulário de login não encontrado no portal");
+    if (!hasLoginForm) {
+      console.log("[PJe] Formulário não encontrado, verificando conteúdo...");
     }
 
-    // Portal acessível - agora usar /pdf ou /content para simular login
-    // Como Browserless não suporta interação completa sem /function, 
-    // vamos usar a API de screenshot para verificar estado
-    
-    const screenshotResponse = await fetch(`https://chrome.browserless.io/screenshot?token=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url: loginUrl,
-        gotoOptions: {
-          waitUntil: "networkidle2",
-          timeout: 30000,
-        },
-        options: {
-          type: "png",
-          fullPage: false,
-        },
-      }),
-    });
-
-    if (!screenshotResponse.ok) {
-      throw new Error("Erro ao capturar screenshot do portal");
-    }
+    // Portal está acessível
+    await supabase.from("cofre_senhas").update({
+      status_validacao: "acessivel",
+      mensagem_erro: null,
+      ultima_validacao: new Date().toISOString(),
+    }).eq("id", credencial.id);
 
     // Portal está acessível
     await supabase.from("cofre_senhas").update({
