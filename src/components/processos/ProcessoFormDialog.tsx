@@ -461,12 +461,23 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
             description: "Informações do processo foram preenchidas automaticamente.",
           });
         } else {
-          const desc = (apiData as any)?.error || "Não foi possível encontrar dados externos para este número.";
-          toast({
-            title: "Processo não encontrado",
-            description: desc,
-            variant: "destructive",
-          });
+          const rawError = (apiData as any)?.error || "";
+          const requiresTribunal = (apiData as any)?.requiresTribunal;
+          
+          // Se o número não é válido para CNJ, sugerir mudar para Administrativo
+          if (requiresTribunal || rawError.includes("identificar o tribunal") || rawError.includes("selecione o tribunal")) {
+            toast({
+              title: "Número não reconhecido como judicial",
+              description: "Se for um processo administrativo (e-Processo/MTE), altere o Tipo de Processo para 'Administrativo' e tente novamente.",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Processo não encontrado",
+              description: rawError || "Não foi possível encontrar dados externos para este número.",
+              variant: "destructive",
+            });
+          }
         }
       }
     } catch (error) {
