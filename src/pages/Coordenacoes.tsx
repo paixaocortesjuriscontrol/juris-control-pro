@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -28,6 +28,7 @@ import { DistribuirProcessoDialog } from "@/components/coordenacoes/DistribuirPr
 import { DelegarTarefaDialog } from "@/components/coordenacoes/DelegarTarefaDialog";
 import { DelegarTarefaLoteDialog } from "@/components/coordenacoes/DelegarTarefaLoteDialog";
 import { ReatribuirProcessoDialog } from "@/components/coordenacoes/ReatribuirProcessoDialog";
+import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -65,6 +66,7 @@ const Coordenacoes = () => {
   const [delegarTarefaDialog, setDelegarTarefaDialog] = useState(false);
   const [delegarTarefaLoteDialog, setDelegarTarefaLoteDialog] = useState(false);
   const [reatribuirDialog, setReatribuirDialog] = useState(false);
+  const [transferirDialog, setTransferirDialog] = useState(false);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const [editingCargoId, setEditingCargoId] = useState<string | null>(null);
   const [editingCargoValue, setEditingCargoValue] = useState<string>("");
@@ -180,6 +182,14 @@ const Coordenacoes = () => {
               >
                 <Share2 className="w-4 h-4 mr-1" />
                 <span className="hidden sm:inline">Distribuir</span>
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setTransferirDialog(true)}
+              >
+                <Repeat className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">Transferir</span>
               </Button>
               <Button 
                 size="sm" 
@@ -581,6 +591,11 @@ const Coordenacoes = () => {
       <DistribuirProcessoDialog
         open={distribuirDialog}
         onOpenChange={setDistribuirDialog}
+      />
+
+      <TransferirProcessosDialog
+        open={transferirDialog}
+        onOpenChange={setTransferirDialog}
       />
 
       {/* Confirm Remove Member Dialog */}
