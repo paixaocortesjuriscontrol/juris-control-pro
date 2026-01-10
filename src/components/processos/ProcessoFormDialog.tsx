@@ -596,29 +596,42 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
     try {
       let pastaId = values.pasta_id || null;
       
-      // Create new pasta if requested
+      // Create new pasta if requested (when toggle is on AND has name)
       if (criarNovaPasta && novaPastaNome.trim() && user) {
-        const { data: newPasta, error: pastaError } = await supabase
+        // Check if pasta with same name already exists
+        const { data: existingPasta } = await supabase
           .from("pastas")
-          .insert({
-            nome: novaPastaNome.trim(),
-            criado_por: user.id,
-          })
           .select("id")
-          .single();
+          .ilike("nome", novaPastaNome.trim())
+          .maybeSingle();
         
-        if (pastaError) {
-          toast({
-            title: "Erro ao criar pasta",
-            description: pastaError.message,
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
+        if (existingPasta) {
+          // Use existing pasta with same name
+          pastaId = existingPasta.id;
+        } else {
+          // Create new pasta
+          const { data: newPasta, error: pastaError } = await supabase
+            .from("pastas")
+            .insert({
+              nome: novaPastaNome.trim(),
+              criado_por: user.id,
+            })
+            .select("id")
+            .single();
+          
+          if (pastaError) {
+            toast({
+              title: "Erro ao criar pasta",
+              description: pastaError.message,
+              variant: "destructive",
+            });
+            setLoading(false);
+            return;
+          }
+          
+          pastaId = newPasta.id;
+          queryClient.invalidateQueries({ queryKey: ["pastas"] });
         }
-        
-        pastaId = newPasta.id;
-        queryClient.invalidateQueries({ queryKey: ["pastas"] });
       }
       
       const processData = {
