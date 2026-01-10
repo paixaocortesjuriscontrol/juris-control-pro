@@ -391,21 +391,29 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
               </span>
             </div>
             {lastRunFromHistorico && lastRunFromHistorico.totalPaginas > 0 && (
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="gap-1">
-                  <Layers className="h-3 w-3" />
-                  {lastRunFromHistorico.totalPaginas} páginas
-                </Badge>
-                <Badge variant="outline" className="gap-1">
-                  <FileText className="h-3 w-3" />
-                  {lastRunFromHistorico.totalResultados} resultados
-                </Badge>
-                {lastRunFromHistorico.novas > 0 && (
-                  <Badge variant="default" className="gap-1 bg-green-500">
-                    <CheckCircle2 className="h-3 w-3" />
-                    {lastRunFromHistorico.novas} novas
-                  </Badge>
+              <div className="space-y-1">
+                {/* Show history date if different from last execution */}
+                {lastRunFromHistorico.executadoEm && (
+                  <p className="text-xs text-muted-foreground">
+                    Último relatório: {format(toZonedTime(new Date(lastRunFromHistorico.executadoEm), 'America/Sao_Paulo'), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                  </p>
                 )}
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="gap-1">
+                    <Layers className="h-3 w-3" />
+                    {lastRunFromHistorico.totalPaginas} páginas
+                  </Badge>
+                  <Badge variant="outline" className="gap-1">
+                    <FileText className="h-3 w-3" />
+                    {lastRunFromHistorico.totalResultados} resultados
+                  </Badge>
+                  {lastRunFromHistorico.novas > 0 && (
+                    <Badge variant="default" className="gap-1 bg-green-500">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {lastRunFromHistorico.novas} novas
+                    </Badge>
+                  )}
+                </div>
               </div>
             )}
           </div>

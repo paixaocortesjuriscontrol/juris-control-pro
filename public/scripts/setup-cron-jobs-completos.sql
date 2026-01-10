@@ -69,13 +69,13 @@ SELECT cron.schedule(
 
 -- =============================================
 -- 3. MONITORAR DJEN PROCESSOS
--- Executa 2x ao dia (09h e 19h BRT)
+-- Executa 2x ao dia (08h e 18h BRT)
 -- =============================================
 
--- 09h BRT = 12h UTC
+-- 08h BRT = 11h UTC
 SELECT cron.schedule(
   'monitorar-djen-processos-manha',
-  '0 12 * * *',
+  '0 11 * * *',
   $$
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen-processos',
@@ -85,10 +85,10 @@ SELECT cron.schedule(
   $$
 );
 
--- 19h BRT = 22h UTC
+-- 18h BRT = 21h UTC
 SELECT cron.schedule(
   'monitorar-djen-processos-tarde',
-  '0 22 * * *',
+  '0 21 * * *',
   $$
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen-processos',
