@@ -3,7 +3,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen } from "lucide-react";
+import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -131,6 +131,10 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [newProcessoId, setNewProcessoId] = useState<string | null>(null);
+  
+  // State for creating new pasta
+  const [criarNovaPasta, setCriarNovaPasta] = useState(false);
+  const [novaPastaNome, setNovaPastaNome] = useState("");
 
   const isEditing = !!processo;
 
@@ -214,6 +218,8 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       setActiveTab("basico");
       setFiles([]);
       setNewProcessoId(null);
+      setCriarNovaPasta(false);
+      setNovaPastaNome("");
       
       if (processo) {
         form.reset({
@@ -486,10 +492,37 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
   const onSubmit = async (values: FormValues) => {
     setLoading(true);
     try {
+      let pastaId = values.pasta_id || null;
+      
+      // Create new pasta if requested
+      if (criarNovaPasta && novaPastaNome.trim() && user) {
+        const { data: newPasta, error: pastaError } = await supabase
+          .from("pastas")
+          .insert({
+            nome: novaPastaNome.trim(),
+            criado_por: user.id,
+          })
+          .select("id")
+          .single();
+        
+        if (pastaError) {
+          toast({
+            title: "Erro ao criar pasta",
+            description: pastaError.message,
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+        
+        pastaId = newPasta.id;
+        queryClient.invalidateQueries({ queryKey: ["pastas"] });
+      }
+      
       const processData = {
         numero: values.numero.trim(),
         tipo_processo: values.tipo_processo,
-        pasta_id: values.pasta_id || null,
+        pasta_id: pastaId,
         assunto: values.assunto || null,
         area: values.area,
         status: values.status,
@@ -683,35 +716,71 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                   )}
                 />
 
-                {/* Pasta field - Before processo number */}
-                <FormField
-                  control={form.control}
-                  name="pasta_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2">
-                        <FolderOpen className="w-4 h-4" />
-                        Pasta
-                      </FormLabel>
-                      <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione a pasta" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">Nenhuma pasta</SelectItem>
-                          {pastas.map((pasta) => (
-                            <SelectItem key={pasta.id} value={pasta.id}>
-                              {pasta.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
+                {/* Pasta field - Select existing or create new */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <FormLabel className="flex items-center gap-2">
+                      <FolderOpen className="w-4 h-4" />
+                      Pasta
+                    </FormLabel>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCriarNovaPasta(!criarNovaPasta);
+                        if (!criarNovaPasta) {
+                          form.setValue("pasta_id", "");
+                        } else {
+                          setNovaPastaNome("");
+                        }
+                      }}
+                      className="text-xs"
+                    >
+                      {criarNovaPasta ? (
+                        <>Selecionar Existente</>
+                      ) : (
+                        <>
+                          <Plus className="w-3 h-3 mr-1" />
+                          Criar Nova
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {criarNovaPasta ? (
+                    <Input
+                      placeholder="Digite o nome da nova pasta"
+                      value={novaPastaNome}
+                      onChange={(e) => setNovaPastaNome(e.target.value)}
+                    />
+                  ) : (
+                    <FormField
+                      control={form.control}
+                      name="pasta_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione a pasta" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">Nenhuma pasta</SelectItem>
+                              {pastas.map((pasta) => (
+                                <SelectItem key={pasta.id} value={pasta.id}>
+                                  {pasta.nome}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   )}
-                />
+                </div>
 
                 <div className="flex gap-2">
                   <FormField
