@@ -184,11 +184,13 @@ export default function ProcessoDetalhes() {
     },
   });
 
+  // Coordenação ID ativo para buscar membros - prioriza o formData quando em edição
+  const coordenacaoAtiva = editando ? (formData.coordenacao_id || "") : (processo?.coordenacao_id || "");
+
   const { data: membrosCoordenacao = [] } = useQuery({
-    queryKey: ["membros-coordenacao", formData.coordenacao_id || processo?.coordenacao_id],
+    queryKey: ["membros-coordenacao", coordenacaoAtiva],
     queryFn: async () => {
-      const coordId = formData.coordenacao_id || processo?.coordenacao_id;
-      if (!coordId) return [];
+      if (!coordenacaoAtiva) return [];
       
       const { data, error } = await supabase
         .from("membros_coordenacao")
@@ -197,12 +199,12 @@ export default function ProcessoDetalhes() {
           cargo,
           profiles:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
         `)
-        .eq("coordenacao_id", coordId);
+        .eq("coordenacao_id", coordenacaoAtiva);
       
       if (error) throw error;
       return data || [];
     },
-    enabled: !!(formData.coordenacao_id || processo?.coordenacao_id),
+    enabled: !!coordenacaoAtiva,
   });
 
   const { data: clientes = [] } = useQuery({
@@ -2399,9 +2401,9 @@ export default function ProcessoDetalhes() {
                     <div className="space-y-1">
                       <Label className="text-sm">Coordenação</Label>
                       <Select 
-                        value={formData.coordenacao_id || ""} 
+                        value={formData.coordenacao_id || "__none__"} 
                         onValueChange={(v) => {
-                          handleInputChange("coordenacao_id", v);
+                          handleInputChange("coordenacao_id", v === "__none__" ? "" : v);
                           handleInputChange("advogado_responsavel_id", "__none__");
                         }}
                       >
@@ -2409,6 +2411,7 @@ export default function ProcessoDetalhes() {
                           <SelectValue placeholder="Selecione a coordenação" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="__none__">Nenhuma coordenação</SelectItem>
                           {coordenacoes.map((coord) => (
                             <SelectItem key={coord.id} value={coord.id}>
                               {coord.nome} ({areaLabels[coord.area] || coord.area})
@@ -2422,11 +2425,11 @@ export default function ProcessoDetalhes() {
                       <Select 
                         value={formData.advogado_responsavel_id || "__none__"} 
                         onValueChange={(v) => handleInputChange("advogado_responsavel_id", v)}
-                        disabled={!formData.coordenacao_id && !processo.coordenacao_id}
+                        disabled={!formData.coordenacao_id}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder={
-                            !formData.coordenacao_id && !processo.coordenacao_id 
+                            !formData.coordenacao_id 
                               ? "Selecione coordenação primeiro" 
                               : "Selecione o advogado"
                           } />
