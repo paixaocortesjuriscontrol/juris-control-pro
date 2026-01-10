@@ -222,158 +222,152 @@ const AnaliseDjen = () => {
   return (
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Stats Cards - Mobile optimized */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
-            <CardContent className="pt-4">
+            <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Hoje</p>
-                  <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">
-                    {loadingStats ? <Loader2 className="w-6 h-6 animate-spin" /> : totalHoje}
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Total Hoje</p>
+                  <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">
+                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : totalHoje}
                   </p>
                 </div>
-                <FileText className="w-10 h-10 text-blue-500/50" />
+                <FileText className="w-6 h-6 md:w-10 md:h-10 text-blue-500/50 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800">
-            <CardContent className="pt-4">
+            <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Não Lidas</p>
-                  <p className="text-3xl font-bold text-amber-700 dark:text-amber-300">
-                    {loadingStats ? <Loader2 className="w-6 h-6 animate-spin" /> : naoLidasHoje}
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm font-medium text-amber-600 dark:text-amber-400 truncate">Não Lidas</p>
+                  <p className="text-xl md:text-3xl font-bold text-amber-700 dark:text-amber-300">
+                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : naoLidasHoje}
                   </p>
                 </div>
-                <Eye className="w-10 h-10 text-amber-500/50" />
+                <Eye className="w-6 h-6 md:w-10 md:h-10 text-amber-500/50 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200 dark:border-purple-800">
-            <CardContent className="pt-4">
+            <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Por Termos</p>
-                  <p className="text-3xl font-bold text-purple-700 dark:text-purple-300">
-                    {loadingStats ? <Loader2 className="w-6 h-6 animate-spin" /> : 
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm font-medium text-purple-600 dark:text-purple-400 truncate">Por Termos</p>
+                  <p className="text-xl md:text-3xl font-bold text-purple-700 dark:text-purple-300">
+                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : 
                       estatisticas.reduce((acc, s) => acc + s.por_tipo.termo, 0)}
                   </p>
                 </div>
-                <FileSearch className="w-10 h-10 text-purple-500/50" />
+                <FileSearch className="w-6 h-6 md:w-10 md:h-10 text-purple-500/50 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800">
-            <CardContent className="pt-4">
+            <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Por Processos</p>
-                  <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
-                    {loadingStats ? <Loader2 className="w-6 h-6 animate-spin" /> : 
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 truncate">Por Processos</p>
+                  <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">
+                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : 
                       estatisticas.reduce((acc, s) => acc + s.por_tipo.processo, 0)}
                   </p>
                 </div>
-                <Gavel className="w-10 h-10 text-emerald-500/50" />
+                <Gavel className="w-6 h-6 md:w-10 md:h-10 text-emerald-500/50 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filtros */}
+        {/* Filtros - Mobile optimized */}
         <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="w-5 h-5" />
+          <CardHeader className="pb-2 md:pb-4 px-3 md:px-6">
+            <CardTitle className="text-base md:text-lg flex items-center gap-2">
+              <Filter className="w-4 h-4 md:w-5 md:h-5" />
               Filtros
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="space-y-2">
-                <Label>Coordenação</Label>
-                <Select 
-                  value={coordenacaoId || "__all__"} 
-                  onValueChange={(val) => setCoordenacaoId(val === "__all__" ? "" : val)}
+          <CardContent className="px-3 md:px-6 pb-3 md:pb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs md:text-sm">Coordenação</Label>
+                <select
+                  className="w-full h-9 md:h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={coordenacaoId || "__all__"}
+                  onChange={(e) => setCoordenacaoId(e.target.value === "__all__" ? "" : e.target.value)}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Todas</SelectItem>
-                    {coordenacoes?.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="__all__">Todas</option>
+                  {coordenacoes?.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Tipo de Origem</Label>
-                <Select 
-                  value={tipoOrigem} 
-                  onValueChange={(val) => setTipoOrigem(val as any)}
+              <div className="space-y-1.5">
+                <Label className="text-xs md:text-sm">Tipo de Origem</Label>
+                <select
+                  className="w-full h-9 md:h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={tipoOrigem}
+                  onChange={(e) => setTipoOrigem(e.target.value as any)}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="termo">Por Termos/OAB</SelectItem>
-                    <SelectItem value="processo">Por Processos</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <option value="todos">Todos</option>
+                  <option value="termo">Por Termos/OAB</option>
+                  <option value="processo">Por Processos</option>
+                </select>
               </div>
 
               {!apenasHoje && (
                 <>
-                  <div className="space-y-2">
-                    <Label>Data Início</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs md:text-sm">Data Início</Label>
                     <Input
                       type="date"
                       value={dataInicio}
                       onChange={(e) => setDataInicio(e.target.value)}
+                      className="h-9 md:h-10 text-sm"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Data Fim</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs md:text-sm">Data Fim</Label>
                     <Input
                       type="date"
                       value={dataFim}
                       onChange={(e) => setDataFim(e.target.value)}
+                      className="h-9 md:h-10 text-sm"
                     />
                   </div>
                 </>
               )}
 
-              <div className="space-y-2">
-                <Label>Buscar</Label>
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+                <Label className="text-xs md:text-sm">Buscar</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Termo, processo, parte..."
+                    placeholder="Termo, processo..."
                     value={termoBusca}
                     onChange={(e) => setTermoBusca(e.target.value)}
-                    className="pl-9"
+                    className="pl-9 h-9 md:h-10 text-sm"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 mt-4">
+            <div className="flex flex-wrap items-center gap-3 md:gap-4 mt-3 md:mt-4">
               <div className="flex items-center gap-2">
                 <Checkbox 
                   id="apenasHoje"
                   checked={apenasHoje}
                   onCheckedChange={(checked) => setApenasHoje(checked as boolean)}
                 />
-                <Label htmlFor="apenasHoje" className="cursor-pointer font-medium">
+                <Label htmlFor="apenasHoje" className="cursor-pointer text-xs md:text-sm font-medium">
                   Apenas hoje
                 </Label>
               </div>
@@ -384,7 +378,7 @@ const AnaliseDjen = () => {
                   checked={apenasNaoLidas}
                   onCheckedChange={(checked) => setApenasNaoLidas(checked as boolean)}
                 />
-                <Label htmlFor="naoLidas" className="cursor-pointer">
+                <Label htmlFor="naoLidas" className="cursor-pointer text-xs md:text-sm">
                   Apenas não lidas
                 </Label>
               </div>
@@ -392,17 +386,18 @@ const AnaliseDjen = () => {
           </CardContent>
         </Card>
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-2">
+        {/* Actions - Mobile optimized */}
+        <div className="flex flex-wrap gap-1.5 md:gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={toggleSelectAll}
             disabled={publicacoes.length === 0}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
           >
             {selectedIds.size === publicacoes.length && publicacoes.length > 0
-              ? "Desmarcar Todos"
-              : `Selecionar Todos (${publicacoes.length})`}
+              ? "Desmarcar"
+              : `Selecionar (${publicacoes.length})`}
           </Button>
 
           <Button
@@ -410,13 +405,16 @@ const AnaliseDjen = () => {
             size="sm"
             onClick={handleMarcarLidas}
             disabled={selectedIds.size === 0 || marcarComoLida.isPending}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
           >
             {marcarComoLida.isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
             ) : (
-              <CheckCircle className="w-4 h-4 mr-2" />
+              <CheckCircle className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
             )}
-            Marcar como Lida ({selectedIds.size})
+            <span className="hidden sm:inline">Marcar Lida</span>
+            <span className="sm:hidden">Lida</span>
+            <span className="ml-1">({selectedIds.size})</span>
           </Button>
 
           <Button
@@ -424,11 +422,19 @@ const AnaliseDjen = () => {
             size="sm"
             onClick={toggleExpandAll}
             disabled={publicacoes.length === 0}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
           >
-            <ChevronsUpDown className="w-4 h-4 mr-2" />
-            {expandedPublicacoes.size === publicacoes.length && publicacoes.length > 0
-              ? "Recolher Todos"
-              : "Expandir Todos"}
+            <ChevronsUpDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            <span className="hidden sm:inline">
+              {expandedPublicacoes.size === publicacoes.length && publicacoes.length > 0
+                ? "Recolher"
+                : "Expandir"}
+            </span>
+            <span className="sm:hidden">
+              {expandedPublicacoes.size === publicacoes.length && publicacoes.length > 0
+                ? "−"
+                : "+"}
+            </span>
           </Button>
         </div>
 
@@ -458,86 +464,94 @@ const AnaliseDjen = () => {
                   onOpenChange={() => toggleCoordenacao(grupo.coordenacao_id)}
                 >
                   <CollapsibleTrigger asChild>
-                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors px-3 md:px-6 py-3 md:py-4">
+                      <div className="flex items-start md:items-center justify-between gap-2">
+                        <div className="flex items-start md:items-center gap-2 md:gap-3 min-w-0 flex-1">
                           {expandedCoordenacoes.has(grupo.coordenacao_id) || expandedCoordenacoes.has('all') ? (
-                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                            <ChevronDown className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground flex-shrink-0 mt-0.5 md:mt-0" />
                           ) : (
-                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                            <ChevronRight className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground flex-shrink-0 mt-0.5 md:mt-0" />
                           )}
-                          <Building2 className="w-5 h-5 text-primary" />
-                          <div>
-                            <CardTitle className="text-lg">{grupo.coordenacao_nome}</CardTitle>
-                            <CardDescription className="flex items-center gap-2 mt-1">
-                              <Badge variant="secondary">{grupo.publicacoes.length} publicações</Badge>
-                              <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+                          <Building2 className="w-4 h-4 md:w-5 md:h-5 text-primary flex-shrink-0 mt-0.5 md:mt-0" />
+                          <div className="min-w-0 flex-1">
+                            <CardTitle className="text-sm md:text-lg truncate">{grupo.coordenacao_nome}</CardTitle>
+                            <div className="flex flex-wrap items-center gap-1 md:gap-2 mt-1">
+                              <Badge variant="secondary" className="text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
+                                {grupo.publicacoes.length} pub.
+                              </Badge>
+                              <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                 {grupo.publicacoes.filter(p => p.tipo_origem === 'termo').length} termos
                               </Badge>
-                              <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">
-                                {grupo.publicacoes.filter(p => p.tipo_origem === 'processo').length} processos
+                              <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
+                                {grupo.publicacoes.filter(p => p.tipo_origem === 'processo').length} proc.
                               </Badge>
-                            </CardDescription>
+                            </div>
                           </div>
                         </div>
                         <Badge 
                           variant="default" 
                           className={cn(
+                            "flex-shrink-0 text-[10px] md:text-xs px-1.5 md:px-2",
                             grupo.publicacoes.filter(p => !p.lida).length > 0 
                               ? "bg-amber-500" 
                               : "bg-green-500"
                           )}
                         >
-                          {grupo.publicacoes.filter(p => !p.lida).length} não lidas
+                          {grupo.publicacoes.filter(p => !p.lida).length}
+                          <span className="hidden sm:inline ml-1">não lidas</span>
                         </Badge>
                       </div>
                     </CardHeader>
                   </CollapsibleTrigger>
 
                   <CollapsibleContent>
-                    <CardContent className="pt-0">
-                      <div className="space-y-3">
+                    <CardContent className="pt-0 px-2 md:px-6 pb-3">
+                      <div className="space-y-2 md:space-y-3">
                         {grupo.publicacoes.map((pub) => {
                           const isExpanded = expandedPublicacoes.has(pub.id);
                           return (
                           <div
                             key={pub.id}
                             className={cn(
-                              "border rounded-lg p-4 transition-colors",
+                              "border rounded-lg p-2 md:p-4 transition-colors",
                               selectedIds.has(pub.id) && "bg-primary/5 border-primary/30",
                               !pub.lida && "border-l-4 border-l-primary"
                             )}
                           >
-                            <div className="flex items-start gap-3">
+                            <div className="flex items-start gap-2 md:gap-3">
                               <Checkbox
                                 checked={selectedIds.has(pub.id)}
                                 onCheckedChange={() => toggleSelect(pub.id, pub.tipo_origem)}
+                                className="mt-0.5"
                               />
                               
-                              <div className="flex-1 min-w-0">
-                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <div className="flex-1 min-w-0 overflow-hidden">
+                                <div className="flex flex-wrap items-center gap-1 md:gap-2 mb-1.5 md:mb-2">
                                   {pub.tipo_origem === 'termo' ? (
-                                    <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100">
-                                      <FileSearch className="w-3 h-3 mr-1" />
-                                      {pub.monitoramento_tipo === 'advogado' 
-                                        ? `OAB ${pub.monitoramento_oab || ''} ${pub.monitoramento_uf || ''}`
-                                        : pub.monitoramento_termo || "Termo"
-                                      }
+                                    <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 max-w-[150px] md:max-w-none truncate">
+                                      <FileSearch className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
+                                      <span className="truncate">
+                                        {pub.monitoramento_tipo === 'advogado' 
+                                          ? `OAB ${pub.monitoramento_oab || ''} ${pub.monitoramento_uf || ''}`
+                                          : pub.monitoramento_termo || "Termo"
+                                        }
+                                      </span>
                                     </Badge>
                                   ) : (
-                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-                                      <Gavel className="w-3 h-3 mr-1" />
-                                      Processo Cadastrado
+                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
+                                      <Gavel className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
+                                      <span className="hidden sm:inline">Processo Cadastrado</span>
+                                      <span className="sm:hidden">Processo</span>
                                     </Badge>
                                   )}
                                   
                                   {!pub.lida && (
-                                    <Badge variant="default" className="bg-amber-500">
+                                    <Badge variant="default" className="bg-amber-500 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                       Nova
                                     </Badge>
                                   )}
                                   
-                                  <span className="text-xs text-muted-foreground ml-auto">
+                                  <span className="text-[10px] md:text-xs text-muted-foreground ml-auto flex-shrink-0">
                                     {formatDateShort(pub.created_at)}
                                   </span>
                                 </div>
@@ -548,86 +562,87 @@ const AnaliseDjen = () => {
                                   onClick={() => toggleExpandPublicacao(pub.id)}
                                 >
                                   {pub.processo_numero && (
-                                    <div className="flex items-center gap-2 mb-1">
+                                    <div className="flex items-start md:items-center gap-1 md:gap-2 mb-1 flex-wrap">
                                       {isExpanded ? (
-                                        <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                        <ChevronDown className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground flex-shrink-0 mt-0.5 md:mt-0" />
                                       ) : (
-                                        <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                        <ChevronRight className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground flex-shrink-0 mt-0.5 md:mt-0" />
                                       )}
-                                      <p className="text-sm font-medium text-primary hover:underline">
+                                      <p className="text-xs md:text-sm font-medium text-primary hover:underline break-all">
                                         {pub.processo_numero}
                                       </p>
                                       {pub.tipo_origem === 'processo' && pub.processo_id && (
                                         <Link 
                                           to={`/processos/${pub.processo_id}`}
-                                          className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                                          className="text-[10px] md:text-xs text-muted-foreground hover:text-primary flex items-center gap-0.5 md:gap-1 flex-shrink-0"
                                           onClick={(e) => e.stopPropagation()}
                                         >
-                                          <ExternalLink className="w-3 h-3" />
-                                          Ver processo
+                                          <ExternalLink className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                          <span className="hidden sm:inline">Ver processo</span>
                                         </Link>
                                       )}
                                     </div>
                                   )}
 
                                   {!pub.processo_numero && (
-                                    <div className="flex items-center gap-2 mb-1">
+                                    <div className="flex items-center gap-1 md:gap-2 mb-1">
                                       {isExpanded ? (
-                                        <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                        <ChevronDown className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground flex-shrink-0" />
                                       ) : (
-                                        <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                        <ChevronRight className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground flex-shrink-0" />
                                       )}
-                                      <span className="text-sm text-muted-foreground hover:text-foreground">
+                                      <span className="text-xs md:text-sm text-muted-foreground hover:text-foreground">
                                         Clique para ver detalhes
                                       </span>
                                     </div>
                                   )}
 
                                   {pub.tipo_origem === 'processo' && (pub.polo_ativo || pub.polo_passivo) && (
-                                    <p className="text-xs text-muted-foreground mb-1 ml-6">
+                                    <p className="text-[10px] md:text-xs text-muted-foreground mb-1 ml-4 md:ml-6 break-words">
                                       {pub.polo_ativo && <span><strong>Ativo:</strong> {pub.polo_ativo}</span>}
-                                      {pub.polo_ativo && pub.polo_passivo && ' | '}
+                                      {pub.polo_ativo && pub.polo_passivo && <br className="md:hidden" />}
+                                      {pub.polo_ativo && pub.polo_passivo && <span className="hidden md:inline"> | </span>}
                                       {pub.polo_passivo && <span><strong>Passivo:</strong> {pub.polo_passivo}</span>}
                                     </p>
                                   )}
 
                                   {!isExpanded && (
-                                    <p className="text-sm text-muted-foreground line-clamp-2 ml-6">
-                                      {pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 250) || "Sem conteúdo"}...
+                                    <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 ml-4 md:ml-6 break-words overflow-hidden">
+                                      {pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 200) || "Sem conteúdo"}...
                                     </p>
                                   )}
                                 </div>
 
                                 {/* Expanded inline content */}
                                 {isExpanded && (
-                                  <div className="mt-3 ml-6 space-y-3 border-t pt-3">
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                  <div className="mt-2 md:mt-3 ml-4 md:ml-6 space-y-2 md:space-y-3 border-t pt-2 md:pt-3">
+                                    <div className="grid grid-cols-2 gap-2 md:gap-3 text-[10px] md:text-xs">
                                       <div>
                                         <strong>Data Publicação:</strong>
-                                        <p className="text-muted-foreground">{formatDate(pub.data_publicacao)}</p>
+                                        <p className="text-muted-foreground break-words">{formatDate(pub.data_publicacao)}</p>
                                       </div>
                                       <div>
                                         <strong>Capturado em:</strong>
-                                        <p className="text-muted-foreground">{formatDate(pub.created_at)}</p>
+                                        <p className="text-muted-foreground break-words">{formatDate(pub.created_at)}</p>
                                       </div>
                                       {pub.fonte && (
                                         <div>
                                           <strong>Fonte:</strong>
-                                          <p className="text-muted-foreground">{pub.fonte}</p>
+                                          <p className="text-muted-foreground break-words">{pub.fonte}</p>
                                         </div>
                                       )}
                                       {pub.tribunal && (
                                         <div>
                                           <strong>Tribunal:</strong>
-                                          <p className="text-muted-foreground">{pub.tribunal}</p>
+                                          <p className="text-muted-foreground break-words">{pub.tribunal}</p>
                                         </div>
                                       )}
                                     </div>
 
                                     <div>
-                                      <strong className="text-xs">Conteúdo:</strong>
+                                      <strong className="text-[10px] md:text-xs">Conteúdo:</strong>
                                       <div 
-                                        className="mt-2 p-3 bg-muted/50 rounded-lg text-sm prose prose-sm max-w-none dark:prose-invert"
+                                        className="mt-1.5 md:mt-2 p-2 md:p-3 bg-muted/50 rounded-lg text-xs md:text-sm prose prose-sm max-w-none dark:prose-invert overflow-x-auto break-words [overflow-wrap:anywhere]"
                                         dangerouslySetInnerHTML={{ 
                                           __html: pub.conteudo || "Sem conteúdo" 
                                         }}
@@ -637,7 +652,7 @@ const AnaliseDjen = () => {
                                 )}
 
                                 {!isExpanded && pub.tribunal && (
-                                  <p className="text-xs text-muted-foreground mt-1 ml-6">
+                                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1 ml-4 md:ml-6">
                                     <strong>Tribunal:</strong> {pub.tribunal}
                                   </p>
                                 )}
@@ -648,8 +663,9 @@ const AnaliseDjen = () => {
                                 size="sm"
                                 onClick={() => handleView(pub)}
                                 title="Ver detalhes em modal"
+                                className="p-1.5 md:p-2 h-auto flex-shrink-0"
                               >
-                                <Eye className="w-4 h-4" />
+                                <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
                               </Button>
                             </div>
                           </div>
@@ -664,25 +680,25 @@ const AnaliseDjen = () => {
           </div>
         )}
 
-        {/* View Dialog */}
+        {/* View Dialog - Mobile optimized */}
         <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
+          <DialogContent className="max-w-4xl max-h-[90vh] w-[95vw] md:w-auto p-3 md:p-6">
+            <DialogHeader className="pb-2">
+              <DialogTitle className="flex items-center gap-2 text-sm md:text-base">
+                <FileText className="w-4 h-4 md:w-5 md:h-5" />
                 Detalhes da Publicação
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-xs md:text-sm">
                 {selectedPublicacao?.tipo_origem === 'termo' ? 'Monitoramento por Termo/OAB' : 'Monitoramento por Processo'}
               </DialogDescription>
             </DialogHeader>
 
             {selectedPublicacao && (
-              <ScrollArea className="max-h-[60vh]">
-                <div className="space-y-4 p-1">
-                  <div className="flex flex-wrap gap-2">
+              <ScrollArea className="max-h-[65vh] md:max-h-[60vh]">
+                <div className="space-y-3 md:space-y-4 pr-2 md:pr-4">
+                  <div className="flex flex-wrap gap-1.5 md:gap-2">
                     {selectedPublicacao.tipo_origem === 'termo' ? (
-                      <Badge className="bg-purple-100 text-purple-700">
+                      <Badge className="bg-purple-100 text-purple-700 text-xs">
                         <FileSearch className="w-3 h-3 mr-1" />
                         {selectedPublicacao.monitoramento_tipo === 'advogado'
                           ? `OAB ${selectedPublicacao.monitoramento_oab} ${selectedPublicacao.monitoramento_uf}`
@@ -690,56 +706,56 @@ const AnaliseDjen = () => {
                         }
                       </Badge>
                     ) : (
-                      <Badge className="bg-emerald-100 text-emerald-700">
+                      <Badge className="bg-emerald-100 text-emerald-700 text-xs">
                         <Gavel className="w-3 h-3 mr-1" />
                         Processo Cadastrado
                       </Badge>
                     )}
                     {selectedPublicacao.coordenacao_nome && (
-                      <Badge variant="outline">
+                      <Badge variant="outline" className="text-xs">
                         <Building2 className="w-3 h-3 mr-1" />
                         {selectedPublicacao.coordenacao_nome}
                       </Badge>
                     )}
                     {!selectedPublicacao.lida && (
-                      <Badge className="bg-amber-500">Nova</Badge>
+                      <Badge className="bg-amber-500 text-xs">Nova</Badge>
                     )}
                   </div>
 
                   {selectedPublicacao.processo_numero && (
-                    <div className="flex items-center gap-2">
-                      <strong className="text-sm">Processo:</strong>
-                      <span className="text-sm font-mono">{selectedPublicacao.processo_numero}</span>
+                    <div className="flex flex-wrap items-start md:items-center gap-1 md:gap-2">
+                      <strong className="text-xs md:text-sm">Processo:</strong>
+                      <span className="text-xs md:text-sm font-mono break-all">{selectedPublicacao.processo_numero}</span>
                       {selectedPublicacao.tipo_origem === 'processo' && selectedPublicacao.processo_id && (
                         <Link 
                           to={`/processos/${selectedPublicacao.processo_id}`}
-                          className="text-sm text-primary hover:underline flex items-center gap-1"
+                          className="text-xs md:text-sm text-primary hover:underline flex items-center gap-1"
                         >
                           <ExternalLink className="w-3 h-3" />
-                          Abrir processo
+                          Abrir
                         </Link>
                       )}
                     </div>
                   )}
 
                   {selectedPublicacao.tipo_origem === 'processo' && (
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 text-xs md:text-sm">
                       {selectedPublicacao.polo_ativo && (
                         <div>
                           <strong>Polo Ativo:</strong>
-                          <p className="text-muted-foreground">{selectedPublicacao.polo_ativo}</p>
+                          <p className="text-muted-foreground break-words">{selectedPublicacao.polo_ativo}</p>
                         </div>
                       )}
                       {selectedPublicacao.polo_passivo && (
                         <div>
                           <strong>Polo Passivo:</strong>
-                          <p className="text-muted-foreground">{selectedPublicacao.polo_passivo}</p>
+                          <p className="text-muted-foreground break-words">{selectedPublicacao.polo_passivo}</p>
                         </div>
                       )}
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 gap-2 md:gap-4 text-xs md:text-sm">
                     <div>
                       <strong>Data Publicação:</strong>
                       <p className="text-muted-foreground">{formatDate(selectedPublicacao.data_publicacao)}</p>
@@ -751,7 +767,7 @@ const AnaliseDjen = () => {
                     {selectedPublicacao.fonte && (
                       <div>
                         <strong>Fonte:</strong>
-                        <p className="text-muted-foreground">{selectedPublicacao.fonte}</p>
+                        <p className="text-muted-foreground break-words">{selectedPublicacao.fonte}</p>
                       </div>
                     )}
                     {selectedPublicacao.tribunal && (
@@ -763,9 +779,9 @@ const AnaliseDjen = () => {
                   </div>
 
                   <div>
-                    <strong className="text-sm">Conteúdo:</strong>
+                    <strong className="text-xs md:text-sm">Conteúdo:</strong>
                     <div 
-                      className="mt-2 p-4 bg-muted/50 rounded-lg text-sm prose prose-sm max-w-none dark:prose-invert"
+                      className="mt-1.5 md:mt-2 p-2 md:p-4 bg-muted/50 rounded-lg text-xs md:text-sm prose prose-sm max-w-none dark:prose-invert overflow-x-auto break-words [overflow-wrap:anywhere]"
                       dangerouslySetInnerHTML={{ 
                         __html: selectedPublicacao.conteudo || "Sem conteúdo" 
                       }}
