@@ -1748,6 +1748,59 @@ export type Database = {
           },
         ]
       }
+      monitoramentos_eprocesso: {
+        Row: {
+          ativo: boolean | null
+          created_at: string
+          criado_por: string
+          erro_ultima_verificacao: string | null
+          id: string
+          numero_processo: string
+          processo_id: string | null
+          total_andamentos: number | null
+          ultima_verificacao: string | null
+          ultimo_andamento_data: string | null
+          ultimo_andamento_texto: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string
+          criado_por: string
+          erro_ultima_verificacao?: string | null
+          id?: string
+          numero_processo: string
+          processo_id?: string | null
+          total_andamentos?: number | null
+          ultima_verificacao?: string | null
+          ultimo_andamento_data?: string | null
+          ultimo_andamento_texto?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string
+          criado_por?: string
+          erro_ultima_verificacao?: string | null
+          id?: string
+          numero_processo?: string
+          processo_id?: string | null
+          total_andamentos?: number | null
+          ultima_verificacao?: string | null
+          ultimo_andamento_data?: string | null
+          ultimo_andamento_texto?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoramentos_eprocesso_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monitoramentos_pje: {
         Row: {
           ativo: boolean
@@ -2012,11 +2065,13 @@ export type Database = {
           area: string
           assunto: string | null
           ativo_passivo: string | null
+          auto_infracao: string | null
           autor: string | null
           cargo_reconhecimento_vinculo: string | null
           categoria_importacao: string | null
           classe: string | null
           cliente_id: string | null
+          cnpj_fiscalizado: string | null
           comarca: string | null
           coordenacao_id: string | null
           cpf_cnpj_parte_contraria: string | null
@@ -2029,6 +2084,7 @@ export type Database = {
           data_distribuicao: string | null
           data_encerramento: string | null
           data_fato_gerador: string | null
+          data_lavratura: string | null
           data_recebimento: string | null
           data_situacao: string | null
           deposito_judicial: number | null
@@ -2037,6 +2093,7 @@ export type Database = {
           epoca_razao: string | null
           esfera: string | null
           fase: string | null
+          fiscal_responsavel: string | null
           forma_pagamento: string | null
           funcao: string | null
           funcao_parte_contraria: string | null
@@ -2054,11 +2111,13 @@ export type Database = {
           motivo_encerramento: string | null
           mudanca_risco: boolean | null
           natureza: string | null
+          nit_fiscalizado: string | null
           nome_cliente_envolvido: string | null
           numero: string
           observacao_advogado: string | null
           observacao_resp_subsidiaria: string | null
           observacoes_processo: string | null
+          orgao_origem: string | null
           pasta_cliente: string | null
           pasta_fisica: string | null
           pasta_id: string | null
@@ -2120,6 +2179,7 @@ export type Database = {
           tipo_controladora: string | null
           tipo_estabilidade: string | null
           tipo_pagamento: string | null
+          tipo_processo: string | null
           transitado_julgado: boolean | null
           tribunal: string | null
           uf: string | null
@@ -2128,6 +2188,7 @@ export type Database = {
           updated_at: string
           valor_causa: number | null
           valor_condenacao: number | null
+          valor_multa: number | null
           valor_pagamento: number | null
           valor_pago: number | null
           valor_perda_anterior: number | null
@@ -2143,11 +2204,13 @@ export type Database = {
           area: string
           assunto?: string | null
           ativo_passivo?: string | null
+          auto_infracao?: string | null
           autor?: string | null
           cargo_reconhecimento_vinculo?: string | null
           categoria_importacao?: string | null
           classe?: string | null
           cliente_id?: string | null
+          cnpj_fiscalizado?: string | null
           comarca?: string | null
           coordenacao_id?: string | null
           cpf_cnpj_parte_contraria?: string | null
@@ -2160,6 +2223,7 @@ export type Database = {
           data_distribuicao?: string | null
           data_encerramento?: string | null
           data_fato_gerador?: string | null
+          data_lavratura?: string | null
           data_recebimento?: string | null
           data_situacao?: string | null
           deposito_judicial?: number | null
@@ -2168,6 +2232,7 @@ export type Database = {
           epoca_razao?: string | null
           esfera?: string | null
           fase?: string | null
+          fiscal_responsavel?: string | null
           forma_pagamento?: string | null
           funcao?: string | null
           funcao_parte_contraria?: string | null
@@ -2185,11 +2250,13 @@ export type Database = {
           motivo_encerramento?: string | null
           mudanca_risco?: boolean | null
           natureza?: string | null
+          nit_fiscalizado?: string | null
           nome_cliente_envolvido?: string | null
           numero: string
           observacao_advogado?: string | null
           observacao_resp_subsidiaria?: string | null
           observacoes_processo?: string | null
+          orgao_origem?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
           pasta_id?: string | null
@@ -2251,6 +2318,7 @@ export type Database = {
           tipo_controladora?: string | null
           tipo_estabilidade?: string | null
           tipo_pagamento?: string | null
+          tipo_processo?: string | null
           transitado_julgado?: boolean | null
           tribunal?: string | null
           uf?: string | null
@@ -2259,6 +2327,7 @@ export type Database = {
           updated_at?: string
           valor_causa?: number | null
           valor_condenacao?: number | null
+          valor_multa?: number | null
           valor_pagamento?: number | null
           valor_pago?: number | null
           valor_perda_anterior?: number | null
@@ -2274,11 +2343,13 @@ export type Database = {
           area?: string
           assunto?: string | null
           ativo_passivo?: string | null
+          auto_infracao?: string | null
           autor?: string | null
           cargo_reconhecimento_vinculo?: string | null
           categoria_importacao?: string | null
           classe?: string | null
           cliente_id?: string | null
+          cnpj_fiscalizado?: string | null
           comarca?: string | null
           coordenacao_id?: string | null
           cpf_cnpj_parte_contraria?: string | null
@@ -2291,6 +2362,7 @@ export type Database = {
           data_distribuicao?: string | null
           data_encerramento?: string | null
           data_fato_gerador?: string | null
+          data_lavratura?: string | null
           data_recebimento?: string | null
           data_situacao?: string | null
           deposito_judicial?: number | null
@@ -2299,6 +2371,7 @@ export type Database = {
           epoca_razao?: string | null
           esfera?: string | null
           fase?: string | null
+          fiscal_responsavel?: string | null
           forma_pagamento?: string | null
           funcao?: string | null
           funcao_parte_contraria?: string | null
@@ -2316,11 +2389,13 @@ export type Database = {
           motivo_encerramento?: string | null
           mudanca_risco?: boolean | null
           natureza?: string | null
+          nit_fiscalizado?: string | null
           nome_cliente_envolvido?: string | null
           numero?: string
           observacao_advogado?: string | null
           observacao_resp_subsidiaria?: string | null
           observacoes_processo?: string | null
+          orgao_origem?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
           pasta_id?: string | null
@@ -2382,6 +2457,7 @@ export type Database = {
           tipo_controladora?: string | null
           tipo_estabilidade?: string | null
           tipo_pagamento?: string | null
+          tipo_processo?: string | null
           transitado_julgado?: boolean | null
           tribunal?: string | null
           uf?: string | null
@@ -2390,6 +2466,7 @@ export type Database = {
           updated_at?: string
           valor_causa?: number | null
           valor_condenacao?: number | null
+          valor_multa?: number | null
           valor_pagamento?: number | null
           valor_pago?: number | null
           valor_perda_anterior?: number | null
