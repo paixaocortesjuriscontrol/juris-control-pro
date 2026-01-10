@@ -54,6 +54,27 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
       const rows = data || [];
       const totalCount = rows.length > 0 ? Number(rows[0].total_count) : 0;
 
+      // Buscar nomes das pastas apenas para os itens da página atual
+      const pastaIds = Array.from(
+        new Set(
+          rows
+            .map((r: any) => r.pasta_id as string | null | undefined)
+            .filter((id: any): id is string => !!id)
+        )
+      );
+
+      const pastasById = new Map<string, { id: string; nome: string }>();
+      if (pastaIds.length > 0) {
+        const { data: pastasData, error: pastasError } = await supabase
+          .from("pastas")
+          .select("id, nome")
+          .in("id", pastaIds);
+
+        if (!pastasError) {
+          (pastasData || []).forEach((p) => pastasById.set(p.id, { id: p.id, nome: p.nome }));
+        }
+      }
+
       // Map RPC result to the expected shape
       const processos = rows.map((row: any) => ({
         id: row.id,
@@ -70,6 +91,7 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         data_distribuicao: row.data_distribuicao,
         coordenacao_id: row.coordenacao_id,
         pasta_id: row.pasta_id,
+        pasta: row.pasta_id ? pastasById.get(row.pasta_id) ?? null : null,
         created_at: row.created_at,
         advogado_responsavel: row.advogado_responsavel?.id ? row.advogado_responsavel : null,
         cliente: row.cliente?.id ? row.cliente : null,
