@@ -80,18 +80,22 @@ Deno.serve(async (req) => {
       const browserlessUrl = `https://chrome.browserless.io/scrape?token=${browserlessToken}`;
       
       // Step 1: Carregar a página principal e identificar o formulário
+      // URL de consulta direta com o número do processo
+      const consultaUrl = `https://eprocesso.sit.trabalho.gov.br/ProcessoEletronico/AndamentoProcessual?NumeroPAT=${encodeURIComponent(numeroOriginal)}`;
+      
+      console.log("URL de consulta:", consultaUrl);
+      
       const initialResponse = await fetch(browserlessUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          url: eprocessoUrl,
-          waitFor: 3000,
+          url: consultaUrl,
           elements: [
-            { selector: "body" },
-            { selector: "input[type='text'], input[name*='processo'], input[name*='numero'], #NumeroProcesso" },
-            { selector: "form" },
+            { selector: "body", timeout: 10000 },
+            { selector: ".capa-processo, .processo-info, #capa" },
+            { selector: "table, .eventos, .andamentos" },
           ],
           gotoOptions: {
             waitUntil: "networkidle2",
@@ -136,8 +140,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          url: eprocessoUrl,
-          waitFor: 5000,
+          url: consultaUrl,
           gotoOptions: {
             waitUntil: "networkidle2",
             timeout: 30000
