@@ -172,15 +172,17 @@ Deno.serve(async (req) => {
 
     console.log(`Buscando processo administrativo: ${numeroOriginal}`);
 
-    const eprocessoUrl = `https://eprocesso.sit.trabalho.gov.br/ProcessoEletronico/AndamentoProcessual`;
+    // Obs: o portal costuma expor o fluxo "Consultar/AndamentoProcessual".
+    // A rota sem "/Consultar" frequentemente retorna apenas a página inicial (sem dados do processo).
+    const eprocessoUrl = `https://eprocesso.sit.trabalho.gov.br/ProcessoEletronico/Consultar/AndamentoProcessual`;
     const consultaUrl = `${eprocessoUrl}?NumeroPAT=${encodeURIComponent(numeroOriginal)}`;
 
     // ========== 1. Tentar Jina Reader primeiro ==========
     const jinaApiKey = Deno.env.get("JINA_API_KEY");
-    
+
     if (jinaApiKey) {
       console.log("Tentando com Jina Reader...");
-      
+
       try {
         const jinaResponse = await fetch(`https://r.jina.ai/${consultaUrl}`, {
           method: "GET",
@@ -194,9 +196,9 @@ Deno.serve(async (req) => {
           const jinaMarkdown = await jinaResponse.text();
           console.log("Jina retornou conteúdo, tamanho:", jinaMarkdown.length);
           console.log("Jina preview:", jinaMarkdown.substring(0, 800));
-          
+
           const processo = parseEProcessoContent(jinaMarkdown, "", numeroOriginal);
-          
+
           if (processo) {
             console.log("Jina: Processo encontrado com dados");
             return new Response(
@@ -224,7 +226,7 @@ Deno.serve(async (req) => {
 
     if (firecrawlApiKey) {
       console.log("Tentando com Firecrawl...");
-      
+
       try {
         const firecrawlResponse = await fetch("https://api.firecrawl.dev/v1/scrape", {
           method: "POST",
@@ -236,7 +238,7 @@ Deno.serve(async (req) => {
             url: consultaUrl,
             formats: ["markdown", "html"],
             onlyMainContent: false,
-            waitFor: 5000,
+            waitFor: 8000,
           }),
         });
 
@@ -246,12 +248,12 @@ Deno.serve(async (req) => {
 
           const htmlContent = firecrawlData.data?.html || firecrawlData.html || "";
           const markdownContent = firecrawlData.data?.markdown || firecrawlData.markdown || "";
-          
+
           console.log("Firecrawl markdown preview:", markdownContent.substring(0, 800));
 
           if (markdownContent || htmlContent) {
             const processo = parseEProcessoContent(markdownContent, htmlContent, numeroOriginal);
-            
+
             if (processo) {
               console.log("Firecrawl: Processo encontrado");
               return new Response(
@@ -273,13 +275,68 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ========== 3. Nenhum serviço conseguiu ==========
-    if (!jinaApiKey && !firecrawlApiKey) {
+    // ========== 3. Fallback para Browserless (/content) ==========
+    const browserlessApiKey = Deno.env.get("BROWSERLESS_API_KEY");
+
+    if (browserlessApiKey) {
+      console.log("Tentando com Browserless (/content)...");
+
+      try {
+        const contentResponse = await fetch(`https://chrome.browserless.io/content?token=${browserlessApiKey}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+          },
+          body: JSON.stringify({
+            url: consultaUrl,
+            gotoOptions: {
+              waitUntil: "networkidle2",
+              timeout: 60000,
+            },
+            waitForTimeout: 2000,
+          }),
+        });
+
+        if (contentResponse.ok) {
+          const html = await contentResponse.text();
+          console.log("Browserless HTML length:", html.length);
+
+          const antiBot = /captcha|recaptcha|cloudflare|verify you are human|acesso negado/i.test(html);
+          if (antiBot) {
+            console.log("Browserless: possível anti-bot/captcha detectado");
+          }
+
+          const processo = parseEProcessoContent("", html, numeroOriginal);
+
+          if (processo) {
+            console.log("Browserless: Processo encontrado");
+            return new Response(
+              JSON.stringify({
+                found: true,
+                processo,
+                message: "Processo encontrado com sucesso",
+                url: consultaUrl,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        } else {
+          const errText = await contentResponse.text();
+          console.log("Browserless /content falhou:", contentResponse.status, errText.substring(0, 300));
+        }
+      } catch (browserlessError) {
+        console.error("Erro Browserless:", browserlessError);
+      }
+    }
+
+    // ========== 4. Nenhum serviço conseguiu ==========
+    if (!jinaApiKey && !firecrawlApiKey && !browserlessApiKey) {
       return new Response(
         JSON.stringify({
           found: false,
           error: "Integração com e-Processo não configurada",
-          message: "Configure JINA_API_KEY ou FIRECRAWL_API_KEY para consultas automáticas.",
+          message: "Configure JINA_API_KEY, FIRECRAWL_API_KEY ou BROWSERLESS_API_KEY para consultas automáticas.",
           url: consultaUrl,
           numeroProcesso: numeroOriginal,
         }),
