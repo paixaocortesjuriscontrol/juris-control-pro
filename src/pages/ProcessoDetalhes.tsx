@@ -77,12 +77,14 @@ import {
   Shuffle,
   Radar,
   ListTodo,
-  CalendarDays
+  CalendarDays,
+  Globe
 } from "lucide-react";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
 import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentosTab";
+import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1207,7 +1209,7 @@ export default function ProcessoDetalhes() {
 
         {/* Tabs de Eventos */}
         <Tabs value={activeTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-9 sm:w-auto sm:inline-flex">
+          <TabsList className="grid w-full grid-cols-5 sm:w-auto sm:inline-flex gap-1 h-auto flex-wrap">
               <TabsTrigger 
                 value="audiencias" 
                 className="gap-1.5"
@@ -1333,6 +1335,17 @@ export default function ProcessoDetalhes() {
                 {eventosAgenda.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{eventosAgenda.length}</Badge>
                 )}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="portal" 
+                className="gap-1.5"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(prev => prev === "portal" ? "" : "portal");
+                }}
+              >
+                <Globe className="w-4 h-4" />
+                <span className="hidden sm:inline">Portal</span>
               </TabsTrigger>
           </TabsList>
             <TabsContent value="audiencias" className="mt-4">
@@ -2134,6 +2147,15 @@ export default function ProcessoDetalhes() {
                 processoId={id!} 
                 documentos={documentosProcesso} 
                 refetchDocumentos={refetchDocumentos}
+              />
+            </TabsContent>
+
+            {/* Portal do Tribunal Tab */}
+            <TabsContent value="portal" className="mt-4">
+              <ProcessoPortalTab 
+                processoId={id!}
+                processoNumero={processo?.numero || ""}
+                tribunal={processo?.tribunal}
               />
             </TabsContent>
         </Tabs>
