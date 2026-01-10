@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { format } from "date-fns";
 import { 
   BarChart3, 
   Calendar, 
@@ -93,7 +94,14 @@ const Relatorios = () => {
     const finish = () => {
       setExporting(false);
       window.removeEventListener("afterprint", finish);
+      // Restaura o título original
+      document.title = originalTitle.current;
     };
+
+    // Define o nome do arquivo PDF com data formatada
+    const dataAtual = format(new Date(), "ddMMyyyy");
+    originalTitle.current = document.title;
+    document.title = `Juris_Control_Relatorio_gerencial_${dataAtual}`;
 
     // Em alguns navegadores mobile o afterprint pode não disparar; mantemos fallback.
     window.addEventListener("afterprint", finish);
@@ -106,6 +114,9 @@ const Relatorios = () => {
 
     setTimeout(finish, 5000);
   };
+
+  // Ref para guardar o título original do documento
+  const originalTitle = useRef(document.title);
 
   // Preparar dados combinados para o PrintView (mantendo compatibilidade)
   const atividadesData = {
