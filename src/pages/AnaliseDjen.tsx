@@ -556,13 +556,13 @@ const AnaliseDjen = () => {
                                   </span>
                                 </div>
 
-                                {/* Clickable process number / text to expand */}
+                                {/* Process number with eye button inline */}
                                 <div 
                                   className="cursor-pointer select-none"
                                   onClick={() => toggleExpandPublicacao(pub.id)}
                                 >
                                   {pub.processo_numero && (
-                                    <div className="flex items-start md:items-center gap-1 md:gap-2 mb-1 flex-wrap">
+                                    <div className="flex items-start md:items-center gap-1 md:gap-2 mb-1">
                                       {isExpanded ? (
                                         <ChevronDown className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground flex-shrink-0 mt-0.5 md:mt-0" />
                                       ) : (
@@ -581,6 +581,18 @@ const AnaliseDjen = () => {
                                           <span className="hidden sm:inline">Ver processo</span>
                                         </Link>
                                       )}
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleView(pub);
+                                        }}
+                                        title="Ver detalhes em modal"
+                                        className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
+                                      >
+                                        <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                      </Button>
                                     </div>
                                   )}
 
@@ -594,6 +606,18 @@ const AnaliseDjen = () => {
                                       <span className="text-xs md:text-sm text-muted-foreground hover:text-foreground">
                                         Clique para ver detalhes
                                       </span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleView(pub);
+                                        }}
+                                        title="Ver detalhes em modal"
+                                        className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
+                                      >
+                                        <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                      </Button>
                                     </div>
                                   )}
 
@@ -613,9 +637,9 @@ const AnaliseDjen = () => {
                                   )}
                                 </div>
 
-                                {/* Expanded inline content */}
+                                {/* Expanded inline content - now uses full width */}
                                 {isExpanded && (
-                                  <div className="mt-2 md:mt-3 ml-4 md:ml-6 space-y-2 md:space-y-3 border-t pt-2 md:pt-3">
+                                  <div className="mt-2 md:mt-3 space-y-2 md:space-y-3 border-t pt-2 md:pt-3">
                                     <div className="grid grid-cols-2 gap-2 md:gap-3 text-[10px] md:text-xs">
                                       <div>
                                         <strong>Data Publicação:</strong>
@@ -657,16 +681,6 @@ const AnaliseDjen = () => {
                                   </p>
                                 )}
                               </div>
-
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleView(pub)}
-                                title="Ver detalhes em modal"
-                                className="p-1.5 md:p-2 h-auto flex-shrink-0"
-                              >
-                                <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                              </Button>
                             </div>
                           </div>
                         );
