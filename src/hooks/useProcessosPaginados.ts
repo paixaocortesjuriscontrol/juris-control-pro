@@ -18,6 +18,7 @@ interface ProcessosPaginadosFilters {
   periodoInicio?: Date;
   periodoFim?: Date;
   clienteIds?: string[];
+  tipoProcesso?: string;
 }
 
 export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
@@ -45,6 +46,7 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         _periodo_inicio: filters.periodoInicio ? filters.periodoInicio.toISOString() : null,
         _periodo_fim: filters.periodoFim ? filters.periodoFim.toISOString() : null,
         _cliente_ids: filters.clienteIds && filters.clienteIds.length > 0 ? filters.clienteIds : null,
+        _tipo_processo: filters.tipoProcesso && filters.tipoProcesso !== "all" ? filters.tipoProcesso : null,
       });
 
       if (error) throw error;
@@ -71,6 +73,7 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         created_at: row.created_at,
         advogado_responsavel: row.advogado_responsavel?.id ? row.advogado_responsavel : null,
         cliente: row.cliente?.id ? row.cliente : null,
+        tipo_processo: row.tipo_processo,
       }));
 
       return {

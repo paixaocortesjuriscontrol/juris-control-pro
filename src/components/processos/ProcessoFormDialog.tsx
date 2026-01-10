@@ -41,6 +41,7 @@ import { toast as sonnerToast } from "sonner";
 
 const formSchema = z.object({
   pasta_id: z.string().optional(),
+  tipo_processo: z.enum(["judicial", "administrativo"]),
   numero: z.string().min(5, "Número do processo deve ter no mínimo 5 caracteres"),
   assunto: z.string().optional(),
   area: z.enum(["civil", "trabalhista", "empresarial"]),
@@ -80,6 +81,14 @@ const formSchema = z.object({
   probabilidade: z.string().optional(),
   valor_provisionado: z.string().optional(),
   pedidos: z.string().optional(),
+  // Campos administrativos
+  auto_infracao: z.string().optional(),
+  nit_fiscalizado: z.string().optional(),
+  cnpj_fiscalizado: z.string().optional(),
+  valor_multa: z.string().optional(),
+  data_lavratura: z.string().optional(),
+  fiscal_responsavel: z.string().optional(),
+  orgao_origem: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -146,6 +155,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
     resolver: zodResolver(formSchema),
     defaultValues: {
       pasta_id: "",
+      tipo_processo: "judicial",
       numero: "",
       assunto: "",
       area: "civil",
@@ -184,8 +194,19 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       probabilidade: "",
       valor_provisionado: "",
       pedidos: "",
+      // Campos administrativos
+      auto_infracao: "",
+      nit_fiscalizado: "",
+      cnpj_fiscalizado: "",
+      valor_multa: "",
+      data_lavratura: "",
+      fiscal_responsavel: "",
+      orgao_origem: "",
     },
   });
+
+  // Watch tipo_processo for conditional rendering
+  const tipoProcesso = form.watch("tipo_processo");
 
   // Reset form when dialog opens or processo changes
   useEffect(() => {
@@ -197,6 +218,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       if (processo) {
         form.reset({
           pasta_id: processo.pasta_id || "",
+          tipo_processo: processo.tipo_processo || "judicial",
           numero: processo.numero || "",
           assunto: processo.assunto || "",
           area: processo.area,
@@ -235,10 +257,19 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           probabilidade: processo.probabilidade || "",
           valor_provisionado: processo.valor_provisionado?.toString() || "",
           pedidos: processo.pedidos || "",
+          // Campos administrativos
+          auto_infracao: processo.auto_infracao || "",
+          nit_fiscalizado: processo.nit_fiscalizado || "",
+          cnpj_fiscalizado: processo.cnpj_fiscalizado || "",
+          valor_multa: processo.valor_multa?.toString() || "",
+          data_lavratura: processo.data_lavratura || "",
+          fiscal_responsavel: processo.fiscal_responsavel || "",
+          orgao_origem: processo.orgao_origem || "",
         });
       } else {
         form.reset({
           pasta_id: "",
+          tipo_processo: "judicial",
           numero: "",
           assunto: "",
           area: "civil",
@@ -277,6 +308,14 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           probabilidade: "",
           valor_provisionado: "",
           pedidos: "",
+          // Campos administrativos
+          auto_infracao: "",
+          nit_fiscalizado: "",
+          cnpj_fiscalizado: "",
+          valor_multa: "",
+          data_lavratura: "",
+          fiscal_responsavel: "",
+          orgao_origem: "",
         });
       }
     }
@@ -449,6 +488,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
     try {
       const processData = {
         numero: values.numero.trim(),
+        tipo_processo: values.tipo_processo,
         pasta_id: values.pasta_id || null,
         assunto: values.assunto || null,
         area: values.area,
@@ -488,6 +528,14 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         probabilidade: values.probabilidade || null,
         valor_provisionado: values.valor_provisionado ? parseFloat(values.valor_provisionado.replace(/[^\d.,]/g, "").replace(",", ".")) : null,
         pedidos: values.pedidos || null,
+        // Campos administrativos
+        auto_infracao: values.auto_infracao || null,
+        nit_fiscalizado: values.nit_fiscalizado || null,
+        cnpj_fiscalizado: values.cnpj_fiscalizado || null,
+        valor_multa: values.valor_multa ? parseFloat(values.valor_multa.replace(/[^\d.,]/g, "").replace(",", ".")) : null,
+        data_lavratura: values.data_lavratura || null,
+        fiscal_responsavel: values.fiscal_responsavel || null,
+        orgao_origem: values.orgao_origem || null,
       };
 
       if (isEditing && processo) {
@@ -600,15 +648,41 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="basico">Dados Básicos</TabsTrigger>
                 <TabsTrigger value="tribunal">Tribunal</TabsTrigger>
                 <TabsTrigger value="partes">Partes</TabsTrigger>
+                <TabsTrigger value="administrativo" className={tipoProcesso === "administrativo" ? "bg-orange-100 dark:bg-orange-900/30" : ""}>
+                  Administrativo
+                </TabsTrigger>
                 <TabsTrigger value="contingencial">Contingencial</TabsTrigger>
                 <TabsTrigger value="documentos">Documentos</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basico" className="space-y-4 mt-4">
+                {/* Tipo de processo */}
+                <FormField
+                  control={form.control}
+                  name="tipo_processo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de Processo *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o tipo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="judicial">Judicial</SelectItem>
+                          <SelectItem value="administrativo">Administrativo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 {/* Pasta field - Before processo number */}
                 <FormField
                   control={form.control}
@@ -1138,6 +1212,132 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                       <FormLabel>Pedidos</FormLabel>
                       <FormControl>
                         <Textarea placeholder="Descreva os pedidos do processo" className="min-h-[100px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value="administrativo" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Campos específicos para processos administrativos (e-Processo, MTE, Receita Federal, etc.)
+                </p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="auto_infracao"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Auto de Infração</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Número do Auto de Infração" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="orgao_origem"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Órgão de Origem</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="MTE">MTE - Ministério do Trabalho</SelectItem>
+                            <SelectItem value="Receita Federal">Receita Federal</SelectItem>
+                            <SelectItem value="INSS">INSS</SelectItem>
+                            <SelectItem value="CREA">CREA</SelectItem>
+                            <SelectItem value="CRM">CRM</SelectItem>
+                            <SelectItem value="OAB">OAB</SelectItem>
+                            <SelectItem value="IBAMA">IBAMA</SelectItem>
+                            <SelectItem value="ANVISA">ANVISA</SelectItem>
+                            <SelectItem value="PROCON">PROCON</SelectItem>
+                            <SelectItem value="Outro">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="cnpj_fiscalizado"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>CNPJ Fiscalizado</FormLabel>
+                        <FormControl>
+                          <Input placeholder="00.000.000/0000-00" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="nit_fiscalizado"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>NIT / PIS</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Número do NIT" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="valor_multa"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Valor da Multa</FormLabel>
+                        <FormControl>
+                          <Input placeholder="R$ 0,00" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="data_lavratura"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Data de Lavratura</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="fiscal_responsavel"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fiscal Responsável</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nome do fiscal" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

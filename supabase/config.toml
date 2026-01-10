@@ -83,3 +83,6 @@ verify_jwt = true
 
 [functions.processar-alertas-djen-coordenacao]
 verify_jwt = false
+
+[functions.buscar-eprocesso]
+verify_jwt = false

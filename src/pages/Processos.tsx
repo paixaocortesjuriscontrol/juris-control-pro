@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +67,7 @@ const Processos = () => {
   const [comAndamentos, setComAndamentos] = useState(false);
   const [comAudiencias, setComAudiencias] = useState(false);
   const [comIntimacoes, setComIntimacoes] = useState(false);
+  const [tipoProcessoFilter, setTipoProcessoFilter] = useState<string>("all");
   
   // Filtro de grupo de clientes (da URL ou selecionado manualmente)
   const grupoClientesParam = searchParams.get("grupo_clientes");
@@ -189,6 +190,7 @@ const Processos = () => {
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
     clienteIds: clienteIds,
+    tipoProcesso: tipoProcessoFilter,
   });
 
   const { data: processosRedistribuidos } = useProcessosComRedistribuicaoRecente();
@@ -196,7 +198,7 @@ const Processos = () => {
   // Reset page when filters change
   useEffect(() => {
     resetPage();
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, clienteIds]);
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, clienteIds, tipoProcessoFilter]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
   // so selecting a responsável / período filters immediately.
@@ -384,6 +386,29 @@ const Processos = () => {
                 ))}
               </SelectContent>
             </Select>
+            
+            {/* Filtro de Tipo de Processo */}
+            <Select value={tipoProcessoFilter} onValueChange={setTipoProcessoFilter}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                <SelectItem value="judicial">
+                  <div className="flex items-center gap-2">
+                    <Scale className="w-4 h-4" />
+                    Judicial
+                  </div>
+                </SelectItem>
+                <SelectItem value="administrativo">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Administrativo
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            
             <Select value={areaFilter} onValueChange={setAreaFilter}>
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="Área" />
