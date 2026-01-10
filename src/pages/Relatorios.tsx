@@ -91,108 +91,36 @@ const Relatorios = () => {
       // Mantém o fluxo de impressão com o que estiver disponível no cache
     }
 
-    // Nome do arquivo (muitos navegadores usam o <title> do documento impresso)
+    // Nome do arquivo PDF com data formatada
     const dataAtual = format(new Date(), "ddMMyyyy");
-    const documentTitle = `Juris_Control_Relatorio_gerencial_${dataAtual}`;
+    const novoTitulo = `Juris_Control_Relatorio_Gerencial_${dataAtual}`;
 
-    const printNode = printRef.current;
+    // Salva o título original
+    const tituloOriginal = document.title;
 
-    if (!printNode) {
+    // Define o novo título (navegadores usam o <title> como nome do PDF)
+    document.title = novoTitulo;
+
+    const restaurarTitulo = () => {
+      document.title = tituloOriginal;
       setExporting(false);
-      window.print();
-      return;
-    }
-
-    const stylesHtml = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map((el) => (el as HTMLElement).outerHTML)
-      .join("\n");
-
-    const html = `<!doctype html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${documentTitle}</title>
-    ${stylesHtml}
-  </head>
-  <body>
-    ${printNode.innerHTML}
-  </body>
-</html>`;
-
-    // Preferência: abrir uma nova janela (top-level) para evitar que o navegador use o título do preview ("- Lovable")
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-
-    if (printWindow?.document) {
-      const finish = () => {
-        setExporting(false);
-        try {
-          printWindow.close();
-        } catch {
-          // ignore
-        }
-      };
-
-      printWindow.addEventListener("afterprint", finish, { once: true });
-      setTimeout(finish, 8000);
-
-      printWindow.document.open();
-      printWindow.document.write(html);
-      printWindow.document.close();
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          printWindow.focus();
-          printWindow.print();
-        });
-      });
-
-      return;
-    }
-
-    // Fallback: imprime via iframe dedicado
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    iframe.setAttribute("aria-hidden", "true");
-    document.body.appendChild(iframe);
-
-    const cleanup = () => {
-      setExporting(false);
-      try {
-        document.body.removeChild(iframe);
-      } catch {
-        // ignore
-      }
     };
 
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-    const iframeWin = iframe.contentWindow;
+    // Aguarda o afterprint para restaurar o título
+    const handleAfterPrint = () => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+      restaurarTitulo();
+    };
+    window.addEventListener("afterprint", handleAfterPrint);
 
-    if (!iframeDoc || !iframeWin) {
-      cleanup();
-      window.print();
-      return;
-    }
+    // Fallback: restaura após 5 segundos caso afterprint não dispare
+    setTimeout(() => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+      restaurarTitulo();
+    }, 5000);
 
-    iframeDoc.open();
-    iframeDoc.write(html);
-    iframeDoc.close();
-
-    const finish = () => cleanup();
-    iframeWin.addEventListener("afterprint", finish, { once: true });
-    setTimeout(finish, 8000);
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        iframeWin.focus();
-        iframeWin.print();
-      });
-    });
+    // Imprime diretamente
+    window.print();
   };
 
   // Preparar dados combinados para o PrintView (mantendo compatibilidade)
