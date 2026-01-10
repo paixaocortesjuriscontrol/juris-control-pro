@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { format } from "date-fns";
 import { 
   BarChart3, 
@@ -47,6 +47,7 @@ const Relatorios = () => {
   const [exporting, setExporting] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const originalTitle = useRef("");
+  const originalTopTitle = useRef<string | null>(null);
 
   // Carregar dados de todos os relatórios para exportação
   const { data: resumoData, isLoading: resumoLoading, refetch: refetchResumo } = useRelatorioResumoData(true);
@@ -95,14 +96,38 @@ const Relatorios = () => {
     const finish = () => {
       setExporting(false);
       window.removeEventListener("afterprint", finish);
-      // Restaura o título original
+
+      // Restaura o título original (usado por alguns navegadores no nome do PDF)
       document.title = originalTitle.current;
+
+      // Alguns navegadores (em preview/iframe) usam o título do frame pai
+      if (originalTopTitle.current !== null) {
+        try {
+          if (window.top && window.top !== window) {
+            window.top.document.title = originalTopTitle.current;
+          }
+        } catch {
+          // Ignora se não for possível acessar (cross-origin)
+        }
+      }
     };
 
     // Define o nome do arquivo PDF com data formatada
     const dataAtual = format(new Date(), "ddMMyyyy");
+    const novoTitulo = `Juris_Control_Relatorio_gerencial_${dataAtual}`;
+
     originalTitle.current = document.title;
-    document.title = `Juris_Control_Relatorio_gerencial_${dataAtual}`;
+    document.title = novoTitulo;
+
+    // Tenta ajustar também o título do documento pai (Lovable/iframe)
+    try {
+      if (window.top && window.top !== window) {
+        originalTopTitle.current = window.top.document.title;
+        window.top.document.title = novoTitulo;
+      }
+    } catch {
+      // Ignora se não for possível acessar (cross-origin)
+    }
 
     // Em alguns navegadores mobile o afterprint pode não disparar; mantemos fallback.
     window.addEventListener("afterprint", finish);
