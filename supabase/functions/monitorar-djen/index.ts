@@ -576,172 +576,136 @@ serve(async (req) => {
 
     const url = new URL(req.url);
 
-    // Body flags (cron usa { scheduled: true })
+    // Body flags (cron pode enviar { completeRun: true })
     const body = await req.json().catch(() => ({} as any));
     const scheduled = body?.scheduled === true;
+    const continued = body?.continued === true;
     const completeRun = body?.completeRun === true || scheduled;
 
-    // Se não vier offset na URL, usar o next_offset persistido (para execuções agendadas/complete)
+    // Se não vier offset na URL, e for execução completa, começamos do zero.
+    // A continuação (próximos lotes) é feita por auto-enfileiramento com ?offset=...
     const urlOffsetRaw = url.searchParams.get('offset');
     const urlOffset = urlOffsetRaw !== null ? Number.parseInt(urlOffsetRaw, 10) : NaN;
 
     let offset = Number.isFinite(urlOffset) ? urlOffset : 0;
 
-    // For completeRun, always start from 0 to ensure full cycle
-    if (completeRun) {
+    // Se for completeRun e NÃO for continuação, força reset para garantir ciclo completo.
+    if (completeRun && !Number.isFinite(urlOffset) && !continued) {
       offset = 0;
-      console.log(`=== DJEN Monitor COMPLETE RUN starting from offset 0 ===`);
     }
 
-    console.log(`=== DJEN Monitor (offset: ${offset}) | scheduled=${scheduled} | completeRun=${completeRun} ===`);
-    const runStartTime = Date.now();
-    const runId = crypto.randomUUID();
+    console.log(`=== DJEN Monitor (offset: ${offset}) | scheduled=${scheduled} | completeRun=${completeRun} | continued=${continued} ===`);
+    const startTime = Date.now();
 
-    // Accumulated totals for the full run
-    let grandTotalNovas = 0;
-    let grandTotalDescartadas = 0;
-    let grandTotalDuplicatas = 0;
-    let grandTotalProcessed = 0;
-    let grandTotalErrors = 0;
-    let grandTotalPaginas = 0;
-    let grandTotalResultados = 0;
-    const grandTribunaisStats: Record<string, TribunalStats> = {};
+    // Total active monitoramentos (used to compute hasMore correctly)
+    const { count: totalActive, error: countError } = await supabase
+      .from('monitoramentos_djen')
+      .select('id', { count: 'exact', head: true })
+      .eq('ativo', true);
 
-    let currentOffset = offset;
-    let hasMore = true;
-    let batchCount = 0;
-    const MAX_BATCHES = 20; // Safety limit to avoid infinite loops
+    if (countError) {
+      throw countError;
+    }
 
-    // Loop for completeRun to process all monitoramentos
-    while (hasMore && (!completeRun || batchCount < MAX_BATCHES)) {
-      batchCount++;
-      const batchStartTime = Date.now();
+    // Fetch active monitoramentos with pagination
+    const { data: monitoramentos, error: fetchError } = await supabase
+      .from('monitoramentos_djen')
+      .select('*')
+      .eq('ativo', true)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + MAX_PER_INVOCATION - 1);
 
-      // Check global timeout (leave buffer for response)
-      if (Date.now() - runStartTime > SOFT_TIMEOUT_MS) {
-        console.log(`Global soft timeout reached at ${Math.round((Date.now() - runStartTime) / 1000)}s. Stopping.`);
+    if (fetchError) {
+      throw fetchError;
+    }
+
+    const count = monitoramentos?.length || 0;
+    const total = totalActive || 0;
+
+    // IMPORTANT: avoid writing "empty batches" to the database.
+    if (count === 0) {
+      const duration = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+      console.log(`No monitoramentos to process at offset ${offset}. Returning without DB writes.`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          processados: 0,
+          novasPublicacoes: 0,
+          descartadas: 0,
+          duplicatas: 0,
+          erros: 0,
+          duracaoSegundos: duration,
+          totalPaginas: 0,
+          totalResultados: 0,
+          tribunaisStats: [],
+          hasMore: false,
+          nextOffset: null,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`Processing ${count} monitoramentos (offset ${offset})`);
+
+    let totalNovas = 0;
+    let totalDescartadas = 0;
+    let totalDuplicatas = 0;
+    let processedCount = 0;
+    let errorCount = 0;
+    let totalPaginas = 0;
+    let totalResultados = 0;
+    const allTribunaisStats: TribunalStats[] = [];
+
+    for (const mon of (monitoramentos || [])) {
+      // Soft timeout guard: stop early and let the queued continuation continue with nextOffset.
+      if (Date.now() - startTime > SOFT_TIMEOUT_MS) {
+        console.log(`Soft timeout reached at ${Math.round((Date.now() - startTime) / 1000)}s. Stopping batch early.`);
         break;
       }
 
-      // Total active monitoramentos (used to compute hasMore correctly)
-      const { count: totalActive, error: countError } = await supabase
-        .from('monitoramentos_djen')
-        .select('id', { count: 'exact', head: true })
-        .eq('ativo', true);
+      try {
+        processedCount++;
+        console.log(`[${processedCount}/${count}] ${mon.descricao || mon.termo_busca}`);
 
-      if (countError) {
-        throw countError;
-      }
+        const stats = await processMonitoramento(supabase, mon);
+        totalNovas += stats.novas;
+        totalDescartadas += stats.descartadas;
+        totalDuplicatas += stats.duplicatas;
 
-      // Fetch active monitoramentos with pagination
-      const { data: monitoramentos, error: fetchError } = await supabase
-        .from('monitoramentos_djen')
-        .select('*')
-        .eq('ativo', true)
-        .order('created_at', { ascending: true })
-        .range(currentOffset, currentOffset + MAX_PER_INVOCATION - 1);
+        // Aggregate tribunal stats
+        for (const ts of stats.tribunaisStats) {
+          totalPaginas += ts.paginas;
+          totalResultados += ts.resultados;
 
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      const count = monitoramentos?.length || 0;
-      const total = totalActive || 0;
-
-      // No more monitoramentos to process
-      if (count === 0) {
-        console.log(`Batch ${batchCount}: No monitoramentos at offset ${currentOffset}. Cycle complete.`);
-        hasMore = false;
-        break;
-      }
-
-      console.log(`Batch ${batchCount}: Processing ${count} monitoramentos (offset ${currentOffset}, total ${total})`);
-
-      let totalNovas = 0;
-      let totalDescartadas = 0;
-      let totalDuplicatas = 0;
-      let processedCount = 0;
-      let errorCount = 0;
-      let totalPaginas = 0;
-      let totalResultados = 0;
-
-      for (const mon of (monitoramentos || [])) {
-        // Soft timeout guard per batch
-        if (Date.now() - batchStartTime > 60_000) {
-          console.log(`Batch timeout at ${Math.round((Date.now() - batchStartTime) / 1000)}s. Stopping batch.`);
-          break;
-        }
-
-        try {
-          processedCount++;
-          console.log(`[${batchCount}.${processedCount}/${count}] ${mon.descricao || mon.termo_busca}`);
-
-          const stats = await processMonitoramento(supabase, mon);
-          totalNovas += stats.novas;
-          totalDescartadas += stats.descartadas;
-          totalDuplicatas += stats.duplicatas;
-
-          // Aggregate tribunal stats
-          for (const ts of stats.tribunaisStats) {
-            totalPaginas += ts.paginas;
-            totalResultados += ts.resultados;
-
-            const tribunalKey = ts.tribunal ?? 'TODOS';
-            const existing = grandTribunaisStats[tribunalKey];
-            grandTribunaisStats[tribunalKey] = existing
-              ? {
-                  tribunal: tribunalKey,
-                  paginas: (existing.paginas || 0) + (ts.paginas || 0),
-                  resultados: (existing.resultados || 0) + (ts.resultados || 0),
-                  novas: (existing.novas || 0) + (ts.novas || 0),
-                  descartadas: (existing.descartadas || 0) + (ts.descartadas || 0),
-                  duplicatas: (existing.duplicatas || 0) + (ts.duplicatas || 0),
-                }
-              : { ...ts, tribunal: tribunalKey };
+          // Merge with existing tribunal stats
+          const existing = allTribunaisStats.find(t => t.tribunal === ts.tribunal);
+          if (existing) {
+            existing.paginas += ts.paginas;
+            existing.resultados += ts.resultados;
+            existing.novas += ts.novas;
+            existing.descartadas += ts.descartadas;
+            existing.duplicatas += ts.duplicatas;
+          } else {
+            allTribunaisStats.push({ ...ts });
           }
-
-          // Reduced delay between monitoramentos for faster completion
-          await delay(600);
-
-        } catch (error) {
-          errorCount++;
-          console.error(`Error on ${mon.id}:`, error);
         }
-      }
 
-      // Update grand totals
-      grandTotalNovas += totalNovas;
-      grandTotalDescartadas += totalDescartadas;
-      grandTotalDuplicatas += totalDuplicatas;
-      grandTotalProcessed += processedCount;
-      grandTotalErrors += errorCount;
-      grandTotalPaginas += totalPaginas;
-      grandTotalResultados += totalResultados;
-
-      // Determine if there are more monitoramentos
-      hasMore = (currentOffset + processedCount) < total;
-      currentOffset += processedCount;
-
-      console.log(`Batch ${batchCount} done: ${processedCount} processed, ${totalNovas} new. hasMore=${hasMore}`);
-
-      // If not completeRun, exit after first batch
-      if (!completeRun) {
-        break;
-      }
-
-      // Small delay between batches
-      if (hasMore) {
-        await delay(1000);
+        await delay(600);
+      } catch (error) {
+        errorCount++;
+        console.error(`Error on ${mon.id}:`, error);
       }
     }
 
     const nowIso = new Date().toISOString();
-    const totalDuration = Math.max(1, Math.round((Date.now() - runStartTime) / 1000));
+    const duration = Math.max(1, Math.round((Date.now() - startTime) / 1000));
 
-    // Sort tribunais by resultados descending
-    const allTribunaisStats = Object.values(grandTribunaisStats).sort((a, b) => b.resultados - a.resultados);
+    const hasMore = (offset + processedCount) < total;
+    const nextOffset = hasMore ? offset + processedCount : null;
 
-    // Update config metadata
+    allTribunaisStats.sort((a, b) => b.resultados - a.resultados);
+
+    // Load current config metadata to accumulate a full "run" across multiple batches
     const { data: configRow, error: configError } = await supabase
       .from('configuracoes_monitoramento')
       .select('id, metadata')
@@ -755,82 +719,175 @@ serve(async (req) => {
 
     const currentMeta = (configRow?.metadata ?? {}) as Record<string, any>;
 
+    type DjenRun = {
+      run_id: string;
+      started_at: string;
+      totals: {
+        processados: number;
+        novas: number;
+        descartadas: number;
+        duplicatas: number;
+        erros: number;
+        duracao_s: number;
+        total_paginas: number;
+        total_resultados: number;
+      };
+      tribunais: Record<string, TribunalStats>;
+    };
+
+    let run: DjenRun | null = (currentMeta?.djen_run as DjenRun) ?? null;
+
+    // Reset run when starting a new complete cycle (offset=0 and not continued)
+    const shouldResetRun = offset === 0 && completeRun && !continued;
+
+    if (shouldResetRun || !run || typeof run !== 'object' || !run.run_id || !run.totals || !run.tribunais) {
+      run = {
+        run_id: crypto.randomUUID(),
+        started_at: nowIso,
+        totals: {
+          processados: 0,
+          novas: 0,
+          descartadas: 0,
+          duplicatas: 0,
+          erros: 0,
+          duracao_s: 0,
+          total_paginas: 0,
+          total_resultados: 0,
+        },
+        tribunais: {},
+      };
+    }
+
+    // Accumulate totals for the full run
+    run.totals.processados += processedCount;
+    run.totals.novas += totalNovas;
+    run.totals.descartadas += totalDescartadas;
+    run.totals.duplicatas += totalDuplicatas;
+    run.totals.erros += errorCount;
+    run.totals.duracao_s += duration;
+    run.totals.total_paginas += totalPaginas;
+    run.totals.total_resultados += totalResultados;
+
+    // Accumulate tribunal breakdown for the full run
+    for (const ts of allTribunaisStats) {
+      const tribunalKey = ts.tribunal ?? 'TODOS';
+      const existing = run.tribunais[tribunalKey];
+      run.tribunais[tribunalKey] = existing
+        ? {
+            tribunal: tribunalKey,
+            paginas: (existing.paginas || 0) + (ts.paginas || 0),
+            resultados: (existing.resultados || 0) + (ts.resultados || 0),
+            novas: (existing.novas || 0) + (ts.novas || 0),
+            descartadas: (existing.descartadas || 0) + (ts.descartadas || 0),
+            duplicatas: (existing.duplicatas || 0) + (ts.duplicatas || 0),
+          }
+        : { ...ts, tribunal: tribunalKey };
+    }
+
     const updatedMeta: Record<string, any> = {
       ...currentMeta,
       last_run: nowIso,
-      offset_processado: currentOffset,
-      processados: grandTotalProcessed,
-      novas: grandTotalNovas,
-      descartadas: grandTotalDescartadas,
-      duplicatas: grandTotalDuplicatas,
-      erros: grandTotalErrors,
-      duracao_s: totalDuration,
+      offset_processado: offset,
+      processados: processedCount,
+      novas: totalNovas,
+      descartadas: totalDescartadas,
+      duplicatas: totalDuplicatas,
+      erros: errorCount,
+      duracao_s: duration,
       has_more: hasMore,
-      next_offset: hasMore ? currentOffset : 0,
-      total_paginas: grandTotalPaginas,
-      total_resultados: grandTotalResultados,
+      next_offset: nextOffset,
+      total_paginas: totalPaginas,
+      total_resultados: totalResultados,
       tribunais_stats: allTribunaisStats.slice(0, 20),
-      djen_run: hasMore ? { run_id: runId, started_at: nowIso } : null,
+      djen_run: hasMore ? run : null,
       last_complete_run: hasMore ? (currentMeta?.last_complete_run ?? null) : nowIso,
     };
 
+    // Update config (only set ultima_execucao when the run starts)
+    const updatePayload: Record<string, any> = {
+      metadata: updatedMeta,
+    };
+    if (offset === 0 && !continued) {
+      updatePayload.ultima_execucao = nowIso;
+    }
+
     await supabase
       .from('configuracoes_monitoramento')
-      .update({
-        metadata: updatedMeta,
-        ultima_execucao: nowIso,
-      })
+      .update(updatePayload)
       .eq('tipo', 'djen');
 
-    // Persist a single report when the run completes (hasMore=false) or after processing
-    if (!hasMore || grandTotalProcessed > 0) {
+    // Persist a single report for the full run when it completes (hasMore=false)
+    if (!hasMore && run) {
+      const tribunaisFinal = Object.values(run.tribunais).sort((a, b) => b.resultados - a.resultados);
+
       await supabase.from('historico_monitoramento').insert({
         tipo: 'djen',
         executado_em: nowIso,
-        processos_verificados: grandTotalProcessed,
-        novos_andamentos: grandTotalNovas,
-        processos_com_novos: grandTotalNovas,
-        erros: grandTotalErrors,
+        processos_verificados: run.totals.processados,
+        novos_andamentos: run.totals.novas,
+        processos_com_novos: run.totals.novas,
+        erros: run.totals.erros,
         detalhes: {
-          run_id: runId,
-          started_at: new Date(runStartTime).toISOString(),
-          batches: batchCount,
-          descartadas: grandTotalDescartadas,
-          duplicatas: grandTotalDuplicatas,
-          duracao_s: totalDuration,
-          total_paginas: grandTotalPaginas,
-          total_resultados: grandTotalResultados,
-          tribunais_stats: allTribunaisStats.slice(0, 30),
+          run_id: run.run_id,
+          started_at: run.started_at,
+          descartadas: run.totals.descartadas,
+          duplicatas: run.totals.duplicatas,
+          duracao_s: run.totals.duracao_s,
+          total_paginas: run.totals.total_paginas,
+          total_resultados: run.totals.total_resultados,
+          tribunais_stats: tribunaisFinal.slice(0, 30),
         },
       });
     }
 
-    console.log(`=== COMPLETE: ${grandTotalProcessed} processed in ${batchCount} batches, ${grandTotalNovas} new, ${totalDuration}s ===`);
+    // Auto-continuation: guarantees a complete cycle even with many monitoramentos.
+    // The queued call will use ?offset=nextOffset and {continued:true}.
+    if (completeRun && hasMore && typeof nextOffset === 'number') {
+      const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen?offset=${nextOffset}`;
+      const nextBody = {
+        completeRun: true,
+        scheduled: true,
+        continued: true,
+        parentRunId: run?.run_id,
+      };
+
+      const p = fetch(nextUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextBody),
+      })
+        .then((r) => r.text().then((t) => console.log(`[DJEN] Queued next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`)))
+        .catch((e) => console.error('[DJEN] Failed to queue next batch', e));
+
+      // Best-effort: keep background request running even after we return.
+      const er = (globalThis as any).EdgeRuntime;
+      if (er?.waitUntil) er.waitUntil(p);
+    }
+
+    console.log(`Done: ${processedCount} processed, ${totalNovas} new, ${totalPaginas} pages, ${duration}s | hasMore=${hasMore}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        processados: grandTotalProcessed,
-        novasPublicacoes: grandTotalNovas,
-        descartadas: grandTotalDescartadas,
-        duplicatas: grandTotalDuplicatas,
-        erros: grandTotalErrors,
-        duracaoSegundos: totalDuration,
-        totalPaginas: grandTotalPaginas,
-        totalResultados: grandTotalResultados,
+        processados: processedCount,
+        novasPublicacoes: totalNovas,
+        descartadas: totalDescartadas,
+        duplicatas: totalDuplicatas,
+        erros: errorCount,
+        duracaoSegundos: duration,
+        totalPaginas,
+        totalResultados,
         tribunaisStats: allTribunaisStats,
         hasMore,
-        nextOffset: hasMore ? currentOffset : null,
-        batches: batchCount,
+        nextOffset,
+        queuedNext: completeRun && hasMore,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
-
   } catch (error) {
-    console.error("Error:", error);
+    console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Erro" }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

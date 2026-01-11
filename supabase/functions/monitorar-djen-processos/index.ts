@@ -434,6 +434,8 @@ serve(async (req) => {
     let dataFim: string | undefined;
     let continuarDe: number | undefined;
     let completeRun = false;
+    let scheduled = false;
+    let continued = false;
 
     try {
       const body = await req.json();
@@ -441,6 +443,8 @@ serve(async (req) => {
       dataFim = body.dataFim;
       continuarDe = body.continuarDe;
       completeRun = body.completeRun === true;
+      scheduled = body.scheduled === true;
+      continued = body.continued === true;
     } catch {
       // No body
     }
@@ -452,7 +456,7 @@ serve(async (req) => {
       dataFim = hoje;
     }
 
-    console.log(`[DJEN Processos] Início: ${dataInicio} a ${dataFim} | completeRun=${completeRun}`);
+    console.log(`[DJEN Processos] Início: ${dataInicio} a ${dataFim} | completeRun=${completeRun} | continued=${continued} | scheduled=${scheduled}`);
 
     // Get config
     const { data: config } = await supabase
@@ -468,11 +472,14 @@ serve(async (req) => {
       .in('status', ['ativo', 'pendente', 'urgente'])
       .eq('monitorar_djen', true);
 
+    // Regra para execução completa:
+    // - primeira chamada (cron/manual completeRun) começa do 0
+    // - continuações sempre passam continuarDe
     const meta: any = config?.metadata || {};
-    const metaOffset = typeof meta?.next_offset === 'number' ? meta.next_offset : 0;
 
-    // Se for execução completa (cron), continuar do offset salvo no metadata
-    const offset = (typeof continuarDe === 'number' ? continuarDe : (completeRun ? metaOffset : 0));
+    const offset = (typeof continuarDe === 'number')
+      ? continuarDe
+      : (completeRun ? 0 : 0);
 
     // Get batch (using monitorar_djen column)
     const { data: processos, error: processosError } = await supabase
@@ -494,19 +501,19 @@ serve(async (req) => {
           .from('configuracoes_monitoramento')
           .update({
             ultima_execucao: new Date().toISOString(),
-            metadata: { 
-              ...(config.metadata || {}), 
+            metadata: {
+              ...(config.metadata || {}),
               last_complete_run: new Date().toISOString(),
-              next_offset: 0 
-            }
+              next_offset: 0,
+            },
           })
           .eq('tipo', 'djen_processos');
       }
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Ciclo completo', 
+        JSON.stringify({
+          success: true,
+          message: 'Ciclo completo',
           processados: 0,
           totalProcessos: totalProcessos || 0,
           concluido: true,
@@ -519,7 +526,7 @@ serve(async (req) => {
     console.log(`[DJEN Processos] Processando ${processos.length} processos (offset: ${offset})`);
 
     // Process in parallel
-    const { totalNovas, totalDuplicadas, processosComNovas, processosComResultados } = 
+    const { totalNovas, totalDuplicadas, processosComNovas, processosComResultados } =
       await processProcessosBatch(processos, dataInicio, dataFim, supabase);
 
     // Update next offset
@@ -530,18 +537,21 @@ serve(async (req) => {
       await supabase
         .from('configuracoes_monitoramento')
         .update({
-          ultima_execucao: new Date().toISOString(),
-          metadata: { 
-            ...(config.metadata || {}), 
+          // Só marca "ultima_execucao" quando começa um ciclo completo (offset 0)
+          ultima_execucao: offset === 0 ? new Date().toISOString() : config.ultima_execucao,
+          metadata: {
+            ...(config.metadata || {}),
             next_offset: hasMore ? nextOffset : 0,
             last_batch_processos: processos.length,
             last_batch_novas: totalNovas,
-          }
+            last_batch_offset: offset,
+            last_batch_tempo_ms: Date.now() - startTime,
+          },
         })
         .eq('tipo', 'djen_processos');
     }
 
-    // Log history
+    // Log history (lote)
     await supabase.from('historico_monitoramento').insert({
       tipo: 'djen_processos',
       processos_verificados: processos.length,
@@ -555,11 +565,35 @@ serve(async (req) => {
         dataInicio,
         dataFim,
         tempoMs: Date.now() - startTime,
-      }
+      },
     });
 
     const tempoMs = Date.now() - startTime;
     console.log(`[DJEN Processos] Lote: ${totalNovas} novas, ${totalDuplicadas} dup, ${tempoMs}ms, hasMore: ${hasMore}`);
+
+    // Auto-continuation: garante completar todos os processos sem depender de múltiplos cron jobs.
+    if (completeRun && hasMore) {
+      const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen-processos`;
+      const nextBody = {
+        dataInicio,
+        dataFim,
+        continuarDe: nextOffset,
+        completeRun: true,
+        scheduled: true,
+        continued: true,
+      };
+
+      const p = fetch(nextUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextBody),
+      })
+        .then((r) => r.text().then((t) => console.log(`[DJEN Processos] Queued next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`)))
+        .catch((e) => console.error('[DJEN Processos] Failed to queue next batch', e));
+
+      const er = (globalThis as any).EdgeRuntime;
+      if (er?.waitUntil) er.waitUntil(p);
+    }
 
     return new Response(
       JSON.stringify({
@@ -573,6 +607,7 @@ serve(async (req) => {
         hasMore,
         nextOffset: hasMore ? nextOffset : 0,
         tempoMs,
+        queuedNext: completeRun && hasMore,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
