@@ -346,6 +346,7 @@ export type Database = {
           publicacao_id: string | null
           resumo_objeto: string | null
           status: string
+          tarefa_id: string | null
           terceirizado: string | null
           testemunhas: string | null
           tipo_audiencia: string | null
@@ -382,6 +383,7 @@ export type Database = {
           publicacao_id?: string | null
           resumo_objeto?: string | null
           status?: string
+          tarefa_id?: string | null
           terceirizado?: string | null
           testemunhas?: string | null
           tipo_audiencia?: string | null
@@ -418,6 +420,7 @@ export type Database = {
           publicacao_id?: string | null
           resumo_objeto?: string | null
           status?: string
+          tarefa_id?: string | null
           terceirizado?: string | null
           testemunhas?: string | null
           tipo_audiencia?: string | null
@@ -453,6 +456,13 @@ export type Database = {
             columns: ["publicacao_id"]
             isOneToOne: false
             referencedRelation: "publicacoes_djen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_detectadas_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
             referencedColumns: ["id"]
           },
           {
@@ -1421,6 +1431,7 @@ export type Database = {
           processo_numero: string | null
           providencias_tomadas: string | null
           status: string
+          tarefa_id: string | null
           tipo_intimacao: string | null
           tratado_em: string | null
           tratado_por: string | null
@@ -1447,6 +1458,7 @@ export type Database = {
           processo_numero?: string | null
           providencias_tomadas?: string | null
           status?: string
+          tarefa_id?: string | null
           tipo_intimacao?: string | null
           tratado_em?: string | null
           tratado_por?: string | null
@@ -1473,6 +1485,7 @@ export type Database = {
           processo_numero?: string | null
           providencias_tomadas?: string | null
           status?: string
+          tarefa_id?: string | null
           tipo_intimacao?: string | null
           tratado_em?: string | null
           tratado_por?: string | null
@@ -1491,6 +1504,13 @@ export type Database = {
             columns: ["processo_id"]
             isOneToOne: false
             referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intimacoes_detectadas_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
             referencedColumns: ["id"]
           },
         ]
