@@ -14,7 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, Download, ListTodo, Users } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, Download, ListTodo, Users, UserPlus } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface TarefaImport {
@@ -108,15 +109,21 @@ export default function ImportarTarefas() {
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
   const [importarConcluidas, setImportarConcluidas] = useState(true);
   const [vincularResponsaveis, setVincularResponsaveis] = useState(true);
+  const [cadastrarNovosUsuarios, setCadastrarNovosUsuarios] = useState(true);
+  const [novosUsuariosCriados, setNovosUsuariosCriados] = useState<string[]>([]);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const cancelledRef = useRef(false);
+  const { user } = useAuth();
+
+  // Cache of created users during import
+  const createdUsersCache = useRef<Map<string, string>>(new Map());
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   
   // Fetch profiles for matching responsaveis
-  const { data: profiles = [] } = useQuery({
+  const { data: profiles = [], refetch: refetchProfiles } = useQuery({
     queryKey: ["profiles-import"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -282,19 +289,92 @@ export default function ImportarTarefas() {
     }
   };
 
-  const findResponsavelId = (responsaveisStr: string | null): string | null => {
+  // Create a new profile for an unknown responsible person
+  const createNewProfile = async (nomeCompleto: string): Promise<string | null> => {
+    if (!nomeCompleto || !selectedCoordenacao) return null;
+    
+    // Check cache first
+    const cachedId = createdUsersCache.current.get(nomeCompleto.toLowerCase());
+    if (cachedId) return cachedId;
+
+    try {
+      // Generate a unique placeholder email
+      const emailSlug = nomeCompleto
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, ".")
+        .replace(/[^a-z0-9.]/g, "");
+      const timestamp = Date.now();
+      const placeholderEmail = `${emailSlug}.${timestamp}@importado.local`;
+
+      // Create profile directly (without auth user)
+      // Generate a UUID for the profile
+      const newId = crypto.randomUUID();
+      const { data: newProfile, error } = await supabase
+        .from("profiles")
+        .insert({
+          id: newId,
+          nome: nomeCompleto,
+          email: placeholderEmail,
+          ativo: true,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        console.error("Erro ao criar perfil:", error);
+        return null;
+      }
+
+      if (newProfile?.id) {
+        // Add as member of the selected coordination
+        await supabase.from("membros_coordenacao").insert({
+          coordenacao_id: selectedCoordenacao,
+          usuario_id: newProfile.id,
+          cargo: "Membro",
+        });
+
+        // Cache the created user
+        createdUsersCache.current.set(nomeCompleto.toLowerCase(), newProfile.id);
+        setNovosUsuariosCriados(prev => [...prev, nomeCompleto]);
+        
+        return newProfile.id;
+      }
+
+      return null;
+    } catch (err) {
+      console.error("Erro ao criar perfil:", err);
+      return null;
+    }
+  };
+
+  const findResponsavelId = async (responsaveisStr: string | null): Promise<string | null> => {
     if (!responsaveisStr || !vincularResponsaveis) return null;
     
     // Try to match first name in the list
-    const nomes = responsaveisStr.split(/[,;]/).map(n => n.trim().toLowerCase());
+    const nomes = responsaveisStr.split(/[,;]/).map(n => n.trim());
     
     for (const nome of nomes) {
       if (!nome) continue;
+      const nomeLower = nome.toLowerCase();
+      
+      // First check if already created during this import
+      const cachedId = createdUsersCache.current.get(nomeLower);
+      if (cachedId) return cachedId;
+      
+      // Search in existing profiles
       const profile = profiles.find(p => 
-        p.nome.toLowerCase().includes(nome) || 
-        nome.includes(p.nome.toLowerCase())
+        p.nome.toLowerCase().includes(nomeLower) || 
+        nomeLower.includes(p.nome.toLowerCase())
       );
       if (profile) return profile.id;
+      
+      // If not found and option enabled, create new profile
+      if (cadastrarNovosUsuarios && selectedCoordenacao) {
+        const newId = await createNewProfile(nome);
+        if (newId) return newId;
+      }
     }
     return null;
   };
@@ -340,37 +420,51 @@ export default function ImportarTarefas() {
     
     const existingSet = new Set((existingTarefas || []).map((t: any) => t.identificador_projuris));
 
+    // Clear the users cache for this import session
+    createdUsersCache.current.clear();
+    setNovosUsuariosCriados([]);
+
     for (let i = 0; i < toImport.length; i += BATCH_SIZE) {
       if (cancelledRef.current) break;
 
       const batch = toImport.slice(i, i + BATCH_SIZE);
-      const insertPayload = batch
-        .filter(t => !existingSet.has(t.identificador))
-        .map(t => {
-          const status = mapSituacaoToStatus(t.situacao);
-          const dataVencimento = parseDate(t.dataFatal) || parseDate(t.dataPrevista);
-          
-          return {
-            identificador_projuris: t.identificador || `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            tipo_tarefa: t.tipo,
-            titulo: t.titulo || "Tarefa sem título",
-            descricao: t.descricao,
-            data_vencimento: dataVencimento, // pode ser null
-            data_base: parseDate(t.dataBase),
-            data_fatal: parseDate(t.dataFatal),
-            data_cumprimento: status === "cumprido" ? parseDate(t.dataConclusao) : null,
-            status,
-            prioridade: mapSituacaoToPrioridade(t.situacao, t.dataFatal),
-            responsavel_id: findResponsavelId(t.responsaveis),
-            processo_id: findProcessoId(t.numeroProcesso),
-            observacoes: t.comentarios,
-            criado_por_nome: t.criadaPor,
-            concluido_por_nome: t.concluidaPor,
-            grupos_trabalho: t.gruposTrabalho,
-            marcadores: t.marcadores,
-            quadro_kanban: t.quadroKanban,
-          };
+      
+      // Process each task individually to handle async responsavel lookup
+      const insertPayloads = [];
+      for (const t of batch) {
+        if (existingSet.has(t.identificador)) continue;
+        
+        const status = mapSituacaoToStatus(t.situacao);
+        const dataVencimento = parseDate(t.dataFatal) || parseDate(t.dataPrevista);
+        const processoId = findProcessoId(t.numeroProcesso);
+        
+        // Async responsavel lookup (may create new profiles)
+        const responsavelId = await findResponsavelId(t.responsaveis);
+        
+        insertPayloads.push({
+          identificador_projuris: t.identificador || `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          tipo_tarefa: t.tipo,
+          titulo: t.titulo || "Tarefa sem título",
+          descricao: t.descricao,
+          data_vencimento: dataVencimento, // pode ser null
+          data_base: parseDate(t.dataBase),
+          data_fatal: parseDate(t.dataFatal),
+          data_cumprimento: status === "cumprido" ? parseDate(t.dataConclusao) : null,
+          status,
+          prioridade: mapSituacaoToPrioridade(t.situacao, t.dataFatal),
+          responsavel_id: responsavelId,
+          processo_id: processoId,
+          observacoes: t.comentarios,
+          criado_por_nome: t.criadaPor,
+          concluido_por_nome: t.concluidaPor,
+          grupos_trabalho: t.gruposTrabalho,
+          marcadores: t.marcadores,
+          quadro_kanban: t.quadroKanban,
+          criado_por: user?.id || null,
         });
+      }
+
+      const insertPayload = insertPayloads;
 
       if (insertPayload.length > 0) {
         const { error } = await supabase.from("tarefas").insert(insertPayload as any);
@@ -419,11 +513,22 @@ export default function ImportarTarefas() {
 
     setImporting(false);
     queryClient.invalidateQueries({ queryKey: ["prazos"] });
+    queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+    queryClient.invalidateQueries({ queryKey: ["profiles-import"] });
+    
+    // Refresh profiles list to include new users
+    if (novosUsuariosCriados.length > 0) {
+      refetchProfiles();
+    }
+
+    const descParts = [`${successCount} tarefa(s) importada(s)`];
+    if (errorCount > 0) descParts.push(`${errorCount} erro(s)/duplicada(s)`);
+    if (novosUsuariosCriados.length > 0) descParts.push(`${novosUsuariosCriados.length} usuário(s) criado(s)`);
 
     toast({
       title: "Importação concluída",
-      description: `${successCount} tarefa(s) importada(s). ${errorCount} erro(s)/duplicada(s).`,
-      variant: errorCount > 0 ? "destructive" : "default",
+      description: descParts.join(". ") + ".",
+      variant: errorCount > 0 && successCount === 0 ? "destructive" : "default",
     });
   };
 
@@ -440,6 +545,8 @@ export default function ImportarTarefas() {
     setTarefas([]);
     setParseProgress(0);
     setImportProgress(0);
+    setNovosUsuariosCriados([]);
+    createdUsersCache.current.clear();
   };
 
   const downloadTemplate = () => {
@@ -534,29 +641,51 @@ export default function ImportarTarefas() {
             </div>
 
             {/* Options */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="importarConcluidas"
-                  checked={importarConcluidas}
-                  onCheckedChange={setImportarConcluidas}
-                  disabled={importing}
-                />
-                <Label htmlFor="importarConcluidas">Importar tarefas concluídas</Label>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="importarConcluidas"
+                    checked={importarConcluidas}
+                    onCheckedChange={setImportarConcluidas}
+                    disabled={importing}
+                  />
+                  <Label htmlFor="importarConcluidas">Importar tarefas concluídas</Label>
+                </div>
 
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="vincularResponsaveis"
-                  checked={vincularResponsaveis}
-                  onCheckedChange={setVincularResponsaveis}
-                  disabled={importing}
-                />
-                <Label htmlFor="vincularResponsaveis">Vincular responsáveis automaticamente</Label>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="vincularResponsaveis"
+                    checked={vincularResponsaveis}
+                    onCheckedChange={setVincularResponsaveis}
+                    disabled={importing}
+                  />
+                  <Label htmlFor="vincularResponsaveis">Vincular responsáveis automaticamente</Label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="cadastrarNovosUsuarios"
+                    checked={cadastrarNovosUsuarios}
+                    onCheckedChange={setCadastrarNovosUsuarios}
+                    disabled={importing || !vincularResponsaveis || !selectedCoordenacao}
+                  />
+                  <div className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4 text-muted-foreground" />
+                    <Label htmlFor="cadastrarNovosUsuarios" className={!vincularResponsaveis || !selectedCoordenacao ? "text-muted-foreground" : ""}>
+                      Cadastrar responsáveis não encontrados
+                    </Label>
+                  </div>
+                </div>
+                {cadastrarNovosUsuarios && !selectedCoordenacao && (
+                  <p className="text-xs text-amber-600 ml-7">
+                    Selecione uma coordenação para habilitar o cadastro automático
+                  </p>
+                )}
               </div>
 
               <div>
-                <Label>Coordenação (opcional)</Label>
+                <Label>Coordenação {cadastrarNovosUsuarios ? "(obrigatório)" : "(opcional)"}</Label>
                 <Select value={selectedCoordenacao} onValueChange={(val) => setSelectedCoordenacao(val === "none" ? "" : val)} disabled={importing}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
@@ -568,8 +697,23 @@ export default function ImportarTarefas() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Todas as tarefas serão vinculadas a esta coordenação
+                </p>
               </div>
             </div>
+
+            {/* New users created alert */}
+            {novosUsuariosCriados.length > 0 && (
+              <Alert>
+                <UserPlus className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>{novosUsuariosCriados.length} novo(s) usuário(s) cadastrado(s):</strong>{" "}
+                  {novosUsuariosCriados.slice(0, 5).join(", ")}
+                  {novosUsuariosCriados.length > 5 && ` e mais ${novosUsuariosCriados.length - 5}...`}
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Progress */}
             {parsing && (
