@@ -115,8 +115,13 @@ export function SelecionarResponsaveisProcesso({
 
   // Sincronizar valor inicial quando carregar responsáveis existentes
   useEffect(() => {
-    if (responsaveisExistentes && responsaveisExistentes.length > 0 && value.length === 0) {
-      onChange(responsaveisExistentes as Responsavel[]);
+    if (responsaveisExistentes && responsaveisExistentes.length > 0) {
+      // Sempre sincronizar quando os dados existentes forem carregados
+      const existingIds = responsaveisExistentes.map(r => r.usuario_id).sort().join(',');
+      const currentIds = value.map(r => r.usuario_id).sort().join(',');
+      if (existingIds !== currentIds) {
+        onChange(responsaveisExistentes as Responsavel[]);
+      }
     }
   }, [responsaveisExistentes]);
 
