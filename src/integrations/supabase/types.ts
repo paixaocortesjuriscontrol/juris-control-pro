@@ -2613,6 +2613,68 @@ export type Database = {
           },
         ]
       }
+      processos_responsaveis: {
+        Row: {
+          ativo: boolean | null
+          coordenacao_id: string | null
+          created_at: string
+          id: string
+          papel: string | null
+          processo_id: string
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          coordenacao_id?: string | null
+          created_at?: string
+          id?: string
+          papel?: string | null
+          processo_id: string
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          ativo?: boolean | null
+          coordenacao_id?: string | null
+          created_at?: string
+          id?: string
+          papel?: string | null
+          processo_id?: string
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processos_responsaveis_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processos_responsaveis_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processos_responsaveis_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processos_responsaveis_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           area_principal: string | null
