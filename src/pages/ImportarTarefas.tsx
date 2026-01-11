@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, Download, ListTodo, Users, UserPlus } from "lucide-react";
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, Download, ListTodo, Users, UserPlus, FolderPlus } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface TarefaImport {
@@ -110,7 +110,9 @@ export default function ImportarTarefas() {
   const [importarConcluidas, setImportarConcluidas] = useState(true);
   const [vincularResponsaveis, setVincularResponsaveis] = useState(true);
   const [cadastrarNovosUsuarios, setCadastrarNovosUsuarios] = useState(true);
+  const [cadastrarNovosProcessos, setCadastrarNovosProcessos] = useState(true);
   const [novosUsuariosCriados, setNovosUsuariosCriados] = useState<string[]>([]);
+  const [novosProcessosCriados, setNovosProcessosCriados] = useState<string[]>([]);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -119,6 +121,7 @@ export default function ImportarTarefas() {
 
   // Cache of created users during import
   const createdUsersCache = useRef<Map<string, string>>(new Map());
+  const createdProcessosCache = useRef<Map<string, string>>(new Map());
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   
@@ -383,7 +386,75 @@ export default function ImportarTarefas() {
     if (!numeroProcesso || !processosMap) return null;
     
     const normalized = numeroProcesso.replace(/[^0-9]/g, "");
+    
+    // Check cache first (for processes created during this import)
+    const cachedId = createdProcessosCache.current.get(normalized);
+    if (cachedId) return cachedId;
+    
     return processosMap.get(normalized) || processosMap.get(numeroProcesso) || null;
+  };
+
+  // Create a new processo for an unknown process number
+  const createNewProcesso = async (tarefa: TarefaImport): Promise<string | null> => {
+    if (!tarefa.numeroProcesso || !selectedCoordenacao) return null;
+    
+    const normalized = tarefa.numeroProcesso.replace(/[^0-9]/g, "");
+    
+    // Check cache first
+    const cachedId = createdProcessosCache.current.get(normalized);
+    if (cachedId) return cachedId;
+
+    try {
+      // Create processo with available data from the spreadsheet
+      const { data: newProcesso, error } = await supabase
+        .from("processos")
+        .insert({
+          numero: tarefa.numeroProcesso,
+          assunto: tarefa.assunto || "Importado via tarefas",
+          vara: tarefa.vara || null,
+          fase: tarefa.fase || null,
+          pasta_fisica: tarefa.pastaFisica || null,
+          pasta_cliente: tarefa.pastaCliente || null,
+          coordenacao_id: selectedCoordenacao,
+          status: "ativo",
+          area: "civil", // Default area
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        console.error("Erro ao criar processo:", error);
+        return null;
+      }
+
+      if (newProcesso?.id) {
+        // Cache the created process
+        createdProcessosCache.current.set(normalized, newProcesso.id);
+        setNovosProcessosCriados(prev => [...prev, tarefa.numeroProcesso!]);
+        
+        return newProcesso.id;
+      }
+
+      return null;
+    } catch (err) {
+      console.error("Erro ao criar processo:", err);
+      return null;
+    }
+  };
+
+  // Find or create processo
+  const findOrCreateProcessoId = async (tarefa: TarefaImport): Promise<string | null> => {
+    // First try to find existing
+    const existingId = findProcessoId(tarefa.numeroProcesso);
+    if (existingId) return existingId;
+    
+    // If not found and option enabled, create new processo
+    if (cadastrarNovosProcessos && selectedCoordenacao && tarefa.numeroProcesso) {
+      const newId = await createNewProcesso(tarefa);
+      if (newId) return newId;
+    }
+    
+    return null;
   };
 
   // Vincular responsável ao processo na tabela processos_responsaveis
@@ -460,9 +531,11 @@ export default function ImportarTarefas() {
     
     const existingSet = new Set((existingTarefas || []).map((t: any) => t.identificador_projuris));
 
-    // Clear the users cache for this import session
+    // Clear the caches for this import session
     createdUsersCache.current.clear();
+    createdProcessosCache.current.clear();
     setNovosUsuariosCriados([]);
+    setNovosProcessosCriados([]);
 
     for (let i = 0; i < toImport.length; i += BATCH_SIZE) {
       if (cancelledRef.current) break;
@@ -476,7 +549,9 @@ export default function ImportarTarefas() {
         
         const status = mapSituacaoToStatus(t.situacao);
         const dataVencimento = parseDate(t.dataFatal) || parseDate(t.dataPrevista);
-        const processoId = findProcessoId(t.numeroProcesso);
+        
+        // Async processo lookup (may create new processos)
+        const processoId = await findOrCreateProcessoId(t);
         
         // Async responsavel lookup (may create new profiles)
         const responsavelId = await findResponsavelId(t.responsaveis);
@@ -567,6 +642,8 @@ export default function ImportarTarefas() {
     queryClient.invalidateQueries({ queryKey: ["prazos"] });
     queryClient.invalidateQueries({ queryKey: ["tarefas"] });
     queryClient.invalidateQueries({ queryKey: ["profiles-import"] });
+    queryClient.invalidateQueries({ queryKey: ["processos"] });
+    queryClient.invalidateQueries({ queryKey: ["processos-map-import"] });
     
     // Refresh profiles list to include new users
     if (novosUsuariosCriados.length > 0) {
@@ -576,6 +653,7 @@ export default function ImportarTarefas() {
     const descParts = [`${successCount} tarefa(s) importada(s)`];
     if (errorCount > 0) descParts.push(`${errorCount} erro(s)/duplicada(s)`);
     if (novosUsuariosCriados.length > 0) descParts.push(`${novosUsuariosCriados.length} usuário(s) criado(s)`);
+    if (novosProcessosCriados.length > 0) descParts.push(`${novosProcessosCriados.length} processo(s) criado(s)`);
 
     toast({
       title: "Importação concluída",
@@ -598,7 +676,9 @@ export default function ImportarTarefas() {
     setParseProgress(0);
     setImportProgress(0);
     setNovosUsuariosCriados([]);
+    setNovosProcessosCriados([]);
     createdUsersCache.current.clear();
+    createdProcessosCache.current.clear();
   };
 
   const downloadTemplate = () => {
@@ -729,7 +809,22 @@ export default function ImportarTarefas() {
                     </Label>
                   </div>
                 </div>
-                {cadastrarNovosUsuarios && !selectedCoordenacao && (
+
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="cadastrarNovosProcessos"
+                    checked={cadastrarNovosProcessos}
+                    onCheckedChange={setCadastrarNovosProcessos}
+                    disabled={importing || !selectedCoordenacao}
+                  />
+                  <div className="flex items-center gap-2">
+                    <FolderPlus className="h-4 w-4 text-muted-foreground" />
+                    <Label htmlFor="cadastrarNovosProcessos" className={!selectedCoordenacao ? "text-muted-foreground" : ""}>
+                      Cadastrar processos não encontrados
+                    </Label>
+                  </div>
+                </div>
+                {(cadastrarNovosUsuarios || cadastrarNovosProcessos) && !selectedCoordenacao && (
                   <p className="text-xs text-amber-600 ml-7">
                     Selecione uma coordenação para habilitar o cadastro automático
                   </p>
@@ -737,7 +832,7 @@ export default function ImportarTarefas() {
               </div>
 
               <div>
-                <Label>Coordenação {cadastrarNovosUsuarios ? "(obrigatório)" : "(opcional)"}</Label>
+                <Label>Coordenação {(cadastrarNovosUsuarios || cadastrarNovosProcessos) ? "(obrigatório)" : "(opcional)"}</Label>
                 <Select value={selectedCoordenacao} onValueChange={(val) => setSelectedCoordenacao(val === "none" ? "" : val)} disabled={importing}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
@@ -763,6 +858,18 @@ export default function ImportarTarefas() {
                   <strong>{novosUsuariosCriados.length} novo(s) usuário(s) cadastrado(s):</strong>{" "}
                   {novosUsuariosCriados.slice(0, 5).join(", ")}
                   {novosUsuariosCriados.length > 5 && ` e mais ${novosUsuariosCriados.length - 5}...`}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* New processos created alert */}
+            {novosProcessosCriados.length > 0 && (
+              <Alert>
+                <FolderPlus className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>{novosProcessosCriados.length} novo(s) processo(s) cadastrado(s):</strong>{" "}
+                  {novosProcessosCriados.slice(0, 5).join(", ")}
+                  {novosProcessosCriados.length > 5 && ` e mais ${novosProcessosCriados.length - 5}...`}
                 </AlertDescription>
               </Alert>
             )}
