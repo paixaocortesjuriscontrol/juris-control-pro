@@ -55,10 +55,31 @@ serve(async (req) => {
       .limit(500);
 
     if (docsError) {
-      console.error('Erro ao buscar documentos:', docsError);
+      console.error('Erro ao buscar documentos do repositório:', docsError);
+    }
+
+    // Buscar documentos anexados aos processos
+    const { data: documentosProcessos, error: docsProcessosError } = await supabaseAdmin
+      .from('documentos')
+      .select(`
+        id, 
+        nome, 
+        tipo, 
+        tamanho_bytes, 
+        created_at,
+        processo:processos!documentos_processo_id_fkey(id, numero_processo, assunto),
+        uploader:profiles!documentos_uploaded_by_fkey(nome)
+      `)
+      .not('processo_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (docsProcessosError) {
+      console.error('Erro ao buscar documentos de processos:', docsProcessosError);
     }
 
     console.log(`Documentos encontrados no repositório: ${documentos?.length || 0}`);
+    console.log(`Documentos encontrados em processos: ${documentosProcessos?.length || 0}`);
 
     // Construir contexto dos documentos de forma mais detalhada
     let documentosContexto = '';
@@ -138,38 +159,78 @@ serve(async (req) => {
       documentosContexto = '\n\n=== REPOSITÓRIO DE DOCUMENTOS ===\nNenhum documento cadastrado no repositório ainda.\n';
     }
 
-    const systemPrompt = `Você é um assistente jurídico especializado do escritório de advocacia. Você tem acesso COMPLETO ao repositório de documentos do escritório.
+    // Adicionar documentos de processos ao contexto
+    let documentosProcessosContexto = '';
+    if (documentosProcessos && documentosProcessos.length > 0) {
+      documentosProcessosContexto = `\n\n=== DOCUMENTOS ANEXADOS A PROCESSOS ===\n`;
+      documentosProcessosContexto += `📊 Total: ${documentosProcessos.length} documento(s) anexado(s) a processos\n\n`;
+      
+      // Agrupar por processo - tratar relação como objeto (join singular)
+      const porProcesso: Record<string, any[]> = {};
+      documentosProcessos.forEach((doc: any) => {
+        const processo = doc.processo as any;
+        const processoKey = processo?.numero_processo || 'sem_processo';
+        if (!porProcesso[processoKey]) porProcesso[processoKey] = [];
+        porProcesso[processoKey].push(doc);
+      });
+
+      Object.entries(porProcesso).forEach(([processoNum, docs]) => {
+        const primeiroDoc = docs[0];
+        const processo = primeiroDoc.processo as any;
+        const assunto = processo?.assunto || '';
+        documentosProcessosContexto += `📋 Processo: ${processoNum}${assunto ? ` - ${assunto}` : ''}\n`;
+        
+        docs.forEach((doc: any, index: number) => {
+          const dataUpload = doc.created_at ? new Date(doc.created_at).toLocaleDateString('pt-BR') : '';
+          const uploader = (doc.uploader as any)?.nome || 'Desconhecido';
+          
+          documentosProcessosContexto += `  [${index + 1}] "${doc.nome}" (ID: ${doc.id})\n`;
+          documentosProcessosContexto += `      📄 Tipo: ${doc.tipo || 'Não especificado'}\n`;
+          documentosProcessosContexto += `      👤 Enviado por: ${uploader}\n`;
+          if (dataUpload) documentosProcessosContexto += `      📅 Data: ${dataUpload}\n`;
+          documentosProcessosContexto += '\n';
+        });
+      });
+    }
+
+    const systemPrompt = `Você é um assistente jurídico especializado do escritório de advocacia. Você tem acesso COMPLETO ao repositório de documentos do escritório E aos documentos anexados aos processos.
 
 SUAS CAPACIDADES:
-1. PESQUISAS: Buscar e encontrar documentos, jurisprudências, modelos e peças processuais no repositório
-2. LISTAR DOCUMENTOS: Quando solicitado, liste TODOS os documentos disponíveis no repositório de forma organizada
+1. PESQUISAS: Buscar e encontrar documentos, jurisprudências, modelos, peças processuais no repositório E nos processos
+2. LISTAR DOCUMENTOS: Quando solicitado, liste documentos do repositório e/ou dos processos
 3. GERAÇÃO DE DOCUMENTOS: Criar novos documentos baseados em modelos existentes
 4. ANÁLISE: Analisar documentos e fornecer insights jurídicos
 5. ORIENTAÇÃO: Responder dúvidas sobre procedimentos e práticas jurídicas
+6. PESQUISA EM PROCESSOS: Identificar documentos relacionados a processos específicos
 
 INSTRUÇÕES IMPORTANTES:
-- Você DEVE consultar a lista de documentos abaixo para responder sobre o que existe no repositório
-- Quando pedirem para "listar documentos" ou "mostrar todos os documentos", apresente TODOS os documentos disponíveis
+- Você DEVE consultar a lista de documentos abaixo para responder sobre o que existe
+- Existem DOIS tipos de documentos:
+  * REPOSITÓRIO: Documentos gerais do escritório (modelos, jurisprudências, etc.)
+  * PROCESSOS: Documentos anexados a processos específicos (petições, contratos, provas, etc.)
+- Quando pedirem para "listar documentos" ou "mostrar todos os documentos", apresente documentos de AMBAS as fontes
 - Formate a listagem de forma clara usando markdown (tabelas, listas, etc.)
-- Ao listar documentos, inclua: nome, categoria, tipo (se houver), e uma breve descrição
-- Mencione o ID do documento entre parênteses para que o usuário possa baixá-lo
-- Um documento pode ser de categoria "contrato" e ter diferentes tipos (locação, prestação de serviços, trabalho, etc.)
-- O nome do arquivo original pode conter pistas sobre o tipo real do documento
+- Ao mencionar documentos de processos, inclua o número do processo
 - Seja preciso e mencione os documentos pelo nome quando relevante
 - Se não houver documentos de um tipo específico, informe claramente
 
-FORMATO PARA LISTAR DOCUMENTOS:
-Quando pedirem para listar, use este formato:
-
+FORMATO PARA LISTAR DOCUMENTOS DO REPOSITÓRIO:
 ### 📁 [Nome da Categoria]
 | Documento | Tipo | Descrição |
 |-----------|------|-----------|
 | Nome do doc (ID: xxx...) | Tipo | Breve descrição |
 
+FORMATO PARA LISTAR DOCUMENTOS DE PROCESSOS:
+### 📋 Processo [Número]
+| Documento | Tipo | Enviado por |
+|-----------|------|-------------|
+| Nome do doc | Tipo | Nome |
+
 ${tipo === 'pesquisa' ? '>>> O usuário está fazendo uma PESQUISA no repositório.' : ''}
 ${tipo === 'geracao' ? '>>> O usuário está solicitando a GERAÇÃO de um novo documento.' : ''}
 
 ${documentosContexto}
+${documentosProcessosContexto}
 
 Responda de forma profissional, precisa e útil. Use formatação markdown quando apropriado.`;
 
