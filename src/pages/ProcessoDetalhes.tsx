@@ -160,6 +160,37 @@ export default function ProcessoDetalhes() {
     enabled: !!id,
   });
 
+  const { data: responsaveisProcesso = [] } = useQuery({
+    queryKey: ["processo-responsaveis", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data, error } = await supabase
+        .from("processos_responsaveis")
+        .select(
+          `
+          id,
+          usuario_id,
+          papel,
+          coordenacao_id,
+          usuario:profiles!processos_responsaveis_usuario_id_fkey(id, nome),
+          coordenacao:coordenacoes!processos_responsaveis_coordenacao_id_fkey(id, nome)
+        `
+        )
+        .eq("processo_id", id)
+        .eq("ativo", true);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  const responsaveisNomes = responsaveisProcesso
+    .map((r: any) => r.usuario?.nome)
+    .filter((n: any): n is string => !!n);
+
+  const responsaveisTexto = responsaveisNomes.length ? responsaveisNomes.join(", ") : "Não atribuído";
+
   const { data: movimentacoes, isLoading: loadingMovimentacoes, refetch: refetchMovimentacoes } = useQuery({
     queryKey: ["movimentacoes", id],
     queryFn: async () => {
@@ -668,6 +699,8 @@ export default function ProcessoDetalhes() {
       toast({ title: "Processo atualizado com sucesso" });
       queryClient.invalidateQueries({ queryKey: ["processo", id] });
       queryClient.invalidateQueries({ queryKey: ["processos"] });
+      queryClient.invalidateQueries({ queryKey: ["processo-responsaveis", id] });
+      queryClient.invalidateQueries({ queryKey: ["processos-responsaveis", processo.id] });
       setEditando(false);
       setShowConfirmDialog(false);
     } catch (error: any) {
@@ -2243,9 +2276,9 @@ export default function ProcessoDetalhes() {
                   <User className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Advogado Responsável</p>
+                  <p className="text-sm text-muted-foreground">Responsáveis</p>
                   <p className="font-medium">
-                    {processo.advogado_responsavel?.nome || "Não atribuído"}
+                    {responsaveisTexto}
                   </p>
                 </div>
               </div>
@@ -2488,7 +2521,7 @@ export default function ProcessoDetalhes() {
                       label="Coordenação" 
                       value={coordenacoes.find(c => c.id === processo.coordenacao_id)?.nome} 
                     />
-                    <FieldItem label="Advogado Responsável" value={processo.advogado_responsavel?.nome} />
+                    <FieldItem label="Responsáveis" value={responsaveisTexto} />
                   </>
                 )}
                 <FieldItem label="Responsáveis Projuris" value={processo.responsaveis_projuris} field="responsaveis_projuris" />
