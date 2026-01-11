@@ -1083,38 +1083,56 @@ export type Database = {
       }
       documentos: {
         Row: {
+          analisado_ia: boolean | null
+          categoria: string | null
+          confianca_ia: string | null
           created_at: string
+          descricao: string | null
           id: string
           nome: string
           pasta_id: string | null
           processo_id: string | null
+          tags: string[] | null
           tamanho_bytes: number | null
           tarefa_id: string | null
           tipo: string | null
+          tipo_documento: string | null
           uploaded_by: string | null
           url: string | null
         }
         Insert: {
+          analisado_ia?: boolean | null
+          categoria?: string | null
+          confianca_ia?: string | null
           created_at?: string
+          descricao?: string | null
           id?: string
           nome: string
           pasta_id?: string | null
           processo_id?: string | null
+          tags?: string[] | null
           tamanho_bytes?: number | null
           tarefa_id?: string | null
           tipo?: string | null
+          tipo_documento?: string | null
           uploaded_by?: string | null
           url?: string | null
         }
         Update: {
+          analisado_ia?: boolean | null
+          categoria?: string | null
+          confianca_ia?: string | null
           created_at?: string
+          descricao?: string | null
           id?: string
           nome?: string
           pasta_id?: string | null
           processo_id?: string | null
+          tags?: string[] | null
           tamanho_bytes?: number | null
           tarefa_id?: string | null
           tipo?: string | null
+          tipo_documento?: string | null
           uploaded_by?: string | null
           url?: string | null
         }

@@ -67,6 +67,10 @@ serve(async (req) => {
         tipo, 
         tamanho_bytes, 
         created_at,
+        categoria,
+        tipo_documento,
+        descricao,
+        tags,
         processo:processos!documentos_processo_id_fkey(id, numero_processo, assunto),
         uploader:profiles!documentos_uploaded_by_fkey(nome)
       `)
@@ -183,9 +187,15 @@ serve(async (req) => {
         docs.forEach((doc: any, index: number) => {
           const dataUpload = doc.created_at ? new Date(doc.created_at).toLocaleDateString('pt-BR') : '';
           const uploader = (doc.uploader as any)?.nome || 'Desconhecido';
+          const categoriaLabel = doc.categoria ? (categoriasMap[doc.categoria] || doc.categoria) : null;
+          const tipoLabel = doc.tipo_documento ? (tiposMap[doc.tipo_documento] || doc.tipo_documento) : null;
           
           documentosProcessosContexto += `  [${index + 1}] "${doc.nome}" (ID: ${doc.id})\n`;
-          documentosProcessosContexto += `      📄 Tipo: ${doc.tipo || 'Não especificado'}\n`;
+          if (categoriaLabel) documentosProcessosContexto += `      📁 Categoria: ${categoriaLabel}`;
+          if (tipoLabel) documentosProcessosContexto += ` | Tipo: ${tipoLabel}`;
+          if (categoriaLabel || tipoLabel) documentosProcessosContexto += `\n`;
+          if (doc.descricao) documentosProcessosContexto += `      📝 Descrição: ${doc.descricao}\n`;
+          if (doc.tags && doc.tags.length > 0) documentosProcessosContexto += `      🏷️ Tags: ${doc.tags.join(', ')}\n`;
           documentosProcessosContexto += `      👤 Enviado por: ${uploader}\n`;
           if (dataUpload) documentosProcessosContexto += `      📅 Data: ${dataUpload}\n`;
           documentosProcessosContexto += '\n';
