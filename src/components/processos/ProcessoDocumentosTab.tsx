@@ -22,6 +22,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
   FileBox, 
   Upload, 
@@ -35,7 +41,9 @@ import {
   FileSpreadsheet,
   FileArchive,
   User,
-  Calendar
+  Calendar,
+  Sparkles,
+  Tag
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,6 +51,18 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { sanitizeFileName } from "@/lib/utils";
+
+const CATEGORIAS_LABELS: Record<string, string> = {
+  'modelo': 'Modelo',
+  'peca_processual': 'Peça Processual',
+  'jurisprudencia': 'Jurisprudência',
+  'legislacao': 'Legislação',
+  'parecer': 'Parecer',
+  'contrato': 'Contrato',
+  'procuracao': 'Procuração',
+  'outros': 'Outros',
+  'geral': 'Geral'
+};
 
 interface ProcessoDocumentosTabProps {
   processoId: string;
@@ -95,6 +115,79 @@ export function ProcessoDocumentosTab({
     return <File className="h-4 w-4 text-muted-foreground" />;
   };
 
+  // Função para ler conteúdo de arquivo para análise
+  const readFileContent = async (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        resolve(content || "");
+      };
+      reader.onerror = () => resolve("");
+      
+      if (file.type.includes("text") || file.type.includes("json") || file.type.includes("xml")) {
+        reader.readAsText(file);
+      } else if (file.type.includes("pdf") || file.type.includes("word") || file.type.includes("document")) {
+        // Para PDFs/Word, enviar nome para análise baseada no nome
+        resolve(`[Arquivo binário: ${file.name}]`);
+      } else {
+        resolve(`[Tipo de arquivo: ${file.type}]`);
+      }
+    });
+  };
+
+  // Função para analisar documento com IA
+  const analisarDocumentoIA = async (
+    documentoId: string,
+    fileName: string,
+    fileContent: string,
+    mimeType: string
+  ) => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analisar-documento`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            fileName,
+            fileContent,
+            mimeType,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        console.error("Erro na análise IA:", response.status);
+        return null;
+      }
+
+      const analise = await response.json();
+      
+      // Atualizar documento com dados da análise
+      await supabase
+        .from("documentos")
+        .update({
+          categoria: analise.categoria,
+          tipo_documento: analise.tipo_documento,
+          descricao: analise.descricao,
+          tags: analise.tags,
+          analisado_ia: true,
+          confianca_ia: analise.confianca,
+        })
+        .eq("id", documentoId);
+
+      return analise;
+    } catch (error) {
+      console.error("Erro ao analisar documento:", error);
+      return null;
+    }
+  };
+
   const handleUpload = async () => {
     if (selectedFiles.length === 0 || !user) return;
 
@@ -123,7 +216,8 @@ export function ProcessoDocumentosTab({
           .from("documentos_processos")
           .getPublicUrl(filePath);
 
-        const { error: dbError } = await supabase
+        // Inserir documento
+        const { data: docData, error: dbError } = await supabase
           .from("documentos")
           .insert({
             nome: file.name,
@@ -132,7 +226,9 @@ export function ProcessoDocumentosTab({
             tamanho_bytes: file.size,
             processo_id: processoId,
             uploaded_by: user.id,
-          });
+          })
+          .select("id")
+          .single();
 
         if (dbError) {
           console.error("Erro ao salvar documento:", dbError);
@@ -140,11 +236,17 @@ export function ProcessoDocumentosTab({
           continue;
         }
 
+        // Analisar documento com IA em background
+        if (docData?.id) {
+          const fileContent = await readFileContent(file);
+          analisarDocumentoIA(docData.id, file.name, fileContent, file.type);
+        }
+
         uploadedCount++;
         setUploadProgress(Math.round((uploadedCount / totalFiles) * 100));
       }
 
-      toast.success(`${uploadedCount} documento(s) enviado(s) com sucesso`);
+      toast.success(`${uploadedCount} documento(s) enviado(s) com sucesso. A IA está analisando os documentos...`);
       setSelectedFiles([]);
       refetchDocumentos();
     } catch (error) {
@@ -302,50 +404,84 @@ export function ProcessoDocumentosTab({
         {/* Documents List */}
         {documentos.length > 0 ? (
           <ScrollArea className="h-[400px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Arquivo</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Tamanho</TableHead>
-                  <TableHead>Enviado por</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {documentos.map((doc) => (
-                  <TableRow key={doc.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getFileIcon(doc.tipo)}
-                        <span className="truncate max-w-[200px]" title={doc.nome}>
-                          {doc.nome}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {doc.tipo?.split("/")[1]?.toUpperCase() || "N/A"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {formatFileSize(doc.tamanho_bytes)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <User className="h-3 w-3" />
-                        <span className="truncate max-w-[100px]">
-                          {doc.uploader?.nome || "Desconhecido"}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {doc.created_at
-                          ? format(new Date(doc.created_at), "dd/MM/yyyy", { locale: ptBR })
-                          : "N/A"}
+            <TooltipProvider>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Arquivo</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Tamanho</TableHead>
+                    <TableHead>Enviado por</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {documentos.map((doc) => (
+                    <TableRow key={doc.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {getFileIcon(doc.tipo)}
+                          <div className="flex flex-col min-w-0">
+                            <span className="truncate max-w-[200px]" title={doc.nome}>
+                              {doc.nome}
+                            </span>
+                            {doc.descricao && (
+                              <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                {doc.descricao}
+                              </span>
+                            )}
+                          </div>
+                          {doc.analisado_ia && (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Sparkles className="h-3 w-3 text-amber-500" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Analisado por IA ({doc.confianca_ia})</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          {doc.categoria ? (
+                            <Badge variant="secondary" className="text-xs w-fit">
+                              {CATEGORIAS_LABELS[doc.categoria] || doc.categoria}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs w-fit">
+                              {doc.tipo?.split("/")[1]?.toUpperCase() || "N/A"}
+                            </Badge>
+                          )}
+                          {doc.tags && doc.tags.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Tag className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground truncate max-w-[100px]">
+                                {doc.tags.slice(0, 2).join(", ")}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatFileSize(doc.tamanho_bytes)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <User className="h-3 w-3" />
+                          <span className="truncate max-w-[100px]">
+                            {doc.uploader?.nome || "Desconhecido"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {doc.created_at
+                            ? format(new Date(doc.created_at), "dd/MM/yyyy", { locale: ptBR })
+                            : "N/A"}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -371,9 +507,10 @@ export function ProcessoDocumentosTab({
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                  ))}
+                </TableBody>
+              </Table>
+            </TooltipProvider>
           </ScrollArea>
         ) : (
           <div className="text-center py-8">
