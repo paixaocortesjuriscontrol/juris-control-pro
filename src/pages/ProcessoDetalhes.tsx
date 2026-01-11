@@ -85,6 +85,7 @@ import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
 import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentosTab";
 import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
+import { SelecionarResponsaveisProcesso } from "@/components/processos/SelecionarResponsaveisProcesso";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -136,6 +137,8 @@ export default function ProcessoDetalhes() {
   
   // Form state for all fields
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [responsaveis, setResponsaveis] = useState<any[]>([]);
+  const [responsaveisLoaded, setResponsaveisLoaded] = useState(false);
 
   const { data: processo, isLoading: loadingProcesso } = useQuery({
     queryKey: ["processo", id],
@@ -498,12 +501,16 @@ export default function ProcessoDetalhes() {
   };
 
   const handleIniciarEdicao = () => {
+    setResponsaveis([]);
+    setResponsaveisLoaded(false);
     setEditando(true);
   };
 
   const handleCancelarEdicao = () => {
     setEditando(false);
     setFormData({});
+    setResponsaveis([]);
+    setResponsaveisLoaded(false);
   };
 
   const handleSalvarEdicao = async () => {
@@ -593,33 +600,71 @@ export default function ProcessoDetalhes() {
       if (formData.coordenacao_id !== (processo.coordenacao_id || "")) {
         updates.coordenacao_id = formData.coordenacao_id || null;
       }
-      
-      // Handle advogado_responsavel_id
-      const advogadoValue = formData.advogado_responsavel_id === "__none__" ? null : formData.advogado_responsavel_id;
-      if (advogadoValue !== (processo.advogado_responsavel_id || null)) {
-        updates.advogado_responsavel_id = advogadoValue;
-      }
-      
+
       // Handle cliente_id
       const clienteValue = formData.cliente_id === "__none__" ? null : formData.cliente_id;
       if (clienteValue !== (processo.cliente_id || null)) {
         updates.cliente_id = clienteValue;
       }
-      
-      if (Object.keys(updates).length === 0) {
+
+      // Responsáveis (multi) + campo legado advogado_responsavel_id (primeiro responsável)
+      const shouldSyncResponsaveis = responsaveisLoaded;
+      if (shouldSyncResponsaveis) {
+        const primaryUsuarioId =
+          responsaveis.find((r) => r.papel === "responsavel")?.usuario_id ??
+          responsaveis[0]?.usuario_id ??
+          null;
+
+        if (primaryUsuarioId !== (processo.advogado_responsavel_id || null)) {
+          updates.advogado_responsavel_id = primaryUsuarioId;
+        }
+      } else {
+        // fallback para o campo antigo (caso o componente ainda não tenha carregado)
+        const advogadoValue =
+          formData.advogado_responsavel_id === "__none__" ? null : formData.advogado_responsavel_id;
+        if (advogadoValue !== (processo.advogado_responsavel_id || null)) {
+          updates.advogado_responsavel_id = advogadoValue;
+        }
+      }
+
+      if (Object.keys(updates).length === 0 && !shouldSyncResponsaveis) {
         toast({ title: "Nenhuma alteração detectada" });
         setEditando(false);
         setShowConfirmDialog(false);
         return;
       }
       
-      const { error } = await supabase
-        .from("processos")
-        .update(updates)
-        .eq("id", processo.id);
-      
-      if (error) throw error;
-      
+      if (Object.keys(updates).length > 0) {
+        const { error } = await supabase
+          .from("processos")
+          .update(updates)
+          .eq("id", processo.id);
+
+        if (error) throw error;
+      }
+
+      if (responsaveisLoaded) {
+        const { error: delError } = await supabase
+          .from("processos_responsaveis")
+          .delete()
+          .eq("processo_id", processo.id);
+
+        if (delError) throw delError;
+
+        if (responsaveis.length > 0) {
+          const { error: respError } = await supabase.from("processos_responsaveis").insert(
+            responsaveis.map((r) => ({
+              processo_id: processo.id,
+              usuario_id: r.usuario_id,
+              coordenacao_id: r.coordenacao_id ?? null,
+              papel: r.papel || "responsavel",
+            }))
+          );
+
+          if (respError) throw respError;
+        }
+      }
+
       toast({ title: "Processo atualizado com sucesso" });
       queryClient.invalidateQueries({ queryKey: ["processo", id] });
       queryClient.invalidateQueries({ queryKey: ["processos"] });
@@ -2420,29 +2465,20 @@ export default function ProcessoDetalhes() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-sm">Advogado Responsável</Label>
-                      <Select 
-                        value={formData.advogado_responsavel_id || "__none__"} 
-                        onValueChange={(v) => handleInputChange("advogado_responsavel_id", v)}
-                        disabled={!formData.coordenacao_id}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={
-                            !formData.coordenacao_id 
-                              ? "Selecione coordenação primeiro" 
-                              : "Selecione o advogado"
-                          } />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Não atribuído</SelectItem>
-                          {membrosCoordenacao.map((membro) => (
-                            <SelectItem key={membro.usuario_id} value={membro.usuario_id}>
-                              {membro.profiles?.nome || "Usuário"} {membro.cargo ? `(${membro.cargo})` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Responsáveis do Processo</Label>
+                      <SelecionarResponsaveisProcesso
+                        processoId={processo.id}
+                        value={responsaveis}
+                        onChange={(next) => {
+                          setResponsaveis(next);
+                          setResponsaveisLoaded(true);
+                        }}
+                        coordenacaoIdPadrao={formData.coordenacao_id || undefined}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Selecione um ou mais advogados responsáveis e defina o papel de cada um.
+                      </p>
                     </div>
                   </>
                 ) : (
