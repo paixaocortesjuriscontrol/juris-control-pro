@@ -386,6 +386,46 @@ export default function ImportarTarefas() {
     return processosMap.get(normalized) || processosMap.get(numeroProcesso) || null;
   };
 
+  // Vincular responsável ao processo na tabela processos_responsaveis
+  const vincularResponsavelAoProcesso = async (processoId: string, usuarioId: string): Promise<void> => {
+    try {
+      // Verificar se já existe o vínculo
+      const { data: existing } = await supabase
+        .from("processos_responsaveis")
+        .select("id")
+        .eq("processo_id", processoId)
+        .eq("usuario_id", usuarioId)
+        .maybeSingle();
+      
+      if (existing) return; // Já existe
+
+      // Criar vínculo
+      await supabase.from("processos_responsaveis").insert({
+        processo_id: processoId,
+        usuario_id: usuarioId,
+        coordenacao_id: selectedCoordenacao || null,
+        papel: "Responsável",
+        ativo: true,
+      });
+
+      // Atualizar advogado_responsavel_id do processo se estiver vazio
+      const { data: processo } = await supabase
+        .from("processos")
+        .select("advogado_responsavel_id")
+        .eq("id", processoId)
+        .single();
+      
+      if (processo && !processo.advogado_responsavel_id) {
+        await supabase
+          .from("processos")
+          .update({ advogado_responsavel_id: usuarioId })
+          .eq("id", processoId);
+      }
+    } catch (err) {
+      console.error("Erro ao vincular responsável ao processo:", err);
+    }
+  };
+
   const handleImport = async () => {
     const toImport = tarefas.filter(t => {
       if (t.status !== "valido") return false;
@@ -430,7 +470,7 @@ export default function ImportarTarefas() {
       const batch = toImport.slice(i, i + BATCH_SIZE);
       
       // Process each task individually to handle async responsavel lookup
-      const insertPayloads = [];
+      const insertPayloads: Array<{ payload: any; processoId: string | null; responsavelId: string | null }> = [];
       for (const t of batch) {
         if (existingSet.has(t.identificador)) continue;
         
@@ -442,38 +482,42 @@ export default function ImportarTarefas() {
         const responsavelId = await findResponsavelId(t.responsaveis);
         
         insertPayloads.push({
-          identificador_projuris: t.identificador || `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          tipo_tarefa: t.tipo,
-          titulo: t.titulo || "Tarefa sem título",
-          descricao: t.descricao,
-          data_vencimento: dataVencimento, // pode ser null
-          data_base: parseDate(t.dataBase),
-          data_fatal: parseDate(t.dataFatal),
-          data_cumprimento: status === "cumprido" ? parseDate(t.dataConclusao) : null,
-          status,
-          prioridade: mapSituacaoToPrioridade(t.situacao, t.dataFatal),
-          responsavel_id: responsavelId,
-          processo_id: processoId,
-          observacoes: t.comentarios,
-          criado_por_nome: t.criadaPor,
-          concluido_por_nome: t.concluidaPor,
-          grupos_trabalho: t.gruposTrabalho,
-          marcadores: t.marcadores,
-          quadro_kanban: t.quadroKanban,
-          criado_por: user?.id || null,
+          payload: {
+            identificador_projuris: t.identificador || `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            tipo_tarefa: t.tipo,
+            titulo: t.titulo || "Tarefa sem título",
+            descricao: t.descricao,
+            data_vencimento: dataVencimento,
+            data_base: parseDate(t.dataBase),
+            data_fatal: parseDate(t.dataFatal),
+            data_cumprimento: status === "cumprido" ? parseDate(t.dataConclusao) : null,
+            status,
+            prioridade: mapSituacaoToPrioridade(t.situacao, t.dataFatal),
+            responsavel_id: responsavelId,
+            processo_id: processoId,
+            observacoes: t.comentarios,
+            criado_por_nome: t.criadaPor,
+            concluido_por_nome: t.concluidaPor,
+            grupos_trabalho: t.gruposTrabalho,
+            marcadores: t.marcadores,
+            quadro_kanban: t.quadroKanban,
+            criado_por: user?.id || null,
+          },
+          processoId,
+          responsavelId,
         });
       }
 
-      const insertPayload = insertPayloads;
+      const insertPayload = insertPayloads.map(p => p.payload);
 
       if (insertPayload.length > 0) {
         const { error } = await supabase.from("tarefas").insert(insertPayload as any);
         
         if (error) {
           // Fallback to individual inserts
-          for (const payload of insertPayload) {
-            const { error: singleError } = await supabase.from("tarefas").insert(payload as any);
-            const idx = updatedTarefas.findIndex(t => t.identificador === payload.identificador_projuris);
+          for (const item of insertPayloads) {
+            const { error: singleError } = await supabase.from("tarefas").insert(item.payload as any);
+            const idx = updatedTarefas.findIndex(t => t.identificador === item.payload.identificador_projuris);
             if (idx >= 0) {
               if (singleError) {
                 updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: singleError.message };
@@ -481,16 +525,24 @@ export default function ImportarTarefas() {
               } else {
                 updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso" };
                 successCount++;
+                // Vincular responsável ao processo
+                if (item.processoId && item.responsavelId) {
+                  await vincularResponsavelAoProcesso(item.processoId, item.responsavelId);
+                }
               }
             }
           }
         } else {
           // All batch succeeded
-          for (const payload of insertPayload) {
-            const idx = updatedTarefas.findIndex(t => t.identificador === payload.identificador_projuris);
+          for (const item of insertPayloads) {
+            const idx = updatedTarefas.findIndex(t => t.identificador === item.payload.identificador_projuris);
             if (idx >= 0) {
               updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso" };
               successCount++;
+              // Vincular responsável ao processo
+              if (item.processoId && item.responsavelId) {
+                await vincularResponsavelAoProcesso(item.processoId, item.responsavelId);
+              }
             }
           }
         }
