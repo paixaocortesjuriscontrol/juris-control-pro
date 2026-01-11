@@ -31,11 +31,11 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckSquare, Loader2, Scale, Search, Square } from "lucide-react";
+import { CheckSquare, Loader2, Scale, Search, Square, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { SelecionarResponsaveisProcesso } from "@/components/processos/SelecionarResponsaveisProcesso";
 
 const formSchema = z.object({
-  advogado_id: z.string().min(1, "Selecione um advogado"),
   processos: z.array(z.string()).min(1, "Selecione pelo menos um processo"),
 });
 
@@ -66,6 +66,7 @@ export function AtribuirProcessoDialog({
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>(coordenacaoId);
+  const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -145,31 +146,55 @@ export function AtribuirProcessoDialog({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      advogado_id: "",
       processos: [],
     },
   });
 
   async function onSubmit(values: FormValues) {
+    if (responsaveis.length === 0) {
+      toast({
+        title: "Selecione responsáveis",
+        description: "Selecione pelo menos um advogado responsável.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from("processos")
-        .update({ advogado_responsavel_id: values.advogado_id })
-        .in("id", values.processos);
+      // For each process, insert the responsible lawyers
+      for (const processoId of values.processos) {
+        // First, set the primary responsible in the legacy field (first one)
+        await supabase
+          .from("processos")
+          .update({ advogado_responsavel_id: responsaveis[0].usuario_id })
+          .eq("id", processoId);
 
-      if (error) throw error;
+        // Then, upsert into processos_responsaveis
+        for (const resp of responsaveis) {
+          await supabase
+            .from("processos_responsaveis")
+            .upsert({
+              processo_id: processoId,
+              usuario_id: resp.usuario_id,
+              coordenacao_id: resp.coordenacao_id,
+              papel: resp.papel || "responsavel",
+            }, { onConflict: "processo_id,usuario_id" });
+        }
+      }
 
       toast({ 
         title: "Processos atribuídos!", 
-        description: `${values.processos.length} processo(s) atribuído(s) com sucesso.` 
+        description: `${values.processos.length} processo(s) atribuído(s) a ${responsaveis.length} responsável(is).` 
       });
       
       queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
       queryClient.invalidateQueries({ queryKey: ["processos-nao-atribuidos-all"] });
       queryClient.invalidateQueries({ queryKey: ["processos"] });
+      queryClient.invalidateQueries({ queryKey: ["processos-responsaveis"] });
       onOpenChange(false);
       form.reset();
+      setResponsaveis([]);
     } catch (error: any) {
       toast({
         title: "Erro ao atribuir processos",
@@ -180,10 +205,6 @@ export function AtribuirProcessoDialog({
       setLoading(false);
     }
   }
-
-  const advogadosDisponiveis = membros
-    .filter(m => m.usuario?.id)
-    .map(m => ({ id: m.usuario!.id, nome: m.usuario!.nome }));
 
   const handleSelectAll = () => {
     const allIds = processosFiltrados.map((p) => p.id);
@@ -208,36 +229,23 @@ export function AtribuirProcessoDialog({
         <DialogHeader>
           <DialogTitle>Atribuir Processos</DialogTitle>
           <DialogDescription>
-            Selecione um advogado e os processos que deseja atribuir
+            Selecione os responsáveis e os processos que deseja atribuir
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 flex-1 overflow-hidden flex flex-col">
-            <FormField
-              control={form.control}
-              name="advogado_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Advogado Responsável</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o advogado" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {advogadosDisponiveis.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="space-y-2">
+              <FormLabel className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Responsáveis
+              </FormLabel>
+              <SelecionarResponsaveisProcesso
+                value={responsaveis}
+                onChange={setResponsaveis}
+                coordenacaoIdPadrao={coordenacaoId}
+              />
+            </div>
 
             <FormField
               control={form.control}
@@ -393,10 +401,10 @@ export function AtribuirProcessoDialog({
               </Button>
               <Button 
                 type="submit" 
-                disabled={loading || !form.watch("processos").length}
+                disabled={loading || !form.watch("processos").length || responsaveis.length === 0}
               >
                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Atribuir
+                Atribuir {responsaveis.length > 0 && `a ${responsaveis.length} responsável(is)`}
               </Button>
             </div>
           </form>

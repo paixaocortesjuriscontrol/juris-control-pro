@@ -37,6 +37,7 @@ import { usePastas } from "@/hooks/usePastas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast as sonnerToast } from "sonner";
+import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 
 
 const formSchema = z.object({
@@ -135,6 +136,9 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
   // State for creating new pasta
   const [criarNovaPasta, setCriarNovaPasta] = useState(false);
   const [novaPastaNome, setNovaPastaNome] = useState("");
+  
+  // State for multiple responsible lawyers
+  const [responsaveis, setResponsaveis] = useState<any[]>([]);
 
   const isEditing = !!processo;
 
@@ -220,6 +224,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       setNewProcessoId(null);
       setCriarNovaPasta(false);
       setNovaPastaNome("");
+      setResponsaveis([]);
       
       if (processo) {
         form.reset({
@@ -695,6 +700,20 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
         if (error) throw error;
 
+        // Sync responsible lawyers
+        if (responsaveis.length > 0) {
+          // Delete existing and insert new
+          await supabase.from("processos_responsaveis").delete().eq("processo_id", processo.id);
+          await supabase.from("processos_responsaveis").insert(
+            responsaveis.map((r) => ({
+              processo_id: processo.id,
+              usuario_id: r.usuario_id,
+              coordenacao_id: r.coordenacao_id,
+              papel: r.papel || "responsavel",
+            }))
+          );
+        }
+
         // Upload documents if any
         if (files.length > 0) {
           await uploadDocuments(processo.id);
@@ -726,6 +745,18 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         const { data: newProcesso, error } = await supabase.from("processos").insert(processData).select("id").single();
 
         if (error) throw error;
+
+        // Insert responsible lawyers
+        if (responsaveis.length > 0) {
+          await supabase.from("processos_responsaveis").insert(
+            responsaveis.map((r) => ({
+              processo_id: newProcesso.id,
+              usuario_id: r.usuario_id,
+              coordenacao_id: r.coordenacao_id,
+              papel: r.papel || "responsavel",
+            }))
+          );
+        }
 
         // Upload documents if any
         if (files.length > 0) {
@@ -1293,62 +1324,43 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="coordenacao_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Coordenação</FormLabel>
-                        <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione a coordenação" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">Nenhuma</SelectItem>
-                            {coordenacoes.map((coord) => (
-                              <SelectItem key={coord.id} value={coord.id}>
-                                {coord.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                <FormField
+                  control={form.control}
+                  name="coordenacao_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Coordenação Principal</FormLabel>
+                      <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a coordenação" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhuma</SelectItem>
+                          {coordenacoes.map((coord) => (
+                            <SelectItem key={coord.id} value={coord.id}>
+                              {coord.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-                  <FormField
-                    control={form.control}
-                    name="advogado_responsavel_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Advogado Responsável</FormLabel>
-                        <Select 
-                          onValueChange={(val) => field.onChange(val === "none" ? "" : val)} 
-                          value={field.value || "none"}
-                          disabled={!selectedCoordenacao || selectedCoordenacao === "none"}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder={selectedCoordenacao && selectedCoordenacao !== "none" ? "Selecione o advogado" : "Selecione coordenação primeiro"} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">Nenhum</SelectItem>
-                            {membros.map((membro) => (
-                              <SelectItem key={membro.usuario.id} value={membro.usuario.id}>
-                                {membro.usuario.nome || "Sem nome"}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                <div className="space-y-2">
+                  <FormLabel>Responsáveis pelo Processo</FormLabel>
+                  <SelecionarResponsaveisProcesso
+                    processoId={processo?.id}
+                    value={responsaveis}
+                    onChange={setResponsaveis}
+                    coordenacaoIdPadrao={selectedCoordenacao}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Selecione um ou mais advogados de qualquer coordenação
+                  </p>
                 </div>
               </TabsContent>
 
