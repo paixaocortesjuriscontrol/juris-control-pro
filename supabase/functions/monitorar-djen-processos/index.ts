@@ -583,9 +583,15 @@ serve(async (req) => {
         continued: true,
       };
 
+      // Use anon key for internal calls (verify_jwt = false, so we just need a valid key)
+      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+
       const p = fetch(nextUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
         body: JSON.stringify(nextBody),
       })
         .then((r) => r.text().then((t) => console.log(`[DJEN Processos] Queued next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`)))
