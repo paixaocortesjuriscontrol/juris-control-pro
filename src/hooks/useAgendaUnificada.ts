@@ -23,7 +23,7 @@ export interface ItemAgendaUnificado {
   created_at: string;
   updated_at: string;
   processo_id: string | null;
-  processo?: { id: string; numero: string; assunto?: string | null } | null;
+  processo?: { id: string; numero: string; assunto?: string | null; cliente_id?: string | null } | null;
   participantes?: { usuario_id: string; usuario?: { id: string; nome: string } }[];
   enviar_whatsapp?: boolean;
   total_parcelas?: number | null;
@@ -35,6 +35,9 @@ export interface ItemAgendaUnificado {
   responsavel_id?: string;
   responsavel?: { id: string; nome: string } | null;
   delegado_por_id?: string;
+  tipo_tarefa?: string | null;
+  data_vencimento?: string | null;
+  data_fatal?: string | null;
 }
 
 export interface AgendaUnificadaFilters {
@@ -176,6 +179,8 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
             titulo,
             descricao,
             data_vencimento,
+            data_fatal,
+            tipo_tarefa,
             status,
             prioridade,
             observacoes,
@@ -184,12 +189,25 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
             processo_id,
             responsavel_id,
             criado_por,
-            processo:processos!tarefas_processo_id_fkey(id, numero, assunto, cliente_id),
+            processo:processos!tarefas_processo_id_fkey(id, numero, assunto, cliente_id, coordenacao_id),
             responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
           `);
 
-        // Filtrar: responsável = usuário logado OU criador = usuário logado
-        queryTarefas = queryTarefas.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
+        // Filtrar por responsável OU se é o criador
+        // Se o filtro de membro está ativo, mostra tarefas onde o responsável está no filtro OU o usuário logado é criador
+        if (filters.responsavelIds && filters.responsavelIds.length > 0) {
+          // Se o próprio usuário logado está no filtro, mostra também onde ele é criador
+          if (filters.responsavelIds.includes(user.id)) {
+            queryTarefas = queryTarefas.or(`responsavel_id.in.(${filters.responsavelIds.join(',')}),criado_por.eq.${user.id}`);
+          } else {
+            // Só mostra do membro selecionado (mas também inclui as que o usuário criou para esse membro)
+            const membrosFilter = filters.responsavelIds.join(',');
+            queryTarefas = queryTarefas.or(`responsavel_id.in.(${membrosFilter}),and(criado_por.eq.${user.id},responsavel_id.in.(${membrosFilter}))`);
+          }
+        } else {
+          // Sem filtro de membro: mostrar todas onde o usuário é responsável OU criador
+          queryTarefas = queryTarefas.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
+        }
 
         // Filtrar por status
         if (filters.status && filters.status !== "todas") {
@@ -209,11 +227,6 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
           queryTarefas = queryTarefas.lte("data_vencimento", filters.dataFim.toISOString().split('T')[0]);
         }
 
-        // Filtrar por responsável
-        if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-          queryTarefas = queryTarefas.in("responsavel_id", filters.responsavelIds);
-        }
-
         const { data: tarefas, error: tarefasError } = await queryTarefas;
 
         if (tarefasError) {
@@ -224,11 +237,16 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
             filters.tipos.includes("tarefa") || filters.tipos.includes("tarefa_delegada");
           
           if (incluirTipoTarefa) {
-            // Filtrar por cliente se especificado
+            // Filtrar por cliente e coordenação se especificado
             let tarefasFiltradas = tarefas;
             if (filters.clienteId) {
-              tarefasFiltradas = tarefas.filter(t => 
+              tarefasFiltradas = tarefasFiltradas.filter(t => 
                 t.processo && (t.processo as { cliente_id?: string }).cliente_id === filters.clienteId
+              );
+            }
+            if (filters.coordenacaoId) {
+              tarefasFiltradas = tarefasFiltradas.filter(t => 
+                t.processo && (t.processo as { coordenacao_id?: string }).coordenacao_id === filters.coordenacaoId
               );
             }
 
@@ -261,12 +279,20 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
                 created_at: tarefa.created_at,
                 updated_at: tarefa.updated_at,
                 processo_id: tarefa.processo_id,
-                processo: tarefa.processo ? { id: tarefa.processo.id, numero: tarefa.processo.numero, assunto: tarefa.processo.assunto } : null,
+                processo: tarefa.processo ? { 
+                  id: tarefa.processo.id, 
+                  numero: tarefa.processo.numero, 
+                  assunto: tarefa.processo.assunto,
+                  cliente_id: (tarefa.processo as { cliente_id?: string }).cliente_id
+                } : null,
                 responsavel_id: tarefa.responsavel_id,
                 responsavel: tarefa.responsavel,
                 criado_por: tarefa.criado_por,
                 dias_restantes: diasRestantes,
                 is_atrasado: isAtrasado,
+                tipo_tarefa: tarefa.tipo_tarefa,
+                data_vencimento: tarefa.data_vencimento,
+                data_fatal: tarefa.data_fatal,
               });
             }
           }
