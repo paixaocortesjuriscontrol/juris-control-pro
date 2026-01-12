@@ -118,6 +118,168 @@ async function getActiveTermos(supabase: any) {
   return termosCache;
 }
 
+// ============ FUNÇÃO PARA CRIAR TAREFAS ============
+async function criarTarefaParaAudiencia(
+  supabase: any,
+  processoId: string,
+  processoNumero: string,
+  audienciaId: string,
+  tipoAudiencia: string | null,
+  dataAudiencia: Date | null
+) {
+  if (!processoId) return;
+  
+  try {
+    // Buscar responsáveis do processo
+    const { data: responsaveis } = await supabase
+      .from('processos_responsaveis')
+      .select('usuario_id')
+      .eq('processo_id', processoId);
+    
+    const { data: processo } = await supabase
+      .from('processos')
+      .select('advogado_responsavel_id')
+      .eq('id', processoId)
+      .maybeSingle();
+    
+    const usuariosParaTarefa = new Set<string>();
+    
+    responsaveis?.forEach((r: any) => usuariosParaTarefa.add(r.usuario_id));
+    if (processo?.advogado_responsavel_id) {
+      usuariosParaTarefa.add(processo.advogado_responsavel_id);
+    }
+    
+    if (usuariosParaTarefa.size === 0) {
+      console.log(`Nenhum responsável encontrado para processo ${processoNumero}`);
+      return;
+    }
+    
+    // Calcular prazo (2 dias antes da audiência ou 5 dias a partir de hoje)
+    let dataVencimento: Date;
+    if (dataAudiencia) {
+      dataVencimento = new Date(dataAudiencia);
+      dataVencimento.setDate(dataVencimento.getDate() - 2);
+    } else {
+      dataVencimento = new Date();
+      dataVencimento.setDate(dataVencimento.getDate() + 5);
+    }
+    
+    for (const usuarioId of usuariosParaTarefa) {
+      const { data: tarefaCriada, error: tarefaError } = await supabase
+        .from('tarefas')
+        .insert({
+          titulo: `[Andamento] ${tipoAudiencia || 'Audiência'} - ${processoNumero}`,
+          descricao: `Audiência detectada via monitoramento de andamentos. Verifique detalhes e prepare-se para a audiência.`,
+          data_vencimento: dataVencimento.toISOString().split('T')[0],
+          responsavel_id: usuarioId,
+          processo_id: processoId,
+          prioridade: 'alta',
+          status: 'pendente',
+          origem: 'monitoramento_andamentos',
+        })
+        .select('id')
+        .single();
+      
+      if (tarefaCriada) {
+        console.log(`Tarefa criada para audiência ${audienciaId}: ${tarefaCriada.id}`);
+        // Vincular tarefa à audiência
+        await supabase
+          .from('audiencias_detectadas')
+          .update({ tarefa_id: tarefaCriada.id })
+          .eq('id', audienciaId);
+      }
+      if (tarefaError) {
+        console.error('Erro ao criar tarefa de audiência:', tarefaError);
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao criar tarefa para audiência:', error);
+  }
+}
+
+async function criarTarefaParaIntimacao(
+  supabase: any,
+  processoId: string,
+  processoNumero: string,
+  intimacaoId: string,
+  tipoIntimacao: string | null,
+  dataLimite: Date | null,
+  prazoDias: number | null
+) {
+  if (!processoId) return;
+  
+  try {
+    // Buscar responsáveis do processo
+    const { data: responsaveis } = await supabase
+      .from('processos_responsaveis')
+      .select('usuario_id')
+      .eq('processo_id', processoId);
+    
+    const { data: processo } = await supabase
+      .from('processos')
+      .select('advogado_responsavel_id')
+      .eq('id', processoId)
+      .maybeSingle();
+    
+    const usuariosParaTarefa = new Set<string>();
+    
+    responsaveis?.forEach((r: any) => usuariosParaTarefa.add(r.usuario_id));
+    if (processo?.advogado_responsavel_id) {
+      usuariosParaTarefa.add(processo.advogado_responsavel_id);
+    }
+    
+    if (usuariosParaTarefa.size === 0) {
+      console.log(`Nenhum responsável encontrado para processo ${processoNumero}`);
+      return;
+    }
+    
+    // Calcular prazo
+    let dataVencimento: Date;
+    if (dataLimite) {
+      dataVencimento = new Date(dataLimite);
+    } else if (prazoDias) {
+      dataVencimento = new Date();
+      dataVencimento.setDate(dataVencimento.getDate() + prazoDias);
+    } else {
+      dataVencimento = new Date();
+      dataVencimento.setDate(dataVencimento.getDate() + 15);
+    }
+    
+    const prioridade = prazoDias && prazoDias <= 5 ? 'urgente' : 'alta';
+    
+    for (const usuarioId of usuariosParaTarefa) {
+      const { data: tarefaCriada, error: tarefaError } = await supabase
+        .from('tarefas')
+        .insert({
+          titulo: `[Andamento] ${tipoIntimacao || 'Intimação'} - ${processoNumero}`,
+          descricao: `Intimação detectada via monitoramento de andamentos. Prazo: ${prazoDias || 'a confirmar'} dias.`,
+          data_vencimento: dataVencimento.toISOString().split('T')[0],
+          responsavel_id: usuarioId,
+          processo_id: processoId,
+          prioridade,
+          status: 'pendente',
+          origem: 'monitoramento_andamentos',
+        })
+        .select('id')
+        .single();
+      
+      if (tarefaCriada) {
+        console.log(`Tarefa criada para intimação ${intimacaoId}: ${tarefaCriada.id}`);
+        // Vincular tarefa à intimação
+        await supabase
+          .from('intimacoes_detectadas')
+          .update({ tarefa_id: tarefaCriada.id })
+          .eq('id', intimacaoId);
+      }
+      if (tarefaError) {
+        console.error('Erro ao criar tarefa de intimação:', tarefaError);
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao criar tarefa para intimação:', error);
+  }
+}
+
 // ============ DETECÇÃO DE AUDIÊNCIAS ============
 function detectAudienciaInMovement(descricao: string): {
   detected: boolean;
@@ -335,6 +497,7 @@ async function registrarIntimacaoDetectada(
       descricao: descricao.substring(0, 500),
       status: 'pendente',
       prioridade: prazo && prazo <= 5 ? 'alta' : prazo && prazo <= 3 ? 'urgente' : 'normal',
+      origem: 'monitoramento_andamentos',
     })
     .select('id')
     .single();
@@ -345,6 +508,11 @@ async function registrarIntimacaoDetectada(
   }
   
   console.log(`Intimação detectada para processo ${processoNumero}: ${tipo}`);
+  
+  // Criar tarefa para os responsáveis
+  if (inserted) {
+    await criarTarefaParaIntimacao(supabase, processoId, processoNumero, inserted.id, tipo, dataLimite, prazo);
+  }
   
   // Notificar usuários relevantes
   await notifyIntimacaoDetectada(supabase, processoId, processoNumero, tipo, dataLimite, prazo);
@@ -459,14 +627,22 @@ async function registrarAudienciaDetectada(
     .from('audiencias_detectadas')
     .insert({
       processo_numero: processoNumero,
+      processo_id: processoId,
+      movimentacao_id: movimentacaoId,
       data_audiencia: data?.toISOString() || null,
       tipo_audiencia: tipo,
       contexto,
       conteudo_publicacao: descricao,
       status: 'pendente',
+      origem: 'monitoramento_andamentos',
     })
     .select('id')
     .single();
+  
+  // Criar tarefa para os responsáveis
+  if (inserted) {
+    await criarTarefaParaAudiencia(supabase, processoId, processoNumero, inserted.id, tipo, data);
+  }
   
   if (error) {
     console.error('Erro ao registrar audiência:', error);
