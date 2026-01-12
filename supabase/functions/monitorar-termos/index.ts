@@ -281,7 +281,7 @@ Deno.serve(async (req) => {
 
     console.log(`Processed in ${Date.now() - startTime}ms. Inserting ${novosAlertas.length} alerts, ${novasAudiencias.length} hearings, ${novasIntimacoes.length} summons...`);
 
-    // Inserir tudo em paralelo
+    // Inserir alertas em paralelo
     const insertPromises: Promise<any>[] = [];
 
     if (novosAlertas.length > 0) {
@@ -291,21 +291,172 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (novasAudiencias.length > 0) {
-      for (let i = 0; i < novasAudiencias.length; i += 100) {
-        const batch = novasAudiencias.slice(i, i + 100);
-        insertPromises.push(Promise.resolve(supabase.from('audiencias_detectadas').insert(batch)));
-      }
-    }
-
-    if (novasIntimacoes.length > 0) {
-      for (let i = 0; i < novasIntimacoes.length; i += 100) {
-        const batch = novasIntimacoes.slice(i, i + 100);
-        insertPromises.push(Promise.resolve(supabase.from('intimacoes_detectadas').insert(batch)));
-      }
-    }
-
     await Promise.all(insertPromises);
+
+    // Função auxiliar para criar tarefas e vincular
+    async function criarTarefasParaResponsaveis(
+      processoId: string,
+      titulo: string,
+      descricao: string,
+      dataVencimento: string,
+      prioridade: string,
+      origem: string
+    ): Promise<string[]> {
+      // Buscar responsáveis do processo
+      const { data: responsaveis } = await supabase
+        .from('processos_responsaveis')
+        .select('responsavel_id')
+        .eq('processo_id', processoId);
+
+      // Se não tem responsáveis na tabela, tenta o advogado_responsavel_id legado
+      if (!responsaveis || responsaveis.length === 0) {
+        const { data: processo } = await supabase
+          .from('processos')
+          .select('advogado_responsavel_id')
+          .eq('id', processoId)
+          .single();
+
+        if (processo?.advogado_responsavel_id) {
+          const { data: tarefa, error } = await supabase
+            .from('tarefas')
+            .insert({
+              processo_id: processoId,
+              responsavel_id: processo.advogado_responsavel_id,
+              criado_por: processo.advogado_responsavel_id,
+              titulo,
+              descricao,
+              data_vencimento: dataVencimento,
+              prioridade,
+              status: 'pendente',
+              origem,
+            })
+            .select('id')
+            .single();
+
+          if (!error && tarefa) {
+            return [tarefa.id];
+          }
+        }
+        return [];
+      }
+
+      // Criar tarefa para cada responsável
+      const tarefaIds: string[] = [];
+      for (const resp of responsaveis) {
+        const { data: tarefa, error } = await supabase
+          .from('tarefas')
+          .insert({
+            processo_id: processoId,
+            responsavel_id: resp.responsavel_id,
+            criado_por: resp.responsavel_id,
+            titulo,
+            descricao,
+            data_vencimento: dataVencimento,
+            prioridade,
+            status: 'pendente',
+            origem,
+          })
+          .select('id')
+          .single();
+
+        if (!error && tarefa) {
+          tarefaIds.push(tarefa.id);
+        }
+      }
+
+      return tarefaIds;
+    }
+
+    // Inserir audiências e criar tarefas
+    let tarefasCriadas = 0;
+    if (novasAudiencias.length > 0) {
+      for (const audiencia of novasAudiencias) {
+        // Inserir audiência
+        const { data: inserted, error } = await supabase
+          .from('audiencias_detectadas')
+          .insert(audiencia)
+          .select('id')
+          .single();
+
+        if (error) {
+          console.error('Error inserting audiencia:', error);
+          continue;
+        }
+
+        // Calcular data de vencimento da tarefa (2 dias antes da audiência, ou hoje se não tiver data)
+        let dataVencimentoTarefa: string;
+        if (audiencia.data_audiencia) {
+          const dataAud = new Date(audiencia.data_audiencia);
+          dataAud.setDate(dataAud.getDate() - 2);
+          dataVencimentoTarefa = dataAud.toISOString().split('T')[0];
+        } else {
+          const hoje = new Date();
+          hoje.setDate(hoje.getDate() + 5);
+          dataVencimentoTarefa = hoje.toISOString().split('T')[0];
+        }
+
+        // Criar tarefas para responsáveis
+        const tarefaIds = await criarTarefasParaResponsaveis(
+          audiencia.processo_id,
+          `Audiência ${audiencia.tipo_audiencia || ''} - ${audiencia.processo_numero || 'Processo'}`,
+          `Audiência detectada pelo Monitoração 360.\n\nData: ${audiencia.data_audiencia || 'A definir'}\nHora: ${audiencia.hora || 'A definir'}\n\nContexto:\n${audiencia.contexto || audiencia.conteudo_publicacao?.substring(0, 300) || ''}`,
+          dataVencimentoTarefa,
+          'alta',
+          'monitoracao_360'
+        );
+
+        // Vincular primeira tarefa à audiência
+        if (tarefaIds.length > 0) {
+          await supabase
+            .from('audiencias_detectadas')
+            .update({ tarefa_id: tarefaIds[0] })
+            .eq('id', inserted.id);
+          tarefasCriadas += tarefaIds.length;
+        }
+      }
+    }
+
+    // Inserir intimações e criar tarefas
+    if (novasIntimacoes.length > 0) {
+      for (const intimacao of novasIntimacoes) {
+        // Inserir intimação
+        const { data: inserted, error } = await supabase
+          .from('intimacoes_detectadas')
+          .insert(intimacao)
+          .select('id')
+          .single();
+
+        if (error) {
+          console.error('Error inserting intimacao:', error);
+          continue;
+        }
+
+        // Data de vencimento da tarefa (data_limite ou hoje + 15 dias)
+        const dataVencimentoTarefa = intimacao.data_limite || 
+          new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        // Criar tarefas para responsáveis
+        const tarefaIds = await criarTarefasParaResponsaveis(
+          intimacao.processo_id,
+          `${intimacao.tipo_intimacao || 'Intimação'} - ${intimacao.processo_numero || 'Processo'}`,
+          `Intimação detectada pelo Monitoração 360.\n\nPrazo: ${intimacao.prazo_dias ? intimacao.prazo_dias + ' dias' : 'Verificar'}\nData Limite: ${intimacao.data_limite || 'A calcular'}\n\nContexto:\n${intimacao.contexto || intimacao.descricao || ''}`,
+          dataVencimentoTarefa,
+          intimacao.prioridade || 'media',
+          'monitoracao_360'
+        );
+
+        // Vincular primeira tarefa à intimação
+        if (tarefaIds.length > 0) {
+          await supabase
+            .from('intimacoes_detectadas')
+            .update({ tarefa_id: tarefaIds[0] })
+            .eq('id', inserted.id);
+          tarefasCriadas += tarefaIds.length;
+        }
+      }
+    }
+
+    console.log(`Created ${tarefasCriadas} tasks for detected hearings/summons`);
 
     // Se gerou alertas, disparar envio de emails para usuários configurados
     if (alertasGerados > 0 && isComplete) {
@@ -349,7 +500,7 @@ Deno.serve(async (req) => {
     const percentage = totalMovimentacoes > 0 ? Math.round((processedCount / totalMovimentacoes) * 100) : 100;
     const totalTime = Date.now() - startTime;
     
-    console.log(`Batch complete in ${totalTime}ms. Progress: ${processedCount}/${totalMovimentacoes} (${percentage}%). isComplete=${isComplete}`);
+    console.log(`Batch complete in ${totalTime}ms. Progress: ${processedCount}/${totalMovimentacoes} (${percentage}%). isComplete=${isComplete}. Tasks created: ${tarefasCriadas}`);
 
     return new Response(
       JSON.stringify({
@@ -358,6 +509,7 @@ Deno.serve(async (req) => {
         alertasCriados: alertasGerados,
         audienciasDetectadas,
         intimacoesDetectadas,
+        tarefasCriadas,
         movimentacoesVerificadas: movimentacoesList.length,
         processosVerificados: movimentacoesList.length,
         termosAtivos: termos.length,
