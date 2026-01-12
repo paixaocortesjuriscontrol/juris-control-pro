@@ -8,12 +8,6 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import DOMPurify from "dompurify";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Form,
   FormControl,
   FormField,
@@ -33,8 +27,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import {
   FileText,
@@ -48,6 +42,11 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Edit,
+  MessageSquare,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -63,11 +62,10 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-interface TarefaPublicacaoDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  tarefaId: string | null;
+interface TarefaPublicacaoViewProps {
+  tarefaId: string;
   processoId: string;
+  onVoltar: () => void;
 }
 
 const tiposTarefa = [
@@ -91,16 +89,23 @@ const prioridadeLabels: Record<string, string> = {
   urgente: "Urgente",
 };
 
-export function TarefaPublicacaoDialog({
-  open,
-  onOpenChange,
+const statusLabels: Record<string, string> = {
+  pendente: "Pendente",
+  em_andamento: "Em Andamento",
+  cumprido: "Cumprida",
+  atrasado: "Atrasada",
+};
+
+export function TarefaPublicacaoView({
   tarefaId,
   processoId,
-}: TarefaPublicacaoDialogProps) {
+  onVoltar,
+}: TarefaPublicacaoViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [publicacaoExpanded, setPublicacaoExpanded] = useState(true);
 
   const hoje = format(new Date(), "yyyy-MM-dd");
 
@@ -121,7 +126,6 @@ export function TarefaPublicacaoDialog({
   const { data: tarefa } = useQuery({
     queryKey: ["tarefa-detalhe", tarefaId],
     queryFn: async () => {
-      if (!tarefaId) return null;
       const { data, error } = await supabase
         .from("tarefas")
         .select(`
@@ -134,14 +138,13 @@ export function TarefaPublicacaoDialog({
       if (error) throw error;
       return data;
     },
-    enabled: !!tarefaId && open,
+    enabled: !!tarefaId,
   });
 
   // Buscar vínculo tarefa-publicação
   const { data: vinculoPublicacao } = useQuery({
     queryKey: ["tarefa-publicacao-vinculo", tarefaId],
     queryFn: async () => {
-      if (!tarefaId) return null;
       const { data, error } = await supabase
         .from("tarefas_publicacoes")
         .select("publicacao_id")
@@ -151,11 +154,11 @@ export function TarefaPublicacaoDialog({
       if (error) throw error;
       return data;
     },
-    enabled: !!tarefaId && open,
+    enabled: !!tarefaId,
   });
 
   // Buscar publicação vinculada
-  const { data: publicacao } = useQuery({
+  const { data: publicacao, isLoading: loadingPublicacao } = useQuery({
     queryKey: ["publicacao-djen", vinculoPublicacao?.publicacao_id],
     queryFn: async () => {
       if (!vinculoPublicacao?.publicacao_id) return null;
@@ -183,7 +186,7 @@ export function TarefaPublicacaoDialog({
         .from("tarefas_publicacoes")
         .select(`
           tarefa:tarefas(
-            id, titulo, status, prioridade, data_vencimento,
+            id, titulo, status, prioridade, data_vencimento, tipo_tarefa, descricao,
             responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
           )
         `)
@@ -201,16 +204,16 @@ export function TarefaPublicacaoDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("processos")
-        .select("coordenacao_id")
+        .select("coordenacao_id, numero, cliente:clientes(nome)")
         .eq("id", processoId)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
-    enabled: !!processoId && open,
+    enabled: !!processoId,
   });
 
-  const { data: membros } = useQuery({
+  const { data: membros = [] } = useQuery({
     queryKey: ["membros-coordenacao", processo?.coordenacao_id],
     queryFn: async () => {
       if (!processo?.coordenacao_id) return [];
@@ -228,24 +231,6 @@ export function TarefaPublicacaoDialog({
     enabled: !!processo?.coordenacao_id,
   });
 
-  // Buscar responsáveis do processo
-  const { data: responsaveisProcesso } = useQuery({
-    queryKey: ["responsaveis-processo", processoId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("processos_responsaveis")
-        .select(`
-          id,
-          advogado:profiles!processos_responsaveis_advogado_id_fkey(id, nome)
-        `)
-        .eq("processo_id", processoId);
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!processoId && open,
-  });
-
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     try {
@@ -258,7 +243,7 @@ export function TarefaPublicacaoDialog({
   const formatDateTime = (dateString: string | null) => {
     if (!dateString) return "-";
     try {
-      return format(new Date(dateString), "dd/MM/yyyy HH:mm", { locale: ptBR });
+      return format(new Date(dateString), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
     } catch {
       return dateString;
     }
@@ -269,7 +254,6 @@ export function TarefaPublicacaoDialog({
 
     setLoading(true);
     try {
-      // Criar tarefa
       const { data: novaTarefa, error } = await supabase
         .from("tarefas")
         .insert({
@@ -290,7 +274,6 @@ export function TarefaPublicacaoDialog({
 
       if (error) throw error;
 
-      // Vincular à publicação
       await supabase
         .from("tarefas_publicacoes")
         .insert({
@@ -313,38 +296,58 @@ export function TarefaPublicacaoDialog({
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'cumprido':
-        return <CheckCircle2 className="w-4 h-4 text-green-600" />;
-      case 'atrasado':
-        return <AlertCircle className="w-4 h-4 text-destructive" />;
-      default:
-        return <Clock className="w-4 h-4 text-muted-foreground" />;
-    }
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      pendente: "secondary",
+      em_andamento: "outline",
+      cumprido: "default",
+      atrasado: "destructive",
+    };
+    return (
+      <Badge variant={variants[status] || "secondary"}>
+        {statusLabels[status] || status}
+      </Badge>
+    );
   };
 
-  // Se não há publicação vinculada, mostrar mensagem simples
-  if (!vinculoPublicacao && tarefa) {
+  const getPrioridadeBadge = (prioridade: string) => {
+    const colors: Record<string, string> = {
+      baixa: "bg-slate-100 text-slate-700",
+      media: "bg-blue-100 text-blue-700",
+      alta: "bg-orange-100 text-orange-700",
+      urgente: "bg-red-100 text-red-700",
+    };
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+      <Badge className={colors[prioridade] || ""}>
+        {prioridadeLabels[prioridade] || prioridade}
+      </Badge>
+    );
+  };
+
+  // Se não há publicação vinculada
+  if (vinculoPublicacao === null && tarefa) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" onClick={onVoltar} className="gap-2">
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para tarefas
+        </Button>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
               <ListChecks className="w-5 h-5" />
               {tarefa.titulo}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <p className="text-muted-foreground text-sm">
               Esta tarefa não está vinculada a uma publicação do DJEN.
             </p>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <strong>Status:</strong>
-                <Badge className="ml-2" variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'}>
-                  {tarefa.status}
-                </Badge>
+                <span className="ml-2">{getStatusBadge(tarefa.status)}</span>
               </div>
               <div>
                 <strong>Vencimento:</strong>
@@ -357,108 +360,150 @@ export function TarefaPublicacaoDialog({
                 </div>
               )}
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] w-[95vw] p-0 gap-0">
-        <DialogHeader className="p-4 pb-2 border-b">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <FileText className="w-5 h-5" />
-            Publicação e Tarefas
-          </DialogTitle>
-        </DialogHeader>
+    <div className="space-y-4">
+      {/* Header com botão voltar */}
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" onClick={onVoltar} className="gap-2">
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para tarefas
+        </Button>
+        <Badge variant="outline" className="text-xs">
+          NÃO TRATADA
+        </Badge>
+      </div>
 
-        <div className="flex flex-col lg:flex-row h-[calc(90vh-80px)]">
-          {/* Lado Esquerdo - Conteúdo da Publicação */}
-          <div className="flex-1 border-r overflow-hidden flex flex-col">
-            {publicacao ? (
-              <>
-                <div className="p-4 border-b bg-muted/30">
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <Badge className="bg-purple-100 text-purple-700">
-                      <Gavel className="w-3 h-3 mr-1" />
-                      {publicacao.monitoramento?.tipo === 'advogado'
-                        ? `OAB ${publicacao.monitoramento?.oab} ${publicacao.monitoramento?.uf}`
-                        : publicacao.monitoramento?.termo_busca
-                      }
+      {/* Layout Split View */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Lado Esquerdo - Publicação */}
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-3 bg-muted/30">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Publicação
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPublicacaoExpanded(!publicacaoExpanded)}
+              >
+                {publicacaoExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </Button>
+            </div>
+          </CardHeader>
+
+          {loadingPublicacao ? (
+            <CardContent className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </CardContent>
+          ) : publicacao ? (
+            <CardContent className="p-0">
+              {/* Metadados da publicação */}
+              <div className="p-4 border-b bg-muted/20 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">
+                    <Gavel className="w-3 h-3 mr-1" />
+                    {publicacao.fonte || "DJEN"}
+                  </Badge>
+                  {publicacao.monitoramento?.coordenacao?.nome && (
+                    <Badge variant="secondary">
+                      <Building2 className="w-3 h-3 mr-1" />
+                      {publicacao.monitoramento.coordenacao.nome}
                     </Badge>
-                    {publicacao.monitoramento?.coordenacao?.nome && (
-                      <Badge variant="outline">
-                        <Building2 className="w-3 h-3 mr-1" />
-                        {publicacao.monitoramento.coordenacao.nome}
-                      </Badge>
-                    )}
-                  </div>
+                  )}
+                </div>
 
-                  <div className="space-y-2 text-sm">
-                    {publicacao.processo_numero && (
-                      <div className="flex items-center gap-2">
-                        <strong>Processo:</strong>
-                        <span className="font-mono">{publicacao.processo_numero}</span>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <strong>Data Publicação:</strong>
-                        <p className="text-muted-foreground">{formatDateTime(publicacao.data_publicacao)}</p>
-                      </div>
-                      {publicacao.fonte && (
-                        <div>
-                          <strong>Tribunal:</strong>
-                          <p className="text-muted-foreground">{publicacao.fonte}</p>
-                        </div>
-                      )}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  {publicacao.processo_numero && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Processo</p>
+                      <p className="font-mono font-medium">{publicacao.processo_numero}</p>
                     </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Data Publicação</p>
+                    <p className="font-medium">{formatDateTime(publicacao.data_publicacao)}</p>
                   </div>
                 </div>
 
-                <ScrollArea className="flex-1 p-4">
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
+                {publicacao.monitoramento && (
+                  <div className="text-sm">
+                    <p className="text-xs text-muted-foreground">Termo Encontrado</p>
+                    <p className="font-medium text-primary">
+                      {publicacao.monitoramento.tipo === 'advogado'
+                        ? `OAB ${publicacao.monitoramento.oab} ${publicacao.monitoramento.uf}`
+                        : publicacao.monitoramento.termo_busca
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Conteúdo da publicação */}
+              {publicacaoExpanded && (
+                <ScrollArea className="h-[400px]">
+                  <div className="p-4">
                     <div
+                      className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2"
                       dangerouslySetInnerHTML={{
-                        __html: DOMPurify.sanitize(publicacao.conteudo || "Sem conteúdo", {
-                          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div'],
+                        __html: DOMPurify.sanitize(publicacao.conteudo || "Sem conteúdo disponível", {
+                          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div', 'ul', 'ol', 'li'],
                         })
                       }}
                     />
                   </div>
                 </ScrollArea>
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                Carregando publicação...
-              </div>
-            )}
-          </div>
-
-          {/* Lado Direito - Tarefas */}
-          <div className="w-full lg:w-[400px] flex flex-col bg-muted/10">
-            <div className="p-4 border-b bg-primary/5 flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold flex items-center gap-2">
-                  <ListChecks className="w-4 h-4" />
-                  TAREFAS ({tarefasVinculadas.length})
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Tarefas vinculadas a esta publicação
-                </p>
-              </div>
-              {vinculoPublicacao && !showForm && (
-                <Button size="sm" onClick={() => setShowForm(true)}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  Nova
-                </Button>
               )}
-            </div>
+            </CardContent>
+          ) : (
+            <CardContent className="text-center py-8 text-muted-foreground">
+              <FileText className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p>Publicação não encontrada</p>
+            </CardContent>
+          )}
+        </Card>
 
-            <ScrollArea className="flex-1 p-4">
+        {/* Lado Direito - Tarefas e Info do Processo */}
+        <div className="space-y-4">
+          {/* Info do Processo */}
+          {processo && (
+            <Card className="bg-muted/30">
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground mb-1">PROCESSO</p>
+                <p className="font-mono font-medium text-sm">{processo.numero}</p>
+                {processo.cliente?.nome && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Cliente: {processo.cliente.nome}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Lista de Tarefas */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ListChecks className="w-5 h-5" />
+                  Tarefas ({tarefasVinculadas.length})
+                </CardTitle>
+                {vinculoPublicacao && !showForm && (
+                  <Button size="sm" onClick={() => setShowForm(true)}>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Nova Tarefa
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
               {showForm ? (
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -506,11 +551,11 @@ export function TarefaPublicacaoDialog({
                       name="descricao"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Descrição</FormLabel>
+                          <FormLabel>Descrição (opcional)</FormLabel>
                           <FormControl>
                             <Textarea
-                              placeholder="Descreva a tarefa..."
-                              className="min-h-[60px] resize-none"
+                              placeholder="Descrição adicional"
+                              className="min-h-[80px]"
                               {...field}
                             />
                           </FormControl>
@@ -532,25 +577,11 @@ export function TarefaPublicacaoDialog({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {(responsaveisProcesso as any)?.map((r: any) => (
-                                <SelectItem key={r.advogado?.id} value={r.advogado?.id}>
-                                  <div className="flex items-center gap-2">
-                                    <User className="w-3 h-3 text-primary" />
-                                    {r.advogado?.nome}
-                                  </div>
+                              {membros.map((m: any) => (
+                                <SelectItem key={m.usuario?.id} value={m.usuario?.id || ""}>
+                                  {m.usuario?.nome}
                                 </SelectItem>
                               ))}
-                              <Separator className="my-1" />
-                              {(membros as any)?.map((m: any) => {
-                                if ((responsaveisProcesso as any)?.some((r: any) => r.advogado?.id === m.usuario?.id)) {
-                                  return null;
-                                }
-                                return (
-                                  <SelectItem key={m.usuario?.id} value={m.usuario?.id}>
-                                    {m.usuario?.nome}
-                                  </SelectItem>
-                                );
-                              })}
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -558,7 +589,7 @@ export function TarefaPublicacaoDialog({
                       )}
                     />
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="data_vencimento"
@@ -575,121 +606,111 @@ export function TarefaPublicacaoDialog({
 
                       <FormField
                         control={form.control}
-                        name="data_fatal"
+                        name="prioridade"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Data Fatal</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
+                            <FormLabel>Prioridade</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="baixa">Baixa</SelectItem>
+                                <SelectItem value="media">Média</SelectItem>
+                                <SelectItem value="alta">Alta</SelectItem>
+                                <SelectItem value="urgente">Urgente</SelectItem>
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="prioridade"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Prioridade</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {Object.entries(prioridadeLabels).map(([value, label]) => (
-                                <SelectItem key={value} value={value}>
-                                  {label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="pt-4 flex gap-2">
+                    <div className="flex gap-2 pt-2">
+                      <Button type="submit" disabled={loading} className="flex-1">
+                        {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                        Criar Tarefa
+                      </Button>
                       <Button
                         type="button"
                         variant="outline"
-                        className="flex-1"
                         onClick={() => setShowForm(false)}
                       >
                         Cancelar
-                      </Button>
-                      <Button
-                        type="submit"
-                        className="flex-1"
-                        disabled={loading}
-                      >
-                        {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        Criar Tarefa
                       </Button>
                     </div>
                   </form>
                 </Form>
               ) : (
-                <div className="space-y-3">
-                  {tarefasVinculadas.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <ListChecks className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Nenhuma tarefa vinculada</p>
-                    </div>
-                  ) : (
-                    tarefasVinculadas.map((t: any) => (
-                      <Card 
-                        key={t.id} 
-                        className={`cursor-pointer hover:shadow-md transition-shadow ${
-                          t.id === tarefaId ? 'ring-2 ring-primary' : ''
-                        }`}
-                      >
-                        <CardContent className="p-3">
-                          <div className="flex items-start gap-3">
-                            {getStatusIcon(t.status)}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <Badge variant={
-                                  t.status === 'cumprido' ? 'default' : 
-                                  t.status === 'atrasado' ? 'destructive' : 'secondary'
-                                } className="text-xs">
-                                  {t.status}
-                                </Badge>
-                                {t.prioridade && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {prioridadeLabels[t.prioridade] || t.prioridade}
-                                  </Badge>
-                                )}
+                <ScrollArea className="h-[350px]">
+                  <div className="space-y-3">
+                    {tarefasVinculadas.map((t: any) => {
+                      const isSelected = t.id === tarefaId;
+                      const isVencida = t.data_vencimento && new Date(t.data_vencimento) < new Date() && t.status !== 'cumprido';
+                      
+                      return (
+                        <Card 
+                          key={t.id} 
+                          className={`transition-all ${isSelected ? 'ring-2 ring-primary border-primary' : ''} ${isVencida ? 'border-destructive/50' : ''}`}
+                        >
+                          <CardContent className="p-3 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  {t.tipo_tarefa && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {t.tipo_tarefa}
+                                    </Badge>
+                                  )}
+                                  {getStatusBadge(t.status)}
+                                  {getPrioridadeBadge(t.prioridade)}
+                                </div>
+                                <p className="font-medium text-sm">{t.titulo}</p>
                               </div>
-                              <p className="font-medium text-sm truncate">{t.titulo}</p>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {formatDate(t.data_vencimento)}
+                              </div>
                               {t.responsavel && (
-                                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                <div className="flex items-center gap-1">
                                   <User className="w-3 h-3" />
                                   {t.responsavel.nome}
-                                </p>
-                              )}
-                              {t.data_vencimento && (
-                                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                                  <Calendar className="w-3 h-3" />
-                                  {formatDate(t.data_vencimento)}
-                                </p>
+                                </div>
                               )}
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  )}
-                </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+
+                    {tarefasVinculadas.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <ListChecks className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                        <p>Nenhuma tarefa vinculada</p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="mt-3"
+                          onClick={() => setShowForm(true)}
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Criar primeira tarefa
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
               )}
-            </ScrollArea>
-          </div>
+            </CardContent>
+          </Card>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
