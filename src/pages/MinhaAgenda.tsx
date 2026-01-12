@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,12 +30,11 @@ import {
   AlertTriangle,
   Users,
   Tag,
-  MoreVertical,
-  Trash2,
-  Edit,
   MapPin,
   Coins,
   Briefcase,
+  PanelRightClose,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday, differenceInDays } from "date-fns";
@@ -45,15 +44,10 @@ import { useAgendaUnificada, useAgendaUnificadaStats, useUpdateItemAgenda, useDe
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
-import { TarefaDetalhesDialog } from "@/components/prazos/TarefaDetalhesDialog";
-import { useQuery } from "@tanstack/react-query";
+import { TarefaAgendaPanel } from "@/components/agenda/TarefaAgendaPanel";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,6 +89,9 @@ const PRIORIDADE_CORES: Record<string, string> = {
 };
 
 export default function MinhaAgenda() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
   const [viewMode, setViewMode] = useState<ViewMode>("lista");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [search, setSearch] = useState("");
@@ -102,8 +99,7 @@ export default function MinhaAgenda() {
   const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
   const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
-  const [selectedTarefa, setSelectedTarefa] = useState<ItemAgendaUnificado | null>(null);
-  const [tarefaDialogOpen, setTarefaDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; origem: "evento" | "tarefa" } | null>(null);
 
@@ -118,6 +114,13 @@ export default function MinhaAgenda() {
 
   const updateEvento = useUpdateEvento();
   const deleteEvento = useDeleteEvento();
+
+  // Auto-filter by logged user on mount
+  useEffect(() => {
+    if (user?.id && pessoasFiltro.length === 0) {
+      setPessoasFiltro([user.id]);
+    }
+  }, [user?.id]);
   const updateItemAgenda = useUpdateItemAgenda();
   const deleteItemAgenda = useDeleteItemAgenda();
 
@@ -211,19 +214,20 @@ export default function MinhaAgenda() {
     item.processo?.numero?.includes(search)
   );
 
+  const handleOpenItem = (item: ItemAgendaUnificado) => {
+    setSelectedItem(item);
+  };
+
   const handleEditItem = (item: ItemAgendaUnificado) => {
-    if (item.origem === "tarefa") {
-      // Mapear para o formato Prazo esperado pelo dialog
-      setSelectedTarefa(item);
-      setTarefaDialogOpen(true);
-    } else if (item.tipo === "parcelamento") {
-      // Convert to EventoAgenda format for parcelas dialog
+    if (item.tipo === "parcelamento") {
       setSelectedParcelamento(item as unknown as EventoAgenda);
       setParcelasDialogOpen(true);
-    } else {
-      // Convert to EventoAgenda format for evento dialog
+    } else if (item.origem === "evento") {
       setSelectedEvento(item as unknown as EventoAgenda);
       setDialogOpen(true);
+    } else {
+      // For tarefas, open panel and allow edit from there
+      setSelectedItem(item);
     }
   };
 
@@ -232,11 +236,25 @@ export default function MinhaAgenda() {
     setDeleteDialogOpen(true);
   };
 
+  const handleDeleteFromList = async (id: string, origem: "evento" | "tarefa") => {
+    try {
+      if (origem === "tarefa") {
+        await supabase.from("tarefas").delete().eq("id", id);
+      } else {
+        await supabase.from("eventos_agenda").delete().eq("id", id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-stats"] });
+    } catch (error) {
+      console.error("Erro ao excluir:", error);
+    }
+    setDeleteDialogOpen(false);
+    setItemToDelete(null);
+  };
+
   const confirmDelete = async () => {
     if (itemToDelete) {
-      await deleteItemAgenda.mutateAsync(itemToDelete);
-      setDeleteDialogOpen(false);
-      setItemToDelete(null);
+      await handleDeleteFromList(itemToDelete.id, itemToDelete.origem);
     }
   };
 
@@ -271,13 +289,17 @@ export default function MinhaAgenda() {
     const dataFim = item.data_fim ? toZonedTime(new Date(item.data_fim), 'America/Sao_Paulo') : null;
     const isHoje = isToday(dataItem);
     
+    const isSelected = selectedItem?.id === item.id;
+    
     return (
       <div
         key={item.id}
+        onClick={() => handleOpenItem(item)}
         className={cn(
-          "flex flex-col p-4 border rounded-lg bg-card transition-all hover:shadow-md",
+          "flex flex-col p-4 border rounded-lg bg-card transition-all hover:shadow-md cursor-pointer",
           item.status === "concluido" && "opacity-60",
-          item.is_atrasado && "border-destructive/50 bg-destructive/5"
+          item.is_atrasado && "border-destructive/50 bg-destructive/5",
+          isSelected && "ring-2 ring-primary border-primary"
         )}
       >
         {/* Header Row */}
@@ -286,6 +308,7 @@ export default function MinhaAgenda() {
             <Checkbox
               checked={item.status === "concluido"}
               onCheckedChange={() => handleConcluirItem(item)}
+              onClick={(e) => e.stopPropagation()}
             />
             <div className={cn("w-1.5 h-8 rounded-full", TIPO_CORES[item.tipo] || "bg-gray-400")} />
             <div>
@@ -336,26 +359,17 @@ export default function MinhaAgenda() {
             </div>
           </div>
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleEditItem(item)}>
-                <Edit className="w-4 h-4 mr-2" />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => handleDeleteItem(item.id, item.origem)}
-                className="text-destructive"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Excluir
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenItem(item);
+            }}
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
         </div>
         
         {/* Description */}
@@ -693,27 +707,44 @@ export default function MinhaAgenda() {
           </div>
         )}
 
-        {/* Events List */}
-        <div className="space-y-3">
-          {isLoading ? (
-            [...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-24 w-full rounded-lg" />
-            ))
-          ) : filteredItems?.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <CalendarDays className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhuma atividade encontrada</p>
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={() => { setSelectedEvento(null); setDialogOpen(true); }}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Criar evento
-              </Button>
+        {/* Main Content Area with Side Panel */}
+        <div className="flex gap-4">
+          {/* Events List */}
+          <div className={cn("space-y-3 transition-all", selectedItem ? "flex-1" : "w-full")}>
+            {isLoading ? (
+              [...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full rounded-lg" />
+              ))
+            ) : filteredItems?.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <CalendarDays className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhuma atividade encontrada</p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => { setSelectedEvento(null); setDialogOpen(true); }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Criar evento
+                </Button>
+              </div>
+            ) : (
+              filteredItems?.map(renderItemCard)
+            )}
+          </div>
+
+          {/* Side Panel for Task Details */}
+          {selectedItem && (
+            <div className="w-[400px] shrink-0 sticky top-4 max-h-[calc(100vh-200px)]">
+              <TarefaAgendaPanel
+                tarefa={selectedItem}
+                onClose={() => setSelectedItem(null)}
+                onUpdate={() => {
+                  queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+                  queryClient.invalidateQueries({ queryKey: ["agenda-stats"] });
+                }}
+              />
             </div>
-          ) : (
-            filteredItems?.map(renderItemCard)
           )}
         </div>
       </div>
@@ -724,35 +755,6 @@ export default function MinhaAgenda() {
         evento={selectedEvento}
       />
 
-      {selectedTarefa && (
-        <TarefaDetalhesDialog
-          open={tarefaDialogOpen}
-          onOpenChange={(open) => {
-            setTarefaDialogOpen(open);
-            if (!open) setSelectedTarefa(null);
-          }}
-          prazo={{
-            id: selectedTarefa.id,
-            titulo: selectedTarefa.titulo,
-            descricao: selectedTarefa.descricao,
-            data_vencimento: selectedTarefa.data_inicio.split('T')[0],
-            status: selectedTarefa.status === "concluido" ? "cumprido" : "pendente",
-            prioridade: (selectedTarefa.prioridade || "media") as "baixa" | "media" | "alta" | "urgente",
-            observacoes: null,
-            data_cumprimento: selectedTarefa.concluido_em,
-            created_at: selectedTarefa.created_at,
-            processo_id: selectedTarefa.processo_id,
-            responsavel_id: selectedTarefa.responsavel_id || null,
-            criado_por: selectedTarefa.criado_por || null,
-            processo: selectedTarefa.processo ? { 
-              id: selectedTarefa.processo.id, 
-              numero: selectedTarefa.processo.numero,
-              assunto: selectedTarefa.processo.assunto || ""
-            } : null,
-            responsavel: selectedTarefa.responsavel || null,
-          }}
-        />
-      )}
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
