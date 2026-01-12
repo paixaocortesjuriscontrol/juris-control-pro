@@ -3144,6 +3144,7 @@ export type Database = {
           identificador_projuris: string | null
           marcadores: string | null
           observacoes: string | null
+          origem: string | null
           prioridade: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id: string | null
           quadro_kanban: string | null
@@ -3168,6 +3169,7 @@ export type Database = {
           identificador_projuris?: string | null
           marcadores?: string | null
           observacoes?: string | null
+          origem?: string | null
           prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id?: string | null
           quadro_kanban?: string | null
@@ -3192,6 +3194,7 @@ export type Database = {
           identificador_projuris?: string | null
           marcadores?: string | null
           observacoes?: string | null
+          origem?: string | null
           prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id?: string | null
           quadro_kanban?: string | null
