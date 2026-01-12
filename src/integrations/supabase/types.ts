@@ -3228,6 +3228,42 @@ export type Database = {
           },
         ]
       }
+      tarefas_publicacoes: {
+        Row: {
+          created_at: string
+          id: string
+          publicacao_id: string
+          tarefa_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          publicacao_id: string
+          tarefa_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          publicacao_id?: string
+          tarefa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_publicacoes_publicacao_id_fkey"
+            columns: ["publicacao_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_djen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_publicacoes_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tarefas_relacionadas: {
         Row: {
           created_at: string

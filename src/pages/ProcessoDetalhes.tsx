@@ -86,6 +86,7 @@ import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
 import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentosTab";
 import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
 import { SelecionarResponsaveisProcesso } from "@/components/processos/SelecionarResponsaveisProcesso";
+import { TarefaPublicacaoDialog } from "@/components/processos/TarefaPublicacaoDialog";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -131,6 +132,10 @@ export default function ProcessoDetalhes() {
   const [selectedIntimacao, setSelectedIntimacao] = useState<any>(null);
   const [updatingAudiencia, setUpdatingAudiencia] = useState<string | null>(null);
   const [updatingIntimacao, setUpdatingIntimacao] = useState<string | null>(null);
+  
+  // State for tarefa-publicação dialog
+  const [selectedTarefaId, setSelectedTarefaId] = useState<string | null>(null);
+  const [tarefaDialogOpen, setTarefaDialogOpen] = useState(false);
   
   // Tab toggle state
   const [activeTab, setActiveTab] = useState<string>("");
@@ -2009,7 +2014,10 @@ export default function ProcessoDetalhes() {
                                 isVencida ? 'border-destructive/50 bg-destructive/5' : 
                                 isUrgente ? 'border-yellow-500/50 bg-yellow-50/50 dark:bg-yellow-950/20' : ''
                               }`}
-                              onClick={() => navigate(`/nova-tarefa?tarefa=${tarefa.id}`)}
+                              onClick={() => {
+                                setSelectedTarefaId(tarefa.id);
+                                setTarefaDialogOpen(true);
+                              }}
                             >
                               <CardContent className="p-4">
                                 <div className="flex items-start justify-between gap-4">
@@ -2944,6 +2952,14 @@ export default function ProcessoDetalhes() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Dialog para Tarefa com Publicação */}
+      <TarefaPublicacaoDialog
+        open={tarefaDialogOpen}
+        onOpenChange={setTarefaDialogOpen}
+        tarefaId={selectedTarefaId}
+        processoId={id || ""}
+      />
     </MainLayout>
   );
 }
