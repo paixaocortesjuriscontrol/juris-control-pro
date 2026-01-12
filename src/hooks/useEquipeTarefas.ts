@@ -34,15 +34,20 @@ export interface TarefaEquipe {
   } | null;
 }
 
-export function useEquipeTarefasStats(coordenacaoId: string | null) {
+export function useEquipeTarefasStats(coordenacaoId: string | null, allCoordenacaoIds?: string[]) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["equipe-tarefas-stats", coordenacaoId],
+    queryKey: ["equipe-tarefas-stats", coordenacaoId, allCoordenacaoIds],
     queryFn: async () => {
-      if (!coordenacaoId) return [];
+      // Determine which coordination(s) to fetch
+      const coordIds = coordenacaoId 
+        ? [coordenacaoId] 
+        : (allCoordenacaoIds || []);
 
-      // Get members of the coordination
+      if (coordIds.length === 0) return [];
+
+      // Get members of all target coordinations
       const { data: membros, error: membrosError } = await supabase
         .from("membros_coordenacao")
         .select(`
@@ -50,16 +55,24 @@ export function useEquipeTarefasStats(coordenacaoId: string | null) {
           cargo,
           usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome, email)
         `)
-        .eq("coordenacao_id", coordenacaoId);
+        .in("coordenacao_id", coordIds);
 
       if (membrosError) throw membrosError;
       if (!membros || membros.length === 0) return [];
+
+      // Deduplicate members (in case same user is in multiple coordinations)
+      const uniqueMembros = membros.reduce((acc, membro) => {
+        if (!acc.find(m => m.usuario_id === membro.usuario_id)) {
+          acc.push(membro);
+        }
+        return acc;
+      }, [] as typeof membros);
 
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
 
       // Get tasks for each member
-      const statsPromises = membros.map(async (membro) => {
+      const statsPromises = uniqueMembros.map(async (membro) => {
         // Handle nested usuario object
         const usuario = Array.isArray(membro.usuario) ? membro.usuario[0] : membro.usuario;
         
@@ -97,7 +110,7 @@ export function useEquipeTarefasStats(coordenacaoId: string | null) {
       const stats = await Promise.all(statsPromises);
       return stats.sort((a, b) => b.total_tarefas - a.total_tarefas);
     },
-    enabled: !!coordenacaoId && !!user,
+    enabled: !!user && (!!coordenacaoId || (allCoordenacaoIds && allCoordenacaoIds.length > 0)),
   });
 }
 
@@ -108,24 +121,31 @@ export function useEquipeTarefas(
     status?: string;
     prioridade?: string;
     search?: string;
-  }
+  },
+  allCoordenacaoIds?: string[]
 ) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["equipe-tarefas", coordenacaoId, filters],
+    queryKey: ["equipe-tarefas", coordenacaoId, filters, allCoordenacaoIds],
     queryFn: async () => {
-      if (!coordenacaoId) return [];
+      // Determine which coordination(s) to fetch
+      const coordIds = coordenacaoId 
+        ? [coordenacaoId] 
+        : (allCoordenacaoIds || []);
 
-      // Get member IDs for this coordination
+      if (coordIds.length === 0) return [];
+
+      // Get member IDs for target coordinations
       const { data: membros, error: membrosError } = await supabase
         .from("membros_coordenacao")
         .select("usuario_id")
-        .eq("coordenacao_id", coordenacaoId);
+        .in("coordenacao_id", coordIds);
 
       if (membrosError) throw membrosError;
 
-      const membroIds = membros?.map(m => m.usuario_id) || [];
+      // Deduplicate member IDs
+      const membroIds = [...new Set(membros?.map(m => m.usuario_id) || [])];
       
       if (membroIds.length === 0) return [];
 
@@ -178,7 +198,7 @@ export function useEquipeTarefas(
 
       return normalized as unknown as TarefaEquipe[];
     },
-    enabled: !!coordenacaoId && !!user,
+    enabled: !!user && (!!coordenacaoId || (allCoordenacaoIds && allCoordenacaoIds.length > 0)),
   });
 }
 
