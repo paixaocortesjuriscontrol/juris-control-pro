@@ -343,53 +343,43 @@ export function TarefaPublicacaoView({
     .filter(Boolean)
     .join(", ") || processo?.advogado_responsavel?.nome || "Não atribuído";
 
-  // Se não há publicação vinculada, mostrar info simples da tarefa
-  if (vinculoPublicacao === null && tarefa) {
+  // Verifica se está carregando o vínculo
+  const isLoadingVinculo = vinculoPublicacao === undefined;
+
+  // Se está carregando
+  if (isLoadingVinculo || !tarefa) {
     return (
-      <div className="space-y-4">
-        <Button variant="ghost" onClick={onVoltar} className="gap-2">
-          <ArrowLeft className="w-4 h-4" />
-          Voltar para tarefas
-        </Button>
-        
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <p className="text-muted-foreground text-sm">
-              Esta tarefa não está vinculada a uma publicação do DJEN.
-            </p>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <strong>Status:</strong>
-                <span className="ml-2">{getStatusBadge(tarefa.status)}</span>
-              </div>
-              <div>
-                <strong>Vencimento:</strong>
-                <span className="ml-2">{formatDate(tarefa.data_vencimento)}</span>
-              </div>
-              {tarefa.responsavel && (
-                <div className="col-span-2">
-                  <strong>Responsável:</strong>
-                  <span className="ml-2">{tarefa.responsavel.nome}</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center h-[400px]">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
+  // Determina se tem publicação vinculada
+  const temPublicacao = vinculoPublicacao !== null && publicacao;
+
   return (
     <div className="flex flex-col lg:flex-row gap-0 border rounded-lg bg-background overflow-hidden min-h-[600px]">
-      {/* === LADO ESQUERDO - PUBLICAÇÃO === */}
+      {/* === LADO ESQUERDO - PUBLICAÇÃO OU DETALHES DA TAREFA === */}
       <div className="flex-1 border-r flex flex-col">
-        {/* Header da Publicação */}
+        {/* Header */}
         <div className="p-4 border-b bg-muted/30 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold">Publicação</h2>
-            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-              NÃO TRATADA
-            </Badge>
+            <h2 className="text-lg font-semibold">{temPublicacao ? "Publicação" : "Tarefa"}</h2>
+            {getStatusBadge(tarefa.status)}
+            {tarefa.prioridade && (
+              <Badge 
+                variant="outline" 
+                className={
+                  tarefa.prioridade === 'urgente' ? 'bg-red-50 text-red-700 border-red-300' :
+                  tarefa.prioridade === 'alta' ? 'bg-orange-50 text-orange-700 border-orange-300' :
+                  tarefa.prioridade === 'media' ? 'bg-blue-50 text-blue-700 border-blue-300' :
+                  'bg-slate-50 text-slate-700 border-slate-300'
+                }
+              >
+                {prioridadeLabels[tarefa.prioridade] || tarefa.prioridade}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -398,72 +388,119 @@ export function TarefaPublicacaoView({
           </div>
         </div>
 
-        {loadingPublicacao ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : publicacao ? (
-          <ScrollArea className="flex-1">
-            <div className="p-4 space-y-4">
-              {/* Info do Diário */}
-              <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-900/50 space-y-2">
-                <p className="font-semibold text-primary">
-                  {publicacao.fonte || "Diário de Justiça Eletrônico"} - DJN
-                </p>
-                {processo?.vara && (
-                  <p className="text-sm text-muted-foreground">
-                    Vara: {processo.vara} - Comarca: {processo.comarca || "Não informada"} - {processo.uf || ""}
-                  </p>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  Divulgado em: <strong>{formatDate(publicacao.data_publicacao)}</strong> - 
-                  Publicado em: <strong>{formatDate(publicacao.data_publicacao)}</strong>
-                </p>
-                <p className="text-sm">
-                  Processo: <span className="font-mono font-medium">{publicacao.processo_numero || processo?.numero}</span>
-                </p>
-                {publicacao.monitoramento && (
-                  <p className="text-sm">
-                    Termo encontrado: <strong className="text-primary">
-                      {publicacao.monitoramento.tipo === 'advogado'
-                        ? `OAB ${publicacao.monitoramento.oab} ${publicacao.monitoramento.uf}`
-                        : publicacao.monitoramento.termo_busca
-                      }
-                    </strong>
-                  </p>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  Diário: <strong>{publicacao.fonte || "DJEN"}</strong>
-                </p>
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-4">
+            {/* Detalhes da Tarefa */}
+            <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-900/50 space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Título</p>
+                <p className="font-semibold text-lg">{tarefa.titulo}</p>
               </div>
 
-              {/* Conteúdo da Publicação */}
+              {tarefa.tipo_tarefa && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Tipo</p>
+                  <Badge variant="secondary">{tarefa.tipo_tarefa}</Badge>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Vencimento</p>
+                  <p className="font-medium flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    {formatDate(tarefa.data_vencimento)}
+                  </p>
+                </div>
+                {tarefa.data_fatal && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Data Fatal</p>
+                    <p className="font-medium text-destructive flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {formatDate(tarefa.data_fatal)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {tarefa.responsavel && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Responsável</p>
+                  <p className="font-medium flex items-center gap-1">
+                    <User className="w-4 h-4" />
+                    {tarefa.responsavel.nome}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Descrição da Tarefa */}
+            {tarefa.descricao && (
               <div className="space-y-2">
                 <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                  Publicação
+                  Descrição
                 </h3>
                 <div className="border rounded-lg p-4 bg-white dark:bg-slate-950">
-                  <div
-                    className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-p:leading-relaxed text-sm"
-                    dangerouslySetInnerHTML={{
-                      __html: DOMPurify.sanitize(publicacao.conteudo || "Sem conteúdo disponível", {
-                        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div', 'ul', 'ol', 'li', 'a'],
-                        ALLOWED_ATTR: ['href', 'target', 'class'],
-                      })
-                    }}
-                  />
+                  <p className="text-sm whitespace-pre-wrap">{tarefa.descricao}</p>
                 </div>
               </div>
-            </div>
-          </ScrollArea>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <div className="text-center">
-              <FileText className="w-10 h-10 mx-auto mb-2 opacity-50" />
-              <p>Publicação não encontrada</p>
-            </div>
+            )}
+
+            {/* Conteúdo da Publicação (se existir) */}
+            {temPublicacao && publicacao && (
+              <>
+                <Separator />
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Publicação Vinculada
+                  </h3>
+                  
+                  {/* Info do Diário */}
+                  <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30 space-y-2">
+                    <p className="font-semibold text-primary">
+                      {publicacao.fonte || "Diário de Justiça Eletrônico"} - DJN
+                    </p>
+                    {processo?.vara && (
+                      <p className="text-sm text-muted-foreground">
+                        Vara: {processo.vara} - Comarca: {processo.comarca || "Não informada"} - {processo.uf || ""}
+                      </p>
+                    )}
+                    <p className="text-sm text-muted-foreground">
+                      Publicado em: <strong>{formatDate(publicacao.data_publicacao)}</strong>
+                    </p>
+                    <p className="text-sm">
+                      Processo: <span className="font-mono font-medium">{publicacao.processo_numero || processo?.numero}</span>
+                    </p>
+                    {publicacao.monitoramento && (
+                      <p className="text-sm">
+                        Termo encontrado: <strong className="text-primary">
+                          {publicacao.monitoramento.tipo === 'advogado'
+                            ? `OAB ${publicacao.monitoramento.oab} ${publicacao.monitoramento.uf}`
+                            : publicacao.monitoramento.termo_busca
+                          }
+                        </strong>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Conteúdo da Publicação */}
+                  <div className="border rounded-lg p-4 bg-white dark:bg-slate-950">
+                    <div
+                      className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-p:leading-relaxed text-sm"
+                      dangerouslySetInnerHTML={{
+                        __html: DOMPurify.sanitize(publicacao.conteudo || "Sem conteúdo disponível", {
+                          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div', 'ul', 'ol', 'li', 'a'],
+                          ALLOWED_ATTR: ['href', 'target', 'class'],
+                        })
+                      }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-        )}
+        </ScrollArea>
       </div>
 
       {/* === LADO DIREITO - PROCESSO E TAREFAS === */}
@@ -475,35 +512,44 @@ export function TarefaPublicacaoView({
             VOLTAR
           </Button>
           <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="default" size="sm" className="gap-1 text-xs">
-                  TRATAMENTOS
-                  <ChevronDown className="w-3 h-3" />
+            {temPublicacao ? (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="default" size="sm" className="gap-1 text-xs">
+                      TRATAMENTOS
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setShowForm(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Adicionar tarefa
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Calendar className="w-4 h-4 mr-2" />
+                      Adicionar prazo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Gavel className="w-4 h-4 mr-2" />
+                      Adicionar audiência
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button variant="outline" size="sm" className="text-xs text-destructive border-destructive hover:bg-destructive/10">
+                  DESCARTAR
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setShowForm(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar tarefa
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Adicionar prazo
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Gavel className="w-4 h-4 mr-2" />
-                  Adicionar audiência
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button variant="outline" size="sm" className="text-xs text-destructive border-destructive hover:bg-destructive/10">
-              DESCARTAR
-            </Button>
-            <Button variant="default" size="sm" className="text-xs bg-green-600 hover:bg-green-700">
-              <Check className="w-3 h-3 mr-1" />
-              CONCLUIR
-            </Button>
+                <Button variant="default" size="sm" className="text-xs bg-green-600 hover:bg-green-700">
+                  <Check className="w-3 h-3 mr-1" />
+                  CONCLUIR
+                </Button>
+              </>
+            ) : (
+              <Button variant="default" size="sm" className="text-xs bg-green-600 hover:bg-green-700">
+                <Check className="w-3 h-3 mr-1" />
+                Marcar Concluída
+              </Button>
+            )}
           </div>
         </div>
 
@@ -540,8 +586,8 @@ export function TarefaPublicacaoView({
 
             <Separator />
 
-            {/* Formulário de Nova Tarefa */}
-            {showForm && (
+            {/* Formulário de Nova Tarefa - Só mostra quando há publicação vinculada */}
+            {showForm && temPublicacao && (
               <>
                 <div className="space-y-3 p-4 border rounded-lg bg-background">
                   <div className="flex items-center justify-between">
@@ -678,61 +724,66 @@ export function TarefaPublicacaoView({
               </>
             )}
 
-            {/* Lista de Tarefas */}
-            <div className="space-y-3">
-              {tarefasVinculadas.map((t: any) => {
-                const isSelected = t.id === tarefaId;
-                const isVencida = t.data_vencimento && new Date(t.data_vencimento) < new Date() && t.status !== 'cumprido';
-                
-                return (
-                  <div key={t.id} className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-1 h-4 rounded-full ${isSelected ? 'bg-primary' : 'bg-yellow-400'}`} />
-                      <span className="text-xs font-semibold uppercase text-muted-foreground">
-                        TAREFA
-                      </span>
+            {/* Lista de Tarefas - Só mostra quando há publicação vinculada */}
+            {temPublicacao && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  TAREFAS VINCULADAS À PUBLICAÇÃO
+                </h3>
+                {tarefasVinculadas.map((t: any) => {
+                  const isSelected = t.id === tarefaId;
+                  const isVencida = t.data_vencimento && new Date(t.data_vencimento) < new Date() && t.status !== 'cumprido';
+                  
+                  return (
+                    <div key={t.id} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-1 h-4 rounded-full ${isSelected ? 'bg-primary' : 'bg-yellow-400'}`} />
+                        <span className="text-xs font-semibold uppercase text-muted-foreground">
+                          TAREFA
+                        </span>
+                      </div>
+                      <Card className={`transition-all ${isSelected ? 'ring-2 ring-primary border-primary' : ''} ${isVencida ? 'border-destructive/50' : ''}`}>
+                        <CardContent className="p-3 space-y-2">
+                          <p className="text-sm font-medium">{t.titulo}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Calendar className="w-3 h-3" />
+                            {formatDate(t.data_vencimento)}
+                            {t.responsavel && (
+                              <>
+                                <span className="mx-1">•</span>
+                                <User className="w-3 h-3" />
+                                {t.responsavel.nome}
+                              </>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {getStatusBadge(t.status)}
+                            <Badge variant="outline" className="text-xs">
+                              {prioridadeLabels[t.prioridade] || t.prioridade}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
-                    <Card className={`transition-all ${isSelected ? 'ring-2 ring-primary border-primary' : ''} ${isVencida ? 'border-destructive/50' : ''}`}>
-                      <CardContent className="p-3 space-y-2">
-                        <p className="text-sm font-medium">{t.titulo}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Calendar className="w-3 h-3" />
-                          {formatDate(t.data_vencimento)}
-                          {t.responsavel && (
-                            <>
-                              <span className="mx-1">•</span>
-                              <User className="w-3 h-3" />
-                              {t.responsavel.nome}
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {getStatusBadge(t.status)}
-                          <Badge variant="outline" className="text-xs">
-                            {prioridadeLabels[t.prioridade] || t.prioridade}
-                          </Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                );
-              })}
+                  );
+                })}
 
-              {tarefasVinculadas.length === 0 && !showForm && (
-                <div className="text-center py-6 text-muted-foreground">
-                  <p className="text-sm">Nenhuma tarefa vinculada</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="mt-3"
-                    onClick={() => setShowForm(true)}
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Criar tarefa
-                  </Button>
-                </div>
-              )}
-            </div>
+                {tarefasVinculadas.length === 0 && !showForm && (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <p className="text-sm">Nenhuma tarefa vinculada</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-3"
+                      onClick={() => setShowForm(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Criar tarefa
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </ScrollArea>
       </div>
