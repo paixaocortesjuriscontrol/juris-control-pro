@@ -45,6 +45,7 @@ import CentralDelegacao from "./pages/CentralDelegacao";
 import PainelIntimacoes from "./pages/PainelIntimacoes";
 import NovaTarefa from "./pages/NovaTarefa";
 import CofreSenhas from "./pages/CofreSenhas";
+import CapturasIntimacoes from "./pages/CapturasIntimacoes";
 import ClienteLogin from "./pages/cliente/ClienteLogin";
 import ClienteCadastro from "./pages/cliente/ClienteCadastro";
 import ClientePortal from "./pages/cliente/ClientePortal";
@@ -112,6 +113,7 @@ const App = () => (
               <Route path="/painel-intimacoes" element={<ProtectedRoute><PainelIntimacoes /></ProtectedRoute>} />
               <Route path="/auditoria-djen-processos" element={<ProtectedRoute><AuditoriaDjenProcessos /></ProtectedRoute>} />
               <Route path="/cofre-senhas" element={<ProtectedRoute><CofreSenhas /></ProtectedRoute>} />
+              <Route path="/capturas-intimacoes" element={<ProtectedRoute><CapturasIntimacoes /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </ImportProvider>
