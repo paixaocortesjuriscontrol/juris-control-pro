@@ -19,6 +19,7 @@ interface ProcessosPaginadosFilters {
   periodoFim?: Date;
   clienteIds?: string[];
   tipoProcesso?: string;
+  enabled?: boolean;
 }
 
 export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
@@ -29,6 +30,7 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
     queryKey: ["processos-paginados", page, filters],
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
+    enabled: filters.enabled !== false, // Default to true
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_processos_paginados", {
         _page: page,
