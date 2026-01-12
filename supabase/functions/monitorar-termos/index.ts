@@ -456,7 +456,87 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Created ${tarefasCriadas} tasks for detected hearings/summons`);
+    // ========== PROCESSAR AUDIÊNCIAS/INTIMAÇÕES PENDENTES DE QUALQUER ORIGEM ==========
+    // Buscar audiências pendentes sem tarefa vinculada (de qualquer origem)
+    const { data: audienciasPendentes } = await supabase
+      .from('audiencias_detectadas')
+      .select('id, processo_id, processo_numero, tipo_audiencia, data_audiencia, hora, contexto, conteudo_publicacao')
+      .is('tarefa_id', null)
+      .eq('status', 'pendente')
+      .not('processo_id', 'is', null)
+      .limit(50); // Processar em lotes para evitar timeout
+
+    if (audienciasPendentes && audienciasPendentes.length > 0) {
+      console.log(`Processing ${audienciasPendentes.length} pending audiences without tasks...`);
+      
+      for (const audiencia of audienciasPendentes) {
+        // Calcular data de vencimento (2 dias antes da audiência)
+        let dataVencimentoTarefa: string;
+        if (audiencia.data_audiencia) {
+          const dataAud = new Date(audiencia.data_audiencia);
+          dataAud.setDate(dataAud.getDate() - 2);
+          dataVencimentoTarefa = dataAud.toISOString().split('T')[0];
+        } else {
+          const hoje = new Date();
+          hoje.setDate(hoje.getDate() + 5);
+          dataVencimentoTarefa = hoje.toISOString().split('T')[0];
+        }
+
+        const tarefaIds = await criarTarefasParaResponsaveis(
+          audiencia.processo_id,
+          `Audiência ${audiencia.tipo_audiencia || ''} - ${audiencia.processo_numero || 'Processo'}`,
+          `Audiência detectada automaticamente.\n\nData: ${audiencia.data_audiencia || 'A definir'}\nHora: ${audiencia.hora || 'A definir'}\n\nContexto:\n${audiencia.contexto || audiencia.conteudo_publicacao?.substring(0, 300) || ''}`,
+          dataVencimentoTarefa,
+          'alta',
+          'audiencia_detectada'
+        );
+
+        if (tarefaIds.length > 0) {
+          await supabase
+            .from('audiencias_detectadas')
+            .update({ tarefa_id: tarefaIds[0] })
+            .eq('id', audiencia.id);
+          tarefasCriadas += tarefaIds.length;
+        }
+      }
+    }
+
+    // Buscar intimações pendentes sem tarefa vinculada (de qualquer origem)
+    const { data: intimacoesPendentes } = await supabase
+      .from('intimacoes_detectadas')
+      .select('id, processo_id, processo_numero, tipo_intimacao, prazo_dias, data_limite, contexto, descricao, prioridade')
+      .is('tarefa_id', null)
+      .eq('status', 'pendente')
+      .not('processo_id', 'is', null)
+      .limit(50);
+
+    if (intimacoesPendentes && intimacoesPendentes.length > 0) {
+      console.log(`Processing ${intimacoesPendentes.length} pending summons without tasks...`);
+      
+      for (const intimacao of intimacoesPendentes) {
+        const dataVencimentoTarefa = intimacao.data_limite || 
+          new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const tarefaIds = await criarTarefasParaResponsaveis(
+          intimacao.processo_id,
+          `${intimacao.tipo_intimacao || 'Intimação'} - ${intimacao.processo_numero || 'Processo'}`,
+          `Intimação detectada automaticamente.\n\nPrazo: ${intimacao.prazo_dias ? intimacao.prazo_dias + ' dias' : 'Verificar'}\nData Limite: ${intimacao.data_limite || 'A calcular'}\n\nContexto:\n${intimacao.contexto || intimacao.descricao || ''}`,
+          dataVencimentoTarefa,
+          intimacao.prioridade || 'media',
+          'intimacao_detectada'
+        );
+
+        if (tarefaIds.length > 0) {
+          await supabase
+            .from('intimacoes_detectadas')
+            .update({ tarefa_id: tarefaIds[0] })
+            .eq('id', intimacao.id);
+          tarefasCriadas += tarefaIds.length;
+        }
+      }
+    }
+
+    console.log(`Created ${tarefasCriadas} tasks for detected hearings/summons (including pending from other sources)`);
 
     // Se gerou alertas, disparar envio de emails para usuários configurados
     if (alertasGerados > 0 && isComplete) {
