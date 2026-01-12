@@ -212,6 +212,7 @@ Deno.serve(async (req) => {
             alertasGerados++;
 
             // Detectar audiências e intimações (uma vez por movimentação)
+            // REGRA: apenas termos com prioridade "urgente" geram tarefas
             if (!movimentacoesProcessadas.has(mov.id)) {
               movimentacoesProcessadas.add(mov.id);
 
@@ -234,6 +235,8 @@ Deno.serve(async (req) => {
                     contexto: mov.descricao.substring(0, 500),
                     status: 'pendente',
                     origem: 'monitoracao_360',
+                    // Guardar prioridade do termo que detectou - só cria tarefa se for urgente
+                    _prioridadeTermo: termo.prioridade,
                   });
                   audienciasExistentes.add(mov.id);
                   audienciasDetectadas++;
@@ -268,6 +271,8 @@ Deno.serve(async (req) => {
                     status: 'pendente',
                     prioridade: prazoDias && prazoDias <= 5 ? 'urgente' : prazoDias && prazoDias <= 10 ? 'alta' : 'media',
                     origem: 'monitoracao_360',
+                    // Guardar prioridade do termo que detectou - só cria tarefa se for urgente
+                    _prioridadeTermo: termo.prioridade,
                   });
                   intimacoesExistentes.add(mov.id);
                   intimacoesDetectadas++;
@@ -367,10 +372,14 @@ Deno.serve(async (req) => {
       return tarefaIds;
     }
 
-    // Inserir audiências e criar tarefas
+    // Inserir audiências e criar tarefas APENAS para termos URGENTES
     let tarefasCriadas = 0;
     if (novasAudiencias.length > 0) {
       for (const audiencia of novasAudiencias) {
+        // Extrair prioridade do termo antes de inserir (campo temporário)
+        const prioridadeTermo = audiencia._prioridadeTermo;
+        delete audiencia._prioridadeTermo;
+
         // Inserir audiência
         const { data: inserted, error } = await supabase
           .from('audiencias_detectadas')
@@ -383,42 +392,50 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Calcular data de vencimento da tarefa (2 dias antes da audiência, ou hoje se não tiver data)
-        let dataVencimentoTarefa: string;
-        if (audiencia.data_audiencia) {
-          const dataAud = new Date(audiencia.data_audiencia);
-          dataAud.setDate(dataAud.getDate() - 2);
-          dataVencimentoTarefa = dataAud.toISOString().split('T')[0];
-        } else {
-          const hoje = new Date();
-          hoje.setDate(hoje.getDate() + 5);
-          dataVencimentoTarefa = hoje.toISOString().split('T')[0];
-        }
+        // REGRA: só cria tarefa se o termo for URGENTE
+        if (prioridadeTermo === 'urgente') {
+          // Calcular data de vencimento da tarefa (2 dias antes da audiência, ou hoje se não tiver data)
+          let dataVencimentoTarefa: string;
+          if (audiencia.data_audiencia) {
+            const dataAud = new Date(audiencia.data_audiencia);
+            dataAud.setDate(dataAud.getDate() - 2);
+            dataVencimentoTarefa = dataAud.toISOString().split('T')[0];
+          } else {
+            const hoje = new Date();
+            hoje.setDate(hoje.getDate() + 5);
+            dataVencimentoTarefa = hoje.toISOString().split('T')[0];
+          }
 
-        // Criar tarefas para responsáveis
-        const tarefaIds = await criarTarefasParaResponsaveis(
-          audiencia.processo_id,
-          `Audiência ${audiencia.tipo_audiencia || ''} - ${audiencia.processo_numero || 'Processo'}`,
-          `Audiência detectada pelo Monitoração 360.\n\nData: ${audiencia.data_audiencia || 'A definir'}\nHora: ${audiencia.hora || 'A definir'}\n\nContexto:\n${audiencia.contexto || audiencia.conteudo_publicacao?.substring(0, 300) || ''}`,
-          dataVencimentoTarefa,
-          'alta',
-          'monitoracao_360'
-        );
+          // Criar tarefas para responsáveis
+          const tarefaIds = await criarTarefasParaResponsaveis(
+            audiencia.processo_id,
+            `[URGENTE] Audiência ${audiencia.tipo_audiencia || ''} - ${audiencia.processo_numero || 'Processo'}`,
+            `⚠️ TERMO URGENTE DETECTADO\n\nAudiência detectada pelo Monitoração 360.\n\nData: ${audiencia.data_audiencia || 'A definir'}\nHora: ${audiencia.hora || 'A definir'}\n\nContexto:\n${audiencia.contexto || audiencia.conteudo_publicacao?.substring(0, 300) || ''}`,
+            dataVencimentoTarefa,
+            'urgente',
+            'monitoracao_360'
+          );
 
-        // Vincular primeira tarefa à audiência
-        if (tarefaIds.length > 0) {
-          await supabase
-            .from('audiencias_detectadas')
-            .update({ tarefa_id: tarefaIds[0] })
-            .eq('id', inserted.id);
-          tarefasCriadas += tarefaIds.length;
+          // Vincular primeira tarefa à audiência
+          if (tarefaIds.length > 0) {
+            await supabase
+              .from('audiencias_detectadas')
+              .update({ tarefa_id: tarefaIds[0] })
+              .eq('id', inserted.id);
+            tarefasCriadas += tarefaIds.length;
+            console.log(`Created ${tarefaIds.length} tasks for URGENT hearing ${inserted.id}`);
+          }
         }
       }
     }
 
-    // Inserir intimações e criar tarefas
+    // Inserir intimações e criar tarefas APENAS para termos URGENTES
     if (novasIntimacoes.length > 0) {
       for (const intimacao of novasIntimacoes) {
+        // Extrair prioridade do termo antes de inserir (campo temporário)
+        const prioridadeTermo = intimacao._prioridadeTermo;
+        delete intimacao._prioridadeTermo;
+
         // Inserir intimação
         const { data: inserted, error } = await supabase
           .from('intimacoes_detectadas')
@@ -431,112 +448,36 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Data de vencimento da tarefa (data_limite ou hoje + 15 dias)
-        const dataVencimentoTarefa = intimacao.data_limite || 
-          new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        // REGRA: só cria tarefa se o termo for URGENTE
+        if (prioridadeTermo === 'urgente') {
+          // Data de vencimento da tarefa (data_limite ou hoje + 15 dias)
+          const dataVencimentoTarefa = intimacao.data_limite || 
+            new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        // Criar tarefas para responsáveis
-        const tarefaIds = await criarTarefasParaResponsaveis(
-          intimacao.processo_id,
-          `${intimacao.tipo_intimacao || 'Intimação'} - ${intimacao.processo_numero || 'Processo'}`,
-          `Intimação detectada pelo Monitoração 360.\n\nPrazo: ${intimacao.prazo_dias ? intimacao.prazo_dias + ' dias' : 'Verificar'}\nData Limite: ${intimacao.data_limite || 'A calcular'}\n\nContexto:\n${intimacao.contexto || intimacao.descricao || ''}`,
-          dataVencimentoTarefa,
-          intimacao.prioridade || 'media',
-          'monitoracao_360'
-        );
+          // Criar tarefas para responsáveis
+          const tarefaIds = await criarTarefasParaResponsaveis(
+            intimacao.processo_id,
+            `[URGENTE] ${intimacao.tipo_intimacao || 'Intimação'} - ${intimacao.processo_numero || 'Processo'}`,
+            `⚠️ TERMO URGENTE DETECTADO\n\nIntimação detectada pelo Monitoração 360.\n\nPrazo: ${intimacao.prazo_dias ? intimacao.prazo_dias + ' dias' : 'Verificar'}\nData Limite: ${intimacao.data_limite || 'A calcular'}\n\nContexto:\n${intimacao.contexto || intimacao.descricao || ''}`,
+            dataVencimentoTarefa,
+            'urgente',
+            'monitoracao_360'
+          );
 
-        // Vincular primeira tarefa à intimação
-        if (tarefaIds.length > 0) {
-          await supabase
-            .from('intimacoes_detectadas')
-            .update({ tarefa_id: tarefaIds[0] })
-            .eq('id', inserted.id);
-          tarefasCriadas += tarefaIds.length;
+          // Vincular primeira tarefa à intimação
+          if (tarefaIds.length > 0) {
+            await supabase
+              .from('intimacoes_detectadas')
+              .update({ tarefa_id: tarefaIds[0] })
+              .eq('id', inserted.id);
+            tarefasCriadas += tarefaIds.length;
+            console.log(`Created ${tarefaIds.length} tasks for URGENT summons ${inserted.id}`);
+          }
         }
       }
     }
 
-    // ========== PROCESSAR AUDIÊNCIAS/INTIMAÇÕES PENDENTES DE QUALQUER ORIGEM ==========
-    // Buscar audiências pendentes sem tarefa vinculada (de qualquer origem)
-    const { data: audienciasPendentes } = await supabase
-      .from('audiencias_detectadas')
-      .select('id, processo_id, processo_numero, tipo_audiencia, data_audiencia, hora, contexto, conteudo_publicacao')
-      .is('tarefa_id', null)
-      .eq('status', 'pendente')
-      .not('processo_id', 'is', null)
-      .limit(50); // Processar em lotes para evitar timeout
-
-    if (audienciasPendentes && audienciasPendentes.length > 0) {
-      console.log(`Processing ${audienciasPendentes.length} pending audiences without tasks...`);
-      
-      for (const audiencia of audienciasPendentes) {
-        // Calcular data de vencimento (2 dias antes da audiência)
-        let dataVencimentoTarefa: string;
-        if (audiencia.data_audiencia) {
-          const dataAud = new Date(audiencia.data_audiencia);
-          dataAud.setDate(dataAud.getDate() - 2);
-          dataVencimentoTarefa = dataAud.toISOString().split('T')[0];
-        } else {
-          const hoje = new Date();
-          hoje.setDate(hoje.getDate() + 5);
-          dataVencimentoTarefa = hoje.toISOString().split('T')[0];
-        }
-
-        const tarefaIds = await criarTarefasParaResponsaveis(
-          audiencia.processo_id,
-          `Audiência ${audiencia.tipo_audiencia || ''} - ${audiencia.processo_numero || 'Processo'}`,
-          `Audiência detectada automaticamente.\n\nData: ${audiencia.data_audiencia || 'A definir'}\nHora: ${audiencia.hora || 'A definir'}\n\nContexto:\n${audiencia.contexto || audiencia.conteudo_publicacao?.substring(0, 300) || ''}`,
-          dataVencimentoTarefa,
-          'alta',
-          'audiencia_detectada'
-        );
-
-        if (tarefaIds.length > 0) {
-          await supabase
-            .from('audiencias_detectadas')
-            .update({ tarefa_id: tarefaIds[0] })
-            .eq('id', audiencia.id);
-          tarefasCriadas += tarefaIds.length;
-        }
-      }
-    }
-
-    // Buscar intimações pendentes sem tarefa vinculada (de qualquer origem)
-    const { data: intimacoesPendentes } = await supabase
-      .from('intimacoes_detectadas')
-      .select('id, processo_id, processo_numero, tipo_intimacao, prazo_dias, data_limite, contexto, descricao, prioridade')
-      .is('tarefa_id', null)
-      .eq('status', 'pendente')
-      .not('processo_id', 'is', null)
-      .limit(50);
-
-    if (intimacoesPendentes && intimacoesPendentes.length > 0) {
-      console.log(`Processing ${intimacoesPendentes.length} pending summons without tasks...`);
-      
-      for (const intimacao of intimacoesPendentes) {
-        const dataVencimentoTarefa = intimacao.data_limite || 
-          new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-        const tarefaIds = await criarTarefasParaResponsaveis(
-          intimacao.processo_id,
-          `${intimacao.tipo_intimacao || 'Intimação'} - ${intimacao.processo_numero || 'Processo'}`,
-          `Intimação detectada automaticamente.\n\nPrazo: ${intimacao.prazo_dias ? intimacao.prazo_dias + ' dias' : 'Verificar'}\nData Limite: ${intimacao.data_limite || 'A calcular'}\n\nContexto:\n${intimacao.contexto || intimacao.descricao || ''}`,
-          dataVencimentoTarefa,
-          intimacao.prioridade || 'media',
-          'intimacao_detectada'
-        );
-
-        if (tarefaIds.length > 0) {
-          await supabase
-            .from('intimacoes_detectadas')
-            .update({ tarefa_id: tarefaIds[0] })
-            .eq('id', intimacao.id);
-          tarefasCriadas += tarefaIds.length;
-        }
-      }
-    }
-
-    console.log(`Created ${tarefasCriadas} tasks for detected hearings/summons (including pending from other sources)`);
+    console.log(`Created ${tarefasCriadas} tasks for URGENT terms only`);
 
     // Se gerou alertas, disparar envio de emails para usuários configurados
     if (alertasGerados > 0 && isComplete) {
