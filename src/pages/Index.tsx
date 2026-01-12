@@ -107,21 +107,25 @@ const Index = () => {
     <MainLayout 
       title="Dashboard" 
       subtitle="Visão geral do escritório"
-      headerActions={
-        <Select value={coordenacaoFilter || ""} onValueChange={setCoordenacaoFilter}>
-          <SelectTrigger className="w-72">
-            <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-            <SelectValue placeholder="Filtrar por coordenação" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todas">Todas as coordenações</SelectItem>
-            {coordenacoes?.map((coord) => (
-              <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      }
     >
+      {/* Coordination Filter Card - Mobile centered */}
+      <div className="flex justify-center mb-6">
+        <div className="bg-card border border-border rounded-xl p-4 w-full max-w-md">
+          <Select value={coordenacaoFilter || ""} onValueChange={setCoordenacaoFilter}>
+            <SelectTrigger className="w-full">
+              <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+              <SelectValue placeholder="Filtrar por coordenação" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as coordenações</SelectItem>
+              {coordenacoes?.map((coord) => (
+                <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {/* Stats Grid - Always visible */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
         {statsLoading ? (
