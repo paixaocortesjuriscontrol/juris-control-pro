@@ -70,6 +70,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const tiposTarefa = [
+  "PRAZO",
   "VERIFICAÇÃO",
   "DEFESA",
   "RECURSO",
