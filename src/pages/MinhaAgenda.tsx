@@ -299,13 +299,14 @@ export default function MinhaAgenda() {
 
   // Stats via COUNT
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["agenda-stats-unified", coordenacaoFiltro, membrosFiltro, user?.id, isAdminOrCoordinator],
+    queryKey: ["agenda-stats-unified", coordenacaoFiltro, membrosFiltro, user?.id, isAdminOrCoordinator, coordenacoes],
     queryFn: async () => {
       const hoje = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
       
-      // Get members IDs
+      // Get members IDs based on coordination filter
       let membroIds: string[] | null = null;
       if (coordenacaoFiltro !== "todas") {
+        // Single coordination selected
         const { data: membrosCoordenacao } = await supabase
           .from("membros_coordenacao")
           .select("usuario_id")
@@ -314,6 +315,13 @@ export default function MinhaAgenda() {
         if (membroIds.length === 0) {
           return { total: 0, pendentes: 0, atrasadas: 0, concluidas: 0 };
         }
+      } else if (isAdminOrCoordinator && coordenacoes && coordenacoes.length > 0) {
+        // "Todas" selected - get members from all coordinations
+        const { data: todosMembros } = await supabase
+          .from("membros_coordenacao")
+          .select("usuario_id")
+          .in("coordenacao_id", coordenacoes.map(c => c.id));
+        membroIds = [...new Set(todosMembros?.map(m => m.usuario_id) || [])];
       }
 
       const buildQuery = () => {
