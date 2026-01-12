@@ -42,6 +42,7 @@ const menuItems = [
   { icon: Calendar, label: "Minha Agenda", path: "/minha-agenda" },
   { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
+  { icon: Radar, label: "Capturas Intimações", path: "/capturas-intimacoes" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: ClipboardList, label: "Painel da Equipe", path: "/painel-equipe" },
   { icon: Upload, label: "Importar Processos", path: "/importar" },
