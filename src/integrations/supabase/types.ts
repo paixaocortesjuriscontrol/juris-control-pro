@@ -534,10 +534,14 @@ export type Database = {
           ativo: boolean
           cofre_senha_id: string
           created_at: string
+          dias_semana: number[] | null
+          horarios_execucao: string[] | null
           id: string
           instancia: string
+          intervalo_minutos: number | null
           justica: string
           mensagem_status: string | null
+          modo_captura: string | null
           oab_numero: string
           oab_uf: string
           orgao: string
@@ -551,10 +555,14 @@ export type Database = {
           ativo?: boolean
           cofre_senha_id: string
           created_at?: string
+          dias_semana?: number[] | null
+          horarios_execucao?: string[] | null
           id?: string
           instancia: string
+          intervalo_minutos?: number | null
           justica: string
           mensagem_status?: string | null
+          modo_captura?: string | null
           oab_numero: string
           oab_uf: string
           orgao: string
@@ -568,10 +576,14 @@ export type Database = {
           ativo?: boolean
           cofre_senha_id?: string
           created_at?: string
+          dias_semana?: number[] | null
+          horarios_execucao?: string[] | null
           id?: string
           instancia?: string
+          intervalo_minutos?: number | null
           justica?: string
           mensagem_status?: string | null
+          modo_captura?: string | null
           oab_numero?: string
           oab_uf?: string
           orgao?: string

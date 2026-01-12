@@ -22,11 +22,14 @@ import {
   Loader2,
   RefreshCw,
   TestTube,
-  Zap
+  Zap,
+  Calendar,
+  Pause
 } from "lucide-react";
-import { useCofreSenhas } from "@/hooks/useCofreSenhas";
+import { useCofreSenhas, CapturaIntimacao } from "@/hooks/useCofreSenhas";
 import { CredencialDialog } from "@/components/cofre/CredencialDialog";
 import { CapturaDialog } from "@/components/cofre/CapturaDialog";
+import { HistoricoCapturaDialog } from "@/components/cofre/HistoricoCapturaDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +52,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function CofreSenhas() {
   const {
@@ -62,6 +71,7 @@ export default function CofreSenhas() {
     criarCaptura,
     atualizarCaptura,
     excluirCaptura,
+    buscarHistorico,
   } = useCofreSenhas();
 
   const [credencialDialogOpen, setCredencialDialogOpen] = useState(false);
@@ -77,6 +87,10 @@ export default function CofreSenhas() {
   const [testingCredencial, setTestingCredencial] = useState<string | null>(null);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
+  
+  // Estado para histórico
+  const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
+  const [capturaHistorico, setCapturaHistorico] = useState<CapturaIntimacao | null>(null);
 
   const handleSaveCredencial = async (dados: any) => {
     if (credencialSelecionada) {
@@ -172,7 +186,7 @@ export default function CofreSenhas() {
     switch (status) {
       case "valido":
       case "ativo":
-        return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Ativo</Badge>;
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"><CheckCircle className="h-3 w-3 mr-1" />Ativo</Badge>;
       case "invalido":
       case "erro_credencial":
         return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Erro Credencial</Badge>;
@@ -182,10 +196,68 @@ export default function CofreSenhas() {
       case "aguardando_cadastro":
         return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Aguardando</Badge>;
       case "suspenso":
-        return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" />Suspenso</Badge>;
+        return <Badge variant="outline"><Pause className="h-3 w-3 mr-1" />Suspenso</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const getModoCapturaBadge = (captura: any) => {
+    const modo = captura.modo_captura || "agendado";
+    switch (modo) {
+      case "agendado":
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="text-xs">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  {captura.horarios_execucao?.length || 0}x/dia
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Horários: {captura.horarios_execucao?.join(", ") || "-"}</p>
+                <p>Dias: {formatDiasSemana(captura.dias_semana)}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      case "intervalo":
+        return (
+          <Badge variant="outline" className="text-xs">
+            <RefreshCw className="h-3 w-3 mr-1" />
+            {formatIntervalo(captura.intervalo_minutos)}
+          </Badge>
+        );
+      case "manual":
+        return (
+          <Badge variant="secondary" className="text-xs">
+            <Play className="h-3 w-3 mr-1" />
+            Manual
+          </Badge>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const formatDiasSemana = (dias: number[] | null) => {
+    if (!dias || dias.length === 0) return "-";
+    const nomes = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    return dias.map(d => nomes[d]).join(", ");
+  };
+
+  const formatIntervalo = (minutos: number | null) => {
+    if (!minutos) return "-";
+    if (minutos < 60) return `${minutos}min`;
+    if (minutos === 60) return "1h";
+    if (minutos < 1440) return `${minutos / 60}h`;
+    return `${minutos / 1440}d`;
+  };
+
+  const handleOpenHistorico = (captura: CapturaIntimacao) => {
+    setCapturaHistorico(captura);
+    setHistoricoDialogOpen(true);
   };
 
   return (
@@ -424,37 +496,46 @@ export default function CofreSenhas() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>OAB</TableHead>
-                        <TableHead>Justiça</TableHead>
-                        <TableHead>Órgão</TableHead>
-                        <TableHead>Instância</TableHead>
+                        <TableHead>Justiça / Órgão</TableHead>
                         <TableHead>Credencial</TableHead>
+                        <TableHead>Agendamento</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Última Captura</TableHead>
-                        <TableHead>Capturadas</TableHead>
+                        <TableHead>Última Execução</TableHead>
+                        <TableHead className="text-center">Capturadas</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {capturas.map((cap) => (
-                        <TableRow key={cap.id}>
-                          <TableCell className="font-mono">
-                            {cap.oab_numero}/{cap.oab_uf}
+                        <TableRow key={cap.id} className={!cap.ativo ? "opacity-50" : ""}>
+                          <TableCell>
+                            <div className="font-mono font-medium">{cap.oab_numero}/{cap.oab_uf}</div>
                           </TableCell>
-                          <TableCell>{cap.justica}</TableCell>
-                          <TableCell>{cap.orgao}</TableCell>
-                          <TableCell>{cap.instancia}</TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <span className="font-medium">{cap.justica}</span>
+                              <span className="text-muted-foreground"> · {cap.orgao}</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">{cap.instancia}</div>
+                          </TableCell>
                           <TableCell className="text-sm">
-                            {cap.cofre_senha?.nome || "-"}
+                            <div>{cap.cofre_senha?.nome || "-"}</div>
+                            <div className="text-xs text-muted-foreground">{cap.cofre_senha?.sistema}</div>
+                          </TableCell>
+                          <TableCell>
+                            {getModoCapturaBadge(cap)}
                           </TableCell>
                           <TableCell>{getStatusBadge(cap.status)}</TableCell>
                           <TableCell className="text-sm">
                             {cap.ultima_captura 
                               ? format(new Date(cap.ultima_captura), "dd/MM/yy HH:mm", { locale: ptBR })
-                              : "-"
+                              : <span className="text-muted-foreground">Nunca</span>
                             }
                           </TableCell>
-                          <TableCell className="font-mono">
-                            {cap.total_intimacoes_capturadas}
+                          <TableCell className="text-center">
+                            <span className="font-mono text-lg font-bold text-primary">
+                              {cap.total_intimacoes_capturadas}
+                            </span>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex gap-1 justify-end">
@@ -463,7 +544,7 @@ export default function CofreSenhas() {
                                 size="icon"
                                 title="Executar captura"
                                 onClick={() => handleExecutarCaptura(cap.id)}
-                                disabled={executingCaptura}
+                                disabled={executingCaptura || !cap.ativo}
                               >
                                 {executingCaptura ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -475,12 +556,14 @@ export default function CofreSenhas() {
                                 variant="ghost"
                                 size="icon"
                                 title="Histórico"
+                                onClick={() => handleOpenHistorico(cap)}
                               >
                                 <History className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                title="Editar"
                                 onClick={() => { setCapturaSelecionada(cap); setCapturaDialogOpen(true); }}
                               >
                                 <Edit className="h-4 w-4" />
@@ -489,6 +572,7 @@ export default function CofreSenhas() {
                                 variant="ghost"
                                 size="icon"
                                 className="text-destructive"
+                                title="Excluir"
                                 onClick={() => { setItemToDelete({ type: "captura", id: cap.id }); setDeleteDialogOpen(true); }}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -632,6 +716,14 @@ export default function CofreSenhas() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de Histórico de Capturas */}
+      <HistoricoCapturaDialog
+        open={historicoDialogOpen}
+        onOpenChange={setHistoricoDialogOpen}
+        captura={capturaHistorico}
+        buscarHistorico={buscarHistorico}
+      />
     </MainLayout>
   );
 }
