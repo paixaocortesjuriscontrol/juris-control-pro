@@ -307,6 +307,27 @@ Deno.serve(async (req) => {
 
     await Promise.all(insertPromises);
 
+    // Se gerou alertas, disparar envio de emails para usuários configurados
+    if (alertasGerados > 0 && isComplete) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const emailFunctionUrl = `${supabaseUrl}/functions/v1/enviar-alertas-360-email`;
+        
+        // Disparar assincronamente - não aguardar resposta
+        fetch(emailFunctionUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ forceRun: false }),
+        }).catch(err => {
+          console.error('Error triggering email function:', err);
+        });
+        
+        console.log(`Triggered email function for ${alertasGerados} new alerts`);
+      } catch (emailErr) {
+        console.error('Error calling email function:', emailErr);
+      }
+    }
+
     // Atualizar metadata com próximo offset (ou resetar se completo)
     if (configData?.id && completeRun) {
       const newMetadata = {

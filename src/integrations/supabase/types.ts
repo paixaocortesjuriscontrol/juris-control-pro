@@ -2716,6 +2716,7 @@ export type Database = {
           id: string
           nome: string
           notificacoes_email: boolean
+          notificacoes_email_360: boolean
           oab: string | null
           telefone: string | null
           updated_at: string
@@ -2730,6 +2731,7 @@ export type Database = {
           id: string
           nome: string
           notificacoes_email?: boolean
+          notificacoes_email_360?: boolean
           oab?: string | null
           telefone?: string | null
           updated_at?: string
@@ -2744,6 +2746,7 @@ export type Database = {
           id?: string
           nome?: string
           notificacoes_email?: boolean
+          notificacoes_email_360?: boolean
           oab?: string | null
           telefone?: string | null
           updated_at?: string
