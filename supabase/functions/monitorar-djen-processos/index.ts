@@ -48,6 +48,85 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
+// Função auxiliar para criar tarefas para responsáveis do processo
+async function criarTarefasParaResponsaveis(
+  supabase: any,
+  processoId: string,
+  titulo: string,
+  descricao: string,
+  dataVencimento: string,
+  prioridade: string,
+  origem: string
+): Promise<string[]> {
+  // Buscar responsáveis do processo
+  const { data: responsaveis } = await supabase
+    .from('processos_responsaveis')
+    .select('responsavel_id')
+    .eq('processo_id', processoId);
+
+  // Se não tem responsáveis na tabela, tenta o advogado_responsavel_id legado
+  if (!responsaveis || responsaveis.length === 0) {
+    const { data: processo } = await supabase
+      .from('processos')
+      .select('advogado_responsavel_id')
+      .eq('id', processoId)
+      .single();
+
+    if (processo?.advogado_responsavel_id) {
+      const { data: tarefa, error } = await supabase
+        .from('tarefas')
+        .insert({
+          processo_id: processoId,
+          responsavel_id: processo.advogado_responsavel_id,
+          criado_por: processo.advogado_responsavel_id,
+          titulo,
+          descricao,
+          data_vencimento: dataVencimento,
+          prioridade,
+          status: 'pendente',
+          origem,
+        })
+        .select('id')
+        .single();
+
+      if (!error && tarefa) {
+        console.log(`Created task ${tarefa.id} for legacy responsible`);
+        return [tarefa.id];
+      }
+    }
+    return [];
+  }
+
+  // Criar tarefa para cada responsável
+  const tarefaIds: string[] = [];
+  for (const resp of responsaveis) {
+    const { data: tarefa, error } = await supabase
+      .from('tarefas')
+      .insert({
+        processo_id: processoId,
+        responsavel_id: resp.responsavel_id,
+        criado_por: resp.responsavel_id,
+        titulo,
+        descricao,
+        data_vencimento: dataVencimento,
+        prioridade,
+        status: 'pendente',
+        origem,
+      })
+      .select('id')
+      .single();
+
+    if (!error && tarefa) {
+      tarefaIds.push(tarefa.id);
+    }
+  }
+
+  if (tarefaIds.length > 0) {
+    console.log(`Created ${tarefaIds.length} tasks for process ${processoId}`);
+  }
+  return tarefaIds;
+}
+
 // Detect audiência in publication content
 interface AudienciaInfo {
   dataAudiencia: string | null;
@@ -352,10 +431,10 @@ async function processProcessosBatch(
         totalNovas++;
         novasDoProcesso++;
 
-        // Detect audiencias and intimacoes asynchronously
+        // Detect audiencias and intimacoes - criar tarefas para responsáveis
         const audienciaInfo = detectAudiencia(conteudo);
         if (audienciaInfo) {
-          supabase.from('audiencias_detectadas').insert({
+          const { data: insertedAudiencia } = await supabase.from('audiencias_detectadas').insert({
             processo_id: processo.id,
             processo_numero: processo.numero,
             publicacao_id: inserted.id,
@@ -367,16 +446,47 @@ async function processProcessosBatch(
             conteudo_publicacao: conteudo,
             origem: 'monitoramento_djen_processos',
             status: 'pendente',
-          }).then(() => {});
+          }).select('id').single();
+
+          // Criar tarefas para responsáveis do processo
+          if (insertedAudiencia) {
+            // Calcular data de vencimento (2 dias antes da audiência)
+            let dataVencimentoTarefa: string;
+            if (audienciaInfo.dataAudiencia) {
+              const dataAud = new Date(audienciaInfo.dataAudiencia);
+              dataAud.setDate(dataAud.getDate() - 2);
+              dataVencimentoTarefa = dataAud.toISOString().split('T')[0];
+            } else {
+              const hoje = new Date();
+              hoje.setDate(hoje.getDate() + 5);
+              dataVencimentoTarefa = hoje.toISOString().split('T')[0];
+            }
+
+            const tarefaIds = await criarTarefasParaResponsaveis(
+              supabase,
+              processo.id,
+              `[DJEN] Audiência ${audienciaInfo.tipoAudiencia || ''} - ${processo.numero}`,
+              `Audiência detectada no DJEN.\n\nData: ${audienciaInfo.dataAudiencia || 'A definir'}\nHora: ${audienciaInfo.hora || 'A definir'}\n\nContexto:\n${audienciaInfo.contexto || ''}`,
+              dataVencimentoTarefa,
+              'alta',
+              'monitoramento_djen_processos'
+            );
+
+            // Vincular tarefa à audiência
+            if (tarefaIds.length > 0) {
+              await supabase
+                .from('audiencias_detectadas')
+                .update({ tarefa_id: tarefaIds[0] })
+                .eq('id', insertedAudiencia.id);
+            }
+          }
         }
 
         const intimacaoInfo = detectIntimacao(conteudo, processo.numero);
         if (intimacaoInfo) {
           // Calcular datas corretamente
-          // data_disponibilizacao = data da API (quando foi publicado no DJEN)
-          // data_intimacao = primeiro dia útil seguinte (considerando recesso)
           const dataDisponibilizacao = dataPublicacao ? new Date(dataPublicacao) : new Date();
-          const dataIntimacao = calcularPrimeiroDiaUtil(new Date(dataDisponibilizacao.getTime() + 86400000)); // +1 dia
+          const dataIntimacao = calcularPrimeiroDiaUtil(new Date(dataDisponibilizacao.getTime() + 86400000));
           
           let dataLimite: string | null = null;
           if (intimacaoInfo.prazoDias) {
@@ -385,7 +495,7 @@ async function processProcessosBatch(
           }
           
           // Usar upsert com hash_dedup para evitar duplicatas
-          supabase.from('intimacoes_detectadas')
+          const { data: insertedIntimacao } = await supabase.from('intimacoes_detectadas')
             .upsert({
               processo_id: processo.id,
               processo_numero: processo.numero,
@@ -400,7 +510,32 @@ async function processProcessosBatch(
               status: 'pendente',
               hash_dedup: intimacaoInfo.hashDedup,
             }, { onConflict: 'hash_dedup', ignoreDuplicates: true })
-            .then(() => {});
+            .select('id')
+            .single();
+
+          // Criar tarefas para responsáveis do processo (se não é duplicata)
+          if (insertedIntimacao) {
+            const dataVencimentoTarefa = dataLimite || 
+              new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+            const tarefaIds = await criarTarefasParaResponsaveis(
+              supabase,
+              processo.id,
+              `[DJEN] ${intimacaoInfo.tipoIntimacao || 'Intimação'} - ${processo.numero}`,
+              `Intimação detectada no DJEN.\n\nPrazo: ${intimacaoInfo.prazoDias ? intimacaoInfo.prazoDias + ' dias' : 'Verificar'}\nData Limite: ${dataLimite || 'A calcular'}\n\nContexto:\n${intimacaoInfo.contexto || ''}`,
+              dataVencimentoTarefa,
+              intimacaoInfo.prazoDias && intimacaoInfo.prazoDias <= 5 ? 'urgente' : 'alta',
+              'monitoramento_djen_processos'
+            );
+
+            // Vincular tarefa à intimação
+            if (tarefaIds.length > 0) {
+              await supabase
+                .from('intimacoes_detectadas')
+                .update({ tarefa_id: tarefaIds[0] })
+                .eq('id', insertedIntimacao.id);
+            }
+          }
         }
       }
 

@@ -107,11 +107,95 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
+// Função auxiliar para criar tarefas para responsáveis do processo
+async function criarTarefasParaResponsaveis(
+  supabase: any,
+  processoNumero: string,
+  titulo: string,
+  descricao: string,
+  dataVencimento: string,
+  prioridade: string,
+  origem: string
+): Promise<string[]> {
+  // Primeiro, buscar o processo pelo número
+  const { data: processo } = await supabase
+    .from('processos')
+    .select('id, advogado_responsavel_id')
+    .eq('numero', processoNumero)
+    .single();
+
+  if (!processo) {
+    console.log(`Process not found for number ${processoNumero}, cannot create task`);
+    return [];
+  }
+
+  // Buscar responsáveis do processo
+  const { data: responsaveis } = await supabase
+    .from('processos_responsaveis')
+    .select('responsavel_id')
+    .eq('processo_id', processo.id);
+
+  // Se não tem responsáveis na tabela, tenta o advogado_responsavel_id legado
+  if (!responsaveis || responsaveis.length === 0) {
+    if (processo.advogado_responsavel_id) {
+      const { data: tarefa, error } = await supabase
+        .from('tarefas')
+        .insert({
+          processo_id: processo.id,
+          responsavel_id: processo.advogado_responsavel_id,
+          criado_por: processo.advogado_responsavel_id,
+          titulo,
+          descricao,
+          data_vencimento: dataVencimento,
+          prioridade,
+          status: 'pendente',
+          origem,
+        })
+        .select('id')
+        .single();
+
+      if (!error && tarefa) {
+        console.log(`Created task ${tarefa.id} for legacy responsible`);
+        return [tarefa.id];
+      }
+    }
+    return [];
+  }
+
+  // Criar tarefa para cada responsável
+  const tarefaIds: string[] = [];
+  for (const resp of responsaveis) {
+    const { data: tarefa, error } = await supabase
+      .from('tarefas')
+      .insert({
+        processo_id: processo.id,
+        responsavel_id: resp.responsavel_id,
+        criado_por: resp.responsavel_id,
+        titulo,
+        descricao,
+        data_vencimento: dataVencimento,
+        prioridade,
+        status: 'pendente',
+        origem,
+      })
+      .select('id')
+      .single();
+
+    if (!error && tarefa) {
+      tarefaIds.push(tarefa.id);
+    }
+  }
+
+  if (tarefaIds.length > 0) {
+    console.log(`Created ${tarefaIds.length} tasks for process ${processoNumero}`);
+  }
+  return tarefaIds;
+}
+
 function generateGlobalHash(conteudo: string, dataPublicacao: string): string {
   const normalized = (conteudo + dataPublicacao).toLowerCase().replace(/\s+/g, ' ').trim();
   return generateHash(normalized);
 }
-
 function shouldExclude(conteudo: string, exclusoes: string[]): string | null {
   if (!exclusoes || exclusoes.length === 0) return null;
   
@@ -427,10 +511,10 @@ async function processMonitoramento(
           publicacao_id: insertedPub.id,
         }, { onConflict: 'hash_global', ignoreDuplicates: true });
         
-        // Check for "audiência" term and create alert
+        // Check for "audiência" term and create alert + task
         const audienciaInfo = detectAudiencia(conteudo);
         if (audienciaInfo) {
-          await supabase.from('audiencias_detectadas').insert({
+          const { data: insertedAudiencia } = await supabase.from('audiencias_detectadas').insert({
             publicacao_id: insertedPub.id,
             monitoramento_id: monitoramento.id,
             processo_numero: processoNumero,
@@ -440,7 +524,41 @@ async function processMonitoramento(
             contexto: audienciaInfo.contexto,
             conteudo_publicacao: conteudo,
             status: 'pendente',
-          });
+            origem: 'monitoramento_djen',
+          }).select('id').single();
+          
+          // Criar tarefas para responsáveis do processo (se tiver processo vinculado)
+          if (insertedAudiencia && processoNumero) {
+            // Calcular data de vencimento (2 dias antes da audiência)
+            let dataVencimentoTarefa: string;
+            if (audienciaInfo.dataAudiencia) {
+              const dataAud = new Date(audienciaInfo.dataAudiencia);
+              dataAud.setDate(dataAud.getDate() - 2);
+              dataVencimentoTarefa = dataAud.toISOString().split('T')[0];
+            } else {
+              const hoje = new Date();
+              hoje.setDate(hoje.getDate() + 5);
+              dataVencimentoTarefa = hoje.toISOString().split('T')[0];
+            }
+
+            const tarefaIds = await criarTarefasParaResponsaveis(
+              supabase,
+              processoNumero,
+              `[DJEN] Audiência ${audienciaInfo.tipoAudiencia || ''} - ${processoNumero}`,
+              `Audiência detectada no DJEN.\n\nData: ${audienciaInfo.dataAudiencia || 'A definir'}\n\nContexto:\n${audienciaInfo.contexto || ''}`,
+              dataVencimentoTarefa,
+              'alta',
+              'monitoramento_djen'
+            );
+
+            // Vincular tarefa à audiência
+            if (tarefaIds.length > 0) {
+              await supabase
+                .from('audiencias_detectadas')
+                .update({ tarefa_id: tarefaIds[0] })
+                .eq('id', insertedAudiencia.id);
+            }
+          }
           
           // Notification for audiência detection
           await supabase.from('notificacoes').insert({

@@ -479,6 +479,92 @@ Deno.serve(async (req) => {
 
     console.log(`Created ${tarefasCriadas} tasks for URGENT terms only`);
 
+    // ========== PROCESSAR AUDIÊNCIAS/INTIMAÇÕES DJEN PENDENTES SEM TAREFA ==========
+    // Buscar audiências pendentes de origem DJEN sem tarefa vinculada
+    const { data: audienciasDjenPendentes } = await supabase
+      .from('audiencias_detectadas')
+      .select('id, processo_id, processo_numero, tipo_audiencia, data_audiencia, hora, contexto, conteudo_publicacao, origem')
+      .is('tarefa_id', null)
+      .eq('status', 'pendente')
+      .not('processo_id', 'is', null)
+      .in('origem', ['monitoramento_djen', 'monitoramento_djen_processos', 'detectado', 'djen_processos'])
+      .limit(20);
+
+    if (audienciasDjenPendentes && audienciasDjenPendentes.length > 0) {
+      console.log(`Processing ${audienciasDjenPendentes.length} pending DJEN audiences without tasks...`);
+      
+      for (const audiencia of audienciasDjenPendentes) {
+        // Calcular data de vencimento (2 dias antes da audiência)
+        let dataVencimentoTarefa: string;
+        if (audiencia.data_audiencia) {
+          const dataAud = new Date(audiencia.data_audiencia);
+          dataAud.setDate(dataAud.getDate() - 2);
+          dataVencimentoTarefa = dataAud.toISOString().split('T')[0];
+        } else {
+          const hoje = new Date();
+          hoje.setDate(hoje.getDate() + 5);
+          dataVencimentoTarefa = hoje.toISOString().split('T')[0];
+        }
+
+        const tarefaIds = await criarTarefasParaResponsaveis(
+          audiencia.processo_id,
+          `[DJEN] Audiência ${audiencia.tipo_audiencia || ''} - ${audiencia.processo_numero || 'Processo'}`,
+          `Audiência detectada pelo monitoramento DJEN.\n\nData: ${audiencia.data_audiencia || 'A definir'}\nHora: ${audiencia.hora || 'A definir'}\n\nContexto:\n${audiencia.contexto || audiencia.conteudo_publicacao?.substring(0, 300) || ''}`,
+          dataVencimentoTarefa,
+          'alta',
+          'monitoramento_djen'
+        );
+
+        if (tarefaIds.length > 0) {
+          await supabase
+            .from('audiencias_detectadas')
+            .update({ tarefa_id: tarefaIds[0] })
+            .eq('id', audiencia.id);
+          tarefasCriadas += tarefaIds.length;
+          console.log(`Created ${tarefaIds.length} tasks for DJEN audience ${audiencia.id}`);
+        }
+      }
+    }
+
+    // Buscar intimações pendentes de origem DJEN sem tarefa vinculada
+    const { data: intimacoesDjenPendentes } = await supabase
+      .from('intimacoes_detectadas')
+      .select('id, processo_id, processo_numero, tipo_intimacao, prazo_dias, data_limite, contexto, descricao, prioridade, origem')
+      .is('tarefa_id', null)
+      .eq('status', 'pendente')
+      .not('processo_id', 'is', null)
+      .in('origem', ['monitoramento_djen', 'monitoramento_djen_processos', 'detectado', 'djen_processos'])
+      .limit(20);
+
+    if (intimacoesDjenPendentes && intimacoesDjenPendentes.length > 0) {
+      console.log(`Processing ${intimacoesDjenPendentes.length} pending DJEN summons without tasks...`);
+      
+      for (const intimacao of intimacoesDjenPendentes) {
+        const dataVencimentoTarefa = intimacao.data_limite || 
+          new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const tarefaIds = await criarTarefasParaResponsaveis(
+          intimacao.processo_id,
+          `[DJEN] ${intimacao.tipo_intimacao || 'Intimação'} - ${intimacao.processo_numero || 'Processo'}`,
+          `Intimação detectada pelo monitoramento DJEN.\n\nPrazo: ${intimacao.prazo_dias ? intimacao.prazo_dias + ' dias' : 'Verificar'}\nData Limite: ${intimacao.data_limite || 'A calcular'}\n\nContexto:\n${intimacao.contexto || intimacao.descricao || ''}`,
+          dataVencimentoTarefa,
+          intimacao.prioridade || 'alta',
+          'monitoramento_djen'
+        );
+
+        if (tarefaIds.length > 0) {
+          await supabase
+            .from('intimacoes_detectadas')
+            .update({ tarefa_id: tarefaIds[0] })
+            .eq('id', intimacao.id);
+          tarefasCriadas += tarefaIds.length;
+          console.log(`Created ${tarefaIds.length} tasks for DJEN summons ${intimacao.id}`);
+        }
+      }
+    }
+
+    console.log(`Total tasks created: ${tarefasCriadas}`);
+
     // Se gerou alertas, disparar envio de emails para usuários configurados
     if (alertasGerados > 0 && isComplete) {
       try {
