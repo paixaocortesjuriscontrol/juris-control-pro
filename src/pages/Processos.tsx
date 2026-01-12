@@ -57,7 +57,7 @@ const Processos = () => {
   const [coordenacaoCarregada, setCoordenacaoCarregada] = useState(false);
   
   // Buscar coordenação do usuário logado
-  const { data: userCoordData } = useQuery({
+  const { data: userCoordData, isLoading: isLoadingUserCoord } = useQuery({
     queryKey: ['user-coordenacao-processos', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -84,14 +84,11 @@ const Processos = () => {
   });
   
   // Ler filtros da URL na inicialização
+  const urlCoordParam = searchParams.get("coordenacao");
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") || "");
   const [areaFilter, setAreaFilter] = useState<string>(() => searchParams.get("area") || "all");
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get("status") || "all");
-  // Inicializa com "pending" até carregar a coordenação do usuário
-  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>(() => {
-    const urlCoord = searchParams.get("coordenacao");
-    return urlCoord || "pending";
-  });
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("all");
   const [selectedProcessos, setSelectedProcessos] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showAtribuirDialog, setShowAtribuirDialog] = useState(false);
@@ -179,18 +176,27 @@ const Processos = () => {
 
   // Auto-selecionar coordenação do usuário ao carregar (se não veio da URL)
   useEffect(() => {
-    if (!coordenacaoCarregada && userCoordData !== undefined && coordenacaoFilter === "pending") {
-      if (userCoordData) {
-        setCoordenacaoFilter(userCoordData);
-      } else {
-        setCoordenacaoFilter("all");
-      }
+    // Se já carregou, não faz nada
+    if (coordenacaoCarregada) return;
+    
+    // Se veio da URL, usa o valor da URL
+    if (urlCoordParam) {
+      setCoordenacaoFilter(urlCoordParam);
       setCoordenacaoCarregada(true);
-    } else if (coordenacaoFilter !== "pending" && !coordenacaoCarregada) {
-      // Se veio da URL, marca como carregada
-      setCoordenacaoCarregada(true);
+      return;
     }
-  }, [userCoordData, coordenacaoCarregada, coordenacaoFilter]);
+    
+    // Se ainda está carregando a coordenação do usuário, aguarda
+    if (isLoadingUserCoord) return;
+    
+    // Quando terminou de carregar, define a coordenação
+    if (userCoordData) {
+      setCoordenacaoFilter(userCoordData);
+    } else {
+      setCoordenacaoFilter("all");
+    }
+    setCoordenacaoCarregada(true);
+  }, [userCoordData, isLoadingUserCoord, coordenacaoCarregada, urlCoordParam]);
 
   // Debounce search to avoid too many API calls
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
@@ -198,7 +204,7 @@ const Processos = () => {
   // Atualizar URL quando filtros mudam (preservando outros params, ex: grupo_clientes)
   useEffect(() => {
     // Não atualizar URL enquanto coordenação está sendo carregada
-    if (coordenacaoFilter === "pending") return;
+    if (!coordenacaoCarregada) return;
     
     const params = new URLSearchParams(searchParams);
 
@@ -218,7 +224,7 @@ const Processos = () => {
     if (params.toString() !== searchParams.toString()) {
       setSearchParams(params, { replace: true });
     }
-  }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, setSearchParams]);
+  }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, setSearchParams, coordenacaoCarregada]);
 
   const { 
     data, 
@@ -236,7 +242,7 @@ const Processos = () => {
     search: debouncedSearch,
     area: areaFilter,
     status: statusFilter,
-    coordenacao_id: coordenacaoFilter === "pending" ? undefined : coordenacaoFilter,
+    coordenacao_id: coordenacaoFilter,
     responsavel_id: filtrosAplicados.responsavelId,
     instancia: filtrosAplicados.instancia,
     comMovimento: comAndamentos,
@@ -247,7 +253,7 @@ const Processos = () => {
     periodoFim: filtrosAplicados.periodoFim,
     clienteIds: clienteIds,
     tipoProcesso: tipoProcessoFilter,
-    enabled: coordenacaoFilter !== "pending", // Não buscar enquanto está carregando a coordenação
+    enabled: coordenacaoCarregada, // Não buscar enquanto está carregando a coordenação
   });
 
   const { data: processosRedistribuidos } = useProcessosComRedistribuicaoRecente();
