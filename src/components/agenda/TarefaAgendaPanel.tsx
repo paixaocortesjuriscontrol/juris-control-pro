@@ -177,7 +177,7 @@ export function TarefaAgendaPanel({
   });
 
   // Fetch vínculo publicação de TERMOS
-  const { data: vinculoPublicacao } = useQuery({
+  const { data: vinculoPublicacao, isLoading: loadingVinculoTermo } = useQuery({
     queryKey: ["tarefa-publicacao-vinculo-agenda", tarefa.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -190,10 +190,11 @@ export function TarefaAgendaPanel({
       return data;
     },
     enabled: tarefa.origem === "tarefa",
+    staleTime: 0,
   });
 
   // Fetch vínculo publicação de PROCESSOS
-  const { data: vinculoPublicacaoProcesso } = useQuery({
+  const { data: vinculoPublicacaoProcesso, isLoading: loadingVinculoProcesso } = useQuery({
     queryKey: ["tarefa-publicacao-processo-vinculo-agenda", tarefa.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -206,10 +207,11 @@ export function TarefaAgendaPanel({
       return data;
     },
     enabled: tarefa.origem === "tarefa",
+    staleTime: 0,
   });
 
   // Fetch publicação de TERMOS
-  const { data: publicacaoTermo } = useQuery({
+  const { data: publicacaoTermo, isLoading: loadingPublicacaoTermo } = useQuery({
     queryKey: ["publicacao-djen-agenda", vinculoPublicacao?.publicacao_id],
     queryFn: async () => {
       if (!vinculoPublicacao?.publicacao_id) return null;
@@ -226,10 +228,11 @@ export function TarefaAgendaPanel({
       return data;
     },
     enabled: !!vinculoPublicacao?.publicacao_id,
+    staleTime: 0,
   });
 
   // Fetch publicação de PROCESSOS
-  const { data: publicacaoProcesso } = useQuery({
+  const { data: publicacaoProcesso, isLoading: loadingPublicacaoProcesso } = useQuery({
     queryKey: ["publicacao-djen-processo-agenda", vinculoPublicacaoProcesso?.publicacao_processo_id],
     queryFn: async () => {
       if (!vinculoPublicacaoProcesso?.publicacao_processo_id) return null;
@@ -243,12 +246,14 @@ export function TarefaAgendaPanel({
       return data;
     },
     enabled: !!vinculoPublicacaoProcesso?.publicacao_processo_id,
+    staleTime: 0,
   });
 
   // Unificar publicação de qualquer origem
   const publicacao = publicacaoTermo || publicacaoProcesso;
   const tipoPublicacao = publicacaoTermo ? 'termo' : (publicacaoProcesso ? 'processo' : null);
   const temPublicacao = publicacao !== null && publicacao !== undefined;
+  const loadingPublicacao = loadingVinculoTermo || loadingVinculoProcesso || loadingPublicacaoTermo || loadingPublicacaoProcesso;
 
   // Fetch cliente info (se não tiver processo completo)
   const clienteInfo = processoCompleto?.cliente || null;
