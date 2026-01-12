@@ -111,6 +111,8 @@ export default function MinhaAgenda() {
   const [tiposFiltro, setTiposFiltro] = useState<string[]>(["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"]);
   const [statusFiltro, setStatusFiltro] = useState<string>("todas");
   const [pessoasFiltro, setPessoasFiltro] = useState<string[]>([]);
+  const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
+  const [clienteFiltro, setClienteFiltro] = useState<string>("todos");
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [pessoasPopoverOpen, setPessoasPopoverOpen] = useState(false);
 
@@ -141,12 +143,12 @@ export default function MinhaAgenda() {
     dataInicio: dateRange.start,
     dataFim: dateRange.end,
     responsavelIds: pessoasFiltro.length > 0 ? pessoasFiltro : undefined,
+    coordenacaoId: coordenacaoFiltro !== "todas" ? coordenacaoFiltro : undefined,
+    clienteId: clienteFiltro !== "todos" ? clienteFiltro : undefined,
   };
 
   const { data: itensAgenda, isLoading } = useAgendaUnificada(filters);
   const { data: stats } = useAgendaUnificadaStats();
-
-  const [coordenacaoFiltroPage, setCoordenacaoFiltroPage] = useState<string>("todas");
 
   const { data: coordenacoes } = useQuery({
     queryKey: ["coordenacoes-agenda-filter"],
@@ -161,7 +163,7 @@ export default function MinhaAgenda() {
   });
 
   const { data: usuarios } = useQuery({
-    queryKey: ["usuarios-agenda-filter", coordenacaoFiltroPage],
+    queryKey: ["usuarios-agenda-filter", coordenacaoFiltro],
     queryFn: async () => {
       let query = supabase
         .from("profiles")
@@ -169,11 +171,11 @@ export default function MinhaAgenda() {
         .eq("ativo", true)
         .order("nome");
       
-      if (coordenacaoFiltroPage && coordenacaoFiltroPage !== "todas") {
+      if (coordenacaoFiltro && coordenacaoFiltro !== "todas") {
         const { data: membros } = await supabase
           .from("membros_coordenacao")
           .select("usuario_id")
-          .eq("coordenacao_id", coordenacaoFiltroPage);
+          .eq("coordenacao_id", coordenacaoFiltro);
         
         const userIds = membros?.map(m => m.usuario_id) || [];
         if (userIds.length > 0) {
@@ -184,6 +186,19 @@ export default function MinhaAgenda() {
       }
       
       const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: clientes } = useQuery({
+    queryKey: ["clientes-agenda-filter"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nome")
+        .order("nome")
+        .limit(100);
       if (error) throw error;
       return data;
     },
@@ -490,32 +505,33 @@ export default function MinhaAgenda() {
             </SelectContent>
           </Select>
 
-          {/* Pessoas Filter */}
+          {/* Coordenação Filter */}
+          <Select value={coordenacaoFiltro} onValueChange={(v) => { setCoordenacaoFiltro(v); setPessoasFiltro([]); }}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Coordenação" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as coordenações</SelectItem>
+              {coordenacoes?.map((coord) => (
+                <SelectItem key={coord.id} value={coord.id}>
+                  {coord.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Membros Filter */}
           <Popover open={pessoasPopoverOpen} onOpenChange={setPessoasPopoverOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" className="gap-2">
                 <Users className="w-4 h-4" />
-                {pessoasFiltro.length > 0 ? `${pessoasFiltro.length} pessoas` : "Pessoas"}
+                {pessoasFiltro.length > 0 ? `${pessoasFiltro.length} membros` : "Membros"}
                 <ChevronDown className="w-4 h-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80" align="start">
+            <PopoverContent className="w-72" align="start">
               <div className="space-y-4">
-                <div className="font-medium">Pessoas</div>
-                
-                <Select value={coordenacaoFiltroPage} onValueChange={setCoordenacaoFiltroPage}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filtrar por coordenação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas as coordenações</SelectItem>
-                    {coordenacoes?.map((coord) => (
-                      <SelectItem key={coord.id} value={coord.id}>
-                        {coord.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="font-medium">Membros da Coordenação</div>
                 
                 <div className="max-h-60 overflow-y-auto space-y-2">
                   {usuarios?.map((usuario) => (
@@ -532,12 +548,12 @@ export default function MinhaAgenda() {
                   ))}
                   {usuarios?.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-2">
-                      Nenhum membro nesta coordenação
+                      Nenhum membro disponível
                     </p>
                   )}
                 </div>
                 <div className="flex justify-end gap-2 pt-2 border-t">
-                  <Button variant="ghost" size="sm" onClick={() => { setPessoasFiltro([]); setCoordenacaoFiltroPage("todas"); }}>
+                  <Button variant="ghost" size="sm" onClick={() => setPessoasFiltro([])}>
                     Limpar
                   </Button>
                   <Button size="sm" onClick={() => setPessoasPopoverOpen(false)}>
@@ -547,6 +563,21 @@ export default function MinhaAgenda() {
               </div>
             </PopoverContent>
           </Popover>
+
+          {/* Cliente Filter */}
+          <Select value={clienteFiltro} onValueChange={setClienteFiltro}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os clientes</SelectItem>
+              {clientes?.map((cliente) => (
+                <SelectItem key={cliente.id} value={cliente.id}>
+                  {cliente.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Atividades Filter */}
           <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>

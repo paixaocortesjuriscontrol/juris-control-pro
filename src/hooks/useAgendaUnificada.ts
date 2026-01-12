@@ -44,6 +44,7 @@ export interface AgendaUnificadaFilters {
   dataFim?: Date;
   responsavelIds?: string[];
   coordenacaoId?: string;
+  clienteId?: string;
   origens?: ("evento" | "tarefa")[]; // Filtrar por origem
 }
 
@@ -182,10 +183,13 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
             updated_at,
             processo_id,
             responsavel_id,
-            processo:processos!tarefas_processo_id_fkey(id, numero, assunto),
+            criado_por,
+            processo:processos!tarefas_processo_id_fkey(id, numero, assunto, cliente_id),
             responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
-          `)
-          .eq("responsavel_id", user.id);
+          `);
+
+        // Filtrar: responsável = usuário logado OU criador = usuário logado
+        queryTarefas = queryTarefas.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
 
         // Filtrar por status
         if (filters.status && filters.status !== "todas") {
@@ -207,10 +211,7 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
 
         // Filtrar por responsável
         if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-          if (!filters.responsavelIds.includes(user.id)) {
-            // Se o usuário logado não está nos filtros, não incluir tarefas
-            // (tarefas são sempre do responsável logado por design)
-          }
+          queryTarefas = queryTarefas.in("responsavel_id", filters.responsavelIds);
         }
 
         const { data: tarefas, error: tarefasError } = await queryTarefas;
@@ -218,11 +219,20 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
         if (tarefasError) {
           console.error("Erro ao buscar tarefas:", tarefasError);
         } else if (tarefas) {
-          // Filtrar por tipos se "tarefa" estiver incluído
-          const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || filters.tipos.includes("tarefa");
+          // Filtrar por tipos se "tarefa" ou "tarefa_delegada" estiver incluído
+          const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || 
+            filters.tipos.includes("tarefa") || filters.tipos.includes("tarefa_delegada");
           
           if (incluirTipoTarefa) {
-            for (const tarefa of tarefas) {
+            // Filtrar por cliente se especificado
+            let tarefasFiltradas = tarefas;
+            if (filters.clienteId) {
+              tarefasFiltradas = tarefas.filter(t => 
+                t.processo && (t.processo as { cliente_id?: string }).cliente_id === filters.clienteId
+              );
+            }
+
+            for (const tarefa of tarefasFiltradas) {
               const dataVencimento = parseISO(tarefa.data_vencimento);
               const diasRestantes = differenceInDays(startOfDay(dataVencimento), today);
               const isAtrasado = diasRestantes < 0 && tarefa.status === "pendente";
@@ -230,11 +240,14 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
               // Mapear status da tarefa para status unificado
               const statusUnificado = tarefa.status === "cumprido" ? "concluido" : tarefa.status;
 
+              // Determinar se é tarefa delegada (criada por outro) ou própria
+              const tipoTarefa = tarefa.criado_por !== user.id ? "tarefa_delegada" : "tarefa";
+
               resultItems.push({
                 id: tarefa.id,
                 titulo: tarefa.titulo,
                 descricao: tarefa.descricao,
-                tipo: "tarefa_delegada", // Tipo especial para diferenciar
+                tipo: tipoTarefa,
                 origem: "tarefa",
                 data_inicio: `${tarefa.data_vencimento}T00:00:00`,
                 data_fim: null,
@@ -248,9 +261,10 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
                 created_at: tarefa.created_at,
                 updated_at: tarefa.updated_at,
                 processo_id: tarefa.processo_id,
-                processo: tarefa.processo,
+                processo: tarefa.processo ? { id: tarefa.processo.id, numero: tarefa.processo.numero, assunto: tarefa.processo.assunto } : null,
                 responsavel_id: tarefa.responsavel_id,
                 responsavel: tarefa.responsavel,
+                criado_por: tarefa.criado_por,
                 dias_restantes: diasRestantes,
                 is_atrasado: isAtrasado,
               });
@@ -328,7 +342,7 @@ export function useAgendaUnificadaStats() {
       const { data: tarefas } = await supabase
         .from("tarefas")
         .select("id, status, data_vencimento")
-        .eq("responsavel_id", user.id);
+        .or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
 
       if (tarefas) {
         concluidas += tarefas.filter(t => t.status === "cumprido").length;
