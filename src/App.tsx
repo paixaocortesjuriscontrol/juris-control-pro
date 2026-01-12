@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ImportProvider } from "@/contexts/ImportContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
@@ -41,7 +41,6 @@ import AssistenteJuridico from "./pages/AssistenteJuridico";
 import PainelAudiencias from "./pages/PainelAudiencias";
 import AuditoriaDjenProcessos from "./pages/AuditoriaDjenProcessos";
 import MinhaAgenda from "./pages/MinhaAgenda";
-import CentralDelegacao from "./pages/CentralDelegacao";
 import PainelIntimacoes from "./pages/PainelIntimacoes";
 import NovaTarefa from "./pages/NovaTarefa";
 import CofreSenhas from "./pages/CofreSenhas";
@@ -77,7 +76,8 @@ const App = () => (
               
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-              <Route path="/central-delegacao" element={<ProtectedRoute><CentralDelegacao /></ProtectedRoute>} />
+              {/* Redirect central-delegacao to unified agenda */}
+              <Route path="/central-delegacao" element={<Navigate to="/minha-agenda" replace />} />
               <Route path="/nova-tarefa" element={<ProtectedRoute><NovaTarefa /></ProtectedRoute>} />
               <Route path="/minha-agenda" element={<ProtectedRoute><MinhaAgenda /></ProtectedRoute>} />
               <Route path="/minha-carteira" element={<ProtectedRoute><MinhaCarteira /></ProtectedRoute>} />
