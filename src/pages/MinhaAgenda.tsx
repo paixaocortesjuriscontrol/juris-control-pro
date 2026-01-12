@@ -315,35 +315,48 @@ export default function MinhaAgenda() {
 
   // Stats via COUNT
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["agenda-stats-unified", coordenacaoFiltro, membrosFiltro, user?.id, isAdminOrCoordinator],
+    queryKey: ["agenda-stats-unified", coordenacaoFiltro, membrosFiltro, clienteFiltro, user?.id, isAdminOrCoordinator],
     queryFn: async () => {
       const hoje = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
       
-      // Get members IDs based on coordination filter
-      let membroIds: string[] | null = null;
+      // If coordination is selected, get process IDs for that coordination
+      let processoIds: string[] | null = null;
       if (coordenacaoFiltro !== "todas") {
-        // Single coordination selected
-        const { data: membrosCoordenacao } = await supabase
-          .from("membros_coordenacao")
-          .select("usuario_id")
+        const { data: processos } = await supabase
+          .from("processos")
+          .select("id")
           .eq("coordenacao_id", coordenacaoFiltro);
-        membroIds = membrosCoordenacao?.map(m => m.usuario_id) || [];
-        if (membroIds.length === 0) {
-          return { total: 0, pendentes: 0, atrasadas: 0, concluidas: 0 };
+        processoIds = processos?.map(p => p.id) || [];
+      }
+
+      // If client is selected, filter process IDs further
+      if (clienteFiltro !== "todos") {
+        const { data: processos } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("cliente_id", clienteFiltro);
+        const clienteProcessoIds = processos?.map(p => p.id) || [];
+        if (processoIds) {
+          processoIds = processoIds.filter(id => clienteProcessoIds.includes(id));
+        } else {
+          processoIds = clienteProcessoIds;
         }
-      } else if (isAdminOrCoordinator) {
-        // "Todas" selected - get all members from all coordinations
-        const { data: todosMembros } = await supabase
-          .from("membros_coordenacao")
-          .select("usuario_id");
-        membroIds = [...new Set(todosMembros?.map(m => m.usuario_id) || [])];
       }
 
       const buildQuery = () => {
         let q = supabase.from("tarefas").select("*", { count: "exact", head: true });
 
-        // When filtering by people, mirror the same visibility logic used in the list:
-        // include tasks where the user is responsible OR creator.
+        // Filter by process coordination/client if applicable
+        if (processoIds !== null) {
+          if (processoIds.length === 0) {
+            // No processes match the filter - but we still want to count tasks without process
+            // that match other criteria (responsavel/criador)
+          } else {
+            q = q.in("processo_id", processoIds);
+          }
+        }
+
+        // When filtering by people
         if (membrosFiltro.length > 0) {
           if (membrosFiltro.length === 1 && user?.id && membrosFiltro[0] === user.id) {
             q = q.or(`responsavel_id.in.(${user.id}),criado_por.eq.${user.id}`);
@@ -352,9 +365,9 @@ export default function MinhaAgenda() {
           }
         } else if (!isAdminOrCoordinator && user?.id) {
           q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
-        } else if (isAdminOrCoordinator && membroIds && membroIds.length > 0) {
-          q = q.in("responsavel_id", membroIds);
         }
+        // For admin/coordinator without member filter, don't restrict by responsavel
+        // (already filtered by processo_id if coordination is selected)
 
         return q;
       };
