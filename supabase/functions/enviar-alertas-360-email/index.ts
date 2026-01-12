@@ -112,7 +112,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     for (const role of userRoles || []) {
-      if (role.role === 'admin' || role.role === 'coordenador') {
+      if (role.role === 'admin') {
         usuariosAdmin.add(role.user_id);
       }
     }
@@ -241,10 +241,10 @@ serve(async (req: Request): Promise<Response> => {
       // Filtrar alertas baseado na coordenação do usuário
       let alertasDoUsuario: any[];
       
-      // Se é admin/coordenador, recebe todos os alertas
+      // Se é admin, recebe todos os alertas
       if (usuariosAdmin.has(usuario.id)) {
         alertasDoUsuario = alertas;
-        console.log(`[enviar-alertas-360-email] ${usuario.nome} é admin/coordenador - ${alertas.length} alertas`);
+        console.log(`[enviar-alertas-360-email] ${usuario.nome} é admin - ${alertas.length} alertas`);
       } else {
         // Senão, filtra pelos processos da(s) coordenação(ões) do usuário
         const coordenacoesUsuario = usuarioCoordenacoes[usuario.id] || [];
