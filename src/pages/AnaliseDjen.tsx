@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ExternalLink,
   ChevronsUpDown,
+  ListChecks,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -47,12 +48,14 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import DOMPurify from "dompurify";
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 
 const AnaliseDjen = () => {
   const { user } = useAuth();
@@ -93,6 +96,7 @@ const AnaliseDjen = () => {
   // States
   const [selectedIds, setSelectedIds] = useState<Map<string, 'termo' | 'processo'>>(new Map());
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [criarTarefaDialogOpen, setCriarTarefaDialogOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
@@ -163,6 +167,11 @@ const AnaliseDjen = () => {
   const handleView = (pub: PublicacaoUnificada) => {
     setSelectedPublicacao(pub);
     setViewDialogOpen(true);
+  };
+
+  const handleCriarTarefa = (pub: PublicacaoUnificada) => {
+    setSelectedPublicacao(pub);
+    setCriarTarefaDialogOpen(true);
   };
 
   const toggleExpandPublicacao = (id: string) => {
@@ -605,6 +614,18 @@ const AnaliseDjen = () => {
                                       >
                                         <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                       </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCriarTarefa(pub);
+                                        }}
+                                        title="Criar tarefa a partir desta publicação"
+                                        className="p-1 md:p-1.5 h-auto flex-shrink-0"
+                                      >
+                                        <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                      </Button>
                                     </div>
                                   )}
 
@@ -629,6 +650,18 @@ const AnaliseDjen = () => {
                                         className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
                                       >
                                         <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCriarTarefa(pub);
+                                        }}
+                                        title="Criar tarefa a partir desta publicação"
+                                        className="p-1 md:p-1.5 h-auto flex-shrink-0"
+                                      >
+                                        <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                       </Button>
                                     </div>
                                   )}
@@ -680,7 +713,10 @@ const AnaliseDjen = () => {
                                       <div 
                                         className="mt-1.5 md:mt-2 p-2 md:p-3 bg-muted/50 rounded-lg text-xs md:text-sm prose prose-sm max-w-none dark:prose-invert overflow-x-auto break-words [overflow-wrap:anywhere]"
                                         dangerouslySetInnerHTML={{ 
-                                          __html: pub.conteudo || "Sem conteúdo" 
+                                          __html: DOMPurify.sanitize(pub.conteudo || "Sem conteúdo", {
+                                            ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+                                            ALLOWED_ATTR: ['class']
+                                          })
                                         }}
                                       />
                                     </div>
@@ -809,7 +845,10 @@ const AnaliseDjen = () => {
                     <div 
                       className="mt-1.5 md:mt-2 p-2 md:p-4 bg-muted/50 rounded-lg text-xs md:text-sm prose prose-sm max-w-none dark:prose-invert overflow-x-auto break-words [overflow-wrap:anywhere]"
                       dangerouslySetInnerHTML={{ 
-                        __html: selectedPublicacao.conteudo || "Sem conteúdo" 
+                        __html: DOMPurify.sanitize(selectedPublicacao.conteudo || "Sem conteúdo", {
+                          ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+                          ALLOWED_ATTR: ['class']
+                        })
                       }}
                     />
                   </div>
@@ -818,6 +857,13 @@ const AnaliseDjen = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Dialog para criar tarefa a partir da publicação */}
+        <CriarTarefaPublicacaoDialog
+          open={criarTarefaDialogOpen}
+          onOpenChange={setCriarTarefaDialogOpen}
+          publicacao={selectedPublicacao}
+        />
       </div>
     </MainLayout>
   );
