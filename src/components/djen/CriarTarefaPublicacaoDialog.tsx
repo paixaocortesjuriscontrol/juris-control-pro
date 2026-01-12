@@ -187,14 +187,24 @@ export function CriarTarefaPublicacaoDialog({
 
       if (error) throw error;
 
-      // Vincular tarefa à publicação na tabela N:N (apenas para publicações de termos)
-      if (tarefa?.id && publicacao.tipo_origem === 'termo') {
-        await supabase
-          .from("tarefas_publicacoes")
-          .insert({
-            tarefa_id: tarefa.id,
-            publicacao_id: publicacao.id,
-          });
+      // Vincular tarefa à publicação na tabela N:N correspondente
+      if (tarefa?.id) {
+        if (publicacao.tipo_origem === 'termo') {
+          await supabase
+            .from("tarefas_publicacoes")
+            .insert({
+              tarefa_id: tarefa.id,
+              publicacao_id: publicacao.id,
+            });
+        } else {
+          // Publicação de processo
+          await supabase
+            .from("tarefas_publicacoes_processos")
+            .insert({
+              tarefa_id: tarefa.id,
+              publicacao_processo_id: publicacao.id,
+            });
+        }
       }
 
       // Marcar publicação como lida
@@ -214,7 +224,8 @@ export function CriarTarefaPublicacaoDialog({
       queryClient.invalidateQueries({ queryKey: ["publicacoes-djen"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
-      queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-termo"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
       
       form.reset();
