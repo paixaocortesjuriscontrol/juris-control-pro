@@ -55,9 +55,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Buscar estatísticas por coordenação
+  // Buscar estatísticas por coordenação - AGORA FILTRA POR COORDENAÇÃO TAMBÉM
   const { data: estatisticas = [], isLoading: loadingStats } = useQuery({
-    queryKey: ['publicacoes-unificadas-stats', filtros.dataInicio, filtros.dataFim, filtros.apenasHoje],
+    queryKey: ['publicacoes-unificadas-stats', filtros.dataInicio, filtros.dataFim, filtros.apenasHoje, filtros.coordenacaoId],
     queryFn: async () => {
       const dataInicioFiltro = filtros.apenasHoje 
         ? format(startOfDay(new Date()), "yyyy-MM-dd'T'HH:mm:ss")
@@ -105,6 +105,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const coordId = pub.monitoramento?.coordenacao_id || 'sem-coordenacao';
         const coordNome = pub.monitoramento?.coordenacao?.nome || 'Sem Coordenação';
         
+        // FILTRAR por coordenação se especificado
+        if (filtros.coordenacaoId && coordId !== filtros.coordenacaoId) {
+          return;
+        }
+        
         if (!statsMap.has(coordId)) {
           statsMap.set(coordId, {
             coordenacao_id: coordId,
@@ -125,6 +130,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       (processosData || []).forEach((pub: any) => {
         const coordId = pub.processo?.coordenacao_id || 'sem-coordenacao';
         const coordNome = pub.processo?.coordenacao?.nome || 'Sem Coordenação';
+        
+        // FILTRAR por coordenação se especificado
+        if (filtros.coordenacaoId && coordId !== filtros.coordenacaoId) {
+          return;
+        }
         
         if (!statsMap.has(coordId)) {
           statsMap.set(coordId, {
