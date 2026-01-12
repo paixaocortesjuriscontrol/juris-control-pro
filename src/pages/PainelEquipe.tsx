@@ -59,7 +59,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function PainelEquipe() {
-  const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
+  const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("all");
   const [selectedMembro, setSelectedMembro] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("all");
@@ -77,18 +77,18 @@ export default function PainelEquipe() {
   );
 
   const { data: membrosStats, isLoading: loadingStats } = useEquipeTarefasStats(
-    selectedCoordenacao || null,
-    selectedCoordenacao ? undefined : allCoordenacaoIds
+    selectedCoordenacao !== "all" ? selectedCoordenacao : null,
+    selectedCoordenacao === "all" ? allCoordenacaoIds : undefined
   );
   const { data: tarefas, isLoading: loadingTarefas } = useEquipeTarefas(
-    selectedCoordenacao || null,
+    selectedCoordenacao !== "all" ? selectedCoordenacao : null,
     {
       membroId: selectedMembro !== "all" ? selectedMembro : undefined,
       status: statusFilter,
       prioridade: prioridadeFilter,
       search: searchQuery,
     },
-    selectedCoordenacao ? undefined : allCoordenacaoIds
+    selectedCoordenacao === "all" ? allCoordenacaoIds : undefined
   );
 
   // Calculate totals
@@ -209,7 +209,7 @@ export default function PainelEquipe() {
             <SelectValue placeholder="Todas as coordenações" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todas as coordenações</SelectItem>
+            <SelectItem value="all">Todas as coordenações</SelectItem>
             {coordenacoes?.map((coord) => (
               <SelectItem key={coord.id} value={coord.id}>
                 {coord.nome}
