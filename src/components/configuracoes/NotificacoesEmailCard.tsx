@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Mail, Loader2 } from "lucide-react";
+import { Mail, Loader2, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 export function NotificacoesEmailCard() {
   const { user } = useAuth();
   const [emailEnabled, setEmailEnabled] = useState(true);
+  const [email360Enabled, setEmail360Enabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -20,12 +21,13 @@ export function NotificacoesEmailCard() {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('notificacoes_email')
+          .select('notificacoes_email, notificacoes_email_360')
           .eq('id', user.id)
           .single();
 
         if (error) throw error;
         setEmailEnabled(data?.notificacoes_email ?? true);
+        setEmail360Enabled(data?.notificacoes_email_360 ?? false);
       } catch (error) {
         console.error('Error fetching email preference:', error);
       } finally {
@@ -61,6 +63,31 @@ export function NotificacoesEmailCard() {
     }
   };
 
+  const handleToggle360 = async (checked: boolean) => {
+    if (!user?.id) return;
+    
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ notificacoes_email_360: checked })
+        .eq('id', user.id);
+
+      if (error) throw error;
+      
+      setEmail360Enabled(checked);
+      toast.success(checked 
+        ? "Alertas Monitoração 360° por email ativados" 
+        : "Alertas Monitoração 360° por email desativados"
+      );
+    } catch (error) {
+      console.error('Error updating 360 email preference:', error);
+      toast.error("Erro ao atualizar preferência");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -80,16 +107,20 @@ export function NotificacoesEmailCard() {
         <div className="flex-1">
           <CardTitle className="text-lg">Notificações por Email</CardTitle>
           <CardDescription>
-            Receba alertas por email quando novos andamentos forem encontrados
+            Configure quais alertas você deseja receber por email
           </CardDescription>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
+        {/* Notificações de Andamentos */}
         <div className="flex items-center justify-between">
           <Label htmlFor="email-notifications" className="flex flex-col gap-1">
-            <span>Receber emails de monitoramento</span>
+            <span className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              Andamentos e Eventos
+            </span>
             <span className="text-sm text-muted-foreground font-normal">
-              Você receberá um email quando novos andamentos forem detectados nos seus processos
+              Receba emails quando novos andamentos forem detectados ou eventos forem criados
             </span>
           </Label>
           <Switch
@@ -98,6 +129,27 @@ export function NotificacoesEmailCard() {
             onCheckedChange={handleToggle}
             disabled={saving}
           />
+        </div>
+
+        <div className="border-t pt-6">
+          {/* Notificações de Monitoração 360 */}
+          <div className="flex items-center justify-between">
+            <Label htmlFor="email-360-notifications" className="flex flex-col gap-1">
+              <span className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-primary" />
+                Monitoração 360°
+              </span>
+              <span className="text-sm text-muted-foreground font-normal">
+                Receba emails com alertas de termos estratégicos detectados nos andamentos
+              </span>
+            </Label>
+            <Switch
+              id="email-360-notifications"
+              checked={email360Enabled}
+              onCheckedChange={handleToggle360}
+              disabled={saving}
+            />
+          </div>
         </div>
       </CardContent>
     </Card>
