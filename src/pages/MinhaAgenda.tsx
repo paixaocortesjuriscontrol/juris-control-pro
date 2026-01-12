@@ -45,10 +45,15 @@ import {
   Eye,
   ListChecks,
   Send,
+  X,
+  CalendarRange,
+  Zap,
+  Scale,
+  Gavel,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday, differenceInDays, addDays, parseISO } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday, differenceInDays, addDays, parseISO, addWeeks, addMonths, isBefore, isAfter, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { useAgendaUnificada, useUpdateItemAgenda, useDeleteItemAgenda, ItemAgendaUnificado, AgendaUnificadaFilters } from "@/hooks/useAgendaUnificada";
@@ -74,7 +79,14 @@ import {
 
 type ViewMode = "lista" | "dia" | "semana" | "mes";
 type StatusFiltro = "todas" | "pendente" | "concluido" | "atrasado";
-type PeriodoFiltro = "hoje" | "semana" | "quinzena" | "mes" | "todas";
+type PeriodoRapido = "hoje" | "amanha" | "semana" | "proxima_semana" | "quinzena" | "mes" | "proximo_mes" | "trimestre" | "ano" | "vencidas" | "proximos_3_dias" | "proximos_5_dias" | "customizado" | "todas";
+
+interface QuickDateOption {
+  label: string;
+  value: PeriodoRapido;
+  icon?: React.ReactNode;
+  description?: string;
+}
 
 const TIME_ZONE = "America/Sao_Paulo";
 
@@ -105,13 +117,23 @@ const PRIORIDADE_CORES: Record<string, string> = {
   urgente: "bg-red-600",
 };
 
-const periodoFiltroLabel: Record<PeriodoFiltro, string> = {
-  hoje: "Hoje",
-  semana: "Semana",
-  quinzena: "15 dias",
-  mes: "Mês",
-  todas: "Todas",
-};
+// Quick date filter options for lawyers
+const QUICK_DATE_OPTIONS: QuickDateOption[] = [
+  { label: "Hoje", value: "hoje", description: "Tarefas para hoje" },
+  { label: "Amanhã", value: "amanha", description: "Tarefas para amanhã" },
+  { label: "Próx. 3 dias", value: "proximos_3_dias", description: "Urgentes dos próximos 3 dias" },
+  { label: "Próx. 5 dias", value: "proximos_5_dias", description: "Próximos 5 dias úteis" },
+  { label: "Esta semana", value: "semana", description: "Até domingo" },
+  { label: "Próx. semana", value: "proxima_semana", description: "Semana que vem" },
+  { label: "15 dias", value: "quinzena", description: "Próximas duas semanas" },
+  { label: "Este mês", value: "mes", description: "Até fim do mês" },
+  { label: "Próx. mês", value: "proximo_mes", description: "Mês que vem" },
+  { label: "Trimestre", value: "trimestre", description: "Próximos 3 meses" },
+  { label: "Este ano", value: "ano", description: "Até dezembro" },
+  { label: "Vencidas", value: "vencidas", description: "Tarefas atrasadas" },
+  { label: "Personalizado", value: "customizado", description: "Escolher datas" },
+  { label: "Todas", value: "todas", description: "Sem filtro de data" },
+];
 
 export default function MinhaAgenda() {
   const { user } = useAuth();
@@ -129,10 +151,13 @@ export default function MinhaAgenda() {
   const [membrosFiltro, setMembrosFiltro] = useState<string[]>([]);
   const [clienteFiltro, setClienteFiltro] = useState<string>("todos");
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("todas");
-  const [periodoFiltro, setPeriodoFiltro] = useState<PeriodoFiltro>("todas");
+  const [periodoRapido, setPeriodoRapido] = useState<PeriodoRapido>("todas");
+  const [dataInicioFiltro, setDataInicioFiltro] = useState<Date | undefined>(undefined);
+  const [dataFimFiltro, setDataFimFiltro] = useState<Date | undefined>(undefined);
   const [tiposFiltro, setTiposFiltro] = useState<string[]>(["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"]);
   const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>("todas");
   const [ordenacao, setOrdenacao] = useState<string>("mais-antigas");
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   
   // Dialog/Panel state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -286,24 +311,51 @@ export default function MinhaAgenda() {
       }
     }
     
-    // For lista view, use periodoFiltro
+    // For lista view, use periodoRapido or custom dates
     const nowBrt = toZonedTime(new Date(), TIME_ZONE);
     const hojeBrtStart = startOfDay(nowBrt);
 
-    switch (periodoFiltro) {
+    // If custom dates are set
+    if (periodoRapido === "customizado" && (dataInicioFiltro || dataFimFiltro)) {
+      return { 
+        start: dataInicioFiltro ? startOfDay(dataInicioFiltro) : undefined, 
+        end: dataFimFiltro ? endOfDay(dataFimFiltro) : undefined 
+      };
+    }
+
+    switch (periodoRapido) {
       case "hoje":
         return { start: hojeBrtStart, end: endOfDay(nowBrt) };
+      case "amanha":
+        const amanha = addDays(hojeBrtStart, 1);
+        return { start: amanha, end: endOfDay(amanha) };
+      case "proximos_3_dias":
+        return { start: hojeBrtStart, end: endOfDay(addDays(hojeBrtStart, 3)) };
+      case "proximos_5_dias":
+        return { start: hojeBrtStart, end: endOfDay(addDays(hojeBrtStart, 5)) };
       case "semana":
         return { start: startOfWeek(hojeBrtStart, { weekStartsOn: 1 }), end: endOfWeek(hojeBrtStart, { weekStartsOn: 1 }) };
+      case "proxima_semana":
+        const inicioProxSemana = addWeeks(startOfWeek(hojeBrtStart, { weekStartsOn: 1 }), 1);
+        return { start: inicioProxSemana, end: endOfWeek(inicioProxSemana, { weekStartsOn: 1 }) };
       case "quinzena":
         return { start: hojeBrtStart, end: endOfDay(addDays(hojeBrtStart, 15)) };
       case "mes":
         return { start: startOfMonth(hojeBrtStart), end: endOfMonth(hojeBrtStart) };
+      case "proximo_mes":
+        const inicioProxMes = addMonths(startOfMonth(hojeBrtStart), 1);
+        return { start: inicioProxMes, end: endOfMonth(inicioProxMes) };
+      case "trimestre":
+        return { start: hojeBrtStart, end: endOfDay(addMonths(hojeBrtStart, 3)) };
+      case "ano":
+        return { start: hojeBrtStart, end: new Date(hojeBrtStart.getFullYear(), 11, 31, 23, 59, 59) };
+      case "vencidas":
+        return { start: new Date(2020, 0, 1), end: subDays(hojeBrtStart, 1) };
       case "todas":
       default:
         return { start: undefined, end: undefined };
     }
-  }, [viewMode, selectedDate, periodoFiltro]);
+  }, [viewMode, selectedDate, periodoRapido, dataInicioFiltro, dataFimFiltro]);
 
   const responsavelIdsForAgenda = useMemo(() => {
     if (membrosFiltro.length > 0) return membrosFiltro;
@@ -460,7 +512,9 @@ export default function MinhaAgenda() {
     setSearch("");
     setStatusFiltro("todas");
     setPrioridadeFiltro("todas");
-    setPeriodoFiltro("todas");
+    setPeriodoRapido("todas");
+    setDataInicioFiltro(undefined);
+    setDataFimFiltro(undefined);
     setOrdenacao("mais-antigas");
     setTiposFiltro(["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"]);
     if (isAdminOrCoordinator) {
@@ -555,7 +609,9 @@ export default function MinhaAgenda() {
   const handleStatClick = (stat: StatusFiltro) => {
     setStatusFiltro(stat);
     setPrioridadeFiltro("todas");
-    setPeriodoFiltro("todas");
+    setPeriodoRapido("todas");
+    setDataInicioFiltro(undefined);
+    setDataFimFiltro(undefined);
     setSearch("");
   };
 
@@ -935,20 +991,161 @@ export default function MinhaAgenda() {
                   </Popover>
                 )}
 
-                {/* Period Filter (lista view only) */}
+                {/* Date Filter (lista view only) */}
                 {viewMode === "lista" && (
-                  <Select value={periodoFiltro} onValueChange={(v) => setPeriodoFiltro(v as PeriodoFiltro)}>
-                    <SelectTrigger className="w-full sm:w-[130px] text-xs sm:text-sm h-9">
-                      <SelectValue placeholder="Período" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="hoje">Hoje</SelectItem>
-                      <SelectItem value="semana">Semana</SelectItem>
-                      <SelectItem value="quinzena">15 dias</SelectItem>
-                      <SelectItem value="mes">Mês</SelectItem>
-                      <SelectItem value="todas">Todas</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className={cn(
+                          "gap-2 h-9 text-xs sm:text-sm min-w-[140px] justify-start",
+                          periodoRapido !== "todas" && "border-primary text-primary"
+                        )}
+                      >
+                        <CalendarRange className="w-4 h-4" />
+                        {periodoRapido === "customizado" && dataInicioFiltro 
+                          ? `${format(dataInicioFiltro, "dd/MM")}${dataFimFiltro ? ` - ${format(dataFimFiltro, "dd/MM")}` : ""}`
+                          : QUICK_DATE_OPTIONS.find(o => o.value === periodoRapido)?.label || "Período"
+                        }
+                        <ChevronDown className="w-4 h-4 ml-auto" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[380px] p-0" align="start">
+                      <div className="p-3 border-b">
+                        <div className="font-medium text-sm flex items-center gap-2">
+                          <CalendarRange className="w-4 h-4" />
+                          Filtrar por Data
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Escolha um período rápido ou defina datas personalizadas
+                        </p>
+                      </div>
+                      
+                      {/* Quick options grid */}
+                      <div className="p-3 border-b">
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {QUICK_DATE_OPTIONS.filter(o => o.value !== "customizado").map((option) => (
+                            <Button
+                              key={option.value}
+                              variant={periodoRapido === option.value ? "default" : "outline"}
+                              size="sm"
+                              className={cn(
+                                "text-xs h-8 justify-start",
+                                periodoRapido === option.value && "bg-primary text-primary-foreground"
+                              )}
+                              onClick={() => {
+                                setPeriodoRapido(option.value);
+                                if (option.value !== "customizado") {
+                                  setDataInicioFiltro(undefined);
+                                  setDataFimFiltro(undefined);
+                                }
+                                if (option.value !== "customizado") {
+                                  setDatePopoverOpen(false);
+                                }
+                              }}
+                            >
+                              {option.value === "vencidas" && <AlertTriangle className="w-3 h-3 mr-1 text-destructive" />}
+                              {option.value === "proximos_3_dias" && <Zap className="w-3 h-3 mr-1 text-amber-500" />}
+                              {option.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Custom date range */}
+                      <div className="p-3 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Scale className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Período Personalizado</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">Data Início</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full justify-start text-left font-normal h-9 text-xs",
+                                    !dataInicioFiltro && "text-muted-foreground"
+                                  )}
+                                >
+                                  <CalendarDays className="mr-2 h-4 w-4" />
+                                  {dataInicioFiltro ? format(dataInicioFiltro, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar"}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={dataInicioFiltro}
+                                  onSelect={(date) => {
+                                    setDataInicioFiltro(date);
+                                    if (date) setPeriodoRapido("customizado");
+                                  }}
+                                  locale={ptBR}
+                                  className="pointer-events-auto"
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">Data Fim</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full justify-start text-left font-normal h-9 text-xs",
+                                    !dataFimFiltro && "text-muted-foreground"
+                                  )}
+                                >
+                                  <CalendarDays className="mr-2 h-4 w-4" />
+                                  {dataFimFiltro ? format(dataFimFiltro, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar"}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={dataFimFiltro}
+                                  onSelect={(date) => {
+                                    setDataFimFiltro(date);
+                                    if (date) setPeriodoRapido("customizado");
+                                  }}
+                                  disabled={(date) => dataInicioFiltro ? isBefore(date, dataInicioFiltro) : false}
+                                  locale={ptBR}
+                                  className="pointer-events-auto"
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="p-3 border-t flex justify-between">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            setPeriodoRapido("todas");
+                            setDataInicioFiltro(undefined);
+                            setDataFimFiltro(undefined);
+                          }}
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Limpar
+                        </Button>
+                        <Button 
+                          size="sm"
+                          onClick={() => setDatePopoverOpen(false)}
+                        >
+                          Aplicar
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 )}
 
                 {/* Date Picker for calendar views */}
@@ -966,6 +1163,7 @@ export default function MinhaAgenda() {
                         selected={selectedDate}
                         onSelect={(date) => date && setSelectedDate(date)}
                         locale={ptBR}
+                        className="pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
