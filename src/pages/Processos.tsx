@@ -67,6 +67,8 @@ const Processos = () => {
         .from('coordenacoes')
         .select('id')
         .eq('coordenador_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
       
       if (coordenador) return coordenador.id;
@@ -76,6 +78,8 @@ const Processos = () => {
         .from('membros_coordenacao')
         .select('coordenacao_id')
         .eq('usuario_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
       
       return membro?.coordenacao_id || null;
@@ -176,27 +180,26 @@ const Processos = () => {
 
   // Auto-selecionar coordenação do usuário ao carregar (se não veio da URL)
   useEffect(() => {
+    // Aguarda carregar sessão
+    if (!user?.id) return;
+
     // Se já carregou, não faz nada
     if (coordenacaoCarregada) return;
-    
+
     // Se veio da URL, usa o valor da URL
     if (urlCoordParam) {
       setCoordenacaoFilter(urlCoordParam);
       setCoordenacaoCarregada(true);
       return;
     }
-    
+
     // Se ainda está carregando a coordenação do usuário, aguarda
-    if (isLoadingUserCoord) return;
-    
+    if (isLoadingUserCoord || userCoordData === undefined) return;
+
     // Quando terminou de carregar, define a coordenação
-    if (userCoordData) {
-      setCoordenacaoFilter(userCoordData);
-    } else {
-      setCoordenacaoFilter("all");
-    }
+    setCoordenacaoFilter(userCoordData ?? "all");
     setCoordenacaoCarregada(true);
-  }, [userCoordData, isLoadingUserCoord, coordenacaoCarregada, urlCoordParam]);
+  }, [user?.id, userCoordData, isLoadingUserCoord, coordenacaoCarregada, urlCoordParam]);
 
   // Debounce search to avoid too many API calls
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
