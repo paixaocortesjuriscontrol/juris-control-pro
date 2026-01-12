@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { MentionInput } from "@/components/ui/mention-input";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import DOMPurify from "dompurify";
 import {
   Collapsible,
   CollapsibleContent,
@@ -55,6 +56,10 @@ import {
   FileText,
   Send,
   Check,
+  Building2,
+  Gavel,
+  MapPin,
+  Scale,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -122,6 +127,8 @@ export function TarefaAgendaPanel({
   const [sendingComment, setSendingComment] = useState(false);
   const [comentariosOpen, setComentariosOpen] = useState(true);
   const [detalhesOpen, setDetalhesOpen] = useState(true);
+  const [publicacaoOpen, setPublicacaoOpen] = useState(true);
+  const [processoOpen, setProcessoOpen] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -147,20 +154,104 @@ export function TarefaAgendaPanel({
     enabled: tarefa.origem === "tarefa",
   });
 
-  // Fetch cliente info
-  const { data: clienteInfo } = useQuery({
-    queryKey: ["cliente-tarefa", tarefa.processo?.cliente_id],
+  // Fetch processo completo
+  const { data: processoCompleto } = useQuery({
+    queryKey: ["processo-completo-agenda", tarefa.processo_id],
     queryFn: async () => {
-      if (!tarefa.processo?.cliente_id) return null;
-      const { data } = await supabase
-        .from("clientes")
-        .select("id, nome")
-        .eq("id", tarefa.processo.cliente_id)
-        .single();
+      if (!tarefa.processo_id) return null;
+      const { data, error } = await supabase
+        .from("processos")
+        .select(`
+          id, numero, status, instancia, area, vara, comarca, uf, classe,
+          polo_ativo, polo_passivo, assunto, coordenacao_id,
+          cliente:clientes(id, nome),
+          advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome)
+        `)
+        .eq("id", tarefa.processo_id)
+        .maybeSingle();
+
+      if (error) throw error;
       return data;
     },
-    enabled: !!tarefa.processo?.cliente_id,
+    enabled: !!tarefa.processo_id,
   });
+
+  // Fetch vínculo publicação de TERMOS
+  const { data: vinculoPublicacao } = useQuery({
+    queryKey: ["tarefa-publicacao-vinculo-agenda", tarefa.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tarefas_publicacoes")
+        .select("publicacao_id")
+        .eq("tarefa_id", tarefa.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: tarefa.origem === "tarefa",
+  });
+
+  // Fetch vínculo publicação de PROCESSOS
+  const { data: vinculoPublicacaoProcesso } = useQuery({
+    queryKey: ["tarefa-publicacao-processo-vinculo-agenda", tarefa.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tarefas_publicacoes_processos")
+        .select("publicacao_processo_id")
+        .eq("tarefa_id", tarefa.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: tarefa.origem === "tarefa",
+  });
+
+  // Fetch publicação de TERMOS
+  const { data: publicacaoTermo } = useQuery({
+    queryKey: ["publicacao-djen-agenda", vinculoPublicacao?.publicacao_id],
+    queryFn: async () => {
+      if (!vinculoPublicacao?.publicacao_id) return null;
+      const { data, error } = await supabase
+        .from("publicacoes_djen")
+        .select(`
+          *,
+          monitoramento:monitoramentos_djen(tipo, termo_busca, oab, uf)
+        `)
+        .eq("id", vinculoPublicacao.publicacao_id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!vinculoPublicacao?.publicacao_id,
+  });
+
+  // Fetch publicação de PROCESSOS
+  const { data: publicacaoProcesso } = useQuery({
+    queryKey: ["publicacao-djen-processo-agenda", vinculoPublicacaoProcesso?.publicacao_processo_id],
+    queryFn: async () => {
+      if (!vinculoPublicacaoProcesso?.publicacao_processo_id) return null;
+      const { data, error } = await supabase
+        .from("publicacoes_djen_processos")
+        .select("*")
+        .eq("id", vinculoPublicacaoProcesso.publicacao_processo_id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!vinculoPublicacaoProcesso?.publicacao_processo_id,
+  });
+
+  // Unificar publicação de qualquer origem
+  const publicacao = publicacaoTermo || publicacaoProcesso;
+  const tipoPublicacao = publicacaoTermo ? 'termo' : (publicacaoProcesso ? 'processo' : null);
+  const temPublicacao = publicacao !== null && publicacao !== undefined;
+
+  // Fetch cliente info (se não tiver processo completo)
+  const clienteInfo = processoCompleto?.cliente || null;
 
   const getInitials = (name: string) => {
     return name
@@ -440,51 +531,194 @@ export function TarefaAgendaPanel({
 
       <ScrollArea className="flex-1">
         <CardContent className="space-y-4">
+          {/* Publicação Vinculada Section */}
+          {temPublicacao && publicacao && (
+            <>
+              <Collapsible open={publicacaoOpen} onOpenChange={setPublicacaoOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <Gavel className="w-4 h-4 text-primary" />
+                      Publicação Vinculada
+                    </span>
+                    {publicacaoOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3 space-y-3">
+                  {/* Info do Diário */}
+                  <div className="border rounded-lg p-3 bg-primary/5 space-y-2">
+                    <p className="font-semibold text-primary text-sm">
+                      {publicacao.fonte || "Diário de Justiça Eletrônico"} - DJN
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Publicado em: <strong>{publicacao.data_publicacao ? format(parseISO(publicacao.data_publicacao), "dd/MM/yyyy", { locale: ptBR }) : "-"}</strong>
+                    </p>
+                    <p className="text-xs">
+                      Processo: <span className="font-mono font-medium">{publicacao.processo_numero || processoCompleto?.numero}</span>
+                    </p>
+                    {tipoPublicacao === 'termo' && publicacaoTermo?.monitoramento && (
+                      <p className="text-xs">
+                        Termo encontrado: <strong className="text-primary">
+                          {publicacaoTermo.monitoramento.tipo === 'advogado'
+                            ? `OAB ${publicacaoTermo.monitoramento.oab} ${publicacaoTermo.monitoramento.uf}`
+                            : publicacaoTermo.monitoramento.termo_busca
+                          }
+                        </strong>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Conteúdo da Publicação */}
+                  <div className="border rounded-lg p-3 bg-muted/30 max-h-[300px] overflow-y-auto">
+                    <div
+                      className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-p:leading-relaxed text-xs"
+                      dangerouslySetInnerHTML={{
+                        __html: DOMPurify.sanitize(publicacao.conteudo || "Sem conteúdo disponível", {
+                          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div', 'ul', 'ol', 'li', 'a'],
+                          ALLOWED_ATTR: ['href', 'target', 'class'],
+                        })
+                      }}
+                    />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+              <Separator />
+            </>
+          )}
+
+          {/* Detalhes do Processo Section */}
+          {processoCompleto && (
+            <>
+              <Collapsible open={processoOpen} onOpenChange={setProcessoOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <Scale className="w-4 h-4" />
+                      Detalhes do Processo
+                    </span>
+                    {processoOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3 space-y-3">
+                  <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
+                    {/* Número do Processo */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Briefcase className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-mono text-sm font-medium text-primary">
+                          {processoCompleto.numero}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={copyProcessNumber}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                          <a href={`/processos/${processoCompleto.id}`}>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Cliente */}
+                    {clienteInfo && (
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{clienteInfo.nome}</span>
+                      </div>
+                    )}
+
+                    {/* Partes */}
+                    {processoCompleto.polo_ativo && (
+                      <div className="text-xs space-y-1">
+                        <p><span className="text-muted-foreground">Autor:</span> {processoCompleto.polo_ativo}</p>
+                        {processoCompleto.polo_passivo && (
+                          <p><span className="text-muted-foreground">Réu:</span> {processoCompleto.polo_passivo}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Grid de informações */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {processoCompleto.status && (
+                        <div>
+                          <span className="text-muted-foreground">Status:</span>{" "}
+                          <Badge variant="secondary" className="text-[10px] h-5">{processoCompleto.status}</Badge>
+                        </div>
+                      )}
+                      {processoCompleto.instancia && (
+                        <div>
+                          <span className="text-muted-foreground">Instância:</span> {processoCompleto.instancia}
+                        </div>
+                      )}
+                      {processoCompleto.area && (
+                        <div>
+                          <span className="text-muted-foreground">Área:</span> {processoCompleto.area}
+                        </div>
+                      )}
+                      {processoCompleto.classe && (
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground">Classe:</span> {processoCompleto.classe}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Localização */}
+                    {(processoCompleto.vara || processoCompleto.comarca) && (
+                      <div className="flex items-start gap-2 text-xs">
+                        <MapPin className="w-3 h-3 mt-0.5 text-muted-foreground" />
+                        <div>
+                          {processoCompleto.vara && <p>{processoCompleto.vara}</p>}
+                          {processoCompleto.comarca && (
+                            <p className="text-muted-foreground">
+                              {processoCompleto.comarca}{processoCompleto.uf ? ` - ${processoCompleto.uf}` : ""}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Advogado Responsável */}
+                    {processoCompleto.advogado_responsavel && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <User className="w-3 h-3 text-muted-foreground" />
+                        <span className="text-muted-foreground">Responsável:</span>
+                        <span>{processoCompleto.advogado_responsavel.nome}</span>
+                      </div>
+                    )}
+
+                    {/* Assunto */}
+                    {processoCompleto.assunto && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Assunto:</span>
+                        <p className="mt-1">{processoCompleto.assunto}</p>
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+              <Separator />
+            </>
+          )}
+
           {/* Detalhes Section */}
           <Collapsible open={detalhesOpen} onOpenChange={setDetalhesOpen}>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
                 <span className="flex items-center gap-2 text-sm font-medium">
                   <FileText className="w-4 h-4" />
-                  Detalhes
+                  Detalhes da Tarefa
                 </span>
                 {detalhesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-3 space-y-3">
-              {/* Processo vinculado */}
-              {tarefa.processo && (
-                <div className="p-3 bg-muted/50 rounded-lg space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Briefcase className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Processo</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm text-primary">
-                      {tarefa.processo.numero}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={copyProcessNumber}
-                    >
-                      <Copy className="w-3 h-3" />
-                    </Button>
-                  </div>
-                  {tarefa.processo.polo_ativo && (
-                    <p className="text-xs text-muted-foreground">
-                      {tarefa.processo.polo_ativo}
-                    </p>
-                  )}
-                  {clienteInfo && (
-                    <Badge variant="secondary" className="text-xs">
-                      {clienteInfo.nome}
-                    </Badge>
-                  )}
-                </div>
-              )}
-
               {/* Grid de informações */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="space-y-1">
