@@ -224,7 +224,16 @@ export default function PainelEquipe() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card border-border/50">
+        <Card 
+          className={cn(
+            "bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none",
+            statusFilter === "all" && activeTab === "tarefas" && "ring-2 ring-blue-500"
+          )}
+          onClick={() => {
+            setStatusFilter("all");
+            setActiveTab("tarefas");
+          }}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
@@ -235,7 +244,16 @@ export default function PainelEquipe() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card border-border/50">
+        <Card 
+          className={cn(
+            "bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none",
+            statusFilter === "pendente" && "ring-2 ring-amber-500"
+          )}
+          onClick={() => {
+            setStatusFilter("pendente");
+            setActiveTab("tarefas");
+          }}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
@@ -246,7 +264,16 @@ export default function PainelEquipe() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card border-border/50">
+        <Card 
+          className={cn(
+            "bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none",
+            statusFilter === "atrasado" && "ring-2 ring-destructive"
+          )}
+          onClick={() => {
+            setStatusFilter("atrasado");
+            setActiveTab("tarefas");
+          }}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
@@ -257,7 +284,16 @@ export default function PainelEquipe() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card border-border/50">
+        <Card 
+          className={cn(
+            "bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none",
+            statusFilter === "cumprido" && "ring-2 ring-emerald-500"
+          )}
+          onClick={() => {
+            setStatusFilter("cumprido");
+            setActiveTab("tarefas");
+          }}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
@@ -403,6 +439,7 @@ export default function PainelEquipe() {
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="atrasado">Atrasado</SelectItem>
                 <SelectItem value="cumprido">Cumprido</SelectItem>
               </SelectContent>
             </Select>
