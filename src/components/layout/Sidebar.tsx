@@ -35,11 +35,11 @@ import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },
   { icon: Calendar, label: "Controle de Prazos", path: "/prazos" },
   { icon: Send, label: "Central Delegação", path: "/central-delegacao" },
-  { icon: Calendar, label: "Minha Agenda", path: "/minha-agenda" },
   { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
   { icon: Radar, label: "Capturas Intimações", path: "/capturas-intimacoes" },
