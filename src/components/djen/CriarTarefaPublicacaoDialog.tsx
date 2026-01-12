@@ -187,6 +187,16 @@ export function CriarTarefaPublicacaoDialog({
 
       if (error) throw error;
 
+      // Vincular tarefa à publicação na tabela N:N (apenas para publicações de termos)
+      if (tarefa?.id && publicacao.tipo_origem === 'termo') {
+        await supabase
+          .from("tarefas_publicacoes")
+          .insert({
+            tarefa_id: tarefa.id,
+            publicacao_id: publicacao.id,
+          });
+      }
+
       // Marcar publicação como lida
       if (publicacao.tipo_origem === 'termo') {
         await supabase
@@ -204,10 +214,18 @@ export function CriarTarefaPublicacaoDialog({
       queryClient.invalidateQueries({ queryKey: ["publicacoes-djen"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
       
       form.reset();
-      onOpenChange(false);
+      // Resetar formulário mas manter dialog aberto para criar mais tarefas
+      form.setValue("tipo_tarefa", "");
+      form.setValue("titulo", "");
+      form.setValue("descricao", "");
+      form.setValue("responsavel_id", (responsaveisProcesso as any)?.[0]?.advogado?.id || "");
+      form.setValue("data_vencimento", format(new Date(new Date().setDate(new Date().getDate() + 5)), "yyyy-MM-dd"));
+      form.setValue("data_fatal", "");
+      form.setValue("prioridade", "media");
     } catch (error) {
       console.error("Erro ao criar tarefa:", error);
       toast.error("Erro ao criar tarefa");
