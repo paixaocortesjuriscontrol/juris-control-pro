@@ -69,20 +69,27 @@ export default function PainelEquipe() {
   const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false);
 
   const { data: coordenacoes, isLoading: loadingCoord } = useMinhasCoordenacoes();
-  const { data: membrosStats, isLoading: loadingStats } = useEquipeTarefasStats(selectedCoordenacao);
-  const { data: tarefas, isLoading: loadingTarefas } = useEquipeTarefas(selectedCoordenacao, {
-    membroId: selectedMembro !== "all" ? selectedMembro : undefined,
-    status: statusFilter,
-    prioridade: prioridadeFilter,
-    search: searchQuery,
-  });
+  
+  // Get all coordination IDs for "all" mode
+  const allCoordenacaoIds = useMemo(() => 
+    coordenacoes?.map(c => c.id) || [], 
+    [coordenacoes]
+  );
 
-  // Set first coordination as default
-  useMemo(() => {
-    if (coordenacoes?.length && !selectedCoordenacao) {
-      setSelectedCoordenacao(coordenacoes[0].id);
-    }
-  }, [coordenacoes, selectedCoordenacao]);
+  const { data: membrosStats, isLoading: loadingStats } = useEquipeTarefasStats(
+    selectedCoordenacao || null,
+    selectedCoordenacao ? undefined : allCoordenacaoIds
+  );
+  const { data: tarefas, isLoading: loadingTarefas } = useEquipeTarefas(
+    selectedCoordenacao || null,
+    {
+      membroId: selectedMembro !== "all" ? selectedMembro : undefined,
+      status: statusFilter,
+      prioridade: prioridadeFilter,
+      search: searchQuery,
+    },
+    selectedCoordenacao ? undefined : allCoordenacaoIds
+  );
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -199,9 +206,10 @@ export default function PainelEquipe() {
       <div className="mb-6">
         <Select value={selectedCoordenacao} onValueChange={setSelectedCoordenacao}>
           <SelectTrigger className="w-full md:w-80">
-            <SelectValue placeholder="Selecione uma coordenação" />
+            <SelectValue placeholder="Todas as coordenações" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="">Todas as coordenações</SelectItem>
             {coordenacoes?.map((coord) => (
               <SelectItem key={coord.id} value={coord.id}>
                 {coord.nome}
