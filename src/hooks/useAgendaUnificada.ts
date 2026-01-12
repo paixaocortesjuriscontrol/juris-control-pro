@@ -245,9 +245,18 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
               );
             }
             if (filters.coordenacaoId) {
-              tarefasFiltradas = tarefasFiltradas.filter(t => 
-                t.processo && (t.processo as { coordenacao_id?: string }).coordenacao_id === filters.coordenacaoId
-              );
+              tarefasFiltradas = tarefasFiltradas.filter(t => {
+                const procCoord = t.processo && (t.processo as { coordenacao_id?: string | null }).coordenacao_id;
+                if (procCoord) return procCoord === filters.coordenacaoId;
+
+                // Sem processo: manter apenas se o responsável estiver no conjunto de pessoas filtradas
+                // (ex.: quando a página passa os membros da coordenação via responsavelIds).
+                if (filters.responsavelIds && filters.responsavelIds.length > 0) {
+                  return filters.responsavelIds.includes(t.responsavel_id);
+                }
+
+                return false;
+              });
             }
 
             for (const tarefa of tarefasFiltradas) {
