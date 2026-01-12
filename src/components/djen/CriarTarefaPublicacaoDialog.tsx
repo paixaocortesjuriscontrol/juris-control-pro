@@ -203,6 +203,7 @@ export function CriarTarefaPublicacaoDialog({
       toast.success("Tarefa criada com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["publicacoes-djen"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
       
       form.reset();
