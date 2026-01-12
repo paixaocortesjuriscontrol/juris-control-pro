@@ -26,7 +26,6 @@ import {
   ClipboardList,
   Brain,
   Library,
-  Send,
   FileWarning,
   KeyRound
 } from "lucide-react";
@@ -39,7 +38,6 @@ const menuItems = [
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },
   { icon: Calendar, label: "Controle de Prazos", path: "/prazos" },
-  { icon: Send, label: "Central Delegação", path: "/central-delegacao" },
   { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
   { icon: Radar, label: "Capturas Intimações", path: "/capturas-intimacoes" },

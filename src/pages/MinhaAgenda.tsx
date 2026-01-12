@@ -1,10 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -17,6 +20,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -33,21 +42,25 @@ import {
   MapPin,
   Coins,
   Briefcase,
-  PanelRightClose,
   Eye,
+  ListChecks,
+  Send,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday, differenceInDays } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday, differenceInDays, addDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
-import { useAgendaUnificada, useAgendaUnificadaStats, useUpdateItemAgenda, useDeleteItemAgenda, ItemAgendaUnificado, AgendaUnificadaFilters } from "@/hooks/useAgendaUnificada";
+import { useAgendaUnificada, useUpdateItemAgenda, useDeleteItemAgenda, ItemAgendaUnificado, AgendaUnificadaFilters } from "@/hooks/useAgendaUnificada";
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { TarefaAgendaPanel } from "@/components/agenda/TarefaAgendaPanel";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AcoesEmLoteDialog } from "@/components/delegacao/AcoesEmLoteDialog";
+import { useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +73,10 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type ViewMode = "lista" | "dia" | "semana" | "mes";
+type StatusFiltro = "todas" | "pendente" | "concluido" | "atrasado";
+type PeriodoFiltro = "hoje" | "semana" | "quinzena" | "mes" | "todas";
+
+const TIME_ZONE = "America/Sao_Paulo";
 
 const TIPO_CORES: Record<string, string> = {
   evento: "bg-blue-500",
@@ -74,7 +91,7 @@ const TIPO_CORES: Record<string, string> = {
 const TIPO_LABELS: Record<string, string> = {
   evento: "EVENTO",
   tarefa: "TAREFA",
-  tarefa_delegada: "TAREFA DELEGADA",
+  tarefa_delegada: "DELEGADA",
   prazo: "PRAZO",
   audiencia: "AUDIÊNCIA",
   prazo_parcela: "PARCELA",
@@ -88,13 +105,36 @@ const PRIORIDADE_CORES: Record<string, string> = {
   urgente: "bg-red-600",
 };
 
+const periodoFiltroLabel: Record<PeriodoFiltro, string> = {
+  hoje: "Hoje",
+  semana: "Semana",
+  quinzena: "15 dias",
+  mes: "Mês",
+  todas: "Todas",
+};
+
 export default function MinhaAgenda() {
   const { user } = useAuth();
+  const { isAdminOrCoordinator, loading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   
+  // View state
   const [viewMode, setViewMode] = useState<ViewMode>("lista");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  
+  // Filter state
   const [search, setSearch] = useState("");
+  const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
+  const [membrosFiltro, setMembrosFiltro] = useState<string[]>([]);
+  const [clienteFiltro, setClienteFiltro] = useState<string>("todos");
+  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("todas");
+  const [periodoFiltro, setPeriodoFiltro] = useState<PeriodoFiltro>("todas");
+  const [tiposFiltro, setTiposFiltro] = useState<string[]>(["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"]);
+  const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>("todas");
+  const [ordenacao, setOrdenacao] = useState<string>("mais-antigas");
+  
+  // Dialog/Panel state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
@@ -102,59 +142,56 @@ export default function MinhaAgenda() {
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; origem: "evento" | "tarefa" } | null>(null);
-
-  // Filters state
-  const [tiposFiltro, setTiposFiltro] = useState<string[]>(["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"]);
-  const [statusFiltro, setStatusFiltro] = useState<string>("todas");
-  const [pessoasFiltro, setPessoasFiltro] = useState<string[]>([]);
-  const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
-  const [clienteFiltro, setClienteFiltro] = useState<string>("todos");
+  
+  // Batch selection
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [acoesLoteOpen, setAcoesLoteOpen] = useState(false);
+  
+  // Popover states
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [pessoasPopoverOpen, setPessoasPopoverOpen] = useState(false);
+  const [coordenacaoAutoDetected, setCoordenacaoAutoDetected] = useState(false);
 
   const updateEvento = useUpdateEvento();
   const deleteEvento = useDeleteEvento();
-
-  // Auto-filter by logged user on mount
-  useEffect(() => {
-    if (user?.id && pessoasFiltro.length === 0) {
-      setPessoasFiltro([user.id]);
-    }
-  }, [user?.id]);
   const updateItemAgenda = useUpdateItemAgenda();
   const deleteItemAgenda = useDeleteItemAgenda();
 
-  // Calculate date range based on view mode
-  const getDateRange = () => {
-    switch (viewMode) {
-      case "dia":
-        return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) };
-      case "semana":
-        return { start: startOfWeek(selectedDate, { locale: ptBR }), end: endOfWeek(selectedDate, { locale: ptBR }) };
-      case "mes":
-        return { start: startOfMonth(selectedDate), end: endOfMonth(selectedDate) };
-      default:
-        return { start: undefined, end: undefined };
+  // Auto-detect user's coordination
+  const { data: userCoordenacao } = useQuery({
+    queryKey: ["user-coordenacao", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data?.coordenacao_id || null;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Auto-set coordination when detected
+  useEffect(() => {
+    if (userCoordenacao && !coordenacaoAutoDetected && isAdminOrCoordinator) {
+      setCoordenacaoFiltro(userCoordenacao);
+      setCoordenacaoAutoDetected(true);
     }
-  };
+  }, [userCoordenacao, coordenacaoAutoDetected, isAdminOrCoordinator]);
 
-  const dateRange = getDateRange();
+  // Auto-filter by logged user when not admin
+  useEffect(() => {
+    if (user?.id && membrosFiltro.length === 0 && !isAdminOrCoordinator) {
+      setMembrosFiltro([user.id]);
+    }
+  }, [user?.id, isAdminOrCoordinator]);
 
-  const filters: AgendaUnificadaFilters = {
-    tipos: tiposFiltro.length > 0 ? tiposFiltro : undefined,
-    status: statusFiltro,
-    dataInicio: dateRange.start,
-    dataFim: dateRange.end,
-    responsavelIds: pessoasFiltro.length > 0 ? pessoasFiltro : undefined,
-    coordenacaoId: coordenacaoFiltro !== "todas" ? coordenacaoFiltro : undefined,
-    clienteId: clienteFiltro !== "todos" ? clienteFiltro : undefined,
-  };
-
-  const { data: itensAgenda, isLoading } = useAgendaUnificada(filters);
-  const { data: stats } = useAgendaUnificadaStats();
-
+  // Fetch coordenações
   const { data: coordenacoes } = useQuery({
-    queryKey: ["coordenacoes-agenda-filter"],
+    queryKey: ["coordenacoes-agenda"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("coordenacoes")
@@ -165,37 +202,32 @@ export default function MinhaAgenda() {
     },
   });
 
-  const { data: usuarios } = useQuery({
-    queryKey: ["usuarios-agenda-filter", coordenacaoFiltro],
+  // Fetch membros based on selected coordination
+  const { data: membros } = useQuery({
+    queryKey: ["membros-agenda", coordenacaoFiltro],
     queryFn: async () => {
       let query = supabase
-        .from("profiles")
-        .select("id, nome")
-        .eq("ativo", true)
-        .order("nome");
-      
-      if (coordenacaoFiltro && coordenacaoFiltro !== "todas") {
-        const { data: membros } = await supabase
-          .from("membros_coordenacao")
-          .select("usuario_id")
-          .eq("coordenacao_id", coordenacaoFiltro);
-        
-        const userIds = membros?.map(m => m.usuario_id) || [];
-        if (userIds.length > 0) {
-          query = query.in("id", userIds);
-        } else {
-          return [];
-        }
+        .from("membros_coordenacao")
+        .select(`
+          id,
+          usuario_id,
+          cargo,
+          coordenacao_id,
+          usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome, email)
+        `);
+
+      if (coordenacaoFiltro !== "todas") {
+        query = query.eq("coordenacao_id", coordenacaoFiltro);
       }
-      
+
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
   const { data: clientes } = useQuery({
-    queryKey: ["clientes-agenda-filter"],
+    queryKey: ["clientes-agenda"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clientes")
@@ -207,12 +239,167 @@ export default function MinhaAgenda() {
     },
   });
 
-  // Filter by search
-  const filteredItems = itensAgenda?.filter(item => 
-    !search || 
-    item.titulo.toLowerCase().includes(search.toLowerCase()) ||
-    item.processo?.numero?.includes(search)
-  );
+  // Unique membros for filter
+  const membrosUnicos = useMemo(() => {
+    if (!membros) return [];
+    const uniqueMap = new Map();
+    membros.forEach(m => {
+      if (m.usuario?.id && !uniqueMap.has(m.usuario.id)) {
+        uniqueMap.set(m.usuario.id, m.usuario);
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }, [membros]);
+
+  // Calculate date range based on view mode and period filter
+  const getDateRange = useMemo(() => {
+    // For calendar views (dia, semana, mes), use selectedDate
+    if (viewMode !== "lista") {
+      switch (viewMode) {
+        case "dia":
+          return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) };
+        case "semana":
+          return { start: startOfWeek(selectedDate, { locale: ptBR }), end: endOfWeek(selectedDate, { locale: ptBR }) };
+        case "mes":
+          return { start: startOfMonth(selectedDate), end: endOfMonth(selectedDate) };
+      }
+    }
+    
+    // For lista view, use periodoFiltro
+    const nowBrt = toZonedTime(new Date(), TIME_ZONE);
+    const hojeBrtStart = startOfDay(nowBrt);
+
+    switch (periodoFiltro) {
+      case "hoje":
+        return { start: hojeBrtStart, end: endOfDay(nowBrt) };
+      case "semana":
+        return { start: startOfWeek(hojeBrtStart, { weekStartsOn: 1 }), end: endOfWeek(hojeBrtStart, { weekStartsOn: 1 }) };
+      case "quinzena":
+        return { start: hojeBrtStart, end: endOfDay(addDays(hojeBrtStart, 15)) };
+      case "mes":
+        return { start: startOfMonth(hojeBrtStart), end: endOfMonth(hojeBrtStart) };
+      case "todas":
+      default:
+        return { start: undefined, end: undefined };
+    }
+  }, [viewMode, selectedDate, periodoFiltro]);
+
+  // Build filters for agenda
+  const filters: AgendaUnificadaFilters = {
+    tipos: tiposFiltro.length > 0 ? tiposFiltro : undefined,
+    status: statusFiltro === "atrasado" ? "pendente" : statusFiltro,
+    dataInicio: getDateRange.start,
+    dataFim: getDateRange.end,
+    responsavelIds: membrosFiltro.length > 0 ? membrosFiltro : (isAdminOrCoordinator ? undefined : user?.id ? [user.id] : undefined),
+    coordenacaoId: coordenacaoFiltro !== "todas" ? coordenacaoFiltro : undefined,
+    clienteId: clienteFiltro !== "todos" ? clienteFiltro : undefined,
+  };
+
+  const { data: itensAgenda, isLoading } = useAgendaUnificada(filters);
+
+  // Stats via COUNT
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["agenda-stats-unified", coordenacaoFiltro, membrosFiltro, user?.id, isAdminOrCoordinator],
+    queryFn: async () => {
+      const hoje = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
+      
+      // Get members IDs
+      let membroIds: string[] | null = null;
+      if (coordenacaoFiltro !== "todas") {
+        const { data: membrosCoordenacao } = await supabase
+          .from("membros_coordenacao")
+          .select("usuario_id")
+          .eq("coordenacao_id", coordenacaoFiltro);
+        membroIds = membrosCoordenacao?.map(m => m.usuario_id) || [];
+        if (membroIds.length === 0) {
+          return { total: 0, pendentes: 0, atrasadas: 0, concluidas: 0 };
+        }
+      }
+
+      const buildQuery = () => {
+        let q = supabase.from("tarefas").select("*", { count: "exact", head: true });
+        if (membrosFiltro.length > 0) {
+          q = q.in("responsavel_id", membrosFiltro);
+        } else if (!isAdminOrCoordinator && user?.id) {
+          q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
+        } else if (isAdminOrCoordinator && membroIds && membroIds.length > 0) {
+          q = q.in("responsavel_id", membroIds);
+        }
+        return q;
+      };
+
+      const [totalRes, pendentesTotalRes, atrasadasRes, concluidasRes] = await Promise.all([
+        buildQuery(),
+        buildQuery().eq("status", "pendente"),
+        buildQuery().eq("status", "pendente").lt("data_vencimento", hoje),
+        buildQuery().eq("status", "cumprido"),
+      ]);
+
+      const total = totalRes.count ?? 0;
+      const pendentesTotal = pendentesTotalRes.count ?? 0;
+      const atrasadas = atrasadasRes.count ?? 0;
+      const concluidas = concluidasRes.count ?? 0;
+      const pendentes = pendentesTotal - atrasadas;
+
+      return { total, pendentes, atrasadas, concluidas };
+    },
+    enabled: !!user?.id,
+  });
+
+  // Filter and sort items
+  const itensFiltrados = useMemo(() => {
+    if (!itensAgenda) return [];
+    
+    let result = itensAgenda;
+    
+    // Search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      result = result.filter(item =>
+        item.titulo?.toLowerCase().includes(searchLower) ||
+        item.descricao?.toLowerCase().includes(searchLower) ||
+        item.processo?.numero?.toLowerCase().includes(searchLower) ||
+        item.responsavel?.nome?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Atrasado filter
+    if (statusFiltro === "atrasado") {
+      result = result.filter(item => item.is_atrasado);
+    }
+    
+    // Prioridade filter
+    if (prioridadeFiltro !== "todas") {
+      result = result.filter(item => item.prioridade === prioridadeFiltro);
+    }
+    
+    // Sort
+    if (ordenacao === "mais-recentes") {
+      result = [...result].sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
+    } else if (ordenacao === "prioridade") {
+      const prioridadeOrdem = { urgente: 0, alta: 1, media: 2, baixa: 3 };
+      result = [...result].sort((a, b) => 
+        (prioridadeOrdem[a.prioridade as keyof typeof prioridadeOrdem] ?? 4) - 
+        (prioridadeOrdem[b.prioridade as keyof typeof prioridadeOrdem] ?? 4)
+      );
+    }
+    
+    return result;
+  }, [itensAgenda, search, statusFiltro, prioridadeFiltro, ordenacao]);
+
+  // Handlers
+  const clearAllFilters = () => {
+    setSearch("");
+    setStatusFiltro("todas");
+    setPrioridadeFiltro("todas");
+    setPeriodoFiltro("todas");
+    setOrdenacao("mais-antigas");
+    setTiposFiltro(["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"]);
+    if (isAdminOrCoordinator) {
+      setCoordenacaoFiltro(userCoordenacao || "todas");
+      setMembrosFiltro([]);
+    }
+  };
 
   const handleOpenItem = (item: ItemAgendaUnificado) => {
     setSelectedItem(item);
@@ -226,7 +413,6 @@ export default function MinhaAgenda() {
       setSelectedEvento(item as unknown as EventoAgenda);
       setDialogOpen(true);
     } else {
-      // For tarefas, open panel and allow edit from there
       setSelectedItem(item);
     }
   };
@@ -244,7 +430,7 @@ export default function MinhaAgenda() {
         await supabase.from("eventos_agenda").delete().eq("id", id);
       }
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-stats-unified"] });
     } catch (error) {
       console.error("Erro ao excluir:", error);
     }
@@ -262,9 +448,10 @@ export default function MinhaAgenda() {
     await updateItemAgenda.mutateAsync({
       id: item.id,
       origem: item.origem,
-      status: item.status === "concluido" ? "pendente" : "concluido",
-      concluido_em: item.status === "concluido" ? null : new Date().toISOString(),
+      status: item.status === "concluido" || item.status === "cumprido" ? "pendente" : "concluido",
+      concluido_em: item.status === "concluido" || item.status === "cumprido" ? null : new Date().toISOString(),
     });
+    queryClient.invalidateQueries({ queryKey: ["agenda-stats-unified"] });
   };
 
   const toggleTipo = (tipo: string) => {
@@ -276,49 +463,89 @@ export default function MinhaAgenda() {
   };
 
   const togglePessoa = (id: string) => {
-    setPessoasFiltro(prev =>
+    setMembrosFiltro(prev =>
       prev.includes(id)
         ? prev.filter(p => p !== id)
         : [...prev, id]
     );
   };
 
+  const toggleSelectItem = (id: string) => {
+    setSelectedItems(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedItems.length === itensFiltrados.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(itensFiltrados.filter(i => i.origem === "tarefa").map(a => a.id));
+    }
+  };
+
+  const handleStatClick = (stat: StatusFiltro) => {
+    setStatusFiltro(stat);
+    setPrioridadeFiltro("todas");
+    setPeriodoFiltro("todas");
+    setSearch("");
+  };
+
   const renderItemCard = (item: ItemAgendaUnificado) => {
-    // Converter para horário de Brasília
-    const dataItem = toZonedTime(new Date(item.data_inicio), 'America/Sao_Paulo');
-    const dataFim = item.data_fim ? toZonedTime(new Date(item.data_fim), 'America/Sao_Paulo') : null;
+    const dataItem = toZonedTime(new Date(item.data_inicio), TIME_ZONE);
+    const dataFim = item.data_fim ? toZonedTime(new Date(item.data_fim), TIME_ZONE) : null;
     const isHoje = isToday(dataItem);
-    
     const isSelected = selectedItem?.id === item.id;
+    const isItemSelected = selectedItems.includes(item.id);
     
     return (
       <div
         key={item.id}
-        onClick={() => handleOpenItem(item)}
         className={cn(
-          "flex flex-col p-4 border rounded-lg bg-card transition-all hover:shadow-md cursor-pointer",
+          "flex gap-3 p-4 border-b hover:bg-muted/50 cursor-pointer transition-colors",
           item.status === "concluido" && "opacity-60",
-          item.is_atrasado && "border-destructive/50 bg-destructive/5",
-          isSelected && "ring-2 ring-primary border-primary"
+          item.is_atrasado && "border-l-4 border-l-destructive",
+          isSelected && "bg-muted/80"
         )}
+        onClick={() => handleOpenItem(item)}
       >
-        {/* Header Row */}
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-3">
+        {/* Checkbox for batch selection (only tarefas) */}
+        {item.origem === "tarefa" && (
+          <div className="pt-1">
             <Checkbox
-              checked={item.status === "concluido"}
-              onCheckedChange={() => handleConcluirItem(item)}
+              checked={isItemSelected}
+              onCheckedChange={() => toggleSelectItem(item.id)}
               onClick={(e) => e.stopPropagation()}
             />
-            <div className={cn("w-1.5 h-8 rounded-full", TIPO_CORES[item.tipo] || "bg-gray-400")} />
-            <div>
-              <h3 className={cn(
-                "font-semibold text-base text-foreground",
-                item.status === "concluido" && "line-through text-muted-foreground"
-              )}>
-                {item.titulo}
-              </h3>
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          </div>
+        )}
+
+        <div className={cn("w-1.5 rounded-full shrink-0", TIPO_CORES[item.tipo] || "bg-gray-400")} />
+        
+        <div className="flex-1 min-w-0 space-y-2">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1 min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Status Badge */}
+                {item.status === "concluido" || item.status === "cumprido" ? (
+                  <Badge className="bg-green-500/10 text-green-600 border-green-200 text-xs">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    Concluído
+                  </Badge>
+                ) : item.is_atrasado ? (
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    Atrasado
+                  </Badge>
+                ) : (
+                  <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-xs">
+                    <Clock className="w-3 h-3 mr-1" />
+                    Pendente
+                  </Badge>
+                )}
+                
+                {/* Tipo Badge */}
                 <Badge 
                   variant="outline" 
                   className={cn(
@@ -332,408 +559,529 @@ export default function MinhaAgenda() {
                 >
                   {TIPO_LABELS[item.tipo] || item.tipo.toUpperCase()}
                 </Badge>
-                {item.origem === "tarefa" && (
-                  <Badge variant="secondary" className="text-xs">
-                    <Briefcase className="w-3 h-3 mr-1" />
-                    Central de Delegação
-                  </Badge>
-                )}
+                
+                {/* Prioridade */}
                 {item.prioridade && (
                   <Badge className={cn("text-xs text-white", PRIORIDADE_CORES[item.prioridade] || "bg-gray-500")}>
                     {item.prioridade.charAt(0).toUpperCase() + item.prioridade.slice(1)}
                   </Badge>
                 )}
-                {item.recorrente && (
-                  <Badge variant="secondary" className="text-xs">
-                    <CalendarDays className="w-3 h-3 mr-1" />
-                    Recorrente
-                  </Badge>
-                )}
-                {item.is_atrasado && (
-                  <Badge variant="destructive" className="text-xs">
-                    <AlertTriangle className="w-3 h-3 mr-1" />
-                    Atrasado {Math.abs(item.dias_restantes || 0)} dia(s)
-                  </Badge>
-                )}
               </div>
+              
+              <h3 className={cn(
+                "font-medium text-sm line-clamp-2",
+                (item.status === "concluido" || item.status === "cumprido") && "line-through text-muted-foreground"
+              )}>
+                {item.titulo || "Sem título"}
+              </h3>
             </div>
+            
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenItem(item);
+              }}
+            >
+              <Eye className="w-4 h-4" />
+            </Button>
           </div>
-          
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8 shrink-0"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpenItem(item);
-            }}
-          >
-            <Eye className="w-4 h-4" />
-          </Button>
-        </div>
-        
-        {/* Description */}
-        {item.descricao && (
-          <p className="text-sm text-muted-foreground mb-3 pl-10">
-            {item.descricao}
-          </p>
-        )}
-        
-        {/* Details Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pl-10 text-sm">
-          {/* Date & Time */}
-          <div className="flex items-start gap-2">
-            <CalendarDays className="w-4 h-4 text-muted-foreground mt-0.5" />
-            <div>
-              <p className={cn("font-medium", isHoje && "text-primary")}>
-                {isHoje ? "Hoje" : format(dataItem, "dd/MM/yyyy", { locale: ptBR })}
-              </p>
-              {!item.dia_inteiro && (
-                <p className="text-xs text-muted-foreground">
-                  {format(dataItem, "HH:mm")}
-                  {dataFim && ` - ${format(dataFim, "HH:mm")}`}
-                </p>
-              )}
-              {item.dia_inteiro && (
-                <p className="text-xs text-muted-foreground">Dia inteiro</p>
-              )}
-            </div>
-          </div>
-          
-          {/* Process */}
+
+          {/* Process info */}
           {item.processo && (
-            <div className="flex items-start gap-2">
-              <Tag className="w-4 h-4 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="text-xs text-muted-foreground">Processo</p>
-                <p className="font-mono text-xs">{item.processo.numero}</p>
-              </div>
-            </div>
-          )}
-          
-          {/* Location */}
-          {item.local && (
-            <div className="flex items-start gap-2 col-span-2 sm:col-span-1">
-              <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="text-xs text-muted-foreground">Local</p>
-                <p className="text-sm truncate max-w-[180px]">{item.local}</p>
-              </div>
-            </div>
-          )}
-          
-          {/* Participants (for eventos) */}
-          {item.participantes && item.participantes.length > 0 && (
-            <div className="flex items-start gap-2 col-span-2 sm:col-span-1">
-              <Users className="w-4 h-4 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="text-xs text-muted-foreground">Participantes</p>
-                <p className="text-sm">{item.participantes.length} pessoa(s)</p>
-              </div>
+            <div className="text-xs text-muted-foreground">
+              <span className="font-mono">{item.processo.numero}</span>
             </div>
           )}
 
-          {/* Responsável (for tarefas) */}
-          {item.responsavel && (
-            <div className="flex items-start gap-2 col-span-2 sm:col-span-1">
-              <Users className="w-4 h-4 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="text-xs text-muted-foreground">Responsável</p>
-                <p className="text-sm">{item.responsavel.nome}</p>
-              </div>
-            </div>
+          {/* Description */}
+          {item.descricao && (
+            <p className="text-xs text-muted-foreground line-clamp-2">
+              {item.descricao}
+            </p>
           )}
-        </div>
-        
-        {/* Status indicator */}
-        <div className="flex items-center justify-between mt-3 pt-3 border-t pl-10">
-          <div className="flex items-center gap-2">
-            {item.status === "concluido" ? (
-              <Badge variant="outline" className="text-green-600 border-green-500 bg-green-50">
-                <CheckCircle2 className="w-3 h-3 mr-1" />
-                Concluído
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-amber-600 border-amber-500 bg-amber-50">
-                <Clock className="w-3 h-3 mr-1" />
-                Pendente
-              </Badge>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1">
+                <CalendarDays className="w-3 h-3" />
+                {isHoje ? "Hoje" : format(dataItem, "dd/MM/yy", { locale: ptBR })}
+                {!item.dia_inteiro && ` ${format(dataItem, "HH:mm")}`}
+              </span>
+              
+              {item.responsavel && (
+                <span className="flex items-center gap-1">
+                  <Users className="w-3 h-3" />
+                  {item.responsavel.nome}
+                </span>
+              )}
+              
+              {item.local && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3 h-3" />
+                  {item.local}
+                </span>
+              )}
+            </div>
+            
+            {item.dias_restantes !== undefined && item.status !== "concluido" && item.status !== "cumprido" && (
+              <span className={cn(
+                "text-xs font-medium",
+                item.dias_restantes < 0 && "text-destructive",
+                item.dias_restantes === 0 && "text-orange-500",
+                item.dias_restantes > 0 && item.dias_restantes <= 3 && "text-yellow-600"
+              )}>
+                {item.dias_restantes < 0 
+                  ? `${Math.abs(item.dias_restantes)} dias atrasado`
+                  : item.dias_restantes === 0 
+                    ? "Vence hoje"
+                    : `${item.dias_restantes} dias restantes`
+                }
+              </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Criado em {format(new Date(item.created_at), "dd/MM/yyyy", { locale: ptBR })}
-          </p>
         </div>
       </div>
     );
   };
 
+  if (roleLoading) {
+    return (
+      <MainLayout title="Agenda">
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
-    <MainLayout title="Minha Agenda" subtitle="Gerencie seus eventos, tarefas, prazos e audiências">
+    <MainLayout title="Agenda" subtitle="Gerencie tarefas, eventos, prazos e audiências">
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-end gap-2 mb-6">
-          <Button variant="outline" onClick={() => setParcelasDialogOpen(true)}>
-            <Coins className="w-4 h-4 mr-2" />
-            Gerar Parcelas
-          </Button>
-          <Button onClick={() => { setSelectedEvento(null); setDialogOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Evento
-          </Button>
+        {/* Header Actions */}
+        <div className="flex justify-end gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90">
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Atividade
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate("/nova-tarefa")}>
+                <ListChecks className="w-4 h-4 mr-2" />
+                Nova Tarefa
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSelectedEvento(null); setDialogOpen(true); }}>
+                <CalendarDays className="w-4 h-4 mr-2" />
+                Novo Evento
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setParcelasDialogOpen(true)}>
+                <Coins className="w-4 h-4 mr-2" />
+                Gerar Parcelas
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-4 max-w-md">
-          <div className="bg-card border rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{stats?.concluidas || 0}</div>
-            <div className="text-xs text-muted-foreground">Concluídas</div>
-          </div>
-          <div className="bg-card border rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-amber-600">{stats?.pendentes || 0}</div>
-            <div className="text-xs text-muted-foreground">A concluir (hoje)</div>
-          </div>
-          <div className="bg-card border rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">{stats?.atrasadas || 0}</div>
-            <div className="text-xs text-muted-foreground">Atrasadas</div>
-          </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+          <Card
+            className={cn(
+              "cursor-pointer hover:border-primary/50 transition-colors",
+              statusFiltro === "todas" && "border-primary ring-1 ring-primary"
+            )}
+            onClick={() => handleStatClick("todas")}
+          >
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Total</p>
+                  <p className="text-xl sm:text-2xl font-bold">{stats?.total ?? 0}</p>
+                </div>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <ListChecks className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card
+            className={cn(
+              "cursor-pointer hover:border-blue-500/50 transition-colors",
+              statusFiltro === "pendente" && "border-primary ring-1 ring-primary"
+            )}
+            onClick={() => handleStatClick("pendente")}
+          >
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Pendentes</p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-600">{stats?.pendentes ?? 0}</p>
+                </div>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card
+            className={cn(
+              "cursor-pointer hover:border-red-500/50 transition-colors",
+              statusFiltro === "atrasado" && "border-primary ring-1 ring-primary"
+            )}
+            onClick={() => handleStatClick("atrasado")}
+          >
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Atrasadas</p>
+                  <p className="text-xl sm:text-2xl font-bold text-red-600">{stats?.atrasadas ?? 0}</p>
+                </div>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card
+            className={cn(
+              "cursor-pointer hover:border-green-500/50 transition-colors",
+              statusFiltro === "concluido" && "border-primary ring-1 ring-primary"
+            )}
+            onClick={() => handleStatClick("concluido")}
+          >
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Concluídas</p>
+                  <p className="text-xl sm:text-2xl font-bold text-green-600">{stats?.concluidas ?? 0}</p>
+                </div>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Filters Bar */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* View Mode */}
-          <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="lista">
-                <div className="flex items-center gap-2">
-                  <List className="w-4 h-4" />
-                  Em lista
-                </div>
-              </SelectItem>
-              <SelectItem value="dia">Por dia</SelectItem>
-              <SelectItem value="semana">Por semana</SelectItem>
-              <SelectItem value="mes">Por mês</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Filters Card */}
+        <Card>
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-col gap-3">
+              {/* Search */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-10 text-sm"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                {/* View Mode */}
+                <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+                  <SelectTrigger className="w-full sm:w-32 text-xs sm:text-sm h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lista">
+                      <div className="flex items-center gap-2">
+                        <List className="w-4 h-4" />
+                        Lista
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="dia">Por dia</SelectItem>
+                    <SelectItem value="semana">Por semana</SelectItem>
+                    <SelectItem value="mes">Por mês</SelectItem>
+                  </SelectContent>
+                </Select>
 
-          {/* Coordenação Filter */}
-          <Select value={coordenacaoFiltro} onValueChange={(v) => { setCoordenacaoFiltro(v); setPessoasFiltro([]); }}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Coordenação" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas as coordenações</SelectItem>
-              {coordenacoes?.map((coord) => (
-                <SelectItem key={coord.id} value={coord.id}>
-                  {coord.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                {/* Coordination Filter (admins only) */}
+                {isAdminOrCoordinator && (
+                  <Select value={coordenacaoFiltro} onValueChange={(v) => { setCoordenacaoFiltro(v); setMembrosFiltro([]); }}>
+                    <SelectTrigger className="w-full sm:w-[280px] text-xs sm:text-sm h-9">
+                      <SelectValue placeholder="Coordenação" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas Coordenações</SelectItem>
+                      {coordenacoes?.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
 
-          {/* Membros Filter */}
-          <Popover open={pessoasPopoverOpen} onOpenChange={setPessoasPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Users className="w-4 h-4" />
-                {pessoasFiltro.length > 0 ? `${pessoasFiltro.length} membros` : "Membros"}
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72" align="start">
-              <div className="space-y-4">
-                <div className="font-medium">Membros da Coordenação</div>
-                
-                <div className="max-h-60 overflow-y-auto space-y-2">
-                  {usuarios?.map((usuario) => (
-                    <div key={usuario.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`filter-user-${usuario.id}`}
-                        checked={pessoasFiltro.includes(usuario.id)}
-                        onCheckedChange={() => togglePessoa(usuario.id)}
+                {/* Members Filter (admins only) */}
+                {isAdminOrCoordinator && (
+                  <Popover open={pessoasPopoverOpen} onOpenChange={setPessoasPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="gap-2 h-9 text-xs sm:text-sm">
+                        <Users className="w-4 h-4" />
+                        {membrosFiltro.length > 0 ? `${membrosFiltro.length} membros` : "Membros"}
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72" align="start">
+                      <div className="space-y-4">
+                        <div className="font-medium">Membros</div>
+                        <div className="max-h-60 overflow-y-auto space-y-2">
+                          {membrosUnicos.map((usuario) => (
+                            <div key={usuario.id} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`filter-user-${usuario.id}`}
+                                checked={membrosFiltro.includes(usuario.id)}
+                                onCheckedChange={() => togglePessoa(usuario.id)}
+                              />
+                              <Label htmlFor={`filter-user-${usuario.id}`} className="cursor-pointer text-sm">
+                                {usuario.nome}
+                              </Label>
+                            </div>
+                          ))}
+                          {membrosUnicos.length === 0 && (
+                            <p className="text-sm text-muted-foreground text-center py-2">
+                              Nenhum membro disponível
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2 border-t">
+                          <Button variant="ghost" size="sm" onClick={() => setMembrosFiltro([])}>
+                            Limpar
+                          </Button>
+                          <Button size="sm" onClick={() => setPessoasPopoverOpen(false)}>
+                            Aplicar
+                          </Button>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+
+                {/* Period Filter (lista view only) */}
+                {viewMode === "lista" && (
+                  <Select value={periodoFiltro} onValueChange={(v) => setPeriodoFiltro(v as PeriodoFiltro)}>
+                    <SelectTrigger className="w-full sm:w-[130px] text-xs sm:text-sm h-9">
+                      <SelectValue placeholder="Período" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hoje">Hoje</SelectItem>
+                      <SelectItem value="semana">Semana</SelectItem>
+                      <SelectItem value="quinzena">15 dias</SelectItem>
+                      <SelectItem value="mes">Mês</SelectItem>
+                      <SelectItem value="todas">Todas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Date Picker for calendar views */}
+                {viewMode !== "lista" && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="gap-2 h-9 text-xs sm:text-sm">
+                        <CalendarDays className="w-4 h-4" />
+                        {format(selectedDate, "dd/MM/yyyy")}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => date && setSelectedDate(date)}
+                        locale={ptBR}
                       />
-                      <Label htmlFor={`filter-user-${usuario.id}`} className="cursor-pointer text-sm">
-                        {usuario.nome}
-                      </Label>
+                    </PopoverContent>
+                  </Popover>
+                )}
+
+                {/* Prioridade */}
+                <Select value={prioridadeFiltro} onValueChange={setPrioridadeFiltro}>
+                  <SelectTrigger className="w-full sm:w-[130px] text-xs sm:text-sm h-9">
+                    <SelectValue placeholder="Prioridade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    <SelectItem value="urgente">Urgente</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Ordenação */}
+                <Select value={ordenacao} onValueChange={setOrdenacao}>
+                  <SelectTrigger className="w-full sm:w-[150px] text-xs sm:text-sm h-9">
+                    <SelectValue placeholder="Ordenar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mais-antigas">Mais antigas</SelectItem>
+                    <SelectItem value="mais-recentes">Mais recentes</SelectItem>
+                    <SelectItem value="prioridade">Prioridade</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Tipos Filter */}
+                <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="gap-2 h-9 text-xs sm:text-sm">
+                      <Tag className="w-4 h-4" />
+                      Tipos
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56" align="start">
+                    <div className="space-y-4">
+                      <div className="font-medium">Exibir</div>
+                      <div className="space-y-2">
+                        {["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"].map((tipo) => (
+                          <div key={tipo} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`tipo-${tipo}`}
+                              checked={tiposFiltro.includes(tipo)}
+                              onCheckedChange={() => toggleTipo(tipo)}
+                            />
+                            <Label htmlFor={`tipo-${tipo}`} className="cursor-pointer capitalize text-sm">
+                              {TIPO_LABELS[tipo] || tipo}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-end gap-2 pt-2 border-t">
+                        <Button variant="ghost" size="sm" onClick={() => setTiposFiltro(["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"])}>
+                          Todos
+                        </Button>
+                        <Button size="sm" onClick={() => setFilterPopoverOpen(false)}>
+                          Aplicar
+                        </Button>
+                      </div>
                     </div>
-                  ))}
-                  {usuarios?.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      Nenhum membro disponível
-                    </p>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Cliente Filter */}
+                <Select value={clienteFiltro} onValueChange={setClienteFiltro}>
+                  <SelectTrigger className="w-full sm:w-[180px] text-xs sm:text-sm h-9">
+                    <SelectValue placeholder="Cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos clientes</SelectItem>
+                    {clientes?.map((cliente) => (
+                      <SelectItem key={cliente.id} value={cliente.id}>
+                        {cliente.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Active Filters & Batch Actions */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {statusFiltro !== "todas" && (
+                    <Badge variant="outline" className="text-xs">
+                      Status: {statusFiltro === "atrasado" ? "Atrasadas" : statusFiltro === "pendente" ? "Pendentes" : "Concluídas"}
+                    </Badge>
+                  )}
+                  {prioridadeFiltro !== "todas" && (
+                    <Badge variant="outline" className="text-xs">
+                      Prioridade: {prioridadeFiltro}
+                    </Badge>
+                  )}
+                  {(statusFiltro !== "todas" || prioridadeFiltro !== "todas" || search) && (
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearAllFilters}>
+                      Limpar filtros
+                    </Button>
                   )}
                 </div>
-                <div className="flex justify-end gap-2 pt-2 border-t">
-                  <Button variant="ghost" size="sm" onClick={() => setPessoasFiltro([])}>
-                    Limpar
+
+                {selectedItems.length > 0 && (
+                  <Button 
+                    variant="outline" 
+                    className="text-primary"
+                    onClick={() => setAcoesLoteOpen(true)}
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Ações em lote ({selectedItems.length})
                   </Button>
-                  <Button size="sm" onClick={() => setPessoasPopoverOpen(false)}>
-                    Aplicar
-                  </Button>
-                </div>
+                )}
               </div>
-            </PopoverContent>
-          </Popover>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Cliente Filter */}
-          <Select value={clienteFiltro} onValueChange={setClienteFiltro}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os clientes</SelectItem>
-              {clientes?.map((cliente) => (
-                <SelectItem key={cliente.id} value={cliente.id}>
-                  {cliente.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Atividades Filter */}
-          <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Tag className="w-4 h-4" />
-                Todas as atividades
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56" align="start">
-              <div className="space-y-4">
-                <div>
-                  <div className="font-medium mb-2">Exibir</div>
-                  <div className="space-y-2">
-                    {["tarefa", "evento", "prazo", "audiencia"].map((tipo) => (
-                      <div key={tipo} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`tipo-${tipo}`}
-                          checked={tiposFiltro.includes(tipo)}
-                          onCheckedChange={() => toggleTipo(tipo)}
-                        />
-                        <Label htmlFor={`tipo-${tipo}`} className="cursor-pointer capitalize">
-                          {tipo === "audiencia" ? "Audiências" : `${tipo}s`}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="font-medium mb-2">Status</div>
-                  <div className="space-y-2">
-                    {[
-                      { value: "pendente", label: "A concluir" },
-                      { value: "concluido", label: "Concluídas" },
-                      { value: "cancelado", label: "Canceladas" },
-                      { value: "todas", label: "Todas" },
-                    ].map((status) => (
-                      <div key={status.value} className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          id={`status-${status.value}`}
-                          name="status"
-                          checked={statusFiltro === status.value}
-                          onChange={() => setStatusFiltro(status.value)}
-                          className="w-4 h-4"
-                        />
-                        <Label htmlFor={`status-${status.value}`} className="cursor-pointer">
-                          {status.label}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-2 border-t">
-                  <Button variant="ghost" size="sm" onClick={() => {
-                    setTiposFiltro(["tarefa", "evento", "prazo", "audiencia"]);
-                    setStatusFiltro("todas");
-                  }}>
-                    Limpar
-                  </Button>
-                  <Button size="sm" onClick={() => setFilterPopoverOpen(false)}>
-                    Aplicar
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          {/* Date Picker for filtered views */}
-          {viewMode !== "lista" && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <CalendarDays className="w-4 h-4" />
-                  {format(selectedDate, "dd/MM/yyyy")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => date && setSelectedDate(date)}
-                  locale={ptBR}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-
-          {/* Search */}
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-
-        {/* Date Header for filtered views */}
+        {/* Date Header for calendar views */}
         {viewMode !== "lista" && (
           <div className="flex items-center gap-2 text-muted-foreground">
             <span className="font-medium">
               {viewMode === "dia" && format(selectedDate, "'Hoje •' dd/MM/yyyy", { locale: ptBR })}
-              {viewMode === "semana" && `Semana de ${format(dateRange.start!, "dd/MM")} a ${format(dateRange.end!, "dd/MM/yyyy")}`}
+              {viewMode === "semana" && getDateRange.start && getDateRange.end && `Semana de ${format(getDateRange.start, "dd/MM")} a ${format(getDateRange.end, "dd/MM/yyyy")}`}
               {viewMode === "mes" && format(selectedDate, "MMMM 'de' yyyy", { locale: ptBR })}
             </span>
             <span className="text-sm">
-              Mostrando {filteredItems?.length || 0} atividades
+              Mostrando {itensFiltrados.length} atividades
             </span>
           </div>
         )}
 
         {/* Main Content Area with Side Panel */}
         <div className="flex gap-4">
-          {/* Events List */}
-          <div className={cn("space-y-3 transition-all", selectedItem ? "flex-1" : "w-full")}>
-            {isLoading ? (
-              [...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-24 w-full rounded-lg" />
-              ))
-            ) : filteredItems?.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <CalendarDays className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma atividade encontrada</p>
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => { setSelectedEvento(null); setDialogOpen(true); }}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Criar evento
-                </Button>
+          {/* Activities List */}
+          <Card className={cn("transition-all", selectedItem ? "flex-1" : "w-full")}>
+            <CardHeader className="pb-2 px-3 sm:px-6">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                  Atividades
+                  <Badge variant="secondary" className="text-xs">{itensFiltrados.length}</Badge>
+                </CardTitle>
+                <div className="hidden sm:flex items-center gap-2">
+                  <Checkbox 
+                    checked={selectedItems.length === itensFiltrados.filter(i => i.origem === "tarefa").length && itensFiltrados.filter(i => i.origem === "tarefa").length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <span className="text-sm text-muted-foreground">Selecionar todas</span>
+                </div>
               </div>
-            ) : (
-              filteredItems?.map(renderItemCard)
-            )}
-          </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="p-4 space-y-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-24 w-full" />
+                  ))}
+                </div>
+              ) : itensFiltrados.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  <CalendarDays className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Nenhuma atividade encontrada</p>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => { setSelectedEvento(null); setDialogOpen(true); }}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Criar evento
+                  </Button>
+                </div>
+              ) : (
+                <ScrollArea className="h-[calc(100vh-480px)] min-h-[300px]">
+                  <div className="divide-y">
+                    {itensFiltrados.map(renderItemCard)}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
 
-          {/* Side Panel for Task Details */}
+          {/* Side Panel for Details */}
           {selectedItem && (
             <div className="w-[400px] shrink-0 sticky top-4 max-h-[calc(100vh-200px)]">
               <TarefaAgendaPanel
@@ -741,7 +1089,7 @@ export default function MinhaAgenda() {
                 onClose={() => setSelectedItem(null)}
                 onUpdate={() => {
                   queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-                  queryClient.invalidateQueries({ queryKey: ["agenda-stats"] });
+                  queryClient.invalidateQueries({ queryKey: ["agenda-stats-unified"] });
                 }}
               />
             </div>
@@ -749,12 +1097,32 @@ export default function MinhaAgenda() {
         </div>
       </div>
 
+      {/* Dialogs */}
       <EventoDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         evento={selectedEvento}
       />
 
+      <GerarParcelasDialog
+        open={parcelasDialogOpen}
+        onOpenChange={(open) => {
+          setParcelasDialogOpen(open);
+          if (!open) setSelectedParcelamento(null);
+        }}
+        evento={selectedParcelamento}
+      />
+
+      <AcoesEmLoteDialog
+        open={acoesLoteOpen}
+        onOpenChange={setAcoesLoteOpen}
+        selectedIds={selectedItems}
+        onSuccess={() => {
+          setSelectedItems([]);
+          queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+          queryClient.invalidateQueries({ queryKey: ["agenda-stats-unified"] });
+        }}
+      />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -772,16 +1140,6 @@ export default function MinhaAgenda() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Gerar Parcelas Dialog */}
-      <GerarParcelasDialog
-        open={parcelasDialogOpen}
-        onOpenChange={(open) => {
-          setParcelasDialogOpen(open);
-          if (!open) setSelectedParcelamento(null);
-        }}
-        evento={selectedParcelamento}
-      />
     </MainLayout>
   );
 }
