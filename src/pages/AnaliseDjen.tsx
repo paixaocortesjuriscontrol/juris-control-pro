@@ -603,6 +603,19 @@ const AnaliseDjen = () => {
                                         </Link>
                                       )}
                                       <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCriarTarefa(pub);
+                                        }}
+                                        title="Criar tarefa a partir desta publicação"
+                                        className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 ml-auto"
+                                      >
+                                        <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                        <span className="text-xs">Criar Tarefa</span>
+                                      </Button>
+                                      <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={(e) => {
@@ -610,21 +623,9 @@ const AnaliseDjen = () => {
                                           handleView(pub);
                                         }}
                                         title="Ver detalhes em modal"
-                                        className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
-                                      >
-                                        <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleCriarTarefa(pub);
-                                        }}
-                                        title="Criar tarefa a partir desta publicação"
                                         className="p-1 md:p-1.5 h-auto flex-shrink-0"
                                       >
-                                        <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                        <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                       </Button>
                                     </div>
                                   )}
@@ -640,6 +641,19 @@ const AnaliseDjen = () => {
                                         Clique para ver detalhes
                                       </span>
                                       <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCriarTarefa(pub);
+                                        }}
+                                        title="Criar tarefa a partir desta publicação"
+                                        className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 ml-auto"
+                                      >
+                                        <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                        <span className="text-xs">Criar Tarefa</span>
+                                      </Button>
+                                      <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={(e) => {
@@ -647,21 +661,9 @@ const AnaliseDjen = () => {
                                           handleView(pub);
                                         }}
                                         title="Ver detalhes em modal"
-                                        className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
-                                      >
-                                        <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleCriarTarefa(pub);
-                                        }}
-                                        title="Criar tarefa a partir desta publicação"
                                         className="p-1 md:p-1.5 h-auto flex-shrink-0"
                                       >
-                                        <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                        <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                       </Button>
                                     </div>
                                   )}
