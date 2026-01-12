@@ -1472,6 +1472,57 @@ export default function ImportarProcessos() {
 
       // 3) Smart merge UPDATE for existing processes - fill only empty fields
       if (toUpdateIndices.length > 0) {
+        // Helper to create or find pasta - now outside loop for reuse
+        const clienteNome = clientes.find(c => c.id === selectedCliente)?.nome || "Sem Cliente";
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        // Cache for created pastas to avoid duplicates
+        const pastaCache = new Map<string, string>();
+        
+        const findOrCreatePastaBatch = async (partePassiva: string, coordenacaoId: string | null): Promise<string | null> => {
+          if (!selectedCliente || !user) return null;
+          
+          const partePassivaTrimmed = partePassiva?.trim() || "Sem Parte Passiva";
+          const nomePasta = `${partePassivaTrimmed} x ${clienteNome}`;
+          
+          // Check cache first
+          if (pastaCache.has(nomePasta)) {
+            return pastaCache.get(nomePasta)!;
+          }
+          
+          // Check if pasta exists in DB
+          const { data: pastaExistente } = await supabase
+            .from("pastas")
+            .select("id")
+            .eq("nome", nomePasta)
+            .maybeSingle();
+          
+          if (pastaExistente) {
+            pastaCache.set(nomePasta, pastaExistente.id);
+            return pastaExistente.id;
+          }
+          
+          // Create new pasta
+          const { data: novaPasta, error: pastaError } = await supabase
+            .from("pastas")
+            .insert({
+              nome: nomePasta,
+              descricao: `Pasta criada automaticamente para padronização`,
+              cliente_id: selectedCliente,
+              coordenacao_id: coordenacaoId || selectedCoordenacao || null,
+              criado_por: user.id,
+            })
+            .select("id")
+            .single();
+          
+          if (!pastaError && novaPasta) {
+            pastaCache.set(nomePasta, novaPasta.id);
+            return novaPasta.id;
+          }
+          console.warn(`Falha ao criar pasta ${nomePasta}:`, pastaError?.message);
+          return null;
+        };
+
         // Need to do one-by-one for smart merge since each process may have different empty fields
         for (let i = 0; i < toUpdateIndices.length; i++) {
           if (projurisCancelledRef.current) break;
@@ -1502,6 +1553,14 @@ export default function ImportarProcessos() {
           if (selectedCoordenacao && !currentProcesso.coordenacao_id) updateData.coordenacao_id = selectedCoordenacao;
           if (selectedMembro && !currentProcesso.advogado_responsavel_id) updateData.advogado_responsavel_id = selectedMembro;
           if (selectedCliente && !currentProcesso.cliente_id) updateData.cliente_id = selectedCliente;
+          
+          // Update pasta_id - always update pasta name pattern when client is selected
+          if (selectedCliente) {
+            const pastaId = await findOrCreatePastaBatch(processo.partePassiva || "", currentProcesso.coordenacao_id);
+            if (pastaId) {
+              updateData.pasta_id = pastaId;
+            }
+          }
           
           // Merge spreadsheet data into empty fields
           if (!currentProcesso.assunto && processo.assunto) updateData.assunto = processo.assunto;
@@ -1584,12 +1643,55 @@ export default function ImportarProcessos() {
         // Check if process already exists
         const { data: existingProcesso } = await supabase
           .from("processos")
-          .select("id")
+          .select("id, pasta_id")
           .eq("numero", processo.numero.trim())
           .maybeSingle();
 
         let processoId: string;
         let isUpdate = false;
+
+        // Build pasta name from "Parte Passiva x Cliente selecionado"
+        const clienteNome = clientes.find(c => c.id === selectedCliente)?.nome || "Sem Cliente";
+        const partePassiva = processo.partePassiva?.trim() || "Sem Parte Passiva";
+        const nomePasta = `${partePassiva} x ${clienteNome}`;
+
+        // Helper to create or find pasta
+        const findOrCreatePasta = async (coordenacaoId: string | null): Promise<string | null> => {
+          if (!selectedCliente) return null; // Only create pasta if client is selected
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return null;
+          
+          // Check if pasta with this name already exists
+          const { data: pastaExistente } = await supabase
+            .from("pastas")
+            .select("id")
+            .eq("nome", nomePasta)
+            .maybeSingle();
+          
+          if (pastaExistente) {
+            return pastaExistente.id;
+          }
+          
+          // Create new pasta
+          const { data: novaPasta, error: pastaError } = await supabase
+            .from("pastas")
+            .insert({
+              nome: nomePasta,
+              descricao: `Pasta criada automaticamente para padronização - ${processo.numero}`,
+              cliente_id: selectedCliente,
+              coordenacao_id: coordenacaoId || selectedCoordenacao || null,
+              criado_por: user.id,
+            })
+            .select("id")
+            .single();
+          
+          if (!pastaError && novaPasta) {
+            return novaPasta.id;
+          }
+          console.warn(`Falha ao criar pasta ${nomePasta}:`, pastaError?.message);
+          return null;
+        };
 
         if (existingProcesso) {
           // Fetch current process data for smart merge
@@ -1606,6 +1708,14 @@ export default function ImportarProcessos() {
           if (selectedCoordenacao && !currentProcesso?.coordenacao_id) updateData.coordenacao_id = selectedCoordenacao;
           if (selectedMembro && !currentProcesso?.advogado_responsavel_id) updateData.advogado_responsavel_id = selectedMembro;
           if (selectedCliente && !currentProcesso?.cliente_id) updateData.cliente_id = selectedCliente;
+          
+          // Update pasta_id - always update pasta name pattern when client is selected
+          if (selectedCliente) {
+            const pastaId = await findOrCreatePasta(currentProcesso?.coordenacao_id);
+            if (pastaId) {
+              updateData.pasta_id = pastaId;
+            }
+          }
           
           // Merge spreadsheet data into empty fields
           if (!currentProcesso?.assunto && processo.assunto) updateData.assunto = processo.assunto;
@@ -1648,6 +1758,9 @@ export default function ImportarProcessos() {
           processoId = existingProcesso.id;
           isUpdate = true;
         } else {
+          // Create pasta for new process
+          const pastaId = await findOrCreatePasta(selectedCoordenacao);
+
           // Insert new process with all Projuris fields
           const { data: insertedProcesso, error } = await supabase
             .from("processos")
@@ -1668,6 +1781,7 @@ export default function ImportarProcessos() {
               coordenacao_id: selectedCoordenacao || null,
               advogado_responsavel_id: selectedMembro || null,
               cliente_id: selectedCliente || null,
+              pasta_id: pastaId,
               monitorar_andamentos: projurisBuscarAndamentos,
               // Projuris-specific fields
               identificador_projuris: processo.identificadorProjuris || null,
