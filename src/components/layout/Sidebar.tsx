@@ -47,7 +47,7 @@ const menuItems = [
   { icon: Upload, label: "Importar Tarefas", path: "/importar-tarefas" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: Radar, label: "Monit. DJEN", path: "/monitoramento-djen" },
-  { icon: FolderKanban, label: "Minhas Tarefas", path: "/minha-carteira" },
+  
   { icon: Bell, label: "Notificações", path: "/notificacoes" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
