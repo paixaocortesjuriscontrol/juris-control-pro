@@ -40,6 +40,11 @@ export interface CapturaIntimacao {
   created_at: string;
   updated_at: string;
   cofre_senha?: CofreSenha;
+  // Campos de agendamento
+  modo_captura?: "agendado" | "intervalo" | "manual";
+  horarios_execucao?: string[];
+  dias_semana?: number[];
+  intervalo_minutos?: number;
 }
 
 export interface HistoricoCaptura {
