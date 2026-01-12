@@ -308,8 +308,7 @@ export default function ProcessoDetalhes() {
         .from("tarefas")
         .select(`
           *,
-          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome),
-          criador:profiles!tarefas_criado_por_fkey(id, nome)
+          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
         `)
         .eq("processo_id", id!)
         .order("data_vencimento", { ascending: true });
