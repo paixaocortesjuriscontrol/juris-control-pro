@@ -115,9 +115,26 @@ SELECT cron.schedule(
 );
 
 -- =============================================
+-- 5. ENVIAR ALERTAS MONITORAÇÃO 360 POR EMAIL
+-- Executa 1x ao dia às 19h BRT (22h UTC)
+-- =============================================
+
+SELECT cron.schedule(
+  'enviar-alertas-360-email',
+  '0 22 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/enviar-alertas-360-email',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
+    body := '{}'::jsonb
+  );
+  $$
+);
+
+-- =============================================
 -- VERIFICAR JOBS CONFIGURADOS
 -- =============================================
 SELECT jobid, jobname, schedule, active 
 FROM cron.job 
-WHERE jobname LIKE 'monitorar%' OR jobname LIKE 'processar-alertas%'
+WHERE jobname LIKE 'monitorar%' OR jobname LIKE 'processar-alertas%' OR jobname LIKE 'enviar-alertas%'
 ORDER BY jobname;

@@ -67,11 +67,11 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log(`[enviar-alertas-360-email] ${alertas.length} alertas encontrados`);
 
-    // Buscar usuários que optaram por receber emails de Monitoração 360
+    // Buscar usuários que optaram por receber emails (notificacoes_email genérico)
     const { data: usuarios, error: usuariosError } = await supabase
       .from("profiles")
       .select("id, nome, email")
-      .eq("notificacoes_email_360", true)
+      .eq("notificacoes_email", true)
       .eq("ativo", true);
 
     if (usuariosError) {
