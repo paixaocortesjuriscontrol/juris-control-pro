@@ -515,13 +515,78 @@ export default function ImportarProcessos() {
         let isUpdate = false;
 
         if (existingProcesso) {
-          // Update existing process with coordination and member if selected
+          // Fetch current process data to check empty fields
+          const { data: currentProcesso } = await supabase
+            .from("processos")
+            .select("*")
+            .eq("id", existingProcesso.id)
+            .single();
+
+          // Update existing process - only fill empty fields, preserve responsáveis/coordenação
           const updateData: Record<string, any> = {};
-          if (selectedCoordenacao) {
+          
+          // Only update coordination if currently empty AND user selected one
+          if (selectedCoordenacao && !currentProcesso?.coordenacao_id) {
             updateData.coordenacao_id = selectedCoordenacao;
           }
-          if (selectedMembro) {
+          // Only update member if currently empty AND user selected one
+          if (selectedMembro && !currentProcesso?.advogado_responsavel_id) {
             updateData.advogado_responsavel_id = selectedMembro;
+          }
+          // Only update cliente if currently empty AND user selected one
+          if (selectedCliente && !currentProcesso?.cliente_id) {
+            updateData.cliente_id = selectedCliente;
+          }
+
+          // Smart merge: update only empty fields in the database with spreadsheet data
+          if (!currentProcesso?.assunto && processo.assunto) {
+            updateData.assunto = processo.assunto;
+          }
+          if (!currentProcesso?.descricao && processo.descricao) {
+            updateData.descricao = processo.descricao;
+          }
+          if (!currentProcesso?.tribunal && processo.orgao) {
+            updateData.tribunal = processo.orgao;
+          }
+          if (!currentProcesso?.vara && processo.orgaoJulgador) {
+            updateData.vara = processo.orgaoJulgador;
+          }
+          if (!currentProcesso?.comarca && processo.cidade) {
+            updateData.comarca = processo.cidade;
+          }
+          if (!currentProcesso?.classe && processo.classeCNJ) {
+            updateData.classe = processo.classeCNJ;
+          }
+          if (!currentProcesso?.data_distribuicao && parseDate(processo.dataDistribuicao)) {
+            updateData.data_distribuicao = parseDate(processo.dataDistribuicao);
+          }
+          if (!currentProcesso?.valor_causa && parseNumber(processo.valorAcao)) {
+            updateData.valor_causa = parseNumber(processo.valorAcao);
+          }
+          if (!currentProcesso?.polo_ativo && processo.parteAtiva) {
+            updateData.polo_ativo = processo.parteAtiva;
+          }
+          if (!currentProcesso?.polo_passivo && processo.partePassiva) {
+            updateData.polo_passivo = processo.partePassiva;
+          }
+          if (!currentProcesso?.justica && processo.justica) {
+            updateData.justica = processo.justica;
+          }
+          if (!currentProcesso?.instancia && processo.instancia) {
+            updateData.instancia = processo.instancia;
+          }
+          if (!currentProcesso?.fase && processo.fase) {
+            updateData.fase = processo.fase;
+          }
+          if (!currentProcesso?.uf && processo.estado) {
+            updateData.uf = processo.estado;
+          }
+          // Update area only if current is default "civil" and spreadsheet has different area
+          if (processo.area && currentProcesso?.area === "civil") {
+            const newArea = mapAreaToEnum(processo.area);
+            if (newArea !== "civil") {
+              updateData.area = newArea;
+            }
           }
           
           if (Object.keys(updateData).length > 0) {
