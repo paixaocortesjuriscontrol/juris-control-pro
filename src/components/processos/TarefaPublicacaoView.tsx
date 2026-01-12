@@ -145,7 +145,7 @@ export function TarefaPublicacaoView({
     enabled: !!tarefaId,
   });
 
-  // Buscar vínculo tarefa-publicação
+  // Buscar vínculo tarefa-publicação de TERMOS (publicacoes_djen)
   const { data: vinculoPublicacao } = useQuery({
     queryKey: ["tarefa-publicacao-vinculo", tarefaId],
     queryFn: async () => {
@@ -161,8 +161,24 @@ export function TarefaPublicacaoView({
     enabled: !!tarefaId,
   });
 
-  // Buscar publicação vinculada
-  const { data: publicacao, isLoading: loadingPublicacao } = useQuery({
+  // Buscar vínculo tarefa-publicação de PROCESSOS (publicacoes_djen_processos)
+  const { data: vinculoPublicacaoProcesso } = useQuery({
+    queryKey: ["tarefa-publicacao-processo-vinculo", tarefaId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tarefas_publicacoes_processos")
+        .select("publicacao_processo_id")
+        .eq("tarefa_id", tarefaId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tarefaId,
+  });
+
+  // Buscar publicação vinculada de TERMOS
+  const { data: publicacaoTermo } = useQuery({
     queryKey: ["publicacao-djen", vinculoPublicacao?.publicacao_id],
     queryFn: async () => {
       if (!vinculoPublicacao?.publicacao_id) return null;
@@ -181,9 +197,30 @@ export function TarefaPublicacaoView({
     enabled: !!vinculoPublicacao?.publicacao_id,
   });
 
-  // Buscar todas as tarefas vinculadas a esta publicação
-  const { data: tarefasVinculadas = [] } = useQuery({
-    queryKey: ["tarefas-publicacao", vinculoPublicacao?.publicacao_id],
+  // Buscar publicação vinculada de PROCESSOS
+  const { data: publicacaoProcesso } = useQuery({
+    queryKey: ["publicacao-djen-processo", vinculoPublicacaoProcesso?.publicacao_processo_id],
+    queryFn: async () => {
+      if (!vinculoPublicacaoProcesso?.publicacao_processo_id) return null;
+      const { data, error } = await supabase
+        .from("publicacoes_djen_processos")
+        .select("*")
+        .eq("id", vinculoPublicacaoProcesso.publicacao_processo_id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!vinculoPublicacaoProcesso?.publicacao_processo_id,
+  });
+
+  // Unificar publicação de qualquer origem
+  const publicacao = publicacaoTermo || publicacaoProcesso;
+  const tipoPublicacao = publicacaoTermo ? 'termo' : (publicacaoProcesso ? 'processo' : null);
+
+  // Buscar todas as tarefas vinculadas a esta publicação (TERMO)
+  const { data: tarefasVinculadasTermo = [] } = useQuery({
+    queryKey: ["tarefas-publicacao-termo", vinculoPublicacao?.publicacao_id],
     queryFn: async () => {
       if (!vinculoPublicacao?.publicacao_id) return [];
       const { data, error } = await supabase
@@ -201,6 +238,30 @@ export function TarefaPublicacaoView({
     },
     enabled: !!vinculoPublicacao?.publicacao_id,
   });
+
+  // Buscar todas as tarefas vinculadas a esta publicação (PROCESSO)
+  const { data: tarefasVinculadasProcesso = [] } = useQuery({
+    queryKey: ["tarefas-publicacao-processo", vinculoPublicacaoProcesso?.publicacao_processo_id],
+    queryFn: async () => {
+      if (!vinculoPublicacaoProcesso?.publicacao_processo_id) return [];
+      const { data, error } = await supabase
+        .from("tarefas_publicacoes_processos")
+        .select(`
+          tarefa:tarefas(
+            id, titulo, status, prioridade, data_vencimento, tipo_tarefa, descricao,
+            responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
+          )
+        `)
+        .eq("publicacao_processo_id", vinculoPublicacaoProcesso.publicacao_processo_id);
+
+      if (error) throw error;
+      return (data || []).map((d: any) => d.tarefa).filter(Boolean);
+    },
+    enabled: !!vinculoPublicacaoProcesso?.publicacao_processo_id,
+  });
+
+  // Unificar tarefas vinculadas
+  const tarefasVinculadas = [...tarefasVinculadasTermo, ...tarefasVinculadasProcesso];
 
   // Buscar processo com detalhes
   const { data: processo } = useQuery({
@@ -278,7 +339,9 @@ export function TarefaPublicacaoView({
   };
 
   async function onSubmit(values: FormValues) {
-    if (!user || !vinculoPublicacao?.publicacao_id) return;
+    // Precisa ter uma publicação vinculada para criar tarefa
+    const publicacaoId = vinculoPublicacao?.publicacao_id || vinculoPublicacaoProcesso?.publicacao_processo_id;
+    if (!user || !publicacaoId) return;
 
     setLoading(true);
     try {
@@ -302,15 +365,26 @@ export function TarefaPublicacaoView({
 
       if (error) throw error;
 
-      await supabase
-        .from("tarefas_publicacoes")
-        .insert({
-          tarefa_id: novaTarefa.id,
-          publicacao_id: vinculoPublicacao.publicacao_id,
-        });
+      // Vincular na tabela correta dependendo do tipo
+      if (tipoPublicacao === 'termo' && vinculoPublicacao?.publicacao_id) {
+        await supabase
+          .from("tarefas_publicacoes")
+          .insert({
+            tarefa_id: novaTarefa.id,
+            publicacao_id: vinculoPublicacao.publicacao_id,
+          });
+      } else if (tipoPublicacao === 'processo' && vinculoPublicacaoProcesso?.publicacao_processo_id) {
+        await supabase
+          .from("tarefas_publicacoes_processos")
+          .insert({
+            tarefa_id: novaTarefa.id,
+            publicacao_processo_id: vinculoPublicacaoProcesso.publicacao_processo_id,
+          });
+      }
 
       toast.success("Tarefa criada com sucesso!");
-      queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-termo"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       
@@ -344,7 +418,7 @@ export function TarefaPublicacaoView({
     .join(", ") || processo?.advogado_responsavel?.nome || "Não atribuído";
 
   // Verifica se está carregando o vínculo
-  const isLoadingVinculo = vinculoPublicacao === undefined;
+  const isLoadingVinculo = vinculoPublicacao === undefined && vinculoPublicacaoProcesso === undefined;
 
   // Se está carregando
   if (isLoadingVinculo || !tarefa) {
@@ -356,7 +430,7 @@ export function TarefaPublicacaoView({
   }
 
   // Determina se tem publicação vinculada
-  const temPublicacao = vinculoPublicacao !== null && publicacao;
+  const temPublicacao = publicacao !== null && publicacao !== undefined;
 
   return (
     <div className="flex flex-col lg:flex-row gap-0 border rounded-lg bg-background overflow-hidden min-h-[600px]">
@@ -472,12 +546,12 @@ export function TarefaPublicacaoView({
                     <p className="text-sm">
                       Processo: <span className="font-mono font-medium">{publicacao.processo_numero || processo?.numero}</span>
                     </p>
-                    {publicacao.monitoramento && (
+                    {tipoPublicacao === 'termo' && publicacaoTermo?.monitoramento && (
                       <p className="text-sm">
                         Termo encontrado: <strong className="text-primary">
-                          {publicacao.monitoramento.tipo === 'advogado'
-                            ? `OAB ${publicacao.monitoramento.oab} ${publicacao.monitoramento.uf}`
-                            : publicacao.monitoramento.termo_busca
+                          {publicacaoTermo.monitoramento.tipo === 'advogado'
+                            ? `OAB ${publicacaoTermo.monitoramento.oab} ${publicacaoTermo.monitoramento.uf}`
+                            : publicacaoTermo.monitoramento.termo_busca
                           }
                         </strong>
                       </p>

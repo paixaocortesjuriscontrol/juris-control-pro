@@ -3264,6 +3264,42 @@ export type Database = {
           },
         ]
       }
+      tarefas_publicacoes_processos: {
+        Row: {
+          created_at: string
+          id: string
+          publicacao_processo_id: string
+          tarefa_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          publicacao_processo_id: string
+          tarefa_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          publicacao_processo_id?: string
+          tarefa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefas_publicacoes_processos_publicacao_processo_id_fkey"
+            columns: ["publicacao_processo_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_djen_processos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_publicacoes_processos_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tarefas_relacionadas: {
         Row: {
           created_at: string
