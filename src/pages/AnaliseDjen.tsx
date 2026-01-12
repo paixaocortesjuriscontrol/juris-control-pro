@@ -73,25 +73,22 @@ const AnaliseDjen = () => {
     enabled: !!user?.id,
   });
 
-  // Filtros - inicializar com placeholder até carregar coordenação
-  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  // Filtros - inicializar com coordenação do usuário
+  const [coordenacaoId, setCoordenacaoId] = useState<string | null>(null); // null = ainda não inicializado
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
   const [apenasHoje, setApenasHoje] = useState(true);
   const [tipoOrigem, setTipoOrigem] = useState<'todos' | 'termo' | 'processo'>('todos');
-  const [initialized, setInitialized] = useState(false);
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
-    if (!loadingUserCoord && !initialized) {
-      if (userCoordenacao) {
-        setCoordenacaoId(userCoordenacao);
-      }
-      setInitialized(true);
+    if (!loadingUserCoord && coordenacaoId === null) {
+      // Inicializa com a coordenação do usuário (ou string vazia para "todas" se não tiver)
+      setCoordenacaoId(userCoordenacao || "");
     }
-  }, [userCoordenacao, loadingUserCoord, initialized]);
+  }, [userCoordenacao, loadingUserCoord, coordenacaoId]);
   
   // States
   const [selectedIds, setSelectedIds] = useState<Map<string, 'termo' | 'processo'>>(new Map());
@@ -99,17 +96,27 @@ const AnaliseDjen = () => {
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
+
+  // Determinar o filtro efetivo de coordenação
+  // Se coordenacaoId ainda é null, aguardar inicialização
+  // Se é string vazia "", significa "todas as coordenações"
+  // Se tem valor, usar esse valor
+  const coordenacaoFiltroEfetivo = coordenacaoId === null 
+    ? undefined // ainda carregando
+    : coordenacaoId === "" 
+      ? undefined // todas
+      : coordenacaoId; // coordenação específica
   
   const { 
     publicacoes, 
     estatisticas, 
-    isLoading, 
+    isLoading: isLoadingPublicacoes, 
     loadingStats,
     marcarComoLida,
     totalHoje,
     naoLidasHoje
   } = usePublicacoesDjenUnificadas({
-    coordenacaoId: coordenacaoId || undefined,
+    coordenacaoId: coordenacaoFiltroEfetivo,
     dataInicio: apenasHoje ? undefined : dataInicio || undefined,
     dataFim: apenasHoje ? undefined : dataFim || undefined,
     termoBusca: termoBusca || undefined,
@@ -117,6 +124,9 @@ const AnaliseDjen = () => {
     apenasHoje,
     tipoOrigem: tipoOrigem === 'todos' ? undefined : tipoOrigem,
   });
+
+  // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
+  const isLoading = loadingUserCoord || coordenacaoId === null || isLoadingPublicacoes;
 
   const { data: coordenacoes } = useCoordenacoes();
 
@@ -297,13 +307,15 @@ const AnaliseDjen = () => {
                 <Label className="text-xs md:text-sm">Coordenação</Label>
                 <select
                   className="w-full h-9 md:h-10 px-3 rounded-md border border-input bg-background text-sm"
-                  value={coordenacaoId || "__all__"}
+                  value={coordenacaoId === null ? "__loading__" : (coordenacaoId || "__all__")}
                   onChange={(e) => setCoordenacaoId(e.target.value === "__all__" ? "" : e.target.value)}
+                  disabled={coordenacaoId === null}
                 >
-                  <option value="__all__">Todas</option>
+                  {coordenacaoId === null && <option value="__loading__">Carregando...</option>}
+                  <option value="__all__">Todas as Coordenações</option>
                   {coordenacoes?.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.nome}
+                      {c.nome} {c.id === userCoordenacao ? "(Minha)" : ""}
                     </option>
                   ))}
                 </select>
