@@ -151,6 +151,7 @@ export default function MinhaAgenda() {
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [pessoasPopoverOpen, setPessoasPopoverOpen] = useState(false);
   const [coordenacaoAutoDetected, setCoordenacaoAutoDetected] = useState(false);
+  const [membrosAutoDetected, setMembrosAutoDetected] = useState(false);
 
   const updateEvento = useUpdateEvento();
   const deleteEvento = useDeleteEvento();
@@ -184,10 +185,25 @@ export default function MinhaAgenda() {
 
   // Auto-filter by logged user when not admin
   useEffect(() => {
-    if (user?.id && membrosFiltro.length === 0 && !isAdminOrCoordinator) {
+    if (user?.id && membrosFiltro.length === 0 && !isAdminOrCoordinator && !membrosAutoDetected) {
       setMembrosFiltro([user.id]);
+      setMembrosAutoDetected(true);
     }
-  }, [user?.id, isAdminOrCoordinator]);
+  }, [user?.id, isAdminOrCoordinator, membrosFiltro.length, membrosAutoDetected]);
+
+  // If role becomes admin/coordinator, undo the auto-filter (so totals  list are not restricted to only the logged user)
+  useEffect(() => {
+    if (
+      isAdminOrCoordinator &&
+      user?.id &&
+      membrosAutoDetected &&
+      membrosFiltro.length === 1 &&
+      membrosFiltro[0] === user.id
+    ) {
+      setMembrosFiltro([]);
+      setMembrosAutoDetected(false);
+    }
+  }, [isAdminOrCoordinator, user?.id, membrosAutoDetected, membrosFiltro]);
 
   // Fetch coordenações
   const { data: coordenacoes } = useQuery({
@@ -325,13 +341,21 @@ export default function MinhaAgenda() {
 
       const buildQuery = () => {
         let q = supabase.from("tarefas").select("*", { count: "exact", head: true });
+
+        // When filtering by people, mirror the same visibility logic used in the list:
+        // include tasks where the user is responsible OR creator.
         if (membrosFiltro.length > 0) {
-          q = q.in("responsavel_id", membrosFiltro);
+          if (membrosFiltro.length === 1 && user?.id && membrosFiltro[0] === user.id) {
+            q = q.or(`responsavel_id.in.(${user.id}),criado_por.eq.${user.id}`);
+          } else {
+            q = q.in("responsavel_id", membrosFiltro);
+          }
         } else if (!isAdminOrCoordinator && user?.id) {
           q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
         } else if (isAdminOrCoordinator && membroIds && membroIds.length > 0) {
           q = q.in("responsavel_id", membroIds);
         }
+
         return q;
       };
 
