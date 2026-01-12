@@ -1470,47 +1470,93 @@ export default function ImportarProcessos() {
 
       if (projurisCancelledRef.current) return;
 
-      // 3) Batch UPDATE existing processes (if coordination/member/cliente selected)
-      const hasUpdateFields = selectedCoordenacao || selectedMembro || selectedCliente;
-      if (hasUpdateFields && toUpdateIndices.length > 0) {
-        for (let i = 0; i < toUpdateIndices.length; i += BATCH_SIZE) {
+      // 3) Smart merge UPDATE for existing processes - fill only empty fields
+      if (toUpdateIndices.length > 0) {
+        // Need to do one-by-one for smart merge since each process may have different empty fields
+        for (let i = 0; i < toUpdateIndices.length; i++) {
           if (projurisCancelledRef.current) break;
 
-          const batchIndices = toUpdateIndices.slice(i, i + BATCH_SIZE);
-          const numeros = batchIndices.map((idx) => updatedProcessos[idx].numero.trim());
-          const updateData: Record<string, any> = {};
-          if (selectedCoordenacao) updateData.coordenacao_id = selectedCoordenacao;
-          if (selectedMembro) updateData.advogado_responsavel_id = selectedMembro;
-          if (selectedCliente) updateData.cliente_id = selectedCliente;
+          const idx = toUpdateIndices[i];
+          const processo = updatedProcessos[idx];
+          const existingId = existingMap.get(processo.numero.trim());
+          
+          if (!existingId) continue;
 
-          const { error } = await supabase.from("processos").update(updateData).in("numero", numeros);
-          if (error) {
-            const translatedError = translateDatabaseError(error.message);
-            for (const idx of batchIndices) {
-              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translatedError };
-              errorCount++;
-            }
-          } else {
-            for (const idx of batchIndices) {
-              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso", erroImport: "Atualizado (já existia)" };
-              successCount++;
-            }
+          // Fetch current process data
+          const { data: currentProcesso } = await supabase
+            .from("processos")
+            .select("*")
+            .eq("id", existingId)
+            .single();
+
+          if (!currentProcesso) {
+            updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso", erroImport: "Já existia (sem alteração)" };
+            successCount++;
+            continue;
           }
 
-          processed += batchIndices.length;
+          // Smart merge: update only empty fields
+          const updateData: Record<string, any> = {};
+          
+          // Only update if currently empty AND user selected / spreadsheet has data
+          if (selectedCoordenacao && !currentProcesso.coordenacao_id) updateData.coordenacao_id = selectedCoordenacao;
+          if (selectedMembro && !currentProcesso.advogado_responsavel_id) updateData.advogado_responsavel_id = selectedMembro;
+          if (selectedCliente && !currentProcesso.cliente_id) updateData.cliente_id = selectedCliente;
+          
+          // Merge spreadsheet data into empty fields
+          if (!currentProcesso.assunto && processo.assunto) updateData.assunto = processo.assunto;
+          if (!currentProcesso.descricao && processo.descricao) updateData.descricao = processo.descricao;
+          if (!currentProcesso.tribunal && processo.orgao) updateData.tribunal = processo.orgao;
+          if (!currentProcesso.vara && processo.orgaoJulgador) updateData.vara = processo.orgaoJulgador;
+          if (!currentProcesso.comarca && processo.cidade) updateData.comarca = processo.cidade;
+          if (!currentProcesso.classe && processo.classeCNJ) updateData.classe = processo.classeCNJ;
+          if (!currentProcesso.data_distribuicao && parseDate(processo.dataDistribuicao)) updateData.data_distribuicao = parseDate(processo.dataDistribuicao);
+          if (!currentProcesso.valor_causa && parseNumber(processo.valorAcao)) updateData.valor_causa = parseNumber(processo.valorAcao);
+          if (!currentProcesso.polo_ativo && processo.parteAtiva) updateData.polo_ativo = processo.parteAtiva;
+          if (!currentProcesso.polo_passivo && processo.partePassiva) updateData.polo_passivo = processo.partePassiva;
+          if (!currentProcesso.justica && processo.justica) updateData.justica = processo.justica;
+          if (!currentProcesso.instancia && processo.instancia) updateData.instancia = processo.instancia;
+          if (!currentProcesso.fase && processo.fase) updateData.fase = processo.fase;
+          if (!currentProcesso.uf && processo.estado) updateData.uf = processo.estado;
+          // Projuris-specific fields
+          if (!currentProcesso.identificador_projuris && processo.identificadorProjuris) updateData.identificador_projuris = processo.identificadorProjuris;
+          if (!currentProcesso.pasta_fisica && processo.pastaFisica) updateData.pasta_fisica = processo.pastaFisica;
+          if (!currentProcesso.pasta_cliente && processo.pastaCliente) updateData.pasta_cliente = processo.pastaCliente;
+          if (!currentProcesso.data_citacao && parseDate(processo.dataCitacao)) updateData.data_citacao = parseDate(processo.dataCitacao);
+          if (!currentProcesso.data_recebimento && parseDate(processo.dataRecebimento)) updateData.data_recebimento = parseDate(processo.dataRecebimento);
+          if (!currentProcesso.data_arquivamento && parseDate(processo.dataArquivamento)) updateData.data_arquivamento = parseDate(processo.dataArquivamento);
+          if (!currentProcesso.valor_provisionado && parseNumber(processo.valorProvisionado)) updateData.valor_provisionado = parseNumber(processo.valorProvisionado);
+          if (!currentProcesso.probabilidade && processo.probabilidade) updateData.probabilidade = processo.probabilidade;
+          if (!currentProcesso.risco && processo.risco) updateData.risco = processo.risco;
+          if (!currentProcesso.resultado && processo.resultado) updateData.resultado = processo.resultado;
+          if (!currentProcesso.valor_condenacao && parseNumber(processo.valorCondenacao)) updateData.valor_condenacao = parseNumber(processo.valorCondenacao);
+          if (!currentProcesso.responsaveis_projuris && processo.responsavel) updateData.responsaveis_projuris = processo.responsavel;
+          // Update area only if current is default
+          if (processo.area && currentProcesso.area === "civil") {
+            const newArea = mapAreaToEnum(processo.area);
+            if (newArea !== "civil") updateData.area = newArea;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            const { error } = await supabase.from("processos").update(updateData).eq("id", existingId);
+            if (error) {
+              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translateDatabaseError(error.message) };
+              errorCount++;
+            } else {
+              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso", erroImport: "Atualizado (campos vazios preenchidos)" };
+              successCount++;
+            }
+          } else {
+            updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso", erroImport: "Já existia (sem alteração)" };
+            successCount++;
+          }
+
+          processed++;
           setProjurisProgress((processed / totalToProcess) * 100);
           setProjurisProcessos([...updatedProcessos]);
           await new Promise((r) => setTimeout(r, 0));
         }
         if (projurisCancelledRef.current) return;
-      } else {
-        // Mark existing as success (no update needed)
-        for (const idx of toUpdateIndices) {
-          updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso", erroImport: "Já existia (sem alteração)" };
-          successCount++;
-        }
-        setProjurisProgress(100);
-        setProjurisProcessos([...updatedProcessos]);
       }
 
       setProjurisImporting(false);
@@ -1546,16 +1592,53 @@ export default function ImportarProcessos() {
         let isUpdate = false;
 
         if (existingProcesso) {
-          // Update existing process with coordination and member if selected
+          // Fetch current process data for smart merge
+          const { data: currentProcesso } = await supabase
+            .from("processos")
+            .select("*")
+            .eq("id", existingProcesso.id)
+            .single();
+
+          // Smart merge: update only empty fields, preserve responsáveis/coordenação
           const updateData: Record<string, any> = {};
-          if (selectedCoordenacao) {
-            updateData.coordenacao_id = selectedCoordenacao;
-          }
-          if (selectedMembro) {
-            updateData.advogado_responsavel_id = selectedMembro;
-          }
-          if (selectedCliente) {
-            updateData.cliente_id = selectedCliente;
+          
+          // Only update if currently empty AND user selected / spreadsheet has data
+          if (selectedCoordenacao && !currentProcesso?.coordenacao_id) updateData.coordenacao_id = selectedCoordenacao;
+          if (selectedMembro && !currentProcesso?.advogado_responsavel_id) updateData.advogado_responsavel_id = selectedMembro;
+          if (selectedCliente && !currentProcesso?.cliente_id) updateData.cliente_id = selectedCliente;
+          
+          // Merge spreadsheet data into empty fields
+          if (!currentProcesso?.assunto && processo.assunto) updateData.assunto = processo.assunto;
+          if (!currentProcesso?.descricao && processo.descricao) updateData.descricao = processo.descricao;
+          if (!currentProcesso?.tribunal && processo.orgao) updateData.tribunal = processo.orgao;
+          if (!currentProcesso?.vara && processo.orgaoJulgador) updateData.vara = processo.orgaoJulgador;
+          if (!currentProcesso?.comarca && processo.cidade) updateData.comarca = processo.cidade;
+          if (!currentProcesso?.classe && processo.classeCNJ) updateData.classe = processo.classeCNJ;
+          if (!currentProcesso?.data_distribuicao && parseDate(processo.dataDistribuicao)) updateData.data_distribuicao = parseDate(processo.dataDistribuicao);
+          if (!currentProcesso?.valor_causa && parseNumber(processo.valorAcao)) updateData.valor_causa = parseNumber(processo.valorAcao);
+          if (!currentProcesso?.polo_ativo && processo.parteAtiva) updateData.polo_ativo = processo.parteAtiva;
+          if (!currentProcesso?.polo_passivo && processo.partePassiva) updateData.polo_passivo = processo.partePassiva;
+          if (!currentProcesso?.justica && processo.justica) updateData.justica = processo.justica;
+          if (!currentProcesso?.instancia && processo.instancia) updateData.instancia = processo.instancia;
+          if (!currentProcesso?.fase && processo.fase) updateData.fase = processo.fase;
+          if (!currentProcesso?.uf && processo.estado) updateData.uf = processo.estado;
+          // Projuris-specific fields
+          if (!currentProcesso?.identificador_projuris && processo.identificadorProjuris) updateData.identificador_projuris = processo.identificadorProjuris;
+          if (!currentProcesso?.pasta_fisica && processo.pastaFisica) updateData.pasta_fisica = processo.pastaFisica;
+          if (!currentProcesso?.pasta_cliente && processo.pastaCliente) updateData.pasta_cliente = processo.pastaCliente;
+          if (!currentProcesso?.data_citacao && parseDate(processo.dataCitacao)) updateData.data_citacao = parseDate(processo.dataCitacao);
+          if (!currentProcesso?.data_recebimento && parseDate(processo.dataRecebimento)) updateData.data_recebimento = parseDate(processo.dataRecebimento);
+          if (!currentProcesso?.data_arquivamento && parseDate(processo.dataArquivamento)) updateData.data_arquivamento = parseDate(processo.dataArquivamento);
+          if (!currentProcesso?.valor_provisionado && parseNumber(processo.valorProvisionado)) updateData.valor_provisionado = parseNumber(processo.valorProvisionado);
+          if (!currentProcesso?.probabilidade && processo.probabilidade) updateData.probabilidade = processo.probabilidade;
+          if (!currentProcesso?.risco && processo.risco) updateData.risco = processo.risco;
+          if (!currentProcesso?.resultado && processo.resultado) updateData.resultado = processo.resultado;
+          if (!currentProcesso?.valor_condenacao && parseNumber(processo.valorCondenacao)) updateData.valor_condenacao = parseNumber(processo.valorCondenacao);
+          if (!currentProcesso?.responsaveis_projuris && processo.responsavel) updateData.responsaveis_projuris = processo.responsavel;
+          // Update area only if current is default
+          if (processo.area && currentProcesso?.area === "civil") {
+            const newArea = mapAreaToEnum(processo.area);
+            if (newArea !== "civil") updateData.area = newArea;
           }
 
           if (Object.keys(updateData).length > 0) {
