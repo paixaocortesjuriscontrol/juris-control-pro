@@ -77,7 +77,8 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               {/* Redirect central-delegacao to unified agenda */}
-              <Route path="/central-delegacao" element={<Navigate to="/minha-agenda" replace />} />
+            <Route path="/central-delegacao" element={<Navigate to="/minha-agenda" replace />} />
+            <Route path="/prazos" element={<Navigate to="/minha-agenda" replace />} />
               <Route path="/nova-tarefa" element={<ProtectedRoute><NovaTarefa /></ProtectedRoute>} />
               <Route path="/minha-agenda" element={<ProtectedRoute><MinhaAgenda /></ProtectedRoute>} />
               <Route path="/minha-carteira" element={<ProtectedRoute><MinhaCarteira /></ProtectedRoute>} />
