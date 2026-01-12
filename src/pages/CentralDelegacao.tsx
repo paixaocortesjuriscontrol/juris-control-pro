@@ -45,8 +45,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { TarefaDetalhesDialog } from "@/components/delegacao/TarefaDetalhesDialog";
 import { AcoesEmLoteDialog } from "@/components/delegacao/AcoesEmLoteDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
+import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Coins } from "lucide-react";
 
 type TipoAtividade = "todos" | "tarefas" | "audiencias" | "compromissos";
 type StatusFiltro = "todos" | "pendente" | "cumprido" | "atrasado";
@@ -101,6 +103,7 @@ export default function CentralDelegacao() {
   const [selectedTarefaId, setSelectedTarefaId] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [novoCompromissoOpen, setNovoCompromissoOpen] = useState(false);
+  const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
   const [acoesLoteOpen, setAcoesLoteOpen] = useState(false);
   const [ordenacao, setOrdenacao] = useState<string>("mais-antigas");
   const [coordenacaoAutoDetected, setCoordenacaoAutoDetected] = useState(false);
@@ -595,6 +598,10 @@ export default function CentralDelegacao() {
                     <Calendar className="w-4 h-4 mr-2" />
                     Novo Compromisso
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setParcelasDialogOpen(true)}>
+                    <Coins className="w-4 h-4 mr-2" />
+                    Gerar Parcelas
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -1069,6 +1076,11 @@ export default function CentralDelegacao() {
       <EventoDialog
         open={novoCompromissoOpen}
         onOpenChange={setNovoCompromissoOpen}
+      />
+
+      <GerarParcelasDialog
+        open={parcelasDialogOpen}
+        onOpenChange={setParcelasDialogOpen}
       />
     </MainLayout>
   );
