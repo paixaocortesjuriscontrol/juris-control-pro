@@ -6,20 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface AlertaComDetalhes {
-  id: string;
-  termo_encontrado: string;
-  contexto: string | null;
-  prioridade: string;
-  created_at: string;
-  processo: {
-    id: string;
-    numero: string;
-    polo_ativo: string | null;
-    polo_passivo: string | null;
-  } | null;
-}
-
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -41,7 +27,6 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const alertaIds: string[] = body.alertaIds || [];
     const forceRun = body.forceRun === true;
 
     // Converter para BRT (UTC-3)
@@ -49,11 +34,10 @@ serve(async (req: Request): Promise<Response> => {
     const nowBrt = new Date(nowUtc.getTime() - 3 * 60 * 60 * 1000);
     const dataBrt = nowBrt.toISOString().slice(0, 10);
 
-    console.log(`[enviar-alertas-360-email] Início: ${nowUtc.toISOString()} | forceRun: ${forceRun} | alertaIds: ${alertaIds.length}`);
+    console.log(`[enviar-alertas-360-email] Início: ${nowUtc.toISOString()} | forceRun: ${forceRun}`);
 
-    // Se alertaIds foram passados, buscar esses alertas específicos
-    // Caso contrário, buscar alertas pendentes criados hoje
-    let alertasQuery = supabase
+    // Buscar alertas pendentes de hoje com coordenação do processo
+    const { data: alertas, error: alertasError } = await supabase
       .from("alertas_monitoramento")
       .select(`
         id,
@@ -61,20 +45,12 @@ serve(async (req: Request): Promise<Response> => {
         contexto,
         prioridade,
         created_at,
-        processo:processos(id, numero, polo_ativo, polo_passivo)
+        processo_id,
+        processo:processos(id, numero, polo_ativo, polo_passivo, coordenacao_id)
       `)
-      .eq("status", "pendente");
-
-    if (alertaIds.length > 0) {
-      alertasQuery = alertasQuery.in("id", alertaIds);
-    } else {
-      // Buscar apenas alertas de hoje
-      alertasQuery = alertasQuery
-        .gte("created_at", `${dataBrt}T00:00:00-03:00`)
-        .lte("created_at", `${dataBrt}T23:59:59-03:00`);
-    }
-
-    const { data: alertas, error: alertasError } = await alertasQuery;
+      .eq("status", "pendente")
+      .gte("created_at", `${dataBrt}T00:00:00-03:00`)
+      .lte("created_at", `${dataBrt}T23:59:59-03:00`);
 
     if (alertasError) {
       console.error("Erro ao buscar alertas:", alertasError);
@@ -111,26 +87,39 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log(`[enviar-alertas-360-email] ${usuarios.length} usuários para notificar`);
+    // Buscar coordenações de cada usuário
+    const usuarioIds = usuarios.map(u => u.id);
+    const { data: membrosCoordenacao } = await supabase
+      .from("membros_coordenacao")
+      .select("usuario_id, coordenacao_id")
+      .in("usuario_id", usuarioIds);
 
-    // Agrupar alertas por prioridade
-    const alertasPorPrioridade: Record<string, any[]> = {
-      urgente: [],
-      alta: [],
-      media: [],
-      baixa: [],
-    };
+    // Buscar roles para identificar admins/coordenadores
+    const { data: userRoles } = await supabase
+      .from("user_roles")
+      .select("user_id, role")
+      .in("user_id", usuarioIds);
 
-    for (const alerta of alertas) {
-      const prioridade = alerta.prioridade || "media";
-      if (alertasPorPrioridade[prioridade]) {
-        alertasPorPrioridade[prioridade].push(alerta);
-      } else {
-        alertasPorPrioridade.media.push(alerta);
+    // Mapear usuário -> coordenações
+    const usuarioCoordenacoes: Record<string, string[]> = {};
+    const usuariosAdmin: Set<string> = new Set();
+
+    for (const membro of membrosCoordenacao || []) {
+      if (!usuarioCoordenacoes[membro.usuario_id]) {
+        usuarioCoordenacoes[membro.usuario_id] = [];
+      }
+      usuarioCoordenacoes[membro.usuario_id].push(membro.coordenacao_id);
+    }
+
+    for (const role of userRoles || []) {
+      if (role.role === 'admin' || role.role === 'coordenador') {
+        usuariosAdmin.add(role.user_id);
       }
     }
 
-    // Construir HTML do email
+    console.log(`[enviar-alertas-360-email] ${usuarios.length} usuários, ${membrosCoordenacao?.length || 0} membros de coordenação`);
+
+    // Funções auxiliares
     const prioridadeEmoji: Record<string, string> = {
       urgente: "🚨",
       alta: "⚠️",
@@ -145,77 +134,101 @@ serve(async (req: Request): Promise<Response> => {
       baixa: "#16a34a",
     };
 
-    let alertasHtml = "";
-    for (const [prioridade, lista] of Object.entries(alertasPorPrioridade)) {
-      if (lista.length === 0) continue;
-      
-      alertasHtml += `
-        <div style="margin-bottom: 24px;">
-          <h3 style="color: ${prioridadeCor[prioridade]}; margin-bottom: 12px;">
-            ${prioridadeEmoji[prioridade]} ${prioridade.charAt(0).toUpperCase() + prioridade.slice(1)} (${lista.length})
-          </h3>
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr style="background-color: #f3f4f6;">
-                <th style="padding: 8px; text-align: left; border: 1px solid #e5e7eb;">Termo</th>
-                <th style="padding: 8px; text-align: left; border: 1px solid #e5e7eb;">Processo</th>
-                <th style="padding: 8px; text-align: left; border: 1px solid #e5e7eb;">Contexto</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${lista.map(alerta => `
-                <tr>
-                  <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold;">${alerta.termo_encontrado}</td>
-                  <td style="padding: 8px; border: 1px solid #e5e7eb;">${(alerta.processo as any)?.numero || "N/A"}</td>
-                  <td style="padding: 8px; border: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">${alerta.contexto?.substring(0, 150) || ""}...</td>
+    const dataFormatada = dataBrt.split("-").reverse().join("/");
+
+    function buildEmailHtml(alertasUsuario: any[], coordenacaoNome?: string): string {
+      // Agrupar por prioridade
+      const alertasPorPrioridade: Record<string, any[]> = {
+        urgente: [],
+        alta: [],
+        media: [],
+        baixa: [],
+      };
+
+      for (const alerta of alertasUsuario) {
+        const prioridade = alerta.prioridade || "media";
+        if (alertasPorPrioridade[prioridade]) {
+          alertasPorPrioridade[prioridade].push(alerta);
+        } else {
+          alertasPorPrioridade.media.push(alerta);
+        }
+      }
+
+      let alertasHtml = "";
+      for (const [prioridade, lista] of Object.entries(alertasPorPrioridade)) {
+        if (lista.length === 0) continue;
+        
+        alertasHtml += `
+          <div style="margin-bottom: 24px;">
+            <h3 style="color: ${prioridadeCor[prioridade]}; margin-bottom: 12px;">
+              ${prioridadeEmoji[prioridade]} ${prioridade.charAt(0).toUpperCase() + prioridade.slice(1)} (${lista.length})
+            </h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background-color: #f3f4f6;">
+                  <th style="padding: 8px; text-align: left; border: 1px solid #e5e7eb;">Termo</th>
+                  <th style="padding: 8px; text-align: left; border: 1px solid #e5e7eb;">Processo</th>
+                  <th style="padding: 8px; text-align: left; border: 1px solid #e5e7eb;">Contexto</th>
                 </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                ${lista.map(alerta => `
+                  <tr>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold;">${alerta.termo_encontrado}</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${(alerta.processo as any)?.numero || "N/A"}</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">${alerta.contexto?.substring(0, 150) || ""}...</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      const subtitulo = coordenacaoNome 
+        ? `Resumo de ${dataFormatada} - ${coordenacaoNome}`
+        : `Resumo de ${dataFormatada}`;
+
+      return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Alertas Monitoração 360°</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; font-size: 24px;">🎯 Monitoração 360° - Alertas</h1>
+            <p style="margin: 8px 0 0 0; opacity: 0.9;">${subtitulo}</p>
+          </div>
+          
+          <div style="background-color: #f9fafb; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+            <div style="background-color: white; padding: 16px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid #2563eb;">
+              <p style="margin: 0; font-size: 18px;">
+                <strong>${alertasUsuario.length}</strong> alerta(s) detectado(s) nos processos da sua coordenação.
+              </p>
+            </div>
+            
+            ${alertasHtml}
+            
+            <div style="text-align: center; margin-top: 32px;">
+              <a href="https://juriscontrol.adv.br/monitoramento-360" 
+                 style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                Ver Alertas no Sistema
+              </a>
+            </div>
+            
+            <p style="margin-top: 32px; font-size: 12px; color: #6b7280; text-align: center;">
+              Este email foi enviado automaticamente pelo JurisControl.<br>
+              Para desativar estes alertas, acesse Configurações > Preferências no sistema.
+            </p>
+          </div>
+        </body>
+        </html>
       `;
     }
 
-    const dataFormatada = dataBrt.split("-").reverse().join("/");
-    const htmlEmail = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Alertas Monitoração 360°</title>
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
-        <div style="background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 24px;">🎯 Monitoração 360° - Alertas</h1>
-          <p style="margin: 8px 0 0 0; opacity: 0.9;">Resumo de ${dataFormatada}</p>
-        </div>
-        
-        <div style="background-color: #f9fafb; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-          <div style="background-color: white; padding: 16px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid #2563eb;">
-            <p style="margin: 0; font-size: 18px;">
-              <strong>${alertas.length}</strong> alerta(s) detectado(s) pela varredura de termos estratégicos.
-            </p>
-          </div>
-          
-          ${alertasHtml}
-          
-          <div style="text-align: center; margin-top: 32px;">
-            <a href="https://juriscontrol.adv.br/monitoramento-360" 
-               style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-              Ver Alertas no Sistema
-            </a>
-          </div>
-          
-          <p style="margin-top: 32px; font-size: 12px; color: #6b7280; text-align: center;">
-            Este email foi enviado automaticamente pelo JurisControl.<br>
-            Para desativar estes alertas, acesse Configurações > Preferências no sistema.
-          </p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    // Enviar email para cada usuário usando a API do Resend via fetch
+    // Enviar email para cada usuário com alertas filtrados por coordenação
     let emailsEnviados = 0;
     const erros: string[] = [];
 
@@ -225,7 +238,39 @@ serve(async (req: Request): Promise<Response> => {
         continue;
       }
 
+      // Filtrar alertas baseado na coordenação do usuário
+      let alertasDoUsuario: any[];
+      
+      // Se é admin/coordenador, recebe todos os alertas
+      if (usuariosAdmin.has(usuario.id)) {
+        alertasDoUsuario = alertas;
+        console.log(`[enviar-alertas-360-email] ${usuario.nome} é admin/coordenador - ${alertas.length} alertas`);
+      } else {
+        // Senão, filtra pelos processos da(s) coordenação(ões) do usuário
+        const coordenacoesUsuario = usuarioCoordenacoes[usuario.id] || [];
+        
+        if (coordenacoesUsuario.length === 0) {
+          console.log(`[enviar-alertas-360-email] ${usuario.nome} não pertence a nenhuma coordenação - pulando`);
+          continue;
+        }
+
+        alertasDoUsuario = alertas.filter(alerta => {
+          const coordenacaoProcesso = (alerta.processo as any)?.coordenacao_id;
+          return coordenacaoProcesso && coordenacoesUsuario.includes(coordenacaoProcesso);
+        });
+
+        console.log(`[enviar-alertas-360-email] ${usuario.nome} - ${alertasDoUsuario.length}/${alertas.length} alertas (coordenações: ${coordenacoesUsuario.join(', ')})`);
+      }
+
+      // Se não há alertas para este usuário, pular
+      if (alertasDoUsuario.length === 0) {
+        console.log(`[enviar-alertas-360-email] ${usuario.nome} - nenhum alerta relevante`);
+        continue;
+      }
+
       try {
+        const htmlEmail = buildEmailHtml(alertasDoUsuario);
+        
         const emailResponse = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
@@ -235,13 +280,13 @@ serve(async (req: Request): Promise<Response> => {
           body: JSON.stringify({
             from: "JurisControl <alertas@juriscontrol.adv.br>",
             to: [usuario.email],
-            subject: `🎯 Monitoração 360° - ${alertas.length} alerta(s) - ${dataFormatada}`,
-            html: htmlEmail.replace("Olá,", `Olá, ${usuario.nome},`),
+            subject: `🎯 Monitoração 360° - ${alertasDoUsuario.length} alerta(s) - ${dataFormatada}`,
+            html: htmlEmail,
           }),
         });
 
         if (emailResponse.ok) {
-          console.log(`[enviar-alertas-360-email] Email enviado para ${usuario.email}`);
+          console.log(`[enviar-alertas-360-email] Email enviado para ${usuario.email} (${alertasDoUsuario.length} alertas)`);
           emailsEnviados++;
         } else {
           const errBody = await emailResponse.text();
