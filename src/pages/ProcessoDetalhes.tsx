@@ -86,7 +86,7 @@ import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
 import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentosTab";
 import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
 import { SelecionarResponsaveisProcesso } from "@/components/processos/SelecionarResponsaveisProcesso";
-import { TarefaPublicacaoDialog } from "@/components/processos/TarefaPublicacaoDialog";
+import { TarefaPublicacaoView } from "@/components/processos/TarefaPublicacaoView";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -133,9 +133,8 @@ export default function ProcessoDetalhes() {
   const [updatingAudiencia, setUpdatingAudiencia] = useState<string | null>(null);
   const [updatingIntimacao, setUpdatingIntimacao] = useState<string | null>(null);
   
-  // State for tarefa-publicação dialog
+  // State for tarefa-publicação inline view
   const [selectedTarefaId, setSelectedTarefaId] = useState<string | null>(null);
-  const [tarefaDialogOpen, setTarefaDialogOpen] = useState(false);
   
   // Tab toggle state
   const [activeTab, setActiveTab] = useState<string>("");
@@ -1978,104 +1977,109 @@ export default function ProcessoDetalhes() {
 
             {/* Tarefas Tab */}
             <TabsContent value="tarefas" className="mt-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <ListTodo className="w-5 h-5" />
-                      Tarefas
-                    </CardTitle>
-                    <Button
-                      size="sm"
-                      onClick={() => navigate(`/nova-tarefa?processo=${id}`)}
-                    >
-                      <ClipboardList className="w-4 h-4 mr-2" />
-                      Nova Tarefa
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {loadingTarefas ? (
-                    <div className="space-y-3">
-                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
-                    </div>
-                  ) : tarefas.length > 0 ? (
-                    <ScrollArea className="h-[400px] pr-4">
-                      <div className="space-y-3">
-                        {tarefas.map((tarefa) => {
-                          const isVencida = tarefa.data_vencimento && new Date(tarefa.data_vencimento) < new Date() && tarefa.status !== 'cumprido';
-                          const isUrgente = tarefa.data_vencimento && !isVencida && 
-                            (new Date(tarefa.data_vencimento).getTime() - new Date().getTime()) / (1000*60*60*24) <= 3;
-                          
-                          return (
-                            <Card 
-                              key={tarefa.id} 
-                              className={`cursor-pointer hover:shadow-md transition-shadow ${
-                                isVencida ? 'border-destructive/50 bg-destructive/5' : 
-                                isUrgente ? 'border-yellow-500/50 bg-yellow-50/50 dark:bg-yellow-950/20' : ''
-                              }`}
-                              onClick={() => {
-                                setSelectedTarefaId(tarefa.id);
-                                setTarefaDialogOpen(true);
-                              }}
-                            >
-                              <CardContent className="p-4">
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                                      <Badge variant={
-                                        tarefa.status === 'cumprido' ? 'default' : 
-                                        tarefa.status === 'atrasado' ? 'destructive' : 
-                                        'secondary'
-                                      }>
-                                        {tarefa.status === 'cumprido' ? 'Cumprido' : 
-                                         tarefa.status === 'atrasado' ? 'Atrasado' : 'Pendente'}
-                                      </Badge>
-                                      {tarefa.prioridade && (
-                                        <Badge variant={tarefa.prioridade === 'alta' || tarefa.prioridade === 'urgente' ? 'destructive' : 'outline'}>
-                                          {tarefa.prioridade}
-                                        </Badge>
-                                      )}
-                                      {isVencida && <Badge variant="destructive">Vencida</Badge>}
-                                    </div>
-                                    <p className="font-medium truncate">{tarefa.titulo}</p>
-                                    {tarefa.descricao && (
-                                      <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{tarefa.descricao}</p>
-                                    )}
-                                    {tarefa.responsavel && (
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        <User className="w-3 h-3 inline mr-1" />
-                                        {tarefa.responsavel.nome}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div className="text-right shrink-0">
-                                    {tarefa.data_vencimento && (
-                                      <p className={`font-medium flex items-center gap-1 justify-end ${isVencida ? 'text-destructive' : isUrgente ? 'text-yellow-600' : 'text-primary'}`}>
-                                        <Clock className="w-4 h-4" />
-                                        {formatDate(tarefa.data_vencimento)}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
-                      </div>
-                    </ScrollArea>
-                  ) : (
-                    <div className="text-center py-8">
-                      <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-muted-foreground mb-4">Nenhuma tarefa vinculada</p>
-                      <Button variant="outline" onClick={() => navigate(`/nova-tarefa?processo=${id}`)}>
+              {selectedTarefaId ? (
+                <TarefaPublicacaoView
+                  tarefaId={selectedTarefaId}
+                  processoId={id || ""}
+                  onVoltar={() => setSelectedTarefaId(null)}
+                />
+              ) : (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <ListTodo className="w-5 h-5" />
+                        Tarefas
+                      </CardTitle>
+                      <Button
+                        size="sm"
+                        onClick={() => navigate(`/nova-tarefa?processo=${id}`)}
+                      >
                         <ClipboardList className="w-4 h-4 mr-2" />
-                        Criar primeira tarefa
+                        Nova Tarefa
                       </Button>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingTarefas ? (
+                      <div className="space-y-3">
+                        {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                      </div>
+                    ) : tarefas.length > 0 ? (
+                      <ScrollArea className="h-[400px] pr-4">
+                        <div className="space-y-3">
+                          {tarefas.map((tarefa) => {
+                            const isVencida = tarefa.data_vencimento && new Date(tarefa.data_vencimento) < new Date() && tarefa.status !== 'cumprido';
+                            const isUrgente = tarefa.data_vencimento && !isVencida && 
+                              (new Date(tarefa.data_vencimento).getTime() - new Date().getTime()) / (1000*60*60*24) <= 3;
+                            
+                            return (
+                              <Card 
+                                key={tarefa.id} 
+                                className={`cursor-pointer hover:shadow-md transition-shadow ${
+                                  isVencida ? 'border-destructive/50 bg-destructive/5' : 
+                                  isUrgente ? 'border-yellow-500/50 bg-yellow-50/50 dark:bg-yellow-950/20' : ''
+                                }`}
+                                onClick={() => setSelectedTarefaId(tarefa.id)}
+                              >
+                                <CardContent className="p-4">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                                        <Badge variant={
+                                          tarefa.status === 'cumprido' ? 'default' : 
+                                          tarefa.status === 'atrasado' ? 'destructive' : 
+                                          'secondary'
+                                        }>
+                                          {tarefa.status === 'cumprido' ? 'Cumprido' : 
+                                           tarefa.status === 'atrasado' ? 'Atrasado' : 'Pendente'}
+                                        </Badge>
+                                        {tarefa.prioridade && (
+                                          <Badge variant={tarefa.prioridade === 'alta' || tarefa.prioridade === 'urgente' ? 'destructive' : 'outline'}>
+                                            {tarefa.prioridade}
+                                          </Badge>
+                                        )}
+                                        {isVencida && <Badge variant="destructive">Vencida</Badge>}
+                                      </div>
+                                      <p className="font-medium truncate">{tarefa.titulo}</p>
+                                      {tarefa.descricao && (
+                                        <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{tarefa.descricao}</p>
+                                      )}
+                                      {tarefa.responsavel && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          <User className="w-3 h-3 inline mr-1" />
+                                          {tarefa.responsavel.nome}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      {tarefa.data_vencimento && (
+                                        <p className={`font-medium flex items-center gap-1 justify-end ${isVencida ? 'text-destructive' : isUrgente ? 'text-yellow-600' : 'text-primary'}`}>
+                                          <Clock className="w-4 h-4" />
+                                          {formatDate(tarefa.data_vencimento)}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </ScrollArea>
+                    ) : (
+                      <div className="text-center py-8">
+                        <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                        <p className="text-muted-foreground mb-4">Nenhuma tarefa vinculada</p>
+                        <Button variant="outline" onClick={() => navigate(`/nova-tarefa?processo=${id}`)}>
+                          <ClipboardList className="w-4 h-4 mr-2" />
+                          Criar primeira tarefa
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             {/* Redistribuições Tab */}
@@ -2952,14 +2956,6 @@ export default function ProcessoDetalhes() {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Dialog para Tarefa com Publicação */}
-      <TarefaPublicacaoDialog
-        open={tarefaDialogOpen}
-        onOpenChange={setTarefaDialogOpen}
-        tarefaId={selectedTarefaId}
-        processoId={id || ""}
-      />
     </MainLayout>
   );
 }
