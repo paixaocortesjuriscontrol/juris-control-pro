@@ -5643,6 +5643,19 @@ export default function ImportarProcessos() {
                     </div>
                   )}
                   <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setFile(null);
+                        setProcessos([]);
+                        setImporting(false);
+                        setProgress(0);
+                      }}
+                      disabled={importing}
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Cancelar
+                    </Button>
                     {totalRejeitados > 0 && (
                       <Button variant="outline" onClick={downloadRejeitados}>
                         <FileDown className="h-4 w-4 mr-2" />
@@ -6517,6 +6530,19 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setOsmarFile(null);
+                            setOsmarProcessos([]);
+                            setOsmarImporting(false);
+                            setOsmarProgress(0);
+                          }}
+                          disabled={osmarImporting}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Cancelar
+                        </Button>
                         {osmarTotalProblemas > 0 && (
                           <Button variant="outline" onClick={downloadOsmarRejeitados}>
                             <FileDown className="h-4 w-4 mr-2" />
@@ -6833,6 +6859,19 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setJanainaFile(null);
+                            setJanainaProcessos([]);
+                            setJanainaImporting(false);
+                            setJanainaProgress(0);
+                          }}
+                          disabled={janainaImporting}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Cancelar
+                        </Button>
                         {janainaTotalProblemas > 0 && (
                           <Button variant="outline" onClick={() => downloadJanainaRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
@@ -7073,6 +7112,19 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setPolyanaFile(null);
+                            setPolyanaProcessos([]);
+                            setPolyanaImporting(false);
+                            setPolyanaProgress(0);
+                          }}
+                          disabled={polyanaImporting}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Cancelar
+                        </Button>
                         {polyanaTotalProblemas > 0 && (
                           <Button variant="outline" onClick={() => downloadPolyanaRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
@@ -7389,6 +7441,19 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setMptFile(null);
+                            setMptProcessos([]);
+                            setMptImporting(false);
+                            setMptProgress(0);
+                          }}
+                          disabled={mptImporting}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Cancelar
+                        </Button>
                         {mptTotalProblemas > 0 && (
                           <Button variant="outline" onClick={() => downloadMptRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
@@ -7724,6 +7789,19 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setPedidosFile(null);
+                            setPedidosProcessos([]);
+                            setPedidosImporting(false);
+                            setPedidosProgress(0);
+                          }}
+                          disabled={pedidosImporting}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Cancelar
+                        </Button>
                         {pedidosTotalProblemas > 0 && (
                           <Button variant="outline" onClick={() => downloadPedidosRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
