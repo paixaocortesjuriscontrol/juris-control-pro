@@ -36,6 +36,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { TarefaPublicacaoView } from "./TarefaPublicacaoView";
 
 interface Responsavel {
   id: string;
@@ -66,12 +67,15 @@ interface ProcessoDetalhesCompletosProps {
   loadingIntimacoes?: boolean;
   loadingPublicacoes?: boolean;
   loadingTarefas?: boolean;
+  // Tarefa selection
+  selectedTarefaId?: string | null;
   // Handlers
   onVoltar: () => void;
   onEditar: () => void;
   onEditAudiencia?: (audiencia: any) => void;
   onSelectIntimacao?: (intimacao: any) => void;
   onSelectTarefa?: (tarefaId: string) => void;
+  onVoltarTarefa?: () => void;
 }
 
 export function ProcessoDetalhesCompletos({
@@ -90,11 +94,13 @@ export function ProcessoDetalhesCompletos({
   loadingIntimacoes = false,
   loadingPublicacoes = false,
   loadingTarefas = false,
+  selectedTarefaId,
   onVoltar,
   onEditar,
   onEditAudiencia,
   onSelectIntimacao,
   onSelectTarefa,
+  onVoltarTarefa,
 }: ProcessoDetalhesCompletosProps) {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState<string>("detalhes");
@@ -484,66 +490,76 @@ export function ProcessoDetalhesCompletos({
               {/* Tarefas Section */}
               {activeSection === "tarefas" && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                      <ListTodo className="w-4 h-4" />
-                      Tarefas
-                    </h3>
-                    <Button 
-                      size="sm" 
-                      className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
-                      onClick={() => navigate(`/nova-tarefa?processo_id=${processo.id}`)}
-                    >
-                      Nova Tarefa
-                    </Button>
-                  </div>
-                  {loadingTarefas ? (
-                    <div className="space-y-3">
-                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
-                    </div>
-                  ) : tarefas.length > 0 ? (
-                    <div className="space-y-2">
-                      {tarefas.map((tarefa: any) => (
-                        <Card 
-                          key={tarefa.id} 
-                          className="hover:shadow-md transition-shadow cursor-pointer"
-                          onClick={() => onSelectTarefa?.(tarefa.id)}
-                        >
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 space-y-1">
-                                <p className="text-sm font-medium">{tarefa.titulo}</p>
-                                {tarefa.descricao && (
-                                  <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
-                                )}
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  {tarefa.data_vencimento && (
-                                    <span className="flex items-center gap-1">
-                                      <Calendar className="h-3 w-3" />
-                                      {formatDate(tarefa.data_vencimento)}
-                                    </span>
-                                  )}
-                                  {tarefa.responsavel?.nome && (
-                                    <span className="flex items-center gap-1">
-                                      <User className="h-3 w-3" />
-                                      {tarefa.responsavel.nome}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'} className="text-xs">
-                                {tarefa.status}
-                              </Badge>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
+                  {selectedTarefaId ? (
+                    <TarefaPublicacaoView
+                      tarefaId={selectedTarefaId}
+                      processoId={processo.id}
+                      onVoltar={() => onVoltarTarefa?.()}
+                    />
                   ) : (
-                    <div className="text-center py-8">
-                      <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Nenhuma tarefa</p>
-                    </div>
+                    <>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-sm flex items-center gap-2">
+                          <ListTodo className="w-4 h-4" />
+                          Tarefas
+                        </h3>
+                        <Button 
+                          size="sm" 
+                          className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
+                          onClick={() => navigate(`/nova-tarefa?processo_id=${processo.id}`)}
+                        >
+                          Nova Tarefa
+                        </Button>
+                      </div>
+                      {loadingTarefas ? (
+                        <div className="space-y-3">
+                          {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                        </div>
+                      ) : tarefas.length > 0 ? (
+                        <div className="space-y-2">
+                          {tarefas.map((tarefa: any) => (
+                            <Card 
+                              key={tarefa.id} 
+                              className="hover:shadow-md transition-shadow cursor-pointer"
+                              onClick={() => onSelectTarefa?.(tarefa.id)}
+                            >
+                              <CardContent className="p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium">{tarefa.titulo}</p>
+                                    {tarefa.descricao && (
+                                      <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
+                                    )}
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      {tarefa.data_vencimento && (
+                                        <span className="flex items-center gap-1">
+                                          <Calendar className="h-3 w-3" />
+                                          {formatDate(tarefa.data_vencimento)}
+                                        </span>
+                                      )}
+                                      {tarefa.responsavel?.nome && (
+                                        <span className="flex items-center gap-1">
+                                          <User className="h-3 w-3" />
+                                          {tarefa.responsavel.nome}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'} className="text-xs">
+                                    {tarefa.status}
+                                  </Badge>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">Nenhuma tarefa</p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
