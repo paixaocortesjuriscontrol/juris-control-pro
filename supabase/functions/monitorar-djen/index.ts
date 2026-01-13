@@ -993,21 +993,49 @@ serve(async (req) => {
         : { ...ts, tribunal: tribunalKey };
     }
 
+    const tribunaisFinal = !hasMore && run
+      ? Object.values(run.tribunais).sort((a, b) => b.resultados - a.resultados)
+      : null;
+
+    const metaTotals = !hasMore && run
+      ? {
+          processados: run.totals.processados,
+          novas: run.totals.novas,
+          descartadas: run.totals.descartadas,
+          duplicatas: run.totals.duplicatas,
+          erros: run.totals.erros,
+          duracao_s: run.totals.duracao_s,
+          total_paginas: run.totals.total_paginas,
+          total_resultados: run.totals.total_resultados,
+          tribunais_stats: (tribunaisFinal ?? []).slice(0, 30),
+        }
+      : {
+          processados: processedCount,
+          novas: totalNovas,
+          descartadas: totalDescartadas,
+          duplicatas: totalDuplicatas,
+          erros: errorCount,
+          duracao_s: duration,
+          total_paginas: totalPaginas,
+          total_resultados: totalResultados,
+          tribunais_stats: allTribunaisStats.slice(0, 20),
+        };
+
     const updatedMeta: Record<string, any> = {
       ...currentMeta,
       last_run: nowIso,
       offset_processado: offset,
-      processados: processedCount,
-      novas: totalNovas,
-      descartadas: totalDescartadas,
-      duplicatas: totalDuplicatas,
-      erros: errorCount,
-      duracao_s: duration,
+      processados: metaTotals.processados,
+      novas: metaTotals.novas,
+      descartadas: metaTotals.descartadas,
+      duplicatas: metaTotals.duplicatas,
+      erros: metaTotals.erros,
+      duracao_s: metaTotals.duracao_s,
       has_more: hasMore,
       next_offset: nextOffset,
-      total_paginas: totalPaginas,
-      total_resultados: totalResultados,
-      tribunais_stats: allTribunaisStats.slice(0, 20),
+      total_paginas: metaTotals.total_paginas,
+      total_resultados: metaTotals.total_resultados,
+      tribunais_stats: metaTotals.tribunais_stats,
       djen_run: hasMore ? run : null,
       last_complete_run: hasMore ? (currentMeta?.last_complete_run ?? null) : nowIso,
     };
@@ -1027,8 +1055,6 @@ serve(async (req) => {
 
     // Persist a single report for the full run when it completes (hasMore=false)
     if (!hasMore && run) {
-      const tribunaisFinal = Object.values(run.tribunais).sort((a, b) => b.resultados - a.resultados);
-
       await supabase.from('historico_monitoramento').insert({
         tipo: 'djen',
         executado_em: nowIso,
@@ -1044,13 +1070,13 @@ serve(async (req) => {
           duracao_s: run.totals.duracao_s,
           total_paginas: run.totals.total_paginas,
           total_resultados: run.totals.total_resultados,
-          tribunais_stats: tribunaisFinal.slice(0, 30),
+          tribunais_stats: (tribunaisFinal ?? []).slice(0, 30),
         },
       });
     }
 
     // Auto-continuation: guarantees a complete cycle even with many monitoramentos.
-    // The queued call will use ?offset=nextOffset and {continued:true}.
+    // IMPORTANT: we MUST await the enqueue request; background fetches may be cancelled.
     if (completeRun && hasMore && typeof nextOffset === 'number') {
       const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen?offset=${nextOffset}`;
       const nextBody = {
@@ -1060,23 +1086,36 @@ serve(async (req) => {
         parentRunId: run?.run_id,
       };
 
-      // Use anon key for internal calls (verify_jwt = false, so we just need a valid key)
       const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+      const incomingAuth = req.headers.get('authorization') || '';
+      const authHeader = incomingAuth.startsWith('Bearer ')
+        ? incomingAuth
+        : (supabaseAnonKey ? `Bearer ${supabaseAnonKey}` : '');
 
-      const p = fetch(nextUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify(nextBody),
-      })
-        .then((r) => r.text().then((t) => console.log(`[DJEN] Queued next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`)))
-        .catch((e) => console.error('[DJEN] Failed to queue next batch', e));
+      if (!authHeader) {
+        console.error('[DJEN] No Authorization header available for auto-continuation');
+      } else {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 15_000);
 
-      // Best-effort: keep background request running even after we return.
-      const er = (globalThis as any).EdgeRuntime;
-      if (er?.waitUntil) er.waitUntil(p);
+          const r = await fetch(nextUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': authHeader,
+            },
+            body: JSON.stringify(nextBody),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeout);
+          const t = await r.text();
+          console.log(`[DJEN] Queued next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`);
+        } catch (e) {
+          console.error('[DJEN] Failed to queue next batch', e);
+        }
+      }
     }
 
     console.log(`Done: ${processedCount} processed, ${totalNovas} new, ${totalPaginas} pages, ${duration}s | hasMore=${hasMore}`);
