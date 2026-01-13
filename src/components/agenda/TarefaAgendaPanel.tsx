@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { MentionInput } from "@/components/ui/mention-input";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import DOMPurify from "dompurify";
+import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import {
   Collapsible,
   CollapsibleContent,
@@ -575,15 +575,9 @@ export function TarefaAgendaPanel({
 
                   {/* Conteúdo da Publicação */}
                   <div className="border rounded-lg p-3 bg-muted/30 max-h-[300px] overflow-y-auto">
-                    <div
-                      className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-p:leading-relaxed text-xs"
-                      dangerouslySetInnerHTML={{
-                        __html: DOMPurify.sanitize(publicacao.conteudo || "Sem conteúdo disponível", {
-                          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div', 'ul', 'ol', 'li', 'a'],
-                          ALLOWED_ATTR: ['href', 'target', 'class'],
-                        })
-                      }}
-                    />
+                    <div className={`text-xs ${conteudoDisplayClasses}`}>
+                      {formatConteudoParaExibicao(publicacao.conteudo)}
+                    </div>
                   </div>
                 </CollapsibleContent>
               </Collapsible>

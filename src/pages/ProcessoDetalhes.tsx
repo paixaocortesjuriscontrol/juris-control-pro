@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
+import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1829,7 +1830,9 @@ export default function ProcessoDetalhes() {
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Conteúdo da Publicação</p>
                     <div className="p-3 bg-muted/50 rounded-lg">
-                      <p className="text-sm whitespace-pre-wrap break-words">{selectedIntimacao.conteudo_publicacao}</p>
+                      <div className={`text-sm ${conteudoDisplayClasses}`}>
+                        {formatConteudoParaExibicao(selectedIntimacao.conteudo_publicacao)}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2601,20 +2604,9 @@ export default function ProcessoDetalhes() {
 
                             {/* Conteúdo */}
                             <div className="bg-muted/20 rounded-lg p-3 sm:p-4 overflow-hidden">
-                              {pub.conteudo ? (
-                                <div 
-                                  className="text-sm text-foreground prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-headings:my-2 break-words overflow-wrap-anywhere [&_*]:max-w-full [&_table]:table-fixed [&_table]:w-full [&_td]:break-words [&_th]:break-words"
-                                  style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-                                  dangerouslySetInnerHTML={{ 
-                                    __html: DOMPurify.sanitize(pub.conteudo, {
-                                      ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-                                      ALLOWED_ATTR: ['class', 'style', 'href', 'target']
-                                    })
-                                  }} 
-                                />
-                              ) : (
-                                <p className="text-sm text-muted-foreground">Conteúdo não disponível</p>
-                              )}
+                              <div className={`text-sm text-foreground ${conteudoDisplayClasses}`}>
+                                {formatConteudoParaExibicao(pub.conteudo)}
+                              </div>
                             </div>
 
                             {/* Metadados */}

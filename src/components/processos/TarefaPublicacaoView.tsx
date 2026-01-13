@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import DOMPurify from "dompurify";
+import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import {
   Form,
   FormControl,
@@ -71,6 +71,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   tipo_tarefa: z.string().min(1, "Tipo é obrigatório"),
@@ -740,19 +741,10 @@ export function TarefaPublicacaoView({
                   </div>
 
                   {/* Conteúdo da Publicação */}
-                  <div className="border rounded-lg p-3 md:p-4 bg-white dark:bg-slate-950 overflow-x-auto">
-                    <div
-                      className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-p:leading-relaxed text-xs md:text-sm break-words whitespace-pre-line"
-                      dangerouslySetInnerHTML={{
-                        __html: DOMPurify.sanitize(
-                          (publicacao.conteudo || "Sem conteúdo disponível").replace(/\n/g, '<br/>'),
-                          {
-                            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div', 'ul', 'ol', 'li', 'a'],
-                            ALLOWED_ATTR: ['href', 'target', 'class'],
-                          }
-                        )
-                      }}
-                    />
+                  <div className="border rounded-lg p-3 md:p-4 bg-white dark:bg-slate-950">
+                    <div className={cn("text-xs md:text-sm", conteudoDisplayClasses)}>
+                      {formatConteudoParaExibicao(publicacao.conteudo)}
+                    </div>
                   </div>
                 </div>
               </>
