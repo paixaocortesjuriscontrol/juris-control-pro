@@ -687,6 +687,7 @@ export default function ProcessoDetalhes() {
       queryClient.invalidateQueries({ queryKey: ["processos-responsaveis", processo.id] });
       setEditando(false);
       setShowConfirmDialog(false);
+      setViewMode("detalhes");
     } catch (error: any) {
       toast({
         title: "Erro ao salvar",
@@ -1176,6 +1177,64 @@ export default function ProcessoDetalhes() {
     );
   }
 
+  // Componente de responsáveis para passar aos cards
+  const responsaveisParaCards = responsaveisProcesso.map((r: any) => ({
+    id: r.usuario?.id || r.id,
+    nome: r.usuario?.nome || "Desconhecido"
+  }));
+
+  // View mode: resumo (Projuris style)
+  if (viewMode === "resumo") {
+    return (
+      <MainLayout title="" subtitle="">
+        <div className="max-w-6xl mx-auto p-6">
+          {/* Back Button */}
+          <Button 
+            variant="ghost" 
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate("/processos");
+              }
+            }} 
+            className="mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar
+          </Button>
+
+          <ProcessoResumoCard 
+            processo={processo}
+            responsaveis={responsaveisParaCards}
+            onMaisInformacoes={() => setViewMode("detalhes")}
+          />
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // View mode: detalhes (Projuris style - full details)
+  if (viewMode === "detalhes") {
+    return (
+      <MainLayout title="" subtitle="">
+        <ProcessoDetalhesCompletos
+          processo={processo}
+          responsaveis={responsaveisParaCards}
+          movimentacoes={movimentacoes}
+          documentos={documentosProcesso}
+          tarefas={tarefas}
+          onVoltar={() => setViewMode("resumo")}
+          onEditar={() => {
+            setEditando(true);
+            setViewMode("editar");
+          }}
+        />
+      </MainLayout>
+    );
+  }
+
+  // View mode: editar (modo de edição legado)
   return (
     <MainLayout 
       title="Detalhes do Processo"
@@ -1187,7 +1246,10 @@ export default function ProcessoDetalhes() {
           <Button 
             variant="ghost" 
             onClick={() => {
-              if (window.history.length > 1) {
+              if (editando) {
+                handleCancelarEdicao();
+                setViewMode("detalhes");
+              } else if (window.history.length > 1) {
                 navigate(-1);
               } else {
                 navigate("/processos");
@@ -1236,7 +1298,10 @@ export default function ProcessoDetalhes() {
 
             {editando ? (
               <>
-                <Button variant="outline" onClick={handleCancelarEdicao} disabled={salvando}>
+                <Button variant="outline" onClick={() => {
+                  handleCancelarEdicao();
+                  setViewMode("detalhes");
+                }} disabled={salvando}>
                   <X className="w-4 h-4 mr-2" />
                   Cancelar
                 </Button>
