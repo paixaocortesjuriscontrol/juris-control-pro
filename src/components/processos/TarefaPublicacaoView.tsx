@@ -614,7 +614,7 @@ export function TarefaPublicacaoView({
   const statusInfo = getStatusInfo();
 
   return (
-    <div className="flex flex-col lg:flex-row gap-0 border rounded-lg bg-background overflow-hidden min-h-[600px]">
+    <div className="flex flex-col lg:flex-row gap-0 border rounded-lg bg-background overflow-hidden min-h-[400px] lg:min-h-[600px]">
       {/* === LADO ESQUERDO - PUBLICAÇÃO OU DETALHES DA TAREFA === */}
       <div className="flex-1 border-r flex flex-col">
         {/* Header */}
@@ -644,12 +644,12 @@ export function TarefaPublicacaoView({
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-4 space-y-4">
+          <div className="p-3 md:p-4 space-y-3 md:space-y-4">
             {/* Detalhes da Tarefa */}
-            <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-900/50 space-y-3">
+            <div className="border rounded-lg p-3 md:p-4 bg-slate-50 dark:bg-slate-900/50 space-y-3">
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Título</p>
-                <p className="font-semibold text-lg">{tarefa.titulo}</p>
+                <p className="font-semibold text-base md:text-lg break-words">{tarefa.titulo}</p>
               </div>
 
               {tarefa.tipo_tarefa && (
@@ -659,20 +659,20 @@ export function TarefaPublicacaoView({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Vencimento</p>
-                  <p className="font-medium flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    {formatDate(tarefa.data_vencimento)}
+                  <p className="font-medium flex items-center gap-1 text-sm md:text-base">
+                    <Calendar className="w-4 h-4 flex-shrink-0" />
+                    <span className="break-words">{formatDate(tarefa.data_vencimento)}</span>
                   </p>
                 </div>
                 {tarefa.data_fatal && (
                   <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Data Fatal</p>
-                    <p className="font-medium text-destructive flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      {formatDate(tarefa.data_fatal)}
+                    <p className="font-medium text-destructive flex items-center gap-1 text-sm md:text-base">
+                      <Clock className="w-4 h-4 flex-shrink-0" />
+                      <span className="break-words">{formatDate(tarefa.data_fatal)}</span>
                     </p>
                   </div>
                 )}
@@ -681,9 +681,9 @@ export function TarefaPublicacaoView({
               {tarefa.responsavel && (
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Responsável</p>
-                  <p className="font-medium flex items-center gap-1">
-                    <User className="w-4 h-4" />
-                    {tarefa.responsavel.nome}
+                  <p className="font-medium flex items-center gap-1 text-sm md:text-base">
+                    <User className="w-4 h-4 flex-shrink-0" />
+                    <span className="break-words">{tarefa.responsavel.nome}</span>
                   </p>
                 </div>
               )}
@@ -695,8 +695,8 @@ export function TarefaPublicacaoView({
                 <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                   Descrição
                 </h3>
-                <div className="border rounded-lg p-4 bg-white dark:bg-slate-950">
-                  <p className="text-sm whitespace-pre-wrap">{tarefa.descricao}</p>
+                <div className="border rounded-lg p-3 md:p-4 bg-white dark:bg-slate-950">
+                  <p className="text-xs md:text-sm whitespace-pre-wrap break-words">{tarefa.descricao}</p>
                 </div>
               </div>
             )}
@@ -712,23 +712,23 @@ export function TarefaPublicacaoView({
                   </h3>
                   
                   {/* Info do Diário */}
-                  <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30 space-y-2">
-                    <p className="font-semibold text-primary">
+                  <div className="border rounded-lg p-3 md:p-4 bg-blue-50 dark:bg-blue-950/30 space-y-2">
+                    <p className="font-semibold text-primary text-sm md:text-base break-words">
                       {publicacao.fonte || "Diário de Justiça Eletrônico"} - DJN
                     </p>
                     {processo?.vara && (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs md:text-sm text-muted-foreground break-words">
                         Vara: {processo.vara} - Comarca: {processo.comarca || "Não informada"} - {processo.uf || ""}
                       </p>
                     )}
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs md:text-sm text-muted-foreground">
                       Publicado em: <strong>{formatDate(publicacao.data_publicacao)}</strong>
                     </p>
-                    <p className="text-sm">
+                    <p className="text-xs md:text-sm break-all">
                       Processo: <span className="font-mono font-medium">{publicacao.processo_numero || processo?.numero}</span>
                     </p>
                     {tipoPublicacao === 'termo' && publicacaoTermo?.monitoramento && (
-                      <p className="text-sm">
+                      <p className="text-xs md:text-sm break-words">
                         Termo encontrado: <strong className="text-primary">
                           {publicacaoTermo.monitoramento.tipo === 'advogado'
                             ? `OAB ${publicacaoTermo.monitoramento.oab} ${publicacaoTermo.monitoramento.uf}`
@@ -740,9 +740,9 @@ export function TarefaPublicacaoView({
                   </div>
 
                   {/* Conteúdo da Publicação */}
-                  <div className="border rounded-lg p-4 bg-white dark:bg-slate-950">
+                  <div className="border rounded-lg p-3 md:p-4 bg-white dark:bg-slate-950 overflow-x-auto">
                     <div
-                      className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-p:leading-relaxed text-sm"
+                      className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-p:leading-relaxed text-xs md:text-sm break-words"
                       dangerouslySetInnerHTML={{
                         __html: DOMPurify.sanitize(publicacao.conteudo || "Sem conteúdo disponível", {
                           ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div', 'ul', 'ol', 'li', 'a'],
@@ -759,9 +759,9 @@ export function TarefaPublicacaoView({
       </div>
 
       {/* === LADO DIREITO - PROCESSO, COMENTÁRIOS E AÇÕES === */}
-      <div className="w-full lg:w-[420px] flex flex-col bg-muted/10">
+      <div className="w-full lg:w-[380px] xl:w-[420px] flex flex-col bg-muted/10 order-first lg:order-last">
         {/* Header com ações */}
-        <div className="p-3 border-b bg-background flex items-center justify-between gap-2 flex-wrap">
+        <div className="p-2 md:p-3 border-b bg-background flex items-center justify-between gap-1 md:gap-2 flex-wrap">
           <Button variant="ghost" size="sm" onClick={onVoltar} className="gap-1 text-xs">
             <ArrowLeft className="w-3 h-3" />
             VOLTAR
