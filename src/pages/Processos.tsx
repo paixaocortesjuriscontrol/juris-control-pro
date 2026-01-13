@@ -115,6 +115,7 @@ const Processos = () => {
   // Estados para filtros de grupo e cliente
   const [selectedGrupoId, setSelectedGrupoId] = useState<string>("all");
   const [selectedClienteId, setSelectedClienteId] = useState<string>("all");
+  const [clienteFilter, setClienteFilter] = useState<string>("all");
   
   // Buscar grupos de clientes
   const { data: grupos = [] } = useQuery({
@@ -123,6 +124,19 @@ const Processos = () => {
       const { data, error } = await supabase
         .from("grupos_clientes")
         .select("id, nome")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar todos os clientes para o filtro geral
+  const { data: todosClientes = [] } = useQuery({
+    queryKey: ["clientes_filter_all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nome, tipo")
         .order("nome");
       if (error) throw error;
       return data || [];
@@ -152,7 +166,11 @@ const Processos = () => {
     if (grupoClientesParam) {
       return grupoClientesParam.split(",");
     }
-    // Se selecionou um cliente específico
+    // Se selecionou um cliente específico no filtro geral (não do grupo)
+    if (clienteFilter !== "all") {
+      return [clienteFilter];
+    }
+    // Se selecionou um cliente específico do grupo
     if (selectedClienteId !== "all") {
       return [selectedClienteId];
     }
@@ -169,7 +187,7 @@ const Processos = () => {
       return ["no-clients-in-group"];
     }
     return undefined;
-  }, [grupoClientesParam, selectedGrupoId, selectedClienteId, clientesDoGrupo, isLoadingClientesDoGrupo]);
+  }, [grupoClientesParam, selectedGrupoId, selectedClienteId, clientesDoGrupo, isLoadingClientesDoGrupo, clienteFilter]);
 
   // Nome do grupo para exibição
   const grupoNome = grupoNomeParam || (selectedGrupoId !== "all" ? grupos.find(g => g.id === selectedGrupoId)?.nome : undefined);
@@ -510,7 +528,7 @@ const Processos = () => {
               </SelectContent>
             </Select>
 
-            {/* Filtro de Cliente do Grupo */}
+            {/* Filtro de Cliente do Grupo (quando grupo selecionado) */}
             {(selectedGrupoId !== "all" || grupoClientesParam) && clientesDoGrupo.length > 0 && !grupoClientesParam && (
               <Select value={selectedClienteId} onValueChange={setSelectedClienteId}>
                 <SelectTrigger className="w-full sm:w-48">
@@ -527,7 +545,31 @@ const Processos = () => {
               </Select>
             )}
 
-            {/* Special filters for DJEN and Movements */}
+            {/* Filtro de Cliente (geral) */}
+            {selectedGrupoId === "all" && !grupoClientesParam && (
+              <Select value={clienteFilter} onValueChange={setClienteFilter}>
+                <SelectTrigger className="w-full sm:w-56">
+                  <SelectValue placeholder="Cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os clientes</SelectItem>
+                  {todosClientes.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] px-1 py-0">
+                          {c.tipo === "pessoa_fisica" ? "PF" : "PJ"}
+                        </Badge>
+                        {c.nome}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {/* Filtros combinados - Com DJEN, Andamentos, Audiências, Intimações */}
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
