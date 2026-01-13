@@ -347,6 +347,7 @@ export default function ImportarProcessos() {
   const [osmarImporting, setOsmarImporting] = useState(false);
   const [osmarProgress, setOsmarProgress] = useState(0);
   const [osmarBuscarAndamentos, setOsmarBuscarAndamentos] = useState(true);
+  const osmarCancelledRef = useRef(false);
 
   // Dra. Janaina (ACH Contingencial) import states
   const [janainaFile, setJanainaFile] = useState<File | null>(null);
@@ -354,6 +355,7 @@ export default function ImportarProcessos() {
   const [janainaImporting, setJanainaImporting] = useState(false);
   const [janainaProgress, setJanainaProgress] = useState(0);
   const [janainaBuscarAndamentos, setJanainaBuscarAndamentos] = useState(true);
+  const janainaCancelledRef = useRef(false);
 
   // Dra. Polyana import states
   const [polyanaFile, setPolyanaFile] = useState<File | null>(null);
@@ -361,6 +363,7 @@ export default function ImportarProcessos() {
   const [polyanaImporting, setPolyanaImporting] = useState(false);
   const [polyanaProgress, setPolyanaProgress] = useState(0);
   const [polyanaBuscarAndamentos, setPolyanaBuscarAndamentos] = useState(true);
+  const polyanaCancelledRef = useRef(false);
 
   // Ministério Público import states
   const [mptFile, setMptFile] = useState<File | null>(null);
@@ -368,6 +371,7 @@ export default function ImportarProcessos() {
   const [mptImporting, setMptImporting] = useState(false);
   const [mptProgress, setMptProgress] = useState(0);
   const [mptBuscarAndamentos, setMptBuscarAndamentos] = useState(true);
+  const mptCancelledRef = useRef(false);
 
   // Pedidos import states
   const [pedidosFile, setPedidosFile] = useState<File | null>(null);
@@ -375,6 +379,7 @@ export default function ImportarProcessos() {
   const [pedidosImporting, setPedidosImporting] = useState(false);
   const [pedidosProgress, setPedidosProgress] = useState(0);
   const [pedidosBuscarAndamentos, setPedidosBuscarAndamentos] = useState(true);
+  const pedidosCancelledRef = useRef(false);
 
   // Astrea import states
   const [astreaFile, setAstreaFile] = useState<File | null>(null);
@@ -382,6 +387,10 @@ export default function ImportarProcessos() {
   const [astreaImporting, setAstreaImporting] = useState(false);
   const [astreaProgress, setAstreaProgress] = useState(0);
   const [astreaBuscarAndamentos, setAstreaBuscarAndamentos] = useState(true);
+  const astreaCancelledRef = useRef(false);
+
+  // Excel/Planilha import state for andamentos
+  const planilhaCancelledRef = useRef(false);
   const [pedidosRelatorioTipo, setPedidosRelatorioTipo] = useState<TipoPedido>("todos");
   const { exportarRelatorioPedidos } = useRelatorioPedidos();
 
@@ -495,6 +504,7 @@ export default function ImportarProcessos() {
     }
 
     setImporting(true);
+    planilhaCancelledRef.current = false;
     startImport("Importando planilha");
     setProgress(0);
 
@@ -503,6 +513,17 @@ export default function ImportarProcessos() {
     let errorCount = 0;
 
     for (let i = 0; i < updatedProcessos.length; i++) {
+      // Check for cancellation
+      if (planilhaCancelledRef.current) {
+        toast({
+          title: "Importação cancelada",
+          description: `Cancelada após processar ${i} de ${updatedProcessos.length} registros.`,
+        });
+        setImporting(false);
+        endImport();
+        return;
+      }
+
       const processo = updatedProcessos[i];
       
       // Skip invalid processos
@@ -2168,6 +2189,7 @@ export default function ImportarProcessos() {
     }
 
     setOsmarImporting(true);
+    osmarCancelledRef.current = false;
     startImport("Importando Dr. Osmar");
     setOsmarProgress(0);
 
@@ -2180,6 +2202,17 @@ export default function ImportarProcessos() {
     const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
 
     for (let i = 0; i < updatedProcessos.length; i++) {
+      // Check for cancellation
+      if (osmarCancelledRef.current) {
+        toast({
+          title: "Importação cancelada",
+          description: `Cancelada após processar ${i} de ${updatedProcessos.length} registros.`,
+        });
+        setOsmarImporting(false);
+        endImport();
+        return;
+      }
+
       const processo = updatedProcessos[i];
       
       if (processo.status === "invalido") {
@@ -2715,6 +2748,7 @@ export default function ImportarProcessos() {
     }
 
     setJanainaImporting(true);
+    janainaCancelledRef.current = false;
     startImport("Importando ACH Contingencial");
     setJanainaProgress(0);
 
@@ -2728,11 +2762,22 @@ export default function ImportarProcessos() {
     const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
 
     for (let i = 0; i < updatedProcessos.length; i++) {
+      // Check for cancellation
+      if (janainaCancelledRef.current) {
+        toast({
+          title: "Importação cancelada",
+          description: `Cancelada após processar ${i} de ${updatedProcessos.length} registros.`,
+        });
+        setJanainaImporting(false);
+        endImport();
+        return;
+      }
+
       const processo = updatedProcessos[i];
       
       // Process invalid records - mark them as rejected with clear reason
       if (processo.status === "invalido") {
-        const motivo = !processo.numero || processo.numero.trim() === "" 
+        const motivo = !processo.numero || processo.numero.trim() === ""
           ? "Número do processo vazio ou não encontrado na planilha"
           : processo.numero.trim().length < 5 
             ? `Número do processo muito curto (${processo.numero.trim().length} caracteres, mínimo 5)`
@@ -3222,6 +3267,7 @@ export default function ImportarProcessos() {
     }
 
     setPolyanaImporting(true);
+    polyanaCancelledRef.current = false;
     startImport("Importando Dra. Polyana");
     setPolyanaProgress(0);
 
@@ -3235,10 +3281,21 @@ export default function ImportarProcessos() {
     const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
 
     for (let i = 0; i < updatedProcessos.length; i++) {
+      // Check for cancellation
+      if (polyanaCancelledRef.current) {
+        toast({
+          title: "Importação cancelada",
+          description: `Cancelada após processar ${i} de ${updatedProcessos.length} registros.`,
+        });
+        setPolyanaImporting(false);
+        endImport();
+        return;
+      }
+
       const processo = updatedProcessos[i];
       
       if (processo.status === "invalido") {
-        const motivo = !processo.numero || processo.numero.trim() === "" 
+        const motivo = !processo.numero || processo.numero.trim() === ""
           ? "Número do processo vazio ou não encontrado na planilha"
           : processo.numero.trim().length < 5 
             ? `Número do processo muito curto (${processo.numero.trim().length} caracteres, mínimo 5)`
@@ -3679,6 +3736,7 @@ export default function ImportarProcessos() {
     }
 
     setMptImporting(true);
+    mptCancelledRef.current = false;
     startImport("Importando Ministério Público");
     setMptProgress(0);
 
@@ -3689,10 +3747,21 @@ export default function ImportarProcessos() {
     let rejectedCountLocal = 0;
 
     for (let i = 0; i < updatedProcessos.length; i++) {
+      // Check for cancellation
+      if (mptCancelledRef.current) {
+        toast({
+          title: "Importação cancelada",
+          description: `Cancelada após processar ${i} de ${updatedProcessos.length} registros.`,
+        });
+        setMptImporting(false);
+        endImport();
+        return;
+      }
+
       const processo = updatedProcessos[i];
       
       if (processo.status === "invalido") {
-        const motivo = !processo.numero || processo.numero.trim() === "" 
+        const motivo = !processo.numero || processo.numero.trim() === ""
           ? "Procedimento vazio ou não encontrado na planilha"
           : processo.numero.trim().length < 5 
             ? `Procedimento muito curto (${processo.numero.trim().length} caracteres, mínimo 5)`
@@ -4142,6 +4211,7 @@ export default function ImportarProcessos() {
     }
 
     setPedidosImporting(true);
+    pedidosCancelledRef.current = false;
     startImport("Importando Pedidos");
     setPedidosProgress(0);
 
@@ -4155,10 +4225,21 @@ export default function ImportarProcessos() {
     const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
 
     for (let i = 0; i < updatedProcessos.length; i++) {
+      // Check for cancellation
+      if (pedidosCancelledRef.current) {
+        toast({
+          title: "Importação cancelada",
+          description: `Cancelada após processar ${i} de ${updatedProcessos.length} registros.`,
+        });
+        setPedidosImporting(false);
+        endImport();
+        return;
+      }
+
       const processo = updatedProcessos[i];
       
       if (processo.status === "invalido") {
-        const motivo = !processo.numero || processo.numero.trim() === "" 
+        const motivo = !processo.numero || processo.numero.trim() === ""
           ? "Processo vazio ou não encontrado na planilha"
           : processo.numero.trim().length < 5 
             ? `Processo muito curto (${processo.numero.trim().length} caracteres, mínimo 5)`
@@ -4755,6 +4836,7 @@ export default function ImportarProcessos() {
     }
 
     setAstreaImporting(true);
+    astreaCancelledRef.current = false;
     startImport("Importando Astrea");
     setAstreaProgress(0);
 
@@ -4768,6 +4850,17 @@ export default function ImportarProcessos() {
     const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
 
     for (let i = 0; i < updatedProcessos.length; i++) {
+      // Check for cancellation
+      if (astreaCancelledRef.current) {
+        toast({
+          title: "Importação cancelada",
+          description: `Cancelada após processar ${i} de ${updatedProcessos.length} registros.`,
+        });
+        setAstreaImporting(false);
+        endImport();
+        return;
+      }
+
       const processo = updatedProcessos[i];
       
       // Process invalid records - mark them as rejected with clear reason
@@ -5643,19 +5736,29 @@ export default function ImportarProcessos() {
                     </div>
                   )}
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        setFile(null);
-                        setProcessos([]);
-                        setImporting(false);
-                        setProgress(0);
-                      }}
-                      disabled={importing}
-                    >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Cancelar
-                    </Button>
+                    {importing ? (
+                      <Button 
+                        variant="destructive" 
+                        onClick={() => {
+                          planilhaCancelledRef.current = true;
+                        }}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Cancelar
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setFile(null);
+                          setProcessos([]);
+                          setProgress(0);
+                        }}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Limpar
+                      </Button>
+                    )}
                     {totalRejeitados > 0 && (
                       <Button variant="outline" onClick={downloadRejeitados}>
                         <FileDown className="h-4 w-4 mr-2" />
@@ -6231,19 +6334,29 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          onClick={() => {
-                            setAstreaFile(null);
-                            setAstreaProcessos([]);
-                            setAstreaImporting(false);
-                            setAstreaProgress(0);
-                          }}
-                          disabled={astreaImporting}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Cancelar
-                        </Button>
+                        {astreaImporting ? (
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => {
+                              astreaCancelledRef.current = true;
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            onClick={() => {
+                              setAstreaFile(null);
+                              setAstreaProcessos([]);
+                              setAstreaProgress(0);
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Limpar
+                          </Button>
+                        )}
                         {astreaTotalProblemas > 0 && (
                           <Button variant="outline" onClick={() => downloadAstreaRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
@@ -6530,19 +6643,29 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          onClick={() => {
-                            setOsmarFile(null);
-                            setOsmarProcessos([]);
-                            setOsmarImporting(false);
-                            setOsmarProgress(0);
-                          }}
-                          disabled={osmarImporting}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Cancelar
-                        </Button>
+                        {osmarImporting ? (
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => {
+                              osmarCancelledRef.current = true;
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            onClick={() => {
+                              setOsmarFile(null);
+                              setOsmarProcessos([]);
+                              setOsmarProgress(0);
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Limpar
+                          </Button>
+                        )}
                         {osmarTotalProblemas > 0 && (
                           <Button variant="outline" onClick={downloadOsmarRejeitados}>
                             <FileDown className="h-4 w-4 mr-2" />
@@ -6859,19 +6982,29 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          onClick={() => {
-                            setJanainaFile(null);
-                            setJanainaProcessos([]);
-                            setJanainaImporting(false);
-                            setJanainaProgress(0);
-                          }}
-                          disabled={janainaImporting}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Cancelar
-                        </Button>
+                        {janainaImporting ? (
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => {
+                              janainaCancelledRef.current = true;
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            onClick={() => {
+                              setJanainaFile(null);
+                              setJanainaProcessos([]);
+                              setJanainaProgress(0);
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Limpar
+                          </Button>
+                        )}
                         {janainaTotalProblemas > 0 && (
                           <Button variant="outline" onClick={() => downloadJanainaRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
@@ -7112,19 +7245,29 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          onClick={() => {
-                            setPolyanaFile(null);
-                            setPolyanaProcessos([]);
-                            setPolyanaImporting(false);
-                            setPolyanaProgress(0);
-                          }}
-                          disabled={polyanaImporting}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Cancelar
-                        </Button>
+                        {polyanaImporting ? (
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => {
+                              polyanaCancelledRef.current = true;
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            onClick={() => {
+                              setPolyanaFile(null);
+                              setPolyanaProcessos([]);
+                              setPolyanaProgress(0);
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Limpar
+                          </Button>
+                        )}
                         {polyanaTotalProblemas > 0 && (
                           <Button variant="outline" onClick={() => downloadPolyanaRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
@@ -7441,19 +7584,29 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          onClick={() => {
-                            setMptFile(null);
-                            setMptProcessos([]);
-                            setMptImporting(false);
-                            setMptProgress(0);
-                          }}
-                          disabled={mptImporting}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Cancelar
-                        </Button>
+                        {mptImporting ? (
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => {
+                              mptCancelledRef.current = true;
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            onClick={() => {
+                              setMptFile(null);
+                              setMptProcessos([]);
+                              setMptProgress(0);
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Limpar
+                          </Button>
+                        )}
                         {mptTotalProblemas > 0 && (
                           <Button variant="outline" onClick={() => downloadMptRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
@@ -7789,19 +7942,29 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          onClick={() => {
-                            setPedidosFile(null);
-                            setPedidosProcessos([]);
-                            setPedidosImporting(false);
-                            setPedidosProgress(0);
-                          }}
-                          disabled={pedidosImporting}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Cancelar
-                        </Button>
+                        {pedidosImporting ? (
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => {
+                              pedidosCancelledRef.current = true;
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            onClick={() => {
+                              setPedidosFile(null);
+                              setPedidosProcessos([]);
+                              setPedidosProgress(0);
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Limpar
+                          </Button>
+                        )}
                         {pedidosTotalProblemas > 0 && (
                           <Button variant="outline" onClick={() => downloadPedidosRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
