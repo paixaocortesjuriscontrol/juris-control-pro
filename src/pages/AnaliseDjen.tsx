@@ -16,6 +16,8 @@ import {
   ExternalLink,
   ChevronsUpDown,
   ListChecks,
+  Download,
+  FolderPlus,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -51,14 +53,17 @@ import { cn } from "@/lib/utils";
 import DOMPurify from "dompurify";
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 
 const AnaliseDjen = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [importingProcessoId, setImportingProcessoId] = useState<string | null>(null);
 
   // Buscar a coordenação do usuário logado
   const { data: userCoordenacao, isLoading: loadingUserCoord } = useQuery({
@@ -100,6 +105,7 @@ const AnaliseDjen = () => {
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
+
 
   // Determinar o filtro efetivo de coordenação
   // Se coordenacaoId ainda é null, aguardar inicialização
@@ -172,6 +178,100 @@ const AnaliseDjen = () => {
   const handleCriarTarefa = (pub: PublicacaoUnificada) => {
     setSelectedPublicacao(pub);
     setCriarTarefaDialogOpen(true);
+  };
+
+  // Função para importar processo não cadastrado
+  const handleImportarProcesso = async (pub: PublicacaoUnificada) => {
+    if (!pub.processo_numero || !user?.id) {
+      toast.error("Número do processo não encontrado");
+      return;
+    }
+
+    setImportingProcessoId(pub.id);
+
+    try {
+      // Gerar nome da pasta baseado no polo passivo e ativo
+      const poloAtivo = pub.polo_ativo || "Autor não identificado";
+      const poloPassivo = pub.polo_passivo || "Réu não identificado";
+      const nomePasta = `${poloPassivo} x ${poloAtivo}`.substring(0, 200);
+
+      // 1. Criar a pasta
+      const { data: pasta, error: pastaError } = await supabase
+        .from('pastas')
+        .insert({
+          nome: nomePasta,
+          descricao: `Processo importado do DJEN - ${pub.processo_numero}`,
+          criado_por: user.id,
+        })
+        .select()
+        .single();
+
+      if (pastaError) throw pastaError;
+
+      // 2. Criar o processo vinculado à pasta
+      const { data: processo, error: processoError } = await supabase
+        .from('processos')
+        .insert({
+          numero: pub.processo_numero,
+          area: 'civil',
+          status: 'ativo',
+          tribunal: pub.tribunal || pub.fonte || 'Não identificado',
+          polo_ativo: pub.polo_ativo || 'A identificar',
+          polo_passivo: pub.polo_passivo || 'A identificar',
+          assunto: pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 500) || 'Processo importado do DJEN',
+          pasta_id: pasta.id,
+          coordenacao_id: pub.coordenacao_id || userCoordenacao || null,
+          monitorar_andamentos: true,
+        })
+        .select()
+        .single();
+
+      if (processoError) throw processoError;
+
+      // 3. Adicionar o usuário como responsável
+      await supabase
+        .from('processos_responsaveis')
+        .insert({
+          processo_id: processo.id,
+          usuario_id: user.id,
+        });
+
+      // 4. Adicionar a publicação como primeira movimentação
+      await supabase
+        .from('movimentacoes')
+        .insert({
+          processo_id: processo.id,
+          descricao: `Publicação DJEN: ${pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 1000) || 'Importado do DJEN'}`,
+          tipo: 'publicacao',
+          fonte: 'DJEN',
+          data_movimentacao: pub.data_publicacao || new Date().toISOString(),
+        });
+
+      // 5. Marcar a publicação como lida
+      if (pub.tipo_origem === 'termo') {
+        await supabase
+          .from('publicacoes_djen')
+          .update({ lida: true })
+          .eq('id', pub.id);
+      }
+
+      // Invalidar queries
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['processos'] });
+      queryClient.invalidateQueries({ queryKey: ['pastas'] });
+
+      toast.success("Processo e pasta criados com sucesso!", {
+        action: {
+          label: "Ver processo",
+          onClick: () => navigate(`/processos/${processo.id}`),
+        },
+      });
+    } catch (error: any) {
+      console.error("Erro ao importar processo:", error);
+      toast.error(`Erro ao importar: ${error.message}`);
+    } finally {
+      setImportingProcessoId(null);
+    }
   };
 
   const toggleExpandPublicacao = (id: string) => {
@@ -591,7 +691,7 @@ const AnaliseDjen = () => {
                                   onClick={() => toggleExpandPublicacao(pub.id)}
                                 >
                                   {pub.processo_numero && (
-                                    <div className="flex items-start md:items-center gap-1 md:gap-2 mb-1">
+                                    <div className="flex items-start md:items-center gap-1 md:gap-2 mb-1 flex-wrap">
                                       {isExpanded ? (
                                         <ChevronDown className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground flex-shrink-0 mt-0.5 md:mt-0" />
                                       ) : (
@@ -610,6 +710,29 @@ const AnaliseDjen = () => {
                                           <span className="hidden sm:inline">Ver processo</span>
                                         </Link>
                                       )}
+                                      
+                                      {/* Botão Importar para processos não cadastrados */}
+                                      {!pub.processo_id && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleImportarProcesso(pub);
+                                          }}
+                                          disabled={importingProcessoId === pub.id}
+                                          title="Importar processo e criar pasta"
+                                          className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-400"
+                                        >
+                                          {importingProcessoId === pub.id ? (
+                                            <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1 animate-spin" />
+                                          ) : (
+                                            <FolderPlus className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                          )}
+                                          <span className="text-xs">Importar</span>
+                                        </Button>
+                                      )}
+                                      
                                       <Button
                                         variant="outline"
                                         size="sm"
