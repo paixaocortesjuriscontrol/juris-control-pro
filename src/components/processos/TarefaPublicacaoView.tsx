@@ -561,7 +561,7 @@ export function TarefaPublicacaoView({
 
   // Calcular status de vencimento
   const getStatusInfo = () => {
-    if (!tarefa.data_vencimento) return null;
+    if (!tarefa || !tarefa.data_vencimento) return null;
     const hoje = startOfDay(new Date());
     const vencimento = startOfDay(new Date(tarefa.data_vencimento));
     const dias = differenceInDays(vencimento, hoje);
@@ -576,8 +576,6 @@ export function TarefaPublicacaoView({
     }
     return { label: dias === 0 ? "Vence hoje" : `${dias} dia${dias !== 1 ? "s" : ""} restantes`, icon: Clock, className: "bg-amber-500 text-white" };
   };
-
-  const statusInfo = getStatusInfo();
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -613,6 +611,7 @@ export function TarefaPublicacaoView({
   // Determina se tem publicação vinculada
   const temPublicacao = publicacao !== null && publicacao !== undefined;
   const isConcluido = tarefa.status === "cumprido";
+  const statusInfo = getStatusInfo();
 
   return (
     <div className="flex flex-col lg:flex-row gap-0 border rounded-lg bg-background overflow-hidden min-h-[600px]">
