@@ -1851,12 +1851,85 @@ export default function ProcessoDetalhes() {
           movimentacoes={movimentacoes}
           documentos={documentosProcesso}
           tarefas={tarefas}
+          audiencias={audiencias}
+          intimacoes={intimacoes}
+          publicacoesDjen={publicacoesDjen}
+          redistribuicoes={redistribuicoes}
+          alertas360={alertas360}
+          eventosAgenda={eventosAgenda}
+          loadingAudiencias={loadingAudiencias}
+          loadingIntimacoes={loadingIntimacoes}
+          loadingPublicacoes={loadingPublicacoes}
+          loadingTarefas={loadingTarefas}
           onVoltar={() => setViewMode("resumo")}
           onEditar={() => {
             setEditando(true);
             setViewMode("editar");
           }}
+          onEditAudiencia={(aud) => setEditingAudiencia(aud)}
+          onSelectIntimacao={(int) => setSelectedIntimacao(int)}
+          onSelectTarefa={(tarefaId) => setSelectedTarefaId(tarefaId)}
         />
+
+        {/* Dialogs */}
+        {editingAudiencia && (
+          <EditarAudienciaDialog 
+            audiencia={editingAudiencia}
+            open={!!editingAudiencia}
+            onOpenChange={(open) => {
+              if (!open) {
+                queryClient.invalidateQueries({ queryKey: ["audiencias-processo", id, processo?.numero] });
+                setEditingAudiencia(null);
+              }
+            }}
+          />
+        )}
+
+        {/* Intimação Details Dialog */}
+        <Dialog open={!!selectedIntimacao} onOpenChange={(open) => !open && setSelectedIntimacao(null)}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                Detalhes da Intimação
+              </DialogTitle>
+            </DialogHeader>
+            {selectedIntimacao && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  {getIntimacaoStatusBadge(selectedIntimacao.status)}
+                  {getOrigemBadge(selectedIntimacao.origem)}
+                </div>
+                {selectedIntimacao.data_limite && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Prazo</p>
+                    <p className="font-medium text-destructive">{formatDate(selectedIntimacao.data_limite)}</p>
+                  </div>
+                )}
+                {selectedIntimacao.descricao && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Descrição</p>
+                    <p>{selectedIntimacao.descricao}</p>
+                  </div>
+                )}
+                {selectedIntimacao.contexto && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Contexto</p>
+                    <p className="text-sm whitespace-pre-wrap">{selectedIntimacao.contexto}</p>
+                  </div>
+                )}
+                {selectedIntimacao.conteudo_publicacao && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Conteúdo da Publicação</p>
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-sm whitespace-pre-wrap break-words">{selectedIntimacao.conteudo_publicacao}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </MainLayout>
     );
   }
