@@ -1861,6 +1861,7 @@ export default function ProcessoDetalhes() {
           loadingIntimacoes={loadingIntimacoes}
           loadingPublicacoes={loadingPublicacoes}
           loadingTarefas={loadingTarefas}
+          selectedTarefaId={selectedTarefaId}
           onVoltar={() => setViewMode("resumo")}
           onEditar={() => {
             setEditando(true);
@@ -1869,6 +1870,7 @@ export default function ProcessoDetalhes() {
           onEditAudiencia={(aud) => setEditingAudiencia(aud)}
           onSelectIntimacao={(int) => setSelectedIntimacao(int)}
           onSelectTarefa={(tarefaId) => setSelectedTarefaId(tarefaId)}
+          onVoltarTarefa={() => setSelectedTarefaId(null)}
         />
 
         {/* Dialogs */}
