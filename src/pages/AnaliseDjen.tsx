@@ -320,22 +320,47 @@ const AnaliseDjen = () => {
     }
   };
 
+  const decodeHtmlEntities = (value: string) => {
+    if (!value) return value;
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.innerHTML = value;
+      return textarea.value;
+    } catch {
+      return value;
+    }
+  };
+
   const formatConteudoParaExibicao = (conteudo: string | null) => {
     const raw = conteudo || "Sem conteúdo";
 
-    // O PJe Comunica frequentemente retorna o texto com quebras virando múltiplos espaços
-    // e às vezes já vem com tags <br>. Aqui normalizamos para quebras reais.
-    const normalized = raw
+    // Normaliza HTML -> texto, preservando quebras e evitando que CSS/JS apareçam no texto.
+    let s = raw;
+
+    // Remove blocos que não devem ser exibidos
+    s = s
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<script[\s\S]*?<\/script>/gi, "");
+
+    // Normaliza quebras e alguns blocos comuns
+    s = s
       .replace(/\r\n?/g, "\n")
       .replace(/<br\s*\/?>(\s*)/gi, "\n")
-      .replace(/<\/?p[^>]*>/gi, "\n")
+      .replace(/<\/p\s*>/gi, "\n\n")
+      .replace(/<p[^>]*>/gi, "")
+      .replace(/<li[^>]*>/gi, "• ")
+      .replace(/<\/li\s*>/gi, "\n")
+      .replace(/<\/(div|tr|table|ul|ol|h[1-6]|blockquote)\s*>/gi, "\n")
+      .replace(/<(div|tr|table|ul|ol|h[1-6]|blockquote)[^>]*>/gi, "")
       .replace(/&nbsp;/gi, " ")
-      .replace(/<[^>]+>/g, "")
-      .replace(/[ \t]{2,}/g, "\n")
+      .replace(/<[^>]+>/g, "");
+
+    s = decodeHtmlEntities(s)
+      .replace(/[ \t]+\n/g, "\n")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
 
-    return normalized;
+    return s;
   };
 
   // Agrupar publicações por coordenação
@@ -872,7 +897,7 @@ const AnaliseDjen = () => {
                                     <div>
                                       <strong className="text-[10px] md:text-xs">Conteúdo:</strong>
                                       <div
-                                        className="mt-1.5 md:mt-2 p-2 md:p-3 bg-muted/50 rounded-lg text-xs md:text-sm overflow-x-auto break-words [overflow-wrap:anywhere] whitespace-pre-wrap"
+                                        className="mt-1.5 md:mt-2 p-2 md:p-3 bg-muted/50 rounded-lg text-xs md:text-sm w-full max-w-full text-left leading-relaxed break-words [overflow-wrap:anywhere] whitespace-pre-wrap"
                                       >
                                         {formatConteudoParaExibicao(pub.conteudo)}
                                       </div>
@@ -1000,7 +1025,7 @@ const AnaliseDjen = () => {
                   <div>
                     <strong className="text-xs md:text-sm">Conteúdo:</strong>
                     <div
-                      className="mt-1.5 md:mt-2 p-2 md:p-4 bg-muted/50 rounded-lg text-xs md:text-sm overflow-x-auto break-words [overflow-wrap:anywhere] whitespace-pre-wrap"
+                      className="mt-1.5 md:mt-2 p-2 md:p-4 bg-muted/50 rounded-lg text-xs md:text-sm w-full max-w-full text-left leading-relaxed break-words [overflow-wrap:anywhere] whitespace-pre-wrap"
                     >
                       {formatConteudoParaExibicao(selectedPublicacao.conteudo)}
                     </div>
