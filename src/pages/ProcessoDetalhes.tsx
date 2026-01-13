@@ -1751,7 +1751,7 @@ export default function ProcessoDetalhes() {
   if (viewMode === "resumo") {
     return (
       <MainLayout title="" subtitle="">
-        <div className="max-w-6xl mx-auto p-6 space-y-6">
+        <div className="w-full px-2 sm:px-4 lg:px-6 py-3 space-y-4">
           {/* Back Button */}
           <Button 
             variant="ghost" 
@@ -1762,7 +1762,7 @@ export default function ProcessoDetalhes() {
                 navigate("/processos");
               }
             }} 
-            className="mb-2"
+            className="mb-1"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar
