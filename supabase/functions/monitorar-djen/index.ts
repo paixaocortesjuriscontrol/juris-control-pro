@@ -108,6 +108,7 @@ function generateHash(content: string): string {
 }
 
 // Função auxiliar para criar tarefas para responsáveis do processo
+// Agora segue o mesmo padrão do CriarTarefaPublicacaoDialog
 async function criarTarefasParaResponsaveis(
   supabase: any,
   processoNumero: string,
@@ -115,7 +116,9 @@ async function criarTarefasParaResponsaveis(
   descricao: string,
   dataVencimento: string,
   prioridade: string,
-  origem: string
+  origem: string,
+  tipoTarefa: string,
+  publicacaoId?: string // ID da publicação para vincular na tabela N:N
 ): Promise<string[]> {
   // Primeiro, buscar o processo pelo número
   const { data: processo } = await supabase
@@ -150,12 +153,24 @@ async function criarTarefasParaResponsaveis(
           prioridade,
           status: 'pendente',
           origem,
+          tipo_tarefa: tipoTarefa,
         })
         .select('id')
         .single();
 
       if (!error && tarefa) {
         console.log(`Created task ${tarefa.id} for legacy responsible`);
+        
+        // Vincular tarefa à publicação na tabela N:N (igual ao CriarTarefaPublicacaoDialog)
+        if (publicacaoId) {
+          await supabase
+            .from('tarefas_publicacoes')
+            .insert({
+              tarefa_id: tarefa.id,
+              publicacao_id: publicacaoId,
+            });
+        }
+        
         return [tarefa.id];
       }
     }
@@ -177,12 +192,23 @@ async function criarTarefasParaResponsaveis(
         prioridade,
         status: 'pendente',
         origem,
+        tipo_tarefa: tipoTarefa,
       })
       .select('id')
       .single();
 
     if (!error && tarefa) {
       tarefaIds.push(tarefa.id);
+      
+      // Vincular tarefa à publicação na tabela N:N (igual ao CriarTarefaPublicacaoDialog)
+      if (publicacaoId) {
+        await supabase
+          .from('tarefas_publicacoes')
+          .insert({
+            tarefa_id: tarefa.id,
+            publicacao_id: publicacaoId,
+          });
+      }
     }
   }
 
@@ -548,7 +574,9 @@ async function processMonitoramento(
               `Audiência detectada no DJEN.\n\nData: ${audienciaInfo.dataAudiencia || 'A definir'}\n\nContexto:\n${audienciaInfo.contexto || ''}`,
               dataVencimentoTarefa,
               'alta',
-              'monitoramento_djen'
+              'monitoramento_djen',
+              'Audiência', // tipo_tarefa
+              insertedPub.id // publicacao_id para vincular na tabela N:N
             );
 
             // Vincular tarefa à audiência
