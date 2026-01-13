@@ -177,6 +177,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           : undefined;
 
       const resultados: PublicacaoUnificada[] = [];
+      const numerosProcessosTermo: string[] = [];
 
       // Buscar publicações de TERMOS (monitoramentos_djen)
       if (filtros.tipoOrigem !== 'processo') {
@@ -204,6 +205,27 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         const { data: termosData } = await queryTermos.limit(300);
 
+        // Coletar números de processos para buscar IDs
+        (termosData || []).forEach((pub: any) => {
+          if (pub.processo_numero) {
+            numerosProcessosTermo.push(pub.processo_numero);
+          }
+        });
+
+        // Buscar IDs dos processos que já existem no banco
+        let processosExistentesMap: Record<string, string> = {};
+        if (numerosProcessosTermo.length > 0) {
+          const uniqueNumeros = [...new Set(numerosProcessosTermo)];
+          const { data: processosExistentes } = await supabase
+            .from('processos')
+            .select('id, numero')
+            .in('numero', uniqueNumeros);
+          
+          (processosExistentes || []).forEach((p: any) => {
+            processosExistentesMap[p.numero] = p.id;
+          });
+        }
+
         (termosData || []).forEach((pub: any) => {
           // Filtrar por coordenação se especificado
           if (filtros.coordenacaoId && pub.monitoramento?.coordenacao_id !== filtros.coordenacaoId) {
@@ -220,10 +242,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             if (!match) return;
           }
 
+          // Verificar se o processo já existe no banco
+          const processoId = pub.processo_numero ? processosExistentesMap[pub.processo_numero] || null : null;
+
           resultados.push({
             id: pub.id,
             tipo_origem: 'termo',
-            processo_id: null,
+            processo_id: processoId,
             processo_numero: pub.processo_numero,
             conteudo: pub.conteudo,
             data_publicacao: pub.data_publicacao,
