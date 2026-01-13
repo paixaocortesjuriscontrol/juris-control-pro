@@ -12,6 +12,7 @@ export interface PublicacaoUnificada {
   processo_numero: string | null;
   conteudo: string | null;
   data_publicacao: string | null;
+  data_disponibilizacao: string | null;
   fonte: string | null;
   lida: boolean;
   created_at: string;
@@ -189,6 +190,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             processo_numero,
             conteudo,
             data_publicacao,
+            data_disponibilizacao,
             fonte,
             lida,
             created_at,
@@ -252,6 +254,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             processo_numero: pub.processo_numero,
             conteudo: pub.conteudo,
             data_publicacao: pub.data_publicacao,
+            data_disponibilizacao: pub.data_disponibilizacao,
             fonte: pub.fonte,
             lida: pub.lida,
             created_at: pub.created_at,
@@ -280,6 +283,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             processo_numero,
             conteudo,
             data_publicacao,
+            data_disponibilizacao,
             fonte,
             lida,
             created_at,
@@ -320,6 +324,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             processo_numero: pub.processo_numero,
             conteudo: pub.conteudo,
             data_publicacao: pub.data_publicacao,
+            data_disponibilizacao: pub.data_disponibilizacao,
             fonte: pub.fonte,
             lida: pub.lida,
             created_at: pub.created_at,

@@ -480,7 +480,9 @@ export function ProcessoExpandableRow({
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                           <span className="text-sm font-medium text-muted-foreground">
-                            {pub.data_publicacao
+                            Disp.: {pub.data_disponibilizacao
+                              ? format(new Date(pub.data_disponibilizacao), "dd/MM/yyyy")
+                              : "-"} | Pub.: {pub.data_publicacao
                               ? format(new Date(pub.data_publicacao), "dd/MM/yyyy")
                               : format(new Date(pub.created_at), "dd/MM/yyyy")}
                           </span>
@@ -491,9 +493,9 @@ export function ProcessoExpandableRow({
                           )}
                         </div>
                         <div
-                          className="prose prose-sm max-w-none dark:prose-invert text-sm overflow-x-auto break-words [word-break:break-word] [overflow-wrap:anywhere] [&_table]:table-fixed [&_table]:w-full [&_table]:text-xs [&_td]:break-words [&_th]:break-words [&_td]:p-1 [&_th]:p-1 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-words"
+                          className="prose prose-sm max-w-none dark:prose-invert text-sm overflow-x-auto break-words whitespace-pre-line [word-break:break-word] [overflow-wrap:anywhere] [&_table]:table-fixed [&_table]:w-full [&_table]:text-xs [&_td]:break-words [&_th]:break-words [&_td]:p-1 [&_th]:p-1 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-words"
                           dangerouslySetInnerHTML={{
-                            __html: DOMPurify.sanitize(pub.conteudo || "Sem conteúdo"),
+                            __html: DOMPurify.sanitize((pub.conteudo || "Sem conteúdo").replace(/\n/g, '<br/>')),
                           }}
                         />
                       </div>

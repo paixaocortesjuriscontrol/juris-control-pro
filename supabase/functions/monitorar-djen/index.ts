@@ -465,7 +465,9 @@ async function processMonitoramento(
     for (const pub of publications) {
       const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
       const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
-      const dataPublicacao = pub.dataPublicacao || pub.dataDisponibilizacao || pub.dataDJe || pub.dataJornal || pub.data || dataAtual;
+      // Data de publicação (oficial) vs data de disponibilização (dia anterior)
+      const dataDisponibilizacao = pub.dataDisponibilizacao || pub.dataDJe || null;
+      const dataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.data || dataAtual;
       const globalHash = generateGlobalHash(conteudo, dataPublicacao);
 
       // Check global deduplication
@@ -520,6 +522,7 @@ async function processMonitoramento(
           monitoramento_id: monitoramento.id,
           hash_conteudo: hashConteudo,
           data_publicacao: dataPublicacao,
+          data_disponibilizacao: dataDisponibilizacao,
           processo_numero: processoNumero,
           conteudo: conteudo,
           fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
