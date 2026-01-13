@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, differenceInDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import DOMPurify from "dompurify";
 import {
@@ -29,8 +29,19 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,8 +63,14 @@ import {
   ExternalLink,
   X,
   Check,
+  RotateCcw,
+  Trash2,
+  MessageSquare,
+  Send,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const formSchema = z.object({
   tipo_tarefa: z.string().min(1, "Tipo é obrigatório"),
@@ -107,9 +124,15 @@ export function TarefaPublicacaoView({
   onVoltar,
 }: TarefaPublicacaoViewProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [comentario, setComentario] = useState("");
+  const [sendingComment, setSendingComment] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const hoje = format(new Date(), "yyyy-MM-dd");
 
@@ -263,6 +286,28 @@ export function TarefaPublicacaoView({
   // Unificar tarefas vinculadas
   const tarefasVinculadas = [...tarefasVinculadasTermo, ...tarefasVinculadasProcesso];
 
+  // Buscar comentários da tarefa
+  const { data: comentarios = [], isLoading: loadingComentarios } = useQuery({
+    queryKey: ["comentarios-tarefa", tarefaId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("comentarios_tarefas")
+        .select(`
+          id,
+          conteudo,
+          created_at,
+          autor:profiles!comentarios_prazos_autor_id_fkey(id, nome)
+        `)
+        .eq("tarefa_id", tarefaId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tarefaId,
+    staleTime: 0,
+  });
+
   // Buscar processo com detalhes
   const { data: processo } = useQuery({
     queryKey: ["processo-detalhe-view", processoId],
@@ -398,6 +443,142 @@ export function TarefaPublicacaoView({
     }
   }
 
+  // Função para concluir tarefa
+  const handleConcluir = async () => {
+    setUpdatingStatus(true);
+    try {
+      const { error } = await supabase
+        .from("tarefas")
+        .update({
+          status: "cumprido",
+          data_cumprimento: new Date().toISOString(),
+        })
+        .eq("id", tarefaId);
+      if (error) throw error;
+      
+      toast.success("Tarefa concluída com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["tarefa-detalhe", tarefaId] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+    } catch (error: any) {
+      toast.error(`Erro ao concluir: ${error.message}`);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  // Função para reabrir tarefa
+  const handleReabrir = async () => {
+    setUpdatingStatus(true);
+    try {
+      const { error } = await supabase
+        .from("tarefas")
+        .update({
+          status: "pendente",
+          data_cumprimento: null,
+        })
+        .eq("id", tarefaId);
+      if (error) throw error;
+      
+      toast.success("Tarefa reaberta com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["tarefa-detalhe", tarefaId] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+    } catch (error: any) {
+      toast.error(`Erro ao reabrir: ${error.message}`);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  // Função para enviar comentário
+  const handleEnviarComentario = async () => {
+    if (!comentario.trim() || !user) return;
+
+    setSendingComment(true);
+    try {
+      const { error } = await supabase.from("comentarios_tarefas").insert({
+        tarefa_id: tarefaId,
+        autor_id: user.id,
+        conteudo: comentario.trim(),
+      });
+
+      if (error) throw error;
+
+      setComentario("");
+      queryClient.invalidateQueries({ queryKey: ["comentarios-tarefa", tarefaId] });
+      toast.success("Comentário adicionado!");
+    } catch (error: any) {
+      toast.error(`Erro ao adicionar comentário: ${error.message}`);
+    } finally {
+      setSendingComment(false);
+    }
+  };
+
+  // Função para excluir tarefa
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      // Remover vínculos primeiro
+      await supabase
+        .from("tarefas_publicacoes")
+        .delete()
+        .eq("tarefa_id", tarefaId);
+      
+      await supabase
+        .from("tarefas_publicacoes_processos")
+        .delete()
+        .eq("tarefa_id", tarefaId);
+      
+      // Remover comentários
+      await supabase
+        .from("comentarios_tarefas")
+        .delete()
+        .eq("tarefa_id", tarefaId);
+
+      // Remover tarefa
+      const { error } = await supabase
+        .from("tarefas")
+        .delete()
+        .eq("id", tarefaId);
+
+      if (error) throw error;
+
+      toast.success("Tarefa excluída com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      onVoltar();
+    } catch (error: any) {
+      toast.error(`Erro ao excluir: ${error.message}`);
+    } finally {
+      setDeleting(false);
+      setDeleteDialogOpen(false);
+    }
+  };
+
+  // Calcular status de vencimento
+  const getStatusInfo = () => {
+    if (!tarefa.data_vencimento) return null;
+    const hoje = startOfDay(new Date());
+    const vencimento = startOfDay(new Date(tarefa.data_vencimento));
+    const dias = differenceInDays(vencimento, hoje);
+    const isConcluido = tarefa.status === "cumprido";
+    const isAtrasado = dias < 0 && !isConcluido;
+
+    if (isConcluido) {
+      return { label: "Concluído", icon: CheckCircle2, className: "bg-emerald-500 text-white" };
+    }
+    if (isAtrasado) {
+      return { label: `Atrasado (${Math.abs(dias)} dia${Math.abs(dias) !== 1 ? "s" : ""})`, icon: AlertTriangle, className: "bg-destructive text-white" };
+    }
+    return { label: dias === 0 ? "Vence hoje" : `${dias} dia${dias !== 1 ? "s" : ""} restantes`, icon: Clock, className: "bg-amber-500 text-white" };
+  };
+
+  const statusInfo = getStatusInfo();
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       pendente: "secondary",
@@ -431,6 +612,7 @@ export function TarefaPublicacaoView({
 
   // Determina se tem publicação vinculada
   const temPublicacao = publicacao !== null && publicacao !== undefined;
+  const isConcluido = tarefa.status === "cumprido";
 
   return (
     <div className="flex flex-col lg:flex-row gap-0 border rounded-lg bg-background overflow-hidden min-h-[600px]">
@@ -577,55 +759,93 @@ export function TarefaPublicacaoView({
         </ScrollArea>
       </div>
 
-      {/* === LADO DIREITO - PROCESSO E TAREFAS === */}
+      {/* === LADO DIREITO - PROCESSO, COMENTÁRIOS E AÇÕES === */}
       <div className="w-full lg:w-[420px] flex flex-col bg-muted/10">
         {/* Header com ações */}
-        <div className="p-3 border-b bg-background flex items-center justify-between gap-2">
+        <div className="p-3 border-b bg-background flex items-center justify-between gap-2 flex-wrap">
           <Button variant="ghost" size="sm" onClick={onVoltar} className="gap-1 text-xs">
             <ArrowLeft className="w-3 h-3" />
             VOLTAR
           </Button>
-          <div className="flex items-center gap-2">
-            {temPublicacao ? (
-              <>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="default" size="sm" className="gap-1 text-xs">
-                      TRATAMENTOS
-                      <ChevronDown className="w-3 h-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setShowForm(true)}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Adicionar tarefa
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Calendar className="w-4 h-4 mr-2" />
-                      Adicionar prazo
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Gavel className="w-4 h-4 mr-2" />
-                      Adicionar audiência
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button variant="outline" size="sm" className="text-xs text-destructive border-destructive hover:bg-destructive/10">
-                  DESCARTAR
-                </Button>
-                <Button variant="default" size="sm" className="text-xs bg-green-600 hover:bg-green-700">
-                  <Check className="w-3 h-3 mr-1" />
-                  CONCLUIR
-                </Button>
-              </>
+          <div className="flex items-center gap-2 flex-wrap">
+            {temPublicacao && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="default" size="sm" className="gap-1 text-xs">
+                    TRATAMENTOS
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setShowForm(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar tarefa
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Adicionar prazo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Gavel className="w-4 h-4 mr-2" />
+                    Adicionar audiência
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            
+            {/* Botão Excluir */}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="text-xs text-destructive border-destructive hover:bg-destructive/10"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              Excluir
+            </Button>
+            
+            {/* Botão Concluir/Reabrir */}
+            {isConcluido ? (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-xs"
+                onClick={handleReabrir}
+                disabled={updatingStatus}
+              >
+                {updatingStatus ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-3 h-3 mr-1" />
+                )}
+                Reabrir
+              </Button>
             ) : (
-              <Button variant="default" size="sm" className="text-xs bg-green-600 hover:bg-green-700">
-                <Check className="w-3 h-3 mr-1" />
-                Marcar Concluída
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="text-xs bg-green-600 hover:bg-green-700"
+                onClick={handleConcluir}
+                disabled={updatingStatus}
+              >
+                {updatingStatus ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <Check className="w-3 h-3 mr-1" />
+                )}
+                Concluir
               </Button>
             )}
           </div>
         </div>
+
+        {/* Status Badge */}
+        {statusInfo && (
+          <div className={`px-4 py-2 flex items-center gap-2 text-sm ${statusInfo.className}`}>
+            <statusInfo.icon className="w-4 h-4" />
+            <span className="font-medium">{statusInfo.label}</span>
+          </div>
+        )}
 
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-4">
@@ -648,13 +868,61 @@ export function TarefaPublicacaoView({
                     <p className="font-mono">{processo.numero}</p>
                     <p>{processo.vara} - {processo.uf}</p>
                   </div>
-                  <div className="flex gap-2 pt-2">
-                    <Button variant="link" size="sm" className="h-auto p-0 text-xs text-primary">
-                      VER ATIVIDADES PENDENTES
-                      <ExternalLink className="w-3 h-3 ml-1" />
-                    </Button>
-                  </div>
                 </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Seção de Comentários/Tratamentos */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                COMENTÁRIOS / TRATAMENTOS
+              </h3>
+              
+              {/* Input de novo comentário */}
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder="Adicionar comentário..."
+                  value={comentario}
+                  onChange={(e) => setComentario(e.target.value)}
+                  className="min-h-[60px] text-sm"
+                />
+              </div>
+              <Button 
+                size="sm" 
+                onClick={handleEnviarComentario}
+                disabled={sendingComment || !comentario.trim()}
+                className="w-full"
+              >
+                {sendingComment ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-2" />
+                )}
+                Enviar Comentário
+              </Button>
+
+              {/* Lista de comentários */}
+              {loadingComentarios ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                </div>
+              ) : comentarios.length > 0 ? (
+                <div className="space-y-2 mt-3">
+                  {comentarios.map((c: any) => (
+                    <div key={c.id} className="border rounded-lg p-3 bg-background">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold">{c.autor?.nome || "Usuário"}</span>
+                        <span className="text-xs text-muted-foreground">{formatDateTime(c.created_at)}</span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap">{c.conteudo}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-2">Nenhum comentário ainda</p>
               )}
             </div>
 
@@ -861,6 +1129,33 @@ export function TarefaPublicacaoView({
           </div>
         </ScrollArea>
       </div>
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir tarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita. A tarefa "{tarefa.titulo}" será excluída permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
