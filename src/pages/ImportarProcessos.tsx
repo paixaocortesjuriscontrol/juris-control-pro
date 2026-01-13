@@ -375,6 +375,13 @@ export default function ImportarProcessos() {
   const [pedidosImporting, setPedidosImporting] = useState(false);
   const [pedidosProgress, setPedidosProgress] = useState(0);
   const [pedidosBuscarAndamentos, setPedidosBuscarAndamentos] = useState(true);
+
+  // Astrea import states
+  const [astreaFile, setAstreaFile] = useState<File | null>(null);
+  const [astreaProcessos, setAstreaProcessos] = useState<ProcessoImport[]>([]);
+  const [astreaImporting, setAstreaImporting] = useState(false);
+  const [astreaProgress, setAstreaProgress] = useState(0);
+  const [astreaBuscarAndamentos, setAstreaBuscarAndamentos] = useState(true);
   const [pedidosRelatorioTipo, setPedidosRelatorioTipo] = useState<TipoPedido>("todos");
   const { exportarRelatorioPedidos } = useRelatorioPedidos();
 
@@ -4448,11 +4455,674 @@ export default function ImportarProcessos() {
   const pedidosErrorCount = pedidosProcessos.filter(p => p.status === "erro").length;
   const pedidosTotalProblemas = pedidosInvalidCount + pedidosErrorCount + pedidosWarningCount;
 
+  // Astrea file handling
+  const handleAstreaFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setAstreaFile(selectedFile);
+      parseAstreaExcel(selectedFile);
+    }
+  }, []);
+
+  // Função para encontrar cliente similar por nome
+  const findSimilarClient = (clienteNome: string, clientesList: { id: string; nome: string; tipo: string }[]): { id: string; nome: string } | null => {
+    if (!clienteNome) return null;
+    const normalizedInput = clienteNome
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s]/g, "")
+      .trim();
+    
+    // Busca exata primeiro
+    const exactMatch = clientesList.find(c => 
+      c.nome.toLowerCase().trim() === clienteNome.toLowerCase().trim()
+    );
+    if (exactMatch) return { id: exactMatch.id, nome: exactMatch.nome };
+    
+    // Busca por nome normalizado
+    const normalizedMatch = clientesList.find(c => {
+      const normalizedCliente = c.nome
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, "")
+        .trim();
+      return normalizedCliente === normalizedInput;
+    });
+    if (normalizedMatch) return { id: normalizedMatch.id, nome: normalizedMatch.nome };
+    
+    // Busca por similaridade parcial (contém)
+    const partialMatch = clientesList.find(c => {
+      const normalizedCliente = c.nome
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, "")
+        .trim();
+      // Verifica se um contém o outro (mais de 80% do tamanho)
+      return normalizedCliente.includes(normalizedInput) || normalizedInput.includes(normalizedCliente);
+    });
+    if (partialMatch) return { id: partialMatch.id, nome: partialMatch.nome };
+    
+    // Busca por palavras-chave principais (hospital, clínica, etc.)
+    const keywords = normalizedInput.split(/\s+/).filter(w => w.length > 3);
+    if (keywords.length > 0) {
+      const keywordMatch = clientesList.find(c => {
+        const normalizedCliente = c.nome
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim();
+        return keywords.every(keyword => normalizedCliente.includes(keyword));
+      });
+      if (keywordMatch) return { id: keywordMatch.id, nome: keywordMatch.nome };
+    }
+    
+    return null;
+  };
+
+  const parseAstreaExcel = async (file: File) => {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+
+      const range = sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null;
+      const expectedRows = range ? Math.max(0, range.e.r - range.s.r) : 0;
+
+      const aoa = XLSX.utils.sheet_to_json<any[]>(sheet, {
+        header: 1,
+        defval: null,
+        blankrows: true,
+      }) as any[][];
+
+      const headerRow = (aoa[0] || []).map((h) => String(h ?? "").trim());
+
+      const normalizeHeaderKey = (value: string) =>
+        value
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const getFromRow = (rowObj: Record<string, any>, keys: string[]) => {
+        for (const k of keys) {
+          if (k in rowObj) return rowObj[k];
+        }
+        const normalizedRow: Record<string, any> = {};
+        for (const [k, v] of Object.entries(rowObj)) {
+          const nk = normalizeHeaderKey(k);
+          if (!normalizedRow[nk]) normalizedRow[nk] = v;
+        }
+        for (const k of keys) {
+          const nk = normalizeHeaderKey(k);
+          if (nk in normalizedRow) return normalizedRow[nk];
+        }
+        return null;
+      };
+
+      const totalDataRows = expectedRows || Math.max(0, aoa.length - 1);
+
+      const parsed: ProcessoImport[] = Array.from({ length: totalDataRows }).map((_, index) => {
+        const rowArr = aoa[index + 1] || [];
+
+        const row: Record<string, any> = {};
+        headerRow.forEach((header, colIndex) => {
+          if (!header) return;
+          row[header] = rowArr[colIndex] ?? null;
+        });
+
+        const rowHasAnyValue = rowArr.some((v) => {
+          if (v === null || v === undefined) return false;
+          if (typeof v === "string") return v.trim() !== "";
+          return true;
+        });
+
+        // Extrair número do processo
+        const numeroProcesso = getFromRow(row, [
+          "Número",
+          "Numero",
+          "numero",
+          "Processo",
+          "processo",
+        ]) || "";
+
+        // Extrair título (será usado como nome da pasta)
+        const titulo = getFromRow(row, ["Título", "Titulo", "titulo"]) || "";
+        
+        // Extrair cliente
+        const cliente = getFromRow(row, ["Cliente", "cliente"]) || "";
+        
+        // Extrair outros envolvidos (para polos ativo/passivo)
+        const outrosEnvolvidos = getFromRow(row, ["Outros envolvidos", "Outros Envolvidos"]) || "";
+        
+        // Extrair responsável
+        const responsavel = getFromRow(row, ["Responsável", "Responsavel", "responsavel"]) || "";
+
+        // Determinar polo ativo e passivo baseado no papel do cliente e outros envolvidos
+        const papelCliente = getFromRow(row, ["Papel do cliente", "Papel Cliente"]) || "";
+        let poloAtivo = "";
+        let poloPassivo = "";
+        
+        // Parse outros envolvidos para extrair partes
+        if (outrosEnvolvidos) {
+          const partes = outrosEnvolvidos.split(/,\s*/).map((p: string) => p.trim());
+          partes.forEach((parte: string) => {
+            if (parte.includes("(Reclamante)") || parte.includes("(Autor)") || parte.includes("(Requerente)") || parte.includes("(Exequente)")) {
+              poloAtivo = parte.replace(/\s*\([^)]+\)\s*/g, "").trim();
+            } else if (parte.includes("(Reclamado)") || parte.includes("(Réu)") || parte.includes("(Requerido)") || parte.includes("(Executado)")) {
+              if (poloPassivo) poloPassivo += ", ";
+              poloPassivo += parte.replace(/\s*\([^)]+\)\s*/g, "").trim();
+            }
+          });
+        }
+        
+        // Se o cliente é reclamado/réu, ele vai pro polo passivo
+        const papelLower = papelCliente.toLowerCase();
+        if (papelLower.includes("reclamado") || papelLower.includes("réu") || papelLower.includes("reu") || papelLower.includes("requerido") || papelLower.includes("executado")) {
+          if (!poloPassivo) poloPassivo = cliente;
+        } else if (papelLower.includes("reclamante") || papelLower.includes("autor") || papelLower.includes("requerente") || papelLower.includes("exequente")) {
+          if (!poloAtivo) poloAtivo = cliente;
+        }
+
+        const processo: ProcessoImport = {
+          numero: String(numeroProcesso ?? "").trim(),
+          assunto: getFromRow(row, ["Objeto", "objeto", "Matéria", "Materia"]) || null,
+          situacao: null,
+          responsavel: responsavel,
+          descricao: getFromRow(row, ["Observações", "Observacoes", "observacoes"]) || null,
+          justica: null,
+          cidade: null,
+          estado: null,
+          instancia: getFromRow(row, ["Instância Atual", "Instancia Atual"]) || null,
+          orgao: getFromRow(row, ["Foro", "foro"]) || null,
+          orgaoJulgador: getFromRow(row, ["Vara", "vara"]) || null,
+          sistema: null,
+          area: "trabalhista", // Default trabalhista para Astrea
+          fase: null,
+          dataDistribuicao: getFromRow(row, ["Data de distribuição", "Data de Distribuição", "Data distribuição"]) || null,
+          classeCNJ: getFromRow(row, ["Ação", "Acao", "acao"]) || null,
+          valorAcao: parseNumber(getFromRow(row, ["Valor da causa", "Valor da Causa"]) || null),
+          parteAtiva: poloAtivo,
+          partePassiva: poloPassivo,
+          cpfCnpjAtivo: null,
+          cpfCnpjPassivo: null,
+          status: "pendente",
+          erros: [],
+          linhaOriginal: index + 2,
+          valorCondenacao: parseNumber(getFromRow(row, ["Valor da condenação", "Valor da Condenação"]) || null),
+          valorProvisionado: parseNumber(getFromRow(row, ["Valor total da provisão", "Valor Total da Provisão"]) || null),
+        };
+
+        // Store Astrea-specific data
+        (processo as any).astreaData = {
+          tipo: getFromRow(row, ["Tipo", "tipo"]) || null,
+          titulo: titulo,
+          papelCliente: papelCliente,
+          cliente: cliente,
+          outrosClientes: getFromRow(row, ["Outros clientes", "Outros Clientes"]) || null,
+          outrosEnvolvidos: outrosEnvolvidos,
+          pasta: getFromRow(row, ["Pasta", "pasta"]) || null,
+          acao: getFromRow(row, ["Ação", "Acao"]) || null,
+          valorOriginal: parseNumber(getFromRow(row, ["Valor original", "Valor Original"]) || null),
+          valorTotalEnvolvido: parseNumber(getFromRow(row, ["Valor total envolvido", "Valor Total Envolvido"]) || null),
+          decisaoProcesso: getFromRow(row, ["Decisão do processo", "Decisao do processo"]) || null,
+          resultadoProcesso: getFromRow(row, ["Resultado do processo", "Resultado do Processo"]) || null,
+          etiquetas: getFromRow(row, ["Etiquetas", "etiquetas"]) || null,
+          dataCriacao: getFromRow(row, ["Data de Criação", "Data de Criacao"]) || null,
+          dataEncerramento: getFromRow(row, ["Data de Encerramento", "Data Encerramento"]) || null,
+          dataUltimoHistorico: getFromRow(row, ["Data do último histórico", "Data do Ultimo Historico"]) || null,
+          descricaoUltimoHistorico: getFromRow(row, ["Descrição do último histórico", "Descricao do ultimo historico"]) || null,
+          instanciaOriginal: getFromRow(row, ["Instância Original", "Instancia Original"]) || null,
+          urlProcesso: getFromRow(row, ["URL do Processo", "url do processo"]) || null,
+          numeroJuizo: getFromRow(row, ["Número do Juízo", "Numero do Juizo"]) || null,
+          acesso: getFromRow(row, ["Acesso", "acesso"]) || null,
+          responsavel: responsavel,
+        };
+
+        // Validação
+        processo.erros = validateProcesso(processo);
+
+        const numeroTrimmed = (processo.numero || "").trim();
+        const isEmptyRow = !rowHasAnyValue;
+        const hasInvalidNumero = !numeroTrimmed || numeroTrimmed.length < 5;
+
+        // Ignorar linhas do tipo "Caso" (não são processos judiciais)
+        const tipo = (processo as any).astreaData?.tipo || "";
+        if (tipo.toLowerCase() === "caso") {
+          processo.status = "invalido";
+          processo.erroImport = "Tipo 'Caso' não é processo judicial";
+          processo.erros = [{ campo: "Tipo", mensagem: "Casos não são importados como processos" }];
+        } else if (isEmptyRow || hasInvalidNumero) {
+          const motivo = isEmptyRow
+            ? "Linha vazia na planilha"
+            : !numeroTrimmed
+              ? "Número vazio ou não encontrado na planilha"
+              : `Número muito curto (${numeroTrimmed.length} caracteres, mínimo 5)`;
+
+          processo.status = "invalido";
+          processo.erroImport = motivo;
+          processo.erros = [{ campo: "numero", mensagem: motivo }];
+        } else {
+          processo.status = "valido";
+        }
+
+        return processo;
+      });
+
+      setAstreaProcessos(parsed);
+
+      const validCount = parsed.filter((p) => p.status === "valido").length;
+      const invalidCount = parsed.filter((p) => p.status === "invalido").length;
+
+      if (parsed.length === 0) {
+        toast({
+          title: "Nenhum processo encontrado",
+          description: "A planilha não contém dados.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Planilha Astrea carregada",
+          description: `${parsed.length} linha(s) lida(s): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
+          variant: invalidCount > 0 ? "destructive" : "default",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao ler planilha Astrea:", error);
+      toast({
+        title: "Erro ao ler planilha",
+        description: "Verifique se o arquivo está no formato correto (.xlsx ou .xls).",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAstreaImport = async () => {
+    const validProcessos = astreaProcessos.filter(p => p.status === "valido");
+    const invalidProcessos = astreaProcessos.filter(p => p.status === "invalido");
+    
+    if (validProcessos.length === 0 && invalidProcessos.length === 0) {
+      toast({
+        title: "Nenhum processo para processar",
+        description: "A planilha não contém dados válidos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAstreaImporting(true);
+    startImport("Importando Astrea");
+    setAstreaProgress(0);
+
+    const updatedProcessos = [...astreaProcessos];
+    let successCountLocal = 0;
+    let updateCountLocal = 0;
+    let errorCountLocal = 0;
+    let rejectedCountLocal = 0;
+    
+    // Create a mutable copy of clientes to track newly created clients during import
+    const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
+
+    for (let i = 0; i < updatedProcessos.length; i++) {
+      const processo = updatedProcessos[i];
+      
+      // Process invalid records - mark them as rejected with clear reason
+      if (processo.status === "invalido") {
+        rejectedCountLocal++;
+        setAstreaProgress(((i + 1) / updatedProcessos.length) * 100);
+        setAstreaProcessos([...updatedProcessos]);
+        continue;
+      }
+
+      try {
+        const astreaData = (processo as any).astreaData || {};
+
+        // Check if process already exists
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id, coordenacao_id, advogado_responsavel_id, cliente_id, pasta_id")
+          .eq("numero", processo.numero.trim())
+          .maybeSingle();
+
+        const areaSlug = await ensureAreaExists(processo.area);
+
+        // Determinar cliente - buscar por similaridade primeiro
+        let clienteIdToUse: string | null = null;
+        let clienteNomeFromSheet = astreaData.cliente?.trim() || null;
+        
+        if (clienteNomeFromSheet) {
+          // Buscar cliente similar existente
+          const similarClient = findSimilarClient(clienteNomeFromSheet, clientesCache);
+          
+          if (similarClient) {
+            clienteIdToUse = similarClient.id;
+            console.log(`Cliente "${clienteNomeFromSheet}" mapeado para "${similarClient.nome}"`);
+          } else {
+            // Criar novo cliente apenas se não encontrou similar
+            const { data: novoCliente, error: clienteError } = await supabase
+              .from("clientes")
+              .insert({
+                nome: clienteNomeFromSheet,
+                tipo: "pessoa_juridica",
+              })
+              .select("id, nome")
+              .single();
+            
+            if (!clienteError && novoCliente) {
+              clienteIdToUse = novoCliente.id;
+              clientesCache.push({ id: novoCliente.id, nome: novoCliente.nome, tipo: "pessoa_juridica" });
+              console.log(`Novo cliente criado: ${novoCliente.nome}`);
+            } else {
+              console.warn(`Falha ao criar cliente ${clienteNomeFromSheet}:`, clienteError?.message);
+            }
+          }
+        }
+
+        let isUpdate = false;
+
+        if (existingProcesso) {
+          // SMART MERGE: Processo já existe - atualizar apenas campos vazios, NÃO alterar responsáveis
+          const { data: currentProcesso } = await supabase
+            .from("processos")
+            .select("*")
+            .eq("id", existingProcesso.id)
+            .single();
+          
+          if (!currentProcesso) {
+            throw new Error("Processo não encontrado após verificação");
+          }
+
+          const updateData: Record<string, any> = {};
+          
+          // Só atualiza campos que estão vazios no banco
+          if (!currentProcesso.assunto && processo.assunto) {
+            updateData.assunto = processo.assunto;
+          }
+          if (!currentProcesso.descricao && processo.descricao) {
+            updateData.descricao = processo.descricao;
+          }
+          if (!currentProcesso.vara && processo.orgaoJulgador) {
+            updateData.vara = processo.orgaoJulgador;
+          }
+          if (!currentProcesso.tribunal && processo.orgao) {
+            updateData.tribunal = processo.orgao;
+          }
+          if (!currentProcesso.instancia && processo.instancia) {
+            updateData.instancia = processo.instancia;
+          }
+          if (!currentProcesso.classe && processo.classeCNJ) {
+            updateData.classe = processo.classeCNJ;
+          }
+          if (!currentProcesso.data_distribuicao && parseDate(processo.dataDistribuicao)) {
+            updateData.data_distribuicao = parseDate(processo.dataDistribuicao);
+          }
+          if (!currentProcesso.valor_causa && processo.valorAcao) {
+            updateData.valor_causa = processo.valorAcao;
+          }
+          if (!currentProcesso.valor_condenacao && processo.valorCondenacao) {
+            updateData.valor_condenacao = processo.valorCondenacao;
+          }
+          if (!currentProcesso.valor_provisionado && processo.valorProvisionado) {
+            updateData.valor_provisionado = processo.valorProvisionado;
+          }
+          if (!currentProcesso.polo_ativo && processo.parteAtiva) {
+            updateData.polo_ativo = processo.parteAtiva;
+          }
+          if (!currentProcesso.polo_passivo && processo.partePassiva) {
+            updateData.polo_passivo = processo.partePassiva;
+          }
+          // Cliente só atualiza se estiver vazio
+          if (!currentProcesso.cliente_id && clienteIdToUse) {
+            updateData.cliente_id = clienteIdToUse;
+          }
+          // Astrea specific
+          if (!currentProcesso.resultado && astreaData.resultadoProcesso) {
+            updateData.resultado = astreaData.resultadoProcesso;
+          }
+          if (!currentProcesso.andamento_atual && astreaData.descricaoUltimoHistorico) {
+            updateData.andamento_atual = astreaData.descricaoUltimoHistorico;
+          }
+          // Guardar etiquetas e url nas observações se não existir
+          if (!currentProcesso.observacoes_processo) {
+            const extras: string[] = [];
+            if (astreaData.etiquetas) extras.push(`Etiquetas: ${astreaData.etiquetas}`);
+            if (astreaData.urlProcesso) extras.push(`URL: ${astreaData.urlProcesso}`);
+            if (extras.length > 0) {
+              updateData.observacoes_processo = extras.join("\n");
+            }
+          }
+
+          // NÃO alterar coordenacao_id ou advogado_responsavel_id existentes
+          
+          if (Object.keys(updateData).length > 0) {
+            const { error } = await supabase
+              .from("processos")
+              .update(updateData)
+              .eq("id", existingProcesso.id);
+
+            if (error) {
+              updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+              errorCountLocal++;
+              continue;
+            }
+          }
+          
+          isUpdate = true;
+          updatedProcessos[i] = { 
+            ...processo, 
+            status: "sucesso", 
+            erroImport: "Atualizado (campos vazios preenchidos)" 
+          };
+          updateCountLocal++;
+        } else {
+          // Novo processo - criar pasta usando o título da planilha
+          let pastaId: string | null = null;
+          const nomePasta = astreaData.titulo || `${processo.parteAtiva || "Sem Parte"} x ${clienteNomeFromSheet || "Sem Cliente"}`;
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            // Verificar se pasta já existe com esse nome
+            const { data: pastaExistente } = await supabase
+              .from("pastas")
+              .select("id")
+              .eq("nome", nomePasta)
+              .maybeSingle();
+            
+            if (pastaExistente) {
+              pastaId = pastaExistente.id;
+            } else {
+              const { data: novaPasta, error: pastaError } = await supabase
+                .from("pastas")
+                .insert({
+                  nome: nomePasta,
+                  descricao: `Pasta importada do Astrea para o processo ${processo.numero}`,
+                  cliente_id: clienteIdToUse,
+                  coordenacao_id: selectedCoordenacao || null,
+                  criado_por: user.id,
+                })
+                .select("id")
+                .single();
+              
+              if (!pastaError && novaPasta) {
+                pastaId = novaPasta.id;
+              } else {
+                console.warn(`Falha ao criar pasta para processo ${processo.numero}:`, pastaError?.message);
+              }
+            }
+          }
+
+          const processoData: any = {
+            numero: processo.numero.trim(),
+            area: areaSlug,
+            status: mapStatusToEnum(processo.situacao),
+            assunto: processo.assunto,
+            descricao: processo.descricao,
+            vara: processo.orgaoJulgador,
+            tribunal: processo.orgao,
+            instancia: processo.instancia,
+            classe: processo.classeCNJ,
+            data_distribuicao: parseDate(processo.dataDistribuicao),
+            valor_causa: processo.valorAcao,
+            valor_condenacao: processo.valorCondenacao,
+            valor_provisionado: processo.valorProvisionado,
+            polo_ativo: processo.parteAtiva,
+            polo_passivo: processo.partePassiva,
+            cliente_id: clienteIdToUse,
+            coordenacao_id: selectedCoordenacao || null,
+            advogado_responsavel_id: selectedMembro || null,
+            pasta_id: pastaId,
+            monitorar_andamentos: astreaBuscarAndamentos,
+            // Astrea specific fields
+            etiquetas: astreaData.etiquetas,
+            resultado: astreaData.resultadoProcesso,
+            andamento_atual: astreaData.descricaoUltimoHistorico,
+            url_processo_externo: astreaData.urlProcesso,
+            advogado_externo: astreaData.responsavel,
+          };
+
+          const { data: insertedProcesso, error } = await supabase
+            .from("processos")
+            .insert(processoData)
+            .select("id")
+            .single();
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            errorCountLocal++;
+            continue;
+          }
+
+          // Vincular responsável na tabela processos_responsaveis se selecionado
+          if (selectedMembro && insertedProcesso) {
+            await supabase
+              .from("processos_responsaveis")
+              .insert({
+                processo_id: insertedProcesso.id,
+                usuario_id: selectedMembro,
+                papel: "responsavel",
+              })
+              .select()
+              .maybeSingle();
+          }
+
+          if (astreaBuscarAndamentos && insertedProcesso) {
+            const andamentosRes = await buscarAndamentosExternos(insertedProcesso.id, processo.numero.trim());
+            if (!andamentosRes.success) {
+              console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+            }
+          }
+          
+          updatedProcessos[i] = { 
+            ...processo, 
+            status: "sucesso", 
+          };
+          successCountLocal++;
+        }
+      } catch (err: any) {
+        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
+        errorCountLocal++;
+      }
+
+      setAstreaProgress(((i + 1) / updatedProcessos.length) * 100);
+      setAstreaProcessos([...updatedProcessos]);
+    }
+
+    setAstreaImporting(false);
+    endImport();
+
+    const totalProcessed = successCountLocal + updateCountLocal + errorCountLocal + rejectedCountLocal;
+    
+    toast({
+      title: "Importação Astrea concluída",
+      description: `${successCountLocal} novo(s), ${updateCountLocal} atualizado(s), ${rejectedCountLocal} rejeitado(s), ${errorCountLocal} erro(s). Total: ${totalProcessed}/${updatedProcessos.length}`,
+      variant: errorCountLocal > 0 || rejectedCountLocal > 0 ? "destructive" : "default",
+    });
+
+    if (rejectedCountLocal > 0 || errorCountLocal > 0) {
+      setTimeout(() => downloadAstreaRejeitados(updatedProcessos), 0);
+    }
+  };
+
+  const downloadAstreaRejeitados = (processosToExport: ProcessoImport[] = astreaProcessos) => {
+    const rejeitados = processosToExport.filter((p) => p.status === "invalido" || p.status === "erro");
+    const comAvisos = processosToExport.filter(
+      (p) => (p.status === "sucesso" || p.status === "valido") && p.erros.length > 0
+    );
+
+    if (rejeitados.length === 0 && comAvisos.length === 0) {
+      toast({
+        title: "Nenhum problema encontrado",
+        description: "Não há processos rejeitados ou com avisos para exportar.",
+      });
+      return;
+    }
+
+    const rejeitadosData = rejeitados.map((p) => ({
+      Linha: p.linhaOriginal,
+      "Número do processo": p.numero || "(vazio)",
+      Título: (p as any).astreaData?.titulo || "",
+      Cliente: (p as any).astreaData?.cliente || "",
+      Responsável: (p as any).astreaData?.responsavel || "",
+      Tipo: "REJEITADO",
+      Motivo:
+        p.erros.map((e) => `${e.campo}: ${e.mensagem}`).join("; ") ||
+        p.erroImport ||
+        "Erro crítico",
+    }));
+
+    const avisosData = comAvisos.map((p) => ({
+      Linha: p.linhaOriginal,
+      "Número do processo": p.numero,
+      Título: (p as any).astreaData?.titulo || "",
+      Cliente: (p as any).astreaData?.cliente || "",
+      Responsável: (p as any).astreaData?.responsavel || "",
+      Tipo: "IMPORTADO COM AVISOS",
+      Avisos: p.erros.map((e) => `${e.campo}: ${e.mensagem}`).join("; "),
+    }));
+
+    const allData = [...rejeitadosData, ...avisosData];
+
+    const ws = XLSX.utils.json_to_sheet(allData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Problemas");
+
+    const colWidths = Object.keys(allData[0] || {}).map((key) => ({
+      wch: Math.max(key.length, 15),
+    }));
+    ws["!cols"] = colWidths;
+
+    XLSX.writeFile(wb, `astrea_problemas_${new Date().toISOString().split("T")[0]}.xlsx`);
+
+    toast({
+      title: "Arquivo gerado",
+      description: `${rejeitados.length} rejeitado(s), ${comAvisos.length} com avisos.`,
+    });
+  };
+
+  const clearAstrea = () => {
+    setAstreaFile(null);
+    setAstreaProcessos([]);
+    setAstreaProgress(0);
+  };
+
+  // Astrea counts
+  const astreaValidCount = astreaProcessos.filter(p => p.status === "valido").length;
+  const astreaInvalidCount = astreaProcessos.filter(p => p.status === "invalido").length;
+  const astreaWarningCount = astreaProcessos.filter(p => (p.status === "valido" || p.status === "sucesso") && p.erros.length > 0).length;
+  const astreaSuccessCount = astreaProcessos.filter(p => p.status === "sucesso").length;
+  const astreaErrorCount = astreaProcessos.filter(p => p.status === "erro").length;
+  const astreaTotalProblemas = astreaInvalidCount + astreaErrorCount + astreaWarningCount;
+
   return (
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-8 max-w-5xl">
+          <TabsList className="grid w-full grid-cols-9 max-w-6xl">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -4464,6 +5134,10 @@ export default function ImportarProcessos() {
             <TabsTrigger value="projuris" className="flex items-center gap-2">
               <ArrowRightLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Projuris</span>
+            </TabsTrigger>
+            <TabsTrigger value="astrea" className="flex items-center gap-2">
+              <Scale className="h-4 w-4" />
+              <span className="hidden sm:inline">Astrea</span>
             </TabsTrigger>
             <TabsTrigger value="osmar" className="flex items-center gap-2">
               <Hospital className="h-4 w-4" />
@@ -5383,6 +6057,248 @@ export default function ImportarProcessos() {
                                   )}
                                   {processo.status === "valido" && "-"}
                                   {processo.status === "sucesso" && <span className="text-blue-600">Importado com sucesso</span>}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab: Astrea */}
+          <TabsContent value="astrea" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Scale className="h-5 w-5" />
+                  Importar Astrea
+                </CardTitle>
+                <CardDescription>
+                  Importe processos exportados do sistema Astrea. Processos existentes terão apenas campos vazios atualizados (responsáveis e coordenações não são alterados).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">1. Faça upload da planilha Astrea</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    A planilha deve conter as colunas: Número, Título, Cliente, Outros envolvidos, Vara, Foro, Responsável, etc.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleAstreaFileChange}
+                      className="max-w-xs"
+                      disabled={astreaImporting}
+                    />
+                    {astreaFile && (
+                      <Button variant="outline" onClick={clearAstrea} disabled={astreaImporting}>
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Coordenação Selection */}
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="coordenacao-astrea" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Coordenação Responsável (apenas para novos processos)
+                  </Label>
+                  <Select 
+                    value={selectedCoordenacao} 
+                    onValueChange={(value) => {
+                      setSelectedCoordenacao(value);
+                      setSelectedMembro("");
+                    }}
+                    disabled={astreaImporting}
+                  >
+                    <SelectTrigger id="coordenacao-astrea" className="max-w-md">
+                      <SelectValue placeholder="Selecione a coordenação (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.nome} ({coord.area})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Member Selection */}
+                {selectedCoordenacao && membrosDisponiveis.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="membro-astrea" className="flex items-center gap-2">
+                      Advogado Responsável (apenas para novos processos)
+                    </Label>
+                    <Select 
+                      value={selectedMembro} 
+                      onValueChange={setSelectedMembro}
+                      disabled={astreaImporting}
+                    >
+                      <SelectTrigger id="membro-astrea" className="max-w-md">
+                        <SelectValue placeholder="Selecione o advogado responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membrosDisponiveis.map((membro) => (
+                          <SelectItem key={membro.id} value={membro.id}>
+                            {membro.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Opção de buscar andamentos */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="buscar-andamentos-astrea" className="flex items-center gap-2 font-medium">
+                      <Clock className="h-4 w-4" />
+                      Buscar andamentos na importação
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {astreaBuscarAndamentos 
+                        ? "Andamentos serão buscados e processos ficarão habilitados para monitoramento."
+                        : "Andamentos NÃO serão buscados."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="buscar-andamentos-astrea"
+                    checked={astreaBuscarAndamentos}
+                    onCheckedChange={setAstreaBuscarAndamentos}
+                    disabled={astreaImporting}
+                  />
+                </div>
+
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Smart Merge:</strong> Processos já existentes terão apenas campos vazios preenchidos. Responsáveis e coordenações existentes NÃO são alterados. O "Título" será usado como nome da pasta para novos processos.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Astrea Preview */}
+            {astreaFile && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle>Pré-visualização Astrea</CardTitle>
+                      <CardDescription>
+                        {astreaProcessos.length} linha(s) em "{astreaFile.name}"
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {astreaProcessos.length > 0 && (
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                            {astreaValidCount} importáveis
+                          </Badge>
+                          <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                            {astreaInvalidCount} rejeitados
+                          </Badge>
+                          {astreaSuccessCount > 0 && (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
+                              {astreaSuccessCount} importados
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {astreaTotalProblemas > 0 && (
+                          <Button variant="outline" onClick={() => downloadAstreaRejeitados()}>
+                            <FileDown className="h-4 w-4 mr-2" />
+                            Baixar Problemas ({astreaTotalProblemas})
+                          </Button>
+                        )}
+                        <Button 
+                          onClick={handleAstreaImport} 
+                          disabled={astreaImporting || astreaValidCount === 0}
+                        >
+                          {astreaImporting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Importando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Importar ({astreaValidCount})
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {astreaImporting && (
+                    <Progress value={astreaProgress} className="mt-4" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {astreaProcessos.length > 0 && (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="max-h-[400px] overflow-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead className="w-[60px]">Linha</TableHead>
+                              <TableHead className="w-[60px]">Status</TableHead>
+                              <TableHead>Número</TableHead>
+                              <TableHead>Título</TableHead>
+                              <TableHead>Cliente</TableHead>
+                              <TableHead>Responsável</TableHead>
+                              <TableHead className="min-w-[200px]">Avisos/Erros</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {astreaProcessos.map((processo, index) => (
+                              <TableRow key={index} className={
+                                processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : 
+                                processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : ""
+                              }>
+                                <TableCell className="text-muted-foreground">
+                                  {processo.linhaOriginal}
+                                </TableCell>
+                                <TableCell>
+                                  {processo.status === "valido" && <div className="w-3 h-3 rounded-full bg-green-500" />}
+                                  {processo.status === "invalido" && <XCircle className="h-4 w-4 text-red-500" />}
+                                  {processo.status === "sucesso" && <CheckCircle2 className="h-4 w-4 text-blue-500" />}
+                                  {processo.status === "erro" && <XCircle className="h-4 w-4 text-orange-500" />}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {processo.numero || <span className="text-red-500 italic">vazio</span>}
+                                </TableCell>
+                                <TableCell className="max-w-[200px] truncate">
+                                  {(processo as any).astreaData?.titulo || "-"}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {(processo as any).astreaData?.cliente || "-"}
+                                </TableCell>
+                                <TableCell>
+                                  {(processo as any).astreaData?.responsavel || "-"}
+                                </TableCell>
+                                <TableCell className="text-sm">
+                                  {processo.status === "invalido" && processo.erros.length > 0 && (
+                                    <div className="text-red-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>• {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {processo.erroImport && (
+                                    <div className="text-orange-600">• {processo.erroImport}</div>
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length === 0 && "-"}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && <span className="text-blue-600">Importado</span>}
                                 </TableCell>
                               </TableRow>
                             ))}
