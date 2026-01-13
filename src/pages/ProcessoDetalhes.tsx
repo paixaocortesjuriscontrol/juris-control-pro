@@ -1183,11 +1183,575 @@ export default function ProcessoDetalhes() {
     nome: r.usuario?.nome || "Desconhecido"
   }));
 
+  // Componente de tabs reutilizável
+  const renderTabs = () => (
+    <Tabs value={activeTab} className="w-full">
+      <TabsList className="grid w-full grid-cols-5 sm:w-auto sm:inline-flex gap-1 h-auto flex-wrap">
+        <TabsTrigger 
+          value="audiencias" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "audiencias" ? "" : "audiencias");
+          }}
+        >
+          <Gavel className="w-4 h-4" />
+          <span className="hidden sm:inline">Audiências</span>
+          {audiencias.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length}</Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger 
+          value="intimacoes" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "intimacoes" ? "" : "intimacoes");
+          }}
+        >
+          <AlertCircle className="w-4 h-4" />
+          <span className="hidden sm:inline">Intimações</span>
+          {intimacoes.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{intimacoes.length}</Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger 
+          value="tarefas" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "tarefas" ? "" : "tarefas");
+          }}
+        >
+          <ListTodo className="w-4 h-4" />
+          <span className="hidden sm:inline">Tarefas</span>
+          {tarefas.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.length}</Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger 
+          value="documentos" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "documentos" ? "" : "documentos");
+          }}
+        >
+          <FileBox className="w-4 h-4" />
+          <span className="hidden sm:inline">Pasta</span>
+          {documentosProcesso.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{documentosProcesso.length}</Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger 
+          value="publicacoes" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "publicacoes" ? "" : "publicacoes");
+          }}
+        >
+          <Newspaper className="w-4 h-4" />
+          <span className="hidden sm:inline">Pub. DJEN</span>
+          {publicacoesDjen.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{publicacoesDjen.length}</Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger 
+          value="andamentos" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "andamentos" ? "" : "andamentos");
+          }}
+        >
+          <FileText className="w-4 h-4" />
+          <span className="hidden sm:inline">Andamentos</span>
+          {movimentacoes && movimentacoes.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{movimentacoes.length}</Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger 
+          value="redistribuicoes" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "redistribuicoes" ? "" : "redistribuicoes");
+          }}
+        >
+          <Shuffle className="w-4 h-4" />
+          <span className="hidden sm:inline">Redistrib.</span>
+          {redistribuicoes.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{redistribuicoes.length}</Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger 
+          value="monitoramento360" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "monitoramento360" ? "" : "monitoramento360");
+          }}
+        >
+          <Radar className="w-4 h-4" />
+          <span className="hidden sm:inline">360º</span>
+          {alertas360.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{alertas360.length}</Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger 
+          value="agenda" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "agenda" ? "" : "agenda");
+          }}
+        >
+          <CalendarDays className="w-4 h-4" />
+          <span className="hidden sm:inline">Agenda</span>
+          {eventosAgenda.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{eventosAgenda.length}</Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger 
+          value="portal" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "portal" ? "" : "portal");
+          }}
+        >
+          <Globe className="w-4 h-4" />
+          <span className="hidden sm:inline">Portal</span>
+        </TabsTrigger>
+      </TabsList>
+
+      {/* Tab Contents - Audiências */}
+      <TabsContent value="audiencias" className="mt-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Gavel className="w-5 h-5" />
+              Audiências
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingAudiencias ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+              </div>
+            ) : audiencias.length > 0 ? (
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-4">
+                  {audiencias.map((aud) => (
+                    <Card key={aud.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {getAudienciaStatusBadge(aud.status)}
+                              {getOrigemBadge(aud.origem)}
+                              {aud.tipo_audiencia && (
+                                <Badge variant="secondary">{aud.tipo_audiencia}</Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-sm flex-wrap">
+                              <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg">
+                                <Calendar className="h-5 w-5 text-primary" />
+                                <span className="font-bold text-primary text-lg">{formatDate(aud.data_audiencia)}</span>
+                                {(aud.hora_brasilia || aud.hora) && (
+                                  <span className="text-muted-foreground">às {aud.hora_brasilia || aud.hora}</span>
+                                )}
+                              </div>
+                            </div>
+                            {aud.resumo_objeto && (
+                              <p className="text-sm text-muted-foreground line-clamp-2">{aud.resumo_objeto}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            <Button variant="outline" size="sm" onClick={() => setEditingAudiencia(aud as AudienciaDetectada)}>
+                              <Pencil className="h-4 w-4 mr-1" />
+                              Editar
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
+                              <Eye className="h-4 w-4 mr-1" />
+                              Detalhes
+                            </Button>
+                            {aud.status === 'pendente' && (
+                              <>
+                                <Button variant="default" size="sm" onClick={() => handleMarcarAudienciaTratado(aud.id)} disabled={updatingAudiencia === aud.id}>
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Tratado
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleIgnorarAudiencia(aud.id)} disabled={updatingAudiencia === aud.id}>
+                                  <XCircle className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-8">
+                <Gavel className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Nenhuma audiência registrada</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Tab Contents - Intimações */}
+      <TabsContent value="intimacoes" className="mt-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              Intimações
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingIntimacoes ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+              </div>
+            ) : intimacoes.length > 0 ? (
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-4">
+                  {intimacoes.map((int) => (
+                    <Card key={int.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {getIntimacaoStatusBadge(int.status)}
+                              {getOrigemBadge(int.origem)}
+                            </div>
+                            {int.data_limite && (
+                              <div className="flex items-center gap-2 bg-destructive/10 px-3 py-1.5 rounded-lg w-fit">
+                                <Clock className="h-5 w-5 text-destructive" />
+                                <span className="font-bold text-destructive">Prazo: {formatDate(int.data_limite)}</span>
+                              </div>
+                            )}
+                            {int.descricao && <p className="text-sm font-medium line-clamp-2">{int.descricao}</p>}
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            <Button variant="outline" size="sm" onClick={() => setSelectedIntimacao(int)}>
+                              <Eye className="h-4 w-4 mr-1" />
+                              Detalhes
+                            </Button>
+                            {int.status === 'pendente' && (
+                              <>
+                                <Button variant="default" size="sm" onClick={() => handleMarcarIntimacaoTratado(int.id)} disabled={updatingIntimacao === int.id}>
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Tratado
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => handleCriarTarefaIntimacao(int)}>
+                                  <ClipboardList className="h-4 w-4 mr-1" />
+                                  Criar Tarefa
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-8">
+                <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Nenhuma intimação registrada</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Tab Contents - Tarefas */}
+      <TabsContent value="tarefas" className="mt-4">
+        <Card>
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ListTodo className="w-5 h-5" />
+              Tarefas
+            </CardTitle>
+            <Button size="sm" onClick={() => navigate(`/nova-tarefa?processo_id=${id}`)}>
+              + Nova Tarefa
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {loadingTarefas ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+              </div>
+            ) : selectedTarefaId ? (
+              <TarefaPublicacaoView 
+                tarefaId={selectedTarefaId}
+                processoId={id!}
+                onVoltar={() => setSelectedTarefaId(null)}
+              />
+            ) : tarefas.length > 0 ? (
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-3">
+                  {tarefas.map((tarefa) => (
+                    <Card 
+                      key={tarefa.id} 
+                      className="hover:shadow-md transition-shadow cursor-pointer"
+                      onClick={() => setSelectedTarefaId(tarefa.id)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 space-y-1">
+                            <p className="font-medium">{tarefa.titulo}</p>
+                            {tarefa.descricao && (
+                              <p className="text-sm text-muted-foreground line-clamp-2">{tarefa.descricao}</p>
+                            )}
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {tarefa.data_vencimento && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {formatDate(tarefa.data_vencimento)}
+                                </span>
+                              )}
+                              {tarefa.responsavel?.nome && (
+                                <span className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {tarefa.responsavel.nome}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'}>
+                            {tarefa.status}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-8">
+                <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Nenhuma tarefa registrada</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Tab Contents - Documentos */}
+      <TabsContent value="documentos" className="mt-4">
+        <ProcessoDocumentosTab 
+          processoId={id!}
+          documentos={documentosProcesso}
+          refetchDocumentos={refetchDocumentos}
+        />
+      </TabsContent>
+
+      {/* Tab Contents - Publicações DJEN */}
+      <TabsContent value="publicacoes" className="mt-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Newspaper className="w-5 h-5" />
+              Publicações DJEN
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingPublicacoes ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+              </div>
+            ) : publicacoesDjen.length > 0 ? (
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-4">
+                  {publicacoesDjen.map((pub: any) => (
+                    <Card key={pub.id} className={`transition-all ${pub.lida ? 'opacity-70' : ''}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant={pub.lida ? 'secondary' : 'default'}>
+                                {pub.lida ? 'Lida' : 'Não lida'}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">{formatDate(pub.data_publicacao)}</span>
+                            </div>
+                            <p className="text-sm line-clamp-3">{pub.conteudo}</p>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleToggleLida(pub.id, pub.lida)}
+                            disabled={toglingLida === pub.id}
+                          >
+                            {pub.lida ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-8">
+                <Newspaper className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Nenhuma publicação DJEN</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Tab Contents - Andamentos */}
+      <TabsContent value="andamentos" className="mt-4">
+        <Card>
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Andamentos
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={handleAtualizarAndamentos} disabled={atualizando}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${atualizando ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {loadingMovimentacoes ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+              </div>
+            ) : movimentacoes.length > 0 ? (
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-3">
+                  {movimentacoes.map((mov) => (
+                    <div key={mov.id} className="border-l-2 border-primary/30 pl-4 py-2">
+                      <p className="text-xs text-muted-foreground">{formatDate(mov.data_movimentacao)}</p>
+                      <p className="text-sm">{mov.descricao}</p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Nenhum andamento registrado</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Tab Contents - Redistribuições */}
+      <TabsContent value="redistribuicoes" className="mt-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Shuffle className="w-5 h-5" />
+              Redistribuições
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingRedistribuicoes ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+              </div>
+            ) : redistribuicoes.length > 0 ? (
+              <ScrollArea className="h-[400px] pr-4">
+                <div className="space-y-3">
+                  {redistribuicoes.map((red) => (
+                    <div key={red.id} className="border-l-2 border-amber-500/50 pl-4 py-2">
+                      <p className="text-xs text-muted-foreground">{formatDate(red.data_movimentacao)}</p>
+                      <p className="text-sm">{red.descricao}</p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-8">
+                <Shuffle className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Nenhuma redistribuição detectada</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Tab Contents - Monitoramento 360 */}
+      <TabsContent value="monitoramento360" className="mt-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Radar className="w-5 h-5" />
+              Alertas 360º
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingAlertas360 ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+              </div>
+            ) : alertas360.length > 0 ? (
+              <ScrollArea className="h-[400px] pr-4">
+                <div className="space-y-3">
+                  {alertas360.map((alerta: any) => (
+                    <Card key={alerta.id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Badge variant={alerta.prioridade === 'urgente' ? 'destructive' : 'secondary'}>
+                                {alerta.prioridade}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">{formatDate(alerta.created_at)}</span>
+                            </div>
+                            <p className="font-medium">{alerta.termo_encontrado}</p>
+                            {alerta.contexto && (
+                              <p className="text-sm text-muted-foreground line-clamp-2">{alerta.contexto}</p>
+                            )}
+                          </div>
+                          <Badge variant={alerta.status === 'tratado' ? 'default' : 'outline'}>
+                            {alerta.status}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-8">
+                <Radar className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Nenhum alerta 360º</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Tab Contents - Agenda */}
+      <TabsContent value="agenda" className="mt-4">
+        <ProcessoAgendaTab processoId={id!} />
+      </TabsContent>
+
+      {/* Tab Contents - Portal */}
+      <TabsContent value="portal" className="mt-4">
+        <ProcessoPortalTab processoId={id!} processoNumero={processo.numero} tribunal={processo.tribunal} />
+      </TabsContent>
+    </Tabs>
+  );
+
   // View mode: resumo (Projuris style)
   if (viewMode === "resumo") {
     return (
       <MainLayout title="" subtitle="">
-        <div className="max-w-6xl mx-auto p-6">
+        <div className="max-w-6xl mx-auto p-6 space-y-6">
           {/* Back Button */}
           <Button 
             variant="ghost" 
@@ -1198,7 +1762,7 @@ export default function ProcessoDetalhes() {
                 navigate("/processos");
               }
             }} 
-            className="mb-4"
+            className="mb-2"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar
@@ -1209,7 +1773,70 @@ export default function ProcessoDetalhes() {
             responsaveis={responsaveisParaCards}
             onMaisInformacoes={() => setViewMode("detalhes")}
           />
+
+          {/* Tabs de Eventos - mesmo do modo editar */}
+          {renderTabs()}
         </div>
+
+        {/* Dialogs */}
+        {editingAudiencia && (
+          <EditarAudienciaDialog 
+            audiencia={editingAudiencia}
+            open={!!editingAudiencia}
+            onOpenChange={(open) => {
+              if (!open) {
+                queryClient.invalidateQueries({ queryKey: ["audiencias-processo", id, processo?.numero] });
+                setEditingAudiencia(null);
+              }
+            }}
+          />
+        )}
+
+        {/* Intimação Details Dialog */}
+        <Dialog open={!!selectedIntimacao} onOpenChange={(open) => !open && setSelectedIntimacao(null)}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                Detalhes da Intimação
+              </DialogTitle>
+            </DialogHeader>
+            {selectedIntimacao && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  {getIntimacaoStatusBadge(selectedIntimacao.status)}
+                  {getOrigemBadge(selectedIntimacao.origem)}
+                </div>
+                {selectedIntimacao.data_limite && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Prazo</p>
+                    <p className="font-medium text-destructive">{formatDate(selectedIntimacao.data_limite)}</p>
+                  </div>
+                )}
+                {selectedIntimacao.descricao && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Descrição</p>
+                    <p>{selectedIntimacao.descricao}</p>
+                  </div>
+                )}
+                {selectedIntimacao.contexto && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Contexto</p>
+                    <p className="text-sm whitespace-pre-wrap">{selectedIntimacao.contexto}</p>
+                  </div>
+                )}
+                {selectedIntimacao.conteudo_publicacao && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Conteúdo da Publicação</p>
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-sm whitespace-pre-wrap break-words">{selectedIntimacao.conteudo_publicacao}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </MainLayout>
     );
   }
