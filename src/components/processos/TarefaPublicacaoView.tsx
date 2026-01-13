@@ -722,7 +722,7 @@ export function TarefaPublicacaoView({
                       </p>
                     )}
                     <p className="text-xs md:text-sm text-muted-foreground">
-                      Publicado em: <strong>{formatDate(publicacao.data_publicacao)}</strong>
+                      Disponibilização: <strong>{formatDate(publicacao.data_disponibilizacao)}</strong> | Publicação: <strong>{formatDate(publicacao.data_publicacao)}</strong>
                     </p>
                     <p className="text-xs md:text-sm break-all">
                       Processo: <span className="font-mono font-medium">{publicacao.processo_numero || processo?.numero}</span>
@@ -742,12 +742,15 @@ export function TarefaPublicacaoView({
                   {/* Conteúdo da Publicação */}
                   <div className="border rounded-lg p-3 md:p-4 bg-white dark:bg-slate-950 overflow-x-auto">
                     <div
-                      className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-p:leading-relaxed text-xs md:text-sm break-words"
+                      className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-p:leading-relaxed text-xs md:text-sm break-words whitespace-pre-line"
                       dangerouslySetInnerHTML={{
-                        __html: DOMPurify.sanitize(publicacao.conteudo || "Sem conteúdo disponível", {
-                          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div', 'ul', 'ol', 'li', 'a'],
-                          ALLOWED_ATTR: ['href', 'target', 'class'],
-                        })
+                        __html: DOMPurify.sanitize(
+                          (publicacao.conteudo || "Sem conteúdo disponível").replace(/\n/g, '<br/>'),
+                          {
+                            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'span', 'div', 'ul', 'ol', 'li', 'a'],
+                            ALLOWED_ATTR: ['href', 'target', 'class'],
+                          }
+                        )
                       }}
                     />
                   </div>

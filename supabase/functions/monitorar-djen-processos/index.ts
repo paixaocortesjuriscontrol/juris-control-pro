@@ -425,8 +425,10 @@ async function processProcessosBatch(
         const conteudo = pub.texto ?? pub.teor ?? pub.conteudo ?? pub.conteudoPublicacao ?? pub.resumo ?? '';
         if (!conteudo || typeof conteudo !== 'string') continue;
 
-        const dataPublicacao = pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || null;
-        const hashConteudo = generateHash(`${processo.numero}-${dataPublicacao}-${conteudo.slice(0, 500)}`);
+        // Data de disponibilização (dia que saiu no sistema) vs publicação (dia oficial do diário)
+        const dataDisponibilizacao = pub.dataDisponibilizacao || pub.dataDJe || null;
+        const dataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.data || null;
+        const hashConteudo = generateHash(`${processo.numero}-${dataPublicacao || dataDisponibilizacao}-${conteudo.slice(0, 500)}`);
 
         if (seenHashes.has(hashConteudo)) {
           totalDuplicadas++;
@@ -442,6 +444,7 @@ async function processProcessosBatch(
             processo_numero: processo.numero,
             hash_conteudo: hashConteudo,
             data_publicacao: dataPublicacao,
+            data_disponibilizacao: dataDisponibilizacao,
             conteudo: conteudo,
             fonte: 'pje_comunica',
           }, { onConflict: 'hash_conteudo', ignoreDuplicates: true })

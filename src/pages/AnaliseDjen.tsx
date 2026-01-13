@@ -820,12 +820,12 @@ const AnaliseDjen = () => {
                                   <div className="mt-2 md:mt-3 space-y-2 md:space-y-3 border-t pt-2 md:pt-3">
                                     <div className="grid grid-cols-2 gap-2 md:gap-3 text-[10px] md:text-xs">
                                       <div>
-                                        <strong>Data Publicação:</strong>
-                                        <p className="text-muted-foreground break-words">{formatDate(pub.data_publicacao)}</p>
+                                        <strong>Disponibilização:</strong>
+                                        <p className="text-muted-foreground break-words">{formatDate(pub.data_disponibilizacao)}</p>
                                       </div>
                                       <div>
-                                        <strong>Capturado em:</strong>
-                                        <p className="text-muted-foreground break-words">{formatDate(pub.created_at)}</p>
+                                        <strong>Publicação:</strong>
+                                        <p className="text-muted-foreground break-words">{formatDate(pub.data_publicacao)}</p>
                                       </div>
                                       {pub.fonte && (
                                         <div>
@@ -844,12 +844,15 @@ const AnaliseDjen = () => {
                                     <div>
                                       <strong className="text-[10px] md:text-xs">Conteúdo:</strong>
                                       <div 
-                                        className="mt-1.5 md:mt-2 p-2 md:p-3 bg-muted/50 rounded-lg text-xs md:text-sm prose prose-sm max-w-none dark:prose-invert overflow-x-auto break-words [overflow-wrap:anywhere]"
+                                        className="mt-1.5 md:mt-2 p-2 md:p-3 bg-muted/50 rounded-lg text-xs md:text-sm prose prose-sm max-w-none dark:prose-invert overflow-x-auto break-words [overflow-wrap:anywhere] whitespace-pre-line"
                                         dangerouslySetInnerHTML={{ 
-                                          __html: DOMPurify.sanitize(pub.conteudo || "Sem conteúdo", {
-                                            ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-                                            ALLOWED_ATTR: ['class']
-                                          })
+                                          __html: DOMPurify.sanitize(
+                                            (pub.conteudo || "Sem conteúdo").replace(/\n/g, '<br/>'),
+                                            {
+                                              ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+                                              ALLOWED_ATTR: ['class']
+                                            }
+                                          )
                                         }}
                                       />
                                     </div>
@@ -952,12 +955,12 @@ const AnaliseDjen = () => {
 
                   <div className="grid grid-cols-2 gap-2 md:gap-4 text-xs md:text-sm">
                     <div>
-                      <strong>Data Publicação:</strong>
-                      <p className="text-muted-foreground">{formatDate(selectedPublicacao.data_publicacao)}</p>
+                      <strong>Disponibilização:</strong>
+                      <p className="text-muted-foreground">{formatDate(selectedPublicacao.data_disponibilizacao)}</p>
                     </div>
                     <div>
-                      <strong>Capturado em:</strong>
-                      <p className="text-muted-foreground">{formatDate(selectedPublicacao.created_at)}</p>
+                      <strong>Publicação:</strong>
+                      <p className="text-muted-foreground">{formatDate(selectedPublicacao.data_publicacao)}</p>
                     </div>
                     {selectedPublicacao.fonte && (
                       <div>
@@ -976,12 +979,15 @@ const AnaliseDjen = () => {
                   <div>
                     <strong className="text-xs md:text-sm">Conteúdo:</strong>
                     <div 
-                      className="mt-1.5 md:mt-2 p-2 md:p-4 bg-muted/50 rounded-lg text-xs md:text-sm prose prose-sm max-w-none dark:prose-invert overflow-x-auto break-words [overflow-wrap:anywhere]"
+                      className="mt-1.5 md:mt-2 p-2 md:p-4 bg-muted/50 rounded-lg text-xs md:text-sm prose prose-sm max-w-none dark:prose-invert overflow-x-auto break-words [overflow-wrap:anywhere] whitespace-pre-line"
                       dangerouslySetInnerHTML={{ 
-                        __html: DOMPurify.sanitize(selectedPublicacao.conteudo || "Sem conteúdo", {
-                          ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-                          ALLOWED_ATTR: ['class']
-                        })
+                        __html: DOMPurify.sanitize(
+                          (selectedPublicacao.conteudo || "Sem conteúdo").replace(/\n/g, '<br/>'),
+                          {
+                            ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+                            ALLOWED_ATTR: ['class']
+                          }
+                        )
                       }}
                     />
                   </div>

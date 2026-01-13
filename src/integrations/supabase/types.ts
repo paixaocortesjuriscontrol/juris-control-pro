@@ -2757,6 +2757,7 @@ export type Database = {
         Row: {
           conteudo: string | null
           created_at: string
+          data_disponibilizacao: string | null
           data_publicacao: string | null
           fonte: string | null
           hash_conteudo: string
@@ -2771,6 +2772,7 @@ export type Database = {
         Insert: {
           conteudo?: string | null
           created_at?: string
+          data_disponibilizacao?: string | null
           data_publicacao?: string | null
           fonte?: string | null
           hash_conteudo: string
@@ -2785,6 +2787,7 @@ export type Database = {
         Update: {
           conteudo?: string | null
           created_at?: string
+          data_disponibilizacao?: string | null
           data_publicacao?: string | null
           fonte?: string | null
           hash_conteudo?: string
@@ -2893,6 +2896,7 @@ export type Database = {
         Row: {
           conteudo: string | null
           created_at: string
+          data_disponibilizacao: string | null
           data_encontrado: string
           data_publicacao: string | null
           fonte: string | null
@@ -2905,6 +2909,7 @@ export type Database = {
         Insert: {
           conteudo?: string | null
           created_at?: string
+          data_disponibilizacao?: string | null
           data_encontrado?: string
           data_publicacao?: string | null
           fonte?: string | null
@@ -2917,6 +2922,7 @@ export type Database = {
         Update: {
           conteudo?: string | null
           created_at?: string
+          data_disponibilizacao?: string | null
           data_encontrado?: string
           data_publicacao?: string | null
           fonte?: string | null
