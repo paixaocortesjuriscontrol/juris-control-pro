@@ -171,6 +171,209 @@ export default function ProcessoDetalhes() {
     enabled: !!id,
   });
 
+  // Audiências query
+  const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery({
+    queryKey: ["audiencias-processo", id, processo?.numero],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audiencias_detectadas")
+        .select("*")
+        .or(`processo_id.eq.${id},processo_numero.eq.${processo?.numero}`)
+        .order("data_audiencia", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id && !!processo?.numero,
+  });
+
+  // Intimações query
+  const { data: intimacoes = [], isLoading: loadingIntimacoes } = useQuery({
+    queryKey: ["intimacoes-processo", id, processo?.numero],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("intimacoes_detectadas")
+        .select("*")
+        .or(`processo_id.eq.${id},processo_numero.eq.${processo?.numero}`)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id && !!processo?.numero,
+  });
+
+  // Tarefas query
+  const { data: tarefas = [], isLoading: loadingTarefas } = useQuery({
+    queryKey: ["tarefas-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tarefas")
+        .select(`
+          *,
+          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
+        `)
+        .eq("processo_id", id!)
+        .order("data_vencimento", { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Documentos query
+  const { data: documentosProcesso = [], refetch: refetchDocumentos } = useQuery({
+    queryKey: ["documentos-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("documentos")
+        .select("*")
+        .eq("processo_id", id!)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Publicações DJEN query
+  const { data: publicacoesDjen = [], isLoading: loadingPublicacoes } = useQuery({
+    queryKey: ["publicacoes-djen-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("publicacoes_djen_processos")
+        .select("*")
+        .eq("processo_id", id!)
+        .order("data_publicacao", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Movimentações query
+  const { data: movimentacoes = [], isLoading: loadingMovimentacoes, refetch: refetchMovimentacoes } = useQuery({
+    queryKey: ["movimentacoes-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("movimentacoes")
+        .select("*")
+        .eq("processo_id", id!)
+        .order("data_movimentacao", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Redistribuições query - movimentações com redistribuição
+  const { data: redistribuicoes = [], isLoading: loadingRedistribuicoes } = useQuery({
+    queryKey: ["redistribuicoes-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("movimentacoes")
+        .select("*")
+        .eq("processo_id", id!)
+        .ilike("descricao", "%redistribui%")
+        .order("data_movimentacao", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Alertas 360 query
+  const { data: alertas360 = [], isLoading: loadingAlertas360 } = useQuery({
+    queryKey: ["alertas360-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("alertas_monitoramento")
+        .select(`
+          *,
+          termo:termos_monitoramento(*),
+          movimentacao:movimentacoes(*)
+        `)
+        .eq("processo_id", id!)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Eventos Agenda query
+  const { data: eventosAgenda = [] } = useQuery({
+    queryKey: ["eventos-agenda-processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("eventos_agenda")
+        .select("*")
+        .eq("processo_id", id!)
+        .order("data_inicio", { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Coordenações query
+  const { data: coordenacoes = [] } = useQuery({
+    queryKey: ["coordenacoes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coordenacoes")
+        .select("*")
+        .order("nome");
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Clientes query
+  const { data: clientes = [] } = useQuery({
+    queryKey: ["clientes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("*")
+        .order("nome");
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Responsáveis do processo
+  const { data: responsaveisProcesso = [] } = useQuery({
+    queryKey: ["processo-responsaveis", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("processos_responsaveis")
+        .select(`
+          *,
+          usuario:profiles!processos_responsaveis_usuario_id_fkey(id, nome)
+        `)
+        .eq("processo_id", id!);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Derive responsáveis text
+  const responsaveisTexto = responsaveisProcesso.length > 0
+    ? responsaveisProcesso.map((r: any) => r.usuario?.nome || "").filter(Boolean).join(", ")
+    : processo?.advogado_responsavel?.nome || "Não atribuído";
+
   useEffect(() => {
     if (processo && editando) {
       setFormData({
@@ -1883,37 +2086,23 @@ export default function ProcessoDetalhes() {
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex-1 min-w-0 space-y-2">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <Badge variant={red.status === 'pendente' ? 'secondary' : red.status === 'vinculado' ? 'default' : 'outline'}>
-                                      {red.status}
+                                    <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20">
+                                      <Shuffle className="w-3 h-3 mr-1" />
+                                      Redistribuição
                                     </Badge>
-                                    {red.tribunal && <Badge variant="outline">{red.tribunal}</Badge>}
+                                    {red.tipo && <Badge variant="secondary">{red.tipo}</Badge>}
                                   </div>
-                                  <p className="font-mono text-sm">{red.numero_processo}</p>
-                                  {red.vara && (
-                                    <p className="text-sm text-muted-foreground">
-                                      <MapPin className="w-3 h-3 inline mr-1" />
-                                      {red.vara}
+                                  <p className="text-sm line-clamp-3">{red.descricao}</p>
+                                  {red.fonte && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Fonte: {red.fonte}
                                     </p>
-                                  )}
-                                  {red.polo_ativo && (
-                                    <p className="text-sm text-muted-foreground truncate">
-                                      <User className="w-3 h-3 inline mr-1" />
-                                      {red.polo_ativo}
-                                    </p>
-                                  )}
-                                  {red.assunto && (
-                                    <p className="text-sm text-muted-foreground line-clamp-2">{red.assunto}</p>
                                   )}
                                 </div>
                                 <div className="text-right shrink-0">
-                                  {red.data_distribuicao && (
-                                    <p className="font-medium flex items-center gap-1 justify-end text-primary">
-                                      <Calendar className="w-4 h-4" />
-                                      {formatDate(red.data_distribuicao)}
-                                    </p>
-                                  )}
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Detectado: {formatDate(red.created_at)}
+                                  <p className="font-medium flex items-center gap-1 justify-end text-primary">
+                                    <Calendar className="w-4 h-4" />
+                                    {formatDate(red.data_movimentacao)}
                                   </p>
                                 </div>
                               </div>
