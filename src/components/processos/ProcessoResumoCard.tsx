@@ -80,10 +80,10 @@ export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes }
   const clienteNome = processo.cliente?.nome || processo.polo_passivo || "Cliente não identificado";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header com nome do cliente */}
-      <div className="border-b pb-4">
-        <h1 className="text-2xl font-bold text-foreground">{clienteNome}</h1>
+      <div className="border-b pb-3">
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">{clienteNome}</h1>
       </div>
 
       {/* Botões de ação */}
@@ -95,19 +95,16 @@ export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes }
         <Button variant="outline" size="icon">
           <ExternalLink className="w-4 h-4" />
         </Button>
-        <Button variant="outline" className="text-emerald-600 border-emerald-600 hover:bg-emerald-50">
-          Nova ação
-        </Button>
       </div>
 
       {/* Resumo do processo */}
       <Card className="border">
-        <CardContent className="p-6">
-          <h2 className="text-lg font-semibold mb-6 text-foreground">Resumo do processo</h2>
+        <CardContent className="p-4 md:p-6">
+          <h2 className="text-lg font-semibold mb-4 text-foreground">Resumo do processo</h2>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-3">
             {/* Coluna Esquerda */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Situação */}
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Situação</p>
@@ -254,7 +251,7 @@ export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes }
             </div>
 
             {/* Coluna Direita */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Data de distribuição */}
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Data de distribuição</p>
