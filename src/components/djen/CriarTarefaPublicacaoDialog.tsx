@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import DOMPurify from "dompurify";
+import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import {
   Dialog,
   DialogContent,
@@ -342,18 +342,8 @@ export function CriarTarefaPublicacaoDialog({
             </div>
 
             <ScrollArea className="flex-1 p-4">
-              <div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-line">
-                <div
-                  dangerouslySetInnerHTML={{
-                    __html: DOMPurify.sanitize(
-                      (publicacao.conteudo || "Sem conteúdo").replace(/\n/g, '<br/>'),
-                      {
-                        ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-                        ALLOWED_ATTR: ['class']
-                      }
-                    )
-                  }}
-                />
+              <div className={`text-sm ${conteudoDisplayClasses}`}>
+                {formatConteudoParaExibicao(publicacao.conteudo)}
               </div>
             </ScrollArea>
           </div>

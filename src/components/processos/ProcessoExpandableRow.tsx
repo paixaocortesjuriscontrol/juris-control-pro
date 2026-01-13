@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import DOMPurify from "dompurify";
+import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 
 interface ProcessoExpandableRowProps {
   processo: {
@@ -492,12 +492,9 @@ export function ProcessoExpandableRow({
                             </Badge>
                           )}
                         </div>
-                        <div
-                          className="prose prose-sm max-w-none dark:prose-invert text-sm overflow-x-auto break-words whitespace-pre-line [word-break:break-word] [overflow-wrap:anywhere] [&_table]:table-fixed [&_table]:w-full [&_table]:text-xs [&_td]:break-words [&_th]:break-words [&_td]:p-1 [&_th]:p-1 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-words"
-                          dangerouslySetInnerHTML={{
-                            __html: DOMPurify.sanitize((pub.conteudo || "Sem conteúdo").replace(/\n/g, '<br/>')),
-                          }}
-                        />
+                        <div className={cn("text-sm", conteudoDisplayClasses)}>
+                          {formatConteudoParaExibicao(pub.conteudo)}
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -38,6 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import {
   Dialog,
   DialogContent,
@@ -1763,7 +1764,9 @@ const BuscarDJEN = () => {
               )}
               <div>
                 <Label className="text-xs text-muted-foreground">Conteúdo</Label>
-                <p className="text-sm whitespace-pre-wrap">{selectedPublicacao?.conteudo}</p>
+                <div className={`text-sm ${conteudoDisplayClasses}`}>
+                  {formatConteudoParaExibicao(selectedPublicacao?.conteudo)}
+                </div>
               </div>
             </div>
           </ScrollArea>

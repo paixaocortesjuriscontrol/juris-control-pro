@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 
 export default function PainelIntimacoes() {
   const navigate = useNavigate();
@@ -829,8 +830,8 @@ export default function PainelIntimacoes() {
               {selectedIntimacao.conteudo_publicacao && (
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Conteúdo da Publicação</p>
-                  <div className="text-sm bg-muted/50 p-3 rounded-lg whitespace-pre-wrap break-words">
-                    {selectedIntimacao.conteudo_publicacao}
+                  <div className={`text-sm bg-muted/50 p-3 rounded-lg ${conteudoDisplayClasses}`}>
+                    {formatConteudoParaExibicao(selectedIntimacao.conteudo_publicacao)}
                   </div>
                 </div>
               )}
