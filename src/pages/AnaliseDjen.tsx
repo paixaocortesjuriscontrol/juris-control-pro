@@ -572,6 +572,14 @@ const AnaliseDjen = () => {
                                     </Badge>
                                   )}
                                   
+                                  {/* Termo que encontrou a publicação */}
+                                  {pub.monitoramento_termo && (
+                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 max-w-[180px] md:max-w-[250px] truncate" title={`Termo: ${pub.monitoramento_termo}`}>
+                                      <Search className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
+                                      <span className="truncate">{pub.monitoramento_termo}</span>
+                                    </Badge>
+                                  )}
+                                  
                                   <span className="text-[10px] md:text-xs text-muted-foreground ml-auto flex-shrink-0">
                                     {formatDateShort(pub.created_at)}
                                   </span>
