@@ -18,6 +18,7 @@ export interface PublicacaoUnificada {
   // Dados do monitoramento (para tipo termo)
   monitoramento_id: string | null;
   monitoramento_termo: string | null;
+  monitoramento_descricao: string | null;
   monitoramento_tipo: string | null;
   monitoramento_oab: string | null;
   monitoramento_uf: string | null;
@@ -190,10 +191,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             fonte,
             lida,
             created_at,
-            monitoramento:monitoramentos_djen(
-              id, tipo, termo_busca, oab, uf, coordenacao_id,
-              coordenacao:coordenacoes(id, nome)
-            )
+          monitoramento:monitoramentos_djen(
+            id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
+            coordenacao:coordenacoes(id, nome)
+          )
           `)
           .order('created_at', { ascending: false });
 
@@ -231,6 +232,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             created_at: pub.created_at,
             monitoramento_id: pub.monitoramento_id,
             monitoramento_termo: pub.monitoramento?.termo_busca,
+            monitoramento_descricao: pub.monitoramento?.descricao,
             monitoramento_tipo: pub.monitoramento?.tipo,
             monitoramento_oab: pub.monitoramento?.oab,
             monitoramento_uf: pub.monitoramento?.uf,
@@ -298,6 +300,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             created_at: pub.created_at,
             monitoramento_id: null,
             monitoramento_termo: null,
+            monitoramento_descricao: null,
             monitoramento_tipo: null,
             monitoramento_oab: null,
             monitoramento_uf: null,
