@@ -87,6 +87,8 @@ import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentos
 import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
 import { SelecionarResponsaveisProcesso } from "@/components/processos/SelecionarResponsaveisProcesso";
 import { TarefaPublicacaoView } from "@/components/processos/TarefaPublicacaoView";
+import { ProcessoResumoCard } from "@/components/processos/ProcessoResumoCard";
+import { ProcessoDetalhesCompletos } from "@/components/processos/ProcessoDetalhesCompletos";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -95,6 +97,8 @@ import { Database } from "@/integrations/supabase/types";
 
 type StatusProcesso = Database["public"]["Enums"]["status_processo"];
 type AreaAtuacao = Database["public"]["Enums"]["area_atuacao"];
+
+type ViewMode = "resumo" | "detalhes" | "editar";
 
 const areaLabels: Record<string, string> = {
   civil: "Cível",
@@ -125,6 +129,9 @@ export default function ProcessoDetalhes() {
   const [toglingMonitoramento, setToglingMonitoramento] = useState(false);
   const [toglingMonitoramentoDjen, setToglingMonitoramentoDjen] = useState(false);
   const [toglingLida, setToglingLida] = useState<string | null>(null);
+  
+  // View mode state - estilo Projuris
+  const [viewMode, setViewMode] = useState<ViewMode>("resumo");
   
   // States for audiências and intimações actions
   const [selectedAudiencia, setSelectedAudiencia] = useState<AudienciaDetectada | null>(null);
@@ -163,235 +170,6 @@ export default function ProcessoDetalhes() {
     },
     enabled: !!id,
   });
-
-  const { data: responsaveisProcesso = [] } = useQuery({
-    queryKey: ["processo-responsaveis", id],
-    queryFn: async () => {
-      if (!id) return [];
-      const { data, error } = await supabase
-        .from("processos_responsaveis")
-        .select(
-          `
-          id,
-          usuario_id,
-          papel,
-          coordenacao_id,
-          usuario:profiles!processos_responsaveis_usuario_id_fkey(id, nome),
-          coordenacao:coordenacoes!processos_responsaveis_coordenacao_id_fkey(id, nome)
-        `
-        )
-        .eq("processo_id", id)
-        .eq("ativo", true);
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id,
-  });
-
-  const responsaveisNomes = responsaveisProcesso
-    .map((r: any) => r.usuario?.nome)
-    .filter((n: any): n is string => !!n);
-
-  const responsaveisTexto = responsaveisNomes.length ? responsaveisNomes.join(", ") : "Não atribuído";
-
-  const { data: movimentacoes, isLoading: loadingMovimentacoes, refetch: refetchMovimentacoes } = useQuery({
-    queryKey: ["movimentacoes", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("movimentacoes")
-        .select("*")
-        .eq("processo_id", id!)
-        .order("data_movimentacao", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id,
-  });
-
-  const { data: coordenacoes = [] } = useQuery({
-    queryKey: ["coordenacoes"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("coordenacoes")
-        .select("id, nome, area")
-        .order("nome");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  // Coordenação ID ativo para buscar membros - prioriza o formData quando em edição
-  const coordenacaoAtiva = editando ? (formData.coordenacao_id || "") : (processo?.coordenacao_id || "");
-
-  const { data: membrosCoordenacao = [] } = useQuery({
-    queryKey: ["membros-coordenacao", coordenacaoAtiva],
-    queryFn: async () => {
-      if (!coordenacaoAtiva) return [];
-      
-      const { data, error } = await supabase
-        .from("membros_coordenacao")
-        .select(`
-          usuario_id,
-          cargo,
-          profiles:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
-        `)
-        .eq("coordenacao_id", coordenacaoAtiva);
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!coordenacaoAtiva,
-  });
-
-  const { data: clientes = [] } = useQuery({
-    queryKey: ["clientes-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("clientes")
-        .select("id, nome, tipo")
-        .order("nome");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const { data: publicacoesDjen = [], isLoading: loadingPublicacoes, refetch: refetchPublicacoes } = useQuery({
-    queryKey: ["publicacoes-djen-processo", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("publicacoes_djen_processos")
-        .select("*")
-        .eq("processo_id", id!)
-        .order("data_encontrado", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id,
-  });
-
-  // Query para audiências do processo
-  const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery({
-    queryKey: ["audiencias-processo", id, processo?.numero],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("audiencias_detectadas")
-        .select("*")
-        .or(`processo_id.eq.${id},processo_numero.eq.${processo?.numero}`)
-        .order("data_audiencia", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id && !!processo?.numero,
-  });
-
-  // Query para intimações do processo
-  const { data: intimacoes = [], isLoading: loadingIntimacoes } = useQuery({
-    queryKey: ["intimacoes-processo", id, processo?.numero],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("intimacoes_detectadas")
-        .select("*")
-        .or(`processo_id.eq.${id},processo_numero.eq.${processo?.numero}`)
-        .order("data_intimacao", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id && !!processo?.numero,
-  });
-
-  // Query para tarefas do processo
-  const { data: tarefas = [], isLoading: loadingTarefas } = useQuery({
-    queryKey: ["tarefas-processo", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tarefas")
-        .select(`
-          *,
-          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
-        `)
-        .eq("processo_id", id!)
-        .order("data_vencimento", { ascending: true });
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id,
-  });
-
-  // Query para redistribuições encontradas do processo
-  const { data: redistribuicoes = [], isLoading: loadingRedistribuicoes } = useQuery({
-    queryKey: ["redistribuicoes-processo", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("distribuicoes_encontradas")
-        .select(`
-          *,
-          monitoramento:monitoramentos_distribuicao!distribuicoes_encontradas_monitoramento_id_fkey(termo_busca, tipo)
-        `)
-        .eq("processo_id", id!)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id,
-  });
-
-  // Query para alertas de monitoramento 360 do processo
-  const { data: alertas360 = [], isLoading: loadingAlertas360 } = useQuery({
-    queryKey: ["alertas-360-processo", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("alertas_monitoramento")
-        .select(`
-          *,
-          termo:termos_monitoramento!alertas_monitoramento_termo_id_fkey(termo, categoria, prioridade),
-          movimentacao:movimentacoes!alertas_monitoramento_movimentacao_id_fkey(descricao, data_movimentacao)
-        `)
-        .eq("processo_id", id!)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id,
-  });
-
-  // Query para documentos do processo
-  const { data: documentosProcesso = [], refetch: refetchDocumentos } = useQuery({
-    queryKey: ["documentos-processo", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("documentos")
-        .select("*, uploader:profiles!documentos_uploaded_by_fkey(id, nome)")
-        .eq("processo_id", id!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id,
-  });
-
-  // Query para contar eventos de agenda vinculados ao processo
-  const { data: eventosAgenda = [] } = useQuery({
-    queryKey: ["eventos-agenda-processo-count", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("eventos_agenda")
-        .select("id")
-        .eq("processo_id", id!);
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id,
-  });
-
 
   useEffect(() => {
     if (processo && editando) {
