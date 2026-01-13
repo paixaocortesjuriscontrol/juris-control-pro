@@ -4977,12 +4977,16 @@ export default function ImportarProcessos() {
             advogado_responsavel_id: selectedMembro || null,
             pasta_id: pastaId,
             monitorar_andamentos: astreaBuscarAndamentos,
-            // Astrea specific fields
-            etiquetas: astreaData.etiquetas,
+            // Astrea specific fields (etiquetas stored in observacoes since column doesn't exist)
             resultado: astreaData.resultadoProcesso,
             andamento_atual: astreaData.descricaoUltimoHistorico,
-            url_processo_externo: astreaData.urlProcesso,
             advogado_externo: astreaData.responsavel,
+            observacoes_processo: (() => {
+              const extras: string[] = [];
+              if (astreaData.etiquetas) extras.push(`Etiquetas: ${astreaData.etiquetas}`);
+              if (astreaData.urlProcesso) extras.push(`URL: ${astreaData.urlProcesso}`);
+              return extras.length > 0 ? extras.join("\n") : null;
+            })(),
           };
 
           const { data: insertedProcesso, error } = await supabase
@@ -6214,6 +6218,19 @@ export default function ImportarProcessos() {
                         </div>
                       )}
                       <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setAstreaFile(null);
+                            setAstreaProcessos([]);
+                            setAstreaImporting(false);
+                            setAstreaProgress(0);
+                          }}
+                          disabled={astreaImporting}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Cancelar
+                        </Button>
                         {astreaTotalProblemas > 0 && (
                           <Button variant="outline" onClick={() => downloadAstreaRejeitados()}>
                             <FileDown className="h-4 w-4 mr-2" />
