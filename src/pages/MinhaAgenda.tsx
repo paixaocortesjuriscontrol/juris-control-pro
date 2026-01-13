@@ -1299,9 +1299,9 @@ export default function MinhaAgenda() {
         )}
 
         {/* Main Content Area with Side Panel */}
-        <div className="flex gap-4">
+        <div className="flex flex-col lg:flex-row gap-4 min-w-0">
           {/* Activities List */}
-          <Card className={cn("transition-all", selectedItem ? "flex-1" : "w-full")}>
+          <Card className={cn("transition-all", selectedItem ? "w-full lg:flex-1" : "w-full")}>
             <CardHeader className="pb-2 px-3 sm:px-6">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base sm:text-lg flex items-center gap-2">
@@ -1349,7 +1349,7 @@ export default function MinhaAgenda() {
 
           {/* Side Panel for Details */}
           {selectedItem && (
-            <div className="w-[400px] shrink-0 sticky top-4 max-h-[calc(100vh-200px)]">
+            <div className="w-full lg:w-[400px] shrink-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-200px)] min-w-0">
               <TarefaAgendaPanel
                 tarefa={selectedItem}
                 onClose={() => setSelectedItem(null)}

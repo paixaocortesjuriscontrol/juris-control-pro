@@ -241,19 +241,19 @@ export function ProcessoDetalhesCompletos({
       </div>
 
       {/* Main Content - Sidebar + Content */}
-      <div className="flex">
+      <div className="flex flex-col sm:flex-row min-w-0">
         {/* Sidebar Navigation */}
-        <aside className="w-28 sm:w-36 md:w-44 border-r bg-muted/20 flex-shrink-0">
-          <ScrollArea className="h-[calc(100vh-120px)]">
-            <nav className="py-2">
+        <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0">
+          <ScrollArea className="h-auto sm:h-[calc(100vh-120px)]">
+            <nav className="py-2 px-1 sm:px-0 flex sm:flex-col gap-1 overflow-x-auto">
               {navItems.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
                   className={cn(
-                    "w-full flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs text-left transition-colors",
+                    "shrink-0 sm:w-full w-auto min-w-[112px] sm:min-w-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs text-left transition-colors whitespace-nowrap",
                     activeSection === item.id
-                      ? "bg-primary/10 text-primary border-r-2 border-primary font-medium"
+                      ? "bg-primary/10 text-primary border-b-2 sm:border-b-0 sm:border-r-2 border-primary font-medium"
                       : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                   )}
                 >
