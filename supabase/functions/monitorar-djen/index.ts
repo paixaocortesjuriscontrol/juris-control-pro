@@ -740,20 +740,27 @@ serve(async (req) => {
       offset = 0;
     }
 
-    console.log(`=== DJEN Monitor (offset: ${offset}) | scheduled=${scheduled} | completeRun=${completeRun} | continued=${continued} ===`);
+    console.log(`=== DJEN Monitor START ===`);
+    console.log(`  Params: offset=${offset} | scheduled=${scheduled} | completeRun=${completeRun} | continued=${continued}`);
+    console.log(`  URL offset param: ${urlOffsetRaw}`);
+    console.log(`  Body: ${JSON.stringify(body).slice(0, 200)}`);
     const startTime = Date.now();
 
     // Total active monitoramentos (used to compute hasMore correctly)
+    console.log(`Counting active monitoramentos...`);
     const { count: totalActive, error: countError } = await supabase
       .from('monitoramentos_djen')
       .select('id', { count: 'exact', head: true })
       .eq('ativo', true);
 
     if (countError) {
+      console.error(`Error counting monitoramentos:`, countError);
       throw countError;
     }
+    console.log(`Total active monitoramentos: ${totalActive}`);
 
     // Fetch active monitoramentos with pagination
+    console.log(`Fetching monitoramentos: range ${offset} to ${offset + MAX_PER_INVOCATION - 1}`);
     const { data: monitoramentos, error: fetchError } = await supabase
       .from('monitoramentos_djen')
       .select('*')
@@ -762,16 +769,71 @@ serve(async (req) => {
       .range(offset, offset + MAX_PER_INVOCATION - 1);
 
     if (fetchError) {
+      console.error(`Error fetching monitoramentos:`, fetchError);
       throw fetchError;
     }
 
     const count = monitoramentos?.length || 0;
     const total = totalActive || 0;
+    console.log(`Fetched ${count} monitoramentos (total active: ${total})`);
 
     // IMPORTANT: avoid writing "empty batches" to the database.
+    // BUT: if it's a scheduled/complete run at offset 0 and we find 0 monitoramentos,
+    // this indicates a potential data issue - we should log it and mark the config properly.
     if (count === 0) {
       const duration = Math.max(1, Math.round((Date.now() - startTime) / 1000));
-      console.log(`No monitoramentos to process at offset ${offset}. Returning without DB writes.`);
+      console.log(`No monitoramentos to process at offset ${offset}. Total active: ${total}`);
+      
+      // If this is a complete run at offset 0, ensure we reset the config properly
+      if (completeRun && offset === 0) {
+        const nowIso = new Date().toISOString();
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            ultima_execucao: nowIso,
+            metadata: {
+              last_run: nowIso,
+              last_complete_run: nowIso,
+              offset_processado: 0,
+              processados: 0,
+              novas: 0,
+              descartadas: 0,
+              duplicatas: 0,
+              erros: 0,
+              duracao_s: duration,
+              has_more: false,
+              next_offset: null,
+              total_paginas: 0,
+              total_resultados: 0,
+              tribunais_stats: [],
+              djen_run: null,
+              warning: 'Nenhum monitoramento ativo encontrado',
+            },
+          })
+          .eq('tipo', 'djen');
+        
+        // Log to history for visibility
+        await supabase.from('historico_monitoramento').insert({
+          tipo: 'djen',
+          executado_em: nowIso,
+          processos_verificados: 0,
+          novos_andamentos: 0,
+          processos_com_novos: 0,
+          erros: 0,
+          detalhes: {
+            run_id: crypto.randomUUID(),
+            started_at: nowIso,
+            descartadas: 0,
+            duplicatas: 0,
+            duracao_s: duration,
+            total_paginas: 0,
+            total_resultados: 0,
+            tribunais_stats: [],
+            warning: 'Nenhum monitoramento ativo encontrado - verifique a configuração',
+          },
+        });
+      }
+      
       return new Response(
         JSON.stringify({
           success: true,
@@ -786,6 +848,7 @@ serve(async (req) => {
           tribunaisStats: [],
           hasMore: false,
           nextOffset: null,
+          warning: total === 0 ? 'Nenhum monitoramento ativo encontrado' : undefined,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
