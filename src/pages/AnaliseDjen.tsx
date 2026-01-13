@@ -799,6 +799,22 @@ const AnaliseDjen = () => {
                                     </div>
                                   )}
 
+                                  {/* Datas inline - sempre visíveis */}
+                                  <div className="flex flex-wrap items-center gap-2 md:gap-4 text-[10px] md:text-xs ml-4 md:ml-6 mb-1.5">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-muted-foreground font-medium">Disp:</span>
+                                      <span className="text-amber-600 dark:text-amber-400">{formatDateShort(pub.data_disponibilizacao)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-muted-foreground font-medium">Pub:</span>
+                                      <span className="text-amber-600 dark:text-amber-400">{formatDateShort(pub.data_publicacao)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-muted-foreground font-medium">Captura:</span>
+                                      <span className="text-muted-foreground">{formatDateShort(pub.created_at)}</span>
+                                    </div>
+                                  </div>
+
                                   {pub.tipo_origem === 'processo' && (pub.polo_ativo || pub.polo_passivo) && (
                                     <p className="text-[10px] md:text-xs text-muted-foreground mb-1 ml-4 md:ml-6 break-words">
                                       {pub.polo_ativo && <span><strong>Ativo:</strong> {pub.polo_ativo}</span>}
@@ -818,28 +834,22 @@ const AnaliseDjen = () => {
                                 {/* Expanded inline content - now uses full width */}
                                 {isExpanded && (
                                   <div className="mt-2 md:mt-3 space-y-2 md:space-y-3 border-t pt-2 md:pt-3">
-                                    <div className="grid grid-cols-2 gap-2 md:gap-3 text-[10px] md:text-xs">
-                                      <div>
-                                        <strong>Disponibilização:</strong>
-                                        <p className="text-muted-foreground break-words">{formatDate(pub.data_disponibilizacao)}</p>
+                                    {(pub.fonte || pub.tribunal) && (
+                                      <div className="flex flex-wrap gap-3 md:gap-4 text-[10px] md:text-xs">
+                                        {pub.fonte && (
+                                          <div>
+                                            <strong>Fonte:</strong>
+                                            <span className="text-muted-foreground ml-1">{pub.fonte}</span>
+                                          </div>
+                                        )}
+                                        {pub.tribunal && (
+                                          <div>
+                                            <strong>Tribunal:</strong>
+                                            <span className="text-muted-foreground ml-1">{pub.tribunal}</span>
+                                          </div>
+                                        )}
                                       </div>
-                                      <div>
-                                        <strong>Publicação:</strong>
-                                        <p className="text-muted-foreground break-words">{formatDate(pub.data_publicacao)}</p>
-                                      </div>
-                                      {pub.fonte && (
-                                        <div>
-                                          <strong>Fonte:</strong>
-                                          <p className="text-muted-foreground break-words">{pub.fonte}</p>
-                                        </div>
-                                      )}
-                                      {pub.tribunal && (
-                                        <div>
-                                          <strong>Tribunal:</strong>
-                                          <p className="text-muted-foreground break-words">{pub.tribunal}</p>
-                                        </div>
-                                      )}
-                                    </div>
+                                    )}
 
                                     <div>
                                       <strong className="text-[10px] md:text-xs">Conteúdo:</strong>
