@@ -50,7 +50,7 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import DOMPurify from "dompurify";
+
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 import { Link, useNavigate } from "react-router-dom";
@@ -318,6 +318,24 @@ const AnaliseDjen = () => {
     } catch {
       return dateString;
     }
+  };
+
+  const formatConteudoParaExibicao = (conteudo: string | null) => {
+    const raw = conteudo || "Sem conteúdo";
+
+    // O PJe Comunica frequentemente retorna o texto com quebras virando múltiplos espaços
+    // e às vezes já vem com tags <br>. Aqui normalizamos para quebras reais.
+    const normalized = raw
+      .replace(/\r\n?/g, "\n")
+      .replace(/<br\s*\/?>(\s*)/gi, "\n")
+      .replace(/<\/?p[^>]*>/gi, "\n")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/<[^>]+>/g, "")
+      .replace(/[ \t]{2,}/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
+    return normalized;
   };
 
   // Agrupar publicações por coordenação
@@ -853,18 +871,11 @@ const AnaliseDjen = () => {
 
                                     <div>
                                       <strong className="text-[10px] md:text-xs">Conteúdo:</strong>
-                                      <div 
-                                        className="mt-1.5 md:mt-2 p-2 md:p-3 bg-muted/50 rounded-lg text-xs md:text-sm prose prose-sm max-w-none dark:prose-invert overflow-x-auto break-words [overflow-wrap:anywhere] whitespace-pre-line"
-                                        dangerouslySetInnerHTML={{ 
-                                          __html: DOMPurify.sanitize(
-                                            (pub.conteudo || "Sem conteúdo").replace(/\n/g, '<br/>'),
-                                            {
-                                              ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-                                              ALLOWED_ATTR: ['class']
-                                            }
-                                          )
-                                        }}
-                                      />
+                                      <div
+                                        className="mt-1.5 md:mt-2 p-2 md:p-3 bg-muted/50 rounded-lg text-xs md:text-sm overflow-x-auto break-words [overflow-wrap:anywhere] whitespace-pre-wrap"
+                                      >
+                                        {formatConteudoParaExibicao(pub.conteudo)}
+                                      </div>
                                     </div>
                                   </div>
                                 )}
@@ -988,18 +999,11 @@ const AnaliseDjen = () => {
 
                   <div>
                     <strong className="text-xs md:text-sm">Conteúdo:</strong>
-                    <div 
-                      className="mt-1.5 md:mt-2 p-2 md:p-4 bg-muted/50 rounded-lg text-xs md:text-sm prose prose-sm max-w-none dark:prose-invert overflow-x-auto break-words [overflow-wrap:anywhere] whitespace-pre-line"
-                      dangerouslySetInnerHTML={{ 
-                        __html: DOMPurify.sanitize(
-                          (selectedPublicacao.conteudo || "Sem conteúdo").replace(/\n/g, '<br/>'),
-                          {
-                            ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-                            ALLOWED_ATTR: ['class']
-                          }
-                        )
-                      }}
-                    />
+                    <div
+                      className="mt-1.5 md:mt-2 p-2 md:p-4 bg-muted/50 rounded-lg text-xs md:text-sm overflow-x-auto break-words [overflow-wrap:anywhere] whitespace-pre-wrap"
+                    >
+                      {formatConteudoParaExibicao(selectedPublicacao.conteudo)}
+                    </div>
                   </div>
                 </div>
               </ScrollArea>
