@@ -426,8 +426,29 @@ async function processProcessosBatch(
         if (!conteudo || typeof conteudo !== 'string') continue;
 
         // Data de disponibilização (dia que saiu no sistema) vs publicação (dia oficial do diário)
-        const dataDisponibilizacao = pub.dataDisponibilizacao || pub.dataDJe || null;
-        const dataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.data || null;
+        // A API pode retornar com diferentes nomes dependendo do tribunal
+        let dataDisponibilizacao = pub.dataDisponibilizacao || pub.dataDJe || pub.dtDisponibilizacao || pub.dataDisp || null;
+        let dataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.dtPublicacao || pub.data || null;
+        
+        // Inferir datas faltantes (típico: disponibilização = publicação - 1 dia)
+        if (!dataDisponibilizacao && dataPublicacao) {
+          try {
+            const pubDate = new Date(dataPublicacao);
+            pubDate.setDate(pubDate.getDate() - 1);
+            dataDisponibilizacao = pubDate.toISOString().split('T')[0];
+          } catch {
+            // Ignore date parsing errors
+          }
+        } else if (dataDisponibilizacao && !dataPublicacao) {
+          try {
+            const dispDate = new Date(dataDisponibilizacao);
+            dispDate.setDate(dispDate.getDate() + 1);
+            dataPublicacao = dispDate.toISOString().split('T')[0];
+          } catch {
+            // Ignore date parsing errors
+          }
+        }
+        
         const hashConteudo = generateHash(`${processo.numero}-${dataPublicacao || dataDisponibilizacao}-${conteudo.slice(0, 500)}`);
 
         if (seenHashes.has(hashConteudo)) {
