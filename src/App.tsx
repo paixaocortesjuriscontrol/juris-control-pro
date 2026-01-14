@@ -46,6 +46,7 @@ import PainelIntimacoes from "./pages/PainelIntimacoes";
 import NovaTarefa from "./pages/NovaTarefa";
 import CofreSenhas from "./pages/CofreSenhas";
 import CapturasIntimacoes from "./pages/CapturasIntimacoes";
+import RelatorioExecucoes from "./pages/RelatorioExecucoes";
 import ClienteLogin from "./pages/cliente/ClienteLogin";
 import ClienteCadastro from "./pages/cliente/ClienteCadastro";
 import ClientePortal from "./pages/cliente/ClientePortal";
@@ -117,6 +118,7 @@ const App = () => (
               <Route path="/auditoria-djen-processos" element={<ProtectedRoute><AuditoriaDjenProcessos /></ProtectedRoute>} />
               <Route path="/cofre-senhas" element={<ProtectedRoute><CofreSenhas /></ProtectedRoute>} />
               <Route path="/capturas-intimacoes" element={<ProtectedRoute><CapturasIntimacoes /></ProtectedRoute>} />
+              <Route path="/relatorio-execucoes" element={<ProtectedRoute><RelatorioExecucoes /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </ImportProvider>
