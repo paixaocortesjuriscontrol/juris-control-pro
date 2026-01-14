@@ -2953,9 +2953,12 @@ export type Database = {
           importada_de_descartada: boolean | null
           lida: boolean
           monitoramento_id: string
+          polo_ativo: string | null
+          polo_passivo: string | null
           processo_numero: string | null
           resumo_gerado_em: string | null
           resumo_ia: string | null
+          tribunal: string | null
         }
         Insert: {
           conteudo?: string | null
@@ -2968,9 +2971,12 @@ export type Database = {
           importada_de_descartada?: boolean | null
           lida?: boolean
           monitoramento_id: string
+          polo_ativo?: string | null
+          polo_passivo?: string | null
           processo_numero?: string | null
           resumo_gerado_em?: string | null
           resumo_ia?: string | null
+          tribunal?: string | null
         }
         Update: {
           conteudo?: string | null
@@ -2983,9 +2989,12 @@ export type Database = {
           importada_de_descartada?: boolean | null
           lida?: boolean
           monitoramento_id?: string
+          polo_ativo?: string | null
+          polo_passivo?: string | null
           processo_numero?: string | null
           resumo_gerado_em?: string | null
           resumo_ia?: string | null
+          tribunal?: string | null
         }
         Relationships: [
           {
@@ -3001,6 +3010,7 @@ export type Database = {
         Row: {
           conteudo: string | null
           created_at: string
+          data_disponibilizacao: string | null
           data_publicacao: string | null
           fonte: string | null
           hash_conteudo: string
@@ -3008,10 +3018,12 @@ export type Database = {
           monitoramento_id: string
           motivo_descarte: string
           processo_numero: string | null
+          tribunal: string | null
         }
         Insert: {
           conteudo?: string | null
           created_at?: string
+          data_disponibilizacao?: string | null
           data_publicacao?: string | null
           fonte?: string | null
           hash_conteudo: string
@@ -3019,10 +3031,12 @@ export type Database = {
           monitoramento_id: string
           motivo_descarte: string
           processo_numero?: string | null
+          tribunal?: string | null
         }
         Update: {
           conteudo?: string | null
           created_at?: string
+          data_disponibilizacao?: string | null
           data_publicacao?: string | null
           fonte?: string | null
           hash_conteudo?: string
@@ -3030,6 +3044,7 @@ export type Database = {
           monitoramento_id?: string
           motivo_descarte?: string
           processo_numero?: string | null
+          tribunal?: string | null
         }
         Relationships: [
           {

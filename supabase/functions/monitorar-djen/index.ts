@@ -491,7 +491,7 @@ async function processMonitoramento(
         
         await supabase.from('publicacoes_djen_global_hash').insert({
           hash_global: globalHash,
-          monitoramento_id: monitoramento.id,
+          primeiro_monitoramento_id: monitoramento.id,
         });
         
         stats.descartadas++;
@@ -531,7 +531,8 @@ async function processMonitoramento(
 
       await supabase.from('publicacoes_djen_global_hash').insert({
         hash_global: globalHash,
-        monitoramento_id: monitoramento.id,
+        primeiro_monitoramento_id: monitoramento.id,
+        publicacao_id: publicacao.id,
       });
 
       stats.novas++;
