@@ -10,13 +10,16 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, Download, ListTodo, Users, UserPlus, FolderPlus } from "lucide-react";
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, Download, ListTodo, Users, UserPlus, FolderPlus, Calendar, Scale } from "lucide-react";
 import * as XLSX from "xlsx";
+
+// ==================== INTERFACES ====================
 
 interface TarefaImport {
   identificador: string;
@@ -47,6 +50,26 @@ interface TarefaImport {
   erroImport?: string;
   linhaOriginal: number;
 }
+
+interface TarefaAstreaImport {
+  identificador: string;
+  data: string | null;
+  hora: string | null;
+  tipo: string | null;
+  responsavel: string | null;
+  titulo: string;
+  tituloProcesso: string | null;
+  numeroProcesso: string | null;
+  juizo: string | null;
+  observacao: string | null;
+  etiquetas: string | null;
+  status: "pendente" | "valido" | "invalido" | "sucesso" | "erro";
+  erros: string[];
+  erroImport?: string;
+  linhaOriginal: number;
+}
+
+// ==================== UTILITY FUNCTIONS ====================
 
 const parseDate = (dateValue: any): string | null => {
   if (!dateValue) return null;
@@ -81,7 +104,6 @@ const mapSituacaoToStatus = (situacao: string | null): "pendente" | "cumprido" |
 
 const mapSituacaoToPrioridade = (situacao: string | null, dataFatal: string | null): "baixa" | "media" | "alta" | "urgente" => {
   if (!situacao) {
-    // Check if data fatal is soon
     if (dataFatal) {
       const fatal = new Date(dataFatal);
       const today = new Date();
@@ -99,7 +121,20 @@ const mapSituacaoToPrioridade = (situacao: string | null, dataFatal: string | nu
   return "media";
 };
 
+const mapAstreaTipoToTarefa = (tipo: string | null): string => {
+  if (!tipo) return "Tarefa";
+  const lower = tipo.toLowerCase();
+  if (lower === "audiência" || lower === "audiencia") return "Audiência";
+  if (lower === "evento") return "Evento";
+  return tipo;
+};
+
+// ==================== MAIN COMPONENT ====================
+
 export default function ImportarTarefas() {
+  const [activeTab, setActiveTab] = useState("projuris");
+  
+  // ========== PROJURIS STATE ==========
   const [file, setFile] = useState<File | null>(null);
   const [tarefas, setTarefas] = useState<TarefaImport[]>([]);
   const [parsing, setParsing] = useState(false);
@@ -114,9 +149,24 @@ export default function ImportarTarefas() {
   const [novosUsuariosCriados, setNovosUsuariosCriados] = useState<string[]>([]);
   const [novosProcessosCriados, setNovosProcessosCriados] = useState<string[]>([]);
   
+  // ========== ASTREA STATE ==========
+  const [astreaFile, setAstreaFile] = useState<File | null>(null);
+  const [tarefasAstrea, setTarefasAstrea] = useState<TarefaAstreaImport[]>([]);
+  const [astreaParsing, setAstreaParsing] = useState(false);
+  const [astreaParseProgress, setAstreaParseProgress] = useState(0);
+  const [astreaImporting, setAstreaImporting] = useState(false);
+  const [astreaImportProgress, setAstreaImportProgress] = useState(0);
+  const [astreaCoordenacao, setAstreaCoordenacao] = useState<string>("");
+  const [astreaVincularResponsaveis, setAstreaVincularResponsaveis] = useState(true);
+  const [astreaCadastrarNovosUsuarios, setAstreaCadastrarNovosUsuarios] = useState(true);
+  const [astreaCadastrarNovosProcessos, setAstreaCadastrarNovosProcessos] = useState(true);
+  const [astreaUsuariosCriados, setAstreaUsuariosCriados] = useState<string[]>([]);
+  const [astreaProcessosCriados, setAstreaProcessosCriados] = useState<string[]>([]);
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const cancelledRef = useRef(false);
+  const astreaCancelledRef = useRef(false);
   const { user } = useAuth();
 
   // Cache of created users during import
@@ -140,7 +190,7 @@ export default function ImportarTarefas() {
   });
 
   // Fetch existing processos for matching
-  const { data: processosMap } = useQuery({
+  const { data: processosMap, refetch: refetchProcessos } = useQuery({
     queryKey: ["processos-map-import"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -150,7 +200,6 @@ export default function ImportarTarefas() {
       if (error) throw error;
       const map = new Map<string, string>();
       (data || []).forEach(p => {
-        // Normalize number for matching
         const normalized = p.numero.replace(/[^0-9]/g, "");
         map.set(normalized, p.id);
         map.set(p.numero, p.id);
@@ -162,8 +211,215 @@ export default function ImportarTarefas() {
   useEffect(() => {
     return () => {
       cancelledRef.current = true;
+      astreaCancelledRef.current = true;
     };
   }, []);
+
+  // ==================== SHARED FUNCTIONS ====================
+
+  const createNewProfile = async (nomeCompleto: string, coordenacaoId: string): Promise<string | null> => {
+    if (!nomeCompleto || !coordenacaoId) return null;
+    
+    const cachedId = createdUsersCache.current.get(nomeCompleto.toLowerCase());
+    if (cachedId) return cachedId;
+
+    try {
+      const emailSlug = nomeCompleto
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, ".")
+        .replace(/[^a-z0-9.]/g, "");
+      const timestamp = Date.now();
+      const placeholderEmail = `${emailSlug}.${timestamp}@importado.local`;
+
+      const newId = crypto.randomUUID();
+      const { data: newProfile, error } = await supabase
+        .from("profiles")
+        .insert({
+          id: newId,
+          nome: nomeCompleto,
+          email: placeholderEmail,
+          ativo: true,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        console.error("Erro ao criar perfil:", error);
+        return null;
+      }
+
+      if (newProfile?.id) {
+        await supabase.from("membros_coordenacao").insert({
+          coordenacao_id: coordenacaoId,
+          usuario_id: newProfile.id,
+          cargo: "Membro",
+        });
+
+        createdUsersCache.current.set(nomeCompleto.toLowerCase(), newProfile.id);
+        return newProfile.id;
+      }
+
+      return null;
+    } catch (err) {
+      console.error("Erro ao criar perfil:", err);
+      return null;
+    }
+  };
+
+  const findResponsavelId = async (
+    responsaveisStr: string | null, 
+    vincular: boolean, 
+    cadastrar: boolean, 
+    coordenacaoId: string,
+    onNewUser?: (nome: string) => void
+  ): Promise<string | null> => {
+    if (!responsaveisStr || !vincular) return null;
+    
+    const nomes = responsaveisStr.split(/[,;]/).map(n => n.trim());
+    
+    for (const nome of nomes) {
+      if (!nome) continue;
+      const nomeLower = nome.toLowerCase();
+      
+      const cachedId = createdUsersCache.current.get(nomeLower);
+      if (cachedId) return cachedId;
+      
+      const profile = profiles.find(p => 
+        p.nome.toLowerCase().includes(nomeLower) || 
+        nomeLower.includes(p.nome.toLowerCase())
+      );
+      if (profile) return profile.id;
+      
+      if (cadastrar && coordenacaoId) {
+        const newId = await createNewProfile(nome, coordenacaoId);
+        if (newId) {
+          onNewUser?.(nome);
+          return newId;
+        }
+      }
+    }
+    return null;
+  };
+
+  const findProcessoId = (numeroProcesso: string | null): string | null => {
+    if (!numeroProcesso || !processosMap) return null;
+    
+    const normalized = numeroProcesso.replace(/[^0-9]/g, "");
+    
+    const cachedId = createdProcessosCache.current.get(normalized);
+    if (cachedId) return cachedId;
+    
+    return processosMap.get(normalized) || processosMap.get(numeroProcesso) || null;
+  };
+
+  const createNewProcesso = async (
+    numeroProcesso: string,
+    coordenacaoId: string,
+    extras?: { assunto?: string; vara?: string; fase?: string; pastaFisica?: string; pastaCliente?: string }
+  ): Promise<string | null> => {
+    if (!numeroProcesso || !coordenacaoId) return null;
+    
+    const normalized = numeroProcesso.replace(/[^0-9]/g, "");
+    
+    const cachedId = createdProcessosCache.current.get(normalized);
+    if (cachedId) return cachedId;
+
+    try {
+      const { data: newProcesso, error } = await supabase
+        .from("processos")
+        .insert({
+          numero: numeroProcesso,
+          assunto: extras?.assunto || "Importado via tarefas",
+          vara: extras?.vara || null,
+          fase: extras?.fase || null,
+          pasta_fisica: extras?.pastaFisica || null,
+          pasta_cliente: extras?.pastaCliente || null,
+          coordenacao_id: coordenacaoId,
+          status: "ativo",
+          area: "trabalhista",
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        console.error("Erro ao criar processo:", error);
+        return null;
+      }
+
+      if (newProcesso?.id) {
+        createdProcessosCache.current.set(normalized, newProcesso.id);
+        return newProcesso.id;
+      }
+
+      return null;
+    } catch (err) {
+      console.error("Erro ao criar processo:", err);
+      return null;
+    }
+  };
+
+  const findOrCreateProcessoId = async (
+    numeroProcesso: string | null,
+    coordenacaoId: string,
+    cadastrar: boolean,
+    extras?: { assunto?: string; vara?: string; fase?: string; pastaFisica?: string; pastaCliente?: string },
+    onNewProcesso?: (numero: string) => void
+  ): Promise<string | null> => {
+    if (!numeroProcesso) return null;
+    
+    const existingId = findProcessoId(numeroProcesso);
+    if (existingId) return existingId;
+    
+    if (cadastrar && coordenacaoId) {
+      const newId = await createNewProcesso(numeroProcesso, coordenacaoId, extras);
+      if (newId) {
+        onNewProcesso?.(numeroProcesso);
+        return newId;
+      }
+    }
+    
+    return null;
+  };
+
+  const vincularResponsavelAoProcesso = async (processoId: string, usuarioId: string, coordenacaoId: string): Promise<void> => {
+    try {
+      const { data: existing } = await supabase
+        .from("processos_responsaveis")
+        .select("id")
+        .eq("processo_id", processoId)
+        .eq("usuario_id", usuarioId)
+        .maybeSingle();
+      
+      if (existing) return;
+
+      await supabase.from("processos_responsaveis").insert({
+        processo_id: processoId,
+        usuario_id: usuarioId,
+        coordenacao_id: coordenacaoId || null,
+        papel: "Responsável",
+        ativo: true,
+      });
+
+      const { data: processo } = await supabase
+        .from("processos")
+        .select("advogado_responsavel_id")
+        .eq("id", processoId)
+        .single();
+      
+      if (processo && !processo.advogado_responsavel_id) {
+        await supabase
+          .from("processos")
+          .update({ advogado_responsavel_id: usuarioId })
+          .eq("id", processoId);
+      }
+    } catch (err) {
+      console.error("Erro ao vincular responsável ao processo:", err);
+    }
+  };
+
+  // ==================== PROJURIS FUNCTIONS ====================
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -186,7 +442,6 @@ export default function ImportarTarefas() {
       let rows: any[] = [];
 
       if (isCSV) {
-        // Parse CSV
         let text = new TextDecoder("utf-8").decode(arrayBuffer);
         if (text.includes("�")) {
           text = new TextDecoder("iso-8859-1").decode(arrayBuffer);
@@ -207,7 +462,6 @@ export default function ImportarTarefas() {
           rows.push(row);
         }
       } else {
-        // Parse Excel
         const workbook = XLSX.read(arrayBuffer, { type: "array" });
         const sheetName = workbook.SheetNames?.[0];
         if (!sheetName) throw new Error("Planilha sem abas");
@@ -218,7 +472,6 @@ export default function ImportarTarefas() {
 
       setParseProgress(60);
 
-      // Map rows to TarefaImport
       const parsed: TarefaImport[] = rows.map((row, index): TarefaImport => {
         const identificador = String(row["Identificador da tarefa"] || "").trim();
         const titulo = String(row["Título"] || row["Titulo"] || "").trim();
@@ -254,18 +507,10 @@ export default function ImportarTarefas() {
           linhaOriginal: index + 2,
         };
 
-        // Warnings (não impedem importação)
-        if (!identificador) {
-          tarefa.erros.push("Sem identificador");
-        }
-        if (!titulo) {
-          tarefa.erros.push("Sem título");
-        }
-        if (!tarefa.dataFatal && !tarefa.dataPrevista) {
-          tarefa.erros.push("Sem data fatal/prevista");
-        }
+        if (!identificador) tarefa.erros.push("Sem identificador");
+        if (!titulo) tarefa.erros.push("Sem título");
+        if (!tarefa.dataFatal && !tarefa.dataPrevista) tarefa.erros.push("Sem data fatal/prevista");
 
-        // Todas as tarefas são válidas para importação
         tarefa.status = "valido";
         return tarefa;
       }).filter(t => t.identificador && t.identificador !== "Identificador da tarefa");
@@ -289,211 +534,6 @@ export default function ImportarTarefas() {
       });
     } finally {
       setParsing(false);
-    }
-  };
-
-  // Create a new profile for an unknown responsible person
-  const createNewProfile = async (nomeCompleto: string): Promise<string | null> => {
-    if (!nomeCompleto || !selectedCoordenacao) return null;
-    
-    // Check cache first
-    const cachedId = createdUsersCache.current.get(nomeCompleto.toLowerCase());
-    if (cachedId) return cachedId;
-
-    try {
-      // Generate a unique placeholder email
-      const emailSlug = nomeCompleto
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/\s+/g, ".")
-        .replace(/[^a-z0-9.]/g, "");
-      const timestamp = Date.now();
-      const placeholderEmail = `${emailSlug}.${timestamp}@importado.local`;
-
-      // Create profile directly (without auth user)
-      // Generate a UUID for the profile
-      const newId = crypto.randomUUID();
-      const { data: newProfile, error } = await supabase
-        .from("profiles")
-        .insert({
-          id: newId,
-          nome: nomeCompleto,
-          email: placeholderEmail,
-          ativo: true,
-        })
-        .select("id")
-        .single();
-
-      if (error) {
-        console.error("Erro ao criar perfil:", error);
-        return null;
-      }
-
-      if (newProfile?.id) {
-        // Add as member of the selected coordination
-        await supabase.from("membros_coordenacao").insert({
-          coordenacao_id: selectedCoordenacao,
-          usuario_id: newProfile.id,
-          cargo: "Membro",
-        });
-
-        // Cache the created user
-        createdUsersCache.current.set(nomeCompleto.toLowerCase(), newProfile.id);
-        setNovosUsuariosCriados(prev => [...prev, nomeCompleto]);
-        
-        return newProfile.id;
-      }
-
-      return null;
-    } catch (err) {
-      console.error("Erro ao criar perfil:", err);
-      return null;
-    }
-  };
-
-  const findResponsavelId = async (responsaveisStr: string | null): Promise<string | null> => {
-    if (!responsaveisStr || !vincularResponsaveis) return null;
-    
-    // Try to match first name in the list
-    const nomes = responsaveisStr.split(/[,;]/).map(n => n.trim());
-    
-    for (const nome of nomes) {
-      if (!nome) continue;
-      const nomeLower = nome.toLowerCase();
-      
-      // First check if already created during this import
-      const cachedId = createdUsersCache.current.get(nomeLower);
-      if (cachedId) return cachedId;
-      
-      // Search in existing profiles
-      const profile = profiles.find(p => 
-        p.nome.toLowerCase().includes(nomeLower) || 
-        nomeLower.includes(p.nome.toLowerCase())
-      );
-      if (profile) return profile.id;
-      
-      // If not found and option enabled, create new profile
-      if (cadastrarNovosUsuarios && selectedCoordenacao) {
-        const newId = await createNewProfile(nome);
-        if (newId) return newId;
-      }
-    }
-    return null;
-  };
-
-  const findProcessoId = (numeroProcesso: string | null): string | null => {
-    if (!numeroProcesso || !processosMap) return null;
-    
-    const normalized = numeroProcesso.replace(/[^0-9]/g, "");
-    
-    // Check cache first (for processes created during this import)
-    const cachedId = createdProcessosCache.current.get(normalized);
-    if (cachedId) return cachedId;
-    
-    return processosMap.get(normalized) || processosMap.get(numeroProcesso) || null;
-  };
-
-  // Create a new processo for an unknown process number
-  const createNewProcesso = async (tarefa: TarefaImport): Promise<string | null> => {
-    if (!tarefa.numeroProcesso || !selectedCoordenacao) return null;
-    
-    const normalized = tarefa.numeroProcesso.replace(/[^0-9]/g, "");
-    
-    // Check cache first
-    const cachedId = createdProcessosCache.current.get(normalized);
-    if (cachedId) return cachedId;
-
-    try {
-      // Create processo with available data from the spreadsheet
-      const { data: newProcesso, error } = await supabase
-        .from("processos")
-        .insert({
-          numero: tarefa.numeroProcesso,
-          assunto: tarefa.assunto || "Importado via tarefas",
-          vara: tarefa.vara || null,
-          fase: tarefa.fase || null,
-          pasta_fisica: tarefa.pastaFisica || null,
-          pasta_cliente: tarefa.pastaCliente || null,
-          coordenacao_id: selectedCoordenacao,
-          status: "ativo",
-          area: "civil", // Default area
-        })
-        .select("id")
-        .single();
-
-      if (error) {
-        console.error("Erro ao criar processo:", error);
-        return null;
-      }
-
-      if (newProcesso?.id) {
-        // Cache the created process
-        createdProcessosCache.current.set(normalized, newProcesso.id);
-        setNovosProcessosCriados(prev => [...prev, tarefa.numeroProcesso!]);
-        
-        return newProcesso.id;
-      }
-
-      return null;
-    } catch (err) {
-      console.error("Erro ao criar processo:", err);
-      return null;
-    }
-  };
-
-  // Find or create processo
-  const findOrCreateProcessoId = async (tarefa: TarefaImport): Promise<string | null> => {
-    // First try to find existing
-    const existingId = findProcessoId(tarefa.numeroProcesso);
-    if (existingId) return existingId;
-    
-    // If not found and option enabled, create new processo
-    if (cadastrarNovosProcessos && selectedCoordenacao && tarefa.numeroProcesso) {
-      const newId = await createNewProcesso(tarefa);
-      if (newId) return newId;
-    }
-    
-    return null;
-  };
-
-  // Vincular responsável ao processo na tabela processos_responsaveis
-  const vincularResponsavelAoProcesso = async (processoId: string, usuarioId: string): Promise<void> => {
-    try {
-      // Verificar se já existe o vínculo
-      const { data: existing } = await supabase
-        .from("processos_responsaveis")
-        .select("id")
-        .eq("processo_id", processoId)
-        .eq("usuario_id", usuarioId)
-        .maybeSingle();
-      
-      if (existing) return; // Já existe
-
-      // Criar vínculo
-      await supabase.from("processos_responsaveis").insert({
-        processo_id: processoId,
-        usuario_id: usuarioId,
-        coordenacao_id: selectedCoordenacao || null,
-        papel: "Responsável",
-        ativo: true,
-      });
-
-      // Atualizar advogado_responsavel_id do processo se estiver vazio
-      const { data: processo } = await supabase
-        .from("processos")
-        .select("advogado_responsavel_id")
-        .eq("id", processoId)
-        .single();
-      
-      if (processo && !processo.advogado_responsavel_id) {
-        await supabase
-          .from("processos")
-          .update({ advogado_responsavel_id: usuarioId })
-          .eq("id", processoId);
-      }
-    } catch (err) {
-      console.error("Erro ao vincular responsável ao processo:", err);
     }
   };
 
@@ -522,7 +562,6 @@ export default function ImportarTarefas() {
     let errorCount = 0;
     const BATCH_SIZE = 100;
 
-    // Check for existing identificadores to avoid duplicates
     const allIds = toImport.map(t => t.identificador);
     const { data: existingTarefas } = await supabase
       .from("tarefas")
@@ -531,18 +570,19 @@ export default function ImportarTarefas() {
     
     const existingSet = new Set((existingTarefas || []).map((t: any) => t.identificador_projuris));
 
-    // Clear the caches for this import session
     createdUsersCache.current.clear();
     createdProcessosCache.current.clear();
     setNovosUsuariosCriados([]);
     setNovosProcessosCriados([]);
 
     for (let i = 0; i < toImport.length; i += BATCH_SIZE) {
-      if (cancelledRef.current) break;
+      if (cancelledRef.current) {
+        toast({ title: "Importação cancelada" });
+        break;
+      }
 
       const batch = toImport.slice(i, i + BATCH_SIZE);
       
-      // Process each task individually to handle async responsavel lookup
       const insertPayloads: Array<{ payload: any; processoId: string | null; responsavelId: string | null }> = [];
       for (const t of batch) {
         if (existingSet.has(t.identificador)) continue;
@@ -550,11 +590,21 @@ export default function ImportarTarefas() {
         const status = mapSituacaoToStatus(t.situacao);
         const dataVencimento = parseDate(t.dataFatal) || parseDate(t.dataPrevista);
         
-        // Async processo lookup (may create new processos)
-        const processoId = await findOrCreateProcessoId(t);
+        const processoId = await findOrCreateProcessoId(
+          t.numeroProcesso,
+          selectedCoordenacao,
+          cadastrarNovosProcessos,
+          { assunto: t.assunto, vara: t.vara, fase: t.fase, pastaFisica: t.pastaFisica, pastaCliente: t.pastaCliente },
+          (num) => setNovosProcessosCriados(prev => [...prev, num])
+        );
         
-        // Async responsavel lookup (may create new profiles)
-        const responsavelId = await findResponsavelId(t.responsaveis);
+        const responsavelId = await findResponsavelId(
+          t.responsaveis,
+          vincularResponsaveis,
+          cadastrarNovosUsuarios,
+          selectedCoordenacao,
+          (nome) => setNovosUsuariosCriados(prev => [...prev, nome])
+        );
         
         insertPayloads.push({
           payload: {
@@ -577,6 +627,7 @@ export default function ImportarTarefas() {
             marcadores: t.marcadores,
             quadro_kanban: t.quadroKanban,
             criado_por: user?.id || null,
+            origem: "projuris",
           },
           processoId,
           responsavelId,
@@ -589,7 +640,6 @@ export default function ImportarTarefas() {
         const { error } = await supabase.from("tarefas").insert(insertPayload as any);
         
         if (error) {
-          // Fallback to individual inserts
           for (const item of insertPayloads) {
             const { error: singleError } = await supabase.from("tarefas").insert(item.payload as any);
             const idx = updatedTarefas.findIndex(t => t.identificador === item.payload.identificador_projuris);
@@ -600,30 +650,26 @@ export default function ImportarTarefas() {
               } else {
                 updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso" };
                 successCount++;
-                // Vincular responsável ao processo
                 if (item.processoId && item.responsavelId) {
-                  await vincularResponsavelAoProcesso(item.processoId, item.responsavelId);
+                  await vincularResponsavelAoProcesso(item.processoId, item.responsavelId, selectedCoordenacao);
                 }
               }
             }
           }
         } else {
-          // All batch succeeded
           for (const item of insertPayloads) {
             const idx = updatedTarefas.findIndex(t => t.identificador === item.payload.identificador_projuris);
             if (idx >= 0) {
               updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso" };
               successCount++;
-              // Vincular responsável ao processo
               if (item.processoId && item.responsavelId) {
-                await vincularResponsavelAoProcesso(item.processoId, item.responsavelId);
+                await vincularResponsavelAoProcesso(item.processoId, item.responsavelId, selectedCoordenacao);
               }
             }
           }
         }
       }
 
-      // Mark skipped as already existing
       for (const t of batch) {
         if (existingSet.has(t.identificador)) {
           const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
@@ -645,7 +691,6 @@ export default function ImportarTarefas() {
     queryClient.invalidateQueries({ queryKey: ["processos"] });
     queryClient.invalidateQueries({ queryKey: ["processos-map-import"] });
     
-    // Refresh profiles list to include new users
     if (novosUsuariosCriados.length > 0) {
       refetchProfiles();
     }
@@ -670,7 +715,7 @@ export default function ImportarTarefas() {
     });
   };
 
-  const clearAll = () => {
+  const clearProjuris = () => {
     setFile(null);
     setTarefas([]);
     setParseProgress(0);
@@ -683,29 +728,11 @@ export default function ImportarTarefas() {
 
   const downloadTemplate = () => {
     const headers = [
-      "Identificador da tarefa",
-      "Tipo de tarefa",
-      "Título",
-      "Data de criação",
-      "Data base",
-      "Data prevista",
-      "Data fatal",
-      "Data da conclusão",
-      "Situação",
-      "Descrição da tarefa",
-      "Responsáveis da tarefa",
-      "Grupos de trabalho",
-      "Criada por",
-      "Concluída por",
-      "Marcadores",
-      "Comentários",
-      "Quadro Kanban",
-      "Número do processo",
-      "Assunto",
-      "Vara",
-      "Fase",
-      "Pasta física",
-      "Pasta do cliente",
+      "Identificador da tarefa", "Tipo de tarefa", "Título", "Data de criação",
+      "Data base", "Data prevista", "Data fatal", "Data da conclusão", "Situação",
+      "Descrição da tarefa", "Responsáveis da tarefa", "Grupos de trabalho",
+      "Criada por", "Concluída por", "Marcadores", "Comentários", "Quadro Kanban",
+      "Número do processo", "Assunto", "Vara", "Fase", "Pasta física", "Pasta do cliente",
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([headers]);
@@ -714,13 +741,271 @@ export default function ImportarTarefas() {
     XLSX.writeFile(wb, "MODELO_IMPORTACAO_TAREFAS.xlsx");
   };
 
-  const stats = {
+  // ==================== ASTREA FUNCTIONS ====================
+
+  const handleAstreaFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setAstreaFile(selectedFile);
+      parseAstreaFile(selectedFile);
+    }
+  }, []);
+
+  const parseAstreaFile = async (file: File) => {
+    setAstreaParsing(true);
+    setAstreaParseProgress(0);
+    setTarefasAstrea([]);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      setAstreaParseProgress(20);
+
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const sheetName = workbook.SheetNames?.[0];
+      if (!sheetName) throw new Error("Planilha sem abas");
+      
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+      setAstreaParseProgress(60);
+
+      const parsed: TarefaAstreaImport[] = rows.map((row: any, index): TarefaAstreaImport => {
+        const data = String(row["Data"] || "").trim();
+        const hora = String(row["Hora"] || "").trim();
+        const tipo = String(row["Tipo"] || "").trim();
+        const responsavel = String(row["Responsável"] || row["Responsavel"] || "").trim();
+        const titulo = String(row["Título"] || row["Titulo"] || "").trim();
+        const tituloProcesso = String(row["Título do processo/caso/atendimento"] || row["Titulo do processo/caso/atendimento"] || "").trim();
+        const numeroProcesso = String(row["Número do processo"] || row["Numero do processo"] || "").trim();
+        const juizo = String(row["Juízo"] || row["Juizo"] || "").trim();
+        const observacao = String(row["Observação da atividade"] || row["Observacao da atividade"] || "").trim();
+        const etiquetas = String(row["Etiquetas"] || "").trim();
+
+        // Generate unique identifier based on data+hora+titulo+processo
+        const identificador = `astrea-${data}-${hora}-${titulo}-${numeroProcesso}`.replace(/[^a-zA-Z0-9-]/g, "_").substring(0, 100);
+
+        const tarefa: TarefaAstreaImport = {
+          identificador,
+          data: data || null,
+          hora: hora || null,
+          tipo: tipo || null,
+          responsavel: responsavel || null,
+          titulo: titulo || "Sem título",
+          tituloProcesso: tituloProcesso || null,
+          numeroProcesso: numeroProcesso || null,
+          juizo: juizo || null,
+          observacao: observacao || null,
+          etiquetas: etiquetas || null,
+          status: "pendente",
+          erros: [],
+          linhaOriginal: index + 2,
+        };
+
+        if (!titulo) tarefa.erros.push("Sem título");
+        if (!data) tarefa.erros.push("Sem data");
+
+        tarefa.status = "valido";
+        return tarefa;
+      }).filter(t => t.titulo && t.titulo !== "Título" && t.data);
+
+      setAstreaParseProgress(100);
+      setTarefasAstrea(parsed);
+
+      toast({
+        title: "Arquivo Astrea carregado",
+        description: `${parsed.length} tarefa(s) encontrada(s).`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Erro ao ler arquivo",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setAstreaParsing(false);
+    }
+  };
+
+  const handleAstreaImport = async () => {
+    const toImport = tarefasAstrea.filter(t => t.status === "valido");
+
+    if (toImport.length === 0) {
+      toast({
+        title: "Nenhuma tarefa para importar",
+        description: "Verifique os erros de validação.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAstreaImporting(true);
+    setAstreaImportProgress(0);
+    astreaCancelledRef.current = false;
+
+    const updatedTarefas = [...tarefasAstrea];
+    let successCount = 0;
+    let errorCount = 0;
+
+    createdUsersCache.current.clear();
+    createdProcessosCache.current.clear();
+    setAstreaUsuariosCriados([]);
+    setAstreaProcessosCriados([]);
+
+    // Check for existing tasks
+    const allIds = toImport.map(t => t.identificador);
+    const { data: existingTarefas } = await supabase
+      .from("tarefas")
+      .select("identificador_projuris")
+      .in("identificador_projuris", allIds);
+    
+    const existingSet = new Set((existingTarefas || []).map((t: any) => t.identificador_projuris));
+
+    for (let i = 0; i < toImport.length; i++) {
+      if (astreaCancelledRef.current) {
+        toast({ title: "Importação cancelada" });
+        break;
+      }
+
+      const t = toImport[i];
+      const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
+
+      if (existingSet.has(t.identificador)) {
+        if (idx >= 0) {
+          updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe no sistema" };
+        }
+        errorCount++;
+        setAstreaImportProgress(((i + 1) / toImport.length) * 100);
+        setTarefasAstrea([...updatedTarefas]);
+        continue;
+      }
+
+      try {
+        const dataVencimento = parseDate(t.data);
+        
+        const processoId = await findOrCreateProcessoId(
+          t.numeroProcesso,
+          astreaCoordenacao,
+          astreaCadastrarNovosProcessos,
+          { assunto: t.tituloProcesso || undefined, vara: t.juizo || undefined },
+          (num) => setAstreaProcessosCriados(prev => [...prev, num])
+        );
+        
+        const responsavelId = await findResponsavelId(
+          t.responsavel,
+          astreaVincularResponsaveis,
+          astreaCadastrarNovosUsuarios,
+          astreaCoordenacao,
+          (nome) => setAstreaUsuariosCriados(prev => [...prev, nome])
+        );
+
+        // Build observacoes with etiquetas
+        let observacoes = t.observacao || "";
+        if (t.etiquetas) {
+          observacoes = observacoes ? `${observacoes}\n\nEtiquetas: ${t.etiquetas}` : `Etiquetas: ${t.etiquetas}`;
+        }
+
+        const { error } = await supabase.from("tarefas").insert({
+          identificador_projuris: t.identificador,
+          tipo_tarefa: mapAstreaTipoToTarefa(t.tipo),
+          titulo: t.titulo,
+          descricao: t.tituloProcesso || null,
+          data_vencimento: dataVencimento,
+          status: "pendente",
+          prioridade: "media",
+          responsavel_id: responsavelId,
+          processo_id: processoId,
+          observacoes: observacoes || null,
+          criado_por: user?.id || null,
+          origem: "astrea",
+          marcadores: t.etiquetas || null,
+        } as any);
+
+        if (error) {
+          if (idx >= 0) {
+            updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: error.message };
+          }
+          errorCount++;
+        } else {
+          if (idx >= 0) {
+            updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso" };
+          }
+          successCount++;
+          
+          if (processoId && responsavelId) {
+            await vincularResponsavelAoProcesso(processoId, responsavelId, astreaCoordenacao);
+          }
+        }
+      } catch (err: any) {
+        if (idx >= 0) {
+          updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: err.message };
+        }
+        errorCount++;
+      }
+
+      setAstreaImportProgress(((i + 1) / toImport.length) * 100);
+      setTarefasAstrea([...updatedTarefas]);
+    }
+
+    setAstreaImporting(false);
+    queryClient.invalidateQueries({ queryKey: ["prazos"] });
+    queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+    queryClient.invalidateQueries({ queryKey: ["profiles-import"] });
+    queryClient.invalidateQueries({ queryKey: ["processos"] });
+    queryClient.invalidateQueries({ queryKey: ["processos-map-import"] });
+
+    if (astreaUsuariosCriados.length > 0) {
+      refetchProfiles();
+    }
+    if (astreaProcessosCriados.length > 0) {
+      refetchProcessos();
+    }
+
+    const descParts = [`${successCount} tarefa(s) importada(s)`];
+    if (errorCount > 0) descParts.push(`${errorCount} erro(s)/duplicada(s)`);
+    if (astreaUsuariosCriados.length > 0) descParts.push(`${astreaUsuariosCriados.length} usuário(s) criado(s)`);
+    if (astreaProcessosCriados.length > 0) descParts.push(`${astreaProcessosCriados.length} processo(s) criado(s)`);
+
+    toast({
+      title: "Importação Astrea concluída",
+      description: descParts.join(". ") + ".",
+      variant: errorCount > 0 && successCount === 0 ? "destructive" : "default",
+    });
+  };
+
+  const handleAstreaCancel = () => {
+    astreaCancelledRef.current = true;
+    toast({
+      title: "Importação cancelada",
+      description: "Os registros já processados permanecem no banco.",
+    });
+  };
+
+  const clearAstrea = () => {
+    setAstreaFile(null);
+    setTarefasAstrea([]);
+    setAstreaParseProgress(0);
+    setAstreaImportProgress(0);
+    setAstreaUsuariosCriados([]);
+    setAstreaProcessosCriados([]);
+  };
+
+  // ==================== STATS ====================
+
+  const projurisStats = {
     total: tarefas.length,
     validas: tarefas.filter(t => t.status === "valido").length,
     invalidas: tarefas.filter(t => t.status === "invalido").length,
     sucesso: tarefas.filter(t => t.status === "sucesso").length,
     erro: tarefas.filter(t => t.status === "erro").length,
     concluidas: tarefas.filter(t => mapSituacaoToStatus(t.situacao) === "cumprido").length,
+  };
+
+  const astreaStats = {
+    total: tarefasAstrea.length,
+    validas: tarefasAstrea.filter(t => t.status === "valido").length,
+    invalidas: tarefasAstrea.filter(t => t.status === "invalido").length,
+    sucesso: tarefasAstrea.filter(t => t.status === "sucesso").length,
+    erro: tarefasAstrea.filter(t => t.status === "erro").length,
   };
 
   const getStatusBadge = (status: string) => {
@@ -733,276 +1018,560 @@ export default function ImportarTarefas() {
     }
   };
 
+  // ==================== RENDER ====================
+
   return (
-    <MainLayout title="Importar Tarefas" subtitle="Importação de tarefas do Projuris">
+    <MainLayout title="Importar Tarefas" subtitle="Importação de tarefas de diferentes sistemas">
       <div className="space-y-6">
-        {/* Upload Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ListTodo className="h-5 w-5" />
-              Importar Tarefas do Projuris
-            </CardTitle>
-            <CardDescription>
-              Importe tarefas em massa a partir de arquivos Excel (.xlsx) ou CSV exportados do Projuris
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="flex-1 min-w-[200px]">
-                <Label htmlFor="file">Arquivo de Tarefas</Label>
-                <Input
-                  id="file"
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleFileChange}
-                  disabled={parsing || importing}
-                />
-              </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="projuris" className="flex items-center gap-2">
+              <ListTodo className="h-4 w-4" />
+              Projuris
+            </TabsTrigger>
+            <TabsTrigger value="astrea" className="flex items-center gap-2">
+              <Scale className="h-4 w-4" />
+              Astrea
+            </TabsTrigger>
+          </TabsList>
 
-              <Button variant="outline" onClick={downloadTemplate} disabled={parsing || importing}>
-                <Download className="h-4 w-4 mr-2" />
-                Baixar Modelo
-              </Button>
-
-              {tarefas.length > 0 && (
-                <Button variant="ghost" onClick={clearAll} disabled={importing}>
-                  Limpar
-                </Button>
-              )}
-            </div>
-
-            {/* Options */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Switch
-                    id="importarConcluidas"
-                    checked={importarConcluidas}
-                    onCheckedChange={setImportarConcluidas}
-                    disabled={importing}
-                  />
-                  <Label htmlFor="importarConcluidas">Importar tarefas concluídas</Label>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Switch
-                    id="vincularResponsaveis"
-                    checked={vincularResponsaveis}
-                    onCheckedChange={setVincularResponsaveis}
-                    disabled={importing}
-                  />
-                  <Label htmlFor="vincularResponsaveis">Vincular responsáveis automaticamente</Label>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Switch
-                    id="cadastrarNovosUsuarios"
-                    checked={cadastrarNovosUsuarios}
-                    onCheckedChange={setCadastrarNovosUsuarios}
-                    disabled={importing || !vincularResponsaveis || !selectedCoordenacao}
-                  />
-                  <div className="flex items-center gap-2">
-                    <UserPlus className="h-4 w-4 text-muted-foreground" />
-                    <Label htmlFor="cadastrarNovosUsuarios" className={!vincularResponsaveis || !selectedCoordenacao ? "text-muted-foreground" : ""}>
-                      Cadastrar responsáveis não encontrados
-                    </Label>
+          {/* ==================== PROJURIS TAB ==================== */}
+          <TabsContent value="projuris" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ListTodo className="h-5 w-5" />
+                  Importar Tarefas do Projuris
+                </CardTitle>
+                <CardDescription>
+                  Importe tarefas em massa a partir de arquivos Excel (.xlsx) ou CSV exportados do Projuris
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-4 items-end">
+                  <div className="flex-1 min-w-[200px]">
+                    <Label htmlFor="file">Arquivo de Tarefas</Label>
+                    <Input
+                      id="file"
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={handleFileChange}
+                      disabled={parsing || importing}
+                    />
                   </div>
-                </div>
 
-                <div className="flex items-center gap-3">
-                  <Switch
-                    id="cadastrarNovosProcessos"
-                    checked={cadastrarNovosProcessos}
-                    onCheckedChange={setCadastrarNovosProcessos}
-                    disabled={importing || !selectedCoordenacao}
-                  />
-                  <div className="flex items-center gap-2">
-                    <FolderPlus className="h-4 w-4 text-muted-foreground" />
-                    <Label htmlFor="cadastrarNovosProcessos" className={!selectedCoordenacao ? "text-muted-foreground" : ""}>
-                      Cadastrar processos não encontrados
-                    </Label>
-                  </div>
-                </div>
-                {(cadastrarNovosUsuarios || cadastrarNovosProcessos) && !selectedCoordenacao && (
-                  <p className="text-xs text-amber-600 ml-7">
-                    Selecione uma coordenação para habilitar o cadastro automático
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <Label>Coordenação {(cadastrarNovosUsuarios || cadastrarNovosProcessos) ? "(obrigatório)" : "(opcional)"}</Label>
-                <Select value={selectedCoordenacao} onValueChange={(val) => setSelectedCoordenacao(val === "none" ? "" : val)} disabled={importing}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhuma</SelectItem>
-                    {coordenacoes.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Todas as tarefas serão vinculadas a esta coordenação
-                </p>
-              </div>
-            </div>
-
-            {/* New users created alert */}
-            {novosUsuariosCriados.length > 0 && (
-              <Alert>
-                <UserPlus className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>{novosUsuariosCriados.length} novo(s) usuário(s) cadastrado(s):</strong>{" "}
-                  {novosUsuariosCriados.slice(0, 5).join(", ")}
-                  {novosUsuariosCriados.length > 5 && ` e mais ${novosUsuariosCriados.length - 5}...`}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* New processos created alert */}
-            {novosProcessosCriados.length > 0 && (
-              <Alert>
-                <FolderPlus className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>{novosProcessosCriados.length} novo(s) processo(s) cadastrado(s):</strong>{" "}
-                  {novosProcessosCriados.slice(0, 5).join(", ")}
-                  {novosProcessosCriados.length > 5 && ` e mais ${novosProcessosCriados.length - 5}...`}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Progress */}
-            {parsing && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Analisando arquivo...</span>
-                </div>
-                <Progress value={parseProgress} />
-              </div>
-            )}
-
-            {importing && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Importando tarefas...</span>
-                  </div>
-                  <Button variant="destructive" size="sm" onClick={handleCancel}>
-                    Cancelar
+                  <Button variant="outline" onClick={downloadTemplate} disabled={parsing || importing}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Modelo
                   </Button>
+
+                  {tarefas.length > 0 && (
+                    <Button variant="ghost" onClick={clearProjuris} disabled={importing}>
+                      Limpar
+                    </Button>
+                  )}
                 </div>
-                <Progress value={importProgress} />
+
+                {/* Options */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="importarConcluidas"
+                        checked={importarConcluidas}
+                        onCheckedChange={setImportarConcluidas}
+                        disabled={importing}
+                      />
+                      <Label htmlFor="importarConcluidas">Importar tarefas concluídas</Label>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="vincularResponsaveis"
+                        checked={vincularResponsaveis}
+                        onCheckedChange={setVincularResponsaveis}
+                        disabled={importing}
+                      />
+                      <Label htmlFor="vincularResponsaveis">Vincular responsáveis automaticamente</Label>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="cadastrarNovosUsuarios"
+                        checked={cadastrarNovosUsuarios}
+                        onCheckedChange={setCadastrarNovosUsuarios}
+                        disabled={importing || !vincularResponsaveis || !selectedCoordenacao}
+                      />
+                      <div className="flex items-center gap-2">
+                        <UserPlus className="h-4 w-4 text-muted-foreground" />
+                        <Label htmlFor="cadastrarNovosUsuarios" className={!vincularResponsaveis || !selectedCoordenacao ? "text-muted-foreground" : ""}>
+                          Cadastrar responsáveis não encontrados
+                        </Label>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="cadastrarNovosProcessos"
+                        checked={cadastrarNovosProcessos}
+                        onCheckedChange={setCadastrarNovosProcessos}
+                        disabled={importing || !selectedCoordenacao}
+                      />
+                      <div className="flex items-center gap-2">
+                        <FolderPlus className="h-4 w-4 text-muted-foreground" />
+                        <Label htmlFor="cadastrarNovosProcessos" className={!selectedCoordenacao ? "text-muted-foreground" : ""}>
+                          Cadastrar processos não encontrados
+                        </Label>
+                      </div>
+                    </div>
+                    {(cadastrarNovosUsuarios || cadastrarNovosProcessos) && !selectedCoordenacao && (
+                      <p className="text-xs text-amber-600 ml-7">
+                        Selecione uma coordenação para habilitar o cadastro automático
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label>Coordenação {(cadastrarNovosUsuarios || cadastrarNovosProcessos) ? "(obrigatório)" : "(opcional)"}</Label>
+                    <Select value={selectedCoordenacao} onValueChange={(val) => setSelectedCoordenacao(val === "none" ? "" : val)} disabled={importing}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhuma</SelectItem>
+                        {coordenacoes.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Novos usuários e processos serão vinculados a esta coordenação
+                    </p>
+                  </div>
+                </div>
+
+                {/* New users/processos created alerts */}
+                {novosUsuariosCriados.length > 0 && (
+                  <Alert>
+                    <UserPlus className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>{novosUsuariosCriados.length} novo(s) usuário(s) cadastrado(s):</strong>{" "}
+                      {novosUsuariosCriados.slice(0, 5).join(", ")}
+                      {novosUsuariosCriados.length > 5 && ` e mais ${novosUsuariosCriados.length - 5}...`}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {novosProcessosCriados.length > 0 && (
+                  <Alert>
+                    <FolderPlus className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>{novosProcessosCriados.length} novo(s) processo(s) cadastrado(s):</strong>{" "}
+                      {novosProcessosCriados.slice(0, 5).join(", ")}
+                      {novosProcessosCriados.length > 5 && ` e mais ${novosProcessosCriados.length - 5}...`}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Progress */}
+                {parsing && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Analisando arquivo...</span>
+                    </div>
+                    <Progress value={parseProgress} />
+                  </div>
+                )}
+
+                {importing && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Importando tarefas...</span>
+                      </div>
+                      <Button variant="destructive" size="sm" onClick={handleCancel}>
+                        Cancelar
+                      </Button>
+                    </div>
+                    <Progress value={importProgress} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Projuris Stats */}
+            {tarefas.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold">{projurisStats.total}</div>
+                    <div className="text-sm text-muted-foreground">Total</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-blue-600">{projurisStats.validas}</div>
+                    <div className="text-sm text-muted-foreground">Válidas</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-red-600">{projurisStats.invalidas}</div>
+                    <div className="text-sm text-muted-foreground">Inválidas</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-green-600">{projurisStats.sucesso}</div>
+                    <div className="text-sm text-muted-foreground">Importadas</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-orange-600">{projurisStats.erro}</div>
+                    <div className="text-sm text-muted-foreground">Erros</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-purple-600">{projurisStats.concluidas}</div>
+                    <div className="text-sm text-muted-foreground">Concluídas</div>
+                  </CardContent>
+                </Card>
               </div>
             )}
-          </CardContent>
-        </Card>
 
-        {/* Stats */}
-        {tarefas.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-2xl font-bold">{stats.total}</div>
-                <div className="text-sm text-muted-foreground">Total</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-2xl font-bold text-blue-600">{stats.validas}</div>
-                <div className="text-sm text-muted-foreground">Válidas</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-2xl font-bold text-red-600">{stats.invalidas}</div>
-                <div className="text-sm text-muted-foreground">Inválidas</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-2xl font-bold text-green-600">{stats.sucesso}</div>
-                <div className="text-sm text-muted-foreground">Importadas</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-2xl font-bold text-orange-600">{stats.erro}</div>
-                <div className="text-sm text-muted-foreground">Erros</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-2xl font-bold text-purple-600">{stats.concluidas}</div>
-                <div className="text-sm text-muted-foreground">Concluídas</div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+            {/* Projuris Table */}
+            {tarefas.length > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Tarefas Carregadas</CardTitle>
+                  <Button
+                    onClick={handleImport}
+                    disabled={importing || projurisStats.validas === 0}
+                  >
+                    {importing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Importando...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Importar {projurisStats.validas} Tarefa(s)
+                      </>
+                    )}
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="max-h-[400px] overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[80px]">Linha</TableHead>
+                          <TableHead className="w-[100px]">Status</TableHead>
+                          <TableHead>Identificador</TableHead>
+                          <TableHead>Título</TableHead>
+                          <TableHead>Responsável</TableHead>
+                          <TableHead>Processo</TableHead>
+                          <TableHead>Erros/Avisos</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tarefas.slice(0, 200).map((t, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>{t.linhaOriginal}</TableCell>
+                            <TableCell>{getStatusBadge(t.status)}</TableCell>
+                            <TableCell className="font-mono text-xs">{t.identificador?.substring(0, 15)}...</TableCell>
+                            <TableCell className="max-w-[200px] truncate">{t.titulo}</TableCell>
+                            <TableCell className="max-w-[150px] truncate">{t.responsaveis || "-"}</TableCell>
+                            <TableCell className="max-w-[150px] truncate font-mono text-xs">{t.numeroProcesso || "-"}</TableCell>
+                            <TableCell className="max-w-[200px]">
+                              {t.erroImport ? (
+                                <span className="text-red-600 text-xs">{t.erroImport}</span>
+                              ) : t.erros.length > 0 ? (
+                                <span className="text-amber-600 text-xs">{t.erros.join(", ")}</span>
+                              ) : (
+                                "-"
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {tarefas.length > 200 && (
+                    <p className="text-sm text-muted-foreground mt-2 text-center">
+                      Mostrando 200 de {tarefas.length} tarefas
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
 
-        {/* Action Button */}
-        {stats.validas > 0 && !importing && (
-          <div className="flex justify-end">
-            <Button onClick={handleImport} size="lg">
-              <Upload className="h-4 w-4 mr-2" />
-              Importar {importarConcluidas ? stats.validas : stats.validas - stats.concluidas} Tarefa(s)
-            </Button>
-          </div>
-        )}
+          {/* ==================== ASTREA TAB ==================== */}
+          <TabsContent value="astrea" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Scale className="h-5 w-5" />
+                  Importar Tarefas do Astrea
+                </CardTitle>
+                <CardDescription>
+                  Importe tarefas, audiências e eventos a partir de arquivos Excel exportados do Astrea (Agenda)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-4 items-end">
+                  <div className="flex-1 min-w-[200px]">
+                    <Label htmlFor="astrea-file">Arquivo de Agenda Astrea</Label>
+                    <Input
+                      id="astrea-file"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleAstreaFileChange}
+                      disabled={astreaParsing || astreaImporting}
+                    />
+                  </div>
 
-        {/* Table */}
-        {tarefas.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Tarefas Carregadas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="max-h-[500px] overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[60px]">Linha</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Identificador</TableHead>
-                      <TableHead>Título</TableHead>
-                      <TableHead>Data Fatal</TableHead>
-                      <TableHead>Situação</TableHead>
-                      <TableHead>Responsáveis</TableHead>
-                      <TableHead>Processo</TableHead>
-                      <TableHead>Erros</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {tarefas.slice(0, 100).map((tarefa, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-mono text-xs">{tarefa.linhaOriginal}</TableCell>
-                        <TableCell>{getStatusBadge(tarefa.status)}</TableCell>
-                        <TableCell className="font-mono text-xs">{tarefa.identificador}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{tarefa.titulo}</TableCell>
-                        <TableCell>{tarefa.dataFatal || tarefa.dataPrevista || "-"}</TableCell>
-                        <TableCell>{tarefa.situacao || "-"}</TableCell>
-                        <TableCell className="max-w-[150px] truncate">{tarefa.responsaveis || "-"}</TableCell>
-                        <TableCell className="max-w-[120px] truncate">{tarefa.numeroProcesso || "-"}</TableCell>
-                        <TableCell className="text-xs text-destructive max-w-[200px]">
-                          {tarefa.erros.join(", ") || tarefa.erroImport || "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              {tarefas.length > 100 && (
-                <div className="text-center text-sm text-muted-foreground mt-4">
-                  Mostrando 100 de {tarefas.length} tarefas
+                  {tarefasAstrea.length > 0 && (
+                    <Button variant="ghost" onClick={clearAstrea} disabled={astreaImporting}>
+                      Limpar
+                    </Button>
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+
+                {/* Astrea Options */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="astreaVincularResponsaveis"
+                        checked={astreaVincularResponsaveis}
+                        onCheckedChange={setAstreaVincularResponsaveis}
+                        disabled={astreaImporting}
+                      />
+                      <Label htmlFor="astreaVincularResponsaveis">Vincular responsáveis automaticamente</Label>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="astreaCadastrarNovosUsuarios"
+                        checked={astreaCadastrarNovosUsuarios}
+                        onCheckedChange={setAstreaCadastrarNovosUsuarios}
+                        disabled={astreaImporting || !astreaVincularResponsaveis || !astreaCoordenacao}
+                      />
+                      <div className="flex items-center gap-2">
+                        <UserPlus className="h-4 w-4 text-muted-foreground" />
+                        <Label htmlFor="astreaCadastrarNovosUsuarios" className={!astreaVincularResponsaveis || !astreaCoordenacao ? "text-muted-foreground" : ""}>
+                          Cadastrar responsáveis não encontrados
+                        </Label>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="astreaCadastrarNovosProcessos"
+                        checked={astreaCadastrarNovosProcessos}
+                        onCheckedChange={setAstreaCadastrarNovosProcessos}
+                        disabled={astreaImporting || !astreaCoordenacao}
+                      />
+                      <div className="flex items-center gap-2">
+                        <FolderPlus className="h-4 w-4 text-muted-foreground" />
+                        <Label htmlFor="astreaCadastrarNovosProcessos" className={!astreaCoordenacao ? "text-muted-foreground" : ""}>
+                          Cadastrar processos não encontrados
+                        </Label>
+                      </div>
+                    </div>
+                    {(astreaCadastrarNovosUsuarios || astreaCadastrarNovosProcessos) && !astreaCoordenacao && (
+                      <p className="text-xs text-amber-600 ml-7">
+                        Selecione uma coordenação para habilitar o cadastro automático
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label>Coordenação {(astreaCadastrarNovosUsuarios || astreaCadastrarNovosProcessos) ? "(obrigatório)" : "(opcional)"}</Label>
+                    <Select value={astreaCoordenacao} onValueChange={(val) => setAstreaCoordenacao(val === "none" ? "" : val)} disabled={astreaImporting}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhuma</SelectItem>
+                        {coordenacoes.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Novos usuários e processos serão vinculados a esta coordenação
+                    </p>
+                  </div>
+                </div>
+
+                {/* Alerts for created users/processos */}
+                {astreaUsuariosCriados.length > 0 && (
+                  <Alert>
+                    <UserPlus className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>{astreaUsuariosCriados.length} novo(s) usuário(s) cadastrado(s):</strong>{" "}
+                      {astreaUsuariosCriados.slice(0, 5).join(", ")}
+                      {astreaUsuariosCriados.length > 5 && ` e mais ${astreaUsuariosCriados.length - 5}...`}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {astreaProcessosCriados.length > 0 && (
+                  <Alert>
+                    <FolderPlus className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>{astreaProcessosCriados.length} novo(s) processo(s) cadastrado(s):</strong>{" "}
+                      {astreaProcessosCriados.slice(0, 5).join(", ")}
+                      {astreaProcessosCriados.length > 5 && ` e mais ${astreaProcessosCriados.length - 5}...`}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Progress */}
+                {astreaParsing && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Analisando arquivo...</span>
+                    </div>
+                    <Progress value={astreaParseProgress} />
+                  </div>
+                )}
+
+                {astreaImporting && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Importando tarefas...</span>
+                      </div>
+                      <Button variant="destructive" size="sm" onClick={handleAstreaCancel}>
+                        Cancelar
+                      </Button>
+                    </div>
+                    <Progress value={astreaImportProgress} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Astrea Stats */}
+            {tarefasAstrea.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold">{astreaStats.total}</div>
+                    <div className="text-sm text-muted-foreground">Total</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-blue-600">{astreaStats.validas}</div>
+                    <div className="text-sm text-muted-foreground">Válidas</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-red-600">{astreaStats.invalidas}</div>
+                    <div className="text-sm text-muted-foreground">Inválidas</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-green-600">{astreaStats.sucesso}</div>
+                    <div className="text-sm text-muted-foreground">Importadas</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-orange-600">{astreaStats.erro}</div>
+                    <div className="text-sm text-muted-foreground">Erros</div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Astrea Table */}
+            {tarefasAstrea.length > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Tarefas Carregadas (Astrea)</CardTitle>
+                  <Button
+                    onClick={handleAstreaImport}
+                    disabled={astreaImporting || astreaStats.validas === 0}
+                  >
+                    {astreaImporting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Importando...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Importar {astreaStats.validas} Tarefa(s)
+                      </>
+                    )}
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="max-h-[400px] overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[80px]">Linha</TableHead>
+                          <TableHead className="w-[100px]">Status</TableHead>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Título</TableHead>
+                          <TableHead>Responsável</TableHead>
+                          <TableHead>Processo</TableHead>
+                          <TableHead>Erros</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tarefasAstrea.slice(0, 200).map((t, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>{t.linhaOriginal}</TableCell>
+                            <TableCell>{getStatusBadge(t.status)}</TableCell>
+                            <TableCell>{t.data || "-"}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{t.tipo || "Tarefa"}</Badge>
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate">{t.titulo}</TableCell>
+                            <TableCell className="max-w-[150px] truncate">{t.responsavel || "-"}</TableCell>
+                            <TableCell className="max-w-[150px] truncate font-mono text-xs">{t.numeroProcesso || "-"}</TableCell>
+                            <TableCell className="max-w-[200px]">
+                              {t.erroImport ? (
+                                <span className="text-red-600 text-xs">{t.erroImport}</span>
+                              ) : t.erros.length > 0 ? (
+                                <span className="text-amber-600 text-xs">{t.erros.join(", ")}</span>
+                              ) : (
+                                "-"
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {tarefasAstrea.length > 200 && (
+                    <p className="text-sm text-muted-foreground mt-2 text-center">
+                      Mostrando 200 de {tarefasAstrea.length} tarefas
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
   );
