@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -114,6 +114,21 @@ export function CriarTarefaPublicacaoDialog({
       prioridade: "alta",
     },
   });
+
+  // Limpar formulário quando abrir o dialog ou mudar a publicação
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        tipo_tarefa: "",
+        titulo: "",
+        descricao: "",
+        responsavel_id: "",
+        data_vencimento: format(new Date(), "yyyy-MM-dd"),
+        data_fatal: "",
+        prioridade: "alta",
+      });
+    }
+  }, [open, publicacao?.id, form]);
 
   // Fetch membros da coordenação do processo
   const { data: membros } = useQuery({
