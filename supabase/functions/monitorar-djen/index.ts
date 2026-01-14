@@ -429,8 +429,32 @@ async function processMonitoramento(
     for (const pub of publications) {
       const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
       const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
-      const dataDisponibilizacao = pub.dataDisponibilizacao || pub.dataDJe || null;
-      const dataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.data || dataAtual;
+      
+      // A API pode retornar datas em diferentes campos dependendo do tribunal
+      // dataDisponibilizacao = data em que foi disponibilizado no DJe (geralmente 1 dia antes da publicação)
+      // dataPublicacao = data da publicação oficial (contagem de prazo começa aqui)
+      const rawDataDisponibilizacao = pub.dataDisponibilizacao || pub.dataDJe || pub.dtDisponibilizacao || pub.dataDisp || null;
+      const rawDataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.dtPublicacao || pub.data || dataAtual;
+      
+      // Se só temos dataPublicacao, calcular dataDisponibilizacao como dia anterior
+      // Se só temos dataDisponibilizacao, calcular dataPublicacao como dia seguinte
+      let dataDisponibilizacao = rawDataDisponibilizacao;
+      let dataPublicacao = rawDataPublicacao;
+      
+      if (!dataDisponibilizacao && dataPublicacao) {
+        try {
+          const pubDate = new Date(dataPublicacao);
+          pubDate.setDate(pubDate.getDate() - 1);
+          dataDisponibilizacao = pubDate.toISOString().split('T')[0];
+        } catch { /* ignore */ }
+      } else if (dataDisponibilizacao && !rawDataPublicacao) {
+        try {
+          const dispDate = new Date(dataDisponibilizacao);
+          dispDate.setDate(dispDate.getDate() + 1);
+          dataPublicacao = dispDate.toISOString().split('T')[0];
+        } catch { /* ignore */ }
+      }
+      
       const globalHash = generateGlobalHash(conteudo, dataPublicacao);
 
       const { data: existingGlobal } = await supabase
