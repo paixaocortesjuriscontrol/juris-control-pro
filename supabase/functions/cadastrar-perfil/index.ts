@@ -14,7 +14,12 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
     // Verify caller is authenticated
     const authHeader = req.headers.get("Authorization");
@@ -61,54 +66,128 @@ serve(async (req) => {
       });
     }
 
-    // Generate placeholder email
+    // Generate placeholder email with timestamp for uniqueness
     const timestamp = Date.now();
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
     const sanitized = nome.toLowerCase().replace(/\s+/g, ".").replace(/[^a-z0-9.]/g, "");
-    const placeholderEmail = `placeholder.${sanitized}.${timestamp}@sistema.local`;
+    const placeholderEmail = `placeholder.${sanitized}.${timestamp}.${randomSuffix}@sistema.local`;
+    
+    // Generate a random password (user won't use it - it's a placeholder account)
+    const placeholderPassword = crypto.randomUUID() + crypto.randomUUID();
 
-    // Generate new UUID for profile
-    const newId = crypto.randomUUID();
-
-    // Insert profile using service role (bypasses RLS)
-    const { data: newProfile, error: insertError } = await supabaseAdmin
-      .from("profiles")
-      .insert({
-        id: newId,
+    // First, create the user in auth.users using Admin API
+    const { data: authData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
+      email: placeholderEmail,
+      password: placeholderPassword,
+      email_confirm: true, // Auto-confirm the email
+      user_metadata: {
         nome: nome,
-        email: placeholderEmail,
-        ativo: true,
-      })
-      .select("id, nome")
-      .single();
+        is_placeholder: true,
+      },
+    });
 
-    if (insertError) {
-      console.error("Erro ao criar perfil:", insertError);
-      return new Response(JSON.stringify({ error: insertError.message }), {
+    if (createUserError) {
+      console.error("Erro ao criar usuário auth:", createUserError);
+      return new Response(JSON.stringify({ error: createUserError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // If coordenacao_id provided, add as member
-    if (coordenacao_id && newProfile?.id) {
-      const { error: membroError } = await supabaseAdmin
-        .from("membros_coordenacao")
-        .insert({
-          coordenacao_id: coordenacao_id,
-          usuario_id: newProfile.id,
-          cargo: cargo || "Membro",
-        });
+    if (!authData?.user?.id) {
+      return new Response(JSON.stringify({ error: "Falha ao criar usuário no auth" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-      if (membroError) {
-        console.error("Erro ao vincular à coordenação:", membroError);
-        // Profile was created, just log the membership error
+    const newUserId = authData.user.id;
+
+    // Now update the profile that was auto-created by the trigger (or create if not exists)
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("id", newUserId)
+      .single();
+
+    let profileResult;
+    
+    if (existingProfile) {
+      // Update the existing profile
+      const { data, error } = await supabaseAdmin
+        .from("profiles")
+        .update({
+          nome: nome,
+          email: placeholderEmail,
+          ativo: true,
+        })
+        .eq("id", newUserId)
+        .select("id, nome")
+        .single();
+      
+      if (error) {
+        console.error("Erro ao atualizar perfil:", error);
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      profileResult = data;
+    } else {
+      // Create the profile (shouldn't happen if trigger exists, but just in case)
+      const { data, error } = await supabaseAdmin
+        .from("profiles")
+        .insert({
+          id: newUserId,
+          nome: nome,
+          email: placeholderEmail,
+          ativo: true,
+        })
+        .select("id, nome")
+        .single();
+      
+      if (error) {
+        console.error("Erro ao criar perfil:", error);
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      profileResult = data;
+    }
+
+    // If coordenacao_id provided, add as member
+    if (coordenacao_id && profileResult?.id) {
+      // Check if already a member
+      const { data: existingMember } = await supabaseAdmin
+        .from("membros_coordenacao")
+        .select("id")
+        .eq("coordenacao_id", coordenacao_id)
+        .eq("usuario_id", profileResult.id)
+        .single();
+
+      if (!existingMember) {
+        const { error: membroError } = await supabaseAdmin
+          .from("membros_coordenacao")
+          .insert({
+            coordenacao_id: coordenacao_id,
+            usuario_id: profileResult.id,
+            cargo: cargo || "Membro",
+          });
+
+        if (membroError) {
+          console.error("Erro ao vincular à coordenação:", membroError);
+          // Profile was created, just log the membership error
+        }
       }
     }
+
+    console.log(`Perfil criado com sucesso: ${nome} (${newUserId})`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        profile: newProfile 
+        profile: profileResult 
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
