@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import {
   BarChart3,
   Calendar,
@@ -127,7 +129,7 @@ const Relatorios = () => {
     setExporting(true);
     setExportProgress(0);
 
-    const totalSteps = tasks.length;
+    const totalSteps = tasks.length + 2; // +2 para render e geração do PDF
     let completed = 0;
 
     const results = await Promise.all(
@@ -147,7 +149,7 @@ const Relatorios = () => {
     const failed = results.filter((r) => !r.ok);
     if (failed.length > 0) {
       sonnerToast.error(
-        `Falha ao carregar: ${failed.map((f) => f.label).join(", ")}. Dica: exporte separado.`
+        `Falha ao carregar: ${failed.map((f) => f.label).join(", ")}. Tente novamente.`
       );
       setExporting(false);
       setExportProgress(0);
@@ -181,36 +183,105 @@ const Relatorios = () => {
       clientesData: nextClientes,
     });
 
-    // Aguarda render (2 frames) + pequeno buffer antes de abrir o print (Chrome congela a UI ao abrir o diálogo)
+    // Aguarda render completo
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    completed++;
+    setExportProgress(Math.round((completed / totalSteps) * 100));
 
-    const dataAtual = format(new Date(), "ddMMyyyy");
-    const sufixo = exportMode === "completo" ? "Relatorio_Gerencial" : `Relatorio_${exportModeLabel[exportMode]}`;
-    const novoTitulo = `Juris_Control_${sufixo}_${dataAtual}`;
+    // Gerar PDF com html2canvas + jsPDF
+    try {
+      const element = printRef.current;
+      if (!element) {
+        throw new Error("Elemento de impressão não encontrado");
+      }
 
-    const tituloOriginal = document.title;
-    document.title = novoTitulo;
+      // Remover classe hidden e posicionar fora da tela para captura
+      const originalClassName = element.className;
+      element.className = element.className.replace(/\bhidden\b/, '').trim();
+      element.style.position = "absolute";
+      element.style.left = "-9999px";
+      element.style.top = "0";
+      element.style.width = "210mm"; // A4 width
+      element.style.background = "white";
+      element.style.zIndex = "-1";
 
-    const restaurarTitulo = () => {
-      document.title = tituloOriginal;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: 794, // A4 width in pixels at 96 DPI
+      });
+
+      // Restaurar estado original
+      element.className = originalClassName;
+      element.style.position = "";
+      element.style.left = "";
+      element.style.top = "";
+      element.style.width = "";
+      element.style.background = "";
+      element.style.zIndex = "";
+
+      completed++;
+      setExportProgress(Math.round((completed / totalSteps) * 100));
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = pdfWidth / imgWidth;
+      const scaledHeight = imgHeight * ratio;
+
+      let heightLeft = scaledHeight;
+      let position = 0;
+      let page = 0;
+
+      while (heightLeft > 0) {
+        if (page > 0) {
+          pdf.addPage();
+        }
+
+        pdf.addImage(
+          imgData,
+          "PNG",
+          0,
+          position,
+          pdfWidth,
+          scaledHeight
+        );
+
+        heightLeft -= pdfHeight;
+        position -= pdfHeight;
+        page++;
+      }
+
+      // Gerar nome do arquivo
+      const dataAtual = format(new Date(), "ddMMyyyy");
+      const sufixo = exportMode === "completo" ? "Relatorio_Gerencial" : `Relatorio_${exportModeLabel[exportMode]}`;
+      const nomeArquivo = `Juris_Control_${sufixo}_${dataAtual}.pdf`;
+
+      // Download automático
+      pdf.save(nomeArquivo);
+
+      sonnerToast.success(`PDF "${nomeArquivo}" gerado com sucesso!`);
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      sonnerToast.error("Erro ao gerar PDF. Tente novamente.");
+    } finally {
       setExporting(false);
       setExportProgress(0);
       setPrintOverride(null);
-    };
-
-    const handleAfterPrint = () => {
-      window.removeEventListener("afterprint", handleAfterPrint);
-      restaurarTitulo();
-    };
-    window.addEventListener("afterprint", handleAfterPrint);
-
-    setTimeout(() => {
-      window.removeEventListener("afterprint", handleAfterPrint);
-      restaurarTitulo();
-    }, 10000);
-
-    window.print();
+    }
   };
 
   // Dados padrão (tela) — usados quando não há override de exportação
