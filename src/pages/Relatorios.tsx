@@ -45,52 +45,69 @@ const Relatorios = () => {
   const [activeTab, setActiveTab] = useState("resumo");
   const [activeSubTab, setActiveSubTab] = useState("prazos");
   const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const printRef = useRef<HTMLDivElement>(null);
 
   // Carregar dados de todos os relatórios para exportação
-  const { data: resumoData, isLoading: resumoLoading, isFetching: resumoFetching, refetch: refetchResumo } = useRelatorioResumoData(true);
-  const { data: prazosData, isLoading: prazosLoading, isFetching: prazosFetching, refetch: refetchPrazos } = useRelatorioPrazosData(true);
-  const { data: tarefasData, isLoading: tarefasLoading, isFetching: tarefasFetching, refetch: refetchTarefas } = useRelatorioTarefasData(true);
-  const { data: andamentosData, isLoading: andamentosLoading, isFetching: andamentosFetching, refetch: refetchAndamentos } = useRelatorioAndamentosData(true);
-  const { data: clientesData, isLoading: clientesLoading, isFetching: clientesFetching, refetch: refetchClientes } = useRelatorioClientesData(true);
+  const { data: resumoData, isLoading: resumoLoading, refetch: refetchResumo } = useRelatorioResumoData(true);
+  const { data: prazosData, isLoading: prazosLoading, refetch: refetchPrazos } = useRelatorioPrazosData(true);
+  const { data: tarefasData, isLoading: tarefasLoading, refetch: refetchTarefas } = useRelatorioTarefasData(true);
+  const { data: andamentosData, isLoading: andamentosLoading, refetch: refetchAndamentos } = useRelatorioAndamentosData(true);
+  const { data: clientesData, isLoading: clientesLoading, refetch: refetchClientes } = useRelatorioClientesData(true);
 
   // Permite exportar se tiver ao menos os dados de resumo
   const canExportPdf = Boolean(resumoData);
   
-  // Mostrar loading se estiver carregando OU refetchando (para exportação)
-  const allFetching = [resumoFetching, prazosFetching, tarefasFetching, andamentosFetching, clientesFetching];
-  const loadingExportData = allFetching.some(Boolean);
+  // Mostrar loading inicial (apenas na primeira carga)
+  const allLoading = [resumoLoading, prazosLoading, tarefasLoading, andamentosLoading, clientesLoading];
+  const initialLoading = allLoading.some(Boolean);
 
-  // Calcular percentual de carregamento (0 a 100)
-  const loadedCount = allFetching.filter(fetching => !fetching).length;
-  const loadingProgress = Math.round((loadedCount / 5) * 100);
+  // Calcular percentual de carregamento inicial
+  const loadedCount = allLoading.filter(loading => !loading).length;
+  const initialProgress = Math.round((loadedCount / 5) * 100);
 
   const handleExportPdf = async () => {
     if (exporting || !canExportPdf) return;
 
     setExporting(true);
+    setExportProgress(0);
 
-    // Usa Promise.race com timeout para não travar se alguma query demorar muito
-    const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T | null> => {
-      return Promise.race([
-        promise,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))
-      ]);
+    // Rastreia progresso real de cada refetch
+    let completed = 0;
+    const updateProgress = () => {
+      completed++;
+      setExportProgress(Math.round((completed / 5) * 100));
+    };
+
+    // Executa refetch e atualiza progresso quando cada um terminar
+    const refetchWithProgress = async (refetchFn: () => Promise<any>) => {
+      try {
+        await refetchFn();
+      } catch (e) {
+        console.error("Erro no refetch:", e);
+      } finally {
+        updateProgress();
+      }
     };
 
     try {
-      // Tenta atualizar dados com timeout de 5 segundos cada
+      // Executa todos os refetches em paralelo, cada um atualiza o progresso ao terminar
       await Promise.all([
-        withTimeout(refetchResumo(), 5000),
-        withTimeout(refetchPrazos(), 5000),
-        withTimeout(refetchTarefas(), 5000),
-        withTimeout(refetchAndamentos(), 5000),
-        withTimeout(refetchClientes(), 5000)
+        refetchWithProgress(refetchResumo),
+        refetchWithProgress(refetchPrazos),
+        refetchWithProgress(refetchTarefas),
+        refetchWithProgress(refetchAndamentos),
+        refetchWithProgress(refetchClientes)
       ]);
     } catch (e) {
       console.error("Erro ao atualizar dados para exportação do PDF:", e);
-      // Mantém o fluxo de impressão com o que estiver disponível no cache
     }
+
+    // Garante que está em 100% antes de imprimir
+    setExportProgress(100);
+
+    // Aguarda um pequeno delay para o DOM atualizar antes de imprimir
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     // Nome do arquivo PDF com data formatada
     const dataAtual = format(new Date(), "ddMMyyyy");
@@ -105,6 +122,7 @@ const Relatorios = () => {
     const restaurarTitulo = () => {
       document.title = tituloOriginal;
       setExporting(false);
+      setExportProgress(0);
     };
 
     // Aguarda o afterprint para restaurar o título
@@ -119,9 +137,6 @@ const Relatorios = () => {
       window.removeEventListener("afterprint", handleAfterPrint);
       restaurarTitulo();
     }, 10000);
-
-    // Aguarda um pequeno delay para o DOM atualizar antes de imprimir
-    await new Promise(resolve => setTimeout(resolve, 100));
     
     // Imprime diretamente
     window.print();
@@ -178,11 +193,13 @@ const Relatorios = () => {
                 <span className="sm:hidden">
                   {exporting ? "..." : "PDF"}
                 </span>
-              </Button>
-              {loadingExportData && (
+            </Button>
+              {(initialLoading || exporting) && (
                 <div className="w-40 flex items-center gap-2">
-                  <Progress value={loadingProgress} className="h-2" />
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{loadingProgress}%</span>
+                  <Progress value={exporting ? exportProgress : initialProgress} className="h-2" />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {exporting ? exportProgress : initialProgress}%
+                  </span>
                 </div>
               )}
             </div>
