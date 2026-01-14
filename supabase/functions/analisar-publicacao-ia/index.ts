@@ -149,7 +149,7 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
       resultado.dias_prazo = 5;
     }
 
-    // Calcular data de vencimento
+    // Calcular data de vencimento (dias úteis)
     const hoje = new Date();
     let diasAdicionados = 0;
     while (diasAdicionados < resultado.dias_prazo) {
@@ -160,6 +160,17 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
       }
     }
     resultado.data_vencimento = hoje.toISOString().split("T")[0];
+
+    // Calcular data fatal (data_vencimento + 2 dias úteis)
+    let diasFatalAdicionados = 0;
+    while (diasFatalAdicionados < 2) {
+      hoje.setDate(hoje.getDate() + 1);
+      const diaSemana = hoje.getDay();
+      if (diaSemana !== 0 && diaSemana !== 6) {
+        diasFatalAdicionados++;
+      }
+    }
+    resultado.data_fatal = hoje.toISOString().split("T")[0];
 
     return new Response(
       JSON.stringify(resultado),
