@@ -50,6 +50,7 @@ import {
 import { Link } from "react-router-dom";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useAuth } from "@/contexts/AuthContext";
+import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 
 const formSchema = z.object({
   tipo_tarefa: z.string().min(1, "Tipo é obrigatório"),
@@ -351,13 +352,33 @@ export function CriarTarefaPublicacaoDialog({
           {/* Lado Direito - Formulário de Tarefa */}
           <div className="w-full lg:w-[400px] flex flex-col bg-muted/10">
             <div className="p-4 border-b bg-primary/5">
-              <h3 className="font-semibold flex items-center gap-2">
-                <ListChecks className="w-4 h-4" />
-                TAREFA
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                Crie uma tarefa a partir desta publicação
-              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <ListChecks className="w-4 h-4" />
+                    TAREFA
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Crie uma tarefa a partir desta publicação
+                  </p>
+                </div>
+                <BotaoPreencherIA
+                  conteudo={publicacao.conteudo}
+                  tipoTarefa={form.watch("tipo_tarefa")}
+                  processoNumero={publicacao.processo_numero}
+                  dataPublicacao={publicacao.data_publicacao}
+                  onResultado={(resultado) => {
+                    if (resultado.tipo_tarefa) {
+                      form.setValue("tipo_tarefa", resultado.tipo_tarefa);
+                    }
+                    form.setValue("titulo", resultado.titulo);
+                    form.setValue("descricao", resultado.descricao);
+                    form.setValue("prioridade", resultado.prioridade);
+                    form.setValue("data_vencimento", resultado.data_vencimento);
+                  }}
+                  size="sm"
+                />
+              </div>
             </div>
 
             <ScrollArea className="flex-1 p-4">

@@ -72,6 +72,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 
 const formSchema = z.object({
   tipo_tarefa: z.string().min(1, "Tipo é obrigatório"),
@@ -928,9 +929,27 @@ export function TarefaPublicacaoView({
                 <div className="space-y-3 p-4 border rounded-lg bg-background">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-sm">Nova Tarefa</h3>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowForm(false)}>
-                      <X className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <BotaoPreencherIA
+                        conteudo={publicacao?.conteudo}
+                        tipoTarefa={form.watch("tipo_tarefa")}
+                        processoNumero={publicacao?.processo_numero || processo?.numero}
+                        dataPublicacao={publicacao?.data_publicacao}
+                        onResultado={(resultado) => {
+                          if (resultado.tipo_tarefa) {
+                            form.setValue("tipo_tarefa", resultado.tipo_tarefa);
+                          }
+                          form.setValue("titulo", resultado.titulo);
+                          form.setValue("descricao", resultado.descricao);
+                          form.setValue("prioridade", resultado.prioridade);
+                          form.setValue("data_vencimento", resultado.data_vencimento);
+                        }}
+                        size="sm"
+                      />
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowForm(false)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
