@@ -1,8 +1,8 @@
-import { useState, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { 
-  BarChart3, 
-  Calendar, 
+import {
+  BarChart3,
+  Calendar,
   Filter,
   AlertTriangle,
   Activity,
@@ -16,10 +16,8 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { toast as sonnerToast } from "@/components/ui/sonner";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -40,109 +38,180 @@ import { useRelatorioTarefasData } from "@/hooks/useRelatorioTarefasData";
 import { useRelatorioAndamentosData } from "@/hooks/useRelatorioAndamentosData";
 import { useRelatorioClientesData } from "@/hooks/useRelatorioClientesData";
 
+type ExportMode = "completo" | "resumo" | "atividades" | "clientes";
+
+const exportModeLabel: Record<ExportMode, string> = {
+  completo: "Completo",
+  resumo: "Resumo",
+  atividades: "Atividades",
+  clientes: "Clientes",
+};
+
 const Relatorios = () => {
   const [periodo, setPeriodo] = useState("ultimo-mes");
   const [activeTab, setActiveTab] = useState("resumo");
   const [activeSubTab, setActiveSubTab] = useState("prazos");
+
+  const [exportMode, setExportMode] = useState<ExportMode>("completo");
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [printOverride, setPrintOverride] = useState<
+    | null
+    | {
+        resumoData?: any;
+        atividadesData?: any;
+        clientesData?: any;
+      }
+  >(null);
+
   const printRef = useRef<HTMLDivElement>(null);
 
   // Carregar dados de todos os relatórios para exportação
-  const { data: resumoData, isLoading: resumoLoading, refetch: refetchResumo } = useRelatorioResumoData(true);
-  const { data: prazosData, isLoading: prazosLoading, refetch: refetchPrazos } = useRelatorioPrazosData(true);
-  const { data: tarefasData, isLoading: tarefasLoading, refetch: refetchTarefas } = useRelatorioTarefasData(true);
-  const { data: andamentosData, isLoading: andamentosLoading, refetch: refetchAndamentos } = useRelatorioAndamentosData(true);
-  const { data: clientesData, isLoading: clientesLoading, refetch: refetchClientes } = useRelatorioClientesData(true);
+  const { data: resumoData, isLoading: resumoLoading, refetch: refetchResumo } =
+    useRelatorioResumoData(true);
+  const { data: prazosData, isLoading: prazosLoading, refetch: refetchPrazos } =
+    useRelatorioPrazosData(true);
+  const { data: tarefasData, isLoading: tarefasLoading, refetch: refetchTarefas } =
+    useRelatorioTarefasData(true);
+  const {
+    data: andamentosData,
+    isLoading: andamentosLoading,
+    refetch: refetchAndamentos,
+  } = useRelatorioAndamentosData(true);
+  const {
+    data: clientesData,
+    isLoading: clientesLoading,
+    refetch: refetchClientes,
+  } = useRelatorioClientesData(true);
 
-  // Permite exportar se tiver ao menos os dados de resumo
-  const canExportPdf = Boolean(resumoData);
-  
   // Mostrar loading inicial (apenas na primeira carga)
-  const allLoading = [resumoLoading, prazosLoading, tarefasLoading, andamentosLoading, clientesLoading];
+  const allLoading = [
+    resumoLoading,
+    prazosLoading,
+    tarefasLoading,
+    andamentosLoading,
+    clientesLoading,
+  ];
   const initialLoading = allLoading.some(Boolean);
 
   // Calcular percentual de carregamento inicial
-  const loadedCount = allLoading.filter(loading => !loading).length;
+  const loadedCount = allLoading.filter((loading) => !loading).length;
   const initialProgress = Math.round((loadedCount / 5) * 100);
 
+  const exportTasks = useMemo(() => {
+    const tasks: Array<{ key: string; label: string; fn: () => Promise<any> }> = [];
+
+    if (exportMode === "completo" || exportMode === "resumo") {
+      tasks.push({ key: "resumo", label: "Resumo", fn: refetchResumo });
+    }
+
+    if (exportMode === "completo" || exportMode === "atividades") {
+      tasks.push({ key: "prazos", label: "Prazos", fn: refetchPrazos });
+      tasks.push({ key: "tarefas", label: "Tarefas", fn: refetchTarefas });
+      tasks.push({ key: "andamentos", label: "Andamentos", fn: refetchAndamentos });
+    }
+
+    if (exportMode === "completo" || exportMode === "clientes") {
+      tasks.push({ key: "clientes", label: "Clientes", fn: refetchClientes });
+    }
+
+    return tasks;
+  }, [exportMode, refetchAndamentos, refetchClientes, refetchPrazos, refetchResumo, refetchTarefas]);
+
   const handleExportPdf = async () => {
-    if (exporting || !canExportPdf) return;
+    if (exporting) return;
+
+    const tasks = exportTasks;
+    if (tasks.length === 0) return;
 
     setExporting(true);
     setExportProgress(0);
 
-    // Rastreia progresso real de cada refetch
+    const totalSteps = tasks.length;
     let completed = 0;
-    const updateProgress = () => {
-      completed++;
-      setExportProgress(Math.round((completed / 5) * 100));
-    };
 
-    // Executa refetch e atualiza progresso quando cada um terminar
-    const refetchWithProgress = async (refetchFn: () => Promise<any>) => {
-      try {
-        await refetchFn();
-      } catch (e) {
-        console.error("Erro no refetch:", e);
-      } finally {
-        updateProgress();
-      }
-    };
+    const results = await Promise.all(
+      tasks.map(async (t) => {
+        try {
+          const r = await t.fn();
+          return { ...t, ok: true as const, data: (r as any)?.data };
+        } catch (e) {
+          return { ...t, ok: false as const, error: e };
+        } finally {
+          completed++;
+          setExportProgress(Math.round((completed / totalSteps) * 100));
+        }
+      })
+    );
 
-    try {
-      // Executa todos os refetches em paralelo, cada um atualiza o progresso ao terminar
-      await Promise.all([
-        refetchWithProgress(refetchResumo),
-        refetchWithProgress(refetchPrazos),
-        refetchWithProgress(refetchTarefas),
-        refetchWithProgress(refetchAndamentos),
-        refetchWithProgress(refetchClientes)
-      ]);
-    } catch (e) {
-      console.error("Erro ao atualizar dados para exportação do PDF:", e);
+    const failed = results.filter((r) => !r.ok);
+    if (failed.length > 0) {
+      sonnerToast.error(
+        `Falha ao carregar: ${failed.map((f) => f.label).join(", ")}. Dica: exporte separado.`
+      );
+      setExporting(false);
+      setExportProgress(0);
+      return;
     }
 
-    // Garante que está em 100% antes de imprimir
-    setExportProgress(100);
+    const pick = (key: string, fallback: any) =>
+      results.find((r) => r.key === key && r.ok)?.data ?? fallback;
 
-    // Aguarda um pequeno delay para o DOM atualizar antes de imprimir
-    await new Promise(resolve => setTimeout(resolve, 200));
+    const nextResumo = pick("resumo", resumoData);
+    const nextPrazos = pick("prazos", prazosData);
+    const nextTarefas = pick("tarefas", tarefasData);
+    const nextAndamentos = pick("andamentos", andamentosData);
+    const nextClientes = pick("clientes", clientesData);
 
-    // Nome do arquivo PDF com data formatada
+    const nextAtividadesData = {
+      totalPrazos: nextPrazos?.totalPrazos ?? 0,
+      prazosStatus: nextPrazos?.prazosStatus ?? [],
+      atividadesConcluidas: nextTarefas?.totalConcluidas ?? 0,
+      atividadesNaoConcluidas: nextTarefas?.totalPendentes ?? 0,
+      atividadesPorArea: nextTarefas?.atividadesPorArea ?? [],
+      evolucaoAndamentos: nextAndamentos?.evolucaoAndamentos ?? [],
+      andamentosPorArea: nextAndamentos?.andamentosPorArea ?? [],
+    };
+
+    setPrintOverride({
+      resumoData: nextResumo,
+      atividadesData: nextAtividadesData,
+      clientesData: nextClientes,
+    });
+
+    // Aguarda render (2 frames) + pequeno buffer antes de abrir o print (Chrome congela a UI ao abrir o diálogo)
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
     const dataAtual = format(new Date(), "ddMMyyyy");
-    const novoTitulo = `Juris_Control_Relatorio_Gerencial_${dataAtual}`;
+    const sufixo = exportMode === "completo" ? "Relatorio_Gerencial" : `Relatorio_${exportModeLabel[exportMode]}`;
+    const novoTitulo = `Juris_Control_${sufixo}_${dataAtual}`;
 
-    // Salva o título original
     const tituloOriginal = document.title;
-
-    // Define o novo título (navegadores usam o <title> como nome do PDF)
     document.title = novoTitulo;
 
     const restaurarTitulo = () => {
       document.title = tituloOriginal;
       setExporting(false);
       setExportProgress(0);
+      setPrintOverride(null);
     };
 
-    // Aguarda o afterprint para restaurar o título
     const handleAfterPrint = () => {
       window.removeEventListener("afterprint", handleAfterPrint);
       restaurarTitulo();
     };
     window.addEventListener("afterprint", handleAfterPrint);
 
-    // Fallback: restaura após 10 segundos caso afterprint não dispare
     setTimeout(() => {
       window.removeEventListener("afterprint", handleAfterPrint);
       restaurarTitulo();
     }, 10000);
-    
-    // Imprime diretamente
+
     window.print();
   };
 
-  // Preparar dados combinados para o PrintView (mantendo compatibilidade)
+  // Dados padrão (tela) — usados quando não há override de exportação
   const atividadesData = {
     totalPrazos: prazosData?.totalPrazos ?? 0,
     prazosStatus: prazosData?.prazosStatus ?? [],
@@ -153,11 +222,12 @@ const Relatorios = () => {
     andamentosPorArea: andamentosData?.andamentosPorArea ?? [],
   };
 
+  const printResumoData = printOverride?.resumoData ?? resumoData;
+  const printAtividadesData = printOverride?.atividadesData ?? atividadesData;
+  const printClientesData = printOverride?.clientesData ?? clientesData;
+
   return (
-    <MainLayout 
-      title="Relatórios" 
-      subtitle="Análise e métricas do escritório"
-    >
+    <MainLayout title="Relatórios" subtitle="Análise e métricas do escritório">
       {/* Filters */}
       <Card className="mb-6 animate-fade-in print:hidden">
         <CardContent className="pt-6">
@@ -176,24 +246,37 @@ const Relatorios = () => {
                 </SelectContent>
               </Select>
             </div>
+
             <Button variant="outline" className="hidden sm:flex">
               <Filter className="w-4 h-4 mr-2" />
               Mais Filtros
             </Button>
+
             <div className="ml-auto flex flex-col items-end gap-2">
-              <Button onClick={handleExportPdf} disabled={exporting || !canExportPdf}>
-                {exporting ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <FileDown className="w-4 h-4 mr-2" />
-                )}
-                <span className="hidden sm:inline">
-                  {exporting ? "Gerando..." : "Exportar PDF"}
-                </span>
-                <span className="sm:hidden">
-                  {exporting ? "..." : "PDF"}
-                </span>
-            </Button>
+              <div className="flex items-center gap-2">
+                <Select value={exportMode} onValueChange={(v) => setExportMode(v as ExportMode)}>
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="Exportação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="completo">PDF Completo</SelectItem>
+                    <SelectItem value="resumo">Somente Resumo</SelectItem>
+                    <SelectItem value="atividades">Somente Atividades</SelectItem>
+                    <SelectItem value="clientes">Somente Clientes</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button onClick={handleExportPdf} disabled={exporting}>
+                  {exporting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileDown className="w-4 h-4 mr-2" />
+                  )}
+                  <span className="hidden sm:inline">{exporting ? "Gerando..." : "Exportar PDF"}</span>
+                  <span className="sm:hidden">{exporting ? "..." : "PDF"}</span>
+                </Button>
+              </div>
+
               {(initialLoading || exporting) && (
                 <div className="w-40 flex items-center gap-2">
                   <Progress value={exporting ? exportProgress : initialProgress} className="h-2" />
@@ -208,11 +291,12 @@ const Relatorios = () => {
       </Card>
 
       {/* Componente de impressão - visível apenas ao imprimir */}
-      <RelatorioPrintView 
+      <RelatorioPrintView
         ref={printRef}
-        resumoData={resumoData}
-        atividadesData={atividadesData}
-        clientesData={clientesData}
+        mode={exportMode}
+        resumoData={printResumoData}
+        atividadesData={printAtividadesData}
+        clientesData={printClientesData}
       />
 
       {/* Tabs - escondido na impressão */}
@@ -284,7 +368,7 @@ const Relatorios = () => {
             <div>
               <p className="font-medium text-foreground">Relatórios não disponíveis:</p>
               <p className="mt-1">
-                <strong>Situação dos Atendimentos</strong> e <strong>Horas Lançadas por Apontamento</strong> 
+                <strong>Situação dos Atendimentos</strong> e <strong>Horas Lançadas por Apontamento</strong>
                 requerem tabelas adicionais no banco de dados (atendimentos e apontamentos de horas).
               </p>
             </div>
@@ -296,3 +380,4 @@ const Relatorios = () => {
 };
 
 export default Relatorios;
+
