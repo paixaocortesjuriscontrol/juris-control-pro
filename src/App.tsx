@@ -16,6 +16,7 @@ import Relatorios from "./pages/Relatorios";
 import Administracao from "./pages/Administracao";
 import ConsultaExterna from "./pages/ConsultaExterna";
 import ImportarProcessos from "./pages/ImportarProcessos";
+import ImportarHub from "./pages/ImportarHub";
 import Configuracoes from "./pages/Configuracoes";
 import Prazos from "./pages/Prazos";
 import Documentos from "./pages/Documentos";
@@ -94,7 +95,8 @@ const App = () => (
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><Administracao /></ProtectedRoute>} />
               <Route path="/consulta-externa" element={<ProtectedRoute><ConsultaExterna /></ProtectedRoute>} />
-              <Route path="/importar" element={<ProtectedRoute><ImportarProcessos /></ProtectedRoute>} />
+              <Route path="/importar" element={<ProtectedRoute><ImportarHub /></ProtectedRoute>} />
+              <Route path="/importar-processos" element={<ProtectedRoute><ImportarProcessos /></ProtectedRoute>} />
               <Route path="/importar-tarefas" element={<ProtectedRoute><ImportarTarefas /></ProtectedRoute>} />
               <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
               <Route path="/buscar-djen" element={<ProtectedRoute><BuscarDJEN /></ProtectedRoute>} />
