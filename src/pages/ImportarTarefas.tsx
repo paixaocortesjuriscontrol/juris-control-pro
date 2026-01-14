@@ -224,41 +224,23 @@ export default function ImportarTarefas() {
     if (cachedId) return cachedId;
 
     try {
-      const emailSlug = nomeCompleto
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/\s+/g, ".")
-        .replace(/[^a-z0-9.]/g, "");
-      const timestamp = Date.now();
-      const placeholderEmail = `${emailSlug}.${timestamp}@importado.local`;
-
-      const newId = crypto.randomUUID();
-      const { data: newProfile, error } = await supabase
-        .from("profiles")
-        .insert({
-          id: newId,
+      // Use Edge Function to bypass RLS
+      const { data, error } = await supabase.functions.invoke("cadastrar-perfil", {
+        body: {
           nome: nomeCompleto,
-          email: placeholderEmail,
-          ativo: true,
-        })
-        .select("id")
-        .single();
+          coordenacao_id: coordenacaoId,
+          cargo: "Membro",
+        },
+      });
 
       if (error) {
-        console.error("Erro ao criar perfil:", error);
+        console.error("Erro ao criar perfil via Edge Function:", error);
         return null;
       }
 
-      if (newProfile?.id) {
-        await supabase.from("membros_coordenacao").insert({
-          coordenacao_id: coordenacaoId,
-          usuario_id: newProfile.id,
-          cargo: "Membro",
-        });
-
-        createdUsersCache.current.set(nomeCompleto.toLowerCase(), newProfile.id);
-        return newProfile.id;
+      if (data?.profile?.id) {
+        createdUsersCache.current.set(nomeCompleto.toLowerCase(), data.profile.id);
+        return data.profile.id;
       }
 
       return null;
