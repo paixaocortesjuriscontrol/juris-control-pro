@@ -48,20 +48,21 @@ const Relatorios = () => {
   const printRef = useRef<HTMLDivElement>(null);
 
   // Carregar dados de todos os relatórios para exportação
-  const { data: resumoData, isLoading: resumoLoading, refetch: refetchResumo } = useRelatorioResumoData(true);
-  const { data: prazosData, isLoading: prazosLoading, refetch: refetchPrazos } = useRelatorioPrazosData(true);
-  const { data: tarefasData, isLoading: tarefasLoading, refetch: refetchTarefas } = useRelatorioTarefasData(true);
-  const { data: andamentosData, isLoading: andamentosLoading, refetch: refetchAndamentos } = useRelatorioAndamentosData(true);
-  const { data: clientesData, isLoading: clientesLoading, refetch: refetchClientes } = useRelatorioClientesData(true);
+  const { data: resumoData, isLoading: resumoLoading, isFetching: resumoFetching, refetch: refetchResumo } = useRelatorioResumoData(true);
+  const { data: prazosData, isLoading: prazosLoading, isFetching: prazosFetching, refetch: refetchPrazos } = useRelatorioPrazosData(true);
+  const { data: tarefasData, isLoading: tarefasLoading, isFetching: tarefasFetching, refetch: refetchTarefas } = useRelatorioTarefasData(true);
+  const { data: andamentosData, isLoading: andamentosLoading, isFetching: andamentosFetching, refetch: refetchAndamentos } = useRelatorioAndamentosData(true);
+  const { data: clientesData, isLoading: clientesLoading, isFetching: clientesFetching, refetch: refetchClientes } = useRelatorioClientesData(true);
 
   // Permite exportar se tiver ao menos os dados de resumo
   const canExportPdf = Boolean(resumoData);
-  // Só mostra loading se estiver na carga inicial (isLoading)
-  const allLoading = [resumoLoading, prazosLoading, tarefasLoading, andamentosLoading, clientesLoading];
-  const loadingExportData = allLoading.some(Boolean);
+  
+  // Mostrar loading se estiver carregando OU refetchando (para exportação)
+  const allFetching = [resumoFetching, prazosFetching, tarefasFetching, andamentosFetching, clientesFetching];
+  const loadingExportData = allFetching.some(Boolean);
 
   // Calcular percentual de carregamento (0 a 100)
-  const loadedCount = allLoading.filter(loading => !loading).length;
+  const loadedCount = allFetching.filter(fetching => !fetching).length;
   const loadingProgress = Math.round((loadedCount / 5) * 100);
 
   const handleExportPdf = async () => {
@@ -78,13 +79,13 @@ const Relatorios = () => {
     };
 
     try {
-      // Tenta atualizar dados com timeout de 3 segundos cada
+      // Tenta atualizar dados com timeout de 5 segundos cada
       await Promise.all([
-        withTimeout(refetchResumo(), 3000),
-        withTimeout(refetchPrazos(), 3000),
-        withTimeout(refetchTarefas(), 3000),
-        withTimeout(refetchAndamentos(), 3000),
-        withTimeout(refetchClientes(), 3000)
+        withTimeout(refetchResumo(), 5000),
+        withTimeout(refetchPrazos(), 5000),
+        withTimeout(refetchTarefas(), 5000),
+        withTimeout(refetchAndamentos(), 5000),
+        withTimeout(refetchClientes(), 5000)
       ]);
     } catch (e) {
       console.error("Erro ao atualizar dados para exportação do PDF:", e);
@@ -113,12 +114,15 @@ const Relatorios = () => {
     };
     window.addEventListener("afterprint", handleAfterPrint);
 
-    // Fallback: restaura após 5 segundos caso afterprint não dispare
+    // Fallback: restaura após 10 segundos caso afterprint não dispare
     setTimeout(() => {
       window.removeEventListener("afterprint", handleAfterPrint);
       restaurarTitulo();
-    }, 5000);
+    }, 10000);
 
+    // Aguarda um pequeno delay para o DOM atualizar antes de imprimir
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Imprime diretamente
     window.print();
   };
