@@ -33,6 +33,49 @@ export interface DjenRun {
   created_at: string;
 }
 
+export interface DjenLote {
+  id: string;
+  run_id: string;
+  lote_numero: number;
+  offset_inicial: number;
+  offset_final: number;
+  status: string;
+  processados: number | null;
+  novas: number | null;
+  descartadas: number | null;
+  duplicatas: number | null;
+  erros: number | null;
+  total_paginas: number | null;
+  total_resultados: number | null;
+  duracao_segundos: number | null;
+  iniciado_em: string;
+  finalizado_em: string | null;
+  erro_mensagem: string | null;
+  created_at: string;
+}
+
+export interface DjenTribunalLote {
+  id: string;
+  lote_id: string;
+  run_id: string;
+  tribunal: string;
+  termos_buscados: number | null;
+  paginas: number | null;
+  resultados: number | null;
+  novas: number | null;
+  descartadas: number | null;
+  duplicatas: number | null;
+  created_at: string;
+}
+
+export interface EstatisticasTermo {
+  termo_busca: string;
+  tipo: string;
+  tribunais: string[];
+  total_publicacoes: number;
+  coordenacao_id: string | null;
+}
+
 export function useRelatorioExecucoes(
   dataInicio: string | null,
   dataFim: string | null,
@@ -133,8 +176,141 @@ export function useDjenRunLotes(runId: string | null) {
         .order('lote_numero', { ascending: true });
 
       if (error) throw error;
-      return data;
+      return data as DjenLote[];
     },
     enabled: !!runId,
+  });
+}
+
+// Hook para buscar detalhes por tribunal de um lote
+export function useDjenTribunaisLote(loteId: string | null) {
+  return useQuery({
+    queryKey: ['djen-tribunais-lote', loteId],
+    queryFn: async () => {
+      if (!loteId) return [];
+      
+      const { data, error } = await supabase
+        .from('djen_tribunais_lote')
+        .select('*')
+        .eq('lote_id', loteId)
+        .order('novas', { ascending: false });
+
+      if (error) throw error;
+      return data as DjenTribunalLote[];
+    },
+    enabled: !!loteId,
+  });
+}
+
+// Hook para estatísticas de publicações por termo e tribunal no período
+export function useEstatisticasDjenPeriodo(dataInicio: string | null, dataFim: string | null) {
+  // Estatísticas por termo
+  const estatisticasTermosQuery = useQuery({
+    queryKey: ['estatisticas-djen-termos', dataInicio, dataFim],
+    queryFn: async () => {
+      let query = supabase
+        .from('publicacoes_djen')
+        .select(`
+          id,
+          data_publicacao,
+          monitoramento_id,
+          monitoramentos_djen!inner(termo_busca, tipo, tribunais, coordenacao_id)
+        `);
+
+      if (dataInicio) {
+        query = query.gte('created_at', dataInicio);
+      }
+      if (dataFim) {
+        query = query.lte('created_at', dataFim + 'T23:59:59');
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Agrupa por termo
+      const porTermo: Record<string, EstatisticasTermo> = {};
+      data?.forEach((p: any) => {
+        const termo = p.monitoramentos_djen?.termo_busca || 'Desconhecido';
+        if (!porTermo[termo]) {
+          porTermo[termo] = {
+            termo_busca: termo,
+            tipo: p.monitoramentos_djen?.tipo || '',
+            tribunais: p.monitoramentos_djen?.tribunais || [],
+            total_publicacoes: 0,
+            coordenacao_id: p.monitoramentos_djen?.coordenacao_id,
+          };
+        }
+        porTermo[termo].total_publicacoes++;
+      });
+
+      return Object.values(porTermo).sort((a, b) => b.total_publicacoes - a.total_publicacoes);
+    },
+    enabled: true,
+  });
+
+  // Estatísticas por tribunal (extraído do fonte das publicações)
+  const estatisticasTribunaisQuery = useQuery({
+    queryKey: ['estatisticas-djen-tribunais', dataInicio, dataFim],
+    queryFn: async () => {
+      let query = supabase
+        .from('publicacoes_djen')
+        .select('id, fonte, processo_numero');
+
+      if (dataInicio) {
+        query = query.gte('created_at', dataInicio);
+      }
+      if (dataFim) {
+        query = query.lte('created_at', dataFim + 'T23:59:59');
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Agrupa por tribunal extraído do número do processo
+      const porTribunal: Record<string, number> = {};
+      data?.forEach((p: any) => {
+        // Tenta extrair tribunal do número do processo
+        let tribunal = 'Desconhecido';
+        if (p.processo_numero) {
+          const match = p.processo_numero.match(/\d{7}-\d{2}\.\d{4}\.(\d)\.(\d{2})\./);
+          if (match) {
+            const justica = match[1];
+            const tribunalNum = match[2];
+            if (justica === '5') tribunal = `TRT${tribunalNum}`;
+            else if (justica === '4') tribunal = `TRF${tribunalNum}`;
+            else if (justica === '8') tribunal = `TJ${tribunalNum}`;
+            else tribunal = `J${justica}-${tribunalNum}`;
+          }
+        }
+        porTribunal[tribunal] = (porTribunal[tribunal] || 0) + 1;
+      });
+
+      return Object.entries(porTribunal)
+        .map(([tribunal, total]) => ({ tribunal, total }))
+        .sort((a, b) => b.total - a.total);
+    },
+    enabled: true,
+  });
+
+  return {
+    porTermo: estatisticasTermosQuery.data || [],
+    porTribunal: estatisticasTribunaisQuery.data || [],
+    isLoading: estatisticasTermosQuery.isLoading || estatisticasTribunaisQuery.isLoading,
+  };
+}
+
+// Hook para buscar coordenações
+export function useCoordenacoes() {
+  return useQuery({
+    queryKey: ['coordenacoes-lista'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('coordenacoes')
+        .select('id, nome')
+        .order('nome');
+      
+      if (error) throw error;
+      return data;
+    },
   });
 }
