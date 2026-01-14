@@ -9,11 +9,14 @@ const corsHeaders = {
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 
 // Max monitoramentos per invocation.
-// Keep this conservative to avoid edge-function timeouts on heavier queries.
 const MAX_PER_INVOCATION = 10;
 
 // Soft time limit (ms) to ensure we respond before the platform/browser cuts the request.
 const SOFT_TIMEOUT_MS = 75_000;
+
+// Retry config: if first batch at 08:30 is empty, retry after this delay
+const RETRY_DELAY_MINUTES = 15;
+const MAX_RETRIES = 4; // Total max retries for empty result
 
 interface Monitoramento {
   id: string;
@@ -72,18 +75,12 @@ async function fetchWithRetry(
   throw lastError || new Error('Max retries exceeded');
 }
 
-// Extract process number from content using regex patterns
 function extractProcessoNumero(conteudo: string, explicitNumero?: string | null): string | null {
-  // If explicitly provided, use it
   if (explicitNumero) return explicitNumero;
   
-  // Try to extract from content - multiple patterns used in Brazilian courts
   const patterns = [
-    // Standard CNJ format: 0000000-00.0000.0.00.0000
     /(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/,
-    // "Processo" prefix variations
     /Processo\s*(?:n[º°]?\.?\s*)?(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/i,
-    // Alternative format with slashes
     /(\d{7}\/\d{4})/,
   ];
   
@@ -107,8 +104,6 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
-// Função auxiliar para criar tarefas para responsáveis do processo
-// Agora segue o mesmo padrão do CriarTarefaPublicacaoDialog
 async function criarTarefasParaResponsaveis(
   supabase: any,
   processoNumero: string,
@@ -118,9 +113,8 @@ async function criarTarefasParaResponsaveis(
   prioridade: string,
   origem: string,
   tipoTarefa: string,
-  publicacaoId?: string // ID da publicação para vincular na tabela N:N
+  publicacaoId?: string
 ): Promise<string[]> {
-  // Primeiro, buscar o processo pelo número
   const { data: processo } = await supabase
     .from('processos')
     .select('id, advogado_responsavel_id')
@@ -132,13 +126,11 @@ async function criarTarefasParaResponsaveis(
     return [];
   }
 
-  // Buscar responsáveis do processo
   const { data: responsaveis } = await supabase
     .from('processos_responsaveis')
     .select('responsavel_id')
     .eq('processo_id', processo.id);
 
-  // Se não tem responsáveis na tabela, tenta o advogado_responsavel_id legado
   if (!responsaveis || responsaveis.length === 0) {
     if (processo.advogado_responsavel_id) {
       const { data: tarefa, error } = await supabase
@@ -161,7 +153,6 @@ async function criarTarefasParaResponsaveis(
       if (!error && tarefa) {
         console.log(`Created task ${tarefa.id} for legacy responsible`);
         
-        // Vincular tarefa à publicação na tabela N:N (igual ao CriarTarefaPublicacaoDialog)
         if (publicacaoId) {
           await supabase
             .from('tarefas_publicacoes')
@@ -177,7 +168,6 @@ async function criarTarefasParaResponsaveis(
     return [];
   }
 
-  // Criar tarefa para cada responsável
   const tarefaIds: string[] = [];
   for (const resp of responsaveis) {
     const { data: tarefa, error } = await supabase
@@ -200,7 +190,6 @@ async function criarTarefasParaResponsaveis(
     if (!error && tarefa) {
       tarefaIds.push(tarefa.id);
       
-      // Vincular tarefa à publicação na tabela N:N (igual ao CriarTarefaPublicacaoDialog)
       if (publicacaoId) {
         await supabase
           .from('tarefas_publicacoes')
@@ -222,6 +211,7 @@ function generateGlobalHash(conteudo: string, dataPublicacao: string): string {
   const normalized = (conteudo + dataPublicacao).toLowerCase().replace(/\s+/g, ' ').trim();
   return generateHash(normalized);
 }
+
 function shouldExclude(conteudo: string, exclusoes: string[]): string | null {
   if (!exclusoes || exclusoes.length === 0) return null;
   
@@ -243,7 +233,6 @@ function matchesCondicaoConcomitante(conteudo: string, condicao: string | undefi
   return termos.every(termo => conteudoUpper.includes(termo));
 }
 
-// Detect audiência in publication content
 interface AudienciaInfo {
   dataAudiencia: string | null;
   tipoAudiencia: string | null;
@@ -254,7 +243,6 @@ interface AudienciaInfo {
 function detectAudiencia(conteudo: string): AudienciaInfo | null {
   const conteudoLower = conteudo.toLowerCase();
   
-  // Check for "audiência" term
   const audienciaTerms = [
     'audiência',
     'audiencia',
@@ -266,7 +254,6 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
   const hasAudiencia = audienciaTerms.some(term => conteudoLower.includes(term));
   if (!hasAudiencia) return null;
   
-  // Extract context around the term
   let contexto = '';
   for (const term of audienciaTerms) {
     const index = conteudoLower.indexOf(term);
@@ -280,10 +267,8 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
     }
   }
   
-  // Try to extract date from context
   let dataAudiencia: string | null = null;
   
-  // Pattern: DD/MM/YYYY or DD-MM-YYYY
   const datePatterns = [
     /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/,
     /(\d{1,2})\s+de\s+(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+(\d{4})/i,
@@ -292,9 +277,7 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
   for (const pattern of datePatterns) {
     const match = contexto.match(pattern);
     if (match) {
-      // Convert to ISO date if possible
       if (match[2] && isNaN(parseInt(match[2]))) {
-        // Month is text
         const months: Record<string, string> = {
           'janeiro': '01', 'fevereiro': '02', 'março': '03', 'marco': '03',
           'abril': '04', 'maio': '05', 'junho': '06', 'julho': '07',
@@ -309,7 +292,6 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
     }
   }
   
-  // Try to extract type
   let tipoAudiencia: string | null = null;
   const tipoPatterns = [
     /audiência\s+de\s+(conciliação|instrução|julgamento|instrução e julgamento|una|inicial|custódia)/i,
@@ -324,7 +306,6 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
     }
   }
   
-  // Try to extract location
   let localAudiencia: string | null = null;
   const localPatterns = [
     /(?:local|sala|endereço|endereco|forum|fórum)[\s:]+([^,\n]{10,60})/i,
@@ -347,8 +328,6 @@ function detectAudiencia(conteudo: string): AudienciaInfo | null {
   };
 }
 
-// Function removed - using fetchDJENResultsWithStats below
-
 interface TribunalStats {
   tribunal: string | null;
   paginas: number;
@@ -358,12 +337,10 @@ interface TribunalStats {
   duplicatas: number;
 }
 
-// Search parameters interface for PJe Comunica API
 interface SearchParams {
   texto?: string;
   numeroOab?: string;
   ufOab?: string;
-  // Matches the "Nome do advogado" field on https://comunica.pje.jus.br/consulta
   nomeAdvogado?: string;
   siglaTribunal?: string | null;
 }
@@ -376,9 +353,6 @@ async function processMonitoramento(
   const tribunaisStats: TribunalStats[] = [];
   const dataAtual = new Date().toISOString().split('T')[0];
   
-  // Build search params based on type
-  // IMPORTANT: the Comunica UI filters (https://comunica.pje.jus.br/consulta) uses structured OAB filters.
-  // When we search "all tribunals" the result-set can be large; prefer OAB params to avoid missing items due to pagination caps.
   const searchCandidates: Array<Omit<SearchParams, 'siglaTribunal'>> = [];
 
   if (monitoramento.tipo === "advogado") {
@@ -389,19 +363,14 @@ async function processMonitoramento(
       const uf = (monitoramento.uf || "DF").toUpperCase();
       const numeroOab = monitoramento.oab.replace(/\D/g, "");
 
-      // 1) Prefer dedicated parameters (matches the Comunica filters)
       searchCandidates.push({ numeroOab, ufOab: uf });
-
-      // 2) Fallbacks: API variants / indexing differences
       searchCandidates.push({ texto: `OAB ${uf}-${numeroOab}` });
       searchCandidates.push({ texto: `OAB ${numeroOab} ${uf}` });
       searchCandidates.push({ texto: numeroOab });
     }
 
-    // 3) Name-based search (matches the Comunica UI field "Nome do advogado")
     if (hasNome) {
       searchCandidates.push({ nomeAdvogado: termo });
-      // fallback (some endpoints/indexes still work better with a generic text query)
       searchCandidates.push({ texto: termo });
     }
 
@@ -413,8 +382,6 @@ async function processMonitoramento(
   } else if (monitoramento.tipo === "processo") {
     searchCandidates.push({ texto: monitoramento.termo_busca.replace(/\D/g, "") });
   } else if (monitoramento.tipo === "parte") {
-    // Busca por nome da parte (empresa, pessoa, etc.)
-    // Uses generic text search - API will match against all parties in publications
     const termo = (monitoramento.termo_busca || "").trim();
     if (termo.length >= 3) {
       searchCandidates.push({ texto: termo });
@@ -427,11 +394,9 @@ async function processMonitoramento(
     return { ...stats, tribunaisStats };
   }
 
-  // Get list of tribunais to search
-  // When tribunais is empty/null, we pass [null] to search ALL tribunals without filter
   const tribunais = monitoramento.tribunais && monitoramento.tribunais.length > 0
     ? monitoramento.tribunais
-    : [null]; // null means search all tribunals (no siglaTribunal filter)
+    : [null];
 
   console.log(`Searching tribunais: ${tribunais.length === 1 && tribunais[0] === null ? 'TODOS (sem filtro)' : tribunais.join(', ')}`);
 
@@ -445,7 +410,6 @@ async function processMonitoramento(
       duplicatas: 0,
     };
 
-    // Fetch publications for this tribunal with pagination tracking
     let publications: any[] = [];
     let pages = 0;
 
@@ -465,12 +429,10 @@ async function processMonitoramento(
     for (const pub of publications) {
       const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
       const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
-      // Data de publicação (oficial) vs data de disponibilização (dia anterior)
       const dataDisponibilizacao = pub.dataDisponibilizacao || pub.dataDJe || null;
       const dataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.data || dataAtual;
       const globalHash = generateGlobalHash(conteudo, dataPublicacao);
 
-      // Check global deduplication
       const { data: existingGlobal } = await supabase
         .from('publicacoes_djen_global_hash')
         .select('id')
@@ -483,143 +445,120 @@ async function processMonitoramento(
         continue;
       }
 
-      // Check concomitant condition
       if (!matchesCondicaoConcomitante(conteudo, monitoramento.condicao_concomitante)) {
         continue;
       }
 
-      // Check exclusion criteria
       const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
       
-      // Extract process number from API or content
       const processoNumero = extractProcessoNumero(conteudo, pub.numeroProcesso || pub.processo);
       
       if (motivoExclusao) {
         await supabase.from('publicacoes_djen_descartadas').insert({
           monitoramento_id: monitoramento.id,
           hash_conteudo: hashConteudo,
+          conteudo,
           data_publicacao: dataPublicacao,
+          data_disponibilizacao: dataDisponibilizacao,
           processo_numero: processoNumero,
-          conteudo: conteudo,
-          fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
+          tribunal: tribunal || pub.siglaTribunal || null,
           motivo_descarte: `Termo de exclusão: ${motivoExclusao}`,
         });
-
-        await supabase.from('publicacoes_djen_global_hash').upsert({
+        
+        await supabase.from('publicacoes_djen_global_hash').insert({
           hash_global: globalHash,
-          primeiro_monitoramento_id: monitoramento.id,
-        }, { onConflict: 'hash_global', ignoreDuplicates: true });
+          monitoramento_id: monitoramento.id,
+        });
         
         stats.descartadas++;
         tribunalStat.descartadas++;
         continue;
       }
 
-      // Insert valid publication
-      const { data: insertedPub, error: insertError } = await supabase
+      const { data: existing } = await supabase
         .from('publicacoes_djen')
-        .insert({
-          monitoramento_id: monitoramento.id,
-          hash_conteudo: hashConteudo,
-          data_publicacao: dataPublicacao,
-          data_disponibilizacao: dataDisponibilizacao,
-          processo_numero: processoNumero,
-          conteudo: conteudo,
-          fonte: pub.fonte || pub.orgao || pub.tribunal || 'DJEN',
-        })
         .select('id')
-        .single();
+        .eq('hash_conteudo', hashConteudo)
+        .eq('monitoramento_id', monitoramento.id)
+        .maybeSingle();
 
-      if (!insertError && insertedPub) {
-        stats.novas++;
-        tribunalStat.novas++;
-        
-        await supabase.from('publicacoes_djen_global_hash').upsert({
-          hash_global: globalHash,
-          primeiro_monitoramento_id: monitoramento.id,
-          publicacao_id: insertedPub.id,
-        }, { onConflict: 'hash_global', ignoreDuplicates: true });
-        
-        // Check for "audiência" term and create alert + task
-        const audienciaInfo = detectAudiencia(conteudo);
-        if (audienciaInfo) {
-          const { data: insertedAudiencia } = await supabase.from('audiencias_detectadas').insert({
-            publicacao_id: insertedPub.id,
-            monitoramento_id: monitoramento.id,
+      if (existing) {
+        stats.duplicatas++;
+        tribunalStat.duplicatas++;
+        continue;
+      }
+
+      const { data: publicacao, error: insertError } = await supabase.from('publicacoes_djen').insert({
+        monitoramento_id: monitoramento.id,
+        hash_conteudo: hashConteudo,
+        conteudo,
+        data_publicacao: dataPublicacao,
+        data_disponibilizacao: dataDisponibilizacao,
+        processo_numero: processoNumero,
+        tribunal: tribunal || pub.siglaTribunal || null,
+        polo_ativo: pub.nomeAdvogado || null,
+        polo_passivo: pub.nomeParte || null,
+      }).select('id').single();
+
+      if (insertError) {
+        console.error(`Insert error:`, insertError);
+        continue;
+      }
+
+      await supabase.from('publicacoes_djen_global_hash').insert({
+        hash_global: globalHash,
+        monitoramento_id: monitoramento.id,
+      });
+
+      stats.novas++;
+      tribunalStat.novas++;
+
+      const audienciaInfo = detectAudiencia(conteudo);
+      if (audienciaInfo && processoNumero) {
+        const { data: existingAudiencia } = await supabase
+          .from('audiencias_detectadas')
+          .select('id')
+          .eq('publicacao_id', publicacao.id)
+          .maybeSingle();
+
+        if (!existingAudiencia) {
+          await supabase.from('audiencias_detectadas').insert({
             processo_numero: processoNumero,
-            data_audiencia: audienciaInfo.dataAudiencia,
+            monitoramento_id: monitoramento.id,
+            publicacao_id: publicacao.id,
             tipo_audiencia: audienciaInfo.tipoAudiencia,
+            data_audiencia: audienciaInfo.dataAudiencia,
             local_audiencia: audienciaInfo.localAudiencia,
             contexto: audienciaInfo.contexto,
             conteudo_publicacao: conteudo,
+            origem: 'djen_monitoramento',
             status: 'pendente',
-            origem: 'monitoramento_djen',
-          }).select('id').single();
-          
-          // Criar tarefas para responsáveis do processo (se tiver processo vinculado)
-          if (insertedAudiencia && processoNumero) {
-            // Calcular data de vencimento (2 dias antes da audiência)
-            let dataVencimentoTarefa: string;
-            if (audienciaInfo.dataAudiencia) {
-              const dataAud = new Date(audienciaInfo.dataAudiencia);
-              dataAud.setDate(dataAud.getDate() - 2);
-              dataVencimentoTarefa = dataAud.toISOString().split('T')[0];
-            } else {
-              const hoje = new Date();
-              hoje.setDate(hoje.getDate() + 5);
-              dataVencimentoTarefa = hoje.toISOString().split('T')[0];
-            }
+          });
 
-            const tarefaIds = await criarTarefasParaResponsaveis(
+          if (processoNumero) {
+            const dataVencimento = audienciaInfo.dataAudiencia 
+              ? new Date(new Date(audienciaInfo.dataAudiencia).getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
+              : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+            await criarTarefasParaResponsaveis(
               supabase,
               processoNumero,
-              `[DJEN] Audiência ${audienciaInfo.tipoAudiencia || ''} - ${processoNumero}`,
-              `Audiência detectada no DJEN.\n\nData: ${audienciaInfo.dataAudiencia || 'A definir'}\n\nContexto:\n${audienciaInfo.contexto || ''}`,
-              dataVencimentoTarefa,
+              `AUDIÊNCIA ${audienciaInfo.tipoAudiencia || ''} - ${processoNumero}`,
+              `Audiência detectada automaticamente.\n\nData: ${audienciaInfo.dataAudiencia || 'A definir'}\nLocal: ${audienciaInfo.localAudiencia || 'Não especificado'}\n\nContexto:\n${audienciaInfo.contexto}`,
+              dataVencimento,
               'alta',
-              'monitoramento_djen',
-              'Audiência', // tipo_tarefa
-              insertedPub.id // publicacao_id para vincular na tabela N:N
+              'djen_monitoramento',
+              'audiencia',
+              publicacao.id
             );
-
-            // Vincular tarefa à audiência
-            if (tarefaIds.length > 0) {
-              await supabase
-                .from('audiencias_detectadas')
-                .update({ tarefa_id: tarefaIds[0] })
-                .eq('id', insertedAudiencia.id);
-            }
           }
-          
-          // Notification for audiência detection
-          await supabase.from('notificacoes').insert({
-            usuario_id: monitoramento.criado_por,
-            titulo: '📅 Audiência Detectada!',
-            mensagem: `Audiência encontrada: ${audienciaInfo.contexto?.substring(0, 100) || 'Ver detalhes'}`,
-            tipo: 'warning',
-            link: '/painel-audiencias',
-          });
         }
-        
-        // Create notification (simplified - just for creator)
-        await supabase.from('notificacoes').insert({
-          usuario_id: monitoramento.criado_por,
-          titulo: 'Nova publicação no DJEN',
-          mensagem: `Publicação para: "${monitoramento.descricao || monitoramento.termo_busca}"`,
-          tipo: 'info',
-          link: '/analise-djen',
-        });
       }
     }
-    
+
     tribunaisStats.push(tribunalStat);
-    
-    // Small delay between tribunais
-    if (tribunais.length > 1) {
-      await delay(800);
-    }
   }
-  
+
   console.log(`Monitoramento ${monitoramento.id}: novas=${stats.novas}, descartadas=${stats.descartadas}, duplicatas=${stats.duplicatas}`);
   return { ...stats, tribunaisStats };
 }
@@ -627,78 +566,44 @@ async function processMonitoramento(
 async function fetchDJENResultsWithStats(
   params: SearchParams
 ): Promise<{ items: any[]; pages: number }> {
-  // Use only TODAY in Brasilia timezone (UTC-3) to avoid duplicates and excessive data.
-  // The nomeAdvogado parameter now correctly finds publications, so we don't need the 3-day window.
-  const now = new Date();
-  // Adjust to Brasilia timezone (UTC-3)
-  const brasiliaOffset = -3 * 60 * 60 * 1000;
-  const brasiliaTime = new Date(now.getTime() + brasiliaOffset + now.getTimezoneOffset() * 60 * 1000);
-  const todayBrasilia = brasiliaTime.toISOString().split('T')[0];
-  
-  const startDate = todayBrasilia;
-  const endDate = todayBrasilia;
-
   const allResults: any[] = [];
   let page = 0;
-  const pageSize = 100;
-  const maxPages = 50;
+  const maxPages = 10;
+
+  const now = new Date();
+  const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const dataHoje = todayBrasilia.toISOString().split('T')[0];
 
   while (page < maxPages) {
     const queryParams = new URLSearchParams();
     
-    // Prefer nomeAdvogado when provided (matches the Comunica UI "Nome do advogado")
-    // Then fallback to structured OAB, then to generic text.
-    if (params.nomeAdvogado) {
-      queryParams.append("nomeAdvogado", params.nomeAdvogado);
-    } else if (params.numeroOab) {
-      queryParams.append("numeroOab", params.numeroOab);
-      if (params.ufOab) {
-        queryParams.append("ufOab", params.ufOab);
-      }
-    } else if (params.texto) {
-      queryParams.append("texto", params.texto);
-    }
+    if (params.texto) queryParams.set('texto', params.texto);
+    if (params.numeroOab) queryParams.set('numeroOab', params.numeroOab);
+    if (params.ufOab) queryParams.set('ufOab', params.ufOab);
+    if (params.nomeAdvogado) queryParams.set('nomeAdvogado', params.nomeAdvogado);
+    if (params.siglaTribunal) queryParams.set('siglaTribunal', params.siglaTribunal);
+    
+    queryParams.set('dataDisponibilizacaoInicio', dataHoje);
+    queryParams.set('dataDisponibilizacaoFim', dataHoje);
+    queryParams.set('pagina', page.toString());
+    queryParams.set('itensPorPagina', '100');
 
-    queryParams.append("dataDisponibilizacaoInicio", startDate);
-    queryParams.append("dataDisponibilizacaoFim", endDate);
-    queryParams.append("pagina", page.toString());
-    queryParams.append("itensPorPagina", pageSize.toString());
-    
-    if (params.siglaTribunal && params.siglaTribunal !== 'TODOS' && !params.siglaTribunal.startsWith('TODOS_')) {
-      queryParams.append("siglaTribunal", params.siglaTribunal);
-    }
-    
-    const fullUrl = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
-    console.log(`Fetching: ${fullUrl}`);
-    
+    const url = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
+    console.log(`Fetching: ${url}`);
+
     try {
-      const response = await fetchWithRetry(fullUrl, {
-        method: "GET",
-        headers: browserHeaders,
-      });
-
-      const contentType = response.headers.get("content-type") || "";
+      const response = await fetchWithRetry(url, { headers: browserHeaders });
       
-      if (contentType.includes("text/html")) {
+      if (!response.ok) {
+        console.error(`API error: ${response.status}`);
         break;
       }
 
-      if (response.ok) {
-        const data = await response.json();
-        const items = data.items || data.content || data.comunicacoes || data.publicacoes || [];
-        const totalElements = data.totalElements ?? data.total ?? 0;
-        
-        if (!Array.isArray(items) || items.length === 0) {
-          break;
-        }
-        
+      const data = await response.json();
+      const items = data?.comunicacoes || data?.items || data || [];
+      
+      if (Array.isArray(items) && items.length > 0) {
         allResults.push(...items);
-        
-        if (allResults.length >= totalElements || items.length < pageSize) {
-          page++;
-          break;
-        }
-        
         page++;
         await delay(500);
       } else {
@@ -713,6 +618,76 @@ async function fetchDJENResultsWithStats(
   return { items: allResults, pages: page };
 }
 
+// Helper to save batch record to djen_lotes
+async function saveLoteRecord(
+  supabase: any,
+  runId: string,
+  loteNumero: number,
+  offset: number,
+  processedCount: number,
+  stats: {
+    novas: number;
+    descartadas: number;
+    duplicatas: number;
+    erros: number;
+    paginas: number;
+    resultados: number;
+  },
+  duration: number,
+  tribunaisStats: TribunalStats[],
+  status: 'concluido' | 'erro' = 'concluido',
+  erroMensagem?: string
+): Promise<string | null> {
+  try {
+    const { data: lote, error } = await supabase
+      .from('djen_lotes')
+      .insert({
+        run_id: runId,
+        lote_numero: loteNumero,
+        offset_inicial: offset,
+        offset_final: offset + processedCount - 1,
+        finalizado_em: new Date().toISOString(),
+        status,
+        processados: processedCount,
+        novas: stats.novas,
+        descartadas: stats.descartadas,
+        duplicatas: stats.duplicatas,
+        erros: stats.erros,
+        total_paginas: stats.paginas,
+        total_resultados: stats.resultados,
+        duracao_segundos: duration,
+        erro_mensagem: erroMensagem,
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Error saving lote:', error);
+      return null;
+    }
+
+    // Save tribunal stats for this lote
+    for (const ts of tribunaisStats) {
+      await supabase.from('djen_tribunais_lote').insert({
+        lote_id: lote.id,
+        run_id: runId,
+        tribunal: ts.tribunal || 'TODOS',
+        termos_buscados: 0, // TODO: track terms per tribunal
+        paginas: ts.paginas,
+        resultados: ts.resultados,
+        novas: ts.novas,
+        descartadas: ts.descartadas,
+        duplicatas: ts.duplicatas,
+      });
+    }
+
+    return lote.id;
+  } catch (e) {
+    console.error('Error in saveLoteRecord:', e);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -725,31 +700,28 @@ serve(async (req) => {
 
     const url = new URL(req.url);
 
-    // Body flags (cron pode enviar { completeRun: true })
     const body = await req.json().catch(() => ({} as any));
     const scheduled = body?.scheduled === true;
     const continued = body?.continued === true;
     const completeRun = body?.completeRun === true || scheduled;
+    const parentRunId = body?.parentRunId as string | undefined;
+    const retryCount = (body?.retryCount as number) || 0;
 
-    // Se não vier offset na URL, e for execução completa, começamos do zero.
-    // A continuação (próximos lotes) é feita por auto-enfileiramento com ?offset=...
     const urlOffsetRaw = url.searchParams.get('offset');
     const urlOffset = urlOffsetRaw !== null ? Number.parseInt(urlOffsetRaw, 10) : NaN;
 
     let offset = Number.isFinite(urlOffset) ? urlOffset : 0;
 
-    // Se for completeRun e NÃO for continuação, força reset para garantir ciclo completo.
     if (completeRun && !Number.isFinite(urlOffset) && !continued) {
       offset = 0;
     }
 
     console.log(`=== DJEN Monitor START ===`);
-    console.log(`  Params: offset=${offset} | scheduled=${scheduled} | completeRun=${completeRun} | continued=${continued}`);
+    console.log(`  Params: offset=${offset} | scheduled=${scheduled} | completeRun=${completeRun} | continued=${continued} | retryCount=${retryCount}`);
     console.log(`  URL offset param: ${urlOffsetRaw}`);
     console.log(`  Body: ${JSON.stringify(body).slice(0, 200)}`);
     const startTime = Date.now();
 
-    // Total active monitoramentos (used to compute hasMore correctly)
     console.log(`Counting active monitoramentos...`);
     const { count: totalActive, error: countError } = await supabase
       .from('monitoramentos_djen')
@@ -762,7 +734,6 @@ serve(async (req) => {
     }
     console.log(`Total active monitoramentos: ${totalActive}`);
 
-    // Fetch active monitoramentos with pagination
     console.log(`Fetching monitoramentos: range ${offset} to ${offset + MAX_PER_INVOCATION - 1}`);
     const { data: monitoramentos, error: fetchError } = await supabase
       .from('monitoramentos_djen')
@@ -780,78 +751,147 @@ serve(async (req) => {
     const total = totalActive || 0;
     console.log(`Fetched ${count} monitoramentos (total active: ${total})`);
 
-    // IMPORTANT: avoid writing "empty batches" to the database.
-    // BUT: if it's a scheduled/complete run at offset 0 and we find 0 monitoramentos,
-    // this indicates a potential data issue - we should log it and mark the config properly.
+    // Determine or create run_id
+    let runId = parentRunId || crypto.randomUUID();
+    const isNewRun = offset === 0 && completeRun && !continued;
+    const loteNumero = Math.floor(offset / MAX_PER_INVOCATION) + 1;
+
+    // Create run record if new
+    if (isNewRun) {
+      runId = crypto.randomUUID();
+      await supabase.from('djen_runs').insert({
+        run_id: runId,
+        status: 'em_andamento',
+        total_monitoramentos: total,
+        retry_count: retryCount,
+      });
+      console.log(`Created new run: ${runId}`);
+    }
+
+    // Handle empty batch at offset 0
     if (count === 0) {
       const duration = Math.max(1, Math.round((Date.now() - startTime) / 1000));
       console.log(`No monitoramentos to process at offset ${offset}. Total active: ${total}`);
       
-      // If this is a complete run at offset 0, ensure we reset the config properly
-      if (completeRun && offset === 0) {
-        const nowIso = new Date().toISOString();
-        await supabase
-          .from('configuracoes_monitoramento')
-          .update({
-            ultima_execucao: nowIso,
-            metadata: {
-              last_run: nowIso,
-              last_complete_run: nowIso,
-              offset_processado: 0,
-              processados: 0,
-              novas: 0,
-              descartadas: 0,
-              duplicatas: 0,
-              erros: 0,
-              duracao_s: duration,
-              has_more: false,
-              next_offset: null,
-              total_paginas: 0,
-              total_resultados: 0,
-              tribunais_stats: [],
-              djen_run: null,
-              warning: 'Nenhum monitoramento ativo encontrado',
-            },
-          })
-          .eq('tipo', 'djen');
+      // If first batch is empty and we have active monitoramentos, schedule retry
+      if (completeRun && offset === 0 && total > 0 && retryCount < MAX_RETRIES) {
+        console.log(`[DJEN] Empty results at offset 0, scheduling retry #${retryCount + 1} in ${RETRY_DELAY_MINUTES} minutes`);
         
-        // Log to history for visibility
-        await supabase.from('historico_monitoramento').insert({
-          tipo: 'djen',
-          executado_em: nowIso,
-          processos_verificados: 0,
-          novos_andamentos: 0,
-          processos_com_novos: 0,
-          erros: 0,
-          detalhes: {
-            run_id: crypto.randomUUID(),
-            started_at: nowIso,
-            descartadas: 0,
-            duplicatas: 0,
-            duracao_s: duration,
-            total_paginas: 0,
-            total_resultados: 0,
-            tribunais_stats: [],
-            warning: 'Nenhum monitoramento ativo encontrado - verifique a configuração',
-          },
-        });
+        // Update run status
+        await supabase.from('djen_runs')
+          .update({ 
+            status: 'vazio_reexecutando',
+            retry_count: retryCount + 1,
+          })
+          .eq('run_id', runId);
+        
+        // Save empty lote record
+        await saveLoteRecord(supabase, runId, loteNumero, offset, 0, {
+          novas: 0, descartadas: 0, duplicatas: 0, erros: 0, paginas: 0, resultados: 0,
+        }, duration, [], 'concluido');
+
+        // Schedule retry using EdgeRuntime.waitUntil pattern (background task)
+        const retryUrl = `${supabaseUrl}/functions/v1/monitorar-djen`;
+        const retryBody = {
+          completeRun: true,
+          scheduled: true,
+          continued: false,
+          parentRunId: runId,
+          retryCount: retryCount + 1,
+        };
+
+        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+        const incomingAuth = req.headers.get('authorization') || '';
+        const authHeader = incomingAuth.startsWith('Bearer ')
+          ? incomingAuth
+          : (supabaseAnonKey ? `Bearer ${supabaseAnonKey}` : '');
+
+        // Use setTimeout-style retry after delay
+        setTimeout(async () => {
+          try {
+            await fetch(retryUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': authHeader,
+              },
+              body: JSON.stringify(retryBody),
+            });
+            console.log(`[DJEN] Retry request sent`);
+          } catch (e) {
+            console.error(`[DJEN] Failed to send retry request:`, e);
+          }
+        }, RETRY_DELAY_MINUTES * 60 * 1000);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            processados: 0,
+            novasPublicacoes: 0,
+            hasMore: false,
+            scheduledRetry: true,
+            retryInMinutes: RETRY_DELAY_MINUTES,
+            retryCount: retryCount + 1,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
+      
+      // Normal empty case (no active monitoramentos or max retries reached)
+      const nowIso = new Date().toISOString();
+      const finalStatus = retryCount >= MAX_RETRIES ? 'erro' : 'concluido';
+      const errorMsg = retryCount >= MAX_RETRIES 
+        ? `Máximo de ${MAX_RETRIES} tentativas atingido sem resultados` 
+        : (total === 0 ? 'Nenhum monitoramento ativo encontrado' : undefined);
+
+      if (isNewRun || parentRunId) {
+        await supabase.from('djen_runs')
+          .update({ 
+            status: finalStatus,
+            finalizado_em: nowIso,
+            motivo_erro: errorMsg,
+          })
+          .eq('run_id', runId);
+      }
+
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          ultima_execucao: nowIso,
+          metadata: {
+            last_run: nowIso,
+            last_complete_run: nowIso,
+            offset_processado: 0,
+            processados: 0,
+            novas: 0,
+            has_more: false,
+            warning: errorMsg,
+          },
+        })
+        .eq('tipo', 'djen');
+      
+      await supabase.from('historico_monitoramento').insert({
+        tipo: 'djen',
+        executado_em: nowIso,
+        processos_verificados: 0,
+        novos_andamentos: 0,
+        processos_com_novos: 0,
+        erros: 0,
+        detalhes: {
+          run_id: runId,
+          started_at: nowIso,
+          warning: errorMsg,
+          retry_count: retryCount,
+        },
+      });
       
       return new Response(
         JSON.stringify({
           success: true,
           processados: 0,
           novasPublicacoes: 0,
-          descartadas: 0,
-          duplicatas: 0,
-          erros: 0,
-          duracaoSegundos: duration,
-          totalPaginas: 0,
-          totalResultados: 0,
-          tribunaisStats: [],
           hasMore: false,
-          nextOffset: null,
-          warning: total === 0 ? 'Nenhum monitoramento ativo encontrado' : undefined,
+          warning: errorMsg,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -869,7 +909,6 @@ serve(async (req) => {
     const allTribunaisStats: TribunalStats[] = [];
 
     for (const mon of (monitoramentos || [])) {
-      // Soft timeout guard: stop early and let the queued continuation continue with nextOffset.
       if (Date.now() - startTime > SOFT_TIMEOUT_MS) {
         console.log(`Soft timeout reached at ${Math.round((Date.now() - startTime) / 1000)}s. Stopping batch early.`);
         break;
@@ -884,12 +923,10 @@ serve(async (req) => {
         totalDescartadas += stats.descartadas;
         totalDuplicatas += stats.duplicatas;
 
-        // Aggregate tribunal stats
         for (const ts of stats.tribunaisStats) {
           totalPaginas += ts.paginas;
           totalResultados += ts.resultados;
 
-          // Merge with existing tribunal stats
           const existing = allTribunaisStats.find(t => t.tribunal === ts.tribunal);
           if (existing) {
             existing.paginas += ts.paginas;
@@ -916,6 +953,25 @@ serve(async (req) => {
     const nextOffset = hasMore ? offset + processedCount : null;
 
     allTribunaisStats.sort((a, b) => b.resultados - a.resultados);
+
+    // Save lote record
+    await saveLoteRecord(
+      supabase,
+      runId,
+      loteNumero,
+      offset,
+      processedCount,
+      {
+        novas: totalNovas,
+        descartadas: totalDescartadas,
+        duplicatas: totalDuplicatas,
+        erros: errorCount,
+        paginas: totalPaginas,
+        resultados: totalResultados,
+      },
+      duration,
+      allTribunaisStats
+    );
 
     // Load current config metadata to accumulate a full "run" across multiple batches
     const { data: configRow, error: configError } = await supabase
@@ -949,12 +1005,11 @@ serve(async (req) => {
 
     let run: DjenRun | null = (currentMeta?.djen_run as DjenRun) ?? null;
 
-    // Reset run when starting a new complete cycle (offset=0 and not continued)
     const shouldResetRun = offset === 0 && completeRun && !continued;
 
     if (shouldResetRun || !run || typeof run !== 'object' || !run.run_id || !run.totals || !run.tribunais) {
       run = {
-        run_id: crypto.randomUUID(),
+        run_id: runId,
         started_at: nowIso,
         totals: {
           processados: 0,
@@ -970,7 +1025,6 @@ serve(async (req) => {
       };
     }
 
-    // Accumulate totals for the full run
     run.totals.processados += processedCount;
     run.totals.novas += totalNovas;
     run.totals.descartadas += totalDescartadas;
@@ -980,7 +1034,6 @@ serve(async (req) => {
     run.totals.total_paginas += totalPaginas;
     run.totals.total_resultados += totalResultados;
 
-    // Accumulate tribunal breakdown for the full run
     for (const ts of allTribunaisStats) {
       const tribunalKey = ts.tribunal ?? 'TODOS';
       const existing = run.tribunais[tribunalKey];
@@ -1043,7 +1096,6 @@ serve(async (req) => {
       last_complete_run: hasMore ? (currentMeta?.last_complete_run ?? null) : nowIso,
     };
 
-    // Update config (only set ultima_execucao when the run starts)
     const updatePayload: Record<string, any> = {
       metadata: updatedMeta,
     };
@@ -1056,8 +1108,23 @@ serve(async (req) => {
       .update(updatePayload)
       .eq('tipo', 'djen');
 
-    // Persist a single report for the full run when it completes (hasMore=false)
+    // Update run record and create history when complete
     if (!hasMore && run) {
+      await supabase.from('djen_runs')
+        .update({
+          status: 'concluido',
+          finalizado_em: nowIso,
+          processados: run.totals.processados,
+          novas: run.totals.novas,
+          descartadas: run.totals.descartadas,
+          duplicatas: run.totals.duplicatas,
+          erros: run.totals.erros,
+          total_paginas: run.totals.total_paginas,
+          total_resultados: run.totals.total_resultados,
+          duracao_segundos: run.totals.duracao_s,
+        })
+        .eq('run_id', runId);
+
       await supabase.from('historico_monitoramento').insert({
         tipo: 'djen',
         executado_em: nowIso,
@@ -1078,15 +1145,14 @@ serve(async (req) => {
       });
     }
 
-    // Auto-continuation: guarantees a complete cycle even with many monitoramentos.
-    // IMPORTANT: we MUST await the enqueue request; background fetches may be cancelled.
+    // Auto-continuation
     if (completeRun && hasMore && typeof nextOffset === 'number') {
       const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen?offset=${nextOffset}`;
       const nextBody = {
         completeRun: true,
         scheduled: true,
         continued: true,
-        parentRunId: run?.run_id,
+        parentRunId: runId,
       };
 
       const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
@@ -1138,6 +1204,7 @@ serve(async (req) => {
         hasMore,
         nextOffset,
         queuedNext: completeRun && hasMore,
+        runId,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
