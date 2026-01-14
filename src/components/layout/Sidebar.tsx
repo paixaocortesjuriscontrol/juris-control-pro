@@ -10,7 +10,6 @@ import {
   Settings, 
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   ShieldCheck,
   ExternalLink,
   Upload,
@@ -62,15 +61,10 @@ const menuItems = [
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
 ];
 
-const importarSubItems = [
-  { label: "Importar Processos", path: "/importar" },
-  { label: "Importar Tarefas", path: "/importar-tarefas" },
-];
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [importarOpen, setImportarOpen] = useState(false);
 
   const SidebarContent = () => (
     <>
@@ -109,46 +103,19 @@ export function Sidebar() {
         ))}
 
         {/* Menu Importar Dados */}
-        <div>
-          <button
-            onClick={() => setImportarOpen(!importarOpen)}
-            className={cn(
-              "nav-item w-full justify-between",
-              importarOpen && "bg-sidebar-accent"
-            )}
-          >
-            <div className="flex items-center gap-3">
-              <Upload className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span className="text-sm font-medium">Importar Dados</span>}
-            </div>
-            {!collapsed && (
-              <ChevronDown className={cn(
-                "w-4 h-4 transition-transform",
-                importarOpen && "rotate-180"
-              )} />
-            )}
-          </button>
-          
-          {importarOpen && !collapsed && (
-            <div className="ml-8 mt-1 space-y-1">
-              {importarSubItems.map((subItem) => (
-                <NavLink
-                  key={subItem.path}
-                  to={subItem.path}
-                  onClick={() => setMobileOpen(false)}
-                  className={({ isActive }) =>
-                    cn(
-                      "nav-item py-2",
-                      isActive && "nav-item-active"
-                    )
-                  }
-                >
-                  <span className="text-sm">{subItem.label}</span>
-                </NavLink>
-              ))}
-            </div>
-          )}
-        </div>
+        <NavLink
+          to="/importar"
+          onClick={() => setMobileOpen(false)}
+          className={({ isActive }) =>
+            cn(
+              "nav-item",
+              isActive && "nav-item-active"
+            )
+          }
+        >
+          <Upload className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span className="text-sm font-medium">Importar Dados</span>}
+        </NavLink>
       </nav>
 
       {/* Settings & Collapse */}
