@@ -26,7 +26,8 @@ import {
   Brain,
   Library,
   FileWarning,
-  KeyRound
+  KeyRound,
+  Activity
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ const menuItems = [
   { icon: Library, label: "Repositório IA", path: "/repositorio" },
   { icon: Brain, label: "Assistente IA", path: "/assistente-juridico" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
+  { icon: Activity, label: "Rel. Execuções", path: "/relatorio-execucoes" },
 ];
 
 
