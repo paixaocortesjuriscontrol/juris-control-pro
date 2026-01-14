@@ -154,8 +154,10 @@ const Relatorios = () => {
       return;
     }
 
-    const pick = (key: string, fallback: any) =>
-      results.find((r) => r.key === key && r.ok)?.data ?? fallback;
+    const pick = (key: string, fallback: any) => {
+      const found = results.find((r) => r.key === key && r.ok);
+      return found && "data" in found ? found.data : fallback;
+    };
 
     const nextResumo = pick("resumo", resumoData);
     const nextPrazos = pick("prazos", prazosData);
