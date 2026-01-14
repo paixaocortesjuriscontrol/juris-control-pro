@@ -9,8 +9,9 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2 } from "lucide-react";
+import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
+import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
@@ -50,12 +51,17 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     atualizarConfiguracao 
   } = useConfiguracoesMonitoramento(coordenacaoId);
 
+  const { runs } = useDjenRunsHistory();
+
   const [executando, setExecutando] = useState(false);
   const [progresso, setProgresso] = useState({ atual: 0, total: 0, novas: 0 });
   const [ultimoResultado, setUltimoResultado] = useState<ExecutionResult | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [selectedRunId, setSelectedRunId] = useState<string>('');
+  const [runsHistoryOpen, setRunsHistoryOpen] = useState(false);
+  const { runDetails } = useDjenRunDetails(selectedRunId);
   
-  // Fetch last execution report from historico_monitoramento
+  // Fetch last execution report from historico_monitoramento and new djen_runs table
   const { data: ultimoHistorico } = useQuery({
     queryKey: ['historico-monitoramento-djen'],
     queryFn: async () => {
@@ -71,8 +77,11 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       if (error) throw error;
       return data;
     },
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 60000,
   });
+
+  // Latest run from the new table
+  const latestRun = runs && runs.length > 0 ? runs[0] : null;
 
   // Fetch configured tribunals (from active DJEN terms) so the report can show
   // tribunals even when the last execution batch didn't reach those terms yet.
@@ -374,11 +383,14 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
               <SelectValue placeholder="Selecione a frequência" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="diario">Diário (8h BRT)</SelectItem>
-              <SelectItem value="2x_dia">2x ao dia (8h e 18h BRT)</SelectItem>
-              <SelectItem value="semanal">Semanal (Segunda 8h BRT)</SelectItem>
+              <SelectItem value="diario">Diário (8:30h BRT)</SelectItem>
+              <SelectItem value="2x_dia">2x ao dia (8:30h e 18:30h BRT)</SelectItem>
+              <SelectItem value="semanal">Semanal (Segunda 8:30h BRT)</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground mt-1">
+            ⚠️ Horários atualizados para 08:30/18:30 (BRT) com retry automático se vazio
+          </p>
         </div>
 
         {/* Última execução */}
