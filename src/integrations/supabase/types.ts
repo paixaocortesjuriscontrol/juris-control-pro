@@ -1093,6 +1093,194 @@ export type Database = {
           },
         ]
       }
+      djen_lotes: {
+        Row: {
+          created_at: string
+          descartadas: number | null
+          duplicatas: number | null
+          duracao_segundos: number | null
+          erro_mensagem: string | null
+          erros: number | null
+          finalizado_em: string | null
+          id: string
+          iniciado_em: string
+          lote_numero: number
+          novas: number | null
+          offset_final: number
+          offset_inicial: number
+          processados: number | null
+          run_id: string
+          status: string
+          total_paginas: number | null
+          total_resultados: number | null
+        }
+        Insert: {
+          created_at?: string
+          descartadas?: number | null
+          duplicatas?: number | null
+          duracao_segundos?: number | null
+          erro_mensagem?: string | null
+          erros?: number | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          lote_numero: number
+          novas?: number | null
+          offset_final: number
+          offset_inicial: number
+          processados?: number | null
+          run_id: string
+          status?: string
+          total_paginas?: number | null
+          total_resultados?: number | null
+        }
+        Update: {
+          created_at?: string
+          descartadas?: number | null
+          duplicatas?: number | null
+          duracao_segundos?: number | null
+          erro_mensagem?: string | null
+          erros?: number | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          lote_numero?: number
+          novas?: number | null
+          offset_final?: number
+          offset_inicial?: number
+          processados?: number | null
+          run_id?: string
+          status?: string
+          total_paginas?: number | null
+          total_resultados?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "djen_lotes_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "djen_runs"
+            referencedColumns: ["run_id"]
+          },
+        ]
+      }
+      djen_runs: {
+        Row: {
+          created_at: string
+          descartadas: number | null
+          duplicatas: number | null
+          duracao_segundos: number | null
+          erros: number | null
+          finalizado_em: string | null
+          id: string
+          iniciado_em: string
+          motivo_erro: string | null
+          novas: number | null
+          processados: number | null
+          retry_count: number | null
+          run_id: string
+          status: string
+          total_monitoramentos: number | null
+          total_paginas: number | null
+          total_resultados: number | null
+        }
+        Insert: {
+          created_at?: string
+          descartadas?: number | null
+          duplicatas?: number | null
+          duracao_segundos?: number | null
+          erros?: number | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          motivo_erro?: string | null
+          novas?: number | null
+          processados?: number | null
+          retry_count?: number | null
+          run_id: string
+          status?: string
+          total_monitoramentos?: number | null
+          total_paginas?: number | null
+          total_resultados?: number | null
+        }
+        Update: {
+          created_at?: string
+          descartadas?: number | null
+          duplicatas?: number | null
+          duracao_segundos?: number | null
+          erros?: number | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          motivo_erro?: string | null
+          novas?: number | null
+          processados?: number | null
+          retry_count?: number | null
+          run_id?: string
+          status?: string
+          total_monitoramentos?: number | null
+          total_paginas?: number | null
+          total_resultados?: number | null
+        }
+        Relationships: []
+      }
+      djen_tribunais_lote: {
+        Row: {
+          created_at: string
+          descartadas: number | null
+          duplicatas: number | null
+          id: string
+          lote_id: string
+          novas: number | null
+          paginas: number | null
+          resultados: number | null
+          run_id: string
+          termos_buscados: number | null
+          tribunal: string
+        }
+        Insert: {
+          created_at?: string
+          descartadas?: number | null
+          duplicatas?: number | null
+          id?: string
+          lote_id: string
+          novas?: number | null
+          paginas?: number | null
+          resultados?: number | null
+          run_id: string
+          termos_buscados?: number | null
+          tribunal: string
+        }
+        Update: {
+          created_at?: string
+          descartadas?: number | null
+          duplicatas?: number | null
+          id?: string
+          lote_id?: string
+          novas?: number | null
+          paginas?: number | null
+          resultados?: number | null
+          run_id?: string
+          termos_buscados?: number | null
+          tribunal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "djen_tribunais_lote_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "djen_lotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "djen_tribunais_lote_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "djen_runs"
+            referencedColumns: ["run_id"]
+          },
+        ]
+      }
       documentos: {
         Row: {
           analisado_ia: boolean | null
