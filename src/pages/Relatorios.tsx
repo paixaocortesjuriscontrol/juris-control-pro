@@ -224,42 +224,8 @@ const Relatorios = () => {
       // Aguarda render completo de todos os gráficos e seções
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      // Mapear posições de tabelas e quebras manuais (para evitar que iniciem no fim da página)
-      // Usamos marcadores [data-pdf-page-break] para forçar páginas exatamente onde o relatório define.
+      // Captura por páginas (mais confiável que "fatiar" um único canvas)
       const captureScale = 2;
-      const rootRect = element.getBoundingClientRect();
-
-      const pageBreaksPx = Array.from(element.querySelectorAll("[data-pdf-page-break]"))
-        .map((el) => (el.getBoundingClientRect().top - rootRect.top) * captureScale)
-        .filter((y) => y > 10)
-        .sort((a, b) => a - b);
-
-      const tableTopBreaksPx = Array.from(element.querySelectorAll("table"))
-        .filter((t) => !(t as HTMLTableElement).hasAttribute("data-pdf-allow-split"))
-        .map((t) => (t.getBoundingClientRect().top - rootRect.top) * captureScale)
-        .filter((y) => y > 0)
-        .sort((a, b) => a - b);
-
-      const canvas = await html2canvas(element, {
-        scale: captureScale,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        windowWidth: 794, // A4 width in pixels at 96 DPI
-      });
-
-      // Restaurar estado original
-      element.className = originalClassName;
-      element.style.position = "";
-      element.style.left = "";
-      element.style.top = "";
-      element.style.width = "";
-      element.style.background = "";
-      element.style.zIndex = "";
-      element.style.display = "";
-
-      completed++;
-      setExportProgress(Math.round((completed / totalSteps) * 100));
 
       const pdf = new jsPDF({
         orientation: "portrait",
@@ -278,84 +244,53 @@ const Relatorios = () => {
       const contentWidth = pdfWidth - marginLeft - marginRight;
       const contentHeight = pdfHeight - marginTop - marginBottom;
 
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = contentWidth / imgWidth;
+      const pages = Array.from(element.querySelectorAll("[data-pdf-page]")) as HTMLElement[];
+      const pageElements = pages.length > 0 ? pages : ([element] as HTMLElement[]);
 
-      // Altura em pixels por página (no canvas)
-      const pageHeightInPx = contentHeight / ratio;
+      for (let i = 0; i < pageElements.length; i++) {
+        if (i > 0) pdf.addPage();
 
-      let sourceY = 0;
-      let page = 0;
+        const pageEl = pageElements[i];
+        const canvas = await html2canvas(pageEl, {
+          scale: captureScale,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+          windowWidth: 794, // A4 width in pixels at 96 DPI
+        });
 
-      while (sourceY < imgHeight - 1) {
-        if (page > 0) pdf.addPage();
+        const imgData = canvas.toDataURL("image/png");
 
-        // tamanho padrão do recorte
-        let sliceHeight = Math.min(pageHeightInPx, imgHeight - sourceY);
+        // Ajuste automático para caber na página (evita "quebrar" tabelas e começar em páginas erradas)
+        const widthRatio = contentWidth / canvas.width;
+        const heightRatio = contentHeight / canvas.height;
+        const ratio = Math.min(widthRatio, heightRatio);
 
-        // Se existe uma quebra manual definida no layout, respeitar.
-        const nextManualBreak = pageBreaksPx.find((b) => b > sourceY + 2);
-        if (nextManualBreak) {
-          const maxUntilBreak = nextManualBreak - sourceY;
-          // Se o marcador cair dentro da altura desta página, quebramos exatamente ali.
-          if (maxUntilBreak > 8 && maxUntilBreak < sliceHeight + 8) {
-            sliceHeight = Math.min(sliceHeight, maxUntilBreak);
-          }
-        }
-
-        const pageEnd = sourceY + sliceHeight;
-
-        // Se existir uma tabela começando dentro do intervalo desta página,
-        // encerramos a página antes dela para a tabela iniciar no topo da próxima.
-        const safePageEnd = nextManualBreak ? Math.min(pageEnd, nextManualBreak - 24) : pageEnd;
-        const nextTableTop = tableTopBreaksPx.find((t) => t > sourceY + 24 && t < safePageEnd - 24);
-
-        if (nextTableTop) {
-          sliceHeight = Math.max(64, nextTableTop - sourceY);
-        }
-
-        // Evitar loop infinito por arredondamento
-        if (sliceHeight < 8) {
-          sliceHeight = Math.min(64, imgHeight - sourceY);
-        }
-
-        const pageCanvas = document.createElement("canvas");
-        pageCanvas.width = canvas.width;
-        pageCanvas.height = Math.min(sliceHeight, imgHeight - sourceY);
-
-        const ctx = pageCanvas.getContext("2d");
-        if (ctx) {
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-          ctx.drawImage(
-            canvas,
-            0,
-            sourceY,
-            canvas.width,
-            pageCanvas.height,
-            0,
-            0,
-            canvas.width,
-            pageCanvas.height
-          );
-        }
-
-        const pageImgData = pageCanvas.toDataURL("image/png");
-        const pageScaledHeight = pageCanvas.height * ratio;
+        const renderW = canvas.width * ratio;
+        const renderH = canvas.height * ratio;
 
         pdf.addImage(
-          pageImgData,
+          imgData,
           "PNG",
-          marginLeft,
+          marginLeft + (contentWidth - renderW) / 2,
           marginTop,
-          contentWidth,
-          pageScaledHeight
+          renderW,
+          renderH
         );
-
-        sourceY += pageCanvas.height;
-        page++;
       }
+
+      // Restaurar estado original
+      element.className = originalClassName;
+      element.style.position = "";
+      element.style.left = "";
+      element.style.top = "";
+      element.style.width = "";
+      element.style.background = "";
+      element.style.zIndex = "";
+      element.style.display = "";
+
+      completed++;
+      setExportProgress(Math.round((completed / totalSteps) * 100));
 
       // Gerar nome do arquivo
       const dataAtual = format(new Date(), "ddMMyyyy");
