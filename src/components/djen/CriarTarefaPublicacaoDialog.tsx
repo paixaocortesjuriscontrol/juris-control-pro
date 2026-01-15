@@ -265,17 +265,17 @@ export function CriarTarefaPublicacaoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] w-[95vw] p-0 gap-0">
-        <DialogHeader className="p-4 pb-2 border-b">
+      <DialogContent className="max-w-6xl max-h-[90vh] w-[95vw] p-0 gap-0 overflow-hidden">
+        <DialogHeader className="p-4 pb-2 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base">
             <FileText className="w-5 h-5" />
             Publicação
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col lg:flex-row h-[calc(90vh-80px)]">
-          {/* Lado Esquerdo - Conteúdo da Publicação */}
-          <div className="flex-1 border-r overflow-hidden flex flex-col">
+        <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden min-h-0">
+          {/* Lado Esquerdo - Conteúdo da Publicação (oculto no mobile para priorizar o formulário) */}
+          <div className="hidden lg:flex flex-1 border-r overflow-hidden flex-col">
             <div className="p-4 border-b bg-muted/30">
               <div className="flex flex-wrap gap-2 mb-3">
                 {publicacao.tipo_origem === 'termo' ? (
@@ -365,8 +365,8 @@ export function CriarTarefaPublicacaoDialog({
           </div>
 
           {/* Lado Direito - Formulário de Tarefa */}
-          <div className="w-full lg:w-[400px] flex flex-col bg-muted/10">
-            <div className="p-4 border-b bg-primary/5">
+          <div className="w-full lg:w-[400px] flex flex-col bg-muted/10 min-h-0">
+            <div className="p-4 border-b bg-primary/5 shrink-0">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold flex items-center gap-2">
@@ -396,7 +396,7 @@ export function CriarTarefaPublicacaoDialog({
               </div>
             </div>
 
-            <ScrollArea className="flex-1 p-4">
+            <div className="flex-1 overflow-y-auto p-4 pb-24 lg:pb-4">
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   {!publicacao.processo_id && (
@@ -594,7 +594,7 @@ export function CriarTarefaPublicacaoDialog({
                   </div>
                 </form>
               </Form>
-            </ScrollArea>
+            </div>
           </div>
         </div>
       </DialogContent>
