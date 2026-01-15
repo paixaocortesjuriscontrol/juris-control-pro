@@ -46,6 +46,7 @@ import {
   ListChecks,
   User,
   AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
@@ -99,6 +100,7 @@ export function CriarTarefaPublicacaoDialog({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
+  const [observacoesIA, setObservacoesIA] = useState<string | null>(null);
 
   const hoje = format(new Date(), "yyyy-MM-dd");
 
@@ -127,6 +129,7 @@ export function CriarTarefaPublicacaoDialog({
         data_fatal: "",
         prioridade: "alta",
       });
+      setObservacoesIA(null);
     }
   }, [open, publicacao?.id, form]);
 
@@ -390,6 +393,7 @@ export function CriarTarefaPublicacaoDialog({
                     form.setValue("descricao", resultado.descricao);
                     form.setValue("prioridade", resultado.prioridade);
                     form.setValue("data_vencimento", resultado.data_vencimento);
+                    setObservacoesIA(resultado.observacoes || "Campos preenchidos automaticamente. Revise antes de salvar.");
                   }}
                   size="sm"
                 />
@@ -551,6 +555,20 @@ export function CriarTarefaPublicacaoDialog({
                       )}
                     />
                   </div>
+
+                  {observacoesIA && (
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Sparkles className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium text-emerald-700 dark:text-emerald-400">Análise da IA</p>
+                          <p className="text-emerald-600 dark:text-emerald-500 text-xs mt-1">
+                            {observacoesIA}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <FormField
                     control={form.control}
