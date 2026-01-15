@@ -541,9 +541,12 @@ export function CriarTarefaPublicacaoDialog({
                         <FormItem>
                           <FormLabel>Data Fatal</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} />
+                            <Input 
+                              type="date" 
+                              {...field} 
+                              value={field.value || ""} 
+                            />
                           </FormControl>
-                          <FormMessage />
                         </FormItem>
                       )}
                     />
