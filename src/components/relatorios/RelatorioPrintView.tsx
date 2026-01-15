@@ -29,11 +29,12 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
     const showClientes = mode === "completo" || mode === "clientes";
     const showCompleto = mode === "completo" && completoData;
 
+    // Numeração das seções - Dashboard (Visão Geral) sempre primeira no modo completo
     let idx = 0;
+    const numDashboard = showCompleto ? ++idx : 0;
     const numResumo = showResumo ? ++idx : 0;
     const numAtividades = showAtividades ? ++idx : 0;
     const numClientes = showClientes ? ++idx : 0;
-    const numDashboard = showCompleto ? ++idx : 0;
     const numCoordenacoes = showCompleto ? ++idx : 0;
     const numAudiencias = showCompleto ? ++idx : 0;
     const numIntimacoes = showCompleto ? ++idx : 0;
@@ -50,52 +51,52 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             : "Análise por Clientes";
 
     return (
-      <div ref={ref} className="bg-white text-black p-6 pdf-capture-hidden" style={{ fontFamily: 'Arial, sans-serif', maxWidth: '210mm' }}>
-        {/* Cabeçalho */}
-        <div className="text-center border-b-2 border-gray-800 pb-4 mb-6 print-no-break">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">RELATÓRIO GERENCIAL</h1>
-          <p className="text-base text-gray-600">{subtitle}</p>
-          <p className="text-xs text-gray-500 mt-1">Gerado em: {dataGeracao}</p>
-        </div>
+      <div ref={ref} className="bg-white text-black p-8 pdf-capture-hidden" style={{ fontFamily: 'Arial, sans-serif', maxWidth: '210mm' }}>
+        {/* Cabeçalho Executivo */}
+        <header className="text-center border-b-2 border-gray-800 pb-6 mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-wide">RELATÓRIO GERENCIAL</h1>
+          <p className="text-lg text-gray-700 font-medium">{subtitle}</p>
+          <p className="text-sm text-gray-500 mt-2">Gerado em: {dataGeracao}</p>
+        </header>
 
-        {/* ========== SEÇÃO DASHBOARD ========== */}
-        {showCompleto && completoData?.dashboardStats && (
-          <section className="mb-12 report-section">
+        {/* ========== SEÇÃO DASHBOARD - PRIMEIRA NO MODO COMPLETO ========== */}
+        {showCompleto && (
+          <section className="mb-10 report-section-first">
             <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-indigo-600 pb-2 mb-6">
               {numDashboard}. VISÃO GERAL DO ESCRITÓRIO
             </h2>
 
-            <div className="grid grid-cols-4 gap-4 mb-8">
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-blue-600">{completoData.dashboardStats.totalProcessos}</p>
-                <p className="text-sm text-gray-600">Total Processos</p>
+            <div className="grid grid-cols-4 gap-3 mb-6 print-no-break">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
+                <p className="text-3xl font-bold text-blue-600">{completoData?.dashboardStats?.totalProcessos ?? 0}</p>
+                <p className="text-sm text-gray-600 mt-1">Total Processos</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-green-600">{completoData.dashboardStats.processosAtivos}</p>
-                <p className="text-sm text-gray-600">Ativos</p>
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
+                <p className="text-3xl font-bold text-green-600">{completoData?.dashboardStats?.processosAtivos ?? 0}</p>
+                <p className="text-sm text-gray-600 mt-1">Ativos</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-purple-600">{completoData.dashboardStats.processosDistribuidos}</p>
-                <p className="text-sm text-gray-600">Distribuídos</p>
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
+                <p className="text-3xl font-bold text-purple-600">{completoData?.dashboardStats?.processosDistribuidos ?? 0}</p>
+                <p className="text-sm text-gray-600 mt-1">Distribuídos</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-amber-600">{completoData.dashboardStats.processosNaoDistribuidos}</p>
-                <p className="text-sm text-gray-600">Não Distribuídos</p>
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
+                <p className="text-3xl font-bold text-amber-600">{completoData?.dashboardStats?.processosNaoDistribuidos ?? 0}</p>
+                <p className="text-sm text-gray-600 mt-1">Não Distribuídos</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-red-600">{completoData.dashboardStats.prazosUrgentes}</p>
-                <p className="text-sm text-gray-600">Prazos Urgentes (3 dias)</p>
+            <div className="grid grid-cols-3 gap-3 mb-6 print-no-break">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
+                <p className="text-3xl font-bold text-red-600">{completoData?.dashboardStats?.prazosUrgentes ?? 0}</p>
+                <p className="text-sm text-gray-600 mt-1">Prazos Urgentes (3 dias)</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-blue-600">{completoData.dashboardStats.totalAdvogados}</p>
-                <p className="text-sm text-gray-600">Advogados Cadastrados</p>
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
+                <p className="text-3xl font-bold text-blue-600">{completoData?.dashboardStats?.totalAdvogados ?? 0}</p>
+                <p className="text-sm text-gray-600 mt-1">Advogados Cadastrados</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-indigo-600">{completoData.dashboardStats.totalCoordenacoes}</p>
-                <p className="text-sm text-gray-600">Coordenações</p>
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
+                <p className="text-3xl font-bold text-indigo-600">{completoData?.dashboardStats?.totalCoordenacoes ?? 0}</p>
+                <p className="text-sm text-gray-600 mt-1">Coordenações</p>
               </div>
             </div>
           </section>
@@ -431,33 +432,33 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
 
         {/* ========== SEÇÃO COORDENAÇÕES ========== */}
         {showCompleto && completoData?.coordenacoes && completoData.coordenacoes.length > 0 && (
-          <section className="mb-12 report-section">
+          <section className="mb-10 report-section">
             <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-teal-600 pb-2 mb-6">
               {numCoordenacoes}. ESTRUTURA DAS COORDENAÇÕES
             </h2>
 
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
+            <div className="grid grid-cols-3 gap-3 mb-6 print-no-break stat-card-group">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
                 <p className="text-3xl font-bold text-teal-600">{completoData.coordenacoes.length}</p>
-                <p className="text-sm text-gray-600">Coordenações</p>
+                <p className="text-sm text-gray-600 mt-1">Coordenações</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
                 <p className="text-3xl font-bold text-blue-600">
                   {completoData.coordenacoes.reduce((acc, c) => acc + c.totalMembros, 0)}
                 </p>
-                <p className="text-sm text-gray-600">Total de Membros</p>
+                <p className="text-sm text-gray-600 mt-1">Total de Membros</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
                 <p className="text-3xl font-bold text-purple-600">
                   {completoData.coordenacoes.reduce((acc, c) => acc + c.totalProcessos, 0)}
                 </p>
-                <p className="text-sm text-gray-600">Processos Vinculados</p>
+                <p className="text-sm text-gray-600 mt-1">Processos Vinculados</p>
               </div>
             </div>
 
             {/* Tabela resumo por coordenação */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">{numCoordenacoes}.1 Resumo por Coordenação</h3>
+            <div className="mb-6 print-no-break">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">{numCoordenacoes}.1 Resumo por Coordenação</h3>
               <table className="w-full border-collapse border border-gray-300 text-sm">
                 <thead>
                   <tr className="bg-gray-100">
@@ -484,13 +485,13 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
               </table>
             </div>
 
-            {/* Detalhamento por membro */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">{numCoordenacoes}.2 Processos por Membro</h3>
+            {/* Detalhamento por membro - cada coordenação em bloco separado */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">{numCoordenacoes}.2 Processos por Membro</h3>
               {completoData.coordenacoes.map((coord) => (
                 coord.membros.length > 0 && (
-                  <div key={coord.id} className="mb-6">
-                    <h4 className="text-base font-medium text-gray-700 mb-2 bg-gray-50 px-3 py-2 rounded">
+                  <div key={coord.id} className="mb-4 coord-detail-section print-no-break">
+                    <h4 className="text-base font-medium text-gray-700 mb-2 bg-gray-50 px-3 py-2 rounded border-l-4 border-teal-500">
                       {coord.nome} ({coord.membros.length} membros)
                     </h4>
                     <table className="w-full border-collapse border border-gray-300 text-sm">
@@ -520,38 +521,35 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
 
         {/* ========== SEÇÃO AUDIÊNCIAS ========== */}
         {showCompleto && completoData?.audienciasStats && (
-          <section className="mb-12 report-section">
+          <section className="mb-10 report-section">
             <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-orange-600 pb-2 mb-6">
               {numAudiencias}. PAINEL DE AUDIÊNCIAS
             </h2>
 
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-gray-800">{completoData.audienciasStats.total}</p>
-                <p className="text-sm text-gray-600">Total de Audiências</p>
+            <div className="grid grid-cols-6 gap-3 mb-6 print-no-break stat-card-group">
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-gray-800">{completoData.audienciasStats.total}</p>
+                <p className="text-xs text-gray-600 mt-1">Total</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-amber-600">{completoData.audienciasStats.pendentes}</p>
-                <p className="text-sm text-gray-600">Pendentes</p>
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-amber-600">{completoData.audienciasStats.pendentes}</p>
+                <p className="text-xs text-gray-600 mt-1">Pendentes</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-red-600">{completoData.audienciasStats.proximas7Dias}</p>
-                <p className="text-sm text-gray-600">Próx. 7 Dias</p>
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-red-600">{completoData.audienciasStats.proximas7Dias}</p>
+                <p className="text-xs text-gray-600 mt-1">Próx. 7 Dias</p>
               </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-green-600">{completoData.audienciasStats.confirmadas}</p>
-                <p className="text-sm text-gray-600">Confirmadas</p>
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-green-600">{completoData.audienciasStats.confirmadas}</p>
+                <p className="text-xs text-gray-600 mt-1">Confirmadas</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-blue-600">{completoData.audienciasStats.tratadas}</p>
-                <p className="text-sm text-gray-600">Tratadas</p>
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-blue-600">{completoData.audienciasStats.tratadas}</p>
+                <p className="text-xs text-gray-600 mt-1">Tratadas</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-gray-500">{completoData.audienciasStats.ignoradas}</p>
-                <p className="text-sm text-gray-600">Ignoradas</p>
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-gray-500">{completoData.audienciasStats.ignoradas}</p>
+                <p className="text-xs text-gray-600 mt-1">Ignoradas</p>
               </div>
             </div>
           </section>
@@ -559,38 +557,35 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
 
         {/* ========== SEÇÃO INTIMAÇÕES ========== */}
         {showCompleto && completoData?.intimacoesStats && (
-          <section className="mb-12 report-section">
+          <section className="mb-10 report-section">
             <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-rose-600 pb-2 mb-6">
               {numIntimacoes}. PAINEL DE INTIMAÇÕES
             </h2>
 
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-gray-800">{completoData.intimacoesStats.total}</p>
-                <p className="text-sm text-gray-600">Total de Intimações</p>
+            <div className="grid grid-cols-6 gap-3 mb-6 print-no-break stat-card-group">
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-gray-800">{completoData.intimacoesStats.total}</p>
+                <p className="text-xs text-gray-600 mt-1">Total</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-amber-600">{completoData.intimacoesStats.pendentes}</p>
-                <p className="text-sm text-gray-600">Pendentes</p>
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-amber-600">{completoData.intimacoesStats.pendentes}</p>
+                <p className="text-xs text-gray-600 mt-1">Pendentes</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-red-600">{completoData.intimacoesStats.vencidas}</p>
-                <p className="text-sm text-gray-600">Vencidas</p>
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-red-600">{completoData.intimacoesStats.vencidas}</p>
+                <p className="text-xs text-gray-600 mt-1">Vencidas</p>
               </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-orange-600">{completoData.intimacoesStats.proximas7Dias}</p>
-                <p className="text-sm text-gray-600">Próx. 7 Dias</p>
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-orange-600">{completoData.intimacoesStats.proximas7Dias}</p>
+                <p className="text-xs text-gray-600 mt-1">Próx. 7 Dias</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-blue-600">{completoData.intimacoesStats.emAndamento}</p>
-                <p className="text-sm text-gray-600">Em Andamento</p>
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-blue-600">{completoData.intimacoesStats.emAndamento}</p>
+                <p className="text-xs text-gray-600 mt-1">Em Andamento</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-green-600">{completoData.intimacoesStats.tratadas}</p>
-                <p className="text-sm text-gray-600">Tratadas</p>
+              <div className="border border-gray-300 rounded-lg p-3 text-center bg-white">
+                <p className="text-2xl font-bold text-green-600">{completoData.intimacoesStats.tratadas}</p>
+                <p className="text-xs text-gray-600 mt-1">Tratadas</p>
               </div>
             </div>
           </section>
@@ -598,29 +593,29 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
 
         {/* ========== SEÇÃO DJEN ========== */}
         {showCompleto && completoData?.djenStats && (
-          <section className="mb-12 report-section">
+          <section className="mb-10 report-section">
             <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-cyan-600 pb-2 mb-6">
               {numDjen}. ANÁLISE DJEN (PUBLICAÇÕES)
             </h2>
 
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
+            <div className="grid grid-cols-3 gap-3 mb-6 print-no-break stat-card-group">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
                 <p className="text-3xl font-bold text-gray-800">{completoData.djenStats.totalPublicacoes}</p>
-                <p className="text-sm text-gray-600">Total de Publicações</p>
+                <p className="text-sm text-gray-600 mt-1">Total de Publicações</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
                 <p className="text-3xl font-bold text-amber-600">{completoData.djenStats.publicacoesNaoLidas}</p>
-                <p className="text-sm text-gray-600">Não Lidas</p>
+                <p className="text-sm text-gray-600 mt-1">Não Lidas</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
                 <p className="text-3xl font-bold text-green-600">{completoData.djenStats.publicacoesHoje}</p>
-                <p className="text-sm text-gray-600">Capturadas Hoje</p>
+                <p className="text-sm text-gray-600 mt-1">Capturadas Hoje</p>
               </div>
             </div>
 
             {completoData.djenStats.porCoordenacao.length > 0 && (
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">{numDjen}.1 Publicações por Coordenação</h3>
+              <div className="mb-6 print-no-break">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">{numDjen}.1 Publicações por Coordenação</h3>
                 <table className="w-full border-collapse border border-gray-300">
                   <thead>
                     <tr className="bg-gray-100">
@@ -650,32 +645,33 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
 
         {/* ========== SEÇÃO NOTIFICAÇÕES ========== */}
         {showCompleto && completoData?.notificacoesStats && (
-          <section className="mb-12 report-section">
+          <section className="mb-10 report-section">
             <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-pink-600 pb-2 mb-6">
               {numNotificacoes}. CENTRAL DE NOTIFICAÇÕES
             </h2>
 
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
+            <div className="grid grid-cols-3 gap-3 mb-6 print-no-break stat-card-group">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
                 <p className="text-3xl font-bold text-gray-800">{completoData.notificacoesStats.total}</p>
-                <p className="text-sm text-gray-600">Total de Notificações</p>
+                <p className="text-sm text-gray-600 mt-1">Total de Notificações</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
                 <p className="text-3xl font-bold text-amber-600">{completoData.notificacoesStats.naoLidas}</p>
-                <p className="text-sm text-gray-600">Não Lidas</p>
+                <p className="text-sm text-gray-600 mt-1">Não Lidas</p>
               </div>
-              <div className="border border-gray-300 rounded-lg p-4 text-center">
+              <div className="border border-gray-300 rounded-lg p-4 text-center bg-white">
                 <p className="text-3xl font-bold text-red-600">{completoData.notificacoesStats.prazosUrgentes}</p>
-                <p className="text-sm text-gray-600">Prazos Urgentes (3 dias)</p>
+                <p className="text-sm text-gray-600 mt-1">Prazos Urgentes (3 dias)</p>
               </div>
             </div>
           </section>
         )}
 
-        {/* Rodapé */}
-        <footer className="mt-12 pt-6 border-t-2 border-gray-300 text-center text-sm text-gray-500">
-          <p>Este relatório foi gerado automaticamente pelo sistema Juris Control.</p>
-          <p className="mt-1">Documento destinado à Diretoria - Uso interno e confidencial.</p>
+        {/* Rodapé Executivo */}
+        <footer className="mt-10 pt-6 border-t-2 border-gray-400 text-center">
+          <p className="text-sm text-gray-600 font-medium">JURIS CONTROL - Sistema de Gestão Jurídica</p>
+          <p className="text-xs text-gray-500 mt-1">Relatório Gerencial - Documento Confidencial - Uso Interno da Diretoria</p>
+          <p className="text-xs text-gray-400 mt-2">Página gerada automaticamente em {format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
         </footer>
       </div>
     );
