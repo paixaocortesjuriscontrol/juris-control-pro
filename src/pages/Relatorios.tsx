@@ -235,33 +235,66 @@ const Relatorios = () => {
         format: "a4",
       });
 
+      // Margens em mm
+      const marginLeft = 10;
+      const marginTop = 10;
+      const marginRight = 10;
+      const marginBottom = 10;
+
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
+      const contentWidth = pdfWidth - marginLeft - marginRight;
+      const contentHeight = pdfHeight - marginTop - marginBottom;
+
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
-      const ratio = pdfWidth / imgWidth;
+      const ratio = contentWidth / imgWidth;
       const scaledHeight = imgHeight * ratio;
 
       let heightLeft = scaledHeight;
-      let position = 0;
+      let sourceY = 0;
       let page = 0;
+
+      // Altura em pixels por página
+      const pageHeightInPx = contentHeight / ratio;
 
       while (heightLeft > 0) {
         if (page > 0) {
           pdf.addPage();
         }
 
+        // Criar canvas parcial para cada página
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = Math.min(pageHeightInPx, canvas.height - sourceY);
+        
+        const ctx = pageCanvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+          ctx.drawImage(
+            canvas,
+            0, sourceY,
+            canvas.width, pageCanvas.height,
+            0, 0,
+            canvas.width, pageCanvas.height
+          );
+        }
+
+        const pageImgData = pageCanvas.toDataURL("image/png");
+        const pageScaledHeight = (pageCanvas.height * ratio);
+
         pdf.addImage(
-          imgData,
+          pageImgData,
           "PNG",
-          0,
-          position,
-          pdfWidth,
-          scaledHeight
+          marginLeft,
+          marginTop,
+          contentWidth,
+          pageScaledHeight
         );
 
-        heightLeft -= pdfHeight;
-        position -= pdfHeight;
+        sourceY += pageHeightInPx;
+        heightLeft -= contentHeight;
         page++;
       }
 

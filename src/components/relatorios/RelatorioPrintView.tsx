@@ -41,12 +41,12 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             : "Análise por Clientes";
 
     return (
-      <div ref={ref} className="bg-white text-black p-8 print:p-0 hidden print:block" style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div ref={ref} className="bg-white text-black p-6 hidden print:block" style={{ fontFamily: 'Arial, sans-serif', maxWidth: '210mm' }}>
         {/* Cabeçalho */}
-        <div className="text-center border-b-2 border-gray-800 pb-6 mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">RELATÓRIO GERENCIAL</h1>
-          <p className="text-lg text-gray-600">{subtitle}</p>
-          <p className="text-sm text-gray-500 mt-2">Gerado em: {dataGeracao}</p>
+        <div className="text-center border-b-2 border-gray-800 pb-4 mb-6 print-no-break">
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">RELATÓRIO GERENCIAL</h1>
+          <p className="text-base text-gray-600">{subtitle}</p>
+          <p className="text-xs text-gray-500 mt-1">Gerado em: {dataGeracao}</p>
         </div>
 
         {/* ========== SEÇÃO RESUMO ========== */}

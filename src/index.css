@@ -273,10 +273,10 @@
     display: block !important;
   }
   
-  /* Configurações de página - remove cabeçalho/rodapé padrão do navegador */
+  /* Configurações de página - margens maiores para melhor leitura */
   @page {
     size: A4;
-    margin: 10mm 15mm 10mm 15mm;
+    margin: 20mm 15mm 20mm 15mm;
   }
   
   /* Remove data, URL e título do cabeçalho/rodapé da impressão */
@@ -295,28 +295,40 @@
   body {
     background: white !important;
     color: black !important;
-    font-size: 11pt !important;
-    line-height: 1.4 !important;
+    font-size: 10pt !important;
+    line-height: 1.3 !important;
   }
   
   #root {
     background: white !important;
   }
   
-  /* Tabelas com bordas visíveis */
+  /* Tabelas com bordas visíveis - evitar quebra */
   table {
     border-collapse: collapse !important;
     width: 100% !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  
+  thead {
+    display: table-header-group;
   }
   
   th, td {
     border: 1px solid #333 !important;
-    padding: 6px 10px !important;
+    padding: 4px 8px !important;
   }
   
   th {
     background-color: #f0f0f0 !important;
     font-weight: bold !important;
+  }
+  
+  /* Evitar quebra dentro de linhas de tabela */
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
   
   /* Cores para status */
@@ -339,44 +351,55 @@
   .text-red-600 {
     color: #dc2626 !important;
   }
-  
-  /* Evitar quebra dentro de linhas de tabela */
-  tr {
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-  
-  /* Cabeçalhos de seção */
+
+  /* Cabeçalhos de seção - manter com próximo conteúdo */
   h2 {
-    page-break-after: avoid;
-    break-after: avoid;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    margin-bottom: 12px !important;
   }
   
   h3 {
-    page-break-after: avoid;
-    break-after: avoid;
-    margin-top: 16px;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    margin-top: 14px !important;
+    margin-bottom: 8px !important;
   }
 
-  /* Cada item (seção) do relatório começa em nova página */
+  /* Blocos que não devem quebrar no meio */
+  .print-no-break,
+  .grid,
+  .border.rounded-lg {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Cada seção do relatório começa em nova página */
   .report-section {
-    page-break-after: always;
-    break-after: page;
+    page-break-before: always !important;
+    break-before: page !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 
-  /* Não criar página extra após a última seção */
-  .report-section:last-of-type {
-    page-break-after: auto;
-    break-after: auto;
+  /* Primeira seção não precisa de quebra antes */
+  .report-section:first-of-type {
+    page-break-before: auto !important;
+    break-before: auto !important;
   }
 
   /* Rodapé nunca deve gerar página extra sozinho */
   footer {
-    page-break-inside: avoid;
-    break-inside: avoid;
-    page-break-before: auto;
-    break-before: auto;
-    page-break-after: auto;
-    break-after: auto;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: auto !important;
+    break-before: auto !important;
+  }
+
+  /* Gráficos e cards - não quebrar */
+  .chart-container,
+  .mb-8 > div {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
