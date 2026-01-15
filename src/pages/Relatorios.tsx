@@ -196,17 +196,19 @@ const Relatorios = () => {
         throw new Error("Elemento de impressão não encontrado");
       }
 
-      // Remover classe hidden e posicionar fora da tela para captura
+      // Tornar visível e posicionar fora da tela para captura
       const originalClassName = element.className;
-      element.className = element.className.replace(/\bhidden\b/, '').trim();
+      element.className = element.className.replace('pdf-capture-hidden', 'pdf-capture-visible');
       element.style.position = "absolute";
       element.style.left = "-9999px";
       element.style.top = "0";
       element.style.width = "210mm"; // A4 width
       element.style.background = "white";
       element.style.zIndex = "-1";
+      element.style.display = "block";
 
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Aguarda render completo de todos os gráficos e seções
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       const canvas = await html2canvas(element, {
         scale: 2,
@@ -224,6 +226,7 @@ const Relatorios = () => {
       element.style.width = "";
       element.style.background = "";
       element.style.zIndex = "";
+      element.style.display = "";
 
       completed++;
       setExportProgress(Math.round((completed / totalSteps) * 100));
