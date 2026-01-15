@@ -643,6 +643,46 @@ async function fetchDJENResultsWithStats(
   return { items: allResults, pages: page };
 }
 
+// Helper to ensure djen_runs record exists before saving lotes
+async function ensureRunExists(
+  supabase: any,
+  runId: string,
+  total: number,
+  retryCount: number
+): Promise<boolean> {
+  try {
+    // Check if run already exists
+    const { data: existingRun } = await supabase
+      .from('djen_runs')
+      .select('id')
+      .eq('run_id', runId)
+      .maybeSingle();
+
+    if (existingRun) {
+      return true;
+    }
+
+    // Create run record
+    const { error } = await supabase.from('djen_runs').insert({
+      run_id: runId,
+      status: 'em_andamento',
+      total_monitoramentos: total,
+      retry_count: retryCount,
+    });
+
+    if (error) {
+      console.error('Error creating djen_runs:', error);
+      return false;
+    }
+
+    console.log(`Created djen_runs record: ${runId}`);
+    return true;
+  } catch (e) {
+    console.error('Error in ensureRunExists:', e);
+    return false;
+  }
+}
+
 // Helper to save batch record to djen_lotes
 async function saveLoteRecord(
   supabase: any,
@@ -660,10 +700,19 @@ async function saveLoteRecord(
   },
   duration: number,
   tribunaisStats: TribunalStats[],
+  total: number,
+  retryCount: number,
   status: 'concluido' | 'erro' = 'concluido',
   erroMensagem?: string
 ): Promise<string | null> {
   try {
+    // Ensure run exists before saving lote (fixes FK constraint error)
+    const runExists = await ensureRunExists(supabase, runId, total, retryCount);
+    if (!runExists) {
+      console.error(`Cannot save lote: run ${runId} does not exist and could not be created`);
+      return null;
+    }
+
     const { data: lote, error } = await supabase
       .from('djen_lotes')
       .insert({
@@ -697,7 +746,7 @@ async function saveLoteRecord(
         lote_id: lote.id,
         run_id: runId,
         tribunal: ts.tribunal || 'TODOS',
-        termos_buscados: 0, // TODO: track terms per tribunal
+        termos_buscados: 0,
         paginas: ts.paginas,
         resultados: ts.resultados,
         novas: ts.novas,
@@ -778,19 +827,14 @@ serve(async (req) => {
 
     // Determine or create run_id
     let runId = parentRunId || crypto.randomUUID();
-    const isNewRun = offset === 0 && completeRun && !continued;
+    const isNewRun = offset === 0 && !continued;
     const loteNumero = Math.floor(offset / MAX_PER_INVOCATION) + 1;
 
-    // Create run record if new
-    if (isNewRun) {
+    // Create run record for new runs (ensureRunExists will handle idempotently)
+    if (isNewRun && !parentRunId) {
       runId = crypto.randomUUID();
-      await supabase.from('djen_runs').insert({
-        run_id: runId,
-        status: 'em_andamento',
-        total_monitoramentos: total,
-        retry_count: retryCount,
-      });
-      console.log(`Created new run: ${runId}`);
+      await ensureRunExists(supabase, runId, total, retryCount);
+      console.log(`Initialized new run: ${runId}`);
     }
 
     // Handle empty batch at offset 0
@@ -813,9 +857,9 @@ serve(async (req) => {
         // Save empty lote record
         await saveLoteRecord(supabase, runId, loteNumero, offset, 0, {
           novas: 0, descartadas: 0, duplicatas: 0, erros: 0, paginas: 0, resultados: 0,
-        }, duration, [], 'concluido');
+        }, duration, [], total, retryCount, 'concluido');
 
-        // Schedule retry using EdgeRuntime.waitUntil pattern (background task)
+        // Retry with delay - await delay then immediate fetch (setTimeout doesn't work in Edge Functions)
         const retryUrl = `${supabaseUrl}/functions/v1/monitorar-djen`;
         const retryBody = {
           completeRun: true,
@@ -831,22 +875,32 @@ serve(async (req) => {
           ? incomingAuth
           : (supabaseAnonKey ? `Bearer ${supabaseAnonKey}` : '');
 
-        // Use setTimeout-style retry after delay
-        setTimeout(async () => {
-          try {
-            await fetch(retryUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': authHeader,
-              },
-              body: JSON.stringify(retryBody),
-            });
-            console.log(`[DJEN] Retry request sent`);
-          } catch (e) {
-            console.error(`[DJEN] Failed to send retry request:`, e);
-          }
-        }, RETRY_DELAY_MINUTES * 60 * 1000);
+        // Wait for the delay period (max 50 seconds to stay under Edge Function limits)
+        const actualDelayMs = Math.min(RETRY_DELAY_MINUTES * 60 * 1000, 50_000);
+        console.log(`[DJEN] Waiting ${actualDelayMs / 1000}s before retry...`);
+        await delay(actualDelayMs);
+
+        // Now execute the retry
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 15_000);
+
+          const r = await fetch(retryUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': authHeader,
+            },
+            body: JSON.stringify(retryBody),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeout);
+          const t = await r.text();
+          console.log(`[DJEN] Retry request sent, status=${r.status}, body=${t.slice(0, 200)}`);
+        } catch (e) {
+          console.error(`[DJEN] Failed to send retry request:`, e);
+        }
 
         return new Response(
           JSON.stringify({
@@ -855,7 +909,7 @@ serve(async (req) => {
             novasPublicacoes: 0,
             hasMore: false,
             scheduledRetry: true,
-            retryInMinutes: RETRY_DELAY_MINUTES,
+            retryDelaySeconds: actualDelayMs / 1000,
             retryCount: retryCount + 1,
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -995,7 +1049,9 @@ serve(async (req) => {
         resultados: totalResultados,
       },
       duration,
-      allTribunaisStats
+      allTribunaisStats,
+      total,
+      retryCount
     );
 
     // Load current config metadata to accumulate a full "run" across multiple batches
