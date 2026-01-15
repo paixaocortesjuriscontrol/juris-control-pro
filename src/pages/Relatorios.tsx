@@ -235,11 +235,11 @@ const Relatorios = () => {
         format: "a4",
       });
 
-      // Margens em mm
-      const marginLeft = 10;
-      const marginTop = 10;
-      const marginRight = 10;
-      const marginBottom = 10;
+      // Margens em mm - aumentadas para evitar cortes
+      const marginLeft = 15;
+      const marginTop = 20;
+      const marginRight = 15;
+      const marginBottom = 20;
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
