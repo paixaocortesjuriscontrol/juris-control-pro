@@ -224,7 +224,7 @@ const Relatorios = () => {
       // Aguarda render completo de todos os gráficos e seções
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      // Captura por páginas (mais confiável que "fatiar" um único canvas)
+      // Captura por páginas (cada [data-pdf-page] vira 1+ páginas no PDF)
       const captureScale = 2;
 
       const pdf = new jsPDF({
@@ -247,10 +247,51 @@ const Relatorios = () => {
       const pages = Array.from(element.querySelectorAll("[data-pdf-page]")) as HTMLElement[];
       const pageElements = pages.length > 0 ? pages : ([element] as HTMLElement[]);
 
-      for (let i = 0; i < pageElements.length; i++) {
-        if (i > 0) pdf.addPage();
+      let isFirstPdfPage = true;
 
-        const pageEl = pageElements[i];
+      const addCanvasToPdfWithSlicing = (canvas: HTMLCanvasElement) => {
+        // Render sempre na largura do conteúdo; se a altura exceder, fatiamos em múltiplas páginas.
+        const mmPerPx = contentWidth / canvas.width;
+        const pageSliceHeightPx = contentHeight / mmPerPx;
+
+        let y = 0;
+        while (y < canvas.height) {
+          const sliceHeightPx = Math.min(pageSliceHeightPx, canvas.height - y);
+
+          const sliceCanvas = document.createElement("canvas");
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = Math.max(1, Math.floor(sliceHeightPx));
+
+          const ctx = sliceCanvas.getContext("2d");
+          if (!ctx) break;
+
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+
+          ctx.drawImage(
+            canvas,
+            0,
+            y,
+            canvas.width,
+            sliceHeightPx,
+            0,
+            0,
+            canvas.width,
+            sliceHeightPx
+          );
+
+          const imgData = sliceCanvas.toDataURL("image/png");
+          const sliceHeightMm = sliceHeightPx * mmPerPx;
+
+          if (!isFirstPdfPage) pdf.addPage();
+          pdf.addImage(imgData, "PNG", marginLeft, marginTop, contentWidth, sliceHeightMm);
+          isFirstPdfPage = false;
+
+          y += sliceHeightPx;
+        }
+      };
+
+      for (const pageEl of pageElements) {
         const canvas = await html2canvas(pageEl, {
           scale: captureScale,
           useCORS: true,
@@ -259,24 +300,7 @@ const Relatorios = () => {
           windowWidth: 794, // A4 width in pixels at 96 DPI
         });
 
-        const imgData = canvas.toDataURL("image/png");
-
-        // Ajuste automático para caber na página (evita "quebrar" tabelas e começar em páginas erradas)
-        const widthRatio = contentWidth / canvas.width;
-        const heightRatio = contentHeight / canvas.height;
-        const ratio = Math.min(widthRatio, heightRatio);
-
-        const renderW = canvas.width * ratio;
-        const renderH = canvas.height * ratio;
-
-        pdf.addImage(
-          imgData,
-          "PNG",
-          marginLeft + (contentWidth - renderW) / 2,
-          marginTop,
-          renderW,
-          renderH
-        );
+        addCanvasToPdfWithSlicing(canvas);
       }
 
       // Restaurar estado original
