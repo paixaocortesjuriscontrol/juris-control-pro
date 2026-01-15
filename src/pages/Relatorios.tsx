@@ -39,6 +39,7 @@ import { useRelatorioPrazosData } from "@/hooks/useRelatorioPrazosData";
 import { useRelatorioTarefasData } from "@/hooks/useRelatorioTarefasData";
 import { useRelatorioAndamentosData } from "@/hooks/useRelatorioAndamentosData";
 import { useRelatorioClientesData } from "@/hooks/useRelatorioClientesData";
+import { useRelatorioCompletoData } from "@/hooks/useRelatorioCompletoData";
 
 type ExportMode = "completo" | "resumo" | "atividades" | "clientes";
 
@@ -85,7 +86,11 @@ const Relatorios = () => {
     isLoading: clientesLoading,
     refetch: refetchClientes,
   } = useRelatorioClientesData(true);
-
+  const {
+    data: completoData,
+    isLoading: completoLoading,
+    refetch: refetchCompleto,
+  } = useRelatorioCompletoData(true);
   // Mostrar loading inicial (apenas na primeira carga)
   const allLoading = [
     resumoLoading,
