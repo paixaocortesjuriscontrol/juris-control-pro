@@ -4,7 +4,6 @@ import { ptBR } from "date-fns/locale";
 import {
   PrintDonutChart,
   PrintGroupedBarChart,
-  PrintHorizontalBarChart,
   PrintStatusChart,
   PrintYearlyChart,
 } from "./PrintCharts";
@@ -253,67 +252,78 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
               4. ANÁLISE POR CLIENTES
             </h2>
 
-            <div className="grid grid-cols-4 gap-2 mb-3">
-              <div className="border border-gray-300 rounded p-1 text-center">
-                <p className="text-lg font-bold text-blue-600">{clientesData.processosPorCliente?.length || 0}</p>
-                <p className="text-[10px] text-gray-600">Clientes Ativos</p>
-              </div>
-              <div className="border border-gray-300 rounded p-1 text-center">
-                <p className="text-lg font-bold text-green-600">
-                  {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.ativos, 0) || 0}
-                </p>
-                <p className="text-[10px] text-gray-600">Processos Ativos</p>
-              </div>
-              <div className="border border-gray-300 rounded p-1 text-center">
-                <p className="text-lg font-bold text-purple-600">
-                  {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.encerrados, 0) || 0}
-                </p>
-                <p className="text-[10px] text-gray-600">Encerrados</p>
-              </div>
-              <div className="border border-gray-300 rounded p-1 text-center">
-                <p className="text-lg font-bold text-amber-600">
-                  {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.prazosPendentes, 0) || 0}
-                </p>
-                <p className="text-[10px] text-gray-600">Prazos Pend.</p>
-              </div>
-            </div>
+            <table className="w-full border-collapse border border-gray-300 text-[11px] mb-3">
+              <tbody>
+                <tr className="bg-gray-50">
+                  <td className="border border-gray-300 px-2 py-1.5 align-top">
+                    <div className="text-[10px] text-gray-600">Clientes Ativos</div>
+                    <div className="text-[16px] font-bold text-gray-900">{clientesData.processosPorCliente?.length || 0}</div>
+                  </td>
+                  <td className="border border-gray-300 px-2 py-1.5 align-top">
+                    <div className="text-[10px] text-gray-600">Processos Ativos</div>
+                    <div className="text-[16px] font-bold text-gray-900">
+                      {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.ativos, 0) || 0}
+                    </div>
+                  </td>
+                  <td className="border border-gray-300 px-2 py-1.5 align-top">
+                    <div className="text-[10px] text-gray-600">Encerrados</div>
+                    <div className="text-[16px] font-bold text-gray-900">
+                      {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.encerrados, 0) || 0}
+                    </div>
+                  </td>
+                  <td className="border border-gray-300 px-2 py-1.5 align-top">
+                    <div className="text-[10px] text-gray-600">Prazos Pendentes</div>
+                    <div className="text-[16px] font-bold text-gray-900">
+                      {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.prazosPendentes, 0) || 0}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
-            {/* 4.1 e 4.2 (GRÁFICOS) */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            {/* 4.1 e 4.2 (TABELAS) */}
+            <div className="grid grid-cols-2 gap-4 mb-3">
               {clientesData.processosPorVara?.length > 0 && (
-                <div className="border border-gray-200 rounded p-2">
-                  <PrintHorizontalBarChart
-                    data={clientesData.processosPorVara.slice(0, 10).map((v: any) => ({
-                      name: v.vara || "N/A",
-                      value: v.total,
-                      color: "#3B82F6",
-                    }))}
-                    title="4.1 Processos por Vara (Top 10)"
-                  />
+                <div>
+                  <h3 className="text-[12px] font-semibold text-gray-800 mb-1">4.1 Processos por Vara (Top 10)</h3>
+                  <table className="w-full border-collapse border border-gray-300 text-[11px]">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border border-gray-300 px-2 py-1 text-left">Vara</th>
+                        <th className="border border-gray-300 px-2 py-1 text-right">Processos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientesData.processosPorVara.slice(0, 10).map((v: any, idx: number) => (
+                        <tr key={`${v.vara}-${idx}`}>
+                          <td className="border border-gray-300 px-2 py-1 truncate max-w-[260px]">{v.vara || "N/A"}</td>
+                          <td className="border border-gray-300 px-2 py-1 text-right font-semibold">{v.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
               {clientesData.produtividadeAdvogados?.length > 0 && (
-                <div className="border border-gray-200 rounded p-2">
-                  <PrintHorizontalBarChart
-                    data={clientesData.produtividadeAdvogados.slice(0, 10).map((a: any, i: number) => ({
-                      name: a.nome || "N/A",
-                      value: a.processos,
-                      color: [
-                        "#3B82F6",
-                        "#22C55E",
-                        "#F59E0B",
-                        "#EF4444",
-                        "#6366F1",
-                        "#8B5CF6",
-                        "#EC4899",
-                        "#14B8A6",
-                        "#F97316",
-                        "#06B6D4",
-                      ][i % 10],
-                    }))}
-                    title="4.2 Produtividade da Equipe (Top 10)"
-                  />
+                <div>
+                  <h3 className="text-[12px] font-semibold text-gray-800 mb-1">4.2 Produtividade da Equipe (Top 10)</h3>
+                  <table className="w-full border-collapse border border-gray-300 text-[11px]">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border border-gray-300 px-2 py-1 text-left">Advogado</th>
+                        <th className="border border-gray-300 px-2 py-1 text-right">Processos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientesData.produtividadeAdvogados.slice(0, 10).map((a: any, idx: number) => (
+                        <tr key={`${a.nome}-${idx}`}>
+                          <td className="border border-gray-300 px-2 py-1 truncate max-w-[260px]">{a.nome || "N/A"}</td>
+                          <td className="border border-gray-300 px-2 py-1 text-right font-semibold">{a.processos}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -459,31 +469,32 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             </div>
 
             <div className="mb-1">
-              <h3 className="text-[11px] font-semibold text-gray-800 mb-1">5.2 Processos por Membro</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {completoData.coordenacoes.map(
-                  (coord) =>
-                    coord.membros.length > 0 && (
-                      <div key={coord.id} className="border border-gray-200 rounded p-1.5 bg-gray-50">
-                        <h4 className="text-[11px] font-medium text-teal-700 mb-1 border-b border-teal-200 pb-0.5 truncate">
-                          {coord.nome} ({coord.membros.length})
-                        </h4>
-                        <div className="space-y-0.5">
-                          {coord.membros.slice(0, 6).map((m, i) => (
-                            <div key={i} className="flex justify-between text-[10px] leading-normal">
-                              <span className="text-gray-700 truncate pr-2" style={{ maxWidth: "75%" }}>
-                                {m.nome}
-                              </span>
-                              <span className="font-semibold text-gray-800 flex-shrink-0">{m.processos}</span>
-                            </div>
+              <h3 className="text-[12px] font-semibold text-gray-800 mb-1">5.2 Processos por Membro</h3>
+
+              <div className="space-y-2">
+                {completoData.coordenacoes
+                  .filter((c) => c.membros.length > 0)
+                  .map((coord) => (
+                    <div key={coord.id}>
+                      <h4 className="text-[11px] font-medium text-gray-900 mb-1">{coord.nome} ({coord.membros.length})</h4>
+                      <table className="w-full border-collapse border border-gray-300 text-[11px]">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border border-gray-300 px-2 py-1 text-left">Membro</th>
+                            <th className="border border-gray-300 px-2 py-1 text-right">Processos</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {coord.membros.map((m, idx) => (
+                            <tr key={`${coord.id}-${idx}`}>
+                              <td className="border border-gray-300 px-2 py-1 truncate max-w-[420px]">{m.nome}</td>
+                              <td className="border border-gray-300 px-2 py-1 text-right font-semibold">{m.processos}</td>
+                            </tr>
                           ))}
-                          {coord.membros.length > 6 && (
-                            <div className="text-[9px] text-gray-500 italic">+{coord.membros.length - 6} membros...</div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
               </div>
             </div>
           </section>
