@@ -459,26 +459,26 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             </div>
 
             <div className="mb-1">
-              <h3 className="text-[10px] font-semibold text-gray-800 mb-0.5">5.2 Processos por Membro</h3>
-              <div className="grid grid-cols-2 gap-1">
+              <h3 className="text-[11px] font-semibold text-gray-800 mb-1">5.2 Processos por Membro</h3>
+              <div className="grid grid-cols-2 gap-2">
                 {completoData.coordenacoes.map(
                   (coord) =>
                     coord.membros.length > 0 && (
-                      <div key={coord.id} className="border border-gray-200 rounded p-1 bg-gray-50">
-                        <h4 className="text-[9px] font-medium text-teal-700 mb-0.5 border-b border-teal-200 pb-0.5 truncate">
+                      <div key={coord.id} className="border border-gray-200 rounded p-1.5 bg-gray-50">
+                        <h4 className="text-[11px] font-medium text-teal-700 mb-1 border-b border-teal-200 pb-0.5 truncate">
                           {coord.nome} ({coord.membros.length})
                         </h4>
-                        <div className="space-y-0">
+                        <div className="space-y-0.5">
                           {coord.membros.slice(0, 6).map((m, i) => (
-                            <div key={i} className="flex justify-between text-[8px] leading-tight">
-                              <span className="text-gray-700 truncate pr-1" style={{ maxWidth: "75%" }}>
+                            <div key={i} className="flex justify-between text-[10px] leading-normal">
+                              <span className="text-gray-700 truncate pr-2" style={{ maxWidth: "75%" }}>
                                 {m.nome}
                               </span>
                               <span className="font-semibold text-gray-800 flex-shrink-0">{m.processos}</span>
                             </div>
                           ))}
                           {coord.membros.length > 6 && (
-                            <div className="text-[7px] text-gray-500 italic">+{coord.membros.length - 6} membros...</div>
+                            <div className="text-[9px] text-gray-500 italic">+{coord.membros.length - 6} membros...</div>
                           )}
                         </div>
                       </div>
