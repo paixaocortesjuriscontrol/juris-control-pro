@@ -64,6 +64,7 @@ const Relatorios = () => {
         resumoData?: any;
         atividadesData?: any;
         clientesData?: any;
+        completoData?: any;
       }
   >(null);
 
@@ -122,8 +123,13 @@ const Relatorios = () => {
       tasks.push({ key: "clientes", label: "Clientes", fn: refetchClientes });
     }
 
+    // Adicionar dados completos (dashboard, coordenações, audiências, etc.)
+    if (exportMode === "completo") {
+      tasks.push({ key: "completo", label: "Dados Completos", fn: refetchCompleto });
+    }
+
     return tasks;
-  }, [exportMode, refetchAndamentos, refetchClientes, refetchPrazos, refetchResumo, refetchTarefas]);
+  }, [exportMode, refetchAndamentos, refetchClientes, refetchPrazos, refetchResumo, refetchTarefas, refetchCompleto]);
 
   const handleExportPdf = async () => {
     if (exporting) return;
@@ -171,6 +177,7 @@ const Relatorios = () => {
     const nextTarefas = pick("tarefas", tarefasData);
     const nextAndamentos = pick("andamentos", andamentosData);
     const nextClientes = pick("clientes", clientesData);
+    const nextCompleto = pick("completo", completoData);
 
     const nextAtividadesData = {
       totalPrazos: nextPrazos?.totalPrazos ?? 0,
@@ -186,6 +193,7 @@ const Relatorios = () => {
       resumoData: nextResumo,
       atividadesData: nextAtividadesData,
       clientesData: nextClientes,
+      completoData: nextCompleto,
     });
 
     // Aguarda render completo
@@ -339,6 +347,7 @@ const Relatorios = () => {
   const printResumoData = printOverride?.resumoData ?? resumoData;
   const printAtividadesData = printOverride?.atividadesData ?? atividadesData;
   const printClientesData = printOverride?.clientesData ?? clientesData;
+  const printCompletoData = printOverride?.completoData ?? completoData;
 
   return (
     <MainLayout title="Relatórios" subtitle="Análise e métricas do escritório">
@@ -411,6 +420,7 @@ const Relatorios = () => {
         resumoData={printResumoData}
         atividadesData={printAtividadesData}
         clientesData={printClientesData}
+        completoData={printCompletoData}
       />
 
       {/* Tabs - escondido na impressão */}
