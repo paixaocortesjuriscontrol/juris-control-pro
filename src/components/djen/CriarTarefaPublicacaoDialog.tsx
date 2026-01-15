@@ -265,7 +265,7 @@ export function CriarTarefaPublicacaoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] w-[95vw] p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-6xl w-[95vw] h-[90vh] p-0 gap-0 overflow-hidden flex flex-col min-h-0">
         <DialogHeader className="p-4 pb-2 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base">
             <FileText className="w-5 h-5" />
@@ -273,7 +273,7 @@ export function CriarTarefaPublicacaoDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden min-h-0">
+        <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
           {/* Lado Esquerdo - Conteúdo da Publicação (oculto no mobile para priorizar o formulário) */}
           <div className="hidden lg:flex flex-1 border-r overflow-hidden flex-col">
             <div className="p-4 border-b bg-muted/30">
