@@ -489,7 +489,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
       </div>
     );
 
-    const PageRestante = (
+    const PageAudienciasIntimacoes = (
       <div data-pdf-page>
         {showCompleto && completoData?.audienciasStats && (
           <section className="mb-2">
@@ -554,7 +554,11 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             </div>
           </section>
         )}
+      </div>
+    );
 
+    const PageDjenNotificacoes = (
+      <div data-pdf-page>
         {showCompleto && completoData?.djenStats && (
           <section className="mb-2">
             <h2 className="text-xs font-bold text-gray-900 border-b border-cyan-600 pb-0.5 mb-1">8. ANÁLISE DJEN (PUBLICAÇÕES)</h2>
@@ -649,7 +653,8 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             {showClientes && PageClientes1}
             {showClientes && PageClientes2}
             {showCompleto && PageCoordenacoes}
-            {showCompleto && PageRestante}
+            {showCompleto && PageAudienciasIntimacoes}
+            {showCompleto && PageDjenNotificacoes}
           </>
         ) : (
           <>
