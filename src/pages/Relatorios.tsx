@@ -99,12 +99,13 @@ const Relatorios = () => {
     tarefasLoading,
     andamentosLoading,
     clientesLoading,
+    completoLoading,
   ];
   const initialLoading = allLoading.some(Boolean);
 
   // Calcular percentual de carregamento inicial
   const loadedCount = allLoading.filter((loading) => !loading).length;
-  const initialProgress = Math.round((loadedCount / 5) * 100);
+  const initialProgress = Math.round((loadedCount / 6) * 100);
 
   const exportTasks = useMemo(() => {
     const tasks: Array<{ key: string; label: string; fn: () => Promise<any> }> = [];

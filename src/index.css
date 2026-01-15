@@ -374,18 +374,51 @@
     break-inside: avoid !important;
   }
 
+  /* Primeira seção do relatório - não quebra antes */
+  .report-section-first {
+    page-break-before: auto !important;
+    break-before: auto !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
+    padding-top: 0 !important;
+  }
+
   /* Cada seção do relatório começa em nova página */
   .report-section {
     page-break-before: always !important;
     break-before: page !important;
     page-break-after: auto !important;
     break-after: auto !important;
+    padding-top: 20px !important;
   }
 
-  /* Primeira seção não precisa de quebra antes */
-  .report-section:first-of-type {
-    page-break-before: auto !important;
-    break-before: auto !important;
+  /* Tabelas - não quebrar linhas no meio */
+  table {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  thead {
+    display: table-header-group;
+  }
+  
+  /* Seção de coordenação individual - evita corte */
+  .coord-detail-section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 20px !important;
+  }
+
+  /* Cards de estatísticas - nunca quebrar */
+  .stat-card-group {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 16px !important;
   }
 
   /* Rodapé nunca deve gerar página extra sozinho */
