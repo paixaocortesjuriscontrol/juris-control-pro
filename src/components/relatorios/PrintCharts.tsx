@@ -123,23 +123,26 @@ export function PrintHorizontalBarChart({
 
   return (
     <div className="mb-2">
-      <h4 className="text-[9px] font-semibold text-gray-700 mb-1">{title}</h4>
+      <h4 className="text-[10px] font-semibold text-gray-700 mb-1">{title}</h4>
       <div className="space-y-0.5">
-        {filteredData.map((item, idx) => (
+        {filteredData.map((item) => (
           <div key={item.name} className="flex items-center gap-1">
-            <span className="w-24 min-w-[6rem] text-[7px] text-gray-600 leading-tight truncate flex-shrink-0" title={item.name}>
+            <span
+              className="w-28 min-w-[7rem] text-[8px] text-gray-600 leading-tight truncate flex-shrink-0"
+              title={item.name}
+            >
               {item.name}
             </span>
-            <div className="flex-1 h-3 bg-gray-100 rounded overflow-hidden flex items-center">
-              <div 
+            <div className="flex-1 h-4 bg-gray-100 rounded overflow-hidden flex items-center">
+              <div
                 className="h-full rounded flex items-center justify-end pr-0.5"
-                style={{ 
+                style={{
                   width: `${Math.max((item.value / max) * 100, 12)}%`,
                   backgroundColor: item.color,
-                  minWidth: '20px'
+                  minWidth: "20px",
                 }}
               >
-                <span className="text-[7px] font-semibold text-white">{item.value}</span>
+                <span className="text-[8px] font-semibold text-white">{item.value}</span>
               </div>
             </div>
           </div>

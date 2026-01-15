@@ -254,27 +254,119 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             <div className="grid grid-cols-4 gap-1 mb-1">
               <div className="border border-gray-300 rounded p-0.5 text-center">
                 <p className="text-sm font-bold text-blue-600">{clientesData.processosPorCliente?.length || 0}</p>
-                <p className="text-[7px] text-gray-600">Clientes Ativos</p>
+                <p className="text-[8px] text-gray-600">Clientes Ativos</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center">
                 <p className="text-sm font-bold text-green-600">
                   {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.ativos, 0) || 0}
                 </p>
-                <p className="text-[7px] text-gray-600">Processos Ativos</p>
+                <p className="text-[8px] text-gray-600">Processos Ativos</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center">
                 <p className="text-sm font-bold text-purple-600">
                   {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.encerrados, 0) || 0}
                 </p>
-                <p className="text-[7px] text-gray-600">Encerrados</p>
+                <p className="text-[8px] text-gray-600">Encerrados</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center">
                 <p className="text-sm font-bold text-amber-600">
                   {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.prazosPendentes, 0) || 0}
                 </p>
-                <p className="text-[7px] text-gray-600">Prazos Pend.</p>
+                <p className="text-[8px] text-gray-600">Prazos Pend.</p>
               </div>
             </div>
+
+            {clientesData.processosPorCliente?.length > 0 && (
+              <div className="mb-1">
+                <h3 className="text-[10px] font-semibold text-gray-800 mb-0.5">4.3 Processos por Cliente (Top 15)</h3>
+                <table className="w-full border-collapse border border-gray-300 text-[8px]">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-gray-300 px-1 py-0.5 text-left">Cliente</th>
+                      <th className="border border-gray-300 px-1 py-0.5 text-center">Tipo</th>
+                      <th className="border border-gray-300 px-1 py-0.5 text-right">Total</th>
+                      <th className="border border-gray-300 px-1 py-0.5 text-right">Ativos</th>
+                      <th className="border border-gray-300 px-1 py-0.5 text-right">Enc.</th>
+                      <th className="border border-gray-300 px-1 py-0.5 text-right">Prazos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientesData.processosPorCliente.slice(0, 15).map((cliente: any) => (
+                      <tr key={cliente.nome}>
+                        <td className="border border-gray-300 px-1 py-0.5 truncate max-w-[160px]">{cliente.nome}</td>
+                        <td className="border border-gray-300 px-1 py-0.5 text-center">{cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"}</td>
+                        <td className="border border-gray-300 px-1 py-0.5 text-right font-semibold">{cliente.total}</td>
+                        <td className="border border-gray-300 px-1 py-0.5 text-right text-green-600">{cliente.ativos}</td>
+                        <td className="border border-gray-300 px-1 py-0.5 text-right">{cliente.encerrados}</td>
+                        <td className="border border-gray-300 px-1 py-0.5 text-right text-amber-600">{cliente.prazosPendentes}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-1">
+              {clientesData.duracaoClientes?.length > 0 && (
+                <div className="border border-gray-200 rounded p-1">
+                  <h3 className="text-[10px] font-semibold text-gray-800 mb-0.5">4.4 Duração Média (Top 15)</h3>
+                  <table className="w-full border-collapse border border-gray-300 text-[8px]">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border border-gray-300 px-1 py-0.5 text-left">Cliente</th>
+                        <th className="border border-gray-300 px-1 py-0.5 text-right">Proc.</th>
+                        <th className="border border-gray-300 px-1 py-0.5 text-right">Média</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientesData.duracaoClientes.slice(0, 15).map((cliente: any) => (
+                        <tr key={cliente.nome}>
+                          <td className="border border-gray-300 px-1 py-0.5 truncate max-w-[160px]">{cliente.nome}</td>
+                          <td className="border border-gray-300 px-1 py-0.5 text-right">{cliente.processos}</td>
+                          <td className="border border-gray-300 px-1 py-0.5 text-right">{cliente.mediaDias}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {clientesData.atividadesPorTarefa?.length > 0 && (
+                <div className="border border-gray-200 rounded p-1">
+                  <h3 className="text-[10px] font-semibold text-gray-800 mb-0.5">4.5 Atividades por Tarefa</h3>
+                  <table className="w-full border-collapse border border-gray-300 text-[8px]">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border border-gray-300 px-1 py-0.5 text-left">Tarefa</th>
+                        <th className="border border-gray-300 px-1 py-0.5 text-right">Total</th>
+                        <th className="border border-gray-300 px-1 py-0.5 text-right">Concl.</th>
+                        <th className="border border-gray-300 px-1 py-0.5 text-right">Atras.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientesData.atividadesPorTarefa.map((tarefa: any) => (
+                        <tr key={tarefa.titulo}>
+                          <td className="border border-gray-300 px-1 py-0.5 truncate max-w-[190px]">{tarefa.titulo}</td>
+                          <td className="border border-gray-300 px-1 py-0.5 text-right">{tarefa.total}</td>
+                          <td className="border border-gray-300 px-1 py-0.5 text-right text-green-600">{tarefa.concluidas}</td>
+                          <td className="border border-gray-300 px-1 py-0.5 text-right text-red-600">{tarefa.atrasadas}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+      </div>
+    );
+
+    const PageClientes2 = (
+      <div data-pdf-page>
+        {showClientes && clientesData && (
+          <section className="mb-2">
+            <h2 className="text-xs font-bold text-gray-900 border-b border-purple-600 pb-0.5 mb-1">4.1–4.2 GRÁFICOS</h2>
 
             <div className="grid grid-cols-2 gap-1 mb-1">
               {clientesData.processosPorVara?.length > 0 && (
@@ -314,94 +406,6 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </div>
               )}
             </div>
-
-            {clientesData.processosPorCliente?.length > 0 && (
-              <div className="mb-1">
-                <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">4.3 Processos por Cliente (Top 15)</h3>
-                <table className="w-full border-collapse border border-gray-300 text-[7px]">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-1 py-0.5 text-left">Cliente</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-center">Tipo</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Total</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Ativos</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Enc.</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Prazos</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientesData.processosPorCliente.slice(0, 15).map((cliente: any) => (
-                      <tr key={cliente.nome}>
-                        <td className="border border-gray-300 px-1 py-0.5 truncate max-w-[100px]">{cliente.nome}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-center">{cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right font-semibold">{cliente.total}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right text-green-600">{cliente.ativos}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right">{cliente.encerrados}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right text-amber-600">{cliente.prazosPendentes}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )}
-      </div>
-    );
-
-    const PageClientes2 = (
-      <div data-pdf-page>
-        {showClientes && clientesData && (
-          <section className="mb-2">
-            {clientesData.duracaoClientes?.length > 0 && (
-              <div className="mb-2">
-                <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">4.4 Duração Média dos Processos por Cliente (Top 15)</h3>
-                <table className="w-full border-collapse border border-gray-300 text-[7px]">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-1 py-0.5 text-left">Cliente</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Processos</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Média (dias)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientesData.duracaoClientes.slice(0, 15).map((cliente: any) => (
-                      <tr key={cliente.nome}>
-                        <td className="border border-gray-300 px-1 py-0.5">{cliente.nome}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right">{cliente.processos}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right">{cliente.mediaDias}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {clientesData.atividadesPorTarefa?.length > 0 && (
-              <div className="mb-2">
-                <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">4.5 Atividades por Tipo de Tarefa</h3>
-                <table className="w-full border-collapse border border-gray-300 text-[7px]">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-1 py-0.5 text-left">Tarefa</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Total</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Concluídas</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Atrasadas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientesData.atividadesPorTarefa.map((tarefa: any) => (
-                      <tr key={tarefa.titulo}>
-                        <td className="border border-gray-300 px-1 py-0.5">{tarefa.titulo}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right">{tarefa.total}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right text-green-600">{tarefa.concluidas}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right text-red-600">{tarefa.atrasadas}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </section>
         )}
       </div>
@@ -416,21 +420,21 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             <div className="grid grid-cols-3 gap-1 mb-1">
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-sm font-bold text-teal-600">{completoData.coordenacoes.length}</p>
-                <p className="text-[7px] text-gray-600">Coordenações</p>
+                <p className="text-[8px] text-gray-600">Coordenações</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-sm font-bold text-blue-600">{completoData.coordenacoes.reduce((acc, c) => acc + c.totalMembros, 0)}</p>
-                <p className="text-[7px] text-gray-600">Total Membros</p>
+                <p className="text-[8px] text-gray-600">Total Membros</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-sm font-bold text-purple-600">{completoData.coordenacoes.reduce((acc, c) => acc + c.totalProcessos, 0)}</p>
-                <p className="text-[7px] text-gray-600">Processos Vinc.</p>
+                <p className="text-[8px] text-gray-600">Processos Vinc.</p>
               </div>
             </div>
 
             <div className="mb-2">
-              <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">5.1 Resumo por Coordenação</h3>
-              <table className="w-full border-collapse border border-gray-300 text-[7px]">
+              <h3 className="text-[10px] font-semibold text-gray-800 mb-0.5">5.1 Resumo por Coordenação</h3>
+              <table className="w-full border-collapse border border-gray-300 text-[8px]">
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="border border-gray-300 px-1 py-0.5 text-left">Coordenação</th>
@@ -457,18 +461,18 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             </div>
 
             <div className="mb-1">
-              <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">5.2 Processos por Membro</h3>
+              <h3 className="text-[10px] font-semibold text-gray-800 mb-0.5">5.2 Processos por Membro</h3>
               <div className="grid grid-cols-2 gap-1">
                 {completoData.coordenacoes.map(
                   (coord) =>
                     coord.membros.length > 0 && (
                       <div key={coord.id} className="border border-gray-200 rounded p-1 bg-gray-50">
-                        <h4 className="text-[8px] font-medium text-teal-700 mb-0.5 border-b border-teal-200 pb-0.5 truncate">
+                        <h4 className="text-[9px] font-medium text-teal-700 mb-0.5 border-b border-teal-200 pb-0.5 truncate">
                           {coord.nome} ({coord.membros.length})
                         </h4>
                         <div className="space-y-0">
                           {coord.membros.slice(0, 6).map((m, i) => (
-                            <div key={i} className="flex justify-between text-[7px] leading-tight">
+                            <div key={i} className="flex justify-between text-[8px] leading-tight">
                               <span className="text-gray-700 truncate pr-1" style={{ maxWidth: "75%" }}>
                                 {m.nome}
                               </span>
@@ -476,7 +480,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                             </div>
                           ))}
                           {coord.membros.length > 6 && (
-                            <div className="text-[6px] text-gray-500 italic">+{coord.membros.length - 6} membros...</div>
+                            <div className="text-[7px] text-gray-500 italic">+{coord.membros.length - 6} membros...</div>
                           )}
                         </div>
                       </div>
@@ -489,7 +493,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
       </div>
     );
 
-    const PageAudienciasIntimacoes = (
+    const PageCompleto6a9 = (
       <div data-pdf-page>
         {showCompleto && completoData?.audienciasStats && (
           <section className="mb-2">
@@ -497,27 +501,27 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             <div className="grid grid-cols-6 gap-1 mb-2">
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-gray-800">{completoData.audienciasStats.total}</p>
-                <p className="text-[6px] text-gray-600">Total</p>
+                <p className="text-[7px] text-gray-600">Total</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-amber-600">{completoData.audienciasStats.pendentes}</p>
-                <p className="text-[6px] text-gray-600">Pendentes</p>
+                <p className="text-[7px] text-gray-600">Pendentes</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-red-600">{completoData.audienciasStats.proximas7Dias}</p>
-                <p className="text-[6px] text-gray-600">Próx. 7 Dias</p>
+                <p className="text-[7px] text-gray-600">Próx. 7 Dias</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-green-600">{completoData.audienciasStats.confirmadas}</p>
-                <p className="text-[6px] text-gray-600">Confirmadas</p>
+                <p className="text-[7px] text-gray-600">Confirmadas</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-blue-600">{completoData.audienciasStats.tratadas}</p>
-                <p className="text-[6px] text-gray-600">Tratadas</p>
+                <p className="text-[7px] text-gray-600">Tratadas</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-gray-500">{completoData.audienciasStats.ignoradas}</p>
-                <p className="text-[6px] text-gray-600">Ignoradas</p>
+                <p className="text-[7px] text-gray-600">Ignoradas</p>
               </div>
             </div>
           </section>
@@ -529,36 +533,32 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             <div className="grid grid-cols-6 gap-1 mb-2">
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-gray-800">{completoData.intimacoesStats.total}</p>
-                <p className="text-[6px] text-gray-600">Total</p>
+                <p className="text-[7px] text-gray-600">Total</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-amber-600">{completoData.intimacoesStats.pendentes}</p>
-                <p className="text-[6px] text-gray-600">Pendentes</p>
+                <p className="text-[7px] text-gray-600">Pendentes</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-red-600">{completoData.intimacoesStats.vencidas}</p>
-                <p className="text-[6px] text-gray-600">Vencidas</p>
+                <p className="text-[7px] text-gray-600">Vencidas</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-orange-600">{completoData.intimacoesStats.proximas7Dias}</p>
-                <p className="text-[6px] text-gray-600">Próx. 7 Dias</p>
+                <p className="text-[7px] text-gray-600">Próx. 7 Dias</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-blue-600">{completoData.intimacoesStats.emAndamento}</p>
-                <p className="text-[6px] text-gray-600">Em Andamento</p>
+                <p className="text-[7px] text-gray-600">Em Andamento</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-green-600">{completoData.intimacoesStats.tratadas}</p>
-                <p className="text-[6px] text-gray-600">Tratadas</p>
+                <p className="text-[7px] text-gray-600">Tratadas</p>
               </div>
             </div>
           </section>
         )}
-      </div>
-    );
 
-    const PageDjenNotificacoes = (
-      <div data-pdf-page>
         {showCompleto && completoData?.djenStats && (
           <section className="mb-2">
             <h2 className="text-xs font-bold text-gray-900 border-b border-cyan-600 pb-0.5 mb-1">8. ANÁLISE DJEN (PUBLICAÇÕES)</h2>
@@ -566,22 +566,22 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             <div className="grid grid-cols-3 gap-1 mb-1">
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-sm font-bold text-gray-800">{completoData.djenStats.totalPublicacoes}</p>
-                <p className="text-[7px] text-gray-600">Total Publicações</p>
+                <p className="text-[8px] text-gray-600">Total Publicações</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-sm font-bold text-amber-600">{completoData.djenStats.publicacoesNaoLidas}</p>
-                <p className="text-[7px] text-gray-600">Não Lidas</p>
+                <p className="text-[8px] text-gray-600">Não Lidas</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-sm font-bold text-green-600">{completoData.djenStats.publicacoesHoje}</p>
-                <p className="text-[7px] text-gray-600">Capturadas Hoje</p>
+                <p className="text-[8px] text-gray-600">Capturadas Hoje</p>
               </div>
             </div>
 
             {completoData.djenStats.porCoordenacao.length > 0 && (
               <div className="mb-1">
-                <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">8.1 Publicações por Coordenação</h3>
-                <table className="w-full border-collapse border border-gray-300 text-[7px]">
+                <h3 className="text-[10px] font-semibold text-gray-800 mb-0.5">8.1 Publicações por Coordenação</h3>
+                <table className="w-full border-collapse border border-gray-300 text-[8px]">
                   <thead>
                     <tr className="bg-gray-100">
                       <th className="border border-gray-300 px-1 py-0.5 text-left">Coordenação</th>
@@ -615,19 +615,19 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             <div className="grid grid-cols-4 gap-1 mb-1">
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-sm font-bold text-gray-800">{completoData.notificacoesStats.total}</p>
-                <p className="text-[7px] text-gray-600">Total</p>
+                <p className="text-[8px] text-gray-600">Total</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-sm font-bold text-amber-600">{completoData.notificacoesStats.naoLidas}</p>
-                <p className="text-[7px] text-gray-600">Não Lidas</p>
+                <p className="text-[8px] text-gray-600">Não Lidas</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-sm font-bold text-red-600">{completoData.notificacoesStats.prazosUrgentes}</p>
-                <p className="text-[7px] text-gray-600">Prazos Urgentes</p>
+                <p className="text-[8px] text-gray-600">Prazos Urgentes</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-sm font-bold text-blue-600">{completoData.notificacoesStats.alertasSistema}</p>
-                <p className="text-[7px] text-gray-600">Alertas Sistema</p>
+                <p className="text-[8px] text-gray-600">Alertas Sistema</p>
               </div>
             </div>
           </section>
@@ -653,8 +653,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             {showClientes && PageClientes1}
             {showClientes && PageClientes2}
             {showCompleto && PageCoordenacoes}
-            {showCompleto && PageAudienciasIntimacoes}
-            {showCompleto && PageDjenNotificacoes}
+            {showCompleto && PageCompleto6a9}
           </>
         ) : (
           <>
@@ -670,7 +669,5 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
         )}
       </div>
     );
-  }
-);
 
 RelatorioPrintView.displayName = "RelatorioPrintView";
