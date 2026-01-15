@@ -243,134 +243,45 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
       </div>
     );
 
-    const PageClientes1 = (
+    const PageClientes = (
       <div data-pdf-page>
         {mode !== "completo" && <ReportHeader subtitle={subtitle} dataGeracao={dataGeracao} />}
 
         {showClientes && clientesData && (
-          <section className="mb-2">
-            <h2 className="text-xs font-bold text-gray-900 border-b border-purple-600 pb-0.5 mb-1">4. ANÁLISE POR CLIENTES</h2>
+          <section className="mb-4">
+            <h2 className="text-sm font-bold text-gray-900 border-b border-purple-600 pb-1 mb-2">
+              4. ANÁLISE POR CLIENTES
+            </h2>
 
-            <div className="grid grid-cols-4 gap-1 mb-1">
-              <div className="border border-gray-300 rounded p-0.5 text-center">
-                <p className="text-sm font-bold text-blue-600">{clientesData.processosPorCliente?.length || 0}</p>
-                <p className="text-[8px] text-gray-600">Clientes Ativos</p>
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              <div className="border border-gray-300 rounded p-1 text-center">
+                <p className="text-lg font-bold text-blue-600">{clientesData.processosPorCliente?.length || 0}</p>
+                <p className="text-[10px] text-gray-600">Clientes Ativos</p>
               </div>
-              <div className="border border-gray-300 rounded p-0.5 text-center">
-                <p className="text-sm font-bold text-green-600">
+              <div className="border border-gray-300 rounded p-1 text-center">
+                <p className="text-lg font-bold text-green-600">
                   {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.ativos, 0) || 0}
                 </p>
-                <p className="text-[8px] text-gray-600">Processos Ativos</p>
+                <p className="text-[10px] text-gray-600">Processos Ativos</p>
               </div>
-              <div className="border border-gray-300 rounded p-0.5 text-center">
-                <p className="text-sm font-bold text-purple-600">
+              <div className="border border-gray-300 rounded p-1 text-center">
+                <p className="text-lg font-bold text-purple-600">
                   {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.encerrados, 0) || 0}
                 </p>
-                <p className="text-[8px] text-gray-600">Encerrados</p>
+                <p className="text-[10px] text-gray-600">Encerrados</p>
               </div>
-              <div className="border border-gray-300 rounded p-0.5 text-center">
-                <p className="text-sm font-bold text-amber-600">
+              <div className="border border-gray-300 rounded p-1 text-center">
+                <p className="text-lg font-bold text-amber-600">
                   {clientesData.processosPorCliente?.reduce((acc: number, c: any) => acc + c.prazosPendentes, 0) || 0}
                 </p>
-                <p className="text-[8px] text-gray-600">Prazos Pend.</p>
+                <p className="text-[10px] text-gray-600">Prazos Pend.</p>
               </div>
             </div>
 
-            {clientesData.processosPorCliente?.length > 0 && (
-              <div className="mb-1">
-                <h3 className="text-[10px] font-semibold text-gray-800 mb-0.5">4.3 Processos por Cliente (Top 15)</h3>
-                <table className="w-full border-collapse border border-gray-300 text-[8px]">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-1 py-0.5 text-left">Cliente</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-center">Tipo</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Total</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Ativos</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Enc.</th>
-                      <th className="border border-gray-300 px-1 py-0.5 text-right">Prazos</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientesData.processosPorCliente.slice(0, 15).map((cliente: any) => (
-                      <tr key={cliente.nome}>
-                        <td className="border border-gray-300 px-1 py-0.5 truncate max-w-[160px]">{cliente.nome}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-center">{cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right font-semibold">{cliente.total}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right text-green-600">{cliente.ativos}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right">{cliente.encerrados}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-right text-amber-600">{cliente.prazosPendentes}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-1">
-              {clientesData.duracaoClientes?.length > 0 && (
-                <div className="border border-gray-200 rounded p-1">
-                  <h3 className="text-[10px] font-semibold text-gray-800 mb-0.5">4.4 Duração Média (Top 15)</h3>
-                  <table className="w-full border-collapse border border-gray-300 text-[8px]">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="border border-gray-300 px-1 py-0.5 text-left">Cliente</th>
-                        <th className="border border-gray-300 px-1 py-0.5 text-right">Proc.</th>
-                        <th className="border border-gray-300 px-1 py-0.5 text-right">Média</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {clientesData.duracaoClientes.slice(0, 15).map((cliente: any) => (
-                        <tr key={cliente.nome}>
-                          <td className="border border-gray-300 px-1 py-0.5 truncate max-w-[160px]">{cliente.nome}</td>
-                          <td className="border border-gray-300 px-1 py-0.5 text-right">{cliente.processos}</td>
-                          <td className="border border-gray-300 px-1 py-0.5 text-right">{cliente.mediaDias}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {clientesData.atividadesPorTarefa?.length > 0 && (
-                <div className="border border-gray-200 rounded p-1">
-                  <h3 className="text-[10px] font-semibold text-gray-800 mb-0.5">4.5 Atividades por Tarefa</h3>
-                  <table className="w-full border-collapse border border-gray-300 text-[8px]">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="border border-gray-300 px-1 py-0.5 text-left">Tarefa</th>
-                        <th className="border border-gray-300 px-1 py-0.5 text-right">Total</th>
-                        <th className="border border-gray-300 px-1 py-0.5 text-right">Concl.</th>
-                        <th className="border border-gray-300 px-1 py-0.5 text-right">Atras.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {clientesData.atividadesPorTarefa.map((tarefa: any) => (
-                        <tr key={tarefa.titulo}>
-                          <td className="border border-gray-300 px-1 py-0.5 truncate max-w-[190px]">{tarefa.titulo}</td>
-                          <td className="border border-gray-300 px-1 py-0.5 text-right">{tarefa.total}</td>
-                          <td className="border border-gray-300 px-1 py-0.5 text-right text-green-600">{tarefa.concluidas}</td>
-                          <td className="border border-gray-300 px-1 py-0.5 text-right text-red-600">{tarefa.atrasadas}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-      </div>
-    );
-
-    const PageClientes2 = (
-      <div data-pdf-page>
-        {showClientes && clientesData && (
-          <section className="mb-2">
-            <h2 className="text-xs font-bold text-gray-900 border-b border-purple-600 pb-0.5 mb-1">4.1–4.2 GRÁFICOS</h2>
-
-            <div className="grid grid-cols-2 gap-1 mb-1">
+            {/* 4.1 e 4.2 (GRÁFICOS) */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
               {clientesData.processosPorVara?.length > 0 && (
-                <div className="border border-gray-200 rounded p-1">
+                <div className="border border-gray-200 rounded p-2">
                   <PrintHorizontalBarChart
                     data={clientesData.processosPorVara.slice(0, 10).map((v: any) => ({
                       name: v.vara || "N/A",
@@ -383,7 +294,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
               )}
 
               {clientesData.produtividadeAdvogados?.length > 0 && (
-                <div className="border border-gray-200 rounded p-1">
+                <div className="border border-gray-200 rounded p-2">
                   <PrintHorizontalBarChart
                     data={clientesData.produtividadeAdvogados.slice(0, 10).map((a: any, i: number) => ({
                       name: a.nome || "N/A",
@@ -406,10 +317,97 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </div>
               )}
             </div>
+
+            {/* 4.3 */}
+            {clientesData.processosPorCliente?.length > 0 && (
+              <div className="mb-3">
+                <h3 className="text-[12px] font-semibold text-gray-800 mb-1">4.3 Processos por Cliente (Top 15)</h3>
+                <table className="w-full border-collapse border border-gray-300 text-[10px]">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-gray-300 px-2 py-1 text-left">Cliente</th>
+                      <th className="border border-gray-300 px-2 py-1 text-center">Tipo</th>
+                      <th className="border border-gray-300 px-2 py-1 text-right">Total</th>
+                      <th className="border border-gray-300 px-2 py-1 text-right">Ativos</th>
+                      <th className="border border-gray-300 px-2 py-1 text-right">Enc.</th>
+                      <th className="border border-gray-300 px-2 py-1 text-right">Prazos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientesData.processosPorCliente.slice(0, 15).map((cliente: any) => (
+                      <tr key={cliente.nome}>
+                        <td className="border border-gray-300 px-2 py-1 truncate max-w-[240px]">{cliente.nome}</td>
+                        <td className="border border-gray-300 px-2 py-1 text-center">
+                          {cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"}
+                        </td>
+                        <td className="border border-gray-300 px-2 py-1 text-right font-semibold">{cliente.total}</td>
+                        <td className="border border-gray-300 px-2 py-1 text-right text-green-600">{cliente.ativos}</td>
+                        <td className="border border-gray-300 px-2 py-1 text-right">{cliente.encerrados}</td>
+                        <td className="border border-gray-300 px-2 py-1 text-right text-amber-600">{cliente.prazosPendentes}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* 4.4 e 4.5 */}
+            <div className="grid grid-cols-2 gap-2">
+              {clientesData.duracaoClientes?.length > 0 && (
+                <div className="border border-gray-200 rounded p-2">
+                  <h3 className="text-[12px] font-semibold text-gray-800 mb-1">4.4 Duração Média (Top 15)</h3>
+                  <table className="w-full border-collapse border border-gray-300 text-[10px]">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border border-gray-300 px-2 py-1 text-left">Cliente</th>
+                        <th className="border border-gray-300 px-2 py-1 text-right">Proc.</th>
+                        <th className="border border-gray-300 px-2 py-1 text-right">Média</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientesData.duracaoClientes.slice(0, 15).map((cliente: any) => (
+                        <tr key={cliente.nome}>
+                          <td className="border border-gray-300 px-2 py-1 truncate max-w-[240px]">{cliente.nome}</td>
+                          <td className="border border-gray-300 px-2 py-1 text-right">{cliente.processos}</td>
+                          <td className="border border-gray-300 px-2 py-1 text-right">{cliente.mediaDias}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {clientesData.atividadesPorTarefa?.length > 0 && (
+                <div className="border border-gray-200 rounded p-2">
+                  <h3 className="text-[12px] font-semibold text-gray-800 mb-1">4.5 Atividades por Tarefa</h3>
+                  <table className="w-full border-collapse border border-gray-300 text-[10px]">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border border-gray-300 px-2 py-1 text-left">Tarefa</th>
+                        <th className="border border-gray-300 px-2 py-1 text-right">Total</th>
+                        <th className="border border-gray-300 px-2 py-1 text-right">Concl.</th>
+                        <th className="border border-gray-300 px-2 py-1 text-right">Atras.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientesData.atividadesPorTarefa.map((tarefa: any) => (
+                        <tr key={tarefa.titulo}>
+                          <td className="border border-gray-300 px-2 py-1 truncate max-w-[260px]">{tarefa.titulo}</td>
+                          <td className="border border-gray-300 px-2 py-1 text-right">{tarefa.total}</td>
+                          <td className="border border-gray-300 px-2 py-1 text-right text-green-600">{tarefa.concluidas}</td>
+                          <td className="border border-gray-300 px-2 py-1 text-right text-red-600">{tarefa.atrasadas}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </section>
         )}
       </div>
     );
+
 
     const PageCoordenacoes = (
       <div data-pdf-page>
@@ -644,31 +642,26 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
       <div
         ref={ref}
         className="bg-white text-black p-4 pdf-capture-hidden"
-        style={{ fontFamily: "Arial, sans-serif", maxWidth: "210mm", fontSize: "8px" }}
+        style={{ fontFamily: "Arial, sans-serif", maxWidth: "210mm", fontSize: "10px" }}
       >
         {mode === "completo" ? (
           <>
             {PageCompleto1}
             {showAtividades && PageAtividades}
-            {showClientes && PageClientes1}
-            {showClientes && PageClientes2}
+            {showClientes && PageClientes}
             {showCompleto && PageCoordenacoes}
             {showCompleto && PageCompleto6a9}
           </>
         ) : (
           <>
-            {mode === "resumo" && <div data-pdf-page>{/* header + resumo */}{PageCompleto1}</div>}
+            {mode === "resumo" && PageCompleto1}
             {mode === "atividades" && PageAtividades}
-            {mode === "clientes" && (
-              <>
-                {PageClientes1}
-                {PageClientes2}
-              </>
-            )}
+            {mode === "clientes" && PageClientes}
           </>
         )}
       </div>
     );
+
   }
 );
 
