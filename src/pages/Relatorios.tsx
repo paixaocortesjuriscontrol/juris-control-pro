@@ -224,8 +224,18 @@ const Relatorios = () => {
       // Aguarda render completo de todos os gráficos e seções
       await new Promise((resolve) => setTimeout(resolve, 800));
 
+      // Mapear posições de tabelas (para evitar que iniciem no fim da página e sejam cortadas)
+      // Obs: isso funciona no modo canvas-slice porque ajustamos o corte do canvas para "quebrar" antes da tabela.
+      const captureScale = 2;
+      const rootRect = element.getBoundingClientRect();
+      const tableTopBreaksPx = Array.from(element.querySelectorAll("table"))
+        .filter((t) => !(t as HTMLTableElement).hasAttribute("data-pdf-allow-split"))
+        .map((t) => (t.getBoundingClientRect().top - rootRect.top) * captureScale)
+        .filter((y) => y > 0)
+        .sort((a, b) => a - b);
+
       const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: captureScale,
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
@@ -245,14 +255,13 @@ const Relatorios = () => {
       completed++;
       setExportProgress(Math.round((completed / totalSteps) * 100));
 
-      const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4",
       });
 
-      // Margens em mm - aumentadas para evitar cortes
+      // Margens em mm
       const marginLeft = 15;
       const marginTop = 20;
       const marginRight = 15;
@@ -266,40 +275,53 @@ const Relatorios = () => {
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
       const ratio = contentWidth / imgWidth;
-      const scaledHeight = imgHeight * ratio;
 
-      let heightLeft = scaledHeight;
+      // Altura em pixels por página (no canvas)
+      const pageHeightInPx = contentHeight / ratio;
+
       let sourceY = 0;
       let page = 0;
 
-      // Altura em pixels por página
-      const pageHeightInPx = contentHeight / ratio;
+      while (sourceY < imgHeight - 1) {
+        if (page > 0) pdf.addPage();
 
-      while (heightLeft > 0) {
-        if (page > 0) {
-          pdf.addPage();
+        // tamanho padrão do recorte
+        let sliceHeight = Math.min(pageHeightInPx, imgHeight - sourceY);
+        const pageEnd = sourceY + sliceHeight;
+
+        // Se existir uma tabela começando dentro do intervalo desta página,
+        // encerramos a página antes dela para a tabela iniciar no topo da próxima.
+        const nextTableTop = tableTopBreaksPx.find(
+          (t) => t > sourceY + 24 && t < pageEnd - 24
+        );
+
+        if (nextTableTop) {
+          sliceHeight = Math.max(64, nextTableTop - sourceY);
         }
 
-        // Criar canvas parcial para cada página
         const pageCanvas = document.createElement("canvas");
         pageCanvas.width = canvas.width;
-        pageCanvas.height = Math.min(pageHeightInPx, canvas.height - sourceY);
-        
+        pageCanvas.height = Math.min(sliceHeight, imgHeight - sourceY);
+
         const ctx = pageCanvas.getContext("2d");
         if (ctx) {
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
           ctx.drawImage(
             canvas,
-            0, sourceY,
-            canvas.width, pageCanvas.height,
-            0, 0,
-            canvas.width, pageCanvas.height
+            0,
+            sourceY,
+            canvas.width,
+            pageCanvas.height,
+            0,
+            0,
+            canvas.width,
+            pageCanvas.height
           );
         }
 
         const pageImgData = pageCanvas.toDataURL("image/png");
-        const pageScaledHeight = (pageCanvas.height * ratio);
+        const pageScaledHeight = pageCanvas.height * ratio;
 
         pdf.addImage(
           pageImgData,
@@ -310,14 +332,16 @@ const Relatorios = () => {
           pageScaledHeight
         );
 
-        sourceY += pageHeightInPx;
-        heightLeft -= contentHeight;
+        sourceY += pageCanvas.height;
         page++;
       }
 
       // Gerar nome do arquivo
       const dataAtual = format(new Date(), "ddMMyyyy");
-      const sufixo = exportMode === "completo" ? "Relatorio_Gerencial" : `Relatorio_${exportModeLabel[exportMode]}`;
+      const sufixo =
+        exportMode === "completo"
+          ? "Relatorio_Gerencial"
+          : `Relatorio_${exportModeLabel[exportMode]}`;
       const nomeArquivo = `Juris_Control_${sufixo}_${dataAtual}.pdf`;
 
       // Download automático
