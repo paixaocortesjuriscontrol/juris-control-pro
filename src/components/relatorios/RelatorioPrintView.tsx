@@ -669,5 +669,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
         )}
       </div>
     );
+  }
+);
 
 RelatorioPrintView.displayName = "RelatorioPrintView";
