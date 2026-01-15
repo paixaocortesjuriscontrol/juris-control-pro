@@ -41,7 +41,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             : "Análise por Clientes";
 
     return (
-      <div ref={ref} className="bg-white text-black p-6 hidden print:block" style={{ fontFamily: 'Arial, sans-serif', maxWidth: '210mm' }}>
+      <div ref={ref} className="bg-white text-black p-6 pdf-capture-hidden" style={{ fontFamily: 'Arial, sans-serif', maxWidth: '210mm' }}>
         {/* Cabeçalho */}
         <div className="text-center border-b-2 border-gray-800 pb-4 mb-6 print-no-break">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">RELATÓRIO GERENCIAL</h1>

@@ -403,3 +403,12 @@
     break-inside: avoid !important;
   }
 }
+
+/* PDF capture visibility control */
+.pdf-capture-hidden {
+  display: none;
+}
+
+.pdf-capture-visible {
+  display: block !important;
+}
