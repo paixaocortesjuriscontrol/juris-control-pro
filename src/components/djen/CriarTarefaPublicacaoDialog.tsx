@@ -47,6 +47,7 @@ import {
   User,
   AlertTriangle,
   Sparkles,
+  X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
@@ -101,6 +102,7 @@ export function CriarTarefaPublicacaoDialog({
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [observacoesIA, setObservacoesIA] = useState<string | null>(null);
+  const [mostrarDicaIA, setMostrarDicaIA] = useState(true);
 
   const hoje = format(new Date(), "yyyy-MM-dd");
 
@@ -130,6 +132,7 @@ export function CriarTarefaPublicacaoDialog({
         prioridade: "alta",
       });
       setObservacoesIA(null);
+      setMostrarDicaIA(true);
     }
   }, [open, publicacao?.id, form]);
 
@@ -394,10 +397,30 @@ export function CriarTarefaPublicacaoDialog({
                     form.setValue("prioridade", resultado.prioridade);
                     form.setValue("data_vencimento", resultado.data_vencimento);
                     setObservacoesIA(resultado.observacoes || "Campos preenchidos automaticamente. Revise antes de salvar.");
+                    setMostrarDicaIA(false);
                   }}
                   size="sm"
                 />
               </div>
+              {mostrarDicaIA && (
+                <div className="mt-3 p-2.5 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 border border-violet-200 dark:border-violet-800 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400 shrink-0" />
+                    <p className="text-xs text-violet-700 dark:text-violet-300">
+                      <span className="font-medium">Dica:</span> Use o botão "Preencher com IA" para sugerir automaticamente os campos da tarefa
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 ml-auto shrink-0 text-violet-500 hover:text-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900"
+                      onClick={() => setMostrarDicaIA(false)}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 pb-24 lg:pb-4">
@@ -465,7 +488,7 @@ export function CriarTarefaPublicacaoDialog({
                         <FormControl>
                           <Textarea
                             placeholder="Descreva a tarefa..."
-                            className="min-h-[80px] resize-none"
+                            className="min-h-[120px] resize-y"
                             {...field}
                           />
                         </FormControl>
