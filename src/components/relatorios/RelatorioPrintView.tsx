@@ -186,7 +186,11 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
 
         {/* ================== PÁGINA 2 ================== */}
         {showAtividades && atividadesData && (
-          <section className="mb-2" style={{ pageBreakBefore: 'always' }}>
+          <>
+            {mode === "completo" && (
+              <div data-pdf-page-break aria-hidden="true" style={{ height: 0 }} />
+            )}
+            <section className="mb-2">
             <h2 className="text-xs font-bold text-gray-900 border-b border-green-600 pb-0.5 mb-1">
               3. CONTROLE DE ATIVIDADES E PRAZOS
             </h2>
@@ -255,12 +259,17 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </table>
               </div>
             )}
-          </section>
+            </section>
+          </>
         )}
 
         {/* ================== PÁGINA 3 ================== */}
         {showClientes && clientesData && (
-          <section className="mb-2" style={{ pageBreakBefore: 'always' }}>
+          <>
+            {mode === "completo" && (
+              <div data-pdf-page-break aria-hidden="true" style={{ height: 0 }} />
+            )}
+            <section className="mb-2">
             <h2 className="text-xs font-bold text-gray-900 border-b border-purple-600 pb-0.5 mb-1">
               4. ANÁLISE POR CLIENTES
             </h2>
@@ -353,12 +362,17 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </table>
               </div>
             )}
-          </section>
+            </section>
+          </>
         )}
 
         {/* ================== PÁGINA 4 ================== */}
         {showClientes && clientesData && (
-          <section className="mb-2" style={{ pageBreakBefore: 'always' }}>
+          <>
+            {mode === "completo" && (
+              <div data-pdf-page-break aria-hidden="true" style={{ height: 0 }} />
+            )}
+            <section className="mb-2">
             {/* 4.4 Duração Média dos Processos por Cliente */}
             {clientesData.duracaoClientes?.length > 0 && (
               <div className="mb-2">
@@ -410,12 +424,17 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </table>
               </div>
             )}
-          </section>
+            </section>
+          </>
         )}
 
         {/* ================== PÁGINA 5: COORDENAÇÕES ================== */}
         {showCompleto && completoData?.coordenacoes && completoData.coordenacoes.length > 0 && (
-          <section className="mb-2" style={{ pageBreakBefore: 'always' }}>
+          <>
+            {mode === "completo" && (
+              <div data-pdf-page-break aria-hidden="true" style={{ height: 0 }} />
+            )}
+            <section className="mb-2">
             <h2 className="text-xs font-bold text-gray-900 border-b border-teal-600 pb-0.5 mb-1">
               5. ESTRUTURA DAS COORDENAÇÕES
             </h2>
@@ -494,14 +513,19 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 ))}
               </div>
             </div>
-          </section>
+            </section>
+          </>
         )}
 
         {/* ================== PÁGINA 7: TOTALIZADORES RESTANTES ================== */}
-        
+
         {/* 6. AUDIÊNCIAS */}
         {showCompleto && completoData?.audienciasStats && (
-          <section className="mb-2" style={{ pageBreakBefore: 'always' }}>
+          <>
+            {mode === "completo" && (
+              <div data-pdf-page-break aria-hidden="true" style={{ height: 0 }} />
+            )}
+            <section className="mb-2">
             <h2 className="text-xs font-bold text-gray-900 border-b border-orange-600 pb-0.5 mb-1">
               6. PAINEL DE AUDIÊNCIAS
             </h2>
@@ -532,7 +556,8 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 <p className="text-[6px] text-gray-600">Ignoradas</p>
               </div>
             </div>
-          </section>
+            </section>
+          </>
         )}
 
         {/* 7. INTIMAÇÕES */}

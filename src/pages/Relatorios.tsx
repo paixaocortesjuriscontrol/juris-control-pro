@@ -224,10 +224,16 @@ const Relatorios = () => {
       // Aguarda render completo de todos os gráficos e seções
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      // Mapear posições de tabelas (para evitar que iniciem no fim da página e sejam cortadas)
-      // Obs: isso funciona no modo canvas-slice porque ajustamos o corte do canvas para "quebrar" antes da tabela.
+      // Mapear posições de tabelas e quebras manuais (para evitar que iniciem no fim da página)
+      // Usamos marcadores [data-pdf-page-break] para forçar páginas exatamente onde o relatório define.
       const captureScale = 2;
       const rootRect = element.getBoundingClientRect();
+
+      const pageBreaksPx = Array.from(element.querySelectorAll("[data-pdf-page-break]"))
+        .map((el) => (el.getBoundingClientRect().top - rootRect.top) * captureScale)
+        .filter((y) => y > 10)
+        .sort((a, b) => a - b);
+
       const tableTopBreaksPx = Array.from(element.querySelectorAll("table"))
         .filter((t) => !(t as HTMLTableElement).hasAttribute("data-pdf-allow-split"))
         .map((t) => (t.getBoundingClientRect().top - rootRect.top) * captureScale)
@@ -287,16 +293,31 @@ const Relatorios = () => {
 
         // tamanho padrão do recorte
         let sliceHeight = Math.min(pageHeightInPx, imgHeight - sourceY);
+
+        // Se existe uma quebra manual definida no layout, respeitar.
+        const nextManualBreak = pageBreaksPx.find((b) => b > sourceY + 2);
+        if (nextManualBreak) {
+          const maxUntilBreak = nextManualBreak - sourceY;
+          // Se o marcador cair dentro da altura desta página, quebramos exatamente ali.
+          if (maxUntilBreak > 8 && maxUntilBreak < sliceHeight + 8) {
+            sliceHeight = Math.min(sliceHeight, maxUntilBreak);
+          }
+        }
+
         const pageEnd = sourceY + sliceHeight;
 
         // Se existir uma tabela começando dentro do intervalo desta página,
         // encerramos a página antes dela para a tabela iniciar no topo da próxima.
-        const nextTableTop = tableTopBreaksPx.find(
-          (t) => t > sourceY + 24 && t < pageEnd - 24
-        );
+        const safePageEnd = nextManualBreak ? Math.min(pageEnd, nextManualBreak - 24) : pageEnd;
+        const nextTableTop = tableTopBreaksPx.find((t) => t > sourceY + 24 && t < safePageEnd - 24);
 
         if (nextTableTop) {
           sliceHeight = Math.max(64, nextTableTop - sourceY);
+        }
+
+        // Evitar loop infinito por arredondamento
+        if (sliceHeight < 8) {
+          sliceHeight = Math.min(64, imgHeight - sourceY);
         }
 
         const pageCanvas = document.createElement("canvas");
