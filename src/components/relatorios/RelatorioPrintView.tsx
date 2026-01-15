@@ -20,6 +20,16 @@ interface RelatorioPrintViewProps {
   mode?: RelatorioPrintMode;
 }
 
+function ReportHeader({ subtitle, dataGeracao }: { subtitle: string; dataGeracao: string }) {
+  return (
+    <header className="text-center border-b-2 border-gray-800 pb-2 mb-2">
+      <h1 className="text-lg font-bold text-gray-900 mb-0.5 tracking-wide">RELATÓRIO GERENCIAL</h1>
+      <p className="text-xs text-gray-700 font-medium">{subtitle}</p>
+      <p className="text-[8px] text-gray-500 mt-0.5">Gerado em: {dataGeracao}</p>
+    </header>
+  );
+}
+
 export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewProps>(
   ({ resumoData, atividadesData, clientesData, completoData, mode = "completo" }, ref) => {
     const dataGeracao = format(new Date(), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR });
@@ -38,17 +48,11 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             ? "Controle de Atividades e Prazos"
             : "Análise por Clientes";
 
-    return (
-      <div ref={ref} className="bg-white text-black p-4 pdf-capture-hidden" style={{ fontFamily: 'Arial, sans-serif', maxWidth: '210mm', fontSize: '8px' }}>
-        {/* Cabeçalho Executivo */}
-        <header className="text-center border-b-2 border-gray-800 pb-2 mb-2">
-          <h1 className="text-lg font-bold text-gray-900 mb-0.5 tracking-wide">RELATÓRIO GERENCIAL</h1>
-          <p className="text-xs text-gray-700 font-medium">{subtitle}</p>
-          <p className="text-[8px] text-gray-500 mt-0.5">Gerado em: {dataGeracao}</p>
-        </header>
+    // PÁGINA 1 (COMPLETO): Visão Geral + Resumo
+    const PageCompleto1 = (
+      <div data-pdf-page>
+        <ReportHeader subtitle={subtitle} dataGeracao={dataGeracao} />
 
-        {/* ================== PÁGINA 1 ================== */}
-        
         {/* 1. VISÃO GERAL DO ESCRITÓRIO */}
         {showCompleto && (
           <section className="mb-2">
@@ -92,11 +96,8 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
         {/* 2. RESUMO EXECUTIVO */}
         {showResumo && resumoData && (
           <section className="mb-2">
-            <h2 className="text-xs font-bold text-gray-900 border-b border-blue-600 pb-0.5 mb-1">
-              2. RESUMO EXECUTIVO
-            </h2>
+            <h2 className="text-xs font-bold text-gray-900 border-b border-blue-600 pb-0.5 mb-1">2. RESUMO EXECUTIVO</h2>
 
-            {/* Cards de Resumo */}
             <div className="grid grid-cols-4 gap-1 mb-1">
               <div className="border border-gray-300 rounded p-0.5 text-center">
                 <p className="text-sm font-bold text-blue-600">{resumoData.totalProcessos}</p>
@@ -116,28 +117,19 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
               </div>
             </div>
 
-            {/* 2.1 e 2.2 - Gráficos lado a lado */}
             <div className="grid grid-cols-2 gap-1 mb-1">
               <PrintDonutChart
                 data={resumoData.processosPerArea || []}
                 title="2.1 Processos por Área"
                 centerLabel={resumoData.totalProcessos?.toString()}
               />
-              <PrintDonutChart
-                data={resumoData.processosPorTipoPessoa || []}
-                title="2.2 Processos por Tipo de Pessoa"
-              />
+              <PrintDonutChart data={resumoData.processosPorTipoPessoa || []} title="2.2 Processos por Tipo de Pessoa" />
             </div>
 
-            {/* 2.3 Movimentação Mensal */}
             <div className="mb-1">
-              <PrintGroupedBarChart
-                data={resumoData.processosMensais || []}
-                title="2.3 Movimentação Mensal (Novos vs Encerrados)"
-              />
+              <PrintGroupedBarChart data={resumoData.processosMensais || []} title="2.3 Movimentação Mensal (Novos vs Encerrados)" />
             </div>
 
-            {/* 2.4 Processos MPT */}
             {resumoData.processosMptStatus && resumoData.processosMptStatus.length > 0 && (
               <div className="mb-1">
                 <PrintStatusChart
@@ -148,7 +140,6 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
               </div>
             )}
 
-            {/* 2.5 Detalhamento por Área - SEM quebra de página */}
             <div className="mb-1">
               <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">2.5 Detalhamento por Área</h3>
               <table className="w-full border-collapse border border-gray-300 text-[7px]">
@@ -172,9 +163,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                         </td>
                         <td className="border border-gray-300 px-1 py-0.5 text-right">{area.value}</td>
                         <td className="border border-gray-300 px-1 py-0.5 text-right">
-                          {resumoData.totalProcessos > 0
-                            ? ((area.value / resumoData.totalProcessos) * 100).toFixed(1)
-                            : 0}%
+                          {resumoData.totalProcessos > 0 ? ((area.value / resumoData.totalProcessos) * 100).toFixed(1) : 0}%
                         </td>
                       </tr>
                     ))}
@@ -183,14 +172,15 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             </div>
           </section>
         )}
+      </div>
+    );
 
-        {/* ================== PÁGINA 2 ================== */}
+    const PageAtividades = (
+      <div data-pdf-page>
+        {mode !== "completo" && <ReportHeader subtitle={subtitle} dataGeracao={dataGeracao} />}
+
         {showAtividades && atividadesData && (
-          <>
-            {mode === "completo" && (
-              <div data-pdf-page-break aria-hidden="true" style={{ height: 0 }} />
-            )}
-            <section className="mb-2">
+          <section className="mb-2">
             <h2 className="text-xs font-bold text-gray-900 border-b border-green-600 pb-0.5 mb-1">
               3. CONTROLE DE ATIVIDADES E PRAZOS
             </h2>
@@ -211,27 +201,16 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
             </div>
 
             <div className="grid grid-cols-2 gap-1 mb-1">
-              <PrintStatusChart
-                data={atividadesData.prazosStatus || []}
-                title="3.1 Status dos Prazos"
-                total={atividadesData.totalPrazos || 0}
-              />
-              <PrintDonutChart
-                data={atividadesData.andamentosPorArea || []}
-                title="3.2 Andamentos por Área"
-              />
+              <PrintStatusChart data={atividadesData.prazosStatus || []} title="3.1 Status dos Prazos" total={atividadesData.totalPrazos || 0} />
+              <PrintDonutChart data={atividadesData.andamentosPorArea || []} title="3.2 Andamentos por Área" />
             </div>
 
             {atividadesData.evolucaoAndamentos?.length > 0 && (
               <div className="mb-1">
-                <PrintYearlyChart
-                  data={atividadesData.evolucaoAndamentos}
-                  title="3.3 Evolução dos Andamentos por Ano"
-                />
+                <PrintYearlyChart data={atividadesData.evolucaoAndamentos} title="3.3 Evolução dos Andamentos por Ano" />
               </div>
             )}
 
-            {/* 3.4 Atividades por Área - SEM quebra de página */}
             {atividadesData.atividadesPorArea?.some((a: any) => a.concluidas > 0 || a.pendentes > 0) && (
               <div className="mb-1">
                 <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">3.4 Atividades por Área de Atuação</h3>
@@ -259,20 +238,18 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </table>
               </div>
             )}
-            </section>
-          </>
+          </section>
         )}
+      </div>
+    );
 
-        {/* ================== PÁGINA 3 ================== */}
+    const PageClientes1 = (
+      <div data-pdf-page>
+        {mode !== "completo" && <ReportHeader subtitle={subtitle} dataGeracao={dataGeracao} />}
+
         {showClientes && clientesData && (
-          <>
-            {mode === "completo" && (
-              <div data-pdf-page-break aria-hidden="true" style={{ height: 0 }} />
-            )}
-            <section className="mb-2">
-            <h2 className="text-xs font-bold text-gray-900 border-b border-purple-600 pb-0.5 mb-1">
-              4. ANÁLISE POR CLIENTES
-            </h2>
+          <section className="mb-2">
+            <h2 className="text-xs font-bold text-gray-900 border-b border-purple-600 pb-0.5 mb-1">4. ANÁLISE POR CLIENTES</h2>
 
             <div className="grid grid-cols-4 gap-1 mb-1">
               <div className="border border-gray-300 rounded p-0.5 text-center">
@@ -299,9 +276,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
               </div>
             </div>
 
-            {/* 4.1 e 4.2 - Cards lado a lado */}
             <div className="grid grid-cols-2 gap-1 mb-1">
-              {/* 4.1 Processos por Vara (Top 10) - AZUL */}
               {clientesData.processosPorVara?.length > 0 && (
                 <div className="border border-gray-200 rounded p-1">
                   <PrintHorizontalBarChart
@@ -315,14 +290,24 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </div>
               )}
 
-              {/* 4.2 Produtividade da Equipe */}
               {clientesData.produtividadeAdvogados?.length > 0 && (
                 <div className="border border-gray-200 rounded p-1">
                   <PrintHorizontalBarChart
                     data={clientesData.produtividadeAdvogados.slice(0, 10).map((a: any, i: number) => ({
                       name: a.nome || "N/A",
                       value: a.processos,
-                      color: ["#3B82F6", "#22C55E", "#F59E0B", "#EF4444", "#6366F1", "#8B5CF6", "#EC4899", "#14B8A6", "#F97316", "#06B6D4"][i % 10],
+                      color: [
+                        "#3B82F6",
+                        "#22C55E",
+                        "#F59E0B",
+                        "#EF4444",
+                        "#6366F1",
+                        "#8B5CF6",
+                        "#EC4899",
+                        "#14B8A6",
+                        "#F97316",
+                        "#06B6D4",
+                      ][i % 10],
                     }))}
                     title="4.2 Produtividade da Equipe (Top 10)"
                   />
@@ -330,7 +315,6 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
               )}
             </div>
 
-            {/* 4.3 Processos por Cliente (Top 15) */}
             {clientesData.processosPorCliente?.length > 0 && (
               <div className="mb-1">
                 <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">4.3 Processos por Cliente (Top 15)</h3>
@@ -349,9 +333,7 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                     {clientesData.processosPorCliente.slice(0, 15).map((cliente: any) => (
                       <tr key={cliente.nome}>
                         <td className="border border-gray-300 px-1 py-0.5 truncate max-w-[100px]">{cliente.nome}</td>
-                        <td className="border border-gray-300 px-1 py-0.5 text-center">
-                          {cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"}
-                        </td>
+                        <td className="border border-gray-300 px-1 py-0.5 text-center">{cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"}</td>
                         <td className="border border-gray-300 px-1 py-0.5 text-right font-semibold">{cliente.total}</td>
                         <td className="border border-gray-300 px-1 py-0.5 text-right text-green-600">{cliente.ativos}</td>
                         <td className="border border-gray-300 px-1 py-0.5 text-right">{cliente.encerrados}</td>
@@ -362,18 +344,15 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </table>
               </div>
             )}
-            </section>
-          </>
+          </section>
         )}
+      </div>
+    );
 
-        {/* ================== PÁGINA 4 ================== */}
+    const PageClientes2 = (
+      <div data-pdf-page>
         {showClientes && clientesData && (
-          <>
-            {mode === "completo" && (
-              <div data-pdf-page-break aria-hidden="true" style={{ height: 0 }} />
-            )}
-            <section className="mb-2">
-            {/* 4.4 Duração Média dos Processos por Cliente */}
+          <section className="mb-2">
             {clientesData.duracaoClientes?.length > 0 && (
               <div className="mb-2">
                 <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">4.4 Duração Média dos Processos por Cliente (Top 15)</h3>
@@ -398,7 +377,6 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
               </div>
             )}
 
-            {/* 4.5 Atividades por Tipo de Tarefa - SEM quebra de página */}
             {clientesData.atividadesPorTarefa?.length > 0 && (
               <div className="mb-2">
                 <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">4.5 Atividades por Tipo de Tarefa</h3>
@@ -424,20 +402,16 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 </table>
               </div>
             )}
-            </section>
-          </>
+          </section>
         )}
+      </div>
+    );
 
-        {/* ================== PÁGINA 5: COORDENAÇÕES ================== */}
+    const PageCoordenacoes = (
+      <div data-pdf-page>
         {showCompleto && completoData?.coordenacoes && completoData.coordenacoes.length > 0 && (
-          <>
-            {mode === "completo" && (
-              <div data-pdf-page-break aria-hidden="true" style={{ height: 0 }} />
-            )}
-            <section className="mb-2">
-            <h2 className="text-xs font-bold text-gray-900 border-b border-teal-600 pb-0.5 mb-1">
-              5. ESTRUTURA DAS COORDENAÇÕES
-            </h2>
+          <section className="mb-2">
+            <h2 className="text-xs font-bold text-gray-900 border-b border-teal-600 pb-0.5 mb-1">5. ESTRUTURA DAS COORDENAÇÕES</h2>
 
             <div className="grid grid-cols-3 gap-1 mb-1">
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
@@ -445,20 +419,15 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 <p className="text-[7px] text-gray-600">Coordenações</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
-                <p className="text-sm font-bold text-blue-600">
-                  {completoData.coordenacoes.reduce((acc, c) => acc + c.totalMembros, 0)}
-                </p>
+                <p className="text-sm font-bold text-blue-600">{completoData.coordenacoes.reduce((acc, c) => acc + c.totalMembros, 0)}</p>
                 <p className="text-[7px] text-gray-600">Total Membros</p>
               </div>
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
-                <p className="text-sm font-bold text-purple-600">
-                  {completoData.coordenacoes.reduce((acc, c) => acc + c.totalProcessos, 0)}
-                </p>
+                <p className="text-sm font-bold text-purple-600">{completoData.coordenacoes.reduce((acc, c) => acc + c.totalProcessos, 0)}</p>
                 <p className="text-[7px] text-gray-600">Processos Vinc.</p>
               </div>
             </div>
 
-            {/* 5.1 Resumo por Coordenação */}
             <div className="mb-2">
               <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">5.1 Resumo por Coordenação</h3>
               <table className="w-full border-collapse border border-gray-300 text-[7px]">
@@ -487,49 +456,44 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
               </table>
             </div>
 
-            {/* 5.2 Processos por Membro - Cards compactos em grid 2 colunas */}
             <div className="mb-1">
               <h3 className="text-[9px] font-semibold text-gray-800 mb-0.5">5.2 Processos por Membro</h3>
               <div className="grid grid-cols-2 gap-1">
-                {completoData.coordenacoes.map((coord) => (
-                  coord.membros.length > 0 && (
-                    <div key={coord.id} className="border border-gray-200 rounded p-1 bg-gray-50">
-                      <h4 className="text-[8px] font-medium text-teal-700 mb-0.5 border-b border-teal-200 pb-0.5 truncate">
-                        {coord.nome} ({coord.membros.length})
-                      </h4>
-                      <div className="space-y-0">
-                        {coord.membros.slice(0, 6).map((m, i) => (
-                          <div key={i} className="flex justify-between text-[7px] leading-tight">
-                            <span className="text-gray-700 truncate pr-1" style={{ maxWidth: '75%' }}>{m.nome}</span>
-                            <span className="font-semibold text-gray-800 flex-shrink-0">{m.processos}</span>
-                          </div>
-                        ))}
-                        {coord.membros.length > 6 && (
-                          <div className="text-[6px] text-gray-500 italic">+{coord.membros.length - 6} membros...</div>
-                        )}
+                {completoData.coordenacoes.map(
+                  (coord) =>
+                    coord.membros.length > 0 && (
+                      <div key={coord.id} className="border border-gray-200 rounded p-1 bg-gray-50">
+                        <h4 className="text-[8px] font-medium text-teal-700 mb-0.5 border-b border-teal-200 pb-0.5 truncate">
+                          {coord.nome} ({coord.membros.length})
+                        </h4>
+                        <div className="space-y-0">
+                          {coord.membros.slice(0, 6).map((m, i) => (
+                            <div key={i} className="flex justify-between text-[7px] leading-tight">
+                              <span className="text-gray-700 truncate pr-1" style={{ maxWidth: "75%" }}>
+                                {m.nome}
+                              </span>
+                              <span className="font-semibold text-gray-800 flex-shrink-0">{m.processos}</span>
+                            </div>
+                          ))}
+                          {coord.membros.length > 6 && (
+                            <div className="text-[6px] text-gray-500 italic">+{coord.membros.length - 6} membros...</div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )
-                ))}
+                    )
+                )}
               </div>
             </div>
-            </section>
-          </>
+          </section>
         )}
+      </div>
+    );
 
-        {/* ================== PÁGINA 7: TOTALIZADORES RESTANTES ================== */}
-
-        {/* 6. AUDIÊNCIAS */}
+    const PageRestante = (
+      <div data-pdf-page>
         {showCompleto && completoData?.audienciasStats && (
-          <>
-            {mode === "completo" && (
-              <div data-pdf-page-break aria-hidden="true" style={{ height: 0 }} />
-            )}
-            <section className="mb-2">
-            <h2 className="text-xs font-bold text-gray-900 border-b border-orange-600 pb-0.5 mb-1">
-              6. PAINEL DE AUDIÊNCIAS
-            </h2>
-
+          <section className="mb-2">
+            <h2 className="text-xs font-bold text-gray-900 border-b border-orange-600 pb-0.5 mb-1">6. PAINEL DE AUDIÊNCIAS</h2>
             <div className="grid grid-cols-6 gap-1 mb-2">
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-gray-800">{completoData.audienciasStats.total}</p>
@@ -556,17 +520,12 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 <p className="text-[6px] text-gray-600">Ignoradas</p>
               </div>
             </div>
-            </section>
-          </>
+          </section>
         )}
 
-        {/* 7. INTIMAÇÕES */}
         {showCompleto && completoData?.intimacoesStats && (
           <section className="mb-2">
-            <h2 className="text-xs font-bold text-gray-900 border-b border-rose-600 pb-0.5 mb-1">
-              7. PAINEL DE INTIMAÇÕES
-            </h2>
-
+            <h2 className="text-xs font-bold text-gray-900 border-b border-rose-600 pb-0.5 mb-1">7. PAINEL DE INTIMAÇÕES</h2>
             <div className="grid grid-cols-6 gap-1 mb-2">
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
                 <p className="text-xs font-bold text-gray-800">{completoData.intimacoesStats.total}</p>
@@ -596,12 +555,9 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
           </section>
         )}
 
-        {/* 8. DJEN */}
         {showCompleto && completoData?.djenStats && (
           <section className="mb-2">
-            <h2 className="text-xs font-bold text-gray-900 border-b border-cyan-600 pb-0.5 mb-1">
-              8. ANÁLISE DJEN (PUBLICAÇÕES)
-            </h2>
+            <h2 className="text-xs font-bold text-gray-900 border-b border-cyan-600 pb-0.5 mb-1">8. ANÁLISE DJEN (PUBLICAÇÕES)</h2>
 
             <div className="grid grid-cols-3 gap-1 mb-1">
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
@@ -648,12 +604,9 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
           </section>
         )}
 
-        {/* 9. NOTIFICAÇÕES */}
         {showCompleto && completoData?.notificacoesStats && (
           <section className="mb-2">
-            <h2 className="text-xs font-bold text-gray-900 border-b border-pink-600 pb-0.5 mb-1">
-              9. CENTRAL DE NOTIFICAÇÕES
-            </h2>
+            <h2 className="text-xs font-bold text-gray-900 border-b border-pink-600 pb-0.5 mb-1">9. CENTRAL DE NOTIFICAÇÕES</h2>
 
             <div className="grid grid-cols-4 gap-1 mb-1">
               <div className="border border-gray-300 rounded p-0.5 text-center bg-white">
@@ -676,11 +629,40 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
           </section>
         )}
 
-        {/* Rodapé */}
         <footer className="mt-3 pt-1 border-t border-gray-300 text-center text-[7px] text-gray-500">
           <p>Juris Control - Sistema de Gestão Jurídica</p>
           <p className="mt-0.5">Relatório gerado em {dataGeracao}</p>
         </footer>
+      </div>
+    );
+
+    return (
+      <div
+        ref={ref}
+        className="bg-white text-black p-4 pdf-capture-hidden"
+        style={{ fontFamily: "Arial, sans-serif", maxWidth: "210mm", fontSize: "8px" }}
+      >
+        {mode === "completo" ? (
+          <>
+            {PageCompleto1}
+            {showAtividades && PageAtividades}
+            {showClientes && PageClientes1}
+            {showClientes && PageClientes2}
+            {showCompleto && PageCoordenacoes}
+            {showCompleto && PageRestante}
+          </>
+        ) : (
+          <>
+            {mode === "resumo" && <div data-pdf-page>{/* header + resumo */}{PageCompleto1}</div>}
+            {mode === "atividades" && PageAtividades}
+            {mode === "clientes" && (
+              <>
+                {PageClientes1}
+                {PageClientes2}
+              </>
+            )}
+          </>
+        )}
       </div>
     );
   }
