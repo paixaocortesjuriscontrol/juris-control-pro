@@ -3,12 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-
 interface BotaoPreencherIAProps {
   conteudo: string | null | undefined;
   tipoTarefa?: string;
@@ -86,27 +80,20 @@ export function BotaoPreencherIA({
   };
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant={variant}
-          size={size}
-          onClick={handleClick}
-          disabled={disabled || loading || !conteudo}
-          className="gap-2"
-        >
-          {loading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Sparkles className="w-4 h-4" />
-          )}
-          {size !== "icon" && (loading ? "Analisando..." : "Preencher com IA")}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>Usar IA para preencher automaticamente os campos da tarefa</p>
-      </TooltipContent>
-    </Tooltip>
+    <Button
+      type="button"
+      variant={variant}
+      size={size}
+      onClick={handleClick}
+      disabled={disabled || loading || !conteudo}
+      className="gap-2"
+    >
+      {loading ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : (
+        <Sparkles className="w-4 h-4" />
+      )}
+      {size !== "icon" && (loading ? "Analisando..." : "Preencher com IA")}
+    </Button>
   );
 }
