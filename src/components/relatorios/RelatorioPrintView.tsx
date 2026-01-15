@@ -343,7 +343,10 @@ export const RelatorioPrintView = forwardRef<HTMLDivElement, RelatorioPrintViewP
                 {clientesData.processosPorCliente?.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">{numClientes}.3 Processos por Cliente</h3>
-                    <table className="w-full border-collapse border border-gray-300 text-sm">
+                    <table
+                      className="w-full border-collapse border border-gray-300 text-sm"
+                      data-pdf-allow-split
+                    >
                       <thead>
                         <tr className="bg-gray-100">
                           <th className="border border-gray-300 px-3 py-2 text-left">Cliente</th>

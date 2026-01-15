@@ -79,22 +79,41 @@ export function useRelatorioCompletoData(enabled = true) {
     staleTime: 60_000,
     retry: 2,
     queryFn: async (): Promise<RelatorioCompletoData> => {
-      // 1. Dashboard Stats
-      const { data: dashRaw } = await supabase.rpc("get_dashboard_stats");
-      const dash = dashRaw as Record<string, any> | null;
+      // 1. Dashboard Stats (mesma fonte do Dashboard)
+      const { data: dashData, error: dashError } = await supabase.rpc("get_dashboard_stats");
+      if (dashError) throw dashError;
+      const dash = dashData as any;
+
+      // Prazos urgentes (3 dias) — usa tarefas (tabela atual do sistema)
+      const hojeStr = new Date().toISOString().split("T")[0];
+      const tresDiasStr = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+
+      const { count: prazosUrgentes3Dias, error: prazosUrgentesError } = await supabase
+        .from("tarefas")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pendente")
+        .gte("data_vencimento", hojeStr)
+        .lte("data_vencimento", tresDiasStr);
+      if (prazosUrgentesError) throw prazosUrgentesError;
+
+      const totalProcessos = Number(dash?.totalProcessos ?? 0);
+      const processosDistribuidos = Number(dash?.processosDistribuidos ?? 0);
 
       const dashboardStats: DashboardStatsRelatorio = {
-        totalProcessos: dash?.total_processos || 0,
-        processosAtivos: dash?.processos_ativos || 0,
-        processosDistribuidos: dash?.processos_distribuidos || 0,
-        processosNaoDistribuidos: dash?.processos_nao_coordenados || 0,
-        prazosUrgentes: dash?.prazos_urgentes || 0,
-        totalAdvogados: dash?.total_advogados || 0,
-        totalCoordenacoes: dash?.total_coordenacoes || 0,
+        totalProcessos,
+        processosAtivos: Number(dash?.processosAtivos ?? 0),
+        processosDistribuidos,
+        // "Não distribuídos" = sem advogado responsável
+        processosNaoDistribuidos: Math.max(0, totalProcessos - processosDistribuidos),
+        prazosUrgentes: Number(prazosUrgentes3Dias ?? dash?.prazosUrgentes ?? 0),
+        totalAdvogados: Number(dash?.totalAdvogados ?? 0),
+        totalCoordenacoes: Number(dash?.totalCoordenacoes ?? 0),
       };
 
       // 2. Coordenações com membros e estatísticas
-      const { data: coordenacoesRaw } = await supabase
+      const { data: coordenacoesRaw, error: coordenacoesError } = await supabase
         .from("coordenacoes")
         .select(`
           id,
@@ -102,8 +121,11 @@ export function useRelatorioCompletoData(enabled = true) {
           area,
           coordenador:profiles!coordenacoes_coordenador_id_fkey(nome)
         `);
+      if (coordenacoesError) throw coordenacoesError;
 
-      const { data: statsData } = await supabase.rpc("get_coordenacao_stats");
+      const { data: statsData, error: statsError } = await supabase.rpc("get_coordenacao_stats");
+      if (statsError) throw statsError;
+
       const statsMap = new Map<string, any>();
       (statsData || []).forEach((s: any) => {
         statsMap.set(s.coordenacao_id, {
