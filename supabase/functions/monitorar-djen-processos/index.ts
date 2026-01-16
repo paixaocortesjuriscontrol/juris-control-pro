@@ -26,6 +26,49 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Jina Reader proxy (helps when comunicaapi blocks datacenter IPs with 403/HTML)
+const JINA_READER_URL = 'https://r.jina.ai';
+const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
+
+async function fetchJsonViaJina(url: string): Promise<any | null> {
+  if (!JINA_API_KEY) return null;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12_000);
+
+  try {
+    const jinaUrl = `${JINA_READER_URL}/${url}`;
+
+    const resp = await fetch(jinaUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${JINA_API_KEY}`,
+        'Accept': 'application/json, text/plain, */*',
+      },
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      console.log(`[DJEN Processos] Jina proxy error ${resp.status}: ${t.slice(0, 200)}`);
+      return null;
+    }
+
+    const text = await resp.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      console.log('[DJEN Processos] Jina proxy returned non-JSON');
+      return null;
+    }
+  } catch (e) {
+    console.log('[DJEN Processos] Jina proxy fetch failed:', e);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8000): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -37,6 +80,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8
     clearTimeout(timeout);
   }
 }
+
 
 function generateHash(content: string): string {
   let hash = 0;
@@ -349,23 +393,43 @@ async function searchDJENByProcesso(
       headers: browserHeaders,
     });
 
-    if (!response.ok || response.headers.get('content-type')?.includes('text/html')) {
-      return [];
+    const contentType = response.headers.get('content-type') || '';
+
+    let data: any | null = null;
+
+    if (!response.ok || contentType.includes('text/html')) {
+      // Fallback via proxy quando o comunicaapi bloquear (403/HTML)
+      if (JINA_API_KEY) {
+        console.log('[DJEN Processos] Blocked by API, trying Jina proxy fallback...');
+        data = await fetchJsonViaJina(url);
+      }
+
+      if (!data) return [];
+    } else {
+      data = await response.json();
     }
 
-    const data = await response.json();
     const items = data.items || data.content || data.comunicacoes || [];
-    
+
     // If there's more pages and we got a full page, fetch one more
     if (Array.isArray(items) && items.length === PAGE_SIZE && MAX_PAGES > 1) {
       const params2 = new URLSearchParams(params);
       params2.set('pagina', '1');
       const url2 = `${PJE_COMUNICA_ENDPOINT}?${params2.toString()}`;
-      
+
       try {
         const response2 = await fetchWithTimeout(url2, { method: 'GET', headers: browserHeaders });
-        if (response2.ok) {
-          const data2 = await response2.json();
+        const contentType2 = response2.headers.get('content-type') || '';
+
+        let data2: any | null = null;
+
+        if (!response2.ok || contentType2.includes('text/html')) {
+          if (JINA_API_KEY) data2 = await fetchJsonViaJina(url2);
+        } else {
+          data2 = await response2.json();
+        }
+
+        if (data2) {
           const items2 = data2.items || data2.content || data2.comunicacoes || [];
           if (Array.isArray(items2)) {
             items.push(...items2);
