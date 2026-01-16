@@ -18,26 +18,14 @@ const tiposValidos = [
 type TipoMonitoramento = (typeof tiposValidos)[number];
 
 // Mapeamento de frequência para expressão cron (apenas informativo; o agendamento em si é feito via SQL/pg_cron)
+// Todos os monitoramentos agora rodam às 09h e 18h BRT (12h e 21h UTC)
 function getCronExpression(frequencia: string, tipo: TipoMonitoramento): string | null {
-  const isDjen = tipo === 'djen' || tipo === 'djen_processos';
-
-  const map: Record<string, string> = isDjen
-    ? {
-        // 08h BRT = 11h UTC
-        diario: '0 11 * * *',
-        // 08h e 18h BRT = 11h e 21h UTC
-        '2x_dia': '0 11,21 * * *',
-        // Segunda 08h BRT
-        semanal: '0 11 * * 1',
-      }
-    : {
-        // 07h BRT = 10h UTC
-        diario: '0 10 * * *',
-        // 07h e 18h BRT
-        '2x_dia': '0 10,21 * * *',
-        // Segunda 07h BRT
-        semanal: '0 10 * * 1',
-      };
+  // 09h BRT = 12h UTC, 18h BRT = 21h UTC
+  const map: Record<string, string> = {
+    diario: '0 12 * * *',
+    '2x_dia': '0 12,21 * * *',
+    semanal: '0 12 * * 1',
+  };
 
   return map[frequencia] ?? null;
 }
