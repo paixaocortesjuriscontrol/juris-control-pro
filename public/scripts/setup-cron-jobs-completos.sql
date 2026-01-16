@@ -42,11 +42,12 @@ SELECT cron.schedule(
 
 -- =============================================
 -- 2. MONITORAR DJEN (Termos)
--- Executa 2x ao dia (09h e 18h BRT)
+-- Executa 3x ao dia (09h, 11:30h e 18h BRT)
 -- =============================================
 
 -- Remove jobs antigos
 SELECT cron.unschedule('monitorar-djen-manha');
+SELECT cron.unschedule('monitorar-djen-meio');
 SELECT cron.unschedule('monitorar-djen-tarde');
 
 -- 09h BRT = 12h UTC
@@ -57,7 +58,20 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"completeRun": true}'::jsonb
+    body := '{"scheduled": true}'::jsonb
+  );
+  $$
+);
+
+-- 11:30h BRT = 14:30h UTC
+SELECT cron.schedule(
+  'monitorar-djen-meio',
+  '30 14 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
+    body := '{"scheduled": true}'::jsonb
   );
   $$
 );
@@ -70,7 +84,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"completeRun": true}'::jsonb
+    body := '{"scheduled": true}'::jsonb
   );
   $$
 );
