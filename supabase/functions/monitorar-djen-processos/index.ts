@@ -26,9 +26,54 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Jina Reader proxy (helps when comunicaapi blocks datacenter IPs with 403/HTML)
+// DataImpulse residential proxy (primary solution for datacenter IP blocks)
+const DATAIMPULSE_PROXY_AUTH = Deno.env.get('DATAIMPULSE_PROXY_AUTH') || '';
+const DATAIMPULSE_PROXY_HOST = 'gw.dataimpulse.com';
+const DATAIMPULSE_PROXY_PORT = 823;
+
+// Jina Reader proxy (fallback when DataImpulse is not available)
 const JINA_READER_URL = 'https://r.jina.ai';
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
+
+// Fetch via DataImpulse residential proxy
+async function fetchViaDataImpulse(url: string): Promise<any | null> {
+  if (!DATAIMPULSE_PROXY_AUTH) return null;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15_000);
+
+  try {
+    const auth = btoa(DATAIMPULSE_PROXY_AUTH);
+    
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...browserHeaders,
+        'Proxy-Authorization': `Basic ${auth}`,
+      },
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      console.log(`[DJEN Processos] DataImpulse proxy error ${resp.status}: ${t.slice(0, 200)}`);
+      return null;
+    }
+
+    const contentType = resp.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      console.log('[DJEN Processos] DataImpulse returned HTML instead of JSON');
+      return null;
+    }
+
+    return await resp.json();
+  } catch (e) {
+    console.log('[DJEN Processos] DataImpulse proxy fetch failed:', e);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 async function fetchJsonViaJina(url: string): Promise<any | null> {
   if (!JINA_API_KEY) return null;
@@ -67,6 +112,22 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+// Unified proxy fetch: tries DataImpulse first, then Jina as fallback
+async function fetchViaProxy(url: string): Promise<any | null> {
+  if (DATAIMPULSE_PROXY_AUTH) {
+    console.log('[DJEN Processos] Trying DataImpulse residential proxy...');
+    const result = await fetchViaDataImpulse(url);
+    if (result) return result;
+  }
+  
+  if (JINA_API_KEY) {
+    console.log('[DJEN Processos] Trying Jina proxy fallback...');
+    return await fetchJsonViaJina(url);
+  }
+  
+  return null;
 }
 
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8000): Promise<Response> {
@@ -398,11 +459,9 @@ async function searchDJENByProcesso(
     let data: any | null = null;
 
     if (!response.ok || contentType.includes('text/html')) {
-      // Fallback via proxy quando o comunicaapi bloquear (403/HTML)
-      if (JINA_API_KEY) {
-        console.log('[DJEN Processos] Blocked by API, trying Jina proxy fallback...');
-        data = await fetchJsonViaJina(url);
-      }
+      // Fallback via proxy (DataImpulse → Jina) quando o comunicaapi bloquear
+      console.log('[DJEN Processos] Blocked by API, trying proxy fallback...');
+      data = await fetchViaProxy(url);
 
       if (!data) return [];
     } else {
@@ -424,7 +483,7 @@ async function searchDJENByProcesso(
         let data2: any | null = null;
 
         if (!response2.ok || contentType2.includes('text/html')) {
-          if (JINA_API_KEY) data2 = await fetchJsonViaJina(url2);
+          data2 = await fetchViaProxy(url2);
         } else {
           data2 = await response2.json();
         }
