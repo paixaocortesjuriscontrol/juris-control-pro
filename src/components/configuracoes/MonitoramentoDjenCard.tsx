@@ -385,11 +385,12 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             <SelectContent>
               <SelectItem value="diario">Diário (9h BRT)</SelectItem>
               <SelectItem value="2x_dia">2x ao dia (9h e 18h BRT)</SelectItem>
+              <SelectItem value="3x_dia">3x ao dia (9h, 11:30h e 18h BRT)</SelectItem>
               <SelectItem value="semanal">Semanal (Segunda 9h BRT)</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground mt-1">
-            ⚠️ Horários atualizados para 09:00/18:00 (BRT) com retry automático se vazio
+            ⚠️ Horários: 09:00, 11:30 e 18:00 (BRT) com retry automático se vazio
           </p>
         </div>
 
