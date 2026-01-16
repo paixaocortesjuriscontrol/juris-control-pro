@@ -343,6 +343,12 @@ interface SearchParams {
   ufOab?: string;
   nomeAdvogado?: string;
   siglaTribunal?: string | null;
+
+  // Opcional: permitir controlar o intervalo de datas (yyyy-MM-dd) quando necessário.
+  // Se não for informado, a função usa o "hoje" de Brasília e faz fallback para ontem
+  // quando a API retornar vazio.
+  dataInicio?: string;
+  dataFim?: string;
 }
 
 async function processMonitoramento(
