@@ -7,7 +7,7 @@
 
 -- ================================================================
 -- 1. ADICIONAR JOB PARA REDISTRIBUIÇÕES - TURNO DA TARDE (18h BRT)
--- O job da manhã (7h BRT) já existe!
+-- O job da manhã (9h BRT) já existe!
 -- ================================================================
 
 SELECT cron.schedule(

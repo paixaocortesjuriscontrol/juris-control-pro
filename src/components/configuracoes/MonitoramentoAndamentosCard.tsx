@@ -17,11 +17,11 @@ interface Props {
 }
 
 const HORARIOS_DISPONIVEIS = [
-  { value: '08:00', label: '08:00' },
+  { value: '09:00', label: '09:00' },
   { value: '12:00', label: '12:00' },
   { value: '14:00', label: '14:00' },
   { value: '18:00', label: '18:00' },
-  { value: '22:00', label: '22:00' },
+  { value: '21:00', label: '21:00' },
 ];
 
 export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {

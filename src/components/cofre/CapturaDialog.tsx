@@ -63,7 +63,7 @@ export function CapturaDialog({ open, onOpenChange, captura, credenciais, onSave
     mensagem_status: null as string | null,
     // Campos de agendamento
     modo_captura: "agendado" as "agendado" | "intervalo" | "manual",
-    horarios_execucao: ["08:00", "14:00", "18:00"] as string[],
+    horarios_execucao: ["09:00", "14:00", "18:00"] as string[],
     dias_semana: [1, 2, 3, 4, 5] as number[],
     intervalo_minutos: 60,
   });
