@@ -156,9 +156,9 @@ export function MonitoramentoRedistribuicoesCard({ coordenacaoId }: Props) {
               <SelectValue placeholder="Selecione a frequência" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="diario">Diário (7h BRT)</SelectItem>
-              <SelectItem value="2x_dia">2x ao dia (7h e 18h BRT)</SelectItem>
-              <SelectItem value="semanal">Semanal (Segunda 7h BRT)</SelectItem>
+              <SelectItem value="diario">Diário (9h BRT)</SelectItem>
+              <SelectItem value="2x_dia">2x ao dia (9h e 18h BRT)</SelectItem>
+              <SelectItem value="semanal">Semanal (Segunda 9h BRT)</SelectItem>
             </SelectContent>
           </Select>
         </div>

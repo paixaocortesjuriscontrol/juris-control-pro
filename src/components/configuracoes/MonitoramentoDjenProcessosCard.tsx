@@ -415,9 +415,9 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="diario">Diário (8h BRT)</SelectItem>
-              <SelectItem value="2x_dia">2x ao dia (8h e 18h BRT)</SelectItem>
-              <SelectItem value="semanal">Semanal (Segunda 8h BRT)</SelectItem>
+              <SelectItem value="diario">Diário (9h BRT)</SelectItem>
+              <SelectItem value="2x_dia">2x ao dia (9h e 18h BRT)</SelectItem>
+              <SelectItem value="semanal">Semanal (Segunda 9h BRT)</SelectItem>
             </SelectContent>
           </Select>
         </div>

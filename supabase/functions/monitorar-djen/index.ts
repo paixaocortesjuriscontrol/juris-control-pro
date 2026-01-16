@@ -14,7 +14,7 @@ const MAX_PER_INVOCATION = 10;
 // Soft time limit (ms) to ensure we respond before the platform/browser cuts the request.
 const SOFT_TIMEOUT_MS = 75_000;
 
-// Retry config: if first batch at 08:30 is empty, retry after this delay
+// Retry config: if first batch at 09:00 is empty, retry after this delay
 const RETRY_DELAY_MINUTES = 15;
 const MAX_RETRIES = 4; // Total max retries for empty result
 
