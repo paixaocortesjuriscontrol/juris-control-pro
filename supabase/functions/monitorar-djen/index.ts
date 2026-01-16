@@ -40,9 +40,53 @@ const browserHeaders = {
   "Referer": "https://comunica.pje.jus.br/",
 };
 
+// Jina Reader proxy (helps when comunicaapi blocks datacenter IPs with 403/HTML)
+const JINA_READER_URL = "https://r.jina.ai";
+const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
+
+async function fetchJsonViaJina(url: string): Promise<any | null> {
+  if (!JINA_API_KEY) return null;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12_000);
+
+  try {
+    const jinaUrl = `${JINA_READER_URL}/${url}`;
+
+    const resp = await fetch(jinaUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${JINA_API_KEY}`,
+        'Accept': 'application/json, text/plain, */*',
+      },
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      console.log(`[DJEN] Jina proxy error ${resp.status}: ${t.slice(0, 200)}`);
+      return null;
+    }
+
+    const text = await resp.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      console.log('[DJEN] Jina proxy returned non-JSON');
+      return null;
+    }
+  } catch (e) {
+    console.log('[DJEN] Jina proxy fetch failed:', e);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
 
 async function fetchWithRetry(
   url: string, 
@@ -607,15 +651,16 @@ async function fetchDJENResultsWithStats(
 
   while (page < maxPages) {
     const queryParams = new URLSearchParams();
-    
+
     if (params.texto) queryParams.set('texto', params.texto);
     if (params.numeroOab) queryParams.set('numeroOab', params.numeroOab);
     if (params.ufOab) queryParams.set('ufOab', params.ufOab);
     if (params.nomeAdvogado) queryParams.set('nomeAdvogado', params.nomeAdvogado);
     if (params.siglaTribunal) queryParams.set('siglaTribunal', params.siglaTribunal);
-    
-    queryParams.set('dataDisponibilizacaoInicio', dataHoje);
-    queryParams.set('dataDisponibilizacaoFim', dataHoje);
+
+    // Por padrão, mantém o comportamento atual (hoje em Brasília)
+    queryParams.set('dataDisponibilizacaoInicio', params.dataInicio || dataHoje);
+    queryParams.set('dataDisponibilizacaoFim', params.dataFim || dataHoje);
     queryParams.set('pagina', page.toString());
     queryParams.set('itensPorPagina', '100');
 
@@ -624,15 +669,26 @@ async function fetchDJENResultsWithStats(
 
     try {
       const response = await fetchWithRetry(url, { headers: browserHeaders });
-      
-      if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+
+      let data: any | null = null;
+
+      // Se a API bloquear (403 ou HTML), tenta via proxy (Jina) quando disponível
+      if (!response.ok || contentType.includes('text/html')) {
         console.error(`API error: ${response.status}`);
-        break;
+
+        if (JINA_API_KEY) {
+          console.log('[DJEN] Trying Jina proxy fallback...');
+          data = await fetchJsonViaJina(url);
+        }
+
+        if (!data) break;
+      } else {
+        data = await response.json();
       }
 
-      const data = await response.json();
       const items = data?.comunicacoes || data?.items || data || [];
-      
+
       if (Array.isArray(items) && items.length > 0) {
         allResults.push(...items);
         page++;
@@ -645,9 +701,10 @@ async function fetchDJENResultsWithStats(
       break;
     }
   }
-  
+
   return { items: allResults, pages: page };
 }
+
 
 // Helper to ensure djen_runs record exists before saving lotes
 async function ensureRunExists(
