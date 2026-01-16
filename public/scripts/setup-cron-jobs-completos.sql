@@ -7,13 +7,17 @@
 
 -- =============================================
 -- 1. MONITORAR ANDAMENTOS
--- Executa 2x ao dia (08h e 18h BRT)
+-- Executa 2x ao dia (09h e 18h BRT)
 -- =============================================
 
--- 08h BRT = 11h UTC
+-- Remove jobs antigos
+SELECT cron.unschedule('monitorar-andamentos-manha');
+SELECT cron.unschedule('monitorar-andamentos-tarde');
+
+-- 09h BRT = 12h UTC
 SELECT cron.schedule(
   'monitorar-andamentos-manha',
-  '0 11 * * *',
+  '0 12 * * *',
   $$
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-andamentos',
@@ -38,13 +42,17 @@ SELECT cron.schedule(
 
 -- =============================================
 -- 2. MONITORAR DJEN (Termos)
--- Executa 2x ao dia (08h e 18h BRT)
+-- Executa 2x ao dia (09h e 18h BRT)
 -- =============================================
 
--- 08h BRT = 11h UTC
+-- Remove jobs antigos
+SELECT cron.unschedule('monitorar-djen-manha');
+SELECT cron.unschedule('monitorar-djen-tarde');
+
+-- 09h BRT = 12h UTC
 SELECT cron.schedule(
   'monitorar-djen-manha',
-  '0 11 * * *',
+  '0 12 * * *',
   $$
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen',
@@ -69,13 +77,17 @@ SELECT cron.schedule(
 
 -- =============================================
 -- 3. MONITORAR DJEN PROCESSOS
--- Executa 2x ao dia (08h e 18h BRT)
+-- Executa 2x ao dia (09h e 18h BRT)
 -- =============================================
 
--- 08h BRT = 11h UTC
+-- Remove jobs antigos
+SELECT cron.unschedule('monitorar-djen-processos-manha');
+SELECT cron.unschedule('monitorar-djen-processos-tarde');
+
+-- 09h BRT = 12h UTC
 SELECT cron.schedule(
   'monitorar-djen-processos-manha',
-  '0 11 * * *',
+  '0 12 * * *',
   $$
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen-processos',
@@ -97,10 +109,84 @@ SELECT cron.schedule(
   );
   $$
 );
+
 -- =============================================
--- 4. PROCESSAR ALERTAS DJEN COORDENAÇÃO
+-- 4. MONITORAR REDISTRIBUIÇÕES
+-- Executa 2x ao dia (09h e 18h BRT)
+-- =============================================
+
+-- Remove jobs antigos
+SELECT cron.unschedule('monitorar-redistribuicoes-manha');
+SELECT cron.unschedule('monitorar-redistribuicoes-tarde');
+
+-- 09h BRT = 12h UTC
+SELECT cron.schedule(
+  'monitorar-redistribuicoes-manha',
+  '0 12 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-redistribuicoes',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
+    body := '{"completeRun": true}'::jsonb
+  );
+  $$
+);
+
+-- 18h BRT = 21h UTC
+SELECT cron.schedule(
+  'monitorar-redistribuicoes-tarde',
+  '0 21 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-redistribuicoes',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
+    body := '{"completeRun": true}'::jsonb
+  );
+  $$
+);
+
+-- =============================================
+-- 5. MONITORAR DISTRIBUIÇÕES
+-- Executa 2x ao dia (09h e 18h BRT)
+-- =============================================
+
+-- Remove jobs antigos
+SELECT cron.unschedule('monitorar-distribuicoes-manha');
+SELECT cron.unschedule('monitorar-distribuicoes-tarde');
+
+-- 09h BRT = 12h UTC
+SELECT cron.schedule(
+  'monitorar-distribuicoes-manha',
+  '0 12 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-distribuicoes',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
+    body := '{"completeRun": true}'::jsonb
+  );
+  $$
+);
+
+-- 18h BRT = 21h UTC
+SELECT cron.schedule(
+  'monitorar-distribuicoes-tarde',
+  '0 21 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-distribuicoes',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
+    body := '{"completeRun": true}'::jsonb
+  );
+  $$
+);
+
+-- =============================================
+-- 6. PROCESSAR ALERTAS DJEN COORDENAÇÃO
 -- Executa a cada minuto para verificar horários configurados
 -- =============================================
+
+-- Remove job antigo
+SELECT cron.unschedule('processar-alertas-djen-coordenacao');
 
 SELECT cron.schedule(
   'processar-alertas-djen-coordenacao',
@@ -115,9 +201,12 @@ SELECT cron.schedule(
 );
 
 -- =============================================
--- 5. ENVIAR ALERTAS MONITORAÇÃO 360 POR EMAIL
+-- 7. ENVIAR ALERTAS MONITORAÇÃO 360 POR EMAIL
 -- Executa 1x ao dia às 19h BRT (22h UTC)
 -- =============================================
+
+-- Remove job antigo
+SELECT cron.unschedule('enviar-alertas-360-email');
 
 SELECT cron.schedule(
   'enviar-alertas-360-email',
