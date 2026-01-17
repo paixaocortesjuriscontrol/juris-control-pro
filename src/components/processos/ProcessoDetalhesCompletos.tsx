@@ -300,115 +300,279 @@ export function ProcessoDetalhesCompletos({
         <div className="flex-1 min-w-0">
           <ScrollArea className="h-[calc(100vh-120px)]">
             <div className="p-3 sm:p-4">
-              {/* Detalhes Section */}
+              {/* Detalhes Section - Todas as informações organizadas por categoria */}
               {activeSection === "detalhes" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Left Column */}
-                    <div className="space-y-3">
-                      <FieldItem label="Situação" value={processo.status === "ativo" ? "Ativo" : processo.status} />
-                      
-                      <div>
-                        <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Assunto</p>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm">{processo.assunto || "Não informado"}</p>
-                          {processo.assunto && (
-                            <Badge className="bg-amber-400 text-amber-900">
-                              <Scale className="w-3 h-3" />
+                <div className="space-y-6">
+                  {/* MONITORAMENTO E ENVOLVIDOS - Card destacado */}
+                  <Card className="border-l-4 border-l-primary">
+                    <CardHeader className="py-3 px-4">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Activity className="w-4 h-4" />
+                        Monitoramento e Partes
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-3 px-4 space-y-4">
+                      {/* Monitoramento */}
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase">Monitoramento (Push)</p>
+                          <div className="flex gap-1 mt-1">
+                            <Badge className={cn(
+                              "text-xs",
+                              processo.monitorar_andamentos ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-600"
+                            )}>
+                              {processo.monitorar_andamentos ? "Habilitado" : "Desabilitado"}
                             </Badge>
+                            <Badge className="bg-amber-100 text-amber-700 text-xs">
+                              {processo.status === "ativo" ? "Em andamento" : processo.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Envolvidos */}
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase mb-2">Envolvidos</p>
+                        <div className="flex flex-wrap gap-2">
+                          {processo.polo_passivo && (
+                            <div className="flex items-center gap-1.5">
+                              <Badge className="bg-emerald-500 text-white text-xs px-2 py-0.5 max-w-[200px] truncate" title={processo.polo_passivo}>
+                                {processo.polo_passivo}
+                              </Badge>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">Requerido</Badge>
+                            </div>
+                          )}
+                          {processo.polo_ativo && (
+                            <div className="flex items-center gap-1.5">
+                              <Badge className="bg-zinc-200 text-zinc-700 text-xs px-2 py-0.5 max-w-[200px] truncate" title={processo.polo_ativo}>
+                                {processo.polo_ativo}
+                              </Badge>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">Requerente</Badge>
+                            </div>
+                          )}
+                          {processo.terceiro_envolvido && (
+                            <div className="flex items-center gap-1.5">
+                              <Badge className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 max-w-[200px] truncate" title={processo.terceiro_envolvido}>
+                                {processo.terceiro_envolvido}
+                              </Badge>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">Terceiro</Badge>
+                            </div>
+                          )}
+                        </div>
+                        <Button variant="link" size="sm" className="text-xs p-0 h-auto mt-1 text-primary" onClick={() => setActiveSection("envolvidos")}>
+                          Expandir
+                        </Button>
+                      </div>
+
+                      {/* Responsáveis */}
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase mb-2">Responsáveis</p>
+                        <div className="flex flex-wrap gap-2">
+                          {responsaveis.length > 0 ? (
+                            responsaveis.map((r) => (
+                              <div key={r.id} className="flex items-center gap-2 bg-muted/50 rounded-md px-2 py-1">
+                                <Avatar className="w-6 h-6 border border-background">
+                                  <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-semibold">
+                                    {r.nome.substring(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm font-medium">{r.nome}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Não informado</span>
                           )}
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <FieldItem label="Pasta física" value={processo.pasta_fisica} />
-                        <FieldItem label="Pasta do cliente" value={processo.pasta_cliente || processo.pasta?.nome} />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
+                      {/* Valor da Ação */}
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Responsáveis</p>
-                          <div className="flex flex-col gap-1 mt-1">
-                            {responsaveis.length > 0 ? (
-                              responsaveis.map((r) => (
-                                <div key={r.id} className="flex items-center gap-2">
-                                  <Avatar className="w-6 h-6 border border-background">
-                                    <AvatarFallback className="text-[10px] bg-primary/10">
-                                      {r.nome.substring(0, 2).toUpperCase()}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span className="text-sm text-foreground">{r.nome}</span>
-                                </div>
-                              ))
-                            ) : (
-                              <span className="text-sm text-muted-foreground">Não informado</span>
-                            )}
-                          </div>
+                          <p className="text-[10px] text-muted-foreground uppercase">Valor da Ação</p>
+                          <p className="text-lg font-semibold text-foreground">{formatCurrency(processo.valor_causa)}</p>
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Marcadores</p>
-                          <Badge className="bg-zinc-700 text-white text-xs mt-1">CAPTURA</Badge>
+                          <p className="text-[10px] text-muted-foreground uppercase">Pasta do Cliente</p>
+                          <p className="text-sm">{processo.pasta_cliente || processo.pasta?.nome || "Não vinculado"}</p>
                         </div>
                       </div>
+                    </CardContent>
+                  </Card>
 
-                      <FieldItem label="Descrição" value={processo.descricao} />
-                    </div>
-
-                    {/* Right Column */}
-                    <div className="space-y-3">
-                      <FieldItem label="Justiça" value={processo.justica || "Justiça dos Estados"} />
-                      <FieldItem label="Órgão" value={`${processo.tribunal || ""} - ${processo.comarca || ""}`} />
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <FieldItem label="Órgão julgador" value={processo.orgao_julgador} />
-                        <FieldItem label="Instância" value={processo.instancia || "1ª Instância"} />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <FieldItem label="Sistema" value={processo.sistema} />
-                        <div>
-                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Monitoramento</p>
-                          <Badge className={cn(
-                            "text-xs mt-1",
-                            processo.monitorar_andamentos 
-                              ? "bg-emerald-100 text-emerald-700" 
-                              : "bg-zinc-100 text-zinc-600"
-                          )}>
-                            {processo.monitorar_andamentos ? "Habilitado" : "Desabilitado"}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Distribuição</p>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Calendar className="w-3 h-3 text-muted-foreground" />
-                            {formatDate(processo.data_distribuicao)}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Citação</p>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Calendar className="w-3 h-3 text-muted-foreground" />
-                            {formatDate(processo.data_citacao)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <Separator className="my-2" />
-
-                      <div className="grid grid-cols-2 gap-3">
+                  {/* DADOS BÁSICOS */}
+                  <Card>
+                    <CardHeader className="py-3 px-4 bg-muted/30">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        Dados Básicos
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-3 px-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <FieldItem label="Tipo de Processo" value={processo.tipo_processo === "administrativo" ? "Administrativo" : "Judicial"} />
+                        <FieldItem label="Número" value={processo.numero} />
                         <FieldItem label="Área" value={processo.area} />
-                        <FieldItem label="Fase" value={processo.fase} />
+                        <FieldItem label="Situação" value={processo.status === "ativo" ? "Ativo" : processo.status} />
+                        <FieldItem label="Assunto" value={processo.assunto} className="col-span-2" />
+                        <FieldItem label="Classe CNJ" value={processo.classe} />
+                        <FieldItem label="Natureza" value={processo.natureza} />
+                        <FieldItem label="Data Distribuição" value={formatDate(processo.data_distribuicao)} />
+                        <FieldItem label="Data Recebimento" value={formatDate(processo.data_recebimento)} />
+                        <FieldItem label="Data Citação" value={formatDate(processo.data_citacao)} />
+                        <FieldItem label="Cliente" value={processo.cliente?.nome || processo.nome_cliente_envolvido} />
+                        <FieldItem label="Pasta Física" value={processo.pasta_fisica} />
+                        <FieldItem label="Coordenação" value={processo.coordenacao?.nome} />
                       </div>
+                      {processo.descricao && (
+                        <div className="mt-4">
+                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Descrição</p>
+                          <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{processo.descricao}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <FieldItem label="Valor da ação" value={formatCurrency(processo.valor_causa)} />
-                        <FieldItem label="Probabilidade" value={processo.probabilidade} />
+                  {/* TRIBUNAL / ÓRGÃO JULGADOR */}
+                  <Card>
+                    <CardHeader className="py-3 px-4 bg-muted/30">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Scale className="w-4 h-4" />
+                        Tribunal / Órgão Julgador
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-3 px-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <FieldItem label="Tribunal" value={processo.tribunal} />
+                        <FieldItem label="Justiça" value={processo.justica} />
+                        <FieldItem label="Vara / Câmara" value={processo.vara} />
+                        <FieldItem label="Instância" value={processo.instancia} />
+                        <FieldItem label="Comarca" value={processo.comarca} />
+                        <FieldItem label="UF" value={processo.uf} />
+                        <FieldItem label="Fase Processual" value={processo.fase} />
+                        <FieldItem label="Esfera" value={processo.esfera} />
+                        <FieldItem label="Sistema" value={processo.sistema} />
+                        <FieldItem label="Órgão Julgador" value={processo.orgao_julgador} />
+                        <FieldItem label="Matéria" value={processo.materia} />
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* PARTES */}
+                  <Card>
+                    <CardHeader className="py-3 px-4 bg-muted/30">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        Partes do Processo
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-3 px-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Polo Ativo (Autor / Requerente)</p>
+                          <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{processo.polo_ativo || "Não informado"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Polo Passivo (Réu / Requerido)</p>
+                          <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{processo.polo_passivo || "Não informado"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Terceiros Envolvidos</p>
+                          <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{processo.terceiro_envolvido || "Não informado"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Reclamante</p>
+                          <p className="text-sm text-foreground mt-1">{processo.reclamante || "Não informado"}</p>
+                        </div>
+                        <div className="md:col-span-2">
+                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Reclamados</p>
+                          <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{processo.reclamados || "Não informado"}</p>
+                        </div>
+                      </div>
+                      {processo.pedidos && (
+                        <div className="mt-4 pt-4 border-t">
+                          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Pedidos</p>
+                          <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{processo.pedidos}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* ADMINISTRATIVO - Só mostra se tipo_processo = administrativo ou se tem dados */}
+                  {(processo.tipo_processo === "administrativo" || processo.auto_infracao || processo.orgao_origem || processo.cnpj_fiscalizado || processo.valor_multa) && (
+                    <Card className="border-orange-200 dark:border-orange-900/50">
+                      <CardHeader className="py-3 px-4 bg-orange-50 dark:bg-orange-900/20">
+                        <CardTitle className="text-sm flex items-center gap-2 text-orange-700 dark:text-orange-400">
+                          <FileBox className="w-4 h-4" />
+                          Dados Administrativos
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-3 px-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          <FieldItem label="Auto de Infração" value={processo.auto_infracao} />
+                          <FieldItem label="Órgão de Origem" value={processo.orgao_origem} />
+                          <FieldItem label="CNPJ Fiscalizado" value={processo.cnpj_fiscalizado} />
+                          <FieldItem label="NIT / PIS" value={processo.nit_fiscalizado} />
+                          <FieldItem label="Valor da Multa" value={formatCurrency(processo.valor_multa)} />
+                          <FieldItem label="Data Lavratura" value={formatDate(processo.data_lavratura)} />
+                          <FieldItem label="Fiscal Responsável" value={processo.fiscal_responsavel} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* CONTINGENCIAL */}
+                  <Card className="border-purple-200 dark:border-purple-900/50">
+                    <CardHeader className="py-3 px-4 bg-purple-50 dark:bg-purple-900/20">
+                      <CardTitle className="text-sm flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                        <DollarSign className="w-4 h-4" />
+                        Dados Contingenciais
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-3 px-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <FieldItem label="Posição do Cliente" value={processo.ativo_passivo} />
+                        <FieldItem label="Tipo de Responsabilidade" value={processo.responsabilidade_tipo} />
+                        <FieldItem label="Risco Atual" value={processo.risco_atual} />
+                        <FieldItem label="Probabilidade" value={processo.probabilidade} />
+                        <FieldItem label="Valor da Causa" value={formatCurrency(processo.valor_causa)} />
+                        <FieldItem label="Valor da Condenação" value={formatCurrency(processo.valor_condenacao)} />
+                        <FieldItem label="Valor Provisionado" value={formatCurrency(processo.valor_provisionado)} />
+                        <FieldItem label="Função/Cargo" value={processo.funcao} />
+                        <FieldItem label="Advogado Externo" value={processo.advogado_externo} />
+                        <FieldItem label="Risco" value={processo.risco} />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Informações do Sistema */}
+                  <Card className="border-muted">
+                    <CardHeader className="py-2 px-4 bg-muted/20">
+                      <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+                        <Clock className="w-3 h-3" />
+                        Informações do Sistema
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-2 px-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Criado em:</span>
+                          <span className="ml-1">{formatDateTime(processo.created_at)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Atualizado em:</span>
+                          <span className="ml-1">{formatDateTime(processo.updated_at)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Monitorar Andamentos:</span>
+                          <span className="ml-1">{processo.monitorar_andamentos ? "Sim" : "Não"}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Monitorar DJEN:</span>
+                          <span className="ml-1">{processo.monitorar_djen ? "Sim" : "Não"}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               )}
 
