@@ -206,10 +206,10 @@ export function ProcessoEditarCompleto({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] text-muted-foreground uppercase">Assunto</p>
-            <Input
+            <Textarea
               value={formData.assunto || ""}
               onChange={(e) => onInputChange("assunto", e.target.value)}
-              className="h-7 text-xs sm:text-sm"
+              className="min-h-[60px] text-xs sm:text-sm resize-none"
               placeholder="Digite o assunto..."
             />
           </div>
@@ -455,7 +455,15 @@ export function ProcessoEditarCompleto({
                     <EditableField label="Reclamados" field="reclamados" type="textarea" className="md:col-span-2" />
                   </div>
                   <div className="mt-4 pt-4 border-t">
-                    <EditableField label="Pedidos" field="pedidos" type="textarea" />
+                    <div>
+                      <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Pedidos</p>
+                      <Textarea
+                        value={formData.pedidos || ""}
+                        onChange={(e) => onInputChange("pedidos", e.target.value)}
+                        className="min-h-[150px] mt-0.5"
+                        placeholder="Liste os pedidos do processo..."
+                      />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
