@@ -328,14 +328,21 @@ export function ProcessoDetalhesCompletos({
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Responsáveis</p>
-                          <div className="flex -space-x-2 mt-1">
-                            {responsaveis.slice(0, 3).map((r) => (
-                              <Avatar key={r.id} className="w-7 h-7 border-2 border-background">
-                                <AvatarFallback className="text-xs bg-primary/10">
-                                  {r.nome.substring(0, 2).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                            ))}
+                          <div className="flex flex-col gap-1 mt-1">
+                            {responsaveis.length > 0 ? (
+                              responsaveis.map((r) => (
+                                <div key={r.id} className="flex items-center gap-2">
+                                  <Avatar className="w-6 h-6 border border-background">
+                                    <AvatarFallback className="text-[10px] bg-primary/10">
+                                      {r.nome.substring(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-sm text-foreground">{r.nome}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted-foreground">Não informado</span>
+                            )}
                           </div>
                         </div>
                         <div>
