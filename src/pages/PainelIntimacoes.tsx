@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Calendar, Clock, Search, CheckCircle, XCircle, AlertCircle, 
   CalendarDays, FileText, Eye, Plus, Building, AlertTriangle,
-  Timer, PlayCircle, Download, Settings, Users, ClipboardList, User
+  Timer, PlayCircle, Download, Settings, Users, ClipboardList, User,
+  ChevronsUpDown, ChevronDown, ChevronRight
 } from "lucide-react";
 import { useIntimacoesDetectadas, IntimacaoDetectada } from "@/hooks/useIntimacoesDetectadas";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ export default function PainelIntimacoes() {
   const [observacoes, setObservacoes] = useState("");
   const [providencias, setProvidencias] = useState("");
   const [novaIntimacaoOpen, setNovaIntimacaoOpen] = useState(false);
+  const [expandedIntimacoes, setExpandedIntimacoes] = useState<Set<string>>(new Set());
 
   // Buscar coordenação do usuário logado
   const { data: userCoordData } = useQuery({
@@ -197,6 +199,24 @@ export default function PainelIntimacoes() {
       descricao: "",
       prioridade: "normal",
     });
+  };
+
+  const toggleExpandIntimacao = (id: string) => {
+    const newExpanded = new Set(expandedIntimacoes);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedIntimacoes(newExpanded);
+  };
+
+  const toggleExpandAll = () => {
+    if (expandedIntimacoes.size === intimacoes.length && intimacoes.length > 0) {
+      setExpandedIntimacoes(new Set());
+    } else {
+      setExpandedIntimacoes(new Set(intimacoes.map(i => i.id)));
+    }
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -452,6 +472,18 @@ export default function PainelIntimacoes() {
                 <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleExpandAll}
+              disabled={intimacoes.length === 0}
+              className="text-xs h-9"
+            >
+              <ChevronsUpDown className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">
+                {expandedIntimacoes.size === intimacoes.length && intimacoes.length > 0 ? "Recolher" : "Expandir"}
+              </span>
+            </Button>
             <Button variant="outline" onClick={() => setNovaIntimacaoOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Nova Intimação
@@ -479,153 +511,143 @@ export default function PainelIntimacoes() {
             <div className="space-y-4">
               {intimacoes.map((intimacao) => {
                 const daysUntil = getDaysUntil(intimacao.data_limite);
+                const isExpanded = expandedIntimacoes.has(intimacao.id);
                 
                 return (
-                  <Card key={intimacao.id} className="hover:shadow-md transition-shadow">
+                  <Card 
+                    key={intimacao.id} 
+                    className={cn(
+                      "hover:shadow-md transition-shadow cursor-pointer",
+                      isExpanded && "ring-1 ring-primary/20"
+                    )}
+                    onClick={() => toggleExpandIntimacao(intimacao.id)}
+                  >
                     <CardContent className="p-4">
-                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {getStatusBadge(intimacao.status)}
-                            {getOrigemBadge(intimacao.origem)}
-                            {intimacao.status === 'pendente' && getUrgencyBadge(daysUntil)}
-                            {getPrioridadeBadge(intimacao.prioridade)}
-                            {intimacao.tipo_intimacao && (
-                              <Badge variant="secondary">{intimacao.tipo_intimacao}</Badge>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                              )}
+                              {getStatusBadge(intimacao.status)}
+                              {getOrigemBadge(intimacao.origem)}
+                              {intimacao.status === 'pendente' && getUrgencyBadge(daysUntil)}
+                              {getPrioridadeBadge(intimacao.prioridade)}
+                              {intimacao.tipo_intimacao && (
+                                <Badge variant="secondary">{intimacao.tipo_intimacao}</Badge>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-4 text-sm flex-wrap ml-6">
+                              {intimacao.data_limite && (
+                                <div className="flex items-center gap-1 text-primary">
+                                  <Timer className="h-4 w-4" />
+                                  <span className="font-medium">Prazo: {formatDate(intimacao.data_limite)}</span>
+                                </div>
+                              )}
+                              {intimacao.data_disponibilizacao && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <CalendarDays className="h-4 w-4" />
+                                  <span>Disp.: {formatDate(intimacao.data_disponibilizacao)}</span>
+                                </div>
+                              )}
+                              {intimacao.processo_numero && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <FileText className="h-4 w-4" />
+                                  <span className="font-mono text-xs">{intimacao.processo_numero}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Partes do processo */}
+                            {(intimacao.polo_ativo || intimacao.polo_passivo) && (
+                              <div className="flex items-start gap-2 text-sm text-muted-foreground ml-6">
+                                <User className="h-4 w-4 mt-0.5 shrink-0" />
+                                <span className="line-clamp-1">
+                                  {intimacao.polo_ativo && <><strong>Autor:</strong> {intimacao.polo_ativo}</>}
+                                  {intimacao.polo_ativo && intimacao.polo_passivo && " × "}
+                                  {intimacao.polo_passivo && <><strong>Réu:</strong> {intimacao.polo_passivo}</>}
+                                </span>
+                              </div>
+                            )}
+
+                            {!isExpanded && intimacao.descricao && (
+                              <p className="text-sm text-muted-foreground line-clamp-2 ml-6">
+                                {intimacao.descricao}
+                              </p>
                             )}
                           </div>
 
-                          <div className="flex items-center gap-4 text-sm flex-wrap">
-                            {intimacao.data_limite && (
-                              <div className="flex items-center gap-1 text-primary">
-                                <Timer className="h-4 w-4" />
-                                <span className="font-medium">Prazo: {formatDate(intimacao.data_limite)}</span>
-                              </div>
-                            )}
-
-                            {intimacao.data_disponibilizacao && (
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <CalendarDays className="h-4 w-4" />
-                                <span>Disp.: {formatDate(intimacao.data_disponibilizacao)}</span>
-                              </div>
-                            )}
-
-                            {intimacao.data_intimacao && (
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Calendar className="h-4 w-4" />
-                                <span>Pub.: {formatDate(intimacao.data_intimacao)}</span>
-                              </div>
-                            )}
-                            
-                            {intimacao.processo_numero && (
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <FileText className="h-4 w-4" />
-                                <span>{intimacao.processo_numero}</span>
-                              </div>
-                            )}
-
-                            {intimacao.prazo_dias && (
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Clock className="h-4 w-4" />
-                                <span>{intimacao.prazo_dias} dias úteis</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Partes do processo */}
-                          {(intimacao.polo_ativo || intimacao.polo_passivo) && (
-                            <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                              <User className="h-4 w-4 mt-0.5 shrink-0" />
-                              <span className="line-clamp-1">
-                                {intimacao.polo_ativo && <><strong>Autor:</strong> {intimacao.polo_ativo}</>}
-                                {intimacao.polo_ativo && intimacao.polo_passivo && " × "}
-                                {intimacao.polo_passivo && <><strong>Réu:</strong> {intimacao.polo_passivo}</>}
-                              </span>
-                            </div>
-                          )}
-
-                          {intimacao.orgao_intimante && (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <Building className="h-4 w-4" />
-                              <span>{intimacao.orgao_intimante}</span>
-                            </div>
-                          )}
-
-                          {intimacao.descricao && (
-                            <p className="text-sm text-muted-foreground line-clamp-2">
-                              {intimacao.descricao}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex gap-2 flex-wrap">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
+                          {/* Botões */}
+                          <div className="flex gap-2 flex-wrap flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <Button variant="outline" size="sm" onClick={() => {
                               setSelectedIntimacao(intimacao);
                               setObservacoes(intimacao.observacoes || "");
                               setProvidencias(intimacao.providencias_tomadas || "");
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Detalhes
-                          </Button>
-
-                          {intimacao.processo_id && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleCriarTarefa(intimacao)}
-                            >
-                              <ClipboardList className="h-4 w-4 mr-1" />
-                              Criar Tarefa
+                            }}>
+                              <Eye className="h-4 w-4 mr-1" />
+                              Detalhes
                             </Button>
-                          )}
-                          
-                          {intimacao.status === 'pendente' && (
-                            <>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleMarcarEmAndamento(intimacao.id)}
-                                disabled={atualizarIntimacao.isPending}
-                              >
-                                <PlayCircle className="h-4 w-4 mr-1" />
-                                Iniciar
+                            {intimacao.processo_id && (
+                              <Button variant="outline" size="sm" onClick={() => handleCriarTarefa(intimacao)}>
+                                <ClipboardList className="h-4 w-4 mr-1" />
+                                Criar Tarefa
                               </Button>
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => handleMarcarTratado(intimacao.id)}
-                                disabled={atualizarIntimacao.isPending}
-                              >
+                            )}
+                            {intimacao.status === 'pendente' && (
+                              <>
+                                <Button variant="default" size="sm" onClick={() => handleMarcarTratado(intimacao.id)} disabled={atualizarIntimacao.isPending}>
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Tratado
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleIgnorar(intimacao.id)} disabled={atualizarIntimacao.isPending}>
+                                  <XCircle className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {intimacao.status === 'em_andamento' && (
+                              <Button variant="default" size="sm" onClick={() => handleMarcarTratado(intimacao.id)} disabled={atualizarIntimacao.isPending}>
                                 <CheckCircle className="h-4 w-4 mr-1" />
-                                Tratado
+                                Concluir
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleIgnorar(intimacao.id)}
-                                disabled={atualizarIntimacao.isPending}
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-
-                          {intimacao.status === 'em_andamento' && (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleMarcarTratado(intimacao.id)}
-                              disabled={atualizarIntimacao.isPending}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Concluir
-                            </Button>
-                          )}
+                            )}
+                          </div>
                         </div>
+
+                        {/* Conteúdo expandido */}
+                        {isExpanded && (
+                          <div className="border-t pt-3 space-y-3 ml-6">
+                            {intimacao.descricao && (
+                              <div>
+                                <strong className="text-xs text-muted-foreground">Descrição:</strong>
+                                <p className="text-sm mt-1">{intimacao.descricao}</p>
+                              </div>
+                            )}
+                            {intimacao.contexto && (
+                              <div>
+                                <strong className="text-xs text-muted-foreground">Contexto Detectado:</strong>
+                                <p className="text-sm mt-1 p-2 bg-muted/50 rounded">{intimacao.contexto}</p>
+                              </div>
+                            )}
+                            {intimacao.conteudo_publicacao && (
+                              <div>
+                                <strong className="text-xs text-muted-foreground">Conteúdo da Publicação:</strong>
+                                <div className={cn("mt-1 p-3 bg-muted/50 rounded-lg text-sm", conteudoDisplayClasses)}>
+                                  {formatConteudoParaExibicao(intimacao.conteudo_publicacao)}
+                                </div>
+                              </div>
+                            )}
+                            {intimacao.orgao_intimante && (
+                              <div>
+                                <strong className="text-xs text-muted-foreground">Órgão Intimante:</strong>
+                                <p className="text-sm mt-1">{intimacao.orgao_intimante}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
