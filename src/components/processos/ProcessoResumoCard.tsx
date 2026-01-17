@@ -95,14 +95,6 @@ export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes, 
           <Info className="w-4 h-4 mr-2" />
           Mais informações do processo
         </Button>
-        <Button 
-          variant="outline" 
-          size="icon"
-          onClick={onAbrirProcessoExterno}
-          title="Abrir processo no tribunal"
-        >
-          <ExternalLink className="w-4 h-4" />
-        </Button>
       </div>
 
       {/* Resumo do processo */}
