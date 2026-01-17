@@ -1773,6 +1773,29 @@ export default function ProcessoDetalhes() {
             processo={processo}
             responsaveis={responsaveisParaCards}
             onMaisInformacoes={() => setViewMode("detalhes")}
+            onExpandirEnvolvidos={() => setViewMode("detalhes")}
+            onAbrirProcessoExterno={() => {
+              // Monta URL do tribunal baseado no número do processo
+              const numero = processo.numero?.replace(/\D/g, "") || "";
+              if (numero.length >= 20) {
+                // Extrai segmento J.TR do CNJ para determinar tribunal
+                const tribunal = processo.tribunal?.toLowerCase() || "";
+                let url = "";
+                if (tribunal.includes("trt") || tribunal.includes("trabalho")) {
+                  // PJe Trabalhista
+                  url = `https://pje.trt${numero.substring(16, 18)}.jus.br/consultaprocessual/detalhe-processo/${processo.numero}`;
+                } else if (tribunal.includes("trf")) {
+                  // TRF
+                  url = `https://pje.trf${numero.substring(16, 18)}.jus.br/pje/ConsultaPublica/listView.seam`;
+                } else {
+                  // DataJud CNJ como fallback
+                  url = `https://www.cnj.jus.br/poder-judiciario/consulta-processual/`;
+                }
+                window.open(url, "_blank");
+              } else {
+                window.open(`https://www.cnj.jus.br/poder-judiciario/consulta-processual/`, "_blank");
+              }
+            }}
           />
 
           {/* Tabs de Eventos - mesmo do modo editar */}

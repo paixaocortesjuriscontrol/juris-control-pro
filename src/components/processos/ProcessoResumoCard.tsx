@@ -28,6 +28,7 @@ interface ProcessoResumoCardProps {
     assunto?: string | null;
     polo_ativo?: string | null;
     polo_passivo?: string | null;
+    terceiro_envolvido?: string | null;
     tribunal?: string | null;
     vara?: string | null;
     comarca?: string | null;
@@ -46,6 +47,8 @@ interface ProcessoResumoCardProps {
   };
   responsaveis: Responsavel[];
   onMaisInformacoes: () => void;
+  onExpandirEnvolvidos?: () => void;
+  onAbrirProcessoExterno?: () => void;
 }
 
 const statusLabels: Record<string, string> = {
@@ -62,7 +65,7 @@ const areaLabels: Record<string, string> = {
   empresarial: "Empresarial",
 };
 
-export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes }: ProcessoResumoCardProps) {
+export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes, onExpandirEnvolvidos, onAbrirProcessoExterno }: ProcessoResumoCardProps) {
   const formatCurrency = (value: number | null | undefined) => {
     if (!value) return "Não informado";
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -92,7 +95,12 @@ export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes }
           <Info className="w-4 h-4 mr-2" />
           Mais informações do processo
         </Button>
-        <Button variant="outline" size="icon">
+        <Button 
+          variant="outline" 
+          size="icon"
+          onClick={onAbrirProcessoExterno}
+          title="Abrir processo no tribunal"
+        >
           <ExternalLink className="w-4 h-4" />
         </Button>
       </div>
@@ -203,7 +211,14 @@ export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes }
                     </Badge>
                   )}
                 </div>
-                <button className="text-xs text-blue-600 hover:underline mt-1">Expandir</button>
+                {onExpandirEnvolvidos && (
+                  <button 
+                    onClick={onExpandirEnvolvidos}
+                    className="text-xs text-blue-600 hover:underline mt-1"
+                  >
+                    Expandir
+                  </button>
+                )}
               </div>
 
               {/* Responsáveis */}
