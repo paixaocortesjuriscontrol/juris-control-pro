@@ -236,21 +236,7 @@ export function ProcessoEditarCompleto({
       {/* Main Content - Sidebar + Content (igual ao de detalhes) */}
       <div className="flex flex-col sm:flex-row min-w-0">
         {/* Sidebar Navigation */}
-        <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0">
-          {/* Mobile: horizontal scroll */}
-          <div className="sm:hidden overflow-x-auto pb-1">
-            <nav className="flex gap-1 px-2 py-2 min-w-max">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-md whitespace-nowrap bg-primary text-primary-foreground font-medium"
-                >
-                  <item.icon className="w-3 h-3 flex-shrink-0" />
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
+        <aside className="hidden sm:block sm:w-36 md:w-44 sm:border-r bg-muted/20 flex-shrink-0">
           {/* Desktop: vertical sidebar */}
           <ScrollArea className="hidden sm:block h-[calc(100vh-120px)]">
             <nav className="py-2">
