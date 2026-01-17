@@ -173,37 +173,55 @@ export function ProcessoEditarCompleto({
             )}
           </div>
 
-          <div className="flex items-center gap-1">
-            <Badge className="bg-blue-600 text-white text-xs hidden sm:inline-flex">Judicial</Badge>
-            <Button variant="outline" size="sm" onClick={onCancelar} disabled={salvando}>
-              <X className="w-4 h-4 mr-1" />
-              Cancelar
-            </Button>
-            <Button size="sm" onClick={onSalvar} disabled={salvando}>
-              <Save className="w-4 h-4 mr-1" />
-              {salvando ? "Salvando..." : "Salvar"}
-            </Button>
-          </div>
+          <Badge className="bg-blue-600 text-white text-xs hidden sm:inline-flex">Judicial</Badge>
+          <Button variant="outline" size="sm" onClick={onCancelar} disabled={salvando} className="hidden sm:inline-flex">
+            <X className="w-4 h-4 mr-1" />
+            Cancelar
+          </Button>
+          <Button size="sm" onClick={onSalvar} disabled={salvando} className="hidden sm:inline-flex">
+            <Save className="w-4 h-4 mr-1" />
+            {salvando ? "Salvando..." : "Salvar"}
+          </Button>
         </div>
       </div>
 
       {/* Subheader compacto - Número e Assunto */}
       <div className="border-b bg-muted/30 px-2 sm:px-4 py-2">
-        <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-          <div>
-            <p className="text-[10px] text-muted-foreground uppercase">Número</p>
-            <div className="flex items-center gap-1">
-              <p className="text-xs sm:text-sm font-mono">{formData.numero}</p>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-5 w-5"
-                onClick={() => copyToClipboard(formData.numero)}
-              >
-                <Copy className="w-3 h-3" />
+        <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-6">
+          {/* Número + Botões mobile */}
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase">Número</p>
+              <div className="flex items-center gap-1">
+                <p className="text-xs sm:text-sm font-mono">{formData.numero}</p>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-5 w-5"
+                  onClick={() => copyToClipboard(formData.numero)}
+                >
+                  <Copy className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+            {/* Botões Detalhes, Cancelar, Salvar - visíveis apenas no mobile */}
+            <div className="flex items-center gap-1 sm:hidden">
+              <Button variant="secondary" size="sm" onClick={onCancelar}>
+                <FileText className="w-4 h-4 mr-1" />
+                Detalhes
+              </Button>
+              <Button variant="outline" size="sm" onClick={onCancelar} disabled={salvando}>
+                <X className="w-4 h-4" />
+                <span className="hidden">Cancelar</span>
+              </Button>
+              <Button size="sm" onClick={onSalvar} disabled={salvando}>
+                <Save className="w-4 h-4 mr-1" />
+                {salvando ? "..." : "Salvar"}
               </Button>
             </div>
           </div>
+          
+          {/* Assunto - abaixo no mobile, ao lado no desktop */}
           <div className="flex-1 min-w-0">
             <p className="text-[10px] text-muted-foreground uppercase">Assunto</p>
             <Textarea
