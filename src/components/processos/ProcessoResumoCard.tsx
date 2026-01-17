@@ -209,22 +209,18 @@ export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes }
               {/* Responsáveis */}
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Responsáveis</p>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap gap-2 mt-1">
                   {responsaveis.length > 0 ? (
-                    <>
-                      <div className="flex -space-x-2">
-                        {responsaveis.slice(0, 3).map((r) => (
-                          <Avatar key={r.id} className="w-8 h-8 border-2 border-background">
-                            <AvatarFallback className="text-xs bg-primary/10">
-                              {r.nome.substring(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
+                    responsaveis.map((r) => (
+                      <div key={r.id} className="flex items-center gap-2 bg-muted/50 rounded-md px-2 py-1">
+                        <Avatar className="w-6 h-6 border border-background">
+                          <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-semibold">
+                            {r.nome.substring(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium">{r.nome}</span>
                       </div>
-                      {responsaveis.length > 3 && (
-                        <span className="text-xs text-muted-foreground">+{responsaveis.length - 3}</span>
-                      )}
-                    </>
+                    ))
                   ) : (
                     <p className="text-sm text-muted-foreground">Não atribuído</p>
                   )}
