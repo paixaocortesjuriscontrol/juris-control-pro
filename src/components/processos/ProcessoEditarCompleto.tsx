@@ -209,7 +209,7 @@ export function ProcessoEditarCompleto({
             <Textarea
               value={formData.assunto || ""}
               onChange={(e) => onInputChange("assunto", e.target.value)}
-              className="min-h-[60px] text-xs sm:text-sm resize-none"
+              className="min-h-[100px] text-xs sm:text-sm resize-none"
               placeholder="Digite o assunto..."
             />
           </div>
