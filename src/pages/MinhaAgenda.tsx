@@ -383,9 +383,9 @@ export default function MinhaAgenda() {
 
   const { data: itensAgenda, isLoading } = useAgendaUnificada(filters);
 
-  // Stats via COUNT
+  // Stats via COUNT - includes both TAREFAS and EVENTOS
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["agenda-stats-unified", coordenacaoFiltro, membrosFiltro, clienteFiltro, user?.id, isAdminOrCoordinator],
+    queryKey: ["agenda-stats-unified", coordenacaoFiltro, membrosFiltro, clienteFiltro, user?.id, isAdminOrCoordinator, membroIdsCoordenacao],
     queryFn: async () => {
       const hoje = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
       
@@ -409,20 +409,15 @@ export default function MinhaAgenda() {
       // So we restrict by members of the coordination (responsavel_id).
       let membroIdsCoord: string[] | null = null;
       if (coordenacaoFiltro !== "todas") {
-        const { data: membrosCoord, error: membrosCoordError } = await supabase
-          .from("membros_coordenacao")
-          .select("usuario_id")
-          .eq("coordenacao_id", coordenacaoFiltro);
+        membroIdsCoord = membroIdsCoordenacao.length > 0 ? membroIdsCoordenacao : null;
 
-        if (membrosCoordError) throw membrosCoordError;
-        membroIdsCoord = [...new Set((membrosCoord || []).map(m => m.usuario_id))];
-
-        if (membroIdsCoord.length === 0) {
+        if (!membroIdsCoord || membroIdsCoord.length === 0) {
           return { total: 0, pendentes: 0, atrasadas: 0, concluidas: 0 };
         }
       }
 
-      const buildQuery = () => {
+      // ========= TAREFAS STATS =========
+      const buildTarefaQuery = () => {
         let q = supabase.from("tarefas").select("*", { count: "exact", head: true });
 
         if (processoIdsCliente !== null) {
@@ -448,18 +443,102 @@ export default function MinhaAgenda() {
         return q;
       };
 
-      const [totalRes, pendentesTotalRes, atrasadasRes, concluidasRes] = await Promise.all([
-        buildQuery(),
-        buildQuery().eq("status", "pendente"),
-        buildQuery().eq("status", "pendente").lt("data_vencimento", hoje),
-        buildQuery().eq("status", "cumprido"),
+      // ========= EVENTOS STATS =========
+      // Get participations for coordination members or specific users
+      let userIdsForEvents: string[] = [];
+      
+      if (membrosFiltro.length > 0) {
+        userIdsForEvents = membrosFiltro;
+      } else if (!isAdminOrCoordinator && user?.id) {
+        userIdsForEvents = [user.id];
+      } else if (isAdminOrCoordinator && membroIdsCoord && membroIdsCoord.length > 0) {
+        userIdsForEvents = membroIdsCoord;
+      }
+
+      // Get event IDs where these users participate
+      let eventosParticipante: string[] = [];
+      if (userIdsForEvents.length > 0 || (isAdminOrCoordinator && coordenacaoFiltro === "todas")) {
+        const participacoesQuery = supabase.from("participantes_evento").select("evento_id");
+        
+        if (userIdsForEvents.length > 0) {
+          const { data: participacoes } = await participacoesQuery.in("usuario_id", userIdsForEvents);
+          eventosParticipante = participacoes?.map(p => p.evento_id) || [];
+        } else if (user?.id) {
+          const { data: participacoes } = await participacoesQuery.eq("usuario_id", user.id);
+          eventosParticipante = participacoes?.map(p => p.evento_id) || [];
+        }
+      }
+
+      const buildEventoQuery = (statusFilter?: string, dateFilter?: { field: string; op: 'lt'; value: string }) => {
+        let q = supabase.from("eventos_agenda").select("*", { count: "exact", head: true });
+        
+        // Apply status filter
+        if (statusFilter) {
+          q = q.eq("status", statusFilter);
+        }
+
+        // Apply date filter
+        if (dateFilter) {
+          q = q.lt(dateFilter.field, dateFilter.value);
+        }
+
+        // If no filter applied (admin sees all), return all
+        if (userIdsForEvents.length === 0 && isAdminOrCoordinator && coordenacaoFiltro === "todas") {
+          return q;
+        }
+        
+        if (userIdsForEvents.length > 0) {
+          if (eventosParticipante.length > 0) {
+            q = q.or(`criado_por.in.(${userIdsForEvents.join(',')}),id.in.(${eventosParticipante.join(',')})`);
+          } else {
+            q = q.in("criado_por", userIdsForEvents);
+          }
+        } else if (user?.id) {
+          if (eventosParticipante.length > 0) {
+            q = q.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(',')})`);
+          } else {
+            q = q.eq("criado_por", user.id);
+          }
+        }
+
+        return q;
+      };
+
+      // Execute all queries in parallel
+      const [
+        tarefasTotalRes,
+        tarefasPendentesRes,
+        tarefasAtrasadasRes,
+        tarefasConcluidasRes,
+        eventosTotalRes,
+        eventosPendentesRes,
+        eventosAtrasadosRes,
+        eventosConcluidosRes,
+      ] = await Promise.all([
+        buildTarefaQuery(),
+        buildTarefaQuery().eq("status", "pendente"),
+        buildTarefaQuery().eq("status", "pendente").lt("data_vencimento", hoje),
+        buildTarefaQuery().eq("status", "cumprido"),
+        buildEventoQuery(),
+        buildEventoQuery("pendente"),
+        buildEventoQuery("pendente", { field: "data_inicio", op: "lt", value: hoje }),
+        buildEventoQuery("concluido"),
       ]);
 
-      const total = totalRes.count ?? 0;
-      const pendentesTotal = pendentesTotalRes.count ?? 0;
-      const atrasadas = atrasadasRes.count ?? 0;
-      const concluidas = concluidasRes.count ?? 0;
-      const pendentes = pendentesTotal - atrasadas;
+      const tarefasTotal = tarefasTotalRes.count ?? 0;
+      const tarefasPendentesTotal = tarefasPendentesRes.count ?? 0;
+      const tarefasAtrasadas = tarefasAtrasadasRes.count ?? 0;
+      const tarefasConcluidas = tarefasConcluidasRes.count ?? 0;
+
+      const eventosTotal = eventosTotalRes.count ?? 0;
+      const eventosPendentesTotal = eventosPendentesRes.count ?? 0;
+      const eventosAtrasados = eventosAtrasadosRes.count ?? 0;
+      const eventosConcluidos = eventosConcluidosRes.count ?? 0;
+
+      const total = tarefasTotal + eventosTotal;
+      const pendentes = (tarefasPendentesTotal - tarefasAtrasadas) + (eventosPendentesTotal - eventosAtrasados);
+      const atrasadas = tarefasAtrasadas + eventosAtrasados;
+      const concluidas = tarefasConcluidas + eventosConcluidos;
 
       return { total, pendentes, atrasadas, concluidas };
     },
