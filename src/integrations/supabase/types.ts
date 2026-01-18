@@ -3223,7 +3223,9 @@ export type Database = {
           mime_type: string | null
           nome: string
           nome_original: string
+          numero_processo_extraido: string | null
           processado: boolean | null
+          processo_id: string | null
           storage_path: string
           tags: string[] | null
           tamanho_bytes: number | null
@@ -3240,7 +3242,9 @@ export type Database = {
           mime_type?: string | null
           nome: string
           nome_original: string
+          numero_processo_extraido?: string | null
           processado?: boolean | null
+          processo_id?: string | null
           storage_path: string
           tags?: string[] | null
           tamanho_bytes?: number | null
@@ -3257,7 +3261,9 @@ export type Database = {
           mime_type?: string | null
           nome?: string
           nome_original?: string
+          numero_processo_extraido?: string | null
           processado?: boolean | null
+          processo_id?: string | null
           storage_path?: string
           tags?: string[] | null
           tamanho_bytes?: number | null
@@ -3265,7 +3271,15 @@ export type Database = {
           updated_at?: string
           uploaded_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "repositorio_documentos_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       repositorio_mensagens: {
         Row: {
