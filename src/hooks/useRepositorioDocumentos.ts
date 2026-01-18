@@ -16,8 +16,14 @@ export type RepositorioDocumento = {
   uploaded_by: string | null;
   processado: boolean;
   erro_processamento: string | null;
+  processo_id: string | null;
+  numero_processo_extraido: string | null;
   created_at: string;
   updated_at: string;
+  processo?: {
+    id: string;
+    numero: string;
+  } | null;
 };
 
 export function useRepositorioDocumentos() {
@@ -26,7 +32,10 @@ export function useRepositorioDocumentos() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("repositorio_documentos")
-        .select("*")
+        .select(`
+          *,
+          processo:processos!repositorio_documentos_processo_id_fkey(id, numero)
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -47,6 +56,8 @@ export function useUploadRepositorioDocumento() {
       tipo_documento,
       tags,
       userId,
+      processo_id,
+      numero_processo_extraido,
     }: {
       file: File;
       nome: string;
@@ -55,6 +66,8 @@ export function useUploadRepositorioDocumento() {
       tipo_documento?: string;
       tags?: string[];
       userId: string;
+      processo_id?: string;
+      numero_processo_extraido?: string;
     }) => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${crypto.randomUUID()}.${fileExt}`;
@@ -81,6 +94,8 @@ export function useUploadRepositorioDocumento() {
           mime_type: file.type,
           storage_path: storagePath,
           uploaded_by: userId,
+          processo_id: processo_id || null,
+          numero_processo_extraido: numero_processo_extraido || null,
         })
         .select()
         .single();

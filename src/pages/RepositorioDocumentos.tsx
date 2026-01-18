@@ -40,7 +40,7 @@ import {
 import { 
   Search, Upload, FileText, File, MoreHorizontal, 
   Pencil, Trash2, Download, FolderOpen, X, Plus,
-  FileSpreadsheet, FileImage, Archive, Sparkles, Loader2, Check
+  FileSpreadsheet, FileImage, Archive, Sparkles, Loader2, Check, Link
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
@@ -68,6 +68,10 @@ type FileAnalysis = {
   analyzing: boolean;
   analyzed: boolean;
   error?: string;
+  // Campos de vinculação de processo
+  processo_id: string | null;
+  processo_numero: string | null;
+  numero_processo_extraido: string | null;
 };
 
 type UploadStep = "select" | "analyze" | "review";
@@ -170,6 +174,9 @@ export default function RepositorioDocumentos() {
       confianca: "baixa",
       analyzing: false,
       analyzed: false,
+      processo_id: null,
+      processo_numero: null,
+      numero_processo_extraido: null,
     }));
     setFileAnalyses(prev => [...prev, ...newAnalyses]);
   };
@@ -244,6 +251,9 @@ export default function RepositorioDocumentos() {
           confianca: data.confianca || "baixa",
           analyzing: false,
           analyzed: true,
+          processo_id: data.processo_id || null,
+          processo_numero: data.processo_numero || null,
+          numero_processo_extraido: data.numero_processo_extraido || null,
         } : a
       ));
     } catch (error: any) {
@@ -286,6 +296,8 @@ export default function RepositorioDocumentos() {
           tipo_documento: analysis.tipo_documento || undefined,
           tags: analysis.tags.length > 0 ? analysis.tags : undefined,
           userId: user.id,
+          processo_id: analysis.processo_id || undefined,
+          numero_processo_extraido: analysis.numero_processo_extraido || undefined,
         });
       }
       
@@ -480,6 +492,7 @@ export default function RepositorioDocumentos() {
                   <TableHead>Documento</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead>Tipo</TableHead>
+                  <TableHead>Processo Vinculado</TableHead>
                   <TableHead>Tamanho</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -524,6 +537,23 @@ export default function RepositorioDocumentos() {
                       {doc.tipo_documento 
                         ? TIPOS_DOCUMENTO.find(t => t.value === doc.tipo_documento)?.label || doc.tipo_documento
                         : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {doc.processo ? (
+                        <a 
+                          href={`/processos/${doc.processo.id}`}
+                          className="flex items-center gap-1 text-primary hover:underline text-sm"
+                        >
+                          <Link className="w-3 h-3" />
+                          {doc.processo.numero}
+                        </a>
+                      ) : doc.numero_processo_extraido ? (
+                        <span className="text-xs text-muted-foreground" title="Processo não encontrado no sistema">
+                          {doc.numero_processo_extraido}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell>{formatFileSize(doc.tamanho_bytes)}</TableCell>
                     <TableCell>
@@ -791,7 +821,7 @@ export default function RepositorioDocumentos() {
                         </div>
                       ) : (
                         <div className="space-y-2 text-sm">
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-4 flex-wrap">
                             <span className="text-muted-foreground">Categoria:</span>
                             <Badge variant="secondary">{getCategoriaLabel(analysis.categoria)}</Badge>
                             {analysis.tipo_documento && (
@@ -803,6 +833,21 @@ export default function RepositorioDocumentos() {
                               </>
                             )}
                           </div>
+                          {analysis.processo_id && analysis.processo_numero && (
+                            <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded-md border border-green-500/20">
+                              <Link className="w-4 h-4 text-green-600" />
+                              <span className="text-green-700 dark:text-green-400 font-medium">
+                                Vinculado ao processo: {analysis.processo_numero}
+                              </span>
+                            </div>
+                          )}
+                          {!analysis.processo_id && analysis.numero_processo_extraido && (
+                            <div className="flex items-center gap-2 p-2 bg-yellow-500/10 rounded-md border border-yellow-500/20">
+                              <span className="text-yellow-700 dark:text-yellow-400 text-xs">
+                                Nº processo encontrado: {analysis.numero_processo_extraido} (não cadastrado no sistema)
+                              </span>
+                            </div>
+                          )}
                           {analysis.descricao && (
                             <p className="text-muted-foreground">{analysis.descricao}</p>
                           )}
