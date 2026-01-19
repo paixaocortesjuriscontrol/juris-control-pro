@@ -40,69 +40,188 @@ const browserHeaders = {
   "Referer": "https://comunica.pje.jus.br/",
 };
 
-// DataImpulse residential proxy (primary solution for datacenter IP blocks)
-const DATAIMPULSE_PROXY_AUTH = Deno.env.get('DATAIMPULSE_PROXY_AUTH') || '';
-const DATAIMPULSE_PROXY_HOST = 'gw.dataimpulse.com';
-const DATAIMPULSE_PROXY_PORT = 823;
+// Browserless API for real browser automation (simulates clicks)
+const BROWSERLESS_API_KEY = Deno.env.get('BROWSERLESS_API_KEY') || '';
 
-// Jina Reader proxy (fallback when DataImpulse is not available)
+// Jina Reader proxy (fallback when Browserless is not available)
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
-// Fetch via DataImpulse residential proxy using HTTP proxy format
-// DataImpulse HTTP proxy: we send request to proxy host with full target URL
-async function fetchViaDataImpulse(url: string): Promise<any | null> {
-  if (!DATAIMPULSE_PROXY_AUTH) return null;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+// Fetch via Browserless using real browser simulation
+// This navigates to the DJEN website and simulates actual user interaction
+async function fetchViaBrowserless(apiUrl: string): Promise<any | null> {
+  if (!BROWSERLESS_API_KEY) {
+    console.log('[DJEN] BROWSERLESS_API_KEY not configured');
+    return null;
+  }
 
   try {
-    // Parse auth credentials (format: username:password)
-    const [username, password] = DATAIMPULSE_PROXY_AUTH.split(':');
-    if (!username || !password) {
-      console.log('[DJEN] DataImpulse auth format invalid, expected username:password');
-      return null;
-    }
+    console.log('[DJEN] Trying Browserless with real browser simulation...');
+    
+    // Parse the API URL to extract search parameters
+    const urlObj = new URL(apiUrl);
+    const params = Object.fromEntries(urlObj.searchParams.entries());
+    
+    // Build the frontend URL for the DJEN website
+    // The comunica.pje.jus.br frontend makes XHR calls to the API
+    const frontendUrl = `https://comunica.pje.jus.br/consulta`;
+    
+    // Use Browserless /function API to run Puppeteer code
+    const puppeteerCode = `
+      module.exports = async ({ page }) => {
+        const searchParams = ${JSON.stringify(params)};
+        const apiUrl = "${apiUrl}";
+        
+        let capturedData = null;
+        
+        // Intercept XHR/fetch responses from the API
+        await page.setRequestInterception(true);
+        
+        page.on('request', (request) => {
+          request.continue();
+        });
+        
+        // Listen for API responses
+        page.on('response', async (response) => {
+          const url = response.url();
+          if (url.includes('comunicaapi.pje.jus.br') && url.includes('/comunicacao')) {
+            try {
+              const json = await response.json();
+              if (json && (json.comunicacoes || json.items || Array.isArray(json))) {
+                capturedData = json;
+                console.log('Captured API response with', (json.comunicacoes || json.items || json).length, 'items');
+              }
+            } catch (e) {
+              console.log('Failed to parse response:', e.message);
+            }
+          }
+        });
+        
+        // Navigate to the search page
+        await page.goto('https://comunica.pje.jus.br/consulta', { 
+          waitUntil: 'networkidle2',
+          timeout: 30000 
+        });
+        
+        // Wait for the page to load
+        await page.waitForSelector('input, [class*="search"], [class*="busca"], button', { timeout: 10000 }).catch(() => {});
+        
+        // Try to find and fill search fields
+        // The DJEN frontend has various input fields we need to populate
+        
+        // Fill text search field if present
+        if (searchParams.texto) {
+          const textInput = await page.$('input[name*="texto"], input[placeholder*="texto"], input[placeholder*="busca"], input[type="search"], input[name*="search"]');
+          if (textInput) {
+            await textInput.click({ clickCount: 3 });
+            await textInput.type(searchParams.texto, { delay: 50 });
+            console.log('Filled texto field:', searchParams.texto);
+          }
+        }
+        
+        // Fill OAB fields if present
+        if (searchParams.numeroOab) {
+          const oabInput = await page.$('input[name*="oab"], input[placeholder*="OAB"]');
+          if (oabInput) {
+            await oabInput.click({ clickCount: 3 });
+            await oabInput.type(searchParams.numeroOab, { delay: 50 });
+            console.log('Filled OAB field:', searchParams.numeroOab);
+          }
+        }
+        
+        if (searchParams.ufOab) {
+          const ufSelect = await page.$('select[name*="uf"], select[name*="estado"]');
+          if (ufSelect) {
+            await ufSelect.select(searchParams.ufOab);
+            console.log('Selected UF:', searchParams.ufOab);
+          }
+        }
+        
+        // Fill date fields
+        if (searchParams.dataDisponibilizacaoInicio) {
+          const dateInputs = await page.$$('input[type="date"], input[name*="data"]');
+          if (dateInputs.length >= 1) {
+            await dateInputs[0].click({ clickCount: 3 });
+            await dateInputs[0].type(searchParams.dataDisponibilizacaoInicio, { delay: 30 });
+          }
+          if (dateInputs.length >= 2 && searchParams.dataDisponibilizacaoFim) {
+            await dateInputs[1].click({ clickCount: 3 });
+            await dateInputs[1].type(searchParams.dataDisponibilizacaoFim, { delay: 30 });
+          }
+        }
+        
+        // Wait a bit for any dynamic content
+        await new Promise(r => setTimeout(r, 1000));
+        
+        // Click the search button
+        const searchButton = await page.$('button[type="submit"], button:contains("Pesquisar"), button:contains("Buscar"), button[class*="search"], button[class*="busca"], input[type="submit"]');
+        if (searchButton) {
+          await searchButton.click();
+          console.log('Clicked search button');
+        } else {
+          // Try pressing Enter on the form
+          await page.keyboard.press('Enter');
+          console.log('Pressed Enter to submit');
+        }
+        
+        // Wait for results to load
+        await page.waitForTimeout(5000);
+        
+        // If we captured data from XHR, return it
+        if (capturedData) {
+          return capturedData;
+        }
+        
+        // Fallback: make direct API call from page context (uses page's session/cookies)
+        console.log('No XHR captured, trying direct API call from page context...');
+        const apiResult = await page.evaluate(async (url) => {
+          try {
+            const response = await fetch(url, {
+              headers: {
+                'Accept': 'application/json',
+              },
+              credentials: 'include',
+            });
+            if (response.ok) {
+              return await response.json();
+            }
+            return null;
+          } catch (e) {
+            console.log('Direct fetch failed:', e.message);
+            return null;
+          }
+        }, apiUrl);
+        
+        return apiResult;
+      };
+    `;
 
-    // For HTTP proxy, we make request TO the proxy server with the full target URL as the path
-    // The proxy then forwards the request to the target
-    const proxyUrl = `http://${DATAIMPULSE_PROXY_HOST}:${DATAIMPULSE_PROXY_PORT}`;
-    const auth = btoa(`${username}:${password}`);
-    
-    console.log(`[DJEN] DataImpulse request to: ${url.slice(0, 100)}...`);
-    
-    // HTTP proxies expect the full URL as the request path
-    const resp = await fetch(proxyUrl, {
-      method: 'GET',
-      headers: {
-        ...browserHeaders,
-        'Proxy-Authorization': `Basic ${auth}`,
-        'Host': new URL(url).host,
-        'X-Target-URL': url, // Some proxies use this header
-      },
-      signal: controller.signal,
+    const response = await fetch(`https://chrome.browserless.io/function?token=${BROWSERLESS_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: puppeteerCode,
+        context: {},
+      }),
     });
 
-    if (!resp.ok) {
-      const t = await resp.text().catch(() => '');
-      console.log(`[DJEN] DataImpulse proxy error ${resp.status}: ${t.slice(0, 200)}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log(`[DJEN] Browserless /function error ${response.status}:`, errorText.slice(0, 300));
       return null;
     }
 
-    const contentType = resp.headers.get('content-type') || '';
-    if (contentType.includes('text/html')) {
-      const preview = await resp.text().catch(() => '');
-      console.log('[DJEN] DataImpulse returned HTML:', preview.slice(0, 200));
-      return null;
+    const result = await response.json();
+    console.log('[DJEN] Browserless result type:', typeof result, Array.isArray(result) ? `array(${result.length})` : '');
+    
+    if (result && (result.comunicacoes || result.items || Array.isArray(result))) {
+      return result;
     }
-
-    return await resp.json();
-  } catch (e) {
-    console.log('[DJEN] DataImpulse proxy fetch failed:', e);
+    
     return null;
-  } finally {
-    clearTimeout(timeoutId);
+  } catch (e) {
+    console.log('[DJEN] Browserless fetch failed:', e);
+    return null;
   }
 }
 
@@ -145,12 +264,11 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
   }
 }
 
-// Unified proxy fetch: tries DataImpulse first, then Jina as fallback
+// Unified proxy fetch: tries Browserless first (real browser), then Jina as fallback
 async function fetchViaProxy(url: string): Promise<any | null> {
-  // Try DataImpulse residential proxy first (more reliable)
-  if (DATAIMPULSE_PROXY_AUTH) {
-    console.log('[DJEN] Trying DataImpulse residential proxy...');
-    const result = await fetchViaDataImpulse(url);
+  // Try Browserless with real browser simulation first (most reliable)
+  if (BROWSERLESS_API_KEY) {
+    const result = await fetchViaBrowserless(url);
     if (result) return result;
   }
   
