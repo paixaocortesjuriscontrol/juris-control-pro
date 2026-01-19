@@ -1770,7 +1770,7 @@ export default function ProcessoDetalhes() {
     switch (activeTab) {
       case "audiencias":
         return (
-          <div className="w-full max-w-md">
+          <div className="w-full">
             <div className="flex items-center gap-2 mb-2">
               <Gavel className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm font-medium">Audiências</span>
@@ -1820,7 +1820,7 @@ export default function ProcessoDetalhes() {
 
       case "intimacoes":
         return (
-          <div className="w-full max-w-md">
+          <div className="w-full">
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm font-medium">Intimações</span>
@@ -1876,7 +1876,7 @@ export default function ProcessoDetalhes() {
 
       case "tarefas":
         return (
-          <div className="w-full max-w-md">
+          <div className="w-full">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <ListTodo className="w-4 h-4 text-muted-foreground" />
