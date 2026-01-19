@@ -297,19 +297,16 @@ export function ProcessoDetalhesCompletos({
               {activeSection === "resumo" && (
                 <div className="space-y-4">
                   {/* Card de Resumo Principal */}
-                  {/* Assunto acima do Card */}
-                  <div className="mb-3">
-                    <p className="text-[10px] text-muted-foreground uppercase">Assunto</p>
-                    <p className="text-sm">{processo.assunto || "Não informado"}</p>
-                  </div>
-
                   <Card>
                     <CardContent className="p-4 md:p-6">
-                      {/* Título e Número */}
-                      <div className="flex items-center justify-between gap-4 mb-4 pb-3 border-b">
-                        <h2 className="text-base font-semibold text-foreground">Resumo do processo</h2>
+                      {/* Título */}
+                      <h2 className="text-base font-semibold text-foreground">Resumo do processo</h2>
+                      
+                      {/* Número */}
+                      <div className="mt-2">
+                        <p className="text-[10px] text-muted-foreground uppercase">Número</p>
                         <div className="flex items-center gap-1">
-                          <p className="text-sm font-mono text-muted-foreground">{processo.numero}</p>
+                          <p className="text-sm font-mono">{processo.numero}</p>
                           <Button 
                             variant="ghost" 
                             size="icon" 
@@ -319,6 +316,12 @@ export function ProcessoDetalhesCompletos({
                             <Copy className="w-3 h-3" />
                           </Button>
                         </div>
+                      </div>
+                      
+                      {/* Assunto */}
+                      <div className="mt-3 mb-4 pb-3 border-b">
+                        <p className="text-[10px] text-muted-foreground uppercase">Assunto</p>
+                        <p className="text-sm">{processo.assunto || "Não informado"}</p>
                       </div>
 
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
