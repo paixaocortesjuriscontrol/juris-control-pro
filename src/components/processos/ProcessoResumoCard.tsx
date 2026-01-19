@@ -95,19 +95,10 @@ export function ProcessoResumoCard({
 
   return (
     <div className="space-y-4">
-      {/* Header com nome do cliente */}
-      <div className="border-b pb-3">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">{clienteNome}</h1>
-      </div>
-
       {/* Pasta e botão de ação na mesma linha */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {pastaNome && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta:</span>
-            <span className="text-sm font-medium text-foreground">{pastaNome}</span>
-          </div>
-        )}
+      <div className="flex items-center gap-3 flex-wrap border-b pb-3">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta:</span>
+        <span className="text-base font-semibold text-foreground">{pastaNome || "Não informada"}</span>
         <Button onClick={onMaisInformacoes} size="sm" className="bg-zinc-700 hover:bg-zinc-800 text-white">
           <Info className="w-4 h-4 mr-2" />
           Mais informações
