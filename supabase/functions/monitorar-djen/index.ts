@@ -49,30 +49,37 @@ const DATAIMPULSE_PROXY_PORT = 823;
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
-// Fetch via DataImpulse residential proxy
+// Fetch via DataImpulse residential proxy using HTTP proxy format
+// DataImpulse HTTP proxy: we send request to proxy host with full target URL
 async function fetchViaDataImpulse(url: string): Promise<any | null> {
   if (!DATAIMPULSE_PROXY_AUTH) return null;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15_000);
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
 
   try {
-    // DataImpulse uses HTTP CONNECT proxy
-    const proxyUrl = `http://${DATAIMPULSE_PROXY_AUTH}@${DATAIMPULSE_PROXY_HOST}:${DATAIMPULSE_PROXY_PORT}`;
+    // Parse auth credentials (format: username:password)
+    const [username, password] = DATAIMPULSE_PROXY_AUTH.split(':');
+    if (!username || !password) {
+      console.log('[DJEN] DataImpulse auth format invalid, expected username:password');
+      return null;
+    }
+
+    // For HTTP proxy, we make request TO the proxy server with the full target URL as the path
+    // The proxy then forwards the request to the target
+    const proxyUrl = `http://${DATAIMPULSE_PROXY_HOST}:${DATAIMPULSE_PROXY_PORT}`;
+    const auth = btoa(`${username}:${password}`);
     
-    // Use Deno's native fetch with proxy support via environment
-    // For Deno Deploy, we need to use a different approach - make request through proxy tunnel
-    const targetUrl = new URL(url);
+    console.log(`[DJEN] DataImpulse request to: ${url.slice(0, 100)}...`);
     
-    // Build proxy request URL (DataImpulse HTTP proxy)
-    const proxyRequestUrl = `http://${DATAIMPULSE_PROXY_HOST}:${DATAIMPULSE_PROXY_PORT}`;
-    const auth = btoa(DATAIMPULSE_PROXY_AUTH);
-    
-    const resp = await fetch(url, {
+    // HTTP proxies expect the full URL as the request path
+    const resp = await fetch(proxyUrl, {
       method: 'GET',
       headers: {
         ...browserHeaders,
         'Proxy-Authorization': `Basic ${auth}`,
+        'Host': new URL(url).host,
+        'X-Target-URL': url, // Some proxies use this header
       },
       signal: controller.signal,
     });
@@ -85,7 +92,8 @@ async function fetchViaDataImpulse(url: string): Promise<any | null> {
 
     const contentType = resp.headers.get('content-type') || '';
     if (contentType.includes('text/html')) {
-      console.log('[DJEN] DataImpulse returned HTML instead of JSON');
+      const preview = await resp.text().catch(() => '');
+      console.log('[DJEN] DataImpulse returned HTML:', preview.slice(0, 200));
       return null;
     }
 
