@@ -146,6 +146,8 @@ interface CriarTarefaPublicacaoDialogProps {
 }
 
 const tiposTarefa = [
+  "PRAZO",
+  "TAREFA EQUIPE",
   "INTIMAÇÃO",
   "DEFESA",
   "RECURSO",

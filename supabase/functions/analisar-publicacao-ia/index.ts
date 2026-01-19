@@ -134,7 +134,7 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
 
     // Validar e normalizar campos
     const tiposValidos = [
-      "INTIMAÇÃO", "DEFESA", "RECURSO", "CONTRARRAZÕES", "PETIÇÃO",
+      "PRAZO", "TAREFA EQUIPE", "INTIMAÇÃO", "DEFESA", "RECURSO", "CONTRARRAZÕES", "PETIÇÃO",
       "DILIGÊNCIA", "AUDIÊNCIA", "PROTOCOLO", "ANÁLISE", "MANIFESTAÇÃO", "OUTROS"
     ];
     const prioridadesValidas = ["baixa", "media", "alta", "urgente"];
