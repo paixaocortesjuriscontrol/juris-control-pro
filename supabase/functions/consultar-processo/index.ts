@@ -440,14 +440,17 @@ serve(async (req) => {
     
     // Retry logic for transient connection errors
     const MAX_RETRIES = 3;
-    const TIMEOUT_MS = 15000;
+    const TIMEOUT_MS = 25000; // Increased timeout for slow DataJud API
     let lastError: Error | null = null;
     let response: Response | null = null;
     
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        const timeoutId = setTimeout(() => {
+          console.warn(`Timeout após ${TIMEOUT_MS}ms na tentativa ${attempt}`);
+          controller.abort();
+        }, TIMEOUT_MS);
         
         response = await fetch(url, {
           method: 'POST',
@@ -467,16 +470,21 @@ serve(async (req) => {
         break; // Success, exit retry loop
       } catch (fetchError: any) {
         lastError = fetchError;
-        console.warn(`Tentativa ${attempt}/${MAX_RETRIES} falhou:`, fetchError.message);
+        const isAbort = fetchError.name === 'AbortError' || fetchError.message?.includes('abort');
+        console.warn(`Tentativa ${attempt}/${MAX_RETRIES} falhou:`, fetchError.message, isAbort ? "(timeout)" : "");
         
         if (attempt < MAX_RETRIES) {
-          // Wait before retry with exponential backoff
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          // Wait before retry with exponential backoff (shorter for aborts)
+          const delay = isAbort ? 500 * attempt : 1000 * attempt;
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
     }
     
     if (!response) {
+      const errorMessage = lastError?.message?.includes('abort') 
+        ? 'API do tribunal demorou muito para responder. Tente novamente.'
+        : 'Erro de conexão com API do tribunal. Tente novamente.';
       console.error("Todas as tentativas falharam:", lastError?.message);
       return new Response(
         JSON.stringify({
@@ -484,7 +492,7 @@ serve(async (req) => {
           tribunal: tribunalNome,
           total: 0,
           processos: [],
-          error: `Erro de conexão com API do tribunal. Tente novamente.`,
+          error: errorMessage,
           connectionError: true,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
