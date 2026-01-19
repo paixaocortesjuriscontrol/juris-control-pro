@@ -1749,58 +1749,587 @@ export default function ProcessoDetalhes() {
     </Tabs>
   );
 
-  // View mode: resumo (Projuris style)
+  // Items da navegação lateral para modo resumo
+  const navItems = [
+    { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
+    { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
+    { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.length },
+    { id: "documentos", label: "Pasta", icon: FileBox, count: documentosProcesso.length },
+    { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
+    { id: "andamentos", label: "Andamentos", icon: FileText, count: movimentacoes.length },
+    { id: "redistribuicoes", label: "Redistrib.", icon: Shuffle, count: redistribuicoes.length },
+    { id: "monitoramento360", label: "360º", icon: Radar, count: alertas360.length },
+    { id: "agenda", label: "Agenda", icon: CalendarDays, count: eventosAgenda.length },
+    { id: "portal", label: "Portal", icon: Globe },
+  ];
+
+  // Função para renderizar conteúdo da aba selecionada
+  const renderActiveTabContent = () => {
+    if (!activeTab) return null;
+
+    switch (activeTab) {
+      case "audiencias":
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Gavel className="w-5 h-5" />
+                Audiências
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingAudiencias ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+                </div>
+              ) : audiencias.length > 0 ? (
+                <ScrollArea className="h-[500px] pr-4">
+                  <div className="space-y-4">
+                    {audiencias.map((aud) => (
+                      <Card key={aud.id} className="hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
+                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {getAudienciaStatusBadge(aud.status)}
+                                {getOrigemBadge(aud.origem)}
+                                {aud.tipo_audiencia && (
+                                  <Badge variant="secondary">{aud.tipo_audiencia}</Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-4 text-sm flex-wrap">
+                                <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg">
+                                  <Calendar className="h-5 w-5 text-primary" />
+                                  <span className="font-bold text-primary text-lg">{formatDate(aud.data_audiencia)}</span>
+                                  {(aud.hora_brasilia || aud.hora) && (
+                                    <span className="text-muted-foreground">às {aud.hora_brasilia || aud.hora}</span>
+                                  )}
+                                </div>
+                              </div>
+                              {aud.resumo_objeto && (
+                                <p className="text-sm text-muted-foreground line-clamp-2">{aud.resumo_objeto}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button variant="outline" size="sm" onClick={() => setEditingAudiencia(aud as AudienciaDetectada)}>
+                                <Pencil className="h-4 w-4 mr-1" />
+                                Editar
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
+                                <Eye className="h-4 w-4 mr-1" />
+                                Detalhes
+                              </Button>
+                              {aud.status === 'pendente' && (
+                                <>
+                                  <Button variant="default" size="sm" onClick={() => handleMarcarAudienciaTratado(aud.id)} disabled={updatingAudiencia === aud.id}>
+                                    <CheckCircle className="h-4 w-4 mr-1" />
+                                    Tratado
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => handleIgnorarAudiencia(aud.id)} disabled={updatingAudiencia === aud.id}>
+                                    <XCircle className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <Gavel className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhuma audiência registrada</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+
+      case "intimacoes":
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                Intimações
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingIntimacoes ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+                </div>
+              ) : intimacoes.length > 0 ? (
+                <ScrollArea className="h-[500px] pr-4">
+                  <div className="space-y-4">
+                    {intimacoes.map((int) => (
+                      <Card key={int.id} className="hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
+                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {getIntimacaoStatusBadge(int.status)}
+                                {getOrigemBadge(int.origem)}
+                              </div>
+                              {int.data_limite && (
+                                <div className="flex items-center gap-2 bg-destructive/10 px-3 py-1.5 rounded-lg w-fit">
+                                  <Clock className="h-5 w-5 text-destructive" />
+                                  <span className="font-bold text-destructive">Prazo: {formatDate(int.data_limite)}</span>
+                                </div>
+                              )}
+                              {int.descricao && <p className="text-sm font-medium line-clamp-2">{int.descricao}</p>}
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button variant="outline" size="sm" onClick={() => setSelectedIntimacao(int)}>
+                                <Eye className="h-4 w-4 mr-1" />
+                                Detalhes
+                              </Button>
+                              {int.status === 'pendente' && (
+                                <>
+                                  <Button variant="default" size="sm" onClick={() => handleMarcarIntimacaoTratado(int.id)} disabled={updatingIntimacao === int.id}>
+                                    <CheckCircle className="h-4 w-4 mr-1" />
+                                    Tratado
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => handleCriarTarefaIntimacao(int)}>
+                                    <ClipboardList className="h-4 w-4 mr-1" />
+                                    Criar Tarefa
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhuma intimação registrada</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+
+      case "tarefas":
+        return (
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ListTodo className="w-5 h-5" />
+                Tarefas
+              </CardTitle>
+              <Button size="sm" onClick={() => navigate(`/nova-tarefa?processo_id=${id}`)}>
+                + Nova Tarefa
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loadingTarefas ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                </div>
+              ) : selectedTarefaId ? (
+                <TarefaPublicacaoView 
+                  tarefaId={selectedTarefaId}
+                  processoId={id!}
+                  onVoltar={() => setSelectedTarefaId(null)}
+                />
+              ) : tarefas.length > 0 ? (
+                <ScrollArea className="h-[500px] pr-4">
+                  <div className="space-y-3">
+                    {tarefas.map((tarefa: any) => (
+                      <Card 
+                        key={tarefa.id} 
+                        className="hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => setSelectedTarefaId(tarefa.id)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge variant={tarefa.status === 'concluida' ? 'default' : tarefa.status === 'em_andamento' ? 'secondary' : 'outline'}>
+                                  {tarefa.status === 'concluida' ? 'Concluída' : tarefa.status === 'em_andamento' ? 'Em andamento' : 'Pendente'}
+                                </Badge>
+                                {tarefa.prioridade === 'urgente' && <Badge variant="destructive">Urgente</Badge>}
+                              </div>
+                              <p className="font-medium">{tarefa.titulo}</p>
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                {tarefa.data_vencimento && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {formatDate(tarefa.data_vencimento)}
+                                  </span>
+                                )}
+                                {tarefa.responsavel?.nome && (
+                                  <span className="flex items-center gap-1">
+                                    <User className="w-3 h-3" />
+                                    {tarefa.responsavel.nome}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedTarefaId(tarefa.id); }}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhuma tarefa registrada</p>
+                  <Button variant="outline" className="mt-4" onClick={() => navigate(`/nova-tarefa?processo_id=${id}`)}>
+                    Criar primeira tarefa
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+
+      case "documentos":
+        return <ProcessoDocumentosTab processoId={id!} documentos={documentosProcesso} refetchDocumentos={refetchDocumentos} />;
+
+      case "publicacoes":
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Newspaper className="w-5 h-5" />
+                Publicações DJEN
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingPublicacoes ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                </div>
+              ) : publicacoesDjen.length > 0 ? (
+                <ScrollArea className="h-[400px] pr-4">
+                  <Accordion type="single" collapsible className="space-y-2">
+                    {publicacoesDjen.map((pub: any, idx: number) => (
+                      <AccordionItem key={pub.id} value={pub.id} className="border rounded-lg px-4">
+                        <AccordionTrigger className="hover:no-underline py-3">
+                          <div className="flex items-center justify-between w-full pr-4">
+                            <div className="flex items-center gap-3">
+                              <Calendar className="w-4 h-4 text-primary" />
+                              <span className="font-medium">{formatDate(pub.data_publicacao)}</span>
+                            </div>
+                            <Badge variant="secondary" className="text-xs">{pub.tribunal || 'DJEN'}</Badge>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-2 pb-4">
+                          <div className="p-3 bg-muted/50 rounded-lg">
+                            <p className={`text-sm ${conteudoDisplayClasses}`}>
+                              {formatConteudoParaExibicao(pub.conteudo)}
+                            </p>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <Newspaper className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhuma publicação DJEN</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+
+      case "andamentos":
+        return (
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Andamentos
+              </CardTitle>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={async () => {
+                  setAtualizando(true);
+                  try {
+                    await buscarAndamentosExternos(id!, processo.numero);
+                    refetchMovimentacoes();
+                    toast({ title: "Andamentos atualizados" });
+                  } catch (err) {
+                    toast({ title: "Erro ao atualizar", variant: "destructive" });
+                  } finally {
+                    setAtualizando(false);
+                  }
+                }}
+                disabled={atualizando}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${atualizando ? 'animate-spin' : ''}`} />
+                Atualizar
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loadingMovimentacoes ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+                </div>
+              ) : movimentacoes && movimentacoes.length > 0 ? (
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-3">
+                    {movimentacoes.map((mov: any, idx: number) => (
+                      <div key={mov.id} className="flex gap-4 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                        <div className="flex flex-col items-center">
+                          <div className="w-2 h-2 bg-primary rounded-full" />
+                          {idx < movimentacoes.length - 1 && <div className="w-0.5 flex-1 bg-border mt-2" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-xs text-muted-foreground">{formatDate(mov.data_movimentacao)}</span>
+                            {mov.fonte && <Badge variant="outline" className="text-[10px]">{mov.fonte}</Badge>}
+                          </div>
+                          <p className="text-sm">{mov.descricao}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhum andamento registrado</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+
+      case "redistribuicoes":
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Shuffle className="w-5 h-5" />
+                Redistribuições
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingRedistribuicoes ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                </div>
+              ) : redistribuicoes.length > 0 ? (
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-3">
+                    {redistribuicoes.map((red: any) => (
+                      <Card key={red.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground">{formatDate(red.data_movimentacao)}</span>
+                              <p className="text-sm">{red.descricao}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <Shuffle className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhuma redistribuição registrada</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+
+      case "monitoramento360":
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Radar className="w-5 h-5" />
+                Monitoramento 360º
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingAlertas360 ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                </div>
+              ) : alertas360.length > 0 ? (
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-3">
+                    {alertas360.map((alerta: any) => (
+                      <Card key={alerta.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <Badge variant={alerta.prioridade === 'urgente' ? 'destructive' : 'secondary'}>
+                                  {alerta.prioridade}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">{formatDate(alerta.created_at)}</span>
+                              </div>
+                              <p className="font-medium">{alerta.termo_encontrado}</p>
+                              {alerta.contexto && (
+                                <p className="text-sm text-muted-foreground line-clamp-2">{alerta.contexto}</p>
+                              )}
+                            </div>
+                            <Badge variant={alerta.status === 'tratado' ? 'default' : 'outline'}>
+                              {alerta.status}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <Radar className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhum alerta 360º</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+
+      case "agenda":
+        return <ProcessoAgendaTab processoId={id!} />;
+
+      case "portal":
+        return <ProcessoPortalTab processoId={id!} processoNumero={processo.numero} tribunal={processo.tribunal} />;
+
+      default:
+        return null;
+    }
+  };
+
+  // View mode: resumo (Projuris style) - Com sidebar vertical igual ao modo detalhes
   if (viewMode === "resumo") {
     return (
       <MainLayout title="" subtitle="">
-        <div className="w-full px-2 sm:px-4 lg:px-6 py-3 space-y-4">
-          {/* Back Button */}
-          <Button 
-            variant="ghost" 
-            onClick={() => {
-              if (window.history.length > 1) {
-                navigate(-1);
-              } else {
-                navigate("/processos");
-              }
-            }} 
-            className="mb-1"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar
-          </Button>
-
-          <ProcessoResumoCard 
-            processo={processo}
-            responsaveis={responsaveisParaCards}
-            onMaisInformacoes={() => setViewMode("detalhes")}
-            onExpandirEnvolvidos={() => setViewMode("detalhes")}
-            onAbrirProcessoExterno={() => {
-              // Monta URL do tribunal baseado no número do processo
-              const numero = processo.numero?.replace(/\D/g, "") || "";
-              if (numero.length >= 20) {
-                // Extrai segmento J.TR do CNJ para determinar tribunal
-                const tribunal = processo.tribunal?.toLowerCase() || "";
-                let url = "";
-                if (tribunal.includes("trt") || tribunal.includes("trabalho")) {
-                  // PJe Trabalhista
-                  url = `https://pje.trt${numero.substring(16, 18)}.jus.br/consultaprocessual/detalhe-processo/${processo.numero}`;
-                } else if (tribunal.includes("trf")) {
-                  // TRF
-                  url = `https://pje.trf${numero.substring(16, 18)}.jus.br/pje/ConsultaPublica/listView.seam`;
+        <div className="flex flex-col min-h-screen">
+          {/* Header com botão voltar */}
+          <div className="px-2 sm:px-4 lg:px-6 py-2 border-b">
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
                 } else {
-                  // DataJud CNJ como fallback
-                  url = `https://www.cnj.jus.br/poder-judiciario/consulta-processual/`;
+                  navigate("/processos");
                 }
-                window.open(url, "_blank");
-              } else {
-                window.open(`https://www.cnj.jus.br/poder-judiciario/consulta-processual/`, "_blank");
-              }
-            }}
-          />
+              }} 
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+          </div>
 
-          {/* Tabs de Eventos - mesmo do modo editar */}
-          {renderTabs()}
+          {/* Layout principal: Sidebar + Conteúdo */}
+          <div className="flex flex-col sm:flex-row flex-1 min-w-0">
+            {/* Sidebar Navigation - Vertical igual ao ProcessoDetalhesCompletos */}
+            <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0">
+              {/* Mobile: horizontal scroll */}
+              <div className="sm:hidden overflow-x-auto pb-1">
+                <nav className="flex gap-1 px-2 py-2 min-w-max">
+                  {navItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(prev => prev === item.id ? "" : item.id)}
+                      className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-md whitespace-nowrap transition-colors ${
+                        activeTab === item.id
+                          ? "bg-primary text-primary-foreground font-medium"
+                          : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      <item.icon className="w-3 h-3 flex-shrink-0" />
+                      <span>{item.label}</span>
+                      {item.count !== undefined && item.count > 0 && (
+                        <Badge variant="secondary" className="ml-1 text-[8px] h-3.5 px-1 min-w-[14px] flex items-center justify-center bg-background/80">
+                          {item.count}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+              {/* Desktop: vertical sidebar */}
+              <ScrollArea className="hidden sm:block h-[calc(100vh-140px)]">
+                <nav className="py-2">
+                  {navItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(prev => prev === item.id ? "" : item.id)}
+                      className={`w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left transition-colors ${
+                        activeTab === item.id
+                          ? "bg-primary/10 text-primary border-r-2 border-primary font-medium"
+                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      }`}
+                    >
+                      <item.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                      {item.count !== undefined && item.count > 0 && (
+                        <Badge variant="secondary" className="ml-auto text-[9px] h-4 px-1 min-w-[16px] flex items-center justify-center">
+                          {item.count}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
+                </nav>
+              </ScrollArea>
+            </aside>
+
+            {/* Content Area */}
+            <div className="flex-1 min-w-0">
+              <ScrollArea className="h-[calc(100vh-140px)]">
+                <div className="p-3 sm:p-4 space-y-4">
+                  {/* Resumo do Processo */}
+                  <ProcessoResumoCard 
+                    processo={processo}
+                    responsaveis={responsaveisParaCards}
+                    onMaisInformacoes={() => setViewMode("detalhes")}
+                    onExpandirEnvolvidos={() => setViewMode("detalhes")}
+                    onAbrirProcessoExterno={() => {
+                      // Monta URL do tribunal baseado no número do processo
+                      const numero = processo.numero?.replace(/\D/g, "") || "";
+                      if (numero.length >= 20) {
+                        // Extrai segmento J.TR do CNJ para determinar tribunal
+                        const tribunal = processo.tribunal?.toLowerCase() || "";
+                        let url = "";
+                        if (tribunal.includes("trt") || tribunal.includes("trabalho")) {
+                          // PJe Trabalhista
+                          url = `https://pje.trt${numero.substring(16, 18)}.jus.br/consultaprocessual/detalhe-processo/${processo.numero}`;
+                        } else if (tribunal.includes("trf")) {
+                          // TRF
+                          url = `https://pje.trf${numero.substring(16, 18)}.jus.br/pje/ConsultaPublica/listView.seam`;
+                        } else {
+                          // DataJud CNJ como fallback
+                          url = `https://www.cnj.jus.br/poder-judiciario/consulta-processual/`;
+                        }
+                        window.open(url, "_blank");
+                      } else {
+                        window.open(`https://www.cnj.jus.br/poder-judiciario/consulta-processual/`, "_blank");
+                      }
+                    }}
+                  />
+
+                  {/* Conteúdo da aba selecionada */}
+                  {renderActiveTabContent()}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
         </div>
 
         {/* Dialogs */}
