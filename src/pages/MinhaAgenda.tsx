@@ -371,6 +371,8 @@ export default function MinhaAgenda() {
   }, [membrosFiltro, user?.id, isAdminOrCoordinator, coordenacaoFiltro, membroIdsCoordenacao]);
 
   // Build filters for agenda
+  const shouldFetchAll = isAdminOrCoordinator && coordenacaoFiltro === "todas" && membrosFiltro.length === 0;
+  
   const filters: AgendaUnificadaFilters = {
     tipos: tiposFiltro.length > 0 ? tiposFiltro : undefined,
     status: statusFiltro === "atrasado" ? "pendente" : statusFiltro,
@@ -379,6 +381,7 @@ export default function MinhaAgenda() {
     responsavelIds: responsavelIdsForAgenda,
     coordenacaoId: coordenacaoFiltro !== "todas" ? coordenacaoFiltro : undefined,
     clienteId: clienteFiltro !== "todos" ? clienteFiltro : undefined,
+    fetchAll: shouldFetchAll,
   };
 
   const { data: itensAgenda, isLoading } = useAgendaUnificada(filters);
