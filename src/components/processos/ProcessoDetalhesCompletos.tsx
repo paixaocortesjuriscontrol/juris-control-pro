@@ -31,7 +31,11 @@ import {
   CalendarDays,
   Globe,
   User,
-  Eye
+  Eye,
+  Home,
+  Bell,
+  BellOff,
+  Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -103,7 +107,7 @@ export function ProcessoDetalhesCompletos({
   onVoltarTarefa,
 }: ProcessoDetalhesCompletosProps) {
   const navigate = useNavigate();
-  const [activeSection, setActiveSection] = useState<string>("detalhes");
+  const [activeSection, setActiveSection] = useState<string>("resumo");
   const [comentario, setComentario] = useState("");
 
   const formatDate = (date: string | null | undefined) => {
@@ -140,6 +144,7 @@ export function ProcessoDetalhesCompletos({
 
   // Navigation items for sidebar - inclui todas as abas operacionais
   const navItems = [
+    { id: "resumo", label: "Resumo", icon: Home },
     { id: "detalhes", label: "Detalhes", icon: FileText },
     { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
     { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
@@ -300,6 +305,203 @@ export function ProcessoDetalhesCompletos({
         <div className="flex-1 min-w-0">
           <ScrollArea className="h-[calc(100vh-120px)]">
             <div className="p-3 sm:p-4">
+              {/* Resumo Section - Visão geral rápida */}
+              {activeSection === "resumo" && (
+                <div className="space-y-4">
+                  {/* Card de Resumo Principal */}
+                  <Card>
+                    <CardContent className="p-4 md:p-6">
+                      <h2 className="text-base font-semibold mb-4 text-foreground">Resumo do processo</h2>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
+                        {/* Coluna Esquerda */}
+                        <div className="space-y-4">
+                          {/* Situação */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Situação</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge className={cn(
+                                "text-xs",
+                                processo.status === "ativo" ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
+                              )}>
+                                {processo.status === "ativo" ? "Ativo" : processo.status}
+                              </Badge>
+                              <Badge className={cn(
+                                "text-xs",
+                                processo.monitorar_andamentos ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                              )}>
+                                {processo.monitorar_andamentos ? <><Bell className="w-3 h-3 mr-1" />Monitorado</> : <><BellOff className="w-3 h-3 mr-1" />Sem monitoramento</>}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {/* Assunto */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Assunto</p>
+                            <p className="text-sm text-foreground mt-1">{processo.assunto || "Não informado"}</p>
+                          </div>
+
+                          {/* Órgão */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão</p>
+                            <p className="text-sm text-foreground mt-1">
+                              {processo.tribunal || processo.vara || "Não informado"}
+                              {processo.comarca && ` - ${processo.comarca}`}
+                            </p>
+                          </div>
+
+                          {/* Número do Processo */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Número do Processo</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-sm font-mono text-foreground">{processo.numero}</p>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-6 w-6"
+                                onClick={() => copyToClipboard(processo.numero)}
+                              >
+                                <Copy className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Envolvidos */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Envolvidos</p>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {processo.polo_passivo && (
+                                <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400">
+                                  {processo.polo_passivo}
+                                  <span className="ml-2 text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded">Req.</span>
+                                </Badge>
+                              )}
+                              {processo.polo_ativo && (
+                                <Badge variant="outline" className="bg-muted border-border text-muted-foreground">
+                                  {processo.polo_ativo}
+                                  <span className="ml-2 text-[10px] bg-muted-foreground text-background px-1.5 py-0.5 rounded">Reqte.</span>
+                                </Badge>
+                              )}
+                            </div>
+                            <Button 
+                              variant="link" 
+                              size="sm" 
+                              className="text-xs p-0 h-auto mt-1 text-primary"
+                              onClick={() => setActiveSection("envolvidos")}
+                            >
+                              Expandir
+                            </Button>
+                          </div>
+
+                          {/* Responsáveis */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Responsáveis</p>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {responsaveis.length > 0 ? (
+                                responsaveis.map((r) => (
+                                  <div key={r.id} className="flex items-center gap-2 bg-muted/50 rounded-md px-2 py-1">
+                                    <Avatar className="w-6 h-6 border border-background">
+                                      <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-semibold">
+                                        {r.nome.substring(0, 2).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-sm font-medium">{r.nome}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-sm text-muted-foreground">Não atribuído</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Valor da ação */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Valor da ação</p>
+                            <p className="text-lg font-semibold text-foreground">{formatCurrency(processo.valor_causa)}</p>
+                          </div>
+                        </div>
+
+                        {/* Coluna Direita - Informações adicionais */}
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Data de distribuição</p>
+                              <p className="text-sm text-foreground">{formatDate(processo.data_distribuicao)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão julgador</p>
+                              <p className="text-sm text-foreground">{processo.orgao_julgador || "Não informado"}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Área</p>
+                              <p className="text-sm text-foreground">{processo.area || "Não informado"}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fase</p>
+                              <p className="text-sm text-foreground">{processo.fase || "Não informado"}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sistema</p>
+                              <p className="text-sm text-foreground">{processo.sistema || "Não informado"}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta física</p>
+                              <p className="text-sm text-foreground">{processo.pasta_fisica || "Não informado"}</p>
+                            </div>
+                          </div>
+
+                          {/* Descrição */}
+                          {processo.descricao && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Descrição</p>
+                              <p className="text-sm text-foreground mt-1">{processo.descricao}</p>
+                            </div>
+                          )}
+
+                          {/* Pasta do Cliente */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta do Cliente</p>
+                            <p className="text-sm text-foreground">{processo.pasta_cliente || processo.pasta?.nome || "Não vinculado"}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Cards de estatísticas rápidas */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveSection("tarefas")}>
+                      <CardContent className="p-4 text-center">
+                        <ListTodo className="w-6 h-6 mx-auto text-primary mb-2" />
+                        <p className="text-2xl font-bold">{tarefas.length}</p>
+                        <p className="text-xs text-muted-foreground">Tarefas</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveSection("audiencias")}>
+                      <CardContent className="p-4 text-center">
+                        <Gavel className="w-6 h-6 mx-auto text-primary mb-2" />
+                        <p className="text-2xl font-bold">{audiencias.length}</p>
+                        <p className="text-xs text-muted-foreground">Audiências</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveSection("andamentos")}>
+                      <CardContent className="p-4 text-center">
+                        <Activity className="w-6 h-6 mx-auto text-primary mb-2" />
+                        <p className="text-2xl font-bold">{movimentacoes.length}</p>
+                        <p className="text-xs text-muted-foreground">Andamentos</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveSection("publicacoes")}>
+                      <CardContent className="p-4 text-center">
+                        <Newspaper className="w-6 h-6 mx-auto text-primary mb-2" />
+                        <p className="text-2xl font-bold">{publicacoesDjen.length}</p>
+                        <p className="text-xs text-muted-foreground">Publicações</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
+
               {/* Detalhes Section - Todas as informações organizadas por categoria */}
               {activeSection === "detalhes" && (
                 <div className="space-y-6">
