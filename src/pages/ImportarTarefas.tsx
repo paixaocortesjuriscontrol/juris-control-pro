@@ -26,11 +26,16 @@ interface TarefaImport {
   tipo: string | null;
   titulo: string;
   dataCriacao: string | null;
+  horaCriacao: string | null;
   dataBase: string | null;
   dataPrevista: string | null;
+  horaPrevista: string | null;
   dataFatal: string | null;
+  horaFatal: string | null;
   dataConclusao: string | null;
+  horaConclusao: string | null;
   situacao: string | null;
+  linkLocal: string | null;
   descricao: string | null;
   responsaveis: string | null;
   gruposTrabalho: string | null;
@@ -38,13 +43,28 @@ interface TarefaImport {
   concluidaPor: string | null;
   marcadores: string | null;
   comentarios: string | null;
+  identificadorTimesheet: string | null;
+  totalHorasTimesheet: string | null;
   quadroKanban: string | null;
+  modulo: string | null;
+  identificadorModulo: string | null;
   numeroProcesso: string | null;
   assunto: string | null;
+  situacaoProcesso: string | null;
+  instancia: string | null;
   vara: string | null;
   fase: string | null;
+  descricaoUltimoAndamento: string | null;
+  partesAtivas: string | null;
+  partesPassivas: string | null;
+  outrasPartes: string | null;
+  envolvimentoClientes: string | null;
+  envolvimentoContrarios: string | null;
   pastaFisica: string | null;
   pastaCliente: string | null;
+  orgao: string | null;
+  orgaoJulgador: string | null;
+  marcadoresVinculo: string | null;
   status: "pendente" | "valido" | "invalido" | "sucesso" | "erro";
   erros: string[];
   erroImport?: string;
@@ -299,7 +319,17 @@ export default function ImportarTarefas() {
   const createNewProcesso = async (
     numeroProcesso: string,
     coordenacaoId: string,
-    extras?: { assunto?: string; vara?: string; fase?: string; pastaFisica?: string; pastaCliente?: string }
+    extras?: { 
+      assunto?: string; 
+      vara?: string; 
+      fase?: string; 
+      pastaFisica?: string; 
+      pastaCliente?: string;
+      instancia?: string;
+      orgao?: string;
+      orgaoJulgador?: string;
+      situacaoProcesso?: string;
+    }
   ): Promise<string | null> => {
     if (!numeroProcesso || !coordenacaoId) return null;
     
@@ -318,8 +348,9 @@ export default function ImportarTarefas() {
           fase: extras?.fase || null,
           pasta_fisica: extras?.pastaFisica || null,
           pasta_cliente: extras?.pastaCliente || null,
+          instancia: extras?.instancia || null,
           coordenacao_id: coordenacaoId,
-          status: "ativo",
+          status: extras?.situacaoProcesso?.toLowerCase().includes("arquivado") ? "arquivado" : "ativo",
           area: "trabalhista",
         })
         .select("id")
@@ -346,7 +377,17 @@ export default function ImportarTarefas() {
     numeroProcesso: string | null,
     coordenacaoId: string,
     cadastrar: boolean,
-    extras?: { assunto?: string; vara?: string; fase?: string; pastaFisica?: string; pastaCliente?: string },
+    extras?: { 
+      assunto?: string; 
+      vara?: string; 
+      fase?: string; 
+      pastaFisica?: string; 
+      pastaCliente?: string;
+      instancia?: string;
+      orgao?: string;
+      orgaoJulgador?: string;
+      situacaoProcesso?: string;
+    },
     onNewProcesso?: (numero: string) => void
   ): Promise<string | null> => {
     if (!numeroProcesso) return null;
@@ -465,11 +506,16 @@ export default function ImportarTarefas() {
           tipo: row["Tipo de tarefa"] || null,
           titulo,
           dataCriacao: row["Data de criação"] || row["Data de criacao"] || null,
+          horaCriacao: row["Hora de criação"] || row["Hora de criacao"] || null,
           dataBase: row["Data base"] || null,
           dataPrevista: row["Data prevista"] || null,
+          horaPrevista: row["Hora prevista"] || null,
           dataFatal,
+          horaFatal: row["Hora fatal"] || null,
           dataConclusao: row["Data da conclusão"] || row["Data da conclusao"] || null,
+          horaConclusao: row["Hora da conclusão"] || row["Hora da conclusao"] || null,
           situacao,
+          linkLocal: row["Link/Local"] || null,
           descricao: row["Descrição da tarefa"] || row["Descricao da tarefa"] || null,
           responsaveis: row["Responsáveis da tarefa"] || row["Responsaveis da tarefa"] || null,
           gruposTrabalho: row["Grupos de trabalho"] || null,
@@ -477,13 +523,28 @@ export default function ImportarTarefas() {
           concluidaPor: row["Concluída por"] || row["Concluida por"] || null,
           marcadores: row["Marcadores"] || null,
           comentarios: row["Comentários"] || row["Comentarios"] || null,
+          identificadorTimesheet: row["Identificador do timesheet"] || null,
+          totalHorasTimesheet: row["Total de horas do timesheet"] || null,
           quadroKanban: row["Quadro Kanban"] || null,
+          modulo: row["Módulo"] || row["Modulo"] || null,
+          identificadorModulo: row["Identificador do módulo"] || row["Identificador do modulo"] || null,
           numeroProcesso: row["Número do processo"] || row["Numero do processo"] || null,
           assunto: row["Assunto"] || null,
+          situacaoProcesso: row["Situação do processo"] || row["Situacao do processo"] || null,
+          instancia: row["Instância"] || row["Instancia"] || null,
           vara: row["Vara"] || null,
           fase: row["Fase"] || null,
+          descricaoUltimoAndamento: row["Descrição do último andamento"] || row["Descricao do ultimo andamento"] || null,
+          partesAtivas: row["Envolvidos do processo (partes ativas)"] || null,
+          partesPassivas: row["Envolvidos do processo (partes passivas)"] || null,
+          outrasPartes: row["Envolvidos do processo (outras partes)"] || null,
+          envolvimentoClientes: row["Envolvidos do atendimento (clientes)"] || null,
+          envolvimentoContrarios: row["Envolvidos do atendimento (contrários)"] || row["Envolvidos do atendimento (contrarios)"] || null,
           pastaFisica: row["Pasta física"] || row["Pasta fisica"] || null,
           pastaCliente: row["Pasta do cliente"] || null,
+          orgao: row["Órgão"] || row["Orgao"] || null,
+          orgaoJulgador: row["Órgão julgador"] || row["Orgao julgador"] || null,
+          marcadoresVinculo: row["Marcadores do vínculo"] || row["Marcadores do vinculo"] || null,
           status: "pendente",
           erros: [],
           linhaOriginal: index + 2,
@@ -576,7 +637,17 @@ export default function ImportarTarefas() {
           t.numeroProcesso,
           selectedCoordenacao,
           cadastrarNovosProcessos,
-          { assunto: t.assunto, vara: t.vara, fase: t.fase, pastaFisica: t.pastaFisica, pastaCliente: t.pastaCliente },
+          { 
+            assunto: t.assunto || undefined, 
+            vara: t.vara || undefined, 
+            fase: t.fase || undefined, 
+            pastaFisica: t.pastaFisica || undefined, 
+            pastaCliente: t.pastaCliente || undefined,
+            instancia: t.instancia || undefined,
+            orgao: t.orgao || undefined,
+            orgaoJulgador: t.orgaoJulgador || undefined,
+            situacaoProcesso: t.situacaoProcesso || undefined,
+          },
           (num) => setNovosProcessosCriados(prev => [...prev, num])
         );
         
@@ -588,6 +659,30 @@ export default function ImportarTarefas() {
           (nome) => setNovosUsuariosCriados(prev => [...prev, nome])
         );
         
+        // Build rich observacoes with all extra fields from Projuris
+        const observacoesPartes: string[] = [];
+        if (t.comentarios) observacoesPartes.push(`Comentários: ${t.comentarios}`);
+        if (t.linkLocal) observacoesPartes.push(`Link/Local: ${t.linkLocal}`);
+        if (t.identificadorTimesheet) observacoesPartes.push(`Timesheet: ${t.identificadorTimesheet}${t.totalHorasTimesheet ? ` (${t.totalHorasTimesheet})` : ""}`);
+        if (t.modulo) observacoesPartes.push(`Módulo: ${t.modulo}${t.identificadorModulo ? ` (${t.identificadorModulo})` : ""}`);
+        if (t.situacaoProcesso) observacoesPartes.push(`Situação do Processo: ${t.situacaoProcesso}`);
+        if (t.instancia) observacoesPartes.push(`Instância: ${t.instancia}`);
+        if (t.orgao) observacoesPartes.push(`Órgão: ${t.orgao}`);
+        if (t.orgaoJulgador) observacoesPartes.push(`Órgão Julgador: ${t.orgaoJulgador}`);
+        if (t.descricaoUltimoAndamento) observacoesPartes.push(`Último Andamento: ${t.descricaoUltimoAndamento}`);
+        if (t.partesAtivas) observacoesPartes.push(`Partes Ativas: ${t.partesAtivas}`);
+        if (t.partesPassivas) observacoesPartes.push(`Partes Passivas: ${t.partesPassivas}`);
+        if (t.outrasPartes) observacoesPartes.push(`Outras Partes: ${t.outrasPartes}`);
+        if (t.envolvimentoClientes) observacoesPartes.push(`Clientes: ${t.envolvimentoClientes}`);
+        if (t.envolvimentoContrarios) observacoesPartes.push(`Contrários: ${t.envolvimentoContrarios}`);
+        if (t.marcadoresVinculo) observacoesPartes.push(`Marcadores do Vínculo: ${t.marcadoresVinculo}`);
+        if (t.horaCriacao) observacoesPartes.push(`Hora Criação: ${t.horaCriacao}`);
+        if (t.horaPrevista) observacoesPartes.push(`Hora Prevista: ${t.horaPrevista}`);
+        if (t.horaFatal) observacoesPartes.push(`Hora Fatal: ${t.horaFatal}`);
+        if (t.horaConclusao) observacoesPartes.push(`Hora Conclusão: ${t.horaConclusao}`);
+        
+        const observacoesCompletas = observacoesPartes.length > 0 ? observacoesPartes.join("\n") : null;
+
         insertPayloads.push({
           payload: {
             identificador_projuris: t.identificador || `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -602,7 +697,7 @@ export default function ImportarTarefas() {
             prioridade: mapSituacaoToPrioridade(t.situacao, t.dataFatal),
             responsavel_id: responsavelId,
             processo_id: processoId,
-            observacoes: t.comentarios,
+            observacoes: observacoesCompletas,
             criado_por_nome: t.criadaPor,
             concluido_por_nome: t.concluidaPor,
             grupos_trabalho: t.gruposTrabalho,
