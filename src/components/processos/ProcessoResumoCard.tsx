@@ -91,14 +91,17 @@ export function ProcessoResumoCard({
 
   const clienteNome = processo.cliente?.nome || processo.polo_passivo || "Cliente não identificado";
 
-  const pastaNome = processo.pasta?.nome || processo.pasta_cliente || null;
+  // Usar pasta_cliente que tem o formato correto da lista, ou construir a partir do processo
+  const pastaNome = processo.pasta_cliente || processo.pasta?.nome || 
+    (processo.polo_passivo && processo.polo_ativo 
+      ? `${processo.polo_passivo} X ${processo.polo_ativo}` 
+      : null);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Pasta e botão de ação na mesma linha */}
-      <div className="flex items-center gap-3 flex-wrap border-b pb-3">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta:</span>
-        <span className="text-base font-semibold text-foreground">{pastaNome || "Não informada"}</span>
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-base font-semibold text-foreground">{pastaNome || "Pasta não informada"}</span>
         <Button onClick={onMaisInformacoes} size="sm" className="bg-zinc-700 hover:bg-zinc-800 text-white">
           <Info className="w-4 h-4 mr-2" />
           Mais informações
@@ -108,7 +111,7 @@ export function ProcessoResumoCard({
       {/* Resumo do processo */}
       <Card className="border">
         <CardContent className="p-4 md:p-6">
-          <h2 className="text-lg font-semibold mb-4 text-foreground">Resumo do processo</h2>
+          <h2 className="text-base font-semibold mb-3 text-foreground">Resumo do processo</h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-3">
             {/* Coluna Esquerda - Informações principais */}
