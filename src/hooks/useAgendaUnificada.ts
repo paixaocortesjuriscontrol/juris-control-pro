@@ -70,6 +70,7 @@ export interface AgendaUnificadaFilters {
   coordenacaoId?: string;
   clienteId?: string;
   origens?: ("evento" | "tarefa")[]; // Filtrar por origem
+  fetchAll?: boolean; // Se true, busca todas as tarefas sem filtrar por usuário (para admins)
 }
 
 export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
@@ -87,14 +88,6 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
 
       // ========= BUSCAR EVENTOS =========
       if (incluirEventos) {
-        // Get events where user is a participant
-        const { data: participacoesUsuario } = await supabase
-          .from("participantes_evento")
-          .select("evento_id")
-          .eq("usuario_id", user.id);
-        
-        const eventosParticipante = participacoesUsuario?.map(p => p.evento_id) || [];
-
         let queryEventos = supabase
           .from("eventos_agenda")
           .select(`
@@ -102,11 +95,22 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
             processo:processos(id, numero, assunto)
           `);
 
-        // Filter: created by user OR user is participant
-        if (eventosParticipante.length > 0) {
-          queryEventos = queryEventos.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(',')})`);
-        } else {
-          queryEventos = queryEventos.eq("criado_por", user.id);
+        // Se fetchAll=true (admin vendo tudo), não filtra por criador/participante
+        if (!filters.fetchAll) {
+          // Get events where user is a participant
+          const { data: participacoesUsuario } = await supabase
+            .from("participantes_evento")
+            .select("evento_id")
+            .eq("usuario_id", user.id);
+          
+          const eventosParticipante = participacoesUsuario?.map(p => p.evento_id) || [];
+
+          // Filter: created by user OR user is participant
+          if (eventosParticipante.length > 0) {
+            queryEventos = queryEventos.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(',')})`);
+          } else {
+            queryEventos = queryEventos.eq("criado_por", user.id);
+          }
         }
 
         // Filtros de tipo para eventos
@@ -221,9 +225,12 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
           `);
 
         // Filtrar por responsável OU se é o criador
-        // Se o filtro de membro está ativo, mostra tarefas onde o responsável está no filtro OU o usuário logado é criador
-        if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-          // Se o próprio usuário logado está no filtro, mostra também onde ele é criador
+        // Se fetchAll=true (admin vendo tudo), não filtra por usuário
+        if (filters.fetchAll) {
+          // Admin vendo todas as tarefas - sem filtro de usuário
+          // (coordenação/cliente será filtrado depois no código abaixo)
+        } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
+          // Se o filtro de membro está ativo, mostra tarefas onde o responsável está no filtro OU o usuário logado é criador
           if (filters.responsavelIds.includes(user.id)) {
             queryTarefas = queryTarefas.or(`responsavel_id.in.(${filters.responsavelIds.join(',')}),criado_por.eq.${user.id}`);
           } else {
