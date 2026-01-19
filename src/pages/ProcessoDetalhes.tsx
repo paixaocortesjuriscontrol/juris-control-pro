@@ -1066,6 +1066,34 @@ export default function ProcessoDetalhes() {
     }).format(value);
   };
 
+  // Handler para criar tarefa a partir de publicação DJEN
+  const handleCriarTarefaPublicacao = (pub: any) => {
+    const pubUnificada: PublicacaoUnificada = {
+      id: pub.id,
+      tipo_origem: 'processo',
+      processo_id: id!,
+      processo_numero: processo?.numero || null,
+      conteudo: pub.conteudo,
+      data_publicacao: pub.data_publicacao,
+      data_disponibilizacao: pub.data_disponibilizacao || null,
+      fonte: pub.fonte || null,
+      lida: pub.lida || false,
+      created_at: pub.created_at,
+      monitoramento_id: null,
+      monitoramento_termo: null,
+      monitoramento_descricao: null,
+      monitoramento_tipo: null,
+      monitoramento_oab: null,
+      monitoramento_uf: null,
+      coordenacao_id: processo?.coordenacao_id || null,
+      coordenacao_nome: null,
+      polo_ativo: pub.polo_ativo || null,
+      polo_passivo: pub.polo_passivo || null,
+      tribunal: pub.tribunal || null,
+    };
+    setPublicacaoParaTarefa(pubUnificada);
+  };
+
   // Field display/edit component
   const FieldItem = ({ label, value, field, type = "text", options }: { 
     label: string; 
@@ -1954,33 +1982,6 @@ export default function ProcessoDetalhes() {
         return <ProcessoDocumentosTab processoId={id!} documentos={documentosProcesso} refetchDocumentos={refetchDocumentos} />;
 
       case "publicacoes":
-        const handleCriarTarefaPublicacao = (pub: any) => {
-          const pubUnificada: PublicacaoUnificada = {
-            id: pub.id,
-            tipo_origem: 'processo',
-            processo_id: id!,
-            processo_numero: processo?.numero || null,
-            conteudo: pub.conteudo,
-            data_publicacao: pub.data_publicacao,
-            data_disponibilizacao: pub.data_disponibilizacao || null,
-            fonte: pub.fonte || null,
-            lida: pub.lida || false,
-            created_at: pub.created_at,
-            monitoramento_id: null,
-            monitoramento_termo: null,
-            monitoramento_descricao: null,
-            monitoramento_tipo: null,
-            monitoramento_oab: null,
-            monitoramento_uf: null,
-            coordenacao_id: processo?.coordenacao_id || null,
-            coordenacao_nome: null,
-            polo_ativo: pub.polo_ativo || null,
-            polo_passivo: pub.polo_passivo || null,
-            tribunal: pub.tribunal || null,
-          };
-          setPublicacaoParaTarefa(pubUnificada);
-        };
-
         return (
           <Card>
             <CardHeader className="pb-3">
@@ -2013,8 +2014,10 @@ export default function ProcessoDetalhes() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-7 px-2 flex-shrink-0"
+                              className="h-7 px-2 flex-shrink-0 relative z-10"
+                              onPointerDownCapture={(e) => e.stopPropagation()}
                               onClick={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 handleCriarTarefaPublicacao(pub);
                               }}
