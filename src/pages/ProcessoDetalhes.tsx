@@ -2004,81 +2004,76 @@ export default function ProcessoDetalhes() {
             <CardContent>
               {loadingPublicacoes ? (
                 <div className="space-y-3">
-                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                  {[...Array(2)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 rounded-lg" />
+                  ))}
                 </div>
               ) : publicacoesDjen.length > 0 ? (
-                <ScrollArea className="h-[400px] pr-4">
-                  <Accordion type="single" collapsible className="space-y-2">
-                    {publicacoesDjen.map((pub: any) => (
-                      <AccordionItem key={pub.id} value={pub.id} className="border rounded-lg">
-                        <div className="px-4 py-3">
-                          {/* Header row with info and button */}
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant="secondary" className="text-xs">
-                                {pub.tribunal || 'DJEN'}
-                              </Badge>
-                              {!pub.lida && (
-                                <Badge className="bg-amber-500 text-xs">Nova</Badge>
-                              )}
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2 flex-shrink-0 relative z-10"
-                              onPointerDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleCriarTarefaPublicacao(pub);
-                              }}
-                            >
-                              <ListPlus className="w-3.5 h-3.5 mr-1" />
-                              <span className="text-xs">Criar Tarefa</span>
-                            </Button>
-                          </div>
-
-                          {/* Dates row */}
-                          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mb-2">
-                            {pub.data_disponibilizacao && (
-                              <div className="flex items-center gap-1">
-                                <span className="font-medium">Disp:</span>
-                                <span>{formatDate(pub.data_disponibilizacao)}</span>
-                              </div>
+                <div className="max-h-[400px] overflow-y-auto pr-4 space-y-2">
+                  {publicacoesDjen.map((pub: any) => (
+                    <div key={pub.id} className="border rounded-lg bg-background">
+                      <div className="px-4 py-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary" className="text-xs">
+                              {pub.tribunal || "DJEN"}
+                            </Badge>
+                            {!pub.lida && (
+                              <Badge className="bg-amber-500 text-xs">Nova</Badge>
                             )}
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              <span className="font-medium">Pub:</span>
-                              <span>
-                                {pub.data_publicacao 
-                                  ? formatDate(pub.data_publicacao) 
-                                  : pub.created_at 
-                                    ? formatDate(pub.created_at)
-                                    : "—"
-                                }
-                              </span>
-                            </div>
                           </div>
 
-                          {/* Expandable content trigger */}
-                          <AccordionTrigger className="hover:no-underline p-0 pt-1">
-                            <p className="text-sm text-left text-muted-foreground line-clamp-2">
-                              {pub.conteudo?.substring(0, 200) || "Ver conteúdo da publicação"}...
-                            </p>
-                          </AccordionTrigger>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 flex-shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCriarTarefaPublicacao(pub);
+                            }}
+                          >
+                            <ListPlus className="w-3.5 h-3.5 mr-1" />
+                            <span className="text-xs">Criar Tarefa</span>
+                          </Button>
                         </div>
-                        
-                        <AccordionContent className="px-4 pb-4 pt-0">
-                          <div className="p-3 bg-muted/50 rounded-lg">
+
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mt-2">
+                          {pub.data_disponibilizacao && (
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">Disp:</span>
+                              <span>{formatDate(pub.data_disponibilizacao)}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            <span className="font-medium">Pub:</span>
+                            <span>
+                              {pub.data_publicacao
+                                ? formatDate(pub.data_publicacao)
+                                : pub.created_at
+                                  ? formatDate(pub.created_at)
+                                  : "—"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <details className="mt-2">
+                          <summary className="cursor-pointer select-none text-sm text-muted-foreground">
+                            <span className="line-clamp-2">
+                              {pub.conteudo?.substring(0, 200) || "Ver conteúdo da publicação"}...
+                            </span>
+                          </summary>
+                          <div className="mt-2 p-3 bg-muted/50 rounded-lg">
                             <p className={`text-sm ${conteudoDisplayClasses}`}>
                               {formatConteudoParaExibicao(pub.conteudo) || "Conteúdo não disponível"}
                             </p>
                           </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                </ScrollArea>
+                        </details>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="text-center py-8">
                   <Newspaper className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
