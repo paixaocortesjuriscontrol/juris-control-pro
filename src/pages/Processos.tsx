@@ -51,9 +51,10 @@ const statusLabels: Record<StatusType, string> = {
 // Mapeamento para novas situações do processo
 const situacaoLabels: Record<string, string> = {
   ativo: "Ativo",
+  arquivado_parcialmente: "Arquivado Parcialmente",
   arquivado_definitivamente: "Arquivado Definitivamente",
-  arquivado_provisoriamente: "Arquivado Provisoriamente",
   suspenso: "Suspenso",
+  encerrado: "Encerrado",
 };
 
 const Processos = () => {
@@ -462,11 +463,12 @@ const Processos = () => {
                 <SelectValue placeholder="Situação" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos Ativos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="ativo">Ativo</SelectItem>
+                <SelectItem value="arquivado_parcialmente">Arquivado Parcialmente</SelectItem>
                 <SelectItem value="arquivado_definitivamente">Arquivado Definitivamente</SelectItem>
-                <SelectItem value="arquivado_provisoriamente">Arquivado Provisoriamente</SelectItem>
                 <SelectItem value="suspenso">Suspenso</SelectItem>
+                <SelectItem value="encerrado">Encerrado</SelectItem>
               </SelectContent>
             </Select>
             <CacheIndicator
