@@ -93,6 +93,8 @@ interface TarefaPublicacaoViewProps {
 }
 
 const tiposTarefa = [
+  "PRAZO",
+  "TAREFA EQUIPE",
   "INTIMAÇÃO",
   "DEFESA",
   "RECURSO",

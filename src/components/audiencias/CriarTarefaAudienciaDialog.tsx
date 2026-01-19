@@ -64,6 +64,8 @@ interface CriarTarefaAudienciaDialogProps {
 }
 
 const tiposTarefa = [
+  "PRAZO",
+  "TAREFA EQUIPE",
   "AUDIÊNCIA",
   "PREPARAÇÃO AUDIÊNCIA",
   "DILIGÊNCIA",
