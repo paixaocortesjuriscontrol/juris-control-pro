@@ -15,6 +15,7 @@ interface ProcessosPaginadosFilters {
   comPublicacaoDjen?: boolean;
   comAudiencia?: boolean;
   comIntimacao?: boolean;
+  comTarefa?: boolean;
   periodoInicio?: Date;
   periodoFim?: Date;
   clienteIds?: string[];
@@ -45,6 +46,7 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         _com_publicacao_djen: filters.comPublicacaoDjen ?? false,
         _com_audiencia: filters.comAudiencia ?? false,
         _com_intimacao: filters.comIntimacao ?? false,
+        _com_tarefa: filters.comTarefa ?? false,
         _periodo_inicio: filters.periodoInicio ? filters.periodoInicio.toISOString() : null,
         _periodo_fim: filters.periodoFim ? filters.periodoFim.toISOString() : null,
         _cliente_ids: filters.clienteIds && filters.clienteIds.length > 0 ? filters.clienteIds : null,

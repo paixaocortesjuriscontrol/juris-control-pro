@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,6 +106,7 @@ const Processos = () => {
   const [comAndamentos, setComAndamentos] = useState(false);
   const [comAudiencias, setComAudiencias] = useState(false);
   const [comIntimacoes, setComIntimacoes] = useState(false);
+  const [comTarefas, setComTarefas] = useState(false);
   const [tipoProcessoFilter, setTipoProcessoFilter] = useState<string>("all");
   
   // Filtro de grupo de clientes (da URL ou selecionado manualmente)
@@ -270,6 +271,7 @@ const Processos = () => {
     comPublicacaoDjen: comPublicacaoDjen,
     comAudiencia: comAudiencias,
     comIntimacao: comIntimacoes,
+    comTarefa: comTarefas,
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
     clienteIds: clienteIds,
@@ -282,7 +284,7 @@ const Processos = () => {
   // Reset page when filters change
   useEffect(() => {
     resetPage();
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, clienteIds, tipoProcessoFilter]);
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, clienteIds, tipoProcessoFilter]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
   // so selecting a responsável / período filters immediately.
@@ -369,6 +371,7 @@ const Processos = () => {
     comAndamentos ||
     comAudiencias ||
     comIntimacoes ||
+    comTarefas ||
     !!grupoClientesParam ||
     selectedGrupoId !== "all" ||
     selectedClienteId !== "all";
@@ -624,6 +627,20 @@ const Processos = () => {
             >
               <AlertCircle className="w-4 h-4" />
               <span className="hidden sm:inline">Com Intimações</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 gap-2 touch-manipulation select-none",
+                comTarefas && "bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
+              )}
+              onClick={() => setComTarefas(prev => !prev)}
+            >
+              <ClipboardList className="w-4 h-4" />
+              <span className="hidden sm:inline">Com Tarefas</span>
             </Button>
           </div>
 
