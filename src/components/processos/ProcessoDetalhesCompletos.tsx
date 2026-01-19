@@ -117,6 +117,7 @@ export function ProcessoDetalhesCompletos({
   onCriarTarefaPublicacao,
 }: ProcessoDetalhesCompletosProps) {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeSection, setActiveSection] = useState<string>("resumo");
   const [comentario, setComentario] = useState("");
 
@@ -330,19 +331,25 @@ export function ProcessoDetalhesCompletos({
                           <div>
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Situação</p>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <Select 
-                                value={processo.status || "ativo"} 
+                              <Select
+                                value={processo.status || "Ativo"}
                                 onValueChange={async (newStatus) => {
                                   try {
                                     const { error } = await supabase
                                       .from("processos")
                                       .update({ status: newStatus as any })
                                       .eq("id", processo.id);
+
                                     if (error) throw error;
-                                    // Força refresh
+
                                     window.location.reload();
                                   } catch (err) {
                                     console.error("Erro ao atualizar situação:", err);
+                                    toast({
+                                      title: "Erro",
+                                      description: "Não foi possível atualizar a situação do processo.",
+                                      variant: "destructive",
+                                    });
                                   }
                                 }}
                               >
@@ -350,18 +357,36 @@ export function ProcessoDetalhesCompletos({
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="ativo">Ativo</SelectItem>
-                                  <SelectItem value="arquivado_definitivamente">Arquivado Definitivamente</SelectItem>
-                                  <SelectItem value="arquivado_provisoriamente">Arquivado Provisoriamente</SelectItem>
-                                  <SelectItem value="suspenso">Suspenso</SelectItem>
+                                  <SelectItem value="Ativo">Ativo</SelectItem>
+                                  <SelectItem value="Arquivado Definitivamente">Arquivado Definitivamente</SelectItem>
+                                  <SelectItem value="Arquivado Provisoriamente">Arquivado Provisoriamente</SelectItem>
+                                  <SelectItem value="Suspenso">Suspenso</SelectItem>
                                 </SelectContent>
                               </Select>
-                              <Badge className={cn(
-                                "text-xs",
-                                processo.monitorar_andamentos ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                              )}>
-                                {processo.monitorar_andamentos ? <><Bell className="w-3 h-3 mr-1" />Monitorado</> : <><BellOff className="w-3 h-3 mr-1" />Sem monitoramento</>}
-                              </Badge>
+                            </div>
+                          </div>
+
+                          {/* Monitoramento */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monitoramento</p>
+                            <div className="mt-1 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-foreground">Andamentos</span>
+                                <MonitoramentoToggle
+                                  processoId={processo.id}
+                                  campo="monitorar_andamentos"
+                                  valorInicial={!!processo.monitorar_andamentos}
+                                />
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-foreground">DJEN</span>
+                                <MonitoramentoToggle
+                                  processoId={processo.id}
+                                  campo="monitorar_djen"
+                                  valorInicial={!!processo.monitorar_djen}
+                                />
+                              </div>
                             </div>
                           </div>
 
