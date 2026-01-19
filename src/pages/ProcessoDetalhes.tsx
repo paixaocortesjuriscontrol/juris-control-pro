@@ -1770,228 +1770,178 @@ export default function ProcessoDetalhes() {
     switch (activeTab) {
       case "audiencias":
         return (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Gavel className="w-5 h-5" />
-                Audiências
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingAudiencias ? (
-                <div className="space-y-3">
-                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
-                </div>
-              ) : audiencias.length > 0 ? (
-                <ScrollArea className="h-[500px] pr-4">
-                  <div className="space-y-4">
-                    {audiencias.map((aud) => (
-                      <Card key={aud.id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="p-4">
-                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {getAudienciaStatusBadge(aud.status)}
-                                {getOrigemBadge(aud.origem)}
-                                {aud.tipo_audiencia && (
-                                  <Badge variant="secondary">{aud.tipo_audiencia}</Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-4 text-sm flex-wrap">
-                                <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg">
-                                  <Calendar className="h-5 w-5 text-primary" />
-                                  <span className="font-bold text-primary text-lg">{formatDate(aud.data_audiencia)}</span>
-                                  {(aud.hora_brasilia || aud.hora) && (
-                                    <span className="text-muted-foreground">às {aud.hora_brasilia || aud.hora}</span>
-                                  )}
-                                </div>
-                              </div>
-                              {aud.resumo_objeto && (
-                                <p className="text-sm text-muted-foreground line-clamp-2">{aud.resumo_objeto}</p>
-                              )}
-                            </div>
-                            <div className="flex gap-2 flex-wrap">
-                              <Button variant="outline" size="sm" onClick={() => setEditingAudiencia(aud as AudienciaDetectada)}>
-                                <Pencil className="h-4 w-4 mr-1" />
-                                Editar
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
-                                <Eye className="h-4 w-4 mr-1" />
-                                Detalhes
-                              </Button>
-                              {aud.status === 'pendente' && (
-                                <>
-                                  <Button variant="default" size="sm" onClick={() => handleMarcarAudienciaTratado(aud.id)} disabled={updatingAudiencia === aud.id}>
-                                    <CheckCircle className="h-4 w-4 mr-1" />
-                                    Tratado
-                                  </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => handleIgnorarAudiencia(aud.id)} disabled={updatingAudiencia === aud.id}>
-                                    <XCircle className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+          <div className="w-full max-w-md">
+            <div className="flex items-center gap-2 mb-2">
+              <Gavel className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Audiências</span>
+            </div>
+            {loadingAudiencias ? (
+              <div className="space-y-2">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-16 rounded" />)}
+              </div>
+            ) : audiencias.length > 0 ? (
+              <div className="space-y-2">
+                {audiencias.map((aud) => (
+                  <div key={aud.id} className="border rounded p-2 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
+                        {getAudienciaStatusBadge(aud.status)}
+                        {getOrigemBadge(aud.origem)}
+                        {aud.tipo_audiencia && <Badge variant="secondary" className="text-xs">{aud.tipo_audiencia}</Badge>}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditingAudiencia(aud as AudienciaDetectada)}>
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Editar
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
+                          <Eye className="h-3 w-3 mr-1" />
+                          Detalhes
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1.5 text-xs">
+                      <Calendar className="h-3.5 w-3.5 text-primary" />
+                      <span className="font-semibold text-primary">{formatDate(aud.data_audiencia)}</span>
+                      {(aud.hora_brasilia || aud.hora) && (
+                        <span className="text-muted-foreground">às {aud.hora_brasilia || aud.hora}</span>
+                      )}
+                    </div>
                   </div>
-                </ScrollArea>
-              ) : (
-                <div className="text-center py-8">
-                  <Gavel className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground">Nenhuma audiência registrada</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground text-sm">
+                Nenhuma audiência registrada
+              </div>
+            )}
+          </div>
         );
 
       case "intimacoes":
         return (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <AlertCircle className="w-5 h-5" />
-                Intimações
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingIntimacoes ? (
-                <div className="space-y-3">
-                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
-                </div>
-              ) : intimacoes.length > 0 ? (
-                <ScrollArea className="h-[500px] pr-4">
-                  <div className="space-y-4">
-                    {intimacoes.map((int) => (
-                      <Card key={int.id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="p-4">
-                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {getIntimacaoStatusBadge(int.status)}
-                                {getOrigemBadge(int.origem)}
-                              </div>
-                              {int.data_limite && (
-                                <div className="flex items-center gap-2 bg-destructive/10 px-3 py-1.5 rounded-lg w-fit">
-                                  <Clock className="h-5 w-5 text-destructive" />
-                                  <span className="font-bold text-destructive">Prazo: {formatDate(int.data_limite)}</span>
-                                </div>
-                              )}
-                              {int.descricao && <p className="text-sm font-medium line-clamp-2">{int.descricao}</p>}
-                            </div>
-                            <div className="flex gap-2 flex-wrap">
-                              <Button variant="outline" size="sm" onClick={() => setSelectedIntimacao(int)}>
-                                <Eye className="h-4 w-4 mr-1" />
-                                Detalhes
-                              </Button>
-                              {int.status === 'pendente' && (
-                                <>
-                                  <Button variant="default" size="sm" onClick={() => handleMarcarIntimacaoTratado(int.id)} disabled={updatingIntimacao === int.id}>
-                                    <CheckCircle className="h-4 w-4 mr-1" />
-                                    Tratado
-                                  </Button>
-                                  <Button variant="outline" size="sm" onClick={() => handleCriarTarefaIntimacao(int)}>
-                                    <ClipboardList className="h-4 w-4 mr-1" />
-                                    Criar Tarefa
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+          <div className="w-full max-w-md">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Intimações</span>
+            </div>
+            {loadingIntimacoes ? (
+              <div className="space-y-2">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-16 rounded" />)}
+              </div>
+            ) : intimacoes.length > 0 ? (
+              <div className="space-y-2">
+                {intimacoes.map((int) => (
+                  <div key={int.id} className="border rounded p-2 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
+                        {getIntimacaoStatusBadge(int.status)}
+                        {getOrigemBadge(int.origem)}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setSelectedIntimacao(int)}>
+                          <Eye className="h-3 w-3 mr-1" />
+                          Detalhes
+                        </Button>
+                        {int.status === 'pendente' && (
+                          <>
+                            <Button variant="default" size="sm" className="h-7 px-2 text-xs" onClick={() => handleMarcarIntimacaoTratado(int.id)} disabled={updatingIntimacao === int.id}>
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Tratado
+                            </Button>
+                            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleCriarTarefaIntimacao(int)}>
+                              <ClipboardList className="h-3 w-3 mr-1" />
+                              Criar Tarefa
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {int.data_limite && (
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs">
+                        <Clock className="h-3.5 w-3.5 text-destructive" />
+                        <span className="font-semibold text-destructive">Prazo: {formatDate(int.data_limite)}</span>
+                      </div>
+                    )}
                   </div>
-                </ScrollArea>
-              ) : (
-                <div className="text-center py-8">
-                  <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground">Nenhuma intimação registrada</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground text-sm">
+                Nenhuma intimação registrada
+              </div>
+            )}
+          </div>
         );
 
       case "tarefas":
         return (
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <ListTodo className="w-5 h-5" />
-                Tarefas
-              </CardTitle>
-              <Button size="sm" onClick={() => navigate(`/nova-tarefa?processo_id=${id}`)}>
+          <div className="w-full max-w-md">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <ListTodo className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Tarefas</span>
+              </div>
+              <Button size="sm" className="h-7 text-xs" onClick={() => navigate(`/nova-tarefa?processo_id=${id}`)}>
                 + Nova Tarefa
               </Button>
-            </CardHeader>
-            <CardContent>
-              {loadingTarefas ? (
-                <div className="space-y-3">
-                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
-                </div>
-              ) : selectedTarefaId ? (
-                <TarefaPublicacaoView 
-                  tarefaId={selectedTarefaId}
-                  processoId={id!}
-                  onVoltar={() => setSelectedTarefaId(null)}
-                />
-              ) : tarefas.length > 0 ? (
-                <ScrollArea className="h-[500px] pr-4">
-                  <div className="space-y-3">
-                    {tarefas.map((tarefa: any) => (
-                      <Card 
-                        key={tarefa.id} 
-                        className="hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={() => setSelectedTarefaId(tarefa.id)}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 space-y-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <Badge variant={tarefa.status === 'concluida' ? 'default' : tarefa.status === 'em_andamento' ? 'secondary' : 'outline'}>
-                                  {tarefa.status === 'concluida' ? 'Concluída' : tarefa.status === 'em_andamento' ? 'Em andamento' : 'Pendente'}
-                                </Badge>
-                                {tarefa.prioridade === 'urgente' && <Badge variant="destructive">Urgente</Badge>}
-                              </div>
-                              <p className="font-medium">{tarefa.titulo}</p>
-                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                {tarefa.data_vencimento && (
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {formatDate(tarefa.data_vencimento)}
-                                  </span>
-                                )}
-                                {tarefa.responsavel?.nome && (
-                                  <span className="flex items-center gap-1">
-                                    <User className="w-3 h-3" />
-                                    {tarefa.responsavel.nome}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedTarefaId(tarefa.id); }}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+            </div>
+            {loadingTarefas ? (
+              <div className="space-y-2">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-14 rounded" />)}
+              </div>
+            ) : selectedTarefaId ? (
+              <TarefaPublicacaoView 
+                tarefaId={selectedTarefaId}
+                processoId={id!}
+                onVoltar={() => setSelectedTarefaId(null)}
+              />
+            ) : tarefas.length > 0 ? (
+              <div className="space-y-2">
+                {tarefas.map((tarefa: any) => (
+                  <div 
+                    key={tarefa.id} 
+                    className="border rounded p-2 hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedTarefaId(tarefa.id)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
+                        <Badge variant={tarefa.status === 'concluida' ? 'default' : tarefa.status === 'em_andamento' ? 'secondary' : 'outline'} className="text-xs">
+                          {tarefa.status === 'concluida' ? 'Concluída' : tarefa.status === 'em_andamento' ? 'Em andamento' : 'Pendente'}
+                        </Badge>
+                        {tarefa.prioridade === 'urgente' && <Badge variant="destructive" className="text-xs">Urgente</Badge>}
+                      </div>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); setSelectedTarefaId(tarefa.id); }}>
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <p className="text-sm font-medium mt-1 line-clamp-1">{tarefa.titulo}</p>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                      {tarefa.data_vencimento && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatDate(tarefa.data_vencimento)}
+                        </span>
+                      )}
+                      {tarefa.responsavel?.nome && (
+                        <span className="flex items-center gap-1">
+                          <User className="w-3 h-3" />
+                          {tarefa.responsavel.nome}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </ScrollArea>
-              ) : (
-                <div className="text-center py-8">
-                  <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground">Nenhuma tarefa registrada</p>
-                  <Button variant="outline" className="mt-4" onClick={() => navigate(`/nova-tarefa?processo_id=${id}`)}>
-                    Criar primeira tarefa
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground text-sm">
+                <p>Nenhuma tarefa registrada</p>
+                <Button variant="outline" size="sm" className="mt-2 h-7 text-xs" onClick={() => navigate(`/nova-tarefa?processo_id=${id}`)}>
+                  Criar primeira tarefa
+                </Button>
+              </div>
+            )}
+          </div>
         );
 
       case "documentos":
