@@ -102,20 +102,20 @@ const Processos = () => {
   const [monitorandoRedistribuicoes, setMonitorandoRedistribuicoes] = useState(false);
   const [filtrosAvancados, setFiltrosAvancados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
-  const [comPublicacaoDjen, setComPublicacaoDjen] = useState(false);
-  const [comAndamentos, setComAndamentos] = useState(false);
-  const [comAudiencias, setComAudiencias] = useState(false);
-  const [comIntimacoes, setComIntimacoes] = useState(false);
-  const [comTarefas, setComTarefas] = useState(false);
-  const [tipoProcessoFilter, setTipoProcessoFilter] = useState<string>("all");
+  const [comPublicacaoDjen, setComPublicacaoDjen] = useState(() => searchParams.get("comDjen") === "true");
+  const [comAndamentos, setComAndamentos] = useState(() => searchParams.get("comAndamentos") === "true");
+  const [comAudiencias, setComAudiencias] = useState(() => searchParams.get("comAudiencias") === "true");
+  const [comIntimacoes, setComIntimacoes] = useState(() => searchParams.get("comIntimacoes") === "true");
+  const [comTarefas, setComTarefas] = useState(() => searchParams.get("comTarefas") === "true");
+  const [tipoProcessoFilter, setTipoProcessoFilter] = useState<string>(() => searchParams.get("tipo") || "all");
   
   // Filtro de grupo de clientes (da URL ou selecionado manualmente)
   const grupoClientesParam = searchParams.get("grupo_clientes");
   const grupoNomeParam = searchParams.get("grupo_nome");
   
-  // Estados para filtros de grupo e cliente
-  const [selectedGrupoId, setSelectedGrupoId] = useState<string>("all");
-  const [selectedClienteId, setSelectedClienteId] = useState<string>("all");
+  // Estados para filtros de grupo e cliente (lidos da URL)
+  const [selectedGrupoId, setSelectedGrupoId] = useState<string>(() => searchParams.get("grupo_clientes") || "all");
+  const [selectedClienteId, setSelectedClienteId] = useState<string>(() => searchParams.get("cliente") || "all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
   
   // Buscar grupos de clientes
@@ -242,11 +242,36 @@ const Processos = () => {
     if (coordenacaoFilter !== "all") params.set("coordenacao", coordenacaoFilter);
     else params.delete("coordenacao");
 
+    // Filtros adicionais
+    if (comPublicacaoDjen) params.set("comDjen", "true");
+    else params.delete("comDjen");
+
+    if (comAndamentos) params.set("comAndamentos", "true");
+    else params.delete("comAndamentos");
+
+    if (comAudiencias) params.set("comAudiencias", "true");
+    else params.delete("comAudiencias");
+
+    if (comIntimacoes) params.set("comIntimacoes", "true");
+    else params.delete("comIntimacoes");
+
+    if (comTarefas) params.set("comTarefas", "true");
+    else params.delete("comTarefas");
+
+    if (tipoProcessoFilter !== "all") params.set("tipo", tipoProcessoFilter);
+    else params.delete("tipo");
+
+    if (selectedGrupoId !== "all") params.set("grupo_clientes", selectedGrupoId);
+    else params.delete("grupo_clientes");
+
+    if (selectedClienteId !== "all") params.set("cliente", selectedClienteId);
+    else params.delete("cliente");
+
     // Evita loop/replace desnecessário
     if (params.toString() !== searchParams.toString()) {
       setSearchParams(params, { replace: true });
     }
-  }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, setSearchParams, coordenacaoCarregada]);
+  }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, tipoProcessoFilter, selectedGrupoId, selectedClienteId, setSearchParams, coordenacaoCarregada]);
 
   const { 
     data, 
