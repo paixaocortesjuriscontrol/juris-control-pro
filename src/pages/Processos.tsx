@@ -251,7 +251,9 @@ const Processos = () => {
   const { 
     data, 
     isLoading, 
-    isFetching, 
+    isFetching,
+    isError,
+    error,
     isStale, 
     dataUpdatedAt, 
     forceRefetch,
@@ -843,6 +845,13 @@ const Processos = () => {
         </div>
       )}
 
+      {/* Progresso de carregamento (busca/paginação) */}
+      {isFetching && !isLoading && (
+        <div className="mb-2">
+          <Skeleton className="h-1 w-full" />
+        </div>
+      )}
+
       {/* Processes List - Astrea Style */}
       {isLoading ? (
         <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
@@ -852,6 +861,25 @@ const Processos = () => {
                 <Skeleton className="h-12 w-full" />
               </div>
             ))}
+          </div>
+        </div>
+      ) : isError ? (
+        <div className="bg-card rounded-xl border border-border/50 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-start gap-2 min-w-0">
+              <AlertCircle className="w-4 h-4 mt-0.5 text-destructive shrink-0" />
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-foreground">Erro ao carregar processos</div>
+                <div className="text-sm text-muted-foreground break-words">
+                  {(error as any)?.message || "Tente atualizar a página ou refazer a busca."}
+                </div>
+              </div>
+            </div>
+            <div className="sm:ml-auto">
+              <Button variant="outline" size="sm" onClick={handleForceRefresh}>
+                Tentar novamente
+              </Button>
+            </div>
           </div>
         </div>
       ) : processos.length > 0 ? (
