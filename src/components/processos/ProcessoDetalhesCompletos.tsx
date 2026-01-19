@@ -232,29 +232,6 @@ export function ProcessoDetalhesCompletos({
         </div>
       </div>
 
-      {/* Subheader compacto - Número e Assunto */}
-      <div className="border-b bg-muted/30 px-2 sm:px-4 py-2">
-        <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-          <div>
-            <p className="text-[10px] text-muted-foreground uppercase">Número</p>
-            <div className="flex items-center gap-1">
-              <p className="text-xs sm:text-sm font-mono">{processo.numero}</p>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-5 w-5"
-                onClick={() => copyToClipboard(processo.numero)}
-              >
-                <Copy className="w-3 h-3" />
-              </Button>
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-muted-foreground uppercase">Assunto</p>
-            <p className="text-xs sm:text-sm truncate">{processo.assunto || "Não informado"}</p>
-          </div>
-        </div>
-      </div>
 
       {/* Main Content - Sidebar + Content */}
       <div className="flex flex-col sm:flex-row min-w-0">
@@ -322,32 +299,35 @@ export function ProcessoDetalhesCompletos({
                   {/* Card de Resumo Principal */}
                   <Card>
                     <CardContent className="p-4 md:p-6">
-                      <h2 className="text-base font-semibold mb-3 text-foreground">Resumo do processo</h2>
+                      <h2 className="text-base font-semibold text-foreground">Resumo do processo</h2>
+                      
+                      {/* Número e Assunto logo abaixo do título */}
+                      <div className="flex items-start gap-4 sm:gap-6 flex-wrap mt-2 mb-4 pb-3 border-b">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase">Número</p>
+                          <div className="flex items-center gap-1">
+                            <p className="text-sm font-mono">{processo.numero}</p>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-5 w-5"
+                              onClick={() => copyToClipboard(processo.numero)}
+                            >
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-muted-foreground uppercase">Assunto</p>
+                          <p className="text-sm">{processo.assunto || "Não informado"}</p>
+                        </div>
+                      </div>
 
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
                         {/* Coluna Esquerda */}
                         <div className="space-y-4">
-                          {/* Assunto */}
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Assunto</p>
-                            <p className="text-sm text-foreground mt-1">{processo.assunto || "Não informado"}</p>
-                          </div>
 
-                          {/* Número */}
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Número</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-sm font-mono text-foreground">{processo.numero}</p>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6"
-                                onClick={() => copyToClipboard(processo.numero)}
-                              >
-                                <Copy className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
+
 
                           {/* Situação - Seletor inline */}
                           <div>
