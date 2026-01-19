@@ -297,29 +297,27 @@ export function ProcessoDetalhesCompletos({
               {activeSection === "resumo" && (
                 <div className="space-y-4">
                   {/* Card de Resumo Principal */}
+                  {/* Assunto acima do Card */}
+                  <div className="mb-3">
+                    <p className="text-[10px] text-muted-foreground uppercase">Assunto</p>
+                    <p className="text-sm">{processo.assunto || "Não informado"}</p>
+                  </div>
+
                   <Card>
                     <CardContent className="p-4 md:p-6">
-                      <h2 className="text-base font-semibold text-foreground">Resumo do processo</h2>
-                      
-                      {/* Número e Assunto logo abaixo do título */}
-                      <div className="flex items-start gap-4 sm:gap-6 flex-wrap mt-2 mb-4 pb-3 border-b">
-                        <div>
-                          <p className="text-[10px] text-muted-foreground uppercase">Número</p>
-                          <div className="flex items-center gap-1">
-                            <p className="text-sm font-mono">{processo.numero}</p>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-5 w-5"
-                              onClick={() => copyToClipboard(processo.numero)}
-                            >
-                              <Copy className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] text-muted-foreground uppercase">Assunto</p>
-                          <p className="text-sm">{processo.assunto || "Não informado"}</p>
+                      {/* Título e Número */}
+                      <div className="flex items-center justify-between gap-4 mb-4 pb-3 border-b">
+                        <h2 className="text-base font-semibold text-foreground">Resumo do processo</h2>
+                        <div className="flex items-center gap-1">
+                          <p className="text-sm font-mono text-muted-foreground">{processo.numero}</p>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-5 w-5"
+                            onClick={() => copyToClipboard(processo.numero)}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
                         </div>
                       </div>
 
