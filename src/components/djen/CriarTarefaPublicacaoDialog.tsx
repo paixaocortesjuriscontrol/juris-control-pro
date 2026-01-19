@@ -54,7 +54,7 @@ import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useAuth } from "@/contexts/AuthContext";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 
-type TarefaSimples = { id: string; titulo: string; tipo_tarefa: string | null; status: string; responsavel_nome?: string };
+type TarefaSimples = { id: string; titulo: string; tipo_tarefa: string | null; status: string; responsavel_nome?: string; data_vencimento?: string | null; data_fatal?: string | null };
 
 // Função helper para buscar tarefas da publicação (isolada para evitar inferência profunda)
 async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string | undefined): Promise<TarefaSimples[]> {
@@ -67,7 +67,7 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
     // @ts-ignore - evita inferência profunda do tipo
     const { data: tarefas } = await supabase
       .from("tarefas")
-      .select("id, titulo, tipo_tarefa, status, responsavel_id")
+      .select("id, titulo, tipo_tarefa, status, responsavel_id, data_vencimento, data_fatal")
       .in("id", tarefaIds);
     
     if (!tarefas || tarefas.length === 0) return;
@@ -95,7 +95,9 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
         titulo: t.titulo,
         tipo_tarefa: t.tipo_tarefa,
         status: t.status,
-        responsavel_nome: t.responsavel_id ? responsaveisMap[t.responsavel_id] : undefined
+        responsavel_nome: t.responsavel_id ? responsaveisMap[t.responsavel_id] : undefined,
+        data_vencimento: t.data_vencimento,
+        data_fatal: t.data_fatal
       });
     });
   }
@@ -402,12 +404,26 @@ export function CriarTarefaPublicacaoDialog({
                           <div className="font-medium text-emerald-800 dark:text-emerald-200 truncate" title={tarefa?.titulo}>
                             {tarefa?.titulo || "Tarefa"}
                           </div>
-                          {tarefa?.responsavel_nome && (
-                            <div className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
-                              <User className="w-3 h-3" />
-                              {tarefa.responsavel_nome}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-3 mt-0.5 text-emerald-600 dark:text-emerald-400 flex-wrap">
+                            {tarefa?.responsavel_nome && (
+                              <span className="flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                {tarefa.responsavel_nome}
+                              </span>
+                            )}
+                            {tarefa?.data_vencimento && (
+                              <span className="flex items-center gap-1" title="Data prevista">
+                                <Calendar className="w-3 h-3" />
+                                {format(new Date(tarefa.data_vencimento), "dd/MM/yy")}
+                              </span>
+                            )}
+                            {tarefa?.data_fatal && (
+                              <span className="flex items-center gap-1 text-red-600 dark:text-red-400" title="Data fatal">
+                                <AlertTriangle className="w-3 h-3" />
+                                {format(new Date(tarefa.data_fatal), "dd/MM/yy")}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
