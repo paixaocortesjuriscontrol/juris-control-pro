@@ -91,6 +91,8 @@ export function ProcessoResumoCard({
 
   const clienteNome = processo.cliente?.nome || processo.polo_passivo || "Cliente não identificado";
 
+  const pastaNome = processo.pasta?.nome || processo.pasta_cliente || null;
+
   return (
     <div className="space-y-4">
       {/* Header com nome do cliente */}
@@ -98,11 +100,17 @@ export function ProcessoResumoCard({
         <h1 className="text-xl md:text-2xl font-bold text-foreground">{clienteNome}</h1>
       </div>
 
-      {/* Botões de ação */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button onClick={onMaisInformacoes} className="bg-zinc-700 hover:bg-zinc-800 text-white">
+      {/* Pasta e botão de ação na mesma linha */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {pastaNome && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta:</span>
+            <span className="text-sm font-medium text-foreground">{pastaNome}</span>
+          </div>
+        )}
+        <Button onClick={onMaisInformacoes} size="sm" className="bg-zinc-700 hover:bg-zinc-800 text-white">
           <Info className="w-4 h-4 mr-2" />
-          Mais informações do processo
+          Mais informações
         </Button>
       </div>
 
@@ -247,12 +255,6 @@ export function ProcessoResumoCard({
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Valor da ação</p>
                 <p className="text-sm font-medium text-foreground">{formatCurrency(processo.valor_causa)}</p>
-              </div>
-
-              {/* Pasta do cliente */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta do cliente</p>
-                <p className="text-sm text-foreground">{processo.pasta_cliente || processo.pasta?.nome || "Não informado"}</p>
               </div>
 
               {/* Descrição */}
