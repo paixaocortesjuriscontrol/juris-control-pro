@@ -322,17 +322,39 @@ export function ProcessoDetalhesCompletos({
                   {/* Card de Resumo Principal */}
                   <Card>
                     <CardContent className="p-4 md:p-6">
-                      <h2 className="text-base font-semibold mb-4 text-foreground">Resumo do processo</h2>
+                      {/* Número do Processo - Topo */}
+                      <div className="mb-3">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Número do Processo</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-sm font-mono text-foreground">{processo.numero}</p>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6"
+                            onClick={() => copyToClipboard(processo.numero)}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <h2 className="text-base font-semibold mb-2 text-foreground">Resumo do processo</h2>
 
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
                         {/* Coluna Esquerda */}
                         <div className="space-y-4">
+                          {/* Assunto */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Assunto</p>
+                            <p className="text-sm text-foreground mt-1">{processo.assunto || "Não informado"}</p>
+                          </div>
+
                           {/* Situação - Seletor inline */}
                           <div>
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Situação</p>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                               <Select
-                                value={processo.status || "Ativo"}
+                                value={processo.status || "ativo"}
                                 onValueChange={async (newStatus) => {
                                   try {
                                     const { error } = await supabase
@@ -357,43 +379,12 @@ export function ProcessoDetalhesCompletos({
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Ativo">Ativo</SelectItem>
-                                  <SelectItem value="Arquivado Definitivamente">Arquivado Definitivamente</SelectItem>
-                                  <SelectItem value="Arquivado Provisoriamente">Arquivado Provisoriamente</SelectItem>
-                                  <SelectItem value="Suspenso">Suspenso</SelectItem>
+                                  <SelectItem value="ativo">Ativo</SelectItem>
+                                  <SelectItem value="arquivado">Arquivado</SelectItem>
+                                  <SelectItem value="suspenso">Suspenso</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
-                          </div>
-
-                          {/* Monitoramento */}
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monitoramento</p>
-                            <div className="mt-1 space-y-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-foreground">Andamentos</span>
-                                <MonitoramentoToggle
-                                  processoId={processo.id}
-                                  campo="monitorar_andamentos"
-                                  valorInicial={!!processo.monitorar_andamentos}
-                                />
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-foreground">DJEN</span>
-                                <MonitoramentoToggle
-                                  processoId={processo.id}
-                                  campo="monitorar_djen"
-                                  valorInicial={!!processo.monitorar_djen}
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Assunto */}
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Assunto</p>
-                            <p className="text-sm text-foreground mt-1">{processo.assunto || "Não informado"}</p>
                           </div>
 
                           {/* Órgão */}
@@ -403,22 +394,6 @@ export function ProcessoDetalhesCompletos({
                               {processo.tribunal || processo.vara || "Não informado"}
                               {processo.comarca && ` - ${processo.comarca}`}
                             </p>
-                          </div>
-
-                          {/* Número do Processo */}
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Número do Processo</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-sm font-mono text-foreground">{processo.numero}</p>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6"
-                                onClick={() => copyToClipboard(processo.numero)}
-                              >
-                                <Copy className="w-3 h-3" />
-                              </Button>
-                            </div>
                           </div>
 
                           {/* Envolvidos */}
@@ -517,6 +492,29 @@ export function ProcessoDetalhesCompletos({
                           <div>
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta do Cliente</p>
                             <p className="text-sm text-foreground">{processo.pasta_cliente || processo.pasta?.nome || "Não vinculado"}</p>
+                          </div>
+
+                          {/* Monitoramento - Abaixo da Pasta do Cliente */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monitoramento</p>
+                            <div className="mt-2 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-foreground w-24">Andamentos</span>
+                                <MonitoramentoToggle
+                                  processoId={processo.id}
+                                  campo="monitorar_andamentos"
+                                  valorInicial={!!processo.monitorar_andamentos}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-foreground w-24">DJEN</span>
+                                <MonitoramentoToggle
+                                  processoId={processo.id}
+                                  campo="monitorar_djen"
+                                  valorInicial={!!processo.monitorar_djen}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
