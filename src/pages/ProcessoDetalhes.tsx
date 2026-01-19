@@ -1954,6 +1954,33 @@ export default function ProcessoDetalhes() {
         return <ProcessoDocumentosTab processoId={id!} documentos={documentosProcesso} refetchDocumentos={refetchDocumentos} />;
 
       case "publicacoes":
+        const handleCriarTarefaPublicacao = (pub: any) => {
+          const pubUnificada: PublicacaoUnificada = {
+            id: pub.id,
+            tipo_origem: 'processo',
+            processo_id: id!,
+            processo_numero: processo?.numero || null,
+            conteudo: pub.conteudo,
+            data_publicacao: pub.data_publicacao,
+            data_disponibilizacao: pub.data_disponibilizacao || null,
+            fonte: pub.fonte || null,
+            lida: pub.lida || false,
+            created_at: pub.created_at,
+            monitoramento_id: null,
+            monitoramento_termo: null,
+            monitoramento_descricao: null,
+            monitoramento_tipo: null,
+            monitoramento_oab: null,
+            monitoramento_uf: null,
+            coordenacao_id: processo?.coordenacao_id || null,
+            coordenacao_nome: null,
+            polo_ativo: pub.polo_ativo || null,
+            polo_passivo: pub.polo_passivo || null,
+            tribunal: pub.tribunal || null,
+          };
+          setPublicacaoParaTarefa(pubUnificada);
+        };
+
         return (
           <Card>
             <CardHeader className="pb-3">
@@ -1971,65 +1998,68 @@ export default function ProcessoDetalhes() {
                 <ScrollArea className="h-[400px] pr-4">
                   <Accordion type="single" collapsible className="space-y-2">
                     {publicacoesDjen.map((pub: any) => (
-                      <AccordionItem key={pub.id} value={pub.id} className="border rounded-lg px-4">
-                        <AccordionTrigger className="hover:no-underline py-3">
-                          <div className="flex items-center justify-between w-full pr-4">
-                            <div className="flex items-center gap-3">
-                              <Calendar className="w-4 h-4 text-primary" />
-                              <span className="font-medium">
+                      <AccordionItem key={pub.id} value={pub.id} className="border rounded-lg">
+                        <div className="px-4 py-3">
+                          {/* Header row with info and button */}
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="secondary" className="text-xs">
+                                {pub.tribunal || 'DJEN'}
+                              </Badge>
+                              {!pub.lida && (
+                                <Badge className="bg-amber-500 text-xs">Nova</Badge>
+                              )}
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 flex-shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCriarTarefaPublicacao(pub);
+                              }}
+                            >
+                              <ListPlus className="w-3.5 h-3.5 mr-1" />
+                              <span className="text-xs">Criar Tarefa</span>
+                            </Button>
+                          </div>
+
+                          {/* Dates row */}
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mb-2">
+                            {pub.data_disponibilizacao && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Disp:</span>
+                                <span>{formatDate(pub.data_disponibilizacao)}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              <span className="font-medium">Pub:</span>
+                              <span>
                                 {pub.data_publicacao 
                                   ? formatDate(pub.data_publicacao) 
                                   : pub.created_at 
                                     ? formatDate(pub.created_at)
-                                    : "Data não informada"
+                                    : "—"
                                 }
                               </span>
                             </div>
-                            <Badge variant="secondary" className="text-xs">{pub.tribunal || 'DJEN'}</Badge>
                           </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="pt-2 pb-4 space-y-3">
+
+                          {/* Expandable content trigger */}
+                          <AccordionTrigger className="hover:no-underline p-0 pt-1">
+                            <p className="text-sm text-left text-muted-foreground line-clamp-2">
+                              {pub.conteudo?.substring(0, 200) || "Ver conteúdo da publicação"}...
+                            </p>
+                          </AccordionTrigger>
+                        </div>
+                        
+                        <AccordionContent className="px-4 pb-4 pt-0">
                           <div className="p-3 bg-muted/50 rounded-lg">
                             <p className={`text-sm ${conteudoDisplayClasses}`}>
                               {formatConteudoParaExibicao(pub.conteudo) || "Conteúdo não disponível"}
                             </p>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Converter para PublicacaoUnificada
-                              const pubUnificada: PublicacaoUnificada = {
-                                id: pub.id,
-                                tipo_origem: 'processo',
-                                processo_id: id!,
-                                processo_numero: processo?.numero || null,
-                                conteudo: pub.conteudo,
-                                data_publicacao: pub.data_publicacao,
-                                data_disponibilizacao: pub.data_disponibilizacao || null,
-                                fonte: pub.fonte || null,
-                                lida: pub.lida || false,
-                                created_at: pub.created_at,
-                                monitoramento_id: null,
-                                monitoramento_termo: null,
-                                monitoramento_descricao: null,
-                                monitoramento_tipo: null,
-                                monitoramento_oab: null,
-                                monitoramento_uf: null,
-                                coordenacao_id: processo?.coordenacao_id || null,
-                                coordenacao_nome: null,
-                                polo_ativo: pub.polo_ativo || null,
-                                polo_passivo: pub.polo_passivo || null,
-                                tribunal: pub.tribunal || null,
-                              };
-                              setPublicacaoParaTarefa(pubUnificada);
-                            }}
-                          >
-                            <ListPlus className="w-4 h-4 mr-2" />
-                            Criar Tarefa
-                          </Button>
                         </AccordionContent>
                       </AccordionItem>
                     ))}
