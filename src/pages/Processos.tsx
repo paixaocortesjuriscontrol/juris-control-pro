@@ -789,6 +789,11 @@ const Processos = () => {
                 Com Intimações ×
               </Badge>
             )}
+            {comTarefas && (
+              <Badge variant="secondary" className="cursor-pointer bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" onClick={() => setComTarefas(false)}>
+                Com Tarefas ×
+              </Badge>
+            )}
             {(filtrosAplicados.periodoInicio || filtrosAplicados.periodoFim) && (
               <Badge variant="secondary" className="cursor-pointer" onClick={() => {
                 setFiltrosAvancados(prev => ({ ...prev, periodoInicio: undefined, periodoFim: undefined }));
@@ -820,6 +825,7 @@ const Processos = () => {
                 setComAndamentos(false);
                 setComAudiencias(false);
                 setComIntimacoes(false);
+                setComTarefas(false);
                 setSelectedGrupoId("all");
                 setSelectedClienteId("all");
                 clearGrupoFilter();
