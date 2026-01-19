@@ -3821,43 +3821,6 @@ export type Database = {
             Args: {
               _area?: string
               _cliente_ids?: string[]
-              _com_movimento?: boolean
-              _com_publicacao_djen?: boolean
-              _coordenacao_id?: string
-              _instancia?: string
-              _page?: number
-              _page_size?: number
-              _periodo_fim?: string
-              _periodo_inicio?: string
-              _responsavel_id?: string
-              _search?: string
-              _status?: string
-            }
-            Returns: {
-              advogado_responsavel: Json
-              area: string
-              assunto: string
-              cliente: Json
-              comarca: string
-              coordenacao_id: string
-              created_at: string
-              data_distribuicao: string
-              id: string
-              numero: string
-              pasta_id: string
-              polo_ativo: string
-              polo_passivo: string
-              status: Database["public"]["Enums"]["status_processo"]
-              total_count: number
-              tribunal: string
-              valor_causa: number
-              vara: string
-            }[]
-          }
-        | {
-            Args: {
-              _area?: string
-              _cliente_ids?: string[]
               _com_audiencia?: boolean
               _com_intimacao?: boolean
               _com_movimento?: boolean
