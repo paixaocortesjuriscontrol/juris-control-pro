@@ -2293,8 +2293,8 @@ export default function ProcessoDetalhes() {
             {/* Content Area */}
             <div className="flex-1 min-w-0">
               <ScrollArea className="h-[calc(100vh-140px)]">
-                <div className="p-3 sm:p-4 space-y-4">
-                  {/* Resumo do Processo */}
+                <div className="p-3 sm:p-4">
+                  {/* Resumo do Processo com conteúdo da aba na coluna direita */}
                   <ProcessoResumoCard 
                     processo={processo}
                     responsaveis={responsaveisParaCards}
@@ -2322,10 +2322,8 @@ export default function ProcessoDetalhes() {
                         window.open(`https://www.cnj.jus.br/poder-judiciario/consulta-processual/`, "_blank");
                       }
                     }}
+                    activeTabContent={renderActiveTabContent()}
                   />
-
-                  {/* Conteúdo da aba selecionada */}
-                  {renderActiveTabContent()}
                 </div>
               </ScrollArea>
             </div>

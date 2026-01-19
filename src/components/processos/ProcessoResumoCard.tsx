@@ -49,6 +49,8 @@ interface ProcessoResumoCardProps {
   onMaisInformacoes: () => void;
   onExpandirEnvolvidos?: () => void;
   onAbrirProcessoExterno?: () => void;
+  /** Conteúdo da aba selecionada - aparece na coluna direita */
+  activeTabContent?: React.ReactNode;
 }
 
 const statusLabels: Record<string, string> = {
@@ -65,7 +67,14 @@ const areaLabels: Record<string, string> = {
   empresarial: "Empresarial",
 };
 
-export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes, onExpandirEnvolvidos, onAbrirProcessoExterno }: ProcessoResumoCardProps) {
+export function ProcessoResumoCard({ 
+  processo, 
+  responsaveis, 
+  onMaisInformacoes, 
+  onExpandirEnvolvidos, 
+  onAbrirProcessoExterno,
+  activeTabContent 
+}: ProcessoResumoCardProps) {
   const formatCurrency = (value: number | null | undefined) => {
     if (!value) return "Não informado";
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -103,7 +112,7 @@ export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes, 
           <h2 className="text-lg font-semibold mb-4 text-foreground">Resumo do processo</h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-3">
-            {/* Coluna Esquerda */}
+            {/* Coluna Esquerda - Informações principais */}
             <div className="space-y-3">
               {/* Situação */}
               <div>
@@ -251,59 +260,68 @@ export function ProcessoResumoCard({ processo, responsaveis, onMaisInformacoes, 
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Descrição</p>
                 <p className="text-sm text-foreground">{processo.descricao || "Não informado"}</p>
               </div>
-            </div>
 
-            {/* Coluna Direita */}
-            <div className="space-y-3">
-              {/* Data de distribuição */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Data de distribuição</p>
-                <p className="text-sm text-foreground">{formatDate(processo.data_distribuicao)}</p>
-              </div>
+              {/* Campos adicionais - movidos da coluna direita */}
+              <div className="pt-3 border-t space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Data de distribuição */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Data de distribuição</p>
+                    <p className="text-sm text-foreground">{formatDate(processo.data_distribuicao)}</p>
+                  </div>
 
-              {/* Órgão julgador */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão julgador</p>
-                <p className="text-sm text-foreground">{processo.orgao_julgador || "Não informado"}</p>
-              </div>
+                  {/* Órgão julgador */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão julgador</p>
+                    <p className="text-sm text-foreground">{processo.orgao_julgador || "Não informado"}</p>
+                  </div>
 
-              {/* Área */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Área</p>
-                <p className="text-sm text-foreground">{areaLabels[processo.area] || processo.area || "Não informado"}</p>
-              </div>
+                  {/* Área */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Área</p>
+                    <p className="text-sm text-foreground">{areaLabels[processo.area] || processo.area || "Não informado"}</p>
+                  </div>
 
-              {/* Fase */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fase</p>
-                <p className="text-sm text-foreground">{processo.fase || "Não informado"}</p>
-              </div>
+                  {/* Fase */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fase</p>
+                    <p className="text-sm text-foreground">{processo.fase || "Não informado"}</p>
+                  </div>
 
-              {/* Sistema */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sistema</p>
-                <p className="text-sm text-foreground">{processo.sistema || "Não informado"}</p>
-              </div>
+                  {/* Sistema */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sistema</p>
+                    <p className="text-sm text-foreground">{processo.sistema || "Não informado"}</p>
+                  </div>
 
-              {/* Grupos de trabalho */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Grupos de trabalho</p>
-                <p className="text-sm text-muted-foreground">Não informado</p>
-              </div>
+                  {/* Pasta física */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta física</p>
+                    <p className="text-sm text-foreground">{processo.pasta_fisica || "Não informado"}</p>
+                  </div>
+                </div>
 
-              {/* Pasta física */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta física</p>
-                <p className="text-sm text-foreground">{processo.pasta_fisica || "Não informado"}</p>
-              </div>
-
-              {/* Marcadores */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Marcadores</p>
-                <div className="flex gap-1 mt-1">
-                  <Badge className="bg-zinc-700 text-white text-xs">CAPTURA</Badge>
+                {/* Marcadores */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Marcadores</p>
+                  <div className="flex gap-1 mt-1">
+                    <Badge className="bg-zinc-700 text-white text-xs">CAPTURA</Badge>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Coluna Direita - Conteúdo da aba selecionada */}
+            <div className="space-y-3">
+              {activeTabContent ? (
+                <div className="min-h-[200px]">
+                  {activeTabContent}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center min-h-[200px] text-muted-foreground border rounded-lg bg-muted/20">
+                  <p className="text-sm">Selecione uma aba para ver o conteúdo</p>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
