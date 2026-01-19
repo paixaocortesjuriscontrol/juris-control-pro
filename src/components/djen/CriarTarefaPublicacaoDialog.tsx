@@ -357,6 +357,14 @@ export function CriarTarefaPublicacaoDialog({
           <DialogTitle className="flex items-center gap-2 text-base">
             <FileText className="w-5 h-5" />
             Publicação
+            {!publicacao.lida && (
+              <Badge className="bg-amber-500 text-white ml-1">Nova</Badge>
+            )}
+            {/* Datas ao lado do título */}
+            <div className="ml-auto flex items-center gap-3 text-xs font-normal text-muted-foreground">
+              <span>Disp: {formatDate(publicacao.data_disponibilizacao)}</span>
+              <span>Pub: {formatDate(publicacao.data_publicacao)}</span>
+            </div>
           </DialogTitle>
         </DialogHeader>
 
@@ -364,14 +372,36 @@ export function CriarTarefaPublicacaoDialog({
           {/* Lado Esquerdo - Conteúdo da Publicação (oculto no mobile para priorizar o formulário) */}
           <div className="hidden lg:flex flex-1 border-r overflow-hidden flex-col">
             <div className="p-4 border-b bg-muted/30">
+              {/* Card de tarefas criadas - layout separado e mais visível */}
+              {tarefasCriadas && tarefasCriadas.length > 0 && (
+                <div className="mb-3 p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ListChecks className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                      Tarefas criadas ({tarefasCriadas.length})
+                    </span>
+                  </div>
+                  <ScrollArea className="max-h-[100px]">
+                    <div className="space-y-1">
+                      {tarefasCriadas.map((tarefa, idx) => (
+                        <div 
+                          key={tarefa?.id || idx} 
+                          className="text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-1"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                          <span className="truncate" title={tarefa?.titulo}>
+                            {tarefa?.titulo || "Tarefa"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+              
               <div className="flex flex-wrap gap-2 mb-3">
-                {/* Data da publicação à esquerda */}
-                <span className="text-xs text-muted-foreground flex items-center">
-                  {formatDate(publicacao.data_publicacao)}
-                </span>
-                
                 {publicacao.tipo_origem === 'termo' ? (
-                  <Badge className="bg-purple-100 text-purple-700">
+                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
                     <FileSearch className="w-3 h-3 mr-1" />
                     {publicacao.monitoramento_tipo === 'advogado'
                       ? `OAB ${publicacao.monitoramento_oab} ${publicacao.monitoramento_uf}`
@@ -379,7 +409,7 @@ export function CriarTarefaPublicacaoDialog({
                     }
                   </Badge>
                 ) : (
-                  <Badge className="bg-emerald-100 text-emerald-700">
+                  <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
                     <Gavel className="w-3 h-3 mr-1" />
                     Processo Cadastrado
                   </Badge>
@@ -390,31 +420,10 @@ export function CriarTarefaPublicacaoDialog({
                     {publicacao.coordenacao_nome}
                   </Badge>
                 )}
-                {!publicacao.lida && (
-                  <Badge className="bg-amber-500">Nova</Badge>
-                )}
-                
-                {/* Card de tarefas criadas ao lado da badge "Nova" */}
-                {tarefasCriadas && tarefasCriadas.length > 0 && (
-                  <div className="ml-auto flex items-center gap-2 max-w-[300px]">
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md">
-                      <ListChecks className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
-                      <ScrollArea className="max-w-[200px]">
-                        <div className="flex gap-1.5 whitespace-nowrap">
-                          {tarefasCriadas.map((tarefa: any, idx: number) => (
-                            <span 
-                              key={tarefa?.id || idx} 
-                              className="text-xs text-green-700 dark:text-green-300 truncate max-w-[150px]"
-                              title={tarefa?.titulo}
-                            >
-                              {tarefa?.titulo || "Tarefa"}
-                              {idx < tarefasCriadas.length - 1 && ","}
-                            </span>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  </div>
+                {publicacao.tribunal && (
+                  <Badge variant="secondary">
+                    {publicacao.tribunal}
+                  </Badge>
                 )}
               </div>
 
@@ -435,23 +444,6 @@ export function CriarTarefaPublicacaoDialog({
                     )}
                   </div>
                 )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <strong>Disponibilização:</strong>
-                    <p className="text-muted-foreground">{formatDate(publicacao.data_disponibilizacao)}</p>
-                  </div>
-                  <div>
-                    <strong>Publicação:</strong>
-                    <p className="text-muted-foreground">{formatDate(publicacao.data_publicacao)}</p>
-                  </div>
-                  {publicacao.tribunal && (
-                    <div>
-                      <strong>Tribunal:</strong>
-                      <p className="text-muted-foreground">{publicacao.tribunal}</p>
-                    </div>
-                  )}
-                </div>
 
                 {publicacao.tipo_origem === 'processo' && (
                   <div className="grid grid-cols-2 gap-4">
