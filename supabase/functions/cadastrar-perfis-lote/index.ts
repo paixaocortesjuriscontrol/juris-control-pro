@@ -109,6 +109,25 @@ serve(async (req) => {
           .single();
 
         if (existingProfile) {
+          // Profile exists - ensure they're a member of the coordination
+          if (coordenacao_id) {
+            const { data: existingMember } = await supabaseAdmin
+              .from("membros_coordenacao")
+              .select("id")
+              .eq("coordenacao_id", coordenacao_id)
+              .eq("usuario_id", existingProfile.id)
+              .maybeSingle();
+
+            if (!existingMember) {
+              await supabaseAdmin
+                .from("membros_coordenacao")
+                .insert({
+                  coordenacao_id: coordenacao_id,
+                  usuario_id: existingProfile.id,
+                  cargo: cargo || "Membro",
+                });
+            }
+          }
           resultados[nomeUpper] = existingProfile.id;
           return;
         }
