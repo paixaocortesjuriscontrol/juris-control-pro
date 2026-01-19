@@ -654,8 +654,8 @@ export default function ImportarProcessos() {
           processoId = insertedProcesso.id;
         }
 
-        // Buscar dados adicionais da API se campos importantes estiverem vazios (only for new processes)
-        if (!isUpdate) {
+        // Buscar dados adicionais da API (tribunal/partes/classe) somente se a opção estiver habilitada
+        if (!isUpdate && planilhaBuscarAndamentos) {
           const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
             body: { numeroProcesso: processo.numero.trim() },
           });
@@ -907,12 +907,6 @@ export default function ImportarProcessos() {
             .eq("id", existingProcesso.id)
             .single();
 
-          // Fetch process details from external API
-          const { data: apiData, error: apiError } = await supabase.functions.invoke("consultar-processo", {
-            body: { numeroProcesso: processo.numero },
-          });
-          if (apiError) throw apiError;
-
           const updateData: Record<string, any> = {};
 
           // Update coordination and member if selected
@@ -926,53 +920,68 @@ export default function ImportarProcessos() {
             updateData.cliente_id = selectedCliente;
           }
 
-          const processoApi = pickProcessoFromApi(apiData, processo.numero);
+          // Só consulta API externa se a opção estiver habilitada
+          if (buscarAndamentos) {
+            const { data: apiData, error: apiError } = await supabase.functions.invoke(
+              "consultar-processo",
+              {
+                body: { numeroProcesso: processo.numero },
+              }
+            );
+            if (apiError) throw apiError;
 
-          // Update with API data (force update all or only empty ones)
-          if (processoApi) {
-            const poloAtivoArr = Array.isArray(processoApi.poloAtivo) ? processoApi.poloAtivo : [];
-            const poloPassivoArr = Array.isArray(processoApi.poloPassivo) ? processoApi.poloPassivo : [];
+            const processoApi = pickProcessoFromApi(apiData, processo.numero);
 
-            const poloAtivo = poloAtivoArr.length > 0 ? poloAtivoArr.join(", ") : null;
-            const poloPassivo = poloPassivoArr.length > 0 ? poloPassivoArr.join(", ") : null;
+            // Update with API data (force update all or only empty ones)
+            if (processoApi) {
+              const poloAtivoArr = Array.isArray(processoApi.poloAtivo) ? processoApi.poloAtivo : [];
+              const poloPassivoArr = Array.isArray(processoApi.poloPassivo) ? processoApi.poloPassivo : [];
 
-            const varaApi = processoApi.orgaoJulgador ?? processoApi.vara ?? null;
-            const dataAjuizamentoApi = processoApi.dataAjuizamento ?? processoApi.dataDistribuicao ?? null;
-            const valorCausaApi = processoApi.valorCausa ?? processoApi.valor_causa ?? null;
+              const poloAtivo = poloAtivoArr.length > 0 ? poloAtivoArr.join(", ") : null;
+              const poloPassivo = poloPassivoArr.length > 0 ? poloPassivoArr.join(", ") : null;
 
-            if ((forcarAtualizacao || !currentProcesso?.tribunal) && (processoApi.tribunal || apiData?.tribunal)) {
-              updateData.tribunal = processoApi.tribunal || apiData?.tribunal;
-            }
-            if ((forcarAtualizacao || !currentProcesso?.vara) && varaApi) {
-              updateData.vara = varaApi;
-            }
-            if ((forcarAtualizacao || !currentProcesso?.classe) && processoApi.classe) {
-              updateData.classe = processoApi.classe;
-            }
-            if ((forcarAtualizacao || !currentProcesso?.assunto) && processoApi.assunto) {
-              updateData.assunto = processoApi.assunto;
-            }
-            if ((forcarAtualizacao || !currentProcesso?.polo_ativo) && poloAtivo) {
-              updateData.polo_ativo = poloAtivo;
-            }
-            if ((forcarAtualizacao || !currentProcesso?.polo_passivo) && poloPassivo) {
-              updateData.polo_passivo = poloPassivo;
-            }
+              const varaApi = processoApi.orgaoJulgador ?? processoApi.vara ?? null;
+              const dataAjuizamentoApi = processoApi.dataAjuizamento ?? processoApi.dataDistribuicao ?? null;
+              const valorCausaApi = processoApi.valorCausa ?? processoApi.valor_causa ?? null;
 
-            const dataDistribuicao = toDateOnly(dataAjuizamentoApi);
-            if ((forcarAtualizacao || !currentProcesso?.data_distribuicao) && dataDistribuicao) {
-              updateData.data_distribuicao = dataDistribuicao;
-            }
+              if ((forcarAtualizacao || !currentProcesso?.tribunal) && (processoApi.tribunal || apiData?.tribunal)) {
+                updateData.tribunal = processoApi.tribunal || apiData?.tribunal;
+              }
+              if ((forcarAtualizacao || !currentProcesso?.vara) && varaApi) {
+                updateData.vara = varaApi;
+              }
+              if ((forcarAtualizacao || !currentProcesso?.classe) && processoApi.classe) {
+                updateData.classe = processoApi.classe;
+              }
+              if ((forcarAtualizacao || !currentProcesso?.assunto) && processoApi.assunto) {
+                updateData.assunto = processoApi.assunto;
+              }
+              if ((forcarAtualizacao || !currentProcesso?.polo_ativo) && poloAtivo) {
+                updateData.polo_ativo = poloAtivo;
+              }
+              if ((forcarAtualizacao || !currentProcesso?.polo_passivo) && poloPassivo) {
+                updateData.polo_passivo = poloPassivo;
+              }
 
-            if ((forcarAtualizacao || !currentProcesso?.valor_causa) && valorCausaApi) {
-              updateData.valor_causa = valorCausaApi;
-            }
+              const dataDistribuicao = toDateOnly(dataAjuizamentoApi);
+              if ((forcarAtualizacao || !currentProcesso?.data_distribuicao) && dataDistribuicao) {
+                updateData.data_distribuicao = dataDistribuicao;
+              }
 
-            // Determine area based on tribunal if current is default or force update
-            if (forcarAtualizacao || currentProcesso?.area === "civil" || !currentProcesso?.area) {
-              const tribunalLower = String(processoApi.tribunal || apiData?.tribunal || "").toLowerCase();
-              if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
-                updateData.area = "trabalhista";
+              if ((forcarAtualizacao || !currentProcesso?.valor_causa) && valorCausaApi) {
+                updateData.valor_causa = valorCausaApi;
+              }
+
+              // Determine area based on tribunal if current is default or force update
+              if (forcarAtualizacao || currentProcesso?.area === "civil" || !currentProcesso?.area) {
+                const tribunalLower = String(processoApi.tribunal || apiData?.tribunal || "").toLowerCase();
+                if (
+                  tribunalLower.includes("trt") ||
+                  tribunalLower.includes("tst") ||
+                  tribunalLower.includes("trabalho")
+                ) {
+                  updateData.area = "trabalhista";
+                }
               }
             }
           }
@@ -1012,48 +1021,50 @@ export default function ImportarProcessos() {
 
           processoId = insertedProcesso.id;
 
-          // Fetch process details from external API
-          const { data: apiData, error: apiError } = await supabase.functions.invoke("consultar-processo", {
-            body: { numeroProcesso: processo.numero },
-          });
-          if (apiError) throw apiError;
+          // Fetch process details from external API (somente se a opção estiver habilitada)
+          if (buscarAndamentos) {
+            const { data: apiData, error: apiError } = await supabase.functions.invoke("consultar-processo", {
+              body: { numeroProcesso: processo.numero },
+            });
+            if (apiError) throw apiError;
 
-          const processoApi = pickProcessoFromApi(apiData, processo.numero);
+            const processoApi = pickProcessoFromApi(apiData, processo.numero);
 
-          // Update process with API data if found
-          if (processoApi) {
-            const poloAtivoArr = Array.isArray(processoApi.poloAtivo) ? processoApi.poloAtivo : [];
-            const poloPassivoArr = Array.isArray(processoApi.poloPassivo) ? processoApi.poloPassivo : [];
+            // Update process with API data if found
+            if (processoApi) {
+              const poloAtivoArr = Array.isArray(processoApi.poloAtivo) ? processoApi.poloAtivo : [];
+              const poloPassivoArr = Array.isArray(processoApi.poloPassivo) ? processoApi.poloPassivo : [];
 
-            const poloAtivo = poloAtivoArr.length > 0 ? poloAtivoArr.join(", ") : null;
-            const poloPassivo = poloPassivoArr.length > 0 ? poloPassivoArr.join(", ") : null;
+              const poloAtivo = poloAtivoArr.length > 0 ? poloAtivoArr.join(", ") : null;
+              const poloPassivo = poloPassivoArr.length > 0 ? poloPassivoArr.join(", ") : null;
 
-            // Determine area based on tribunal
-            let area: string = "civil";
-            const tribunalLower = String(processoApi.tribunal || apiData?.tribunal || "").toLowerCase();
-            if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
-              area = "trabalhista";
+              // Determine area based on tribunal
+              let area: string = "civil";
+              const tribunalLower = String(processoApi.tribunal || apiData?.tribunal || "").toLowerCase();
+              if (tribunalLower.includes("trt") || tribunalLower.includes("tst") || tribunalLower.includes("trabalho")) {
+                area = "trabalhista";
+              }
+
+              const varaApi = processoApi.orgaoJulgador ?? processoApi.vara ?? null;
+              const dataAjuizamentoApi = processoApi.dataAjuizamento ?? processoApi.dataDistribuicao ?? null;
+              const dataDistribuicao = toDateOnly(dataAjuizamentoApi);
+
+              const { error: updateError } = await supabase
+                .from("processos")
+                .update({
+                  tribunal: processoApi.tribunal || apiData?.tribunal || null,
+                  vara: varaApi,
+                  classe: processoApi.classe || null,
+                  assunto: processoApi.assunto || null,
+                  polo_ativo: poloAtivo,
+                  polo_passivo: poloPassivo,
+                  area,
+                  valor_causa: processoApi.valorCausa ?? null,
+                  data_distribuicao: dataDistribuicao,
+                })
+                .eq("id", processoId);
+              if (updateError) throw updateError;
             }
-
-            const varaApi = processoApi.orgaoJulgador ?? processoApi.vara ?? null;
-            const dataAjuizamentoApi = processoApi.dataAjuizamento ?? processoApi.dataDistribuicao ?? null;
-            const dataDistribuicao = toDateOnly(dataAjuizamentoApi);
-
-            const { error: updateError } = await supabase
-              .from("processos")
-              .update({
-                tribunal: processoApi.tribunal || apiData?.tribunal || null,
-                vara: varaApi,
-                classe: processoApi.classe || null,
-                assunto: processoApi.assunto || null,
-                polo_ativo: poloAtivo,
-                polo_passivo: poloPassivo,
-                area,
-                valor_causa: processoApi.valorCausa ?? null,
-                data_distribuicao: dataDistribuicao,
-              })
-              .eq("id", processoId);
-            if (updateError) throw updateError;
           }
         }
 
@@ -1923,8 +1934,8 @@ export default function ImportarProcessos() {
           processoId = insertedProcesso.id;
         }
 
-        // Fetch additional data from API for new processes (only in slow path)
-        if (!isUpdate) {
+        // Fetch additional data from API for new processes (somente se a opção estiver habilitada)
+        if (!isUpdate && projurisBuscarAndamentos) {
           const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
             body: { numeroProcesso: processo.numero.trim() },
           });
@@ -2015,9 +2026,11 @@ export default function ImportarProcessos() {
         }
 
         // Buscar e inserir andamentos (somente se a opção estiver habilitada - only in slow path)
-        const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero.trim());
-        if (!andamentosRes.success) {
-          console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+        if (projurisBuscarAndamentos) {
+          const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero.trim());
+          if (!andamentosRes.success) {
+            console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+          }
         }
 
         updatedProcessos[i] = {
