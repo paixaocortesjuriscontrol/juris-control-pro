@@ -1093,6 +1093,12 @@ export default function ProcessoDetalhes() {
       tribunal: pub.tribunal || null,
     };
 
+    // Debug: confirma clique e dados básicos
+    console.log("[Pub.DJEN] abrir CriarTarefaPublicacaoDialog", {
+      pubId: pubUnificada.id,
+      processoId: pubUnificada.processo_id,
+    });
+
     // Radix (Accordion/Dialog) pode disparar o mesmo pointerdown como “outside click”
     // e fechar o modal imediatamente. Guardamos o timestamp e abrimos no próximo tick.
     abrirTarefaPublicacaoAtRef.current = Date.now();
@@ -2017,11 +2023,11 @@ export default function ProcessoDetalhes() {
                               )}
                             </div>
                             <Button
+                              type="button"
                               variant="outline"
                               size="sm"
                               className="h-7 px-2 flex-shrink-0 relative z-10"
-                              onPointerDownCapture={(e) => e.stopPropagation()}
-                              onClick={(e) => {
+                              onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 handleCriarTarefaPublicacao(pub);
