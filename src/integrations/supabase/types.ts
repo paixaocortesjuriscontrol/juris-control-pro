@@ -3362,19 +3362,39 @@ export type Database = {
           data_fatal: string | null
           data_vencimento: string | null
           descricao: string | null
+          descricao_ultimo_andamento: string | null
+          envolvimento_clientes: string | null
+          envolvimento_contrarios: string | null
           grupos_trabalho: string | null
+          hora_conclusao: string | null
+          hora_criacao: string | null
+          hora_fatal: string | null
+          hora_prevista: string | null
           id: string
+          identificador_modulo: string | null
           identificador_projuris: string | null
+          identificador_timesheet: string | null
+          instancia: string | null
+          link_local: string | null
           marcadores: string | null
+          marcadores_vinculo: string | null
+          modulo: string | null
           observacoes: string | null
+          orgao: string | null
+          orgao_julgador: string | null
           origem: string | null
+          outras_partes: string | null
+          partes_ativas: string | null
+          partes_passivas: string | null
           prioridade: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id: string | null
           quadro_kanban: string | null
           responsavel_id: string | null
+          situacao_processo: string | null
           status: Database["public"]["Enums"]["status_tarefa"]
           tipo_tarefa: string | null
           titulo: string
+          total_horas_timesheet: string | null
           updated_at: string
         }
         Insert: {
@@ -3387,19 +3407,39 @@ export type Database = {
           data_fatal?: string | null
           data_vencimento?: string | null
           descricao?: string | null
+          descricao_ultimo_andamento?: string | null
+          envolvimento_clientes?: string | null
+          envolvimento_contrarios?: string | null
           grupos_trabalho?: string | null
+          hora_conclusao?: string | null
+          hora_criacao?: string | null
+          hora_fatal?: string | null
+          hora_prevista?: string | null
           id?: string
+          identificador_modulo?: string | null
           identificador_projuris?: string | null
+          identificador_timesheet?: string | null
+          instancia?: string | null
+          link_local?: string | null
           marcadores?: string | null
+          marcadores_vinculo?: string | null
+          modulo?: string | null
           observacoes?: string | null
+          orgao?: string | null
+          orgao_julgador?: string | null
           origem?: string | null
+          outras_partes?: string | null
+          partes_ativas?: string | null
+          partes_passivas?: string | null
           prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id?: string | null
           quadro_kanban?: string | null
           responsavel_id?: string | null
+          situacao_processo?: string | null
           status?: Database["public"]["Enums"]["status_tarefa"]
           tipo_tarefa?: string | null
           titulo: string
+          total_horas_timesheet?: string | null
           updated_at?: string
         }
         Update: {
@@ -3412,19 +3452,39 @@ export type Database = {
           data_fatal?: string | null
           data_vencimento?: string | null
           descricao?: string | null
+          descricao_ultimo_andamento?: string | null
+          envolvimento_clientes?: string | null
+          envolvimento_contrarios?: string | null
           grupos_trabalho?: string | null
+          hora_conclusao?: string | null
+          hora_criacao?: string | null
+          hora_fatal?: string | null
+          hora_prevista?: string | null
           id?: string
+          identificador_modulo?: string | null
           identificador_projuris?: string | null
+          identificador_timesheet?: string | null
+          instancia?: string | null
+          link_local?: string | null
           marcadores?: string | null
+          marcadores_vinculo?: string | null
+          modulo?: string | null
           observacoes?: string | null
+          orgao?: string | null
+          orgao_julgador?: string | null
           origem?: string | null
+          outras_partes?: string | null
+          partes_ativas?: string | null
+          partes_passivas?: string | null
           prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id?: string | null
           quadro_kanban?: string | null
           responsavel_id?: string | null
+          situacao_processo?: string | null
           status?: Database["public"]["Enums"]["status_tarefa"]
           tipo_tarefa?: string | null
           titulo?: string
+          total_horas_timesheet?: string | null
           updated_at?: string
         }
         Relationships: [

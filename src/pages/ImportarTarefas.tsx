@@ -659,30 +659,6 @@ export default function ImportarTarefas() {
           (nome) => setNovosUsuariosCriados(prev => [...prev, nome])
         );
         
-        // Build rich observacoes with all extra fields from Projuris
-        const observacoesPartes: string[] = [];
-        if (t.comentarios) observacoesPartes.push(`Comentários: ${t.comentarios}`);
-        if (t.linkLocal) observacoesPartes.push(`Link/Local: ${t.linkLocal}`);
-        if (t.identificadorTimesheet) observacoesPartes.push(`Timesheet: ${t.identificadorTimesheet}${t.totalHorasTimesheet ? ` (${t.totalHorasTimesheet})` : ""}`);
-        if (t.modulo) observacoesPartes.push(`Módulo: ${t.modulo}${t.identificadorModulo ? ` (${t.identificadorModulo})` : ""}`);
-        if (t.situacaoProcesso) observacoesPartes.push(`Situação do Processo: ${t.situacaoProcesso}`);
-        if (t.instancia) observacoesPartes.push(`Instância: ${t.instancia}`);
-        if (t.orgao) observacoesPartes.push(`Órgão: ${t.orgao}`);
-        if (t.orgaoJulgador) observacoesPartes.push(`Órgão Julgador: ${t.orgaoJulgador}`);
-        if (t.descricaoUltimoAndamento) observacoesPartes.push(`Último Andamento: ${t.descricaoUltimoAndamento}`);
-        if (t.partesAtivas) observacoesPartes.push(`Partes Ativas: ${t.partesAtivas}`);
-        if (t.partesPassivas) observacoesPartes.push(`Partes Passivas: ${t.partesPassivas}`);
-        if (t.outrasPartes) observacoesPartes.push(`Outras Partes: ${t.outrasPartes}`);
-        if (t.envolvimentoClientes) observacoesPartes.push(`Clientes: ${t.envolvimentoClientes}`);
-        if (t.envolvimentoContrarios) observacoesPartes.push(`Contrários: ${t.envolvimentoContrarios}`);
-        if (t.marcadoresVinculo) observacoesPartes.push(`Marcadores do Vínculo: ${t.marcadoresVinculo}`);
-        if (t.horaCriacao) observacoesPartes.push(`Hora Criação: ${t.horaCriacao}`);
-        if (t.horaPrevista) observacoesPartes.push(`Hora Prevista: ${t.horaPrevista}`);
-        if (t.horaFatal) observacoesPartes.push(`Hora Fatal: ${t.horaFatal}`);
-        if (t.horaConclusao) observacoesPartes.push(`Hora Conclusão: ${t.horaConclusao}`);
-        
-        const observacoesCompletas = observacoesPartes.length > 0 ? observacoesPartes.join("\n") : null;
-
         insertPayloads.push({
           payload: {
             identificador_projuris: t.identificador || `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -697,7 +673,7 @@ export default function ImportarTarefas() {
             prioridade: mapSituacaoToPrioridade(t.situacao, t.dataFatal),
             responsavel_id: responsavelId,
             processo_id: processoId,
-            observacoes: observacoesCompletas,
+            observacoes: t.comentarios,
             criado_por_nome: t.criadaPor,
             concluido_por_nome: t.concluidaPor,
             grupos_trabalho: t.gruposTrabalho,
@@ -705,6 +681,27 @@ export default function ImportarTarefas() {
             quadro_kanban: t.quadroKanban,
             criado_por: user?.id || null,
             origem: "projuris",
+            // New Projuris-specific columns
+            hora_criacao: t.horaCriacao,
+            hora_prevista: t.horaPrevista,
+            hora_fatal: t.horaFatal,
+            hora_conclusao: t.horaConclusao,
+            link_local: t.linkLocal,
+            identificador_timesheet: t.identificadorTimesheet,
+            total_horas_timesheet: t.totalHorasTimesheet,
+            modulo: t.modulo,
+            identificador_modulo: t.identificadorModulo,
+            situacao_processo: t.situacaoProcesso,
+            instancia: t.instancia,
+            descricao_ultimo_andamento: t.descricaoUltimoAndamento,
+            partes_ativas: t.partesAtivas,
+            partes_passivas: t.partesPassivas,
+            outras_partes: t.outrasPartes,
+            envolvimento_clientes: t.envolvimentoClientes,
+            envolvimento_contrarios: t.envolvimentoContrarios,
+            orgao: t.orgao,
+            orgao_julgador: t.orgaoJulgador,
+            marcadores_vinculo: t.marcadoresVinculo,
           },
           processoId,
           responsavelId,
@@ -1347,31 +1344,37 @@ export default function ImportarTarefas() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[80px]">Linha</TableHead>
-                          <TableHead className="w-[100px]">Status</TableHead>
+                          <TableHead className="w-[60px]">Linha</TableHead>
+                          <TableHead className="w-[80px]">Status</TableHead>
                           <TableHead>Identificador</TableHead>
+                          <TableHead>Tipo</TableHead>
                           <TableHead>Título</TableHead>
                           <TableHead>Responsável</TableHead>
+                          <TableHead>Data Fatal</TableHead>
                           <TableHead>Processo</TableHead>
-                          <TableHead>Erros/Avisos</TableHead>
+                          <TableHead>Situação</TableHead>
+                          <TableHead>Erros</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {tarefas.slice(0, 200).map((t, idx) => (
                           <TableRow key={idx}>
-                            <TableCell>{t.linhaOriginal}</TableCell>
+                            <TableCell className="text-xs">{t.linhaOriginal}</TableCell>
                             <TableCell>{getStatusBadge(t.status)}</TableCell>
-                            <TableCell className="font-mono text-xs">{t.identificador?.substring(0, 15)}...</TableCell>
-                            <TableCell className="max-w-[200px] truncate">{t.titulo}</TableCell>
-                            <TableCell className="max-w-[150px] truncate">{t.responsaveis || "-"}</TableCell>
-                            <TableCell className="max-w-[150px] truncate font-mono text-xs">{t.numeroProcesso || "-"}</TableCell>
-                            <TableCell className="max-w-[200px]">
+                            <TableCell className="font-mono text-xs">{t.identificador?.substring(0, 12)}</TableCell>
+                            <TableCell className="text-xs max-w-[80px] truncate">{t.tipo || "-"}</TableCell>
+                            <TableCell className="max-w-[180px] truncate text-sm">{t.titulo}</TableCell>
+                            <TableCell className="max-w-[120px] truncate text-xs">{t.responsaveis || "-"}</TableCell>
+                            <TableCell className="text-xs font-mono">{t.dataFatal || t.dataPrevista || "-"}</TableCell>
+                            <TableCell className="max-w-[120px] truncate font-mono text-xs">{t.numeroProcesso || "-"}</TableCell>
+                            <TableCell className="text-xs max-w-[80px] truncate">{t.situacao || "-"}</TableCell>
+                            <TableCell className="max-w-[150px]">
                               {t.erroImport ? (
                                 <span className="text-red-600 text-xs">{t.erroImport}</span>
                               ) : t.erros.length > 0 ? (
                                 <span className="text-amber-600 text-xs">{t.erros.join(", ")}</span>
                               ) : (
-                                "-"
+                                <span className="text-green-600 text-xs">OK</span>
                               )}
                             </TableCell>
                           </TableRow>

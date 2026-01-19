@@ -38,6 +38,27 @@ export interface ItemAgendaUnificado {
   tipo_tarefa?: string | null;
   data_vencimento?: string | null;
   data_fatal?: string | null;
+  // Projuris-specific fields
+  identificador_projuris?: string | null;
+  hora_criacao?: string | null;
+  hora_prevista?: string | null;
+  hora_fatal?: string | null;
+  hora_conclusao?: string | null;
+  link_local?: string | null;
+  orgao?: string | null;
+  orgao_julgador?: string | null;
+  instancia?: string | null;
+  situacao_processo?: string | null;
+  partes_ativas?: string | null;
+  partes_passivas?: string | null;
+  outras_partes?: string | null;
+  envolvimento_clientes?: string | null;
+  criado_por_nome?: string | null;
+  concluido_por_nome?: string | null;
+  grupos_trabalho?: string | null;
+  marcadores?: string | null;
+  modulo?: string | null;
+  quadro_kanban?: string | null;
 }
 
 export interface AgendaUnificadaFilters {
@@ -189,6 +210,12 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
             processo_id,
             responsavel_id,
             criado_por,
+            identificador_projuris,
+            hora_fatal,
+            link_local,
+            orgao,
+            partes_ativas,
+            partes_passivas,
             processo:processos!tarefas_processo_id_fkey(id, numero, assunto, cliente_id, coordenacao_id),
             responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
           `);
