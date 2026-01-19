@@ -8,6 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowLeft,
   ListTodo,
@@ -42,6 +47,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { TarefaPublicacaoView } from "./TarefaPublicacaoView";
 import { PublicacoesDjenList } from "./PublicacoesDjenList";
+import { CobrancaSection } from "./CobrancaSection";
 
 interface Responsavel {
   id: string;
@@ -149,9 +155,10 @@ export function ProcessoDetalhesCompletos({
   const navItems = [
     { id: "resumo", label: "Resumo", icon: Home },
     { id: "detalhes", label: "Detalhes", icon: FileText },
+    { id: "cobranca", label: "Cobrança", icon: DollarSign },
     { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
     { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
-    { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.length },
+    { id: "tarefas", label: "Tratamentos", icon: ListTodo, count: tarefas.length },
     { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
     { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
     { id: "andamentos", label: "Andamentos", icon: Activity, count: movimentacoes.length },
@@ -160,7 +167,6 @@ export function ProcessoDetalhesCompletos({
     { id: "agenda", label: "Agenda", icon: CalendarDays, count: eventosAgenda.length },
     { id: "portal", label: "Portal", icon: Globe },
     { id: "envolvidos", label: "Envolvidos", icon: Users },
-    { id: "financeiro", label: "Financeiro", icon: DollarSign },
     { id: "comentarios", label: "Comentários", icon: MessageSquare },
   ];
 
@@ -319,16 +325,36 @@ export function ProcessoDetalhesCompletos({
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
                         {/* Coluna Esquerda */}
                         <div className="space-y-4">
-                          {/* Situação */}
+                          {/* Situação - Seletor inline */}
                           <div>
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Situação</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge className={cn(
-                                "text-xs",
-                                processo.status === "ativo" ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
-                              )}>
-                                {processo.status === "ativo" ? "Ativo" : processo.status}
-                              </Badge>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <Select 
+                                value={processo.status || "ativo"} 
+                                onValueChange={async (newStatus) => {
+                                  try {
+                                    const { error } = await supabase
+                                      .from("processos")
+                                      .update({ status: newStatus as any })
+                                      .eq("id", processo.id);
+                                    if (error) throw error;
+                                    // Força refresh
+                                    window.location.reload();
+                                  } catch (err) {
+                                    console.error("Erro ao atualizar situação:", err);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="w-auto h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="ativo">Ativo</SelectItem>
+                                  <SelectItem value="arquivado_definitivamente">Arquivado Definitivamente</SelectItem>
+                                  <SelectItem value="arquivado_provisoriamente">Arquivado Provisoriamente</SelectItem>
+                                  <SelectItem value="suspenso">Suspenso</SelectItem>
+                                </SelectContent>
+                              </Select>
                               <Badge className={cn(
                                 "text-xs",
                                 processo.monitorar_andamentos ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
@@ -1204,22 +1230,9 @@ export function ProcessoDetalhesCompletos({
                 </div>
               )}
 
-              {/* Financeiro Section */}
-              {activeSection === "financeiro" && (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
-                    <DollarSign className="w-4 h-4" />
-                    Financeiro
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <FieldItem label="Valor da ação" value={formatCurrency(processo.valor_causa)} />
-                    <FieldItem label="Valor provisionado" value={formatCurrency(processo.valor_provisionado)} />
-                    <FieldItem label="Depósito judicial" value={formatCurrency(processo.deposito_judicial)} />
-                    <FieldItem label="Valor pago" value={formatCurrency(processo.valor_pago)} />
-                    <FieldItem label="Probabilidade" value={processo.probabilidade} />
-                    <FieldItem label="Risco" value={processo.risco} />
-                  </div>
-                </div>
+              {/* Cobrança Section */}
+              {activeSection === "cobranca" && (
+                <CobrancaSection processo={processo} formatDate={formatDate} />
               )}
 
               {/* Comentários Section */}

@@ -48,6 +48,14 @@ const statusLabels: Record<StatusType, string> = {
   urgent: "Urgente",
 };
 
+// Mapeamento para novas situações do processo
+const situacaoLabels: Record<string, string> = {
+  ativo: "Ativo",
+  arquivado_definitivamente: "Arquivado Definitivamente",
+  arquivado_provisoriamente: "Arquivado Provisoriamente",
+  suspenso: "Suspenso",
+};
+
 const Processos = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -354,6 +362,9 @@ const Processos = () => {
       urgente: "urgent",
       encerrado: "closed",
       arquivado: "closed",
+      arquivado_definitivamente: "closed",
+      arquivado_provisoriamente: "closed",
+      suspenso: "pending",
     };
     return statusMap[status] || "active";
   };
@@ -447,16 +458,15 @@ const Processos = () => {
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-32">
-                <SelectValue placeholder="Status" />
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Situação" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">ATIVOS</SelectItem>
+                <SelectItem value="all">Todos Ativos</SelectItem>
                 <SelectItem value="ativo">Ativo</SelectItem>
-                <SelectItem value="pendente">Pendente</SelectItem>
-                <SelectItem value="urgente">Urgente</SelectItem>
-                <SelectItem value="encerrado">Encerrado</SelectItem>
-                <SelectItem value="arquivado">Arquivado</SelectItem>
+                <SelectItem value="arquivado_definitivamente">Arquivado Definitivamente</SelectItem>
+                <SelectItem value="arquivado_provisoriamente">Arquivado Provisoriamente</SelectItem>
+                <SelectItem value="suspenso">Suspenso</SelectItem>
               </SelectContent>
             </Select>
             <CacheIndicator

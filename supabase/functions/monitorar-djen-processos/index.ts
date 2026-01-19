@@ -508,7 +508,7 @@ async function searchDJENByProcesso(
 
 // Process a batch of processes in parallel
 async function processProcessosBatch(
-  processos: Array<{ id: string; numero: string }>,
+  processos: Array<{ id: string; numero: string; status?: string; coordenacao_id?: string }>,
   dataInicio?: string,
   dataFim?: string,
   supabase?: any,
@@ -517,11 +517,16 @@ async function processProcessosBatch(
   totalDuplicadas: number;
   processosComNovas: number;
   processosComResultados: number;
+  alertasProcessosNaoAtivos: number;
 }> {
   let totalNovas = 0;
   let totalDuplicadas = 0;
   let processosComNovas = 0;
   let processosComResultados = 0;
+  let alertasProcessosNaoAtivos = 0;
+  
+  // Status considerados "não-ativos" para gerar alerta especial
+  const statusNaoAtivos = ['arquivado', 'arquivado_definitivamente', 'arquivado_provisoriamente', 'suspenso', 'encerrado'];
 
   // Process in chunks of CONCURRENT_REQUESTS
   for (let i = 0; i < processos.length; i += CONCURRENT_REQUESTS) {
@@ -727,7 +732,7 @@ async function processProcessosBatch(
     }
   }
 
-  return { totalNovas, totalDuplicadas, processosComNovas, processosComResultados };
+  return { totalNovas, totalDuplicadas, processosComNovas, processosComResultados, alertasProcessosNaoAtivos };
 }
 
 serve(async (req) => {
@@ -777,11 +782,10 @@ serve(async (req) => {
       .eq('tipo', 'djen_processos')
       .single();
 
-    // Count total (using monitorar_djen column)
+    // Count total - agora inclui todos os processos com monitorar_djen=true (mesmo não-ativos)
     const { count: totalProcessos } = await supabase
       .from('processos')
       .select('*', { count: 'exact', head: true })
-      .in('status', ['ativo', 'pendente', 'urgente'])
       .eq('monitorar_djen', true);
 
     // Regra para execução completa:
@@ -793,11 +797,11 @@ serve(async (req) => {
       ? continuarDe
       : (completeRun ? 0 : 0);
 
-    // Get batch (using monitorar_djen column)
+    // Get batch - agora inclui todos os processos com monitorar_djen=true
+    // Processos não-ativos com monitoramento ativo terão alerta especial
     const { data: processos, error: processosError } = await supabase
       .from('processos')
-      .select('id, numero')
-      .in('status', ['ativo', 'pendente', 'urgente'])
+      .select('id, numero, status, coordenacao_id')
       .eq('monitorar_djen', true)
       .order('created_at', { ascending: true })
       .range(offset, offset + BATCH_SIZE - 1);
