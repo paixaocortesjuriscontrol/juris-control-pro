@@ -47,11 +47,96 @@ const BROWSERLESS_API_KEY = Deno.env.get('BROWSERLESS_API_KEY') || '';
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
-// Browserless is currently not working well with the DJEN API
-// Keeping the function stub for future improvements
+// Fetch via Browserless Function API (Puppeteer)
+// NOTE: /function expects ESM code: `export default async function({ page, context }) { ... }`
 async function fetchViaBrowserless(apiUrl: string): Promise<any | null> {
-  // Disabled for now - the /scrape and /function APIs don't support the features we need
-  return null;
+  if (!BROWSERLESS_API_KEY) {
+    console.log('[DJEN] BROWSERLESS_API_KEY not configured');
+    return null;
+  }
+
+  try {
+    console.log('[DJEN] Trying Browserless /function (ESM)...');
+
+    const code = `
+export default async function ({ page, context }) {
+  const apiUrl = context.apiUrl;
+
+  await page.setExtraHTTPHeaders({
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  });
+
+  await page.goto("https://comunica.pje.jus.br/consulta", {
+    waitUntil: "networkidle2",
+    timeout: 30000,
+  });
+
+  const result = await page.evaluate(async (url) => {
+    try {
+      const resp = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+        },
+      });
+
+      const text = await resp.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return {
+          __error: 'non_json',
+          status: resp.status,
+          preview: text.slice(0, 300),
+        };
+      }
+    } catch (e) {
+      return { __error: e?.message || String(e) };
+    }
+  }, apiUrl);
+
+  return { data: result, type: "application/json" };
+}
+`;
+
+    const resp = await fetch(
+      `https://chrome.browserless.io/function?token=${BROWSERLESS_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          context: { apiUrl },
+        }),
+      },
+    );
+
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      console.log(`[DJEN] Browserless /function error ${resp.status}: ${t.slice(0, 300)}`);
+      return null;
+    }
+
+    const data = await resp.json().catch(() => null);
+
+    if (data?.__error) {
+      console.log('[DJEN] Browserless returned error:', data.__error, data.status ? `status=${data.status}` : '');
+      return null;
+    }
+
+    if (data && (data.comunicacoes || data.items || Array.isArray(data))) {
+      return data;
+    }
+
+    // Some responses come wrapped (depending on upstream) — keep a small preview for debugging.
+    console.log('[DJEN] Browserless returned unexpected payload keys:', data ? Object.keys(data).slice(0, 10) : null);
+    return null;
+  } catch (e) {
+    console.log('[DJEN] Browserless fetch failed:', e);
+    return null;
+  }
 }
 
 async function fetchJsonViaJina(url: string): Promise<any | null> {
