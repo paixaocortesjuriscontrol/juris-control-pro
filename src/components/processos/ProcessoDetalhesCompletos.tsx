@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { TarefaPublicacaoView } from "./TarefaPublicacaoView";
+import { PublicacoesDjenList } from "./PublicacoesDjenList";
 
 interface Responsavel {
   id: string;
@@ -1000,42 +1001,11 @@ export function ProcessoDetalhesCompletos({
 
               {/* Publicações DJEN Section */}
               {activeSection === "publicacoes" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                      <Newspaper className="w-4 h-4" />
-                      Publicações DJEN
-                    </h3>
-                  </div>
-                  {loadingPublicacoes ? (
-                    <div className="space-y-3">
-                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
-                    </div>
-                  ) : publicacoesDjen.length > 0 ? (
-                    <div className="space-y-2">
-                      {publicacoesDjen.map((pub: any) => (
-                        <Card key={pub.id} className="hover:shadow-md transition-shadow">
-                          <CardContent className="p-3">
-                            <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground">{formatDate(pub.data_publicacao)}</p>
-                              {pub.conteudo && (
-                                <p className="text-sm line-clamp-3">{pub.conteudo}</p>
-                              )}
-                              {!pub.lida && (
-                                <Badge className="bg-amber-500 text-xs">Nova</Badge>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Newspaper className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Nenhuma publicação</p>
-                    </div>
-                  )}
-                </div>
+                <PublicacoesDjenList
+                  publicacoes={publicacoesDjen}
+                  loading={loadingPublicacoes}
+                  processoId={processo?.id}
+                />
               )}
 
               {/* Andamentos Section */}
