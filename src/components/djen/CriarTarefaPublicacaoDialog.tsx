@@ -54,7 +54,7 @@ import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useAuth } from "@/contexts/AuthContext";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 
-type TarefaSimples = { id: string; titulo: string; tipo_tarefa: string | null; status: string };
+type TarefaSimples = { id: string; titulo: string; tipo_tarefa: string | null; status: string; responsavel_nome?: string };
 
 // Função helper para buscar tarefas da publicação (isolada para evitar inferência profunda)
 async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string | undefined): Promise<TarefaSimples[]> {
@@ -64,11 +64,17 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
   // @ts-ignore - evita inferência profunda do tipo
   const { data: tarefasDiretas } = await supabase
     .from("tarefas")
-    .select("id, titulo, tipo_tarefa, status")
+    .select("id, titulo, tipo_tarefa, status, responsavel:profiles!tarefas_responsavel_id_fkey(nome)")
     .eq("publicacao_id", publicacaoId);
   
   if (tarefasDiretas) {
-    (tarefasDiretas as TarefaSimples[]).forEach((t) => tarefasMap.set(t.id, t));
+    tarefasDiretas.forEach((t: any) => tarefasMap.set(t.id, {
+      id: t.id,
+      titulo: t.titulo,
+      tipo_tarefa: t.tipo_tarefa,
+      status: t.status,
+      responsavel_nome: t.responsavel?.nome
+    }));
   }
   
   // 2. Buscar via tabela de vínculo tarefas_publicacoes (para tipo termo)
@@ -83,11 +89,17 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
       // @ts-ignore - evita inferência profunda do tipo
       const { data: tarefasDetalhes } = await supabase
         .from("tarefas")
-        .select("id, titulo, tipo_tarefa, status")
+        .select("id, titulo, tipo_tarefa, status, responsavel:profiles!tarefas_responsavel_id_fkey(nome)")
         .in("id", tarefaIds);
       
       if (tarefasDetalhes) {
-        (tarefasDetalhes as TarefaSimples[]).forEach((t) => tarefasMap.set(t.id, t));
+        tarefasDetalhes.forEach((t: any) => tarefasMap.set(t.id, {
+          id: t.id,
+          titulo: t.titulo,
+          tipo_tarefa: t.tipo_tarefa,
+          status: t.status,
+          responsavel_nome: t.responsavel?.nome
+        }));
       }
     }
   }
@@ -103,11 +115,17 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
     // @ts-ignore - evita inferência profunda do tipo
     const { data: tarefasDetalhes } = await supabase
       .from("tarefas")
-      .select("id, titulo, tipo_tarefa, status")
+      .select("id, titulo, tipo_tarefa, status, responsavel:profiles!tarefas_responsavel_id_fkey(nome)")
       .in("id", tarefaIds);
     
     if (tarefasDetalhes) {
-      (tarefasDetalhes as TarefaSimples[]).forEach((t) => tarefasMap.set(t.id, t));
+      tarefasDetalhes.forEach((t: any) => tarefasMap.set(t.id, {
+        id: t.id,
+        titulo: t.titulo,
+        tipo_tarefa: t.tipo_tarefa,
+        status: t.status,
+        responsavel_nome: t.responsavel?.nome
+      }));
     }
   }
   
@@ -381,17 +399,22 @@ export function CriarTarefaPublicacaoDialog({
                       Tarefas criadas ({tarefasCriadas.length})
                     </span>
                   </div>
-                  <ScrollArea className="max-h-[100px]">
-                    <div className="space-y-1">
+                  <ScrollArea className="max-h-[120px]">
+                    <div className="space-y-2">
                       {tarefasCriadas.map((tarefa, idx) => (
                         <div 
                           key={tarefa?.id || idx} 
-                          className="text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-1"
+                          className="text-xs bg-white dark:bg-emerald-900/20 rounded px-2 py-1.5 border border-emerald-100 dark:border-emerald-800"
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                          <span className="truncate" title={tarefa?.titulo}>
+                          <div className="font-medium text-emerald-800 dark:text-emerald-200 truncate" title={tarefa?.titulo}>
                             {tarefa?.titulo || "Tarefa"}
-                          </span>
+                          </div>
+                          {tarefa?.responsavel_nome && (
+                            <div className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                              <User className="w-3 h-3" />
+                              {tarefa.responsavel_nome}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -444,6 +467,18 @@ export function CriarTarefaPublicacaoDialog({
                     )}
                   </div>
                 )}
+                
+                {/* Datas de disponibilização e publicação lado a lado */}
+                <div className="flex gap-6 text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Disp: {formatDate(publicacao.data_disponibilizacao)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Pub: {formatDate(publicacao.data_publicacao)}</span>
+                  </div>
+                </div>
 
                 {publicacao.tipo_origem === 'processo' && (
                   <div className="grid grid-cols-2 gap-4">
