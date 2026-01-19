@@ -1816,6 +1816,7 @@ export default function ProcessoDetalhes() {
           loadingPublicacoes={loadingPublicacoes}
           loadingTarefas={loadingTarefas}
           selectedTarefaId={selectedTarefaId}
+          onCriarTarefaPublicacao={handleCriarTarefaPublicacao}
           onVoltar={() => {
             if (window.history.length > 1) {
               navigate(-1);
@@ -1892,6 +1893,19 @@ export default function ProcessoDetalhes() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Criar Tarefa a partir de Publicação DJEN */}
+        <CriarTarefaPublicacaoDialog
+          open={!!publicacaoParaTarefa}
+          onOpenChange={(open) => {
+            if (!open) {
+              // ignora o “close” imediato causado pelo mesmo clique que abriu
+              if (Date.now() - abrirTarefaPublicacaoAtRef.current < 250) return;
+              setPublicacaoParaTarefa(null);
+            }
+          }}
+          publicacao={publicacaoParaTarefa}
+        />
       </MainLayout>
     );
   }

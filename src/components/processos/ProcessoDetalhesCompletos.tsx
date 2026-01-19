@@ -81,6 +81,7 @@ interface ProcessoDetalhesCompletosProps {
   onSelectIntimacao?: (intimacao: any) => void;
   onSelectTarefa?: (tarefaId: string) => void;
   onVoltarTarefa?: () => void;
+  onCriarTarefaPublicacao?: (publicacao: any) => void;
 }
 
 export function ProcessoDetalhesCompletos({
@@ -106,6 +107,7 @@ export function ProcessoDetalhesCompletos({
   onSelectIntimacao,
   onSelectTarefa,
   onVoltarTarefa,
+  onCriarTarefaPublicacao,
 }: ProcessoDetalhesCompletosProps) {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState<string>("resumo");
@@ -1005,6 +1007,7 @@ export function ProcessoDetalhesCompletos({
                   publicacoes={publicacoesDjen}
                   loading={loadingPublicacoes}
                   processoId={processo?.id}
+                  onCriarTarefa={onCriarTarefaPublicacao}
                 />
               )}
 
