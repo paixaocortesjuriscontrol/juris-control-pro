@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -103,6 +103,7 @@ export function CriarTarefaPublicacaoDialog({
   const [loading, setLoading] = useState(false);
   const [observacoesIA, setObservacoesIA] = useState<string | null>(null);
   const [mostrarDicaIA, setMostrarDicaIA] = useState(true);
+  const openedAtRef = useRef<number>(0);
 
   const hoje = format(new Date(), "yyyy-MM-dd");
 
@@ -122,6 +123,9 @@ export function CriarTarefaPublicacaoDialog({
   // Limpar formulário quando abrir o dialog ou mudar a publicação
   useEffect(() => {
     if (open) {
+      // Evita que o Radix interprete o clique que abriu como “outside click” e feche instantaneamente
+      openedAtRef.current = Date.now();
+
       form.reset({
         tipo_tarefa: "",
         titulo: "",
@@ -271,7 +275,15 @@ export function CriarTarefaPublicacaoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[95vw] h-[90vh] p-0 gap-0 overflow-hidden flex flex-col min-h-0">
+      <DialogContent
+        className="max-w-6xl w-[95vw] h-[90vh] p-0 gap-0 overflow-hidden flex flex-col min-h-0"
+        onPointerDownOutside={(e) => {
+          if (Date.now() - openedAtRef.current < 500) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (Date.now() - openedAtRef.current < 500) e.preventDefault();
+        }}
+      >
         <DialogHeader className="p-4 pb-2 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base">
             <FileText className="w-5 h-5" />
