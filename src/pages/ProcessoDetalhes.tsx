@@ -1070,7 +1070,7 @@ export default function ProcessoDetalhes() {
   const handleCriarTarefaPublicacao = (pub: any) => {
     const pubUnificada: PublicacaoUnificada = {
       id: pub.id,
-      tipo_origem: 'processo',
+      tipo_origem: "processo",
       processo_id: id!,
       processo_numero: processo?.numero || null,
       conteudo: pub.conteudo,
@@ -1091,7 +1091,10 @@ export default function ProcessoDetalhes() {
       polo_passivo: pub.polo_passivo || null,
       tribunal: pub.tribunal || null,
     };
-    setPublicacaoParaTarefa(pubUnificada);
+
+    // Radix (Accordion/Dialog) pode disparar o mesmo pointerdown como “outside click”
+    // e fechar o modal imediatamente. Abrimos no próximo tick para evitar isso.
+    window.setTimeout(() => setPublicacaoParaTarefa(pubUnificada), 0);
   };
 
   // Field display/edit component
