@@ -79,7 +79,8 @@ import {
   Radar,
   ListTodo,
   CalendarDays,
-  Globe
+  Globe,
+  ListPlus
 } from "lucide-react";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
@@ -87,6 +88,8 @@ import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
 import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentosTab";
 import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
 import { SelecionarResponsaveisProcesso } from "@/components/processos/SelecionarResponsaveisProcesso";
+import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
+import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { TarefaPublicacaoView } from "@/components/processos/TarefaPublicacaoView";
 import { ProcessoResumoCard } from "@/components/processos/ProcessoResumoCard";
 import { ProcessoDetalhesCompletos } from "@/components/processos/ProcessoDetalhesCompletos";
@@ -144,6 +147,9 @@ export default function ProcessoDetalhes() {
   
   // State for tarefa-publicação inline view
   const [selectedTarefaId, setSelectedTarefaId] = useState<string | null>(null);
+  
+  // State for criar tarefa de publicação DJEN
+  const [publicacaoParaTarefa, setPublicacaoParaTarefa] = useState<PublicacaoUnificada | null>(null);
   
   // Tab toggle state
   const [activeTab, setActiveTab] = useState<string>("");
@@ -1964,23 +1970,66 @@ export default function ProcessoDetalhes() {
               ) : publicacoesDjen.length > 0 ? (
                 <ScrollArea className="h-[400px] pr-4">
                   <Accordion type="single" collapsible className="space-y-2">
-                    {publicacoesDjen.map((pub: any, idx: number) => (
+                    {publicacoesDjen.map((pub: any) => (
                       <AccordionItem key={pub.id} value={pub.id} className="border rounded-lg px-4">
                         <AccordionTrigger className="hover:no-underline py-3">
                           <div className="flex items-center justify-between w-full pr-4">
                             <div className="flex items-center gap-3">
                               <Calendar className="w-4 h-4 text-primary" />
-                              <span className="font-medium">{formatDate(pub.data_publicacao)}</span>
+                              <span className="font-medium">
+                                {pub.data_publicacao 
+                                  ? formatDate(pub.data_publicacao) 
+                                  : pub.created_at 
+                                    ? formatDate(pub.created_at)
+                                    : "Data não informada"
+                                }
+                              </span>
                             </div>
                             <Badge variant="secondary" className="text-xs">{pub.tribunal || 'DJEN'}</Badge>
                           </div>
                         </AccordionTrigger>
-                        <AccordionContent className="pt-2 pb-4">
+                        <AccordionContent className="pt-2 pb-4 space-y-3">
                           <div className="p-3 bg-muted/50 rounded-lg">
                             <p className={`text-sm ${conteudoDisplayClasses}`}>
-                              {formatConteudoParaExibicao(pub.conteudo)}
+                              {formatConteudoParaExibicao(pub.conteudo) || "Conteúdo não disponível"}
                             </p>
                           </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Converter para PublicacaoUnificada
+                              const pubUnificada: PublicacaoUnificada = {
+                                id: pub.id,
+                                tipo_origem: 'processo',
+                                processo_id: id!,
+                                processo_numero: processo?.numero || null,
+                                conteudo: pub.conteudo,
+                                data_publicacao: pub.data_publicacao,
+                                data_disponibilizacao: pub.data_disponibilizacao || null,
+                                fonte: pub.fonte || null,
+                                lida: pub.lida || false,
+                                created_at: pub.created_at,
+                                monitoramento_id: null,
+                                monitoramento_termo: null,
+                                monitoramento_descricao: null,
+                                monitoramento_tipo: null,
+                                monitoramento_oab: null,
+                                monitoramento_uf: null,
+                                coordenacao_id: processo?.coordenacao_id || null,
+                                coordenacao_nome: null,
+                                polo_ativo: pub.polo_ativo || null,
+                                polo_passivo: pub.polo_passivo || null,
+                                tribunal: pub.tribunal || null,
+                              };
+                              setPublicacaoParaTarefa(pubUnificada);
+                            }}
+                          >
+                            <ListPlus className="w-4 h-4 mr-2" />
+                            Criar Tarefa
+                          </Button>
                         </AccordionContent>
                       </AccordionItem>
                     ))}
@@ -2539,6 +2588,13 @@ export default function ProcessoDetalhes() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Criar Tarefa a partir de Publicação DJEN */}
+      <CriarTarefaPublicacaoDialog
+        open={!!publicacaoParaTarefa}
+        onOpenChange={(open) => !open && setPublicacaoParaTarefa(null)}
+        publicacao={publicacaoParaTarefa}
+      />
     </MainLayout>
   );
 }
