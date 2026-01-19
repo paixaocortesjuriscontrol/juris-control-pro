@@ -3868,6 +3868,9 @@ export type Database = {
         | "urgente"
         | "encerrado"
         | "arquivado"
+        | "arquivado_parcialmente"
+        | "arquivado_definitivamente"
+        | "suspenso"
       status_tarefa: "pendente" | "cumprido" | "atrasado"
     }
     CompositeTypes: {
@@ -4013,6 +4016,9 @@ export const Constants = {
         "urgente",
         "encerrado",
         "arquivado",
+        "arquivado_parcialmente",
+        "arquivado_definitivamente",
+        "suspenso",
       ],
       status_tarefa: ["pendente", "cumprido", "atrasado"],
     },
