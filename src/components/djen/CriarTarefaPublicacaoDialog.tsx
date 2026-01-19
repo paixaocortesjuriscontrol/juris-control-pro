@@ -60,21 +60,55 @@ type TarefaSimples = { id: string; titulo: string; tipo_tarefa: string | null; s
 async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string | undefined): Promise<TarefaSimples[]> {
   const tarefasMap = new Map<string, TarefaSimples>();
   
+  // Helper para buscar detalhes das tarefas e adicionar ao map
+  async function fetchAndAddTarefas(tarefaIds: string[]) {
+    if (tarefaIds.length === 0) return;
+    
+    // @ts-ignore - evita inferência profunda do tipo
+    const { data: tarefas } = await supabase
+      .from("tarefas")
+      .select("id, titulo, tipo_tarefa, status, responsavel_id")
+      .in("id", tarefaIds);
+    
+    if (!tarefas || tarefas.length === 0) return;
+    
+    // Buscar nomes dos responsáveis separadamente
+    const responsavelIds = tarefas.map((t: any) => t.responsavel_id).filter(Boolean);
+    let responsaveisMap: Record<string, string> = {};
+    
+    if (responsavelIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, nome")
+        .in("id", responsavelIds);
+      
+      if (profiles) {
+        profiles.forEach((p: any) => {
+          responsaveisMap[p.id] = p.nome;
+        });
+      }
+    }
+    
+    tarefas.forEach((t: any) => {
+      tarefasMap.set(t.id, {
+        id: t.id,
+        titulo: t.titulo,
+        tipo_tarefa: t.tipo_tarefa,
+        status: t.status,
+        responsavel_nome: t.responsavel_id ? responsaveisMap[t.responsavel_id] : undefined
+      });
+    });
+  }
+  
   // 1. Buscar tarefas diretamente vinculadas (campo publicacao_id na tabela tarefas)
   // @ts-ignore - evita inferência profunda do tipo
   const { data: tarefasDiretas } = await supabase
     .from("tarefas")
-    .select("id, titulo, tipo_tarefa, status, responsavel:profiles!tarefas_responsavel_id_fkey(nome)")
+    .select("id")
     .eq("publicacao_id", publicacaoId);
   
-  if (tarefasDiretas) {
-    tarefasDiretas.forEach((t: any) => tarefasMap.set(t.id, {
-      id: t.id,
-      titulo: t.titulo,
-      tipo_tarefa: t.tipo_tarefa,
-      status: t.status,
-      responsavel_nome: t.responsavel?.nome
-    }));
+  if (tarefasDiretas && tarefasDiretas.length > 0) {
+    await fetchAndAddTarefas(tarefasDiretas.map((t: any) => t.id));
   }
   
   // 2. Buscar via tabela de vínculo tarefas_publicacoes (para tipo termo)
@@ -85,22 +119,7 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
       .eq("publicacao_id", publicacaoId);
     
     if (tarefasVinculo && tarefasVinculo.length > 0) {
-      const tarefaIds = tarefasVinculo.map((t) => t.tarefa_id);
-      // @ts-ignore - evita inferência profunda do tipo
-      const { data: tarefasDetalhes } = await supabase
-        .from("tarefas")
-        .select("id, titulo, tipo_tarefa, status, responsavel:profiles!tarefas_responsavel_id_fkey(nome)")
-        .in("id", tarefaIds);
-      
-      if (tarefasDetalhes) {
-        tarefasDetalhes.forEach((t: any) => tarefasMap.set(t.id, {
-          id: t.id,
-          titulo: t.titulo,
-          tipo_tarefa: t.tipo_tarefa,
-          status: t.status,
-          responsavel_nome: t.responsavel?.nome
-        }));
-      }
+      await fetchAndAddTarefas(tarefasVinculo.map((t: any) => t.tarefa_id));
     }
   }
   
@@ -111,22 +130,7 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
     .eq("publicacao_processo_id", publicacaoId);
   
   if (tarefasProcessoVinculo && tarefasProcessoVinculo.length > 0) {
-    const tarefaIds = tarefasProcessoVinculo.map((t) => t.tarefa_id);
-    // @ts-ignore - evita inferência profunda do tipo
-    const { data: tarefasDetalhes } = await supabase
-      .from("tarefas")
-      .select("id, titulo, tipo_tarefa, status, responsavel:profiles!tarefas_responsavel_id_fkey(nome)")
-      .in("id", tarefaIds);
-    
-    if (tarefasDetalhes) {
-      tarefasDetalhes.forEach((t: any) => tarefasMap.set(t.id, {
-        id: t.id,
-        titulo: t.titulo,
-        tipo_tarefa: t.tipo_tarefa,
-        status: t.status,
-        responsavel_nome: t.responsavel?.nome
-      }));
-    }
+    await fetchAndAddTarefas(tarefasProcessoVinculo.map((t: any) => t.tarefa_id));
   }
   
   return Array.from(tarefasMap.values());
