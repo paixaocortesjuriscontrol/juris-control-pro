@@ -59,6 +59,9 @@ const statusLabels: Record<string, string> = {
   urgente: "Urgente",
   encerrado: "Encerrado",
   arquivado: "Arquivado",
+  arquivado_definitivamente: "Arquivado Definitivamente",
+  arquivado_provisoriamente: "Arquivado Provisoriamente",
+  suspenso: "Suspenso",
 };
 
 const areaLabels: Record<string, string> = {

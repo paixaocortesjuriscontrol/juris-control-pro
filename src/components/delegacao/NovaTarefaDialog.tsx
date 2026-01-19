@@ -82,6 +82,8 @@ interface NovaTarefaDialogProps {
 }
 
 const tiposTarefa = [
+  "TAREFA",
+  "PRAZO",
   "VERIFICAÇÃO",
   "DEFESA",
   "RECURSO",

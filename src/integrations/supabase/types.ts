@@ -2321,6 +2321,7 @@ export type Database = {
           data_desligamento: string | null
           data_distribuicao: string | null
           data_encerramento: string | null
+          data_encerramento_cobranca: string | null
           data_fato_gerador: string | null
           data_lavratura: string | null
           data_recebimento: string | null
@@ -2353,6 +2354,7 @@ export type Database = {
           nome_cliente_envolvido: string | null
           numero: string
           observacao_advogado: string | null
+          observacao_cobranca: string | null
           observacao_resp_subsidiaria: string | null
           observacoes_processo: string | null
           orgao_origem: string | null
@@ -2460,6 +2462,7 @@ export type Database = {
           data_desligamento?: string | null
           data_distribuicao?: string | null
           data_encerramento?: string | null
+          data_encerramento_cobranca?: string | null
           data_fato_gerador?: string | null
           data_lavratura?: string | null
           data_recebimento?: string | null
@@ -2492,6 +2495,7 @@ export type Database = {
           nome_cliente_envolvido?: string | null
           numero: string
           observacao_advogado?: string | null
+          observacao_cobranca?: string | null
           observacao_resp_subsidiaria?: string | null
           observacoes_processo?: string | null
           orgao_origem?: string | null
@@ -2599,6 +2603,7 @@ export type Database = {
           data_desligamento?: string | null
           data_distribuicao?: string | null
           data_encerramento?: string | null
+          data_encerramento_cobranca?: string | null
           data_fato_gerador?: string | null
           data_lavratura?: string | null
           data_recebimento?: string | null
@@ -2631,6 +2636,7 @@ export type Database = {
           nome_cliente_envolvido?: string | null
           numero?: string
           observacao_advogado?: string | null
+          observacao_cobranca?: string | null
           observacao_resp_subsidiaria?: string | null
           observacoes_processo?: string | null
           orgao_origem?: string | null
@@ -3791,14 +3797,18 @@ export type Database = {
           _periodo_inicio?: string
           _responsavel_id?: string
           _search?: string
+          _situacao?: string
           _status?: string
           _tipo_processo?: string
         }
         Returns: {
-          advogado_responsavel: Json
+          advogado_responsavel_id: string
+          advogado_responsavel_nome: string
           area: string
           assunto: string
-          cliente: Json
+          cliente_id: string
+          cliente_nome: string
+          cliente_tipo: string
           comarca: string
           coordenacao_id: string
           created_at: string
@@ -3806,11 +3816,12 @@ export type Database = {
           id: string
           numero: string
           pasta_id: string
+          pasta_nome: string
           polo_ativo: string
           polo_passivo: string
           status: string
-          tipo_processo: string
           total_count: number
+          total_tarefas: number
           tribunal: string
           valor_causa: number
           vara: string
