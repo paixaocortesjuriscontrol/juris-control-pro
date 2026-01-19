@@ -364,6 +364,7 @@ export function ProcessoDetalhesCompletos({
                                   <SelectItem value="arquivado_parcialmente">Arquivado Parcialmente</SelectItem>
                                   <SelectItem value="arquivado_definitivamente">Arquivado Definitivamente</SelectItem>
                                   <SelectItem value="suspenso">Suspenso</SelectItem>
+                                  <SelectItem value="encerrado">Encerrado</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
