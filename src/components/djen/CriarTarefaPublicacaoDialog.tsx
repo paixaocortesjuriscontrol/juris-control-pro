@@ -176,6 +176,7 @@ export function CriarTarefaPublicacaoDialog({
   const [loading, setLoading] = useState(false);
   const [observacoesIA, setObservacoesIA] = useState<string | null>(null);
   const [mostrarDicaIA, setMostrarDicaIA] = useState(true);
+  const [tarefaEditandoId, setTarefaEditandoId] = useState<string | null>(null);
   const openedAtRef = useRef<number>(0);
 
   const hoje = format(new Date(), "yyyy-MM-dd");
@@ -210,6 +211,7 @@ export function CriarTarefaPublicacaoDialog({
       });
       setObservacoesIA(null);
       setMostrarDicaIA(true);
+      setTarefaEditandoId(null);
     }
   }, [open, publicacao?.id, form]);
 
@@ -272,6 +274,46 @@ export function CriarTarefaPublicacaoDialog({
 
     setLoading(true);
     try {
+      // Se estamos editando uma tarefa existente
+      if (tarefaEditandoId) {
+        const { error } = await supabase
+          .from("tarefas")
+          .update({
+            responsavel_id: values.responsavel_id,
+            titulo: values.titulo,
+            descricao: values.descricao || null,
+            tipo_tarefa: values.tipo_tarefa,
+            data_vencimento: values.data_vencimento,
+            data_fatal: values.data_fatal || null,
+            prioridade: values.prioridade,
+          })
+          .eq("id", tarefaEditandoId);
+
+        if (error) throw error;
+
+        toast.success("Tarefa atualizada com sucesso!");
+        queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+        queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
+        queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-termo"] });
+        queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] });
+        queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
+        refetchTarefas();
+        setTarefaEditandoId(null);
+        
+        // Resetar form para nova tarefa
+        form.reset({
+          tipo_tarefa: "",
+          titulo: "",
+          descricao: "",
+          responsavel_id: (responsaveisProcesso as any)?.[0]?.advogado?.id || "",
+          data_vencimento: format(new Date(new Date().setDate(new Date().getDate() + 5)), "yyyy-MM-dd"),
+          data_fatal: "",
+          prioridade: "media",
+        });
+        setObservacoesIA(null);
+        return;
+      }
+
       // Criar tarefa
       const { data: tarefa, error } = await supabase
         .from("tarefas")
@@ -373,11 +415,6 @@ export function CriarTarefaPublicacaoDialog({
             {!publicacao.lida && (
               <Badge className="bg-amber-500 text-white ml-1">Nova</Badge>
             )}
-            {/* Datas ao lado do título */}
-            <div className="ml-auto flex items-center gap-3 text-xs font-normal text-muted-foreground">
-              <span>Disp: {formatDate(publicacao.data_disponibilizacao)}</span>
-              <span>Pub: {formatDate(publicacao.data_publicacao)}</span>
-            </div>
           </DialogTitle>
         </DialogHeader>
 
@@ -397,9 +434,36 @@ export function CriarTarefaPublicacaoDialog({
                   <ScrollArea className="max-h-[200px] pr-3">
                     <div className="space-y-2">
                       {tarefasCriadas.map((tarefa, idx) => (
-                        <div 
+                        <button 
+                          type="button"
                           key={tarefa?.id || idx} 
-                          className="text-xs bg-white dark:bg-emerald-900/20 rounded px-2 py-1.5 border border-emerald-100 dark:border-emerald-800"
+                          onClick={async () => {
+                            if (!tarefa?.id) return;
+                            // Buscar dados completos da tarefa
+                            const { data } = await supabase
+                              .from("tarefas")
+                              .select("*")
+                              .eq("id", tarefa.id)
+                              .single();
+                            if (data) {
+                              form.reset({
+                                tipo_tarefa: data.tipo_tarefa || "",
+                                titulo: data.titulo || "",
+                                descricao: data.descricao || "",
+                                responsavel_id: data.responsavel_id || "",
+                                data_vencimento: data.data_vencimento || "",
+                                data_fatal: data.data_fatal || "",
+                                prioridade: (data.prioridade as "baixa" | "media" | "alta" | "urgente") || "alta",
+                              });
+                              setTarefaEditandoId(tarefa.id);
+                              setObservacoesIA(null);
+                            }
+                          }}
+                          className={`text-xs w-full text-left rounded px-2 py-1.5 border transition-colors ${
+                            tarefaEditandoId === tarefa?.id 
+                              ? "bg-emerald-200 dark:bg-emerald-800 border-emerald-400 dark:border-emerald-600" 
+                              : "bg-white dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                          }`}
                         >
                           <div className="font-medium text-emerald-800 dark:text-emerald-200 truncate" title={tarefa?.titulo}>
                             {tarefa?.titulo || "Tarefa"}
@@ -418,13 +482,13 @@ export function CriarTarefaPublicacaoDialog({
                               </span>
                             )}
                             {tarefa?.data_fatal && (
-                              <span className="flex items-center gap-1 text-red-600 dark:text-red-400" title="Data fatal">
+                              <span className="flex items-center gap-1 text-destructive" title="Data fatal">
                                 <AlertTriangle className="w-3 h-3" />
                                 {format(new Date(tarefa.data_fatal), "dd/MM/yy")}
                               </span>
                             )}
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </ScrollArea>
@@ -778,7 +842,7 @@ export function CriarTarefaPublicacaoDialog({
                       disabled={loading}
                     >
                       {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      Criar Tarefa
+                      {tarefaEditandoId ? "Salvar Alterações" : "Criar Tarefa"}
                     </Button>
                   </div>
                 </form>
