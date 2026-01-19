@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle } from "lucide-react";
+import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
@@ -44,7 +44,7 @@ export function ProcessoExpandableRow({
   onToggleSelection,
   onNavigate,
 }: ProcessoExpandableRowProps) {
-  const [expandedSection, setExpandedSection] = useState<"djen" | "andamentos" | "audiencias" | "intimacoes" | null>(null);
+  const [expandedSection, setExpandedSection] = useState<"djen" | "andamentos" | "audiencias" | "intimacoes" | "tarefas" | null>(null);
 
   // Check if process has DJEN publications
   const { data: countDjen } = useQuery({
@@ -93,6 +93,19 @@ export function ProcessoExpandableRow({
         .from("intimacoes_detectadas")
         .select("id", { count: "exact", head: true })
         .or(`processo_id.eq.${processo.id},processo_numero.eq.${processo.numero}`);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
+  // Check if process has tarefas
+  const { data: countTarefas } = useQuery({
+    queryKey: ["count-tarefas-processo", processo.id],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("tarefas")
+        .select("id", { count: "exact", head: true })
+        .eq("processo_id", processo.id);
       if (error) throw error;
       return count || 0;
     },
@@ -162,12 +175,29 @@ export function ProcessoExpandableRow({
     },
   });
 
+  // Fetch tarefas when expanded
+  const { data: tarefas, isLoading: loadingTarefas } = useQuery({
+    queryKey: ["tarefas-processo-expand", processo.id],
+    enabled: expandedSection === "tarefas" && (countTarefas ?? 0) > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tarefas")
+        .select("*, responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)")
+        .eq("processo_id", processo.id)
+        .order("prazo_fatal", { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const hasDjen = (countDjen ?? 0) > 0;
   const hasMov = (countMov ?? 0) > 0;
   const hasAudiencias = (countAudiencias ?? 0) > 0;
   const hasIntimacoes = (countIntimacoes ?? 0) > 0;
+  const hasTarefas = (countTarefas ?? 0) > 0;
 
-  const toggleSection = (section: "djen" | "andamentos" | "audiencias" | "intimacoes") => {
+  const toggleSection = (section: "djen" | "andamentos" | "audiencias" | "intimacoes" | "tarefas") => {
     setExpandedSection((prev) => (prev === section ? null : section));
   };
 
@@ -309,6 +339,23 @@ export function ProcessoExpandableRow({
                   <span className="text-xs">{countIntimacoes}</span>
                 </Button>
               )}
+              {hasTarefas && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 px-2 gap-1",
+                    expandedSection === "tarefas" && "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("tarefas");
+                  }}
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  <span className="text-xs">{countTarefas}</span>
+                </Button>
+              )}
               <span className="text-xs text-muted-foreground ml-auto">
                 {processo.data_distribuicao
                   ? new Date(processo.data_distribuicao).toLocaleDateString("pt-BR")
@@ -434,6 +481,29 @@ export function ProcessoExpandableRow({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Intimações</TooltipContent>
+            </Tooltip>
+          )}
+
+          {hasTarefas && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 px-2 gap-1",
+                    expandedSection === "tarefas" && "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection("tarefas");
+                  }}
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  <span className="text-xs">{countTarefas}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Tarefas</TooltipContent>
             </Tooltip>
           )}
 
@@ -695,6 +765,98 @@ export function ProcessoExpandableRow({
               ) : (
                 <p className="text-sm text-muted-foreground py-4 text-center">
                   Nenhuma intimação encontrada
+                </p>
+              )}
+            </div>
+          )}
+
+          {expandedSection === "tarefas" && (
+            <div className="pt-3">
+              <div className="flex items-center gap-2 mb-3">
+                <ClipboardList className="w-4 h-4 text-purple-600" />
+                <span className="font-medium text-sm">Tarefas</span>
+                {tarefas && (
+                  <Badge variant="secondary" className="text-xs">
+                    {tarefas.length}
+                  </Badge>
+                )}
+              </div>
+
+              {loadingTarefas ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : tarefas && tarefas.length > 0 ? (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3 pr-4">
+                    {tarefas.map((tarefa: any) => (
+                      <div
+                        key={tarefa.id}
+                        className={cn(
+                          "p-4 rounded-lg border",
+                          tarefa.status === "pendente" || tarefa.status === "em_andamento"
+                            ? "bg-purple-50 border-purple-200 dark:bg-purple-950/30 dark:border-purple-800"
+                            : "bg-background border-border/50"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-foreground">
+                            {tarefa.titulo}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {tarefa.prioridade && (
+                              <Badge
+                                variant={
+                                  tarefa.prioridade === "alta" || tarefa.prioridade === "urgente"
+                                    ? "destructive"
+                                    : tarefa.prioridade === "media"
+                                    ? "default"
+                                    : "secondary"
+                                }
+                                className="text-xs"
+                              >
+                                {tarefa.prioridade}
+                              </Badge>
+                            )}
+                            <Badge
+                              variant={
+                                tarefa.status === "cumprido"
+                                  ? "secondary"
+                                  : tarefa.status === "em_andamento"
+                                  ? "default"
+                                  : "outline"
+                              }
+                              className="text-xs"
+                            >
+                              {tarefa.status === "pendente"
+                                ? "Pendente"
+                                : tarefa.status === "em_andamento"
+                                ? "Em Andamento"
+                                : "Cumprida"}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          {tarefa.prazo_fatal && (
+                            <span>
+                              Prazo: {format(new Date(tarefa.prazo_fatal), "dd/MM/yyyy")}
+                            </span>
+                          )}
+                          {tarefa.responsavel?.nome && (
+                            <span>• Resp.: {tarefa.responsavel.nome}</span>
+                          )}
+                        </div>
+                        {tarefa.descricao && (
+                          <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{tarefa.descricao}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  Nenhuma tarefa encontrada
                 </p>
               )}
             </div>
