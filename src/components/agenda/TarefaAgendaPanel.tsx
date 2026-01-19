@@ -94,6 +94,27 @@ interface TarefaAgendaPanelProps {
     tipo_tarefa?: string | null;
     data_vencimento?: string | null;
     data_fatal?: string | null;
+    // Projuris-specific fields
+    identificador_projuris?: string | null;
+    hora_criacao?: string | null;
+    hora_prevista?: string | null;
+    hora_fatal?: string | null;
+    hora_conclusao?: string | null;
+    link_local?: string | null;
+    orgao?: string | null;
+    orgao_julgador?: string | null;
+    instancia?: string | null;
+    situacao_processo?: string | null;
+    partes_ativas?: string | null;
+    partes_passivas?: string | null;
+    outras_partes?: string | null;
+    envolvimento_clientes?: string | null;
+    criado_por_nome?: string | null;
+    concluido_por_nome?: string | null;
+    grupos_trabalho?: string | null;
+    marcadores?: string | null;
+    modulo?: string | null;
+    quadro_kanban?: string | null;
   };
   onClose: () => void;
   onUpdate: () => void;
@@ -809,6 +830,45 @@ export function TarefaAgendaPanel({
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Local</span>
                   <p className="text-sm">{tarefa.local}</p>
+                </div>
+              )}
+
+              {/* Informações Projuris */}
+              {tarefa.origem === "tarefa" && tarefa.identificador_projuris && (
+                <div className="space-y-2 pt-2 border-t">
+                  <span className="text-xs font-medium text-muted-foreground">Dados Projuris</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-muted/30 rounded-lg p-2">
+                    {tarefa.identificador_projuris && (
+                      <div>
+                        <span className="text-muted-foreground">ID:</span>{" "}
+                        <span className="font-mono">{tarefa.identificador_projuris}</span>
+                      </div>
+                    )}
+                    {tarefa.hora_fatal && (
+                      <div>
+                        <span className="text-muted-foreground">Hora Fatal:</span>{" "}
+                        <span className="text-destructive font-medium">{tarefa.hora_fatal}</span>
+                      </div>
+                    )}
+                    {tarefa.orgao && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Órgão:</span>{" "}
+                        <span>{tarefa.orgao}</span>
+                      </div>
+                    )}
+                    {tarefa.partes_ativas && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Partes Ativas:</span>{" "}
+                        <span className="break-words">{tarefa.partes_ativas.substring(0, 100)}...</span>
+                      </div>
+                    )}
+                    {tarefa.partes_passivas && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Partes Passivas:</span>{" "}
+                        <span className="break-words">{tarefa.partes_passivas.substring(0, 100)}...</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </CollapsibleContent>

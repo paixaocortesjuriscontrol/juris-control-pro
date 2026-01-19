@@ -641,6 +641,133 @@ export function TarefaDetalhesDialog({
                     <p className="text-sm whitespace-pre-wrap">{tarefa.descricao}</p>
                   </div>
                 )}
+
+                {/* Informações Projuris - Exibidas quando a tarefa tem origem projuris */}
+                {tarefa.origem === "projuris" && (
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+                        <span className="flex items-center gap-2 text-sm font-medium">
+                          <FileText className="w-4 h-4" />
+                          Informações Projuris
+                        </span>
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-3">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm bg-muted/30 rounded-lg p-3">
+                        {tarefa.identificador_projuris && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Identificador</p>
+                            <p className="font-mono text-xs">{tarefa.identificador_projuris}</p>
+                          </div>
+                        )}
+                        {tarefa.hora_prevista && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Hora Prevista</p>
+                            <p className="font-medium">{tarefa.hora_prevista}</p>
+                          </div>
+                        )}
+                        {tarefa.hora_fatal && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Hora Fatal</p>
+                            <p className="font-medium text-red-500">{tarefa.hora_fatal}</p>
+                          </div>
+                        )}
+                        {tarefa.link_local && (
+                          <div className="col-span-2">
+                            <p className="text-muted-foreground text-xs">Link/Local</p>
+                            <p className="text-sm break-all">{tarefa.link_local}</p>
+                          </div>
+                        )}
+                        {tarefa.orgao && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Órgão</p>
+                            <p className="font-medium">{tarefa.orgao}</p>
+                          </div>
+                        )}
+                        {tarefa.orgao_julgador && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Órgão Julgador</p>
+                            <p className="font-medium">{tarefa.orgao_julgador}</p>
+                          </div>
+                        )}
+                        {tarefa.instancia && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Instância</p>
+                            <p className="font-medium">{tarefa.instancia}</p>
+                          </div>
+                        )}
+                        {tarefa.situacao_processo && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Situação do Processo</p>
+                            <p className="font-medium">{tarefa.situacao_processo}</p>
+                          </div>
+                        )}
+                        {tarefa.partes_ativas && (
+                          <div className="col-span-full">
+                            <p className="text-muted-foreground text-xs">Partes Ativas</p>
+                            <p className="text-sm whitespace-pre-wrap">{tarefa.partes_ativas}</p>
+                          </div>
+                        )}
+                        {tarefa.partes_passivas && (
+                          <div className="col-span-full">
+                            <p className="text-muted-foreground text-xs">Partes Passivas</p>
+                            <p className="text-sm whitespace-pre-wrap">{tarefa.partes_passivas}</p>
+                          </div>
+                        )}
+                        {tarefa.envolvimento_clientes && (
+                          <div className="col-span-full">
+                            <p className="text-muted-foreground text-xs">Clientes</p>
+                            <p className="text-sm whitespace-pre-wrap">{tarefa.envolvimento_clientes}</p>
+                          </div>
+                        )}
+                        {tarefa.descricao_ultimo_andamento && (
+                          <div className="col-span-full">
+                            <p className="text-muted-foreground text-xs">Último Andamento</p>
+                            <p className="text-sm whitespace-pre-wrap max-h-32 overflow-y-auto">{tarefa.descricao_ultimo_andamento}</p>
+                          </div>
+                        )}
+                        {tarefa.criado_por_nome && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Criado por</p>
+                            <p className="font-medium">{tarefa.criado_por_nome}</p>
+                          </div>
+                        )}
+                        {tarefa.concluido_por_nome && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Concluído por</p>
+                            <p className="font-medium">{tarefa.concluido_por_nome}</p>
+                          </div>
+                        )}
+                        {tarefa.grupos_trabalho && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Grupos de Trabalho</p>
+                            <p className="text-sm">{tarefa.grupos_trabalho}</p>
+                          </div>
+                        )}
+                        {tarefa.marcadores && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Marcadores</p>
+                            <p className="text-sm">{tarefa.marcadores}</p>
+                          </div>
+                        )}
+                        {tarefa.modulo && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Módulo</p>
+                            <p className="text-sm">{tarefa.modulo}</p>
+                          </div>
+                        )}
+                        {tarefa.quadro_kanban && (
+                          <div>
+                            <p className="text-muted-foreground text-xs">Quadro Kanban</p>
+                            <p className="text-sm">{tarefa.quadro_kanban}</p>
+                          </div>
+                        )}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
               </div>
 
               <Separator />
