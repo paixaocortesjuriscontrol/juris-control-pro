@@ -649,6 +649,11 @@ const AnaliseDjen = () => {
                               
                               <div className="flex-1 min-w-0 overflow-hidden">
                                 <div className="flex flex-wrap items-center gap-1 md:gap-2 mb-1.5 md:mb-2">
+                                  {/* Data da publicação à esquerda */}
+                                  <span className="text-[10px] md:text-xs text-muted-foreground flex-shrink-0">
+                                    {formatDateShort(pub.data_publicacao)}
+                                  </span>
+                                  
                                   {pub.tipo_origem === 'termo' ? (
                                     <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 max-w-[150px] md:max-w-none truncate">
                                       <FileSearch className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
@@ -680,10 +685,6 @@ const AnaliseDjen = () => {
                                       <span>{pub.monitoramento_descricao || pub.monitoramento_termo}</span>
                                     </Badge>
                                   )}
-                                  
-                                  <span className="text-[10px] md:text-xs text-muted-foreground ml-auto flex-shrink-0">
-                                    {formatDateShort(pub.created_at)}
-                                  </span>
                                 </div>
 
                                 {/* Process number with eye button inline */}
@@ -701,7 +702,8 @@ const AnaliseDjen = () => {
                                       <p className="text-xs md:text-sm font-medium text-primary hover:underline break-all">
                                         {pub.processo_numero}
                                       </p>
-                                      {pub.tipo_origem === 'processo' && pub.processo_id && (
+                                      {/* Link para detalhes do processo - qualquer tipo de origem com processo_id */}
+                                      {pub.processo_id && (
                                         <Link 
                                           to={`/processos/${pub.processo_id}`}
                                           className="text-[10px] md:text-xs text-muted-foreground hover:text-primary flex items-center gap-0.5 md:gap-1 flex-shrink-0"
