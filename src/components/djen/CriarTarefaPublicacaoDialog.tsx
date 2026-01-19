@@ -100,38 +100,27 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
     });
   }
   
-  // 1. Buscar tarefas diretamente vinculadas (campo publicacao_id na tabela tarefas)
-  // @ts-ignore - evita inferência profunda do tipo
-  const { data: tarefasDiretas } = await supabase
-    .from("tarefas")
-    .select("id")
+  // 1. Buscar via tabela de vínculo tarefas_publicacoes (publicações por termo)
+  // Obs: buscamos sempre para garantir compatibilidade com vínculos legados/mistos.
+  const { data: tarefasVinculo } = await supabase
+    .from("tarefas_publicacoes")
+    .select("tarefa_id")
     .eq("publicacao_id", publicacaoId);
-  
-  if (tarefasDiretas && tarefasDiretas.length > 0) {
-    await fetchAndAddTarefas(tarefasDiretas.map((t: any) => t.id));
+
+  if (tarefasVinculo && tarefasVinculo.length > 0) {
+    await fetchAndAddTarefas(tarefasVinculo.map((t: any) => t.tarefa_id));
   }
-  
-  // 2. Buscar via tabela de vínculo tarefas_publicacoes (para tipo termo)
-  if (tipoOrigem === 'termo') {
-    const { data: tarefasVinculo } = await supabase
-      .from("tarefas_publicacoes")
-      .select("tarefa_id")
-      .eq("publicacao_id", publicacaoId);
-    
-    if (tarefasVinculo && tarefasVinculo.length > 0) {
-      await fetchAndAddTarefas(tarefasVinculo.map((t: any) => t.tarefa_id));
-    }
-  }
-  
-  // 3. Buscar via tabela de vínculo tarefas_publicacoes_processos (para tipo processo)
+
+  // 2. Buscar via tabela de vínculo tarefas_publicacoes_processos (publicações originadas de processos)
   const { data: tarefasProcessoVinculo } = await supabase
     .from("tarefas_publicacoes_processos")
     .select("tarefa_id")
     .eq("publicacao_processo_id", publicacaoId);
-  
+
   if (tarefasProcessoVinculo && tarefasProcessoVinculo.length > 0) {
     await fetchAndAddTarefas(tarefasProcessoVinculo.map((t: any) => t.tarefa_id));
   }
+
   
   return Array.from(tarefasMap.values());
 }
@@ -403,7 +392,7 @@ export function CriarTarefaPublicacaoDialog({
                       Tarefas criadas ({tarefasCriadas.length})
                     </span>
                   </div>
-                  <ScrollArea className="max-h-[120px]">
+                  <ScrollArea className="max-h-[200px] pr-3">
                     <div className="space-y-2">
                       {tarefasCriadas.map((tarefa, idx) => (
                         <div 
