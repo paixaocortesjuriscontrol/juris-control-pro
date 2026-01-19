@@ -97,7 +97,7 @@ import { ProcessoEditarCompleto } from "@/components/processos/ProcessoEditarCom
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Database } from "@/integrations/supabase/types";
 
 type StatusProcesso = Database["public"]["Enums"]["status_processo"];
@@ -147,10 +147,11 @@ export default function ProcessoDetalhes() {
   
   // State for tarefa-publicação inline view
   const [selectedTarefaId, setSelectedTarefaId] = useState<string | null>(null);
-  
+
   // State for criar tarefa de publicação DJEN
   const [publicacaoParaTarefa, setPublicacaoParaTarefa] = useState<PublicacaoUnificada | null>(null);
-  
+  const abrirTarefaPublicacaoAtRef = useRef<number>(0);
+
   // Tab toggle state
   const [activeTab, setActiveTab] = useState<string>("");
   
@@ -1093,7 +1094,8 @@ export default function ProcessoDetalhes() {
     };
 
     // Radix (Accordion/Dialog) pode disparar o mesmo pointerdown como “outside click”
-    // e fechar o modal imediatamente. Abrimos no próximo tick para evitar isso.
+    // e fechar o modal imediatamente. Guardamos o timestamp e abrimos no próximo tick.
+    abrirTarefaPublicacaoAtRef.current = Date.now();
     window.setTimeout(() => setPublicacaoParaTarefa(pubUnificada), 0);
   };
 
@@ -2628,7 +2630,13 @@ export default function ProcessoDetalhes() {
       {/* Criar Tarefa a partir de Publicação DJEN */}
       <CriarTarefaPublicacaoDialog
         open={!!publicacaoParaTarefa}
-        onOpenChange={(open) => !open && setPublicacaoParaTarefa(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            // ignora o “close” imediato causado pelo mesmo clique que abriu
+            if (Date.now() - abrirTarefaPublicacaoAtRef.current < 250) return;
+            setPublicacaoParaTarefa(null);
+          }
+        }}
         publicacao={publicacaoParaTarefa}
       />
     </MainLayout>
