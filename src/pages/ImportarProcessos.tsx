@@ -1439,10 +1439,7 @@ export default function ImportarProcessos() {
         }
       }
 
-      let processed = 0;
-      const totalToProcess = toInsertIndices.length + toUpdateIndices.length;
-
-      // 3) Pre-create pastas and responsaveis for all new processes - OPTIMIZED BATCH
+      // 3) Pre-create pastas and responsaveis for all processes - OPTIMIZED BATCH
       const { data: { user } } = await supabase.auth.getUser();
       const pastaCache = new Map<string, string>();
       const responsavelCache = new Map<string, string>();
@@ -1480,11 +1477,8 @@ export default function ImportarProcessos() {
       const nomesResponsaveisArray = Array.from(allNomesResponsaveis);
       for (let i = 0; i < nomesResponsaveisArray.length; i += CHUNK_SIZE) {
         const chunk = nomesResponsaveisArray.slice(i, i + CHUNK_SIZE);
-        // Use OR filter for ilike on each name
-        let query = supabase.from("profiles").select("id, nome");
-        // Build OR condition for case-insensitive search
         const orConditions = chunk.map(nome => `nome.ilike.${nome}`).join(",");
-        const { data: profilesExistentes } = await query.or(orConditions);
+        const { data: profilesExistentes } = await supabase.from("profiles").select("id, nome").or(orConditions);
         for (const profile of profilesExistentes || []) {
           if (profile.nome) {
             responsavelCache.set(profile.nome.toUpperCase(), profile.id);
@@ -1492,59 +1486,71 @@ export default function ImportarProcessos() {
         }
       }
       
-      // Now create only the missing ones (in parallel batches)
-      const PARALLEL_LIMIT = 10;
-      
-      // Create missing pastas
+      // Create missing pastas in BATCH using INSERT with ON CONFLICT (via upsert-like behavior)
       const pastasFaltantes = nomesPastaArray.filter(nome => !pastaCache.has(nome));
-      for (let i = 0; i < pastasFaltantes.length; i += PARALLEL_LIMIT) {
-        if (projurisCancelledRef.current) break;
-        const chunk = pastasFaltantes.slice(i, i + PARALLEL_LIMIT);
-        const promises = chunk.map(async (nomePasta) => {
-          if (!user) return;
-          const { data: novaPasta } = await supabase
+      if (pastasFaltantes.length > 0 && user) {
+        // Insert all at once - duplicates will fail silently due to unique constraint
+        const pastasToInsert = pastasFaltantes.map(nomePasta => ({
+          nome: nomePasta,
+          descricao: `Pasta criada automaticamente para padronização`,
+          cliente_id: selectedCliente || null,
+          coordenacao_id: selectedCoordenacao || null,
+          criado_por: user.id,
+        }));
+        
+        // Insert in batches to avoid payload limits
+        for (let i = 0; i < pastasToInsert.length; i += BATCH_SIZE) {
+          if (projurisCancelledRef.current) break;
+          const batch = pastasToInsert.slice(i, i + BATCH_SIZE);
+          await supabase.from("pastas").insert(batch).select(); // ignore errors (duplicates)
+        }
+        
+        // Reload pastas cache after creation
+        for (let i = 0; i < nomesPastaArray.length; i += CHUNK_SIZE) {
+          const chunk = nomesPastaArray.slice(i, i + CHUNK_SIZE);
+          const { data: pastasExistentes } = await supabase
             .from("pastas")
-            .insert({
-              nome: nomePasta,
-              descricao: `Pasta criada automaticamente para padronização`,
-              cliente_id: selectedCliente || null,
-              coordenacao_id: selectedCoordenacao || null,
-              criado_por: user.id,
-            })
-            .select("id")
-            .single();
-          if (novaPasta) {
-            pastaCache.set(nomePasta, novaPasta.id);
+            .select("id, nome")
+            .in("nome", chunk);
+          for (const pasta of pastasExistentes || []) {
+            pastaCache.set(pasta.nome, pasta.id);
           }
-        });
-        await Promise.all(promises);
+        }
       }
       
-      // Create missing responsaveis (via Edge Function)
+      // Create missing responsaveis using batch Edge Function
       const responsaveisFaltantes = nomesResponsaveisArray.filter(nome => !responsavelCache.has(nome));
-      for (let i = 0; i < responsaveisFaltantes.length; i += PARALLEL_LIMIT) {
-        if (projurisCancelledRef.current) break;
-        const chunk = responsaveisFaltantes.slice(i, i + PARALLEL_LIMIT);
-        const promises = chunk.map(async (nomeTrimmed) => {
-          if (!selectedCoordenacao) return;
-          const { data: novoProfile, error: profileError } = await supabase.functions.invoke("cadastrar-perfil", {
-            body: {
-              nome: nomeTrimmed,
-              coordenacao_id: selectedCoordenacao,
-              cargo: "advogado",
-            },
+      if (responsaveisFaltantes.length > 0 && selectedCoordenacao) {
+        // Call batch Edge Function
+        const perfisToCreate = responsaveisFaltantes.map(nome => ({
+          nome,
+          coordenacao_id: selectedCoordenacao,
+          cargo: "advogado",
+        }));
+        
+        // Process in batches of 100 (Edge Function limit)
+        for (let i = 0; i < perfisToCreate.length; i += 100) {
+          if (projurisCancelledRef.current) break;
+          const batch = perfisToCreate.slice(i, i + 100);
+          
+          const { data: loteResult, error: loteError } = await supabase.functions.invoke("cadastrar-perfis-lote", {
+            body: { perfis: batch },
           });
-          if (!profileError && novoProfile?.profile?.id) {
-            responsavelCache.set(nomeTrimmed, novoProfile.profile.id);
+          
+          if (!loteError && loteResult?.resultados) {
+            // Merge results into cache
+            for (const [nome, id] of Object.entries(loteResult.resultados)) {
+              responsavelCache.set(nome as string, id as string);
+            }
           }
-        });
-        await Promise.all(promises);
+        }
       }
       
-      // Build extras map using cached data (no more individual queries!)
+      // Build full payload for all processes (insert + update)
+      const allIndices = [...toInsertIndices, ...toUpdateIndices];
       const processoExtras = new Map<number, { pastaId: string | null; responsavelId: string | null }>();
       
-      for (const idx of toInsertIndices) {
+      for (const idx of allIndices) {
         const processo = updatedProcessos[idx];
         const parteAtivaTrimmed = processo.parteAtiva?.trim() || "Sem Parte Ativa";
         const partePassivaTrimmed = processo.partePassiva?.trim() || "Sem Parte Passiva";
@@ -1564,9 +1570,8 @@ export default function ImportarProcessos() {
         processoExtras.set(idx, { pastaId, responsavelId });
       }
 
-      // 4) Batch INSERT new processes with FALLBACK on error
-      // Modified buildInsertPayload to include pasta_id and responsavel_id
-      const buildInsertPayloadWithExtras = (p: ProcessoImport, idx: number) => {
+      // Build UPSERT payload
+      const buildUpsertPayload = (p: ProcessoImport, idx: number) => {
         const extras = processoExtras.get(idx);
         return {
           numero: p.numero.trim(),
@@ -1608,48 +1613,57 @@ export default function ImportarProcessos() {
         };
       };
 
-      for (let i = 0; i < toInsertIndices.length; i += BATCH_SIZE) {
+      // 4) UPSERT all processes in batches (insert or update by numero)
+      let processed = 0;
+      const totalToProcess = allIndices.length;
+
+      for (let i = 0; i < allIndices.length; i += BATCH_SIZE) {
         if (projurisCancelledRef.current) break;
 
-        const batchIndices = toInsertIndices.slice(i, i + BATCH_SIZE);
-        const insertPayload = batchIndices.map((idx) => buildInsertPayloadWithExtras(updatedProcessos[idx], idx));
+        const batchIndices = allIndices.slice(i, i + BATCH_SIZE);
+        const upsertPayload = batchIndices.map((idx) => buildUpsertPayload(updatedProcessos[idx], idx));
 
-        const { error } = await supabase.from("processos").insert(insertPayload);
+        // Use upsert with onConflict to handle both insert and update
+        const { error } = await supabase
+          .from("processos")
+          .upsert(upsertPayload, { 
+            onConflict: "numero",
+            ignoreDuplicates: false // We want to update on conflict
+          });
         
         if (error) {
-          // Check if it's a unique violation - if so, fallback to one-by-one
-          const isUniqueViolation = error.message?.includes("duplicate key") || 
-                                     error.code === "23505" ||
-                                     error.message?.includes("processos_numero_key");
-          
-          if (isUniqueViolation) {
-            // FALLBACK: Insert one by one to find the actual duplicates
-            for (const idx of batchIndices) {
-              if (projurisCancelledRef.current) break;
-              
-              const singlePayload = buildInsertPayloadWithExtras(updatedProcessos[idx], idx);
-              const { error: singleError } = await supabase.from("processos").insert([singlePayload]);
-              
-              if (singleError) {
-                const translatedError = translateDatabaseError(singleError.message);
-                updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translatedError };
-                errorCount++;
-              } else {
-                updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso" };
-                successCount++;
-              }
-            }
-          } else {
-            // Non-duplicate error: mark all in batch as error
-            const translatedError = translateDatabaseError(error.message);
-            for (const idx of batchIndices) {
+          // If batch fails, try one-by-one to identify problematic records
+          for (const idx of batchIndices) {
+            if (projurisCancelledRef.current) break;
+            
+            const singlePayload = buildUpsertPayload(updatedProcessos[idx], idx);
+            const { error: singleError } = await supabase
+              .from("processos")
+              .upsert([singlePayload], { onConflict: "numero" });
+            
+            if (singleError) {
+              const translatedError = translateDatabaseError(singleError.message);
               updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translatedError };
               errorCount++;
+            } else {
+              const wasUpdate = existingMap.has(updatedProcessos[idx].numero.trim());
+              updatedProcessos[idx] = { 
+                ...updatedProcessos[idx], 
+                status: "sucesso", 
+                erroImport: wasUpdate ? "Atualizado" : undefined 
+              };
+              successCount++;
             }
           }
         } else {
+          // Batch succeeded
           for (const idx of batchIndices) {
-            updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso" };
+            const wasUpdate = existingMap.has(updatedProcessos[idx].numero.trim());
+            updatedProcessos[idx] = { 
+              ...updatedProcessos[idx], 
+              status: "sucesso",
+              erroImport: wasUpdate ? "Atualizado" : undefined
+            };
             successCount++;
           }
         }
@@ -1662,114 +1676,6 @@ export default function ImportarProcessos() {
       }
 
       if (projurisCancelledRef.current) return;
-
-      // 3) Smart merge UPDATE for existing processes - using pre-loaded caches
-      if (toUpdateIndices.length > 0) {
-        // Need to do one-by-one for smart merge since each process may have different empty fields
-        for (let i = 0; i < toUpdateIndices.length; i++) {
-          if (projurisCancelledRef.current) break;
-
-          const idx = toUpdateIndices[i];
-          const processo = updatedProcessos[idx];
-          const existingId = existingMap.get(processo.numero.trim());
-          
-          if (!existingId) continue;
-
-          // Fetch current process data
-          const { data: currentProcesso } = await supabase
-            .from("processos")
-            .select("*")
-            .eq("id", existingId)
-            .single();
-
-          if (!currentProcesso) {
-            updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso", erroImport: "Já existia (sem alteração)" };
-            successCount++;
-            continue;
-          }
-
-          // Smart merge: update only empty fields
-          const updateData: Record<string, any> = {};
-          
-          // Only update if currently empty AND user selected / spreadsheet has data
-          if (selectedCoordenacao && !currentProcesso.coordenacao_id) updateData.coordenacao_id = selectedCoordenacao;
-          if (selectedCliente && !currentProcesso.cliente_id) updateData.cliente_id = selectedCliente;
-          
-          // Find responsavel from cache (already pre-loaded)
-          if (!currentProcesso.advogado_responsavel_id && processo.responsavel?.trim()) {
-            const nomeResp = processo.responsavel.trim().toUpperCase();
-            const responsavelId = responsavelCache.get(nomeResp);
-            if (responsavelId) {
-              updateData.advogado_responsavel_id = responsavelId;
-            }
-          } else if (selectedMembro && !currentProcesso.advogado_responsavel_id) {
-            updateData.advogado_responsavel_id = selectedMembro;
-          }
-          
-          // Get pasta from cache (already pre-loaded)
-          const parteAtivaTrimmed = processo.parteAtiva?.trim() || "Sem Parte Ativa";
-          const partePassivaTrimmed = processo.partePassiva?.trim() || "Sem Parte Passiva";
-          const nomePasta = `${parteAtivaTrimmed} x ${partePassivaTrimmed}`;
-          const pastaId = pastaCache.get(nomePasta);
-          if (pastaId) {
-            updateData.pasta_id = pastaId;
-          }
-          
-          // Merge spreadsheet data into empty fields
-          if (!currentProcesso.assunto && processo.assunto) updateData.assunto = processo.assunto;
-          if (!currentProcesso.descricao && processo.descricao) updateData.descricao = processo.descricao;
-          if (!currentProcesso.tribunal && processo.orgao) updateData.tribunal = processo.orgao;
-          if (!currentProcesso.vara && processo.orgaoJulgador) updateData.vara = processo.orgaoJulgador;
-          if (!currentProcesso.comarca && processo.cidade) updateData.comarca = processo.cidade;
-          if (!currentProcesso.classe && processo.classeCNJ) updateData.classe = processo.classeCNJ;
-          if (!currentProcesso.data_distribuicao && parseDate(processo.dataDistribuicao)) updateData.data_distribuicao = parseDate(processo.dataDistribuicao);
-          if (!currentProcesso.valor_causa && parseNumber(processo.valorAcao)) updateData.valor_causa = parseNumber(processo.valorAcao);
-          if (!currentProcesso.polo_ativo && processo.parteAtiva) updateData.polo_ativo = processo.parteAtiva;
-          if (!currentProcesso.polo_passivo && processo.partePassiva) updateData.polo_passivo = processo.partePassiva;
-          if (!currentProcesso.justica && processo.justica) updateData.justica = processo.justica;
-          if (!currentProcesso.instancia && processo.instancia) updateData.instancia = processo.instancia;
-          if (!currentProcesso.fase && processo.fase) updateData.fase = processo.fase;
-          if (!currentProcesso.uf && processo.estado) updateData.uf = processo.estado;
-          // Projuris-specific fields
-          if (!currentProcesso.identificador_projuris && processo.identificadorProjuris) updateData.identificador_projuris = processo.identificadorProjuris;
-          if (!currentProcesso.pasta_fisica && processo.pastaFisica) updateData.pasta_fisica = processo.pastaFisica;
-          if (!currentProcesso.pasta_cliente && processo.pastaCliente) updateData.pasta_cliente = processo.pastaCliente;
-          if (!currentProcesso.data_citacao && parseDate(processo.dataCitacao)) updateData.data_citacao = parseDate(processo.dataCitacao);
-          if (!currentProcesso.data_recebimento && parseDate(processo.dataRecebimento)) updateData.data_recebimento = parseDate(processo.dataRecebimento);
-          if (!currentProcesso.data_arquivamento && parseDate(processo.dataArquivamento)) updateData.data_arquivamento = parseDate(processo.dataArquivamento);
-          if (!currentProcesso.valor_provisionado && parseNumber(processo.valorProvisionado)) updateData.valor_provisionado = parseNumber(processo.valorProvisionado);
-          if (!currentProcesso.probabilidade && processo.probabilidade) updateData.probabilidade = processo.probabilidade;
-          if (!currentProcesso.risco && processo.risco) updateData.risco = processo.risco;
-          if (!currentProcesso.resultado && processo.resultado) updateData.resultado = processo.resultado;
-          if (!currentProcesso.valor_condenacao && parseNumber(processo.valorCondenacao)) updateData.valor_condenacao = parseNumber(processo.valorCondenacao);
-          if (!currentProcesso.responsaveis_projuris && processo.responsavel) updateData.responsaveis_projuris = processo.responsavel;
-          // Update area only if current is default
-          if (processo.area && currentProcesso.area === "civil") {
-            const newArea = mapAreaToEnum(processo.area);
-            if (newArea !== "civil") updateData.area = newArea;
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            const { error } = await supabase.from("processos").update(updateData).eq("id", existingId);
-            if (error) {
-              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translateDatabaseError(error.message) };
-              errorCount++;
-            } else {
-              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso", erroImport: "Atualizado (campos vazios preenchidos)" };
-              successCount++;
-            }
-          } else {
-            updatedProcessos[idx] = { ...updatedProcessos[idx], status: "sucesso", erroImport: "Já existia (sem alteração)" };
-            successCount++;
-          }
-
-          processed++;
-          setProjurisProgress((processed / totalToProcess) * 100);
-          setProjurisProcessos([...updatedProcessos]);
-          await new Promise((r) => setTimeout(r, 0));
-        }
-        if (projurisCancelledRef.current) return;
-      }
 
       setProjurisImporting(false);
       endImport();
