@@ -48,6 +48,7 @@ import { ptBR } from "date-fns/locale";
 import { TarefaPublicacaoView } from "./TarefaPublicacaoView";
 import { PublicacoesDjenList } from "./PublicacoesDjenList";
 import { CobrancaSection } from "./CobrancaSection";
+import { MonitoramentoToggle } from "./MonitoramentoToggle";
 
 interface Responsavel {
   id: string;
@@ -543,21 +544,51 @@ export function ProcessoDetalhesCompletos({
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="py-3 px-4 space-y-4">
-                      {/* Monitoramento */}
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <div>
-                          <p className="text-[10px] text-muted-foreground uppercase">Monitoramento (Push)</p>
-                          <div className="flex gap-1 mt-1">
-                            <Badge className={cn(
-                              "text-xs",
-                              processo.monitorar_andamentos ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-600"
-                            )}>
-                              {processo.monitorar_andamentos ? "Habilitado" : "Desabilitado"}
-                            </Badge>
-                            <Badge className="bg-amber-100 text-amber-700 text-xs">
-                              {processo.status === "ativo" ? "Em andamento" : processo.status}
-                            </Badge>
+                      {/* Monitoramento Toggles */}
+                      <div className="space-y-3">
+                        <p className="text-[10px] text-muted-foreground uppercase">Configurações de Monitoramento</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* Toggle Buscar Andamentos */}
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                            <div className="flex items-center gap-2">
+                              <Activity className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-sm">Buscar Andamentos</span>
+                            </div>
+                            <MonitoramentoToggle
+                              processoId={processo.id}
+                              campo="monitorar_andamentos"
+                              valorInicial={processo.monitorar_andamentos}
+                            />
                           </div>
+                          
+                          {/* Toggle Buscar DJEN */}
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                            <div className="flex items-center gap-2">
+                              <Newspaper className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-sm">Buscar DJEN</span>
+                            </div>
+                            <MonitoramentoToggle
+                              processoId={processo.id}
+                              campo="monitorar_djen"
+                              valorInicial={processo.monitorar_djen}
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Status badges */}
+                        <div className="flex gap-2 flex-wrap">
+                          <Badge className={cn(
+                            "text-xs",
+                            processo.monitorar_andamentos ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-600"
+                          )}>
+                            {processo.monitorar_andamentos ? <><Bell className="w-3 h-3 mr-1" />Andamentos Ativos</> : <><BellOff className="w-3 h-3 mr-1" />Andamentos Inativos</>}
+                          </Badge>
+                          <Badge className={cn(
+                            "text-xs",
+                            processo.monitorar_djen ? "bg-blue-100 text-blue-700" : "bg-zinc-100 text-zinc-600"
+                          )}>
+                            {processo.monitorar_djen ? <><Bell className="w-3 h-3 mr-1" />DJEN Ativo</> : <><BellOff className="w-3 h-3 mr-1" />DJEN Inativo</>}
+                          </Badge>
                         </div>
                       </div>
 

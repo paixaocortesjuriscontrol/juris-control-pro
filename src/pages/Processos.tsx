@@ -544,6 +544,26 @@ const Processos = () => {
                 <SelectItem value="empresarial">Empresarial</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Filtro de Instância */}
+            <Select 
+              value={filtrosAvancados.instancia || "todos"} 
+              onValueChange={(value) => {
+                const instanciaValue = value as "1" | "2" | "superior" | "todos";
+                setFiltrosAvancados(prev => ({ ...prev, instancia: instanciaValue }));
+                setFiltrosAplicados(prev => ({ ...prev, instancia: instanciaValue }));
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue placeholder="Instância" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas instâncias</SelectItem>
+                <SelectItem value="1">1º Grau</SelectItem>
+                <SelectItem value="2">2º Grau</SelectItem>
+                <SelectItem value="superior">Superiores</SelectItem>
+              </SelectContent>
+            </Select>
             
             {/* Filtro de Grupo de Clientes */}
             <Select 
