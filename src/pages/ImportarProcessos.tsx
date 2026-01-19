@@ -1442,33 +1442,91 @@ export default function ImportarProcessos() {
       let processed = 0;
       const totalToProcess = toInsertIndices.length + toUpdateIndices.length;
 
-      // 3) Pre-create pastas and responsaveis for all new processes
+      // 3) Pre-create pastas and responsaveis for all new processes - OPTIMIZED BATCH
       const { data: { user } } = await supabase.auth.getUser();
       const pastaCache = new Map<string, string>();
       const responsavelCache = new Map<string, string>();
       
-      // Helper to find or create responsavel
-      const findOrCreateResponsavelFast = async (nomeResponsavel: string): Promise<string | null> => {
-        if (!nomeResponsavel?.trim()) return null;
+      // Collect all unique pasta names and responsaveis names needed
+      const allNomesPasta = new Set<string>();
+      const allNomesResponsaveis = new Set<string>();
+      
+      for (const idx of [...toInsertIndices, ...toUpdateIndices]) {
+        const processo = updatedProcessos[idx];
+        const parteAtivaTrimmed = processo.parteAtiva?.trim() || "Sem Parte Ativa";
+        const partePassivaTrimmed = processo.partePassiva?.trim() || "Sem Parte Passiva";
+        const nomePasta = `${parteAtivaTrimmed} x ${partePassivaTrimmed}`;
+        allNomesPasta.add(nomePasta);
         
-        const nomeTrimmed = nomeResponsavel.trim().toUpperCase();
-        
-        if (responsavelCache.has(nomeTrimmed)) {
-          return responsavelCache.get(nomeTrimmed)!;
+        if (processo.responsavel?.trim()) {
+          allNomesResponsaveis.add(processo.responsavel.trim().toUpperCase());
         }
-        
-        const { data: existingProfile } = await supabase
-          .from("profiles")
-          .select("id")
-          .ilike("nome", nomeTrimmed)
-          .maybeSingle();
-        
-        if (existingProfile) {
-          responsavelCache.set(nomeTrimmed, existingProfile.id);
-          return existingProfile.id;
+      }
+      
+      // BATCH: Load all existing pastas at once
+      const nomesPastaArray = Array.from(allNomesPasta);
+      for (let i = 0; i < nomesPastaArray.length; i += CHUNK_SIZE) {
+        const chunk = nomesPastaArray.slice(i, i + CHUNK_SIZE);
+        const { data: pastasExistentes } = await supabase
+          .from("pastas")
+          .select("id, nome")
+          .in("nome", chunk);
+        for (const pasta of pastasExistentes || []) {
+          pastaCache.set(pasta.nome, pasta.id);
         }
-        
-        if (selectedCoordenacao) {
+      }
+      
+      // BATCH: Load all existing profiles at once
+      const nomesResponsaveisArray = Array.from(allNomesResponsaveis);
+      for (let i = 0; i < nomesResponsaveisArray.length; i += CHUNK_SIZE) {
+        const chunk = nomesResponsaveisArray.slice(i, i + CHUNK_SIZE);
+        // Use OR filter for ilike on each name
+        let query = supabase.from("profiles").select("id, nome");
+        // Build OR condition for case-insensitive search
+        const orConditions = chunk.map(nome => `nome.ilike.${nome}`).join(",");
+        const { data: profilesExistentes } = await query.or(orConditions);
+        for (const profile of profilesExistentes || []) {
+          if (profile.nome) {
+            responsavelCache.set(profile.nome.toUpperCase(), profile.id);
+          }
+        }
+      }
+      
+      // Now create only the missing ones (in parallel batches)
+      const PARALLEL_LIMIT = 10;
+      
+      // Create missing pastas
+      const pastasFaltantes = nomesPastaArray.filter(nome => !pastaCache.has(nome));
+      for (let i = 0; i < pastasFaltantes.length; i += PARALLEL_LIMIT) {
+        if (projurisCancelledRef.current) break;
+        const chunk = pastasFaltantes.slice(i, i + PARALLEL_LIMIT);
+        const promises = chunk.map(async (nomePasta) => {
+          if (!user) return;
+          const { data: novaPasta } = await supabase
+            .from("pastas")
+            .insert({
+              nome: nomePasta,
+              descricao: `Pasta criada automaticamente para padronização`,
+              cliente_id: selectedCliente || null,
+              coordenacao_id: selectedCoordenacao || null,
+              criado_por: user.id,
+            })
+            .select("id")
+            .single();
+          if (novaPasta) {
+            pastaCache.set(nomePasta, novaPasta.id);
+          }
+        });
+        await Promise.all(promises);
+      }
+      
+      // Create missing responsaveis (via Edge Function)
+      const responsaveisFaltantes = nomesResponsaveisArray.filter(nome => !responsavelCache.has(nome));
+      for (let i = 0; i < responsaveisFaltantes.length; i += PARALLEL_LIMIT) {
+        if (projurisCancelledRef.current) break;
+        const chunk = responsaveisFaltantes.slice(i, i + PARALLEL_LIMIT);
+        const promises = chunk.map(async (nomeTrimmed) => {
+          if (!selectedCoordenacao) return;
           const { data: novoProfile, error: profileError } = await supabase.functions.invoke("cadastrar-perfil", {
             body: {
               nome: nomeTrimmed,
@@ -1476,72 +1534,30 @@ export default function ImportarProcessos() {
               cargo: "advogado",
             },
           });
-          
           if (!profileError && novoProfile?.profile?.id) {
             responsavelCache.set(nomeTrimmed, novoProfile.profile.id);
-            return novoProfile.profile.id;
           }
-        }
-        
-        return null;
-      };
+        });
+        await Promise.all(promises);
+      }
       
-      // Helper to find or create pasta
-      const findOrCreatePastaFast = async (parteAtiva: string, partePassiva: string, coordenacaoId: string | null): Promise<string | null> => {
-        if (!user) return null;
-        
-        const parteAtivaTrimmed = parteAtiva?.trim() || "Sem Parte Ativa";
-        const partePassivaTrimmed = partePassiva?.trim() || "Sem Parte Passiva";
-        const nomePasta = `${parteAtivaTrimmed} x ${partePassivaTrimmed}`;
-        
-        if (pastaCache.has(nomePasta)) {
-          return pastaCache.get(nomePasta)!;
-        }
-        
-        const { data: pastaExistente } = await supabase
-          .from("pastas")
-          .select("id")
-          .eq("nome", nomePasta)
-          .maybeSingle();
-        
-        if (pastaExistente) {
-          pastaCache.set(nomePasta, pastaExistente.id);
-          return pastaExistente.id;
-        }
-        
-        const { data: novaPasta, error: pastaError } = await supabase
-          .from("pastas")
-          .insert({
-            nome: nomePasta,
-            descricao: `Pasta criada automaticamente para padronização`,
-            cliente_id: selectedCliente || null,
-            coordenacao_id: coordenacaoId || selectedCoordenacao || null,
-            criado_por: user.id,
-          })
-          .select("id")
-          .single();
-        
-        if (!pastaError && novaPasta) {
-          pastaCache.set(nomePasta, novaPasta.id);
-          return novaPasta.id;
-        }
-        return null;
-      };
-      
-      // Pre-process: create pastas and responsaveis for new processes
+      // Build extras map using cached data (no more individual queries!)
       const processoExtras = new Map<number, { pastaId: string | null; responsavelId: string | null }>();
       
       for (const idx of toInsertIndices) {
-        if (projurisCancelledRef.current) break;
-        
         const processo = updatedProcessos[idx];
-        const pastaId = await findOrCreatePastaFast(processo.parteAtiva || "", processo.partePassiva || "", selectedCoordenacao);
+        const parteAtivaTrimmed = processo.parteAtiva?.trim() || "Sem Parte Ativa";
+        const partePassivaTrimmed = processo.partePassiva?.trim() || "Sem Parte Passiva";
+        const nomePasta = `${parteAtivaTrimmed} x ${partePassivaTrimmed}`;
+        
+        const pastaId = pastaCache.get(nomePasta) || null;
         let responsavelId = selectedMembro || null;
         
-        if (processo.responsavel) {
-          const foundResponsavel = await findOrCreateResponsavelFast(processo.responsavel);
-          if (foundResponsavel) {
-            responsavelId = foundResponsavel;
+        if (processo.responsavel?.trim()) {
+          const nomeResp = processo.responsavel.trim().toUpperCase();
+          const cachedResp = responsavelCache.get(nomeResp);
+          if (cachedResp) {
+            responsavelId = cachedResp;
           }
         }
         
@@ -1647,105 +1663,8 @@ export default function ImportarProcessos() {
 
       if (projurisCancelledRef.current) return;
 
-      // 3) Smart merge UPDATE for existing processes - fill only empty fields
+      // 3) Smart merge UPDATE for existing processes - using pre-loaded caches
       if (toUpdateIndices.length > 0) {
-        // Helper to create or find pasta - now outside loop for reuse
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        // Cache for created pastas to avoid duplicates
-        const pastaCache = new Map<string, string>();
-        
-        // Cache for created/found responsaveis
-        const responsavelCache = new Map<string, string>();
-        
-        // Helper to find or create responsavel via Edge Function
-        const findOrCreateResponsavelBatch = async (nomeResponsavel: string): Promise<string | null> => {
-          if (!nomeResponsavel?.trim()) return null;
-          
-          const nomeTrimmed = nomeResponsavel.trim().toUpperCase();
-          
-          // Check cache first
-          if (responsavelCache.has(nomeTrimmed)) {
-            return responsavelCache.get(nomeTrimmed)!;
-          }
-          
-          // Try to find by name (case-insensitive)
-          const { data: existingProfile } = await supabase
-            .from("profiles")
-            .select("id")
-            .ilike("nome", nomeTrimmed)
-            .maybeSingle();
-          
-          if (existingProfile) {
-            responsavelCache.set(nomeTrimmed, existingProfile.id);
-            return existingProfile.id;
-          }
-          
-          // Create new profile via Edge Function
-          if (selectedCoordenacao) {
-            const { data: novoProfile, error: profileError } = await supabase.functions.invoke("cadastrar-perfil", {
-              body: {
-                nome: nomeTrimmed,
-                coordenacao_id: selectedCoordenacao,
-                cargo: "advogado",
-              },
-            });
-            
-            if (!profileError && novoProfile?.profile?.id) {
-              responsavelCache.set(nomeTrimmed, novoProfile.profile.id);
-              return novoProfile.profile.id;
-            }
-            console.warn(`Falha ao criar perfil ${nomeTrimmed}:`, profileError);
-          }
-          
-          return null;
-        };
-        
-        const findOrCreatePastaBatch = async (parteAtiva: string, partePassiva: string, coordenacaoId: string | null): Promise<string | null> => {
-          if (!user) return null;
-          
-          const parteAtivaTrimmed = parteAtiva?.trim() || "Sem Parte Ativa";
-          const partePassivaTrimmed = partePassiva?.trim() || "Sem Parte Passiva";
-          const nomePasta = `${parteAtivaTrimmed} x ${partePassivaTrimmed}`;
-          
-          // Check cache first
-          if (pastaCache.has(nomePasta)) {
-            return pastaCache.get(nomePasta)!;
-          }
-          
-          // Check if pasta exists in DB
-          const { data: pastaExistente } = await supabase
-            .from("pastas")
-            .select("id")
-            .eq("nome", nomePasta)
-            .maybeSingle();
-          
-          if (pastaExistente) {
-            pastaCache.set(nomePasta, pastaExistente.id);
-            return pastaExistente.id;
-          }
-          
-          // Create new pasta
-          const { data: novaPasta, error: pastaError } = await supabase
-            .from("pastas")
-            .insert({
-              nome: nomePasta,
-              descricao: `Pasta criada automaticamente para padronização`,
-              cliente_id: selectedCliente || null,
-              coordenacao_id: coordenacaoId || selectedCoordenacao || null,
-              criado_por: user.id,
-            })
-            .select("id")
-            .single();
-          
-          if (!pastaError && novaPasta) {
-            pastaCache.set(nomePasta, novaPasta.id);
-            return novaPasta.id;
-          }
-          console.warn(`Falha ao criar pasta ${nomePasta}:`, pastaError?.message);
-          return null;
-        };
-
         // Need to do one-by-one for smart merge since each process may have different empty fields
         for (let i = 0; i < toUpdateIndices.length; i++) {
           if (projurisCancelledRef.current) break;
@@ -1776,9 +1695,10 @@ export default function ImportarProcessos() {
           if (selectedCoordenacao && !currentProcesso.coordenacao_id) updateData.coordenacao_id = selectedCoordenacao;
           if (selectedCliente && !currentProcesso.cliente_id) updateData.cliente_id = selectedCliente;
           
-          // Find or create responsavel from spreadsheet if not already set
-          if (!currentProcesso.advogado_responsavel_id && processo.responsavel) {
-            const responsavelId = await findOrCreateResponsavelBatch(processo.responsavel);
+          // Find responsavel from cache (already pre-loaded)
+          if (!currentProcesso.advogado_responsavel_id && processo.responsavel?.trim()) {
+            const nomeResp = processo.responsavel.trim().toUpperCase();
+            const responsavelId = responsavelCache.get(nomeResp);
             if (responsavelId) {
               updateData.advogado_responsavel_id = responsavelId;
             }
@@ -1786,8 +1706,11 @@ export default function ImportarProcessos() {
             updateData.advogado_responsavel_id = selectedMembro;
           }
           
-          // Update pasta_id - always create pasta with "Parte Ativa x Parte Passiva" pattern
-          const pastaId = await findOrCreatePastaBatch(processo.parteAtiva || "", processo.partePassiva || "", currentProcesso.coordenacao_id);
+          // Get pasta from cache (already pre-loaded)
+          const parteAtivaTrimmed = processo.parteAtiva?.trim() || "Sem Parte Ativa";
+          const partePassivaTrimmed = processo.partePassiva?.trim() || "Sem Parte Passiva";
+          const nomePasta = `${parteAtivaTrimmed} x ${partePassivaTrimmed}`;
+          const pastaId = pastaCache.get(nomePasta);
           if (pastaId) {
             updateData.pasta_id = pastaId;
           }
