@@ -327,6 +327,28 @@ export function ProcessoDetalhesCompletos({
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
                         {/* Coluna Esquerda */}
                         <div className="space-y-4">
+                          {/* Assunto */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Assunto</p>
+                            <p className="text-sm text-foreground mt-1">{processo.assunto || "Não informado"}</p>
+                          </div>
+
+                          {/* Número */}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Número</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-sm font-mono text-foreground">{processo.numero}</p>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-6 w-6"
+                                onClick={() => copyToClipboard(processo.numero)}
+                              >
+                                <Copy className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+
                           {/* Situação - Seletor inline */}
                           <div>
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Situação</p>
