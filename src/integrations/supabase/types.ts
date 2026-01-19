@@ -3797,18 +3797,14 @@ export type Database = {
           _periodo_inicio?: string
           _responsavel_id?: string
           _search?: string
-          _situacao?: string
           _status?: string
           _tipo_processo?: string
         }
         Returns: {
-          advogado_responsavel_id: string
-          advogado_responsavel_nome: string
+          advogado_responsavel: Json
           area: string
           assunto: string
-          cliente_id: string
-          cliente_nome: string
-          cliente_tipo: string
+          cliente: Json
           comarca: string
           coordenacao_id: string
           created_at: string
@@ -3816,12 +3812,11 @@ export type Database = {
           id: string
           numero: string
           pasta_id: string
-          pasta_nome: string
           polo_ativo: string
           polo_passivo: string
           status: string
+          tipo_processo: string
           total_count: number
-          total_tarefas: number
           tribunal: string
           valor_causa: number
           vara: string

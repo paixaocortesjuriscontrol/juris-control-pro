@@ -51,7 +51,7 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         _periodo_fim: filters.periodoFim ? filters.periodoFim.toISOString() : null,
         _cliente_ids: filters.clienteIds && filters.clienteIds.length > 0 ? filters.clienteIds : null,
         _tipo_processo: filters.tipoProcesso && filters.tipoProcesso !== "all" ? filters.tipoProcesso : null,
-      });
+      } as any);
 
       if (error) throw error;
 
