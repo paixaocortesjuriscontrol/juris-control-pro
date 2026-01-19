@@ -1350,6 +1350,13 @@ export default function ImportarProcessos() {
     startImport("Importando Projuris");
     setProjurisProgress(0);
 
+    // Permite o React pintar o estado de "Importando..." antes de loops pesados
+    console.log("[Projuris] Iniciando importação", {
+      buscarAndamentos: projurisBuscarAndamentos,
+      totalValidos: validProcessos.length,
+    });
+    await new Promise((r) => setTimeout(r, 0));
+
     const updatedProcessos = [...projurisProcessos];
     let successCount = 0;
     let errorCount = 0;
