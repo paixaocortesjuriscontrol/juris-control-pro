@@ -468,6 +468,11 @@ export function CriarTarefaPublicacaoDialog({
                           }`}
                         >
                           <div className="font-medium text-emerald-800 dark:text-emerald-200 truncate" title={tarefa?.titulo}>
+                            {tarefa?.tipo_tarefa && (
+                              <Badge variant="outline" className="mr-1.5 text-[10px] px-1 py-0 font-semibold border-emerald-400 dark:border-emerald-600">
+                                {tarefa.tipo_tarefa}
+                              </Badge>
+                            )}
                             {tarefa?.titulo || "Tarefa"}
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 text-emerald-600 dark:text-emerald-400 flex-wrap">
