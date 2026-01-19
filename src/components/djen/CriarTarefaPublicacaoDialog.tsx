@@ -54,6 +54,66 @@ import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useAuth } from "@/contexts/AuthContext";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 
+type TarefaSimples = { id: string; titulo: string; tipo_tarefa: string | null; status: string };
+
+// Função helper para buscar tarefas da publicação (isolada para evitar inferência profunda)
+async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string | undefined): Promise<TarefaSimples[]> {
+  const tarefasMap = new Map<string, TarefaSimples>();
+  
+  // 1. Buscar tarefas diretamente vinculadas (campo publicacao_id na tabela tarefas)
+  // @ts-ignore - evita inferência profunda do tipo
+  const { data: tarefasDiretas } = await supabase
+    .from("tarefas")
+    .select("id, titulo, tipo_tarefa, status")
+    .eq("publicacao_id", publicacaoId);
+  
+  if (tarefasDiretas) {
+    (tarefasDiretas as TarefaSimples[]).forEach((t) => tarefasMap.set(t.id, t));
+  }
+  
+  // 2. Buscar via tabela de vínculo tarefas_publicacoes (para tipo termo)
+  if (tipoOrigem === 'termo') {
+    const { data: tarefasVinculo } = await supabase
+      .from("tarefas_publicacoes")
+      .select("tarefa_id")
+      .eq("publicacao_id", publicacaoId);
+    
+    if (tarefasVinculo && tarefasVinculo.length > 0) {
+      const tarefaIds = tarefasVinculo.map((t) => t.tarefa_id);
+      // @ts-ignore - evita inferência profunda do tipo
+      const { data: tarefasDetalhes } = await supabase
+        .from("tarefas")
+        .select("id, titulo, tipo_tarefa, status")
+        .in("id", tarefaIds);
+      
+      if (tarefasDetalhes) {
+        (tarefasDetalhes as TarefaSimples[]).forEach((t) => tarefasMap.set(t.id, t));
+      }
+    }
+  }
+  
+  // 3. Buscar via tabela de vínculo tarefas_publicacoes_processos (para tipo processo)
+  const { data: tarefasProcessoVinculo } = await supabase
+    .from("tarefas_publicacoes_processos")
+    .select("tarefa_id")
+    .eq("publicacao_processo_id", publicacaoId);
+  
+  if (tarefasProcessoVinculo && tarefasProcessoVinculo.length > 0) {
+    const tarefaIds = tarefasProcessoVinculo.map((t) => t.tarefa_id);
+    // @ts-ignore - evita inferência profunda do tipo
+    const { data: tarefasDetalhes } = await supabase
+      .from("tarefas")
+      .select("id, titulo, tipo_tarefa, status")
+      .in("id", tarefaIds);
+    
+    if (tarefasDetalhes) {
+      (tarefasDetalhes as TarefaSimples[]).forEach((t) => tarefasMap.set(t.id, t));
+    }
+  }
+  
+  return Array.from(tarefasMap.values());
+}
+
 const formSchema = z.object({
   tipo_tarefa: z.string().min(1, "Tipo é obrigatório"),
   titulo: z.string().min(1, "Título é obrigatório").max(200),
@@ -178,34 +238,10 @@ export function CriarTarefaPublicacaoDialog({
     enabled: !!publicacao?.processo_id,
   });
 
-  // Fetch tarefas já criadas para esta publicação
+  // Fetch tarefas já criadas para esta publicação (busca em múltiplas fontes)
   const { data: tarefasCriadas, refetch: refetchTarefas } = useQuery({
     queryKey: ["tarefas-publicacao-dialog", publicacao?.id, publicacao?.tipo_origem],
-    queryFn: async () => {
-      if (!publicacao?.id) return [];
-      
-      if (publicacao.tipo_origem === 'termo') {
-        const { data, error } = await supabase
-          .from("tarefas_publicacoes")
-          .select(`
-            tarefa:tarefas(id, titulo, tipo_tarefa, status)
-          `)
-          .eq("publicacao_id", publicacao.id);
-        
-        if (error) throw error;
-        return data?.map(t => t.tarefa).filter(Boolean) || [];
-      } else {
-        const { data, error } = await supabase
-          .from("tarefas_publicacoes_processos")
-          .select(`
-            tarefa:tarefas(id, titulo, tipo_tarefa, status)
-          `)
-          .eq("publicacao_processo_id", publicacao.id);
-        
-        if (error) throw error;
-        return data?.map(t => t.tarefa).filter(Boolean) || [];
-      }
-    },
+    queryFn: () => fetchTarefasPublicacao(publicacao!.id, publicacao?.tipo_origem),
     enabled: !!publicacao?.id && open,
   });
 
