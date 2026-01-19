@@ -361,7 +361,8 @@ export function ProcessoDetalhesCompletos({
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="ativo">Ativo</SelectItem>
-                                  <SelectItem value="arquivado">Arquivado</SelectItem>
+                                  <SelectItem value="arquivado_parcialmente">Arquivado Parcialmente</SelectItem>
+                                  <SelectItem value="arquivado_definitivamente">Arquivado Definitivamente</SelectItem>
                                   <SelectItem value="suspenso">Suspenso</SelectItem>
                                 </SelectContent>
                               </Select>
