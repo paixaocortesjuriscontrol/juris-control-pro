@@ -178,6 +178,37 @@ export function CriarTarefaPublicacaoDialog({
     enabled: !!publicacao?.processo_id,
   });
 
+  // Fetch tarefas já criadas para esta publicação
+  const { data: tarefasCriadas, refetch: refetchTarefas } = useQuery({
+    queryKey: ["tarefas-publicacao-dialog", publicacao?.id, publicacao?.tipo_origem],
+    queryFn: async () => {
+      if (!publicacao?.id) return [];
+      
+      if (publicacao.tipo_origem === 'termo') {
+        const { data, error } = await supabase
+          .from("tarefas_publicacoes")
+          .select(`
+            tarefa:tarefas(id, titulo, tipo_tarefa, status)
+          `)
+          .eq("publicacao_id", publicacao.id);
+        
+        if (error) throw error;
+        return data?.map(t => t.tarefa).filter(Boolean) || [];
+      } else {
+        const { data, error } = await supabase
+          .from("tarefas_publicacoes_processos")
+          .select(`
+            tarefa:tarefas(id, titulo, tipo_tarefa, status)
+          `)
+          .eq("publicacao_processo_id", publicacao.id);
+        
+        if (error) throw error;
+        return data?.map(t => t.tarefa).filter(Boolean) || [];
+      }
+    },
+    enabled: !!publicacao?.id && open,
+  });
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     try {
@@ -253,6 +284,8 @@ export function CriarTarefaPublicacaoDialog({
       queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-termo"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
+      // Atualizar a lista de tarefas criadas no dialog
+      refetchTarefas();
       
       form.reset();
       // Resetar formulário mas manter dialog aberto para criar mais tarefas
@@ -296,6 +329,11 @@ export function CriarTarefaPublicacaoDialog({
           <div className="hidden lg:flex flex-1 border-r overflow-hidden flex-col">
             <div className="p-4 border-b bg-muted/30">
               <div className="flex flex-wrap gap-2 mb-3">
+                {/* Data da publicação à esquerda */}
+                <span className="text-xs text-muted-foreground flex items-center">
+                  {formatDate(publicacao.data_publicacao)}
+                </span>
+                
                 {publicacao.tipo_origem === 'termo' ? (
                   <Badge className="bg-purple-100 text-purple-700">
                     <FileSearch className="w-3 h-3 mr-1" />
@@ -318,6 +356,29 @@ export function CriarTarefaPublicacaoDialog({
                 )}
                 {!publicacao.lida && (
                   <Badge className="bg-amber-500">Nova</Badge>
+                )}
+                
+                {/* Card de tarefas criadas ao lado da badge "Nova" */}
+                {tarefasCriadas && tarefasCriadas.length > 0 && (
+                  <div className="ml-auto flex items-center gap-2 max-w-[300px]">
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md">
+                      <ListChecks className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                      <ScrollArea className="max-w-[200px]">
+                        <div className="flex gap-1.5 whitespace-nowrap">
+                          {tarefasCriadas.map((tarefa: any, idx: number) => (
+                            <span 
+                              key={tarefa?.id || idx} 
+                              className="text-xs text-green-700 dark:text-green-300 truncate max-w-[150px]"
+                              title={tarefa?.titulo}
+                            >
+                              {tarefa?.titulo || "Tarefa"}
+                              {idx < tarefasCriadas.length - 1 && ","}
+                            </span>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  </div>
                 )}
               </div>
 
