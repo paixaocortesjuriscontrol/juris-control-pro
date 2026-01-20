@@ -757,6 +757,7 @@ export function CriarTarefaPublicacaoDialog({
 
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  {!publicacao.processo_id && (
                     <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                       <div className="flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5" />
