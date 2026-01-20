@@ -607,6 +607,26 @@ Deno.serve(async (req) => {
         .eq('id', configData.id);
     }
 
+    // Salvar no histórico de monitoramento quando a execução completa
+    if (isComplete) {
+      await supabase.from('historico_monitoramento').insert({
+        tipo: 'termos',
+        processos_verificados: totalMovimentacoes,
+        novos_andamentos: alertasGerados,
+        processos_com_novos: audienciasDetectadas + intimacoesDetectadas,
+        erros: 0,
+        detalhes: {
+          alertasGerados,
+          audienciasDetectadas,
+          intimacoesDetectadas,
+          tarefasCriadas,
+          termosAtivos: termos.length,
+        },
+        executado_em: new Date().toISOString(),
+      });
+      console.log('Histórico de monitoramento salvo');
+    }
+
     const percentage = totalMovimentacoes > 0 ? Math.round((processedCount / totalMovimentacoes) * 100) : 100;
 
     // Auto-continuation: if completeRun and not complete, trigger next batch
