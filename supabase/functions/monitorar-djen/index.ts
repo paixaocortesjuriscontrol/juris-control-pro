@@ -1154,6 +1154,21 @@ serve(async (req) => {
     // Create run record for new runs (ensureRunExists will handle idempotently)
     if (isNewRun && !parentRunId) {
       runId = crypto.randomUUID();
+      
+      // Cancel any stale in-progress runs before starting a fresh one
+      const { data: staleRuns } = await supabase.from('djen_runs')
+        .select('run_id')
+        .eq('status', 'em_andamento')
+        .lt('iniciado_em', new Date(Date.now() - 30 * 60 * 1000).toISOString()); // older than 30 min
+      
+      if (staleRuns && staleRuns.length > 0) {
+        console.log(`[DJEN] Cancelling ${staleRuns.length} stale run(s): ${staleRuns.map(r => r.run_id).join(', ')}`);
+        await supabase.from('djen_runs')
+          .update({ status: 'cancelado', motivo_erro: 'Cancelado por nova execução agendada' })
+          .eq('status', 'em_andamento')
+          .lt('iniciado_em', new Date(Date.now() - 30 * 60 * 1000).toISOString());
+      }
+      
       await ensureRunExists(supabase, runId, total, retryCount);
       console.log(`Initialized new run: ${runId}`);
     }
