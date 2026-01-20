@@ -156,6 +156,10 @@ export function useMonitoramentosDjen() {
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-descartadas'] });
       toast.success("Monitoramento excluído!");
     },
+    onError: (error) => {
+      console.error("Erro ao excluir monitoramento:", error);
+      toast.error(`Erro ao excluir monitoramento: ${error.message}`);
+    },
   });
 
   const marcarPublicacaoLida = useMutation({
