@@ -86,32 +86,35 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
       const incluirEventos = !filters.origens || filters.origens.includes("evento");
       const incluirTarefas = !filters.origens || filters.origens.includes("tarefa");
 
+      // IMPORTANT: Supabase typed select parser (TS) does NOT like dynamic/conditional
+      // strings inside .select(...). Keep them as literal constants and select them
+      // in separate branches to avoid ParserError types and broken builds.
+      const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos(id,numero,assunto)" as const;
+      const EVENTOS_SELECT_BASE = "*" as const;
+      const TAREFAS_SELECT_WITH_JOINS =
+        "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas,processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id),responsavel:profiles!tarefas_responsavel_id_fkey(id,nome)" as const;
+      const TAREFAS_SELECT_BASE =
+        "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas" as const;
+
       // Alguns usuários podem não ter permissão SELECT em tabelas relacionadas (ex.: processos/profiles),
       // o que quebra selects com embeds (PostgREST). Para evitar lista vazia + totalizadores diferentes,
       // tentamos com joins e, se falhar, fazemos fallback sem joins.
       const buildEventosQuery = (withJoins: boolean) => {
-        let q = supabase
-          .from("eventos_agenda")
-          .select(
-            withJoins
-              ? "*,processo:processos(id,numero,assunto)"
-              : "*"
-          );
+        // NOTE: return as any to keep downstream code simple (we already normalize manually)
+        if (withJoins) {
+          return supabase.from("eventos_agenda").select(EVENTOS_SELECT_WITH_JOINS) as any;
+        }
 
-        // Se fetchAll=true (admin vendo tudo), não filtra por criador/participante
-        // (e RLS fará o controle de visibilidade)
-        // Obs: filtro por usuário/participantes será aplicado no bloco de execução abaixo.
-        return q;
+        return supabase.from("eventos_agenda").select(EVENTOS_SELECT_BASE) as any;
       };
 
       const buildTarefasQuery = (withJoins: boolean) => {
-        return supabase
-          .from("tarefas")
-          .select(
-            withJoins
-              ? "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas,processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id),responsavel:profiles!tarefas_responsavel_id_fkey(id,nome)"
-              : "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas"
-          );
+        // NOTE: return as any to keep downstream code simple (we already normalize manually)
+        if (withJoins) {
+          return supabase.from("tarefas").select(TAREFAS_SELECT_WITH_JOINS) as any;
+        }
+
+        return supabase.from("tarefas").select(TAREFAS_SELECT_BASE) as any;
       };
 
       // ========= BUSCAR EVENTOS =========
