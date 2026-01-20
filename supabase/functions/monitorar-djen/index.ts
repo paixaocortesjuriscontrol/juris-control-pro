@@ -46,9 +46,6 @@ const browserHeaders = {
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
-// Bright Data API Token (residential IP fallback)
-const BRIGHT_DATA_TOKEN = Deno.env.get('BRIGHT_DATA_AUTH') || '';
-
 function tryParseDjenJson(text: string): any | null {
   // 1) Direct JSON
   try {
@@ -86,54 +83,7 @@ function tryParseDjenJson(text: string): any | null {
   return null;
 }
 
-// Fetch via Bright Data REST API - Residential IP BR (fallback when comunicaapi blocks)
-async function fetchViaBrightData(url: string): Promise<any | null> {
-  if (!BRIGHT_DATA_TOKEN) {
-    console.log('[DJEN] BRIGHT_DATA_AUTH not configured');
-    return null;
-  }
-
-  try {
-    console.log('[DJEN] Trying Bright Data (residential IP)...');
-
-    const brightDataUrl = 'https://api.brightdata.com/request';
-    const requestPayload = {
-      zone: 'juris_control',
-      url,
-      country: 'br',
-      format: 'raw',
-    };
-
-    const resp = await fetch(brightDataUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${BRIGHT_DATA_TOKEN}`,
-      },
-      body: JSON.stringify(requestPayload),
-    });
-
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => '');
-      console.log(`[DJEN] Bright Data API error ${resp.status}: ${errText.slice(0, 500)}`);
-      return null;
-    }
-
-    const text = await resp.text();
-    const parsed = tryParseDjenJson(text);
-
-    if (parsed) {
-      console.log('[DJEN] ✓ Bright Data success!');
-      return parsed;
-    }
-
-    console.log('[DJEN] Bright Data returned non-JSON:', text.slice(0, 300));
-    return null;
-  } catch (e) {
-    console.log('[DJEN] Bright Data fetch failed:', e);
-    return null;
-  }
-}
+// Bright Data removed - too expensive. Using only Jina as fallback.
 
 // Fast Jina proxy fallback (cheap and fast - ~$0.001/request)
 async function fetchJsonViaJina(url: string): Promise<any | null> {
@@ -182,20 +132,11 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
   }
 }
 
-// Unified proxy fetch: tries Bright Data first, then Jina as fallback
+// Unified proxy fetch: uses Jina as only fallback (Bright Data removed - too expensive)
 async function fetchViaProxy(url: string): Promise<any | null> {
-  if (BRIGHT_DATA_TOKEN) {
-    const result = await fetchViaBrightData(url);
-    if (result) {
-      console.log('[DJEN] ✓ Bright Data residential IP worked!');
-      return result;
-    }
-  }
-
   if (JINA_API_KEY) {
     return await fetchJsonViaJina(url);
   }
-
   return null;
 }
 
