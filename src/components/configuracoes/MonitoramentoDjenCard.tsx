@@ -239,9 +239,11 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           throw new Error('Sessão expirada. Faça login novamente.');
         }
 
+        // IMPORTANTE: Não passar completeRun:true para evitar auto-continuação da Edge Function
+        // O loop do frontend já cuida de processar todos os lotes
         const requestBody = currentRunIdRef.current
-          ? { continued: true, parentRunId: currentRunIdRef.current }
-          : {};
+          ? { continued: true, parentRunId: currentRunIdRef.current, completeRun: false }
+          : { completeRun: false };
 
         let response: Response | null = null;
         for (let attempt = 0; attempt < 3; attempt++) {
