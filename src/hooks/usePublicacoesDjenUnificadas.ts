@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { startOfDay, endOfDay, subHours, addHours } from "date-fns";
+import { startOfDay, endOfDay } from "date-fns";
 import { dedupePublicacoesDjen } from "@/utils/djenDedup";
 
 // Helper para formatar data em ISO com timezone UTC
@@ -62,110 +62,6 @@ export interface EstatisticasCoordenacao {
 export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-
-  // Buscar estatísticas por coordenação - AGORA FILTRA POR COORDENAÇÃO TAMBÉM
-  const { data: estatisticas = [], isLoading: loadingStats } = useQuery({
-    queryKey: ['publicacoes-unificadas-stats', filtros.dataInicio, filtros.dataFim, filtros.apenasHoje, filtros.coordenacaoId],
-    queryFn: async () => {
-      // Usar timezone UTC para filtros de data
-      // startOfDay/endOfDay usa timezone local, então precisamos converter para UTC
-      const dataInicioFiltro = filtros.apenasHoje 
-        ? formatToUTC(startOfDay(new Date()))
-        : filtros.dataInicio 
-          ? `${filtros.dataInicio}T00:00:00Z`
-          : undefined;
-      
-      const dataFimFiltro = filtros.apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
-        : filtros.dataFim
-          ? `${filtros.dataFim}T23:59:59Z`
-          : undefined;
-
-      // Buscar publicações de termos agrupadas
-      let queryTermos = supabase
-        .from('publicacoes_djen')
-        .select(`
-          id, lida,
-          monitoramento:monitoramentos_djen(coordenacao_id, coordenacao:coordenacoes(nome))
-        `);
-
-      if (dataInicioFiltro) queryTermos = queryTermos.gte('created_at', dataInicioFiltro);
-      if (dataFimFiltro) queryTermos = queryTermos.lte('created_at', dataFimFiltro);
-
-      const { data: termosData } = await queryTermos;
-
-      // Buscar publicações de processos agrupadas
-      let queryProcessos = supabase
-        .from('publicacoes_djen_processos')
-        .select(`
-          id, lida,
-          processo:processos(coordenacao_id, coordenacao:coordenacoes(nome))
-        `);
-
-      if (dataInicioFiltro) queryProcessos = queryProcessos.gte('created_at', dataInicioFiltro);
-      if (dataFimFiltro) queryProcessos = queryProcessos.lte('created_at', dataFimFiltro);
-
-      const { data: processosData } = await queryProcessos;
-
-      // Agrupar por coordenação
-      const statsMap = new Map<string, EstatisticasCoordenacao>();
-
-      // Processar publicações de termos
-      (termosData || []).forEach((pub: any) => {
-        const coordId = pub.monitoramento?.coordenacao_id || 'sem-coordenacao';
-        const coordNome = pub.monitoramento?.coordenacao?.nome || 'Sem Coordenação';
-        
-        // FILTRAR por coordenação se especificado
-        if (filtros.coordenacaoId && coordId !== filtros.coordenacaoId) {
-          return;
-        }
-        
-        if (!statsMap.has(coordId)) {
-          statsMap.set(coordId, {
-            coordenacao_id: coordId,
-            coordenacao_nome: coordNome,
-            total: 0,
-            nao_lidas: 0,
-            por_tipo: { termo: 0, processo: 0 }
-          });
-        }
-        
-        const stats = statsMap.get(coordId)!;
-        stats.total++;
-        stats.por_tipo.termo++;
-        if (!pub.lida) stats.nao_lidas++;
-      });
-
-      // Processar publicações de processos
-      (processosData || []).forEach((pub: any) => {
-        const coordId = pub.processo?.coordenacao_id || 'sem-coordenacao';
-        const coordNome = pub.processo?.coordenacao?.nome || 'Sem Coordenação';
-        
-        // FILTRAR por coordenação se especificado
-        if (filtros.coordenacaoId && coordId !== filtros.coordenacaoId) {
-          return;
-        }
-        
-        if (!statsMap.has(coordId)) {
-          statsMap.set(coordId, {
-            coordenacao_id: coordId,
-            coordenacao_nome: coordNome,
-            total: 0,
-            nao_lidas: 0,
-            por_tipo: { termo: 0, processo: 0 }
-          });
-        }
-        
-        const stats = statsMap.get(coordId)!;
-        stats.total++;
-        stats.por_tipo.processo++;
-        if (!pub.lida) stats.nao_lidas++;
-      });
-
-      return Array.from(statsMap.values()).sort((a, b) => b.total - a.total);
-    },
-    enabled: !!user?.id,
-  });
 
   // Buscar publicações unificadas
   const { data: publicacoes = [], isLoading } = useQuery({
@@ -439,6 +335,35 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     enabled: !!user?.id,
   });
 
+  // Estatísticas devem refletir EXATAMENTE a listagem (incluindo filtros como: Não Lidas, Termo de busca,
+  // Todas (inclui descartadas), Descartadas, etc.).
+  const estatisticas: EstatisticasCoordenacao[] = (() => {
+    const statsMap = new Map<string, EstatisticasCoordenacao>();
+
+    publicacoes.forEach((pub) => {
+      const coordId = pub.coordenacao_id || 'sem-coordenacao';
+      const coordNome = pub.coordenacao_nome || 'Sem Coordenação';
+
+      if (!statsMap.has(coordId)) {
+        statsMap.set(coordId, {
+          coordenacao_id: coordId,
+          coordenacao_nome: coordNome,
+          total: 0,
+          nao_lidas: 0,
+          por_tipo: { termo: 0, processo: 0 },
+        });
+      }
+
+      const stats = statsMap.get(coordId)!;
+      stats.total++;
+      if (!pub.lida) stats.nao_lidas++;
+      if (pub.tipo_origem === 'termo') stats.por_tipo.termo++;
+      if (pub.tipo_origem === 'processo') stats.por_tipo.processo++;
+    });
+
+    return Array.from(statsMap.values()).sort((a, b) => b.total - a.total);
+  })();
+
   // Marcar como lida
   const marcarComoLida = useMutation({
     mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' }[]) => {
@@ -461,7 +386,6 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
       toast.success("Publicação(ões) marcada(s) como lida(s)");
     },
   });
@@ -470,7 +394,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     publicacoes,
     estatisticas,
     isLoading,
-    loadingStats,
+    loadingStats: isLoading,
     marcarComoLida,
     totalHoje: estatisticas.reduce((acc, s) => acc + s.total, 0),
     naoLidasHoje: estatisticas.reduce((acc, s) => acc + s.nao_lidas, 0),
