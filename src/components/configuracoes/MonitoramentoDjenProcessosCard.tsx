@@ -151,6 +151,17 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     canceladoRef.current = false;
     setProgresso(null);
 
+    // Limpa flag de cancelamento anterior
+    if (config?.id) {
+      const currentMetadata = (config.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: { ...currentMetadata, cancelado: false, status: 'em_andamento' },
+        })
+        .eq('id', config.id);
+    }
+
     const dataInicioStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : undefined;
     const dataFimStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : undefined;
 
@@ -198,8 +209,20 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     }
   };
 
-  const handleCancelar = () => {
+  const handleCancelar = async () => {
     canceladoRef.current = true;
+    toast.info("Cancelando execução...");
+
+    // Cancelamento persistente para parar auto-continuação no backend
+    if (config?.id) {
+      const currentMetadata = (config.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando' },
+        })
+        .eq('id', config.id);
+    }
   };
 
   const handleFrequenciaChange = async (value: string) => {
@@ -500,34 +523,32 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
         )}
 
         {/* Botões */}
-        <Button 
-          onClick={handleExecutarManual} 
-          disabled={executando}
-          className="w-full"
-        >
+        <div className="flex gap-2">
           {executando ? (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              Processando... {progressPercent > 0 ? `${progressPercent}%` : ''}
-            </>
+            <Button
+              variant="destructive"
+              onClick={handleCancelar}
+              className="flex-1"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
           ) : (
-            <>
+            <Button 
+              onClick={handleExecutarManual} 
+              className="flex-1"
+            >
               <Play className="h-4 w-4 mr-2" />
               Executar Agora
-            </>
+            </Button>
           )}
-        </Button>
+        </div>
 
-        {executando && (
-          <Button
-            variant="destructive"
-            size="sm"
-            className="w-full"
-            onClick={handleCancelar}
-          >
-            <X className="h-4 w-4 mr-2" />
-            Cancelar
-          </Button>
+        {/* Progresso quando executando */}
+        {executando && progresso && (
+          <div className="text-xs text-center text-muted-foreground">
+            Processando... {progressPercent > 0 ? `${progressPercent}%` : ''}
+          </div>
         )}
 
         {/* Link para auditoria */}
