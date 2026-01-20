@@ -10,7 +10,7 @@ const formatToUTC = (date: Date) => date.toISOString();
 
 export interface PublicacaoUnificada {
   id: string;
-  tipo_origem: 'termo' | 'processo';
+  tipo_origem: 'termo' | 'processo' | 'descartada';
   processo_id: string | null;
   processo_numero: string | null;
   conteudo: string | null;
@@ -33,6 +33,8 @@ export interface PublicacaoUnificada {
   polo_ativo: string | null;
   polo_passivo: string | null;
   tribunal: string | null;
+  // Dados de descarte (para tipo descartada)
+  motivo_descarte?: string | null;
 }
 
 export interface FiltrosUnificados {
@@ -42,7 +44,8 @@ export interface FiltrosUnificados {
   termoBusca?: string;
   apenasNaoLidas?: boolean;
   apenasHoje?: boolean;
-  tipoOrigem?: 'termo' | 'processo' | 'todos';
+  tipoOrigem?: 'termo' | 'processo' | 'descartada' | 'todos';
+  incluirDescartadas?: boolean;
 }
 
 export interface EstatisticasCoordenacao {
@@ -349,6 +352,76 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         });
       }
 
+      // Buscar publicações DESCARTADAS
+      if (filtros.incluirDescartadas || filtros.tipoOrigem === 'descartada') {
+        let queryDescartadas = supabase
+          .from('publicacoes_djen_descartadas')
+          .select(`
+            id,
+            monitoramento_id,
+            processo_numero,
+            conteudo,
+            data_publicacao,
+            data_disponibilizacao,
+            tribunal,
+            motivo_descarte,
+            created_at,
+            monitoramento:monitoramentos_djen(
+              id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
+              coordenacao:coordenacoes(id, nome)
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (dataInicioFiltro) queryDescartadas = queryDescartadas.gte('created_at', dataInicioFiltro);
+        if (dataFimFiltro) queryDescartadas = queryDescartadas.lte('created_at', dataFimFiltro);
+
+        const { data: descartadasData } = await queryDescartadas.limit(200);
+
+        (descartadasData || []).forEach((pub: any) => {
+          // Filtrar por coordenação se especificado
+          if (filtros.coordenacaoId && pub.monitoramento?.coordenacao_id !== filtros.coordenacaoId) {
+            return;
+          }
+
+          // Filtrar por termo de busca
+          if (filtros.termoBusca) {
+            const termo = filtros.termoBusca.toLowerCase();
+            const match = 
+              pub.conteudo?.toLowerCase().includes(termo) ||
+              pub.processo_numero?.toLowerCase().includes(termo) ||
+              pub.monitoramento?.termo_busca?.toLowerCase().includes(termo) ||
+              pub.motivo_descarte?.toLowerCase().includes(termo);
+            if (!match) return;
+          }
+
+          resultados.push({
+            id: pub.id,
+            tipo_origem: 'descartada',
+            processo_id: null,
+            processo_numero: pub.processo_numero,
+            conteudo: pub.conteudo,
+            data_publicacao: pub.data_publicacao,
+            data_disponibilizacao: pub.data_disponibilizacao,
+            fonte: null,
+            lida: true, // descartadas são consideradas "lidas"
+            created_at: pub.created_at,
+            monitoramento_id: pub.monitoramento_id,
+            monitoramento_termo: pub.monitoramento?.termo_busca,
+            monitoramento_descricao: pub.monitoramento?.descricao,
+            monitoramento_tipo: pub.monitoramento?.tipo,
+            monitoramento_oab: pub.monitoramento?.oab,
+            monitoramento_uf: pub.monitoramento?.uf,
+            coordenacao_id: pub.monitoramento?.coordenacao_id,
+            coordenacao_nome: pub.monitoramento?.coordenacao?.nome,
+            polo_ativo: null,
+            polo_passivo: null,
+            tribunal: pub.tribunal,
+            motivo_descarte: pub.motivo_descarte,
+          });
+        });
+      }
+
       const deduped = dedupePublicacoesDjen(resultados);
 
       // Ordenar por data de criação (mais recentes primeiro)
@@ -361,7 +434,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
   // Marcar como lida
   const marcarComoLida = useMutation({
-    mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' }[]) => {
+    mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' }[]) => {
       const termos = items.filter(i => i.tipo_origem === 'termo').map(i => i.id);
       const processos = items.filter(i => i.tipo_origem === 'processo').map(i => i.id);
 
