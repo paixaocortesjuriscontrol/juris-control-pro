@@ -71,21 +71,40 @@ export function LiveExecutionPanel({
 
       const metadata = (cfg.metadata as Record<string, any> | null) ?? {};
       const lastRunMs = new Date(cfg.ultima_execucao).getTime();
-      const recentlyUpdated = Date.now() - lastRunMs <= 10 * 60 * 1000;
-      if (!recentlyUpdated) return null;
+      const ageMs = Date.now() - lastRunMs;
+      
+      // Não consideramos execuções muito antigas
+      if (ageMs > 10 * 60 * 1000) return null;
 
       const nextOffset = typeof metadata.next_offset === 'number' ? metadata.next_offset : null;
       const currentTribunalOffset = typeof metadata.current_tribunal_offset === 'number' ? metadata.current_tribunal_offset : null;
       const monitoramentosProcessados = typeof metadata.monitoramentos_processados === 'number' ? metadata.monitoramentos_processados : null;
+      const lastBatchSize = typeof metadata.last_batch_size === 'number' ? metadata.last_batch_size : null;
 
-      const isRunning =
+      // Detectamos execução em andamento quando:
+      // - status explícito 'em_andamento'
+      // - continuingRun flag
+      // - offset > 0 (ainda há lotes para processar)
+      const isActivelyRunning =
         metadata.status === 'em_andamento' ||
         metadata.continuingRun === true ||
         (nextOffset !== null && nextOffset > 0) ||
         (currentTribunalOffset !== null && currentTribunalOffset > 0) ||
         (monitoramentosProcessados !== null && monitoramentosProcessados > 0);
 
-      if (!isRunning) return null;
+      // Se não está ativamente rodando, verificamos se é uma execução recém-concluída (< 30s)
+      // para mostrar brevemente o status de conclusão
+      if (!isActivelyRunning) {
+        // Se last_complete_run é muito recente, mostramos como "concluído"
+        if (metadata.last_complete_run) {
+          const completeMs = new Date(metadata.last_complete_run).getTime();
+          if (Date.now() - completeMs <= 30 * 1000) {
+            // Retornamos null para deixar o toast aparecer, mas invalidamos queries
+            return null;
+          }
+        }
+        return null;
+      }
 
       const current =
         nextOffset ??
@@ -93,7 +112,8 @@ export function LiveExecutionPanel({
         monitoramentosProcessados ??
         0;
 
-      const total = typeof metadata.total === 'number' ? metadata.total : 0;
+      // Agora usamos o total do metadata se disponível
+      const total = typeof metadata.total === 'number' ? metadata.total : (lastBatchSize ? lastBatchSize * 100 : 0);
 
       return {
         id: cfg.id,
