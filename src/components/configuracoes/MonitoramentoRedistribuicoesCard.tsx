@@ -31,9 +31,21 @@ export function MonitoramentoRedistribuicoesCard({ coordenacaoId }: Props) {
   const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number } | null>(null);
   const canceladoRef = useRef(false);
 
-  const handleCancelar = () => {
+  const handleCancelar = async () => {
     canceladoRef.current = true;
-    toast.info("Cancelando após o lote atual...");
+    toast.info("Cancelando execução...");
+
+    // Se a execução estiver em auto-continuação (completeRun), marcamos no banco
+    // para que a edge function pare de agendar novos lotes.
+    if (configuracaoRedistribuicoes?.id) {
+      const currentMetadata = (configuracaoRedistribuicoes.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando' },
+        })
+        .eq('id', configuracaoRedistribuicoes.id);
+    }
   };
 
   const handleExecutarCompleto = async () => {
@@ -182,7 +194,7 @@ export function MonitoramentoRedistribuicoesCard({ coordenacaoId }: Props) {
           executandoManual={executandoCompleto}
           progressoManual={progresso}
           onCancel={handleCancelar}
-          showCancel={executandoCompleto}
+          showCancel
         />
 
         {/* Botão de execução */}
