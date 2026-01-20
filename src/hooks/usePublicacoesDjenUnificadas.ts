@@ -252,8 +252,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
       // Buscar publicações DESCARTADAS
       if (filtros.incluirDescartadas || filtros.tipoOrigem === 'descartada') {
-        let queryDescartadas = supabase
-          .from('publicacoes_djen_descartadas')
+        let queryDescartadas = (supabase
+          .from('publicacoes_djen_descartadas') as any)
           .select(`
             id,
             monitoramento_id,
@@ -263,6 +263,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             data_disponibilizacao,
             tribunal,
             motivo_descarte,
+            lida,
             created_at,
             monitoramento:monitoramentos_djen(
               id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
@@ -302,7 +303,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             data_publicacao: pub.data_publicacao,
             data_disponibilizacao: pub.data_disponibilizacao,
             fonte: null,
-            lida: true, // descartadas são consideradas "lidas"
+            lida: pub.lida ?? false,
             created_at: pub.created_at,
             monitoramento_id: pub.monitoramento_id,
             monitoramento_termo: pub.monitoramento?.termo_busca,
