@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Search, Play, Clock, PlayCircle, RefreshCw, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
@@ -13,6 +12,7 @@ import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { LiveExecutionPanel } from "./LiveExecutionPanel";
 
 interface Props {
   coordenacaoId: string;
@@ -194,20 +194,15 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
           </div>
         )}
 
-        {/* Progresso do monitoramento completo */}
-        {executandoCompleto && progresso && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span>
-                {progresso.monitoramento 
-                  ? `Buscando: ${progresso.monitoramento}` 
-                  : 'Buscando distribuições...'}
-              </span>
-              <span>{progresso.current} de {progresso.total} tribunais ({progresso.percentage}%)</span>
-            </div>
-            <Progress value={progresso.percentage} className="h-2" />
-          </div>
-        )}
+        {/* Painel de Execução em Tempo Real */}
+        <LiveExecutionPanel
+          tipo="distribuicoes"
+          titulo={progresso?.monitoramento ? `Buscando: ${progresso.monitoramento}` : "Buscando distribuições..."}
+          executandoManual={executandoCompleto}
+          progressoManual={progresso}
+          onCancel={handleCancelar}
+          showCancel={executandoCompleto}
+        />
 
         {/* Botões de execução */}
         <div className="flex gap-2">

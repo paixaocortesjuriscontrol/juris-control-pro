@@ -4,13 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { FileText, Play, Clock, PlayCircle, RefreshCw, XCircle, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { LiveExecutionPanel } from "./LiveExecutionPanel";
 
 interface Props {
   coordenacaoId: string;
@@ -261,16 +261,15 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
           </div>
         )}
 
-        {/* Progresso do monitoramento completo */}
-        {executandoCompleto && progresso && (
-          <div className="space-y-2 pt-4 border-t">
-            <div className="flex items-center justify-between text-sm">
-              <span>Buscando andamentos e audiências...</span>
-              <span>{progresso.current} de {progresso.total} ({progresso.percentage}%)</span>
-            </div>
-            <Progress value={progresso.percentage} className="h-2" />
-          </div>
-        )}
+        {/* Painel de Execução em Tempo Real */}
+        <LiveExecutionPanel
+          tipo="andamentos"
+          titulo="Buscando andamentos e audiências..."
+          executandoManual={executandoCompleto}
+          progressoManual={progresso}
+          onCancel={handleCancelar}
+          showCancel={executandoCompleto}
+        />
 
         {/* Botões de execução */}
         <div className="flex gap-2 pt-4 border-t">
