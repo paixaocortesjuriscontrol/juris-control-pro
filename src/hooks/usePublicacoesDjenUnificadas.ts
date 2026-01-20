@@ -2,8 +2,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { startOfDay, endOfDay, format } from "date-fns";
+import { startOfDay, endOfDay, subHours, addHours } from "date-fns";
 import { dedupePublicacoesDjen } from "@/utils/djenDedup";
+
+// Helper para formatar data em ISO com timezone UTC
+const formatToUTC = (date: Date) => date.toISOString();
 
 export interface PublicacaoUnificada {
   id: string;
@@ -61,16 +64,18 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const { data: estatisticas = [], isLoading: loadingStats } = useQuery({
     queryKey: ['publicacoes-unificadas-stats', filtros.dataInicio, filtros.dataFim, filtros.apenasHoje, filtros.coordenacaoId],
     queryFn: async () => {
+      // Usar timezone UTC para filtros de data
+      // startOfDay/endOfDay usa timezone local, então precisamos converter para UTC
       const dataInicioFiltro = filtros.apenasHoje 
-        ? format(startOfDay(new Date()), "yyyy-MM-dd'T'HH:mm:ss")
+        ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio 
-          ? `${filtros.dataInicio}T00:00:00`
+          ? `${filtros.dataInicio}T00:00:00Z`
           : undefined;
       
       const dataFimFiltro = filtros.apenasHoje
-        ? format(endOfDay(new Date()), "yyyy-MM-dd'T'HH:mm:ss")
+        ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
-          ? `${filtros.dataFim}T23:59:59`
+          ? `${filtros.dataFim}T23:59:59Z`
           : undefined;
 
       // Buscar publicações de termos agrupadas
@@ -165,16 +170,17 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     queryFn: async () => {
       if (!user?.id) return [];
       
+      // Usar timezone UTC para filtros de data
       const dataInicioFiltro = filtros.apenasHoje 
-        ? format(startOfDay(new Date()), "yyyy-MM-dd'T'HH:mm:ss")
+        ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio 
-          ? `${filtros.dataInicio}T00:00:00`
+          ? `${filtros.dataInicio}T00:00:00Z`
           : undefined;
       
       const dataFimFiltro = filtros.apenasHoje
-        ? format(endOfDay(new Date()), "yyyy-MM-dd'T'HH:mm:ss")
+        ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
-          ? `${filtros.dataFim}T23:59:59`
+          ? `${filtros.dataFim}T23:59:59Z`
           : undefined;
 
       const resultados: PublicacaoUnificada[] = [];
