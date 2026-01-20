@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Radar, Play, Clock, PlayCircle, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
@@ -13,6 +12,7 @@ import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { LiveExecutionPanel } from "./LiveExecutionPanel";
 
 interface Props {
   coordenacaoId: string;
@@ -187,16 +187,15 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
           </div>
         )}
 
-        {/* Progresso do monitoramento completo */}
-        {executandoCompleto && progresso && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span>Verificando processos...</span>
-              <span>{progresso.current} de {progresso.total} ({progresso.percentage}%)</span>
-            </div>
-            <Progress value={progresso.percentage} className="h-2" />
-          </div>
-        )}
+        {/* Painel de Execução em Tempo Real */}
+        <LiveExecutionPanel
+          tipo="termos"
+          titulo="Verificando termos estratégicos..."
+          executandoManual={executandoCompleto}
+          progressoManual={progresso}
+          onCancel={handleCancelar}
+          showCancel={executandoCompleto}
+        />
 
         {/* Botões de execução */}
         <div className="flex gap-2">
