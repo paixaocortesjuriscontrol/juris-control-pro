@@ -423,7 +423,7 @@ interface SearchParams {
 async function processMonitoramento(
   supabase: any,
   monitoramento: Monitoramento,
-  options: { scheduled?: boolean } = {}
+  options: { scheduled?: boolean; dataInicio?: string; dataFim?: string } = {}
 ): Promise<{ novas: number; descartadas: number; duplicatas: number; tribunaisStats: TribunalStats[] }> {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
   const tribunaisStats: TribunalStats[] = [];
@@ -490,7 +490,12 @@ async function processMonitoramento(
     let pages = 0;
 
     for (const candidate of searchCandidates) {
-      const searchParams: SearchParams = { ...candidate, siglaTribunal: tribunal };
+      const searchParams: SearchParams = { 
+        ...candidate, 
+        siglaTribunal: tribunal,
+        dataInicio: options.dataInicio,
+        dataFim: options.dataFim,
+      };
       const result = await fetchDJENResultsWithStats(searchParams, { scheduled: options.scheduled === true });
       publications = result.items;
       pages = result.pages;
@@ -894,6 +899,12 @@ serve(async (req) => {
     const urlOffsetRaw = url.searchParams.get('offset');
     const urlOffset = urlOffsetRaw !== null ? Number.parseInt(urlOffsetRaw, 10) : NaN;
 
+    // Ler datas do período de consulta (passadas via query params do frontend)
+    const dataInicioParam = url.searchParams.get('dataInicio');
+    const dataFimParam = url.searchParams.get('dataFim');
+    
+    console.log(`[DJEN] Date params from URL: dataInicio=${dataInicioParam}, dataFim=${dataFimParam}`);
+
     let offset = Number.isFinite(urlOffset) ? urlOffset : 0;
 
     if (completeRun && !Number.isFinite(urlOffset) && !continued) {
@@ -903,6 +914,7 @@ serve(async (req) => {
     console.log(`=== DJEN Monitor START ===`);
     console.log(`  Params: offset=${offset} | scheduled=${scheduled} | completeRun=${completeRun} | continued=${continued} | retryCount=${retryCount}`);
     console.log(`  URL offset param: ${urlOffsetRaw}`);
+    console.log(`  Date range: ${dataInicioParam || 'hoje'} to ${dataFimParam || 'hoje'}`);
     console.log(`  Body: ${JSON.stringify(body).slice(0, 200)}`);
     const startTime = Date.now();
 
@@ -1130,7 +1142,11 @@ serve(async (req) => {
         processedCount++;
         console.log(`[${processedCount}/${count}] ${mon.descricao || mon.termo_busca}`);
 
-        const stats = await processMonitoramento(supabase, mon, { scheduled });
+        const stats = await processMonitoramento(supabase, mon, { 
+          scheduled,
+          dataInicio: dataInicioParam || undefined,
+          dataFim: dataFimParam || undefined,
+        });
         totalNovas += stats.novas;
         totalDescartadas += stats.descartadas;
         totalDuplicatas += stats.duplicatas;
