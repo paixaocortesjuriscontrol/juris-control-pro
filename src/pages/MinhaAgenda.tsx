@@ -359,7 +359,17 @@ export default function MinhaAgenda() {
     }
   }, [viewMode, selectedDate, periodoRapido, dataInicioFiltro, dataFimFiltro]);
 
+  // Fetch-all mode:
+  // - admin/coordinator with "todas" and no member filter
+  // - OR user has no coordination (userCoordenacao === null)
+  const isFetchAllMode =
+    (isAdminOrCoordinator && coordenacaoFiltro === "todas" && membrosFiltro.length === 0) ||
+    userCoordenacao === null;
+
   const responsavelIdsForAgenda = useMemo(() => {
+    // When fetching all, do NOT apply responsavelIds filtering (otherwise events get re-filtered to the user)
+    if (isFetchAllMode) return undefined;
+
     if (membrosFiltro.length > 0) return membrosFiltro;
     if (!user?.id) return undefined;
 
@@ -370,10 +380,10 @@ export default function MinhaAgenda() {
     }
 
     return undefined;
-  }, [membrosFiltro, user?.id, isAdminOrCoordinator, coordenacaoFiltro, membroIdsCoordenacao]);
+  }, [isFetchAllMode, membrosFiltro, user?.id, isAdminOrCoordinator, coordenacaoFiltro, membroIdsCoordenacao]);
 
   // Build filters for agenda
-  const shouldFetchAll = isAdminOrCoordinator && coordenacaoFiltro === "todas" && membrosFiltro.length === 0;
+  const shouldFetchAll = isFetchAllMode;
   
   const filters: AgendaUnificadaFilters = {
     tipos: tiposFiltro.length > 0 ? tiposFiltro : undefined,
