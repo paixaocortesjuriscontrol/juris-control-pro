@@ -201,8 +201,9 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     setExecutando(true);
     setProgresso({ atual: 0, total: 0, novas: 0 });
     setUltimoResultado(null);
-    
+
     let offset = 0;
+    let currentRunId: string | null = null;
     let totalProcessados = 0;
     let totalNovas = 0;
     let totalDescartadas = 0;
@@ -212,20 +213,30 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     let allTribunaisStats: TribunalStat[] = [];
     let hasMore = true;
     let totalDuration = 0;
-    
+
     try {
       const { count } = await supabase
         .from('monitoramentos_djen')
         .select('*', { count: 'exact', head: true })
         .eq('ativo', true);
-      
+
       const total = count || 0;
       setProgresso(p => ({ ...p, total }));
-      
+
       while (hasMore) {
         toast.info(`Processando lote ${Math.floor(offset / 10) + 1}...`);
 
-        const url = `${import.meta.env.VITE_SUPABASE_URL || 'https://bfxahrrvoqxcdmfsvnrk.supabase.co'}/functions/v1/monitorar-djen?offset=${offset}`;
+        const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://bfxahrrvoqxcdmfsvnrk.supabase.co';
+        const url = `${baseUrl}/functions/v1/monitorar-djen?offset=${offset}`;
+
+        const session = (await supabase.auth.getSession()).data.session;
+        if (!session?.access_token) {
+          throw new Error('Sessão expirada. Faça login novamente.');
+        }
+
+        const requestBody = currentRunId
+          ? { continued: true, parentRunId: currentRunId }
+          : {};
 
         let response: Response | null = null;
         for (let attempt = 0; attempt < 3; attempt++) {
@@ -237,8 +248,9 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+                'Authorization': `Bearer ${session.access_token}`,
               },
+              body: JSON.stringify(requestBody),
               signal: controller.signal,
             });
 
@@ -259,13 +271,18 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           const errorText = await response.text();
           throw new Error(`Erro: ${response.status} - ${errorText}`);
         }
-        
+
         const result = await response.json();
-        
+
+        // Mantém o mesmo run_id entre lotes para o Realtime não "pular" entre execuções
+        if (!currentRunId && (result.runId || result.run_id)) {
+          currentRunId = (result.runId || result.run_id) as string;
+        }
+
         if (result.error) {
           throw new Error(result.error);
         }
-        
+
         totalProcessados += result.processados || 0;
         totalNovas += result.novasPublicacoes || 0;
         totalDescartadas += result.descartadas || 0;
@@ -273,7 +290,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         totalPaginas += result.totalPaginas || 0;
         totalResultados += result.totalResultados || 0;
         totalDuration += result.duracaoSegundos || 0;
-        
+
         // Merge tribunal stats
         if (result.tribunaisStats) {
           for (const ts of result.tribunaisStats) {
@@ -289,24 +306,24 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             }
           }
         }
-        
+
         hasMore = result.hasMore || false;
-        
-        setProgresso({ 
-          atual: totalProcessados, 
-          total, 
-          novas: totalNovas 
+
+        setProgresso({
+          atual: totalProcessados,
+          total,
+          novas: totalNovas
         });
-        
+
         if (hasMore && result.nextOffset) {
           offset = result.nextOffset;
           await new Promise(r => setTimeout(r, 1000));
         }
       }
-      
+
       // Sort by resultados
       allTribunaisStats.sort((a, b) => b.resultados - a.resultados);
-      
+
       setUltimoResultado({
         processados: totalProcessados,
         novas: totalNovas,
@@ -317,15 +334,15 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         tribunaisStats: allTribunaisStats,
         duracaoSegundos: totalDuration,
       });
-      
+
       if (allTribunaisStats.length > 0) {
         setStatsOpen(true);
       }
-      
+
       toast.success(`Monitoramento concluído: ${totalProcessados} verificados, ${totalNovas} novas, ${totalPaginas} páginas buscadas`);
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
       queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
-      
+
     } catch (error) {
       console.error('Erro no monitoramento:', error);
       toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
