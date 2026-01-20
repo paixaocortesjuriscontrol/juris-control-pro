@@ -433,9 +433,8 @@ export function CriarTarefaPublicacaoDialog({
                       Tarefas criadas ({tarefasCriadas.length})
                     </span>
                   </div>
-                  <ScrollArea className="max-h-[200px] pr-3">
-                    <div className="space-y-2">
-                      {tarefasCriadas.map((tarefa, idx) => (
+                  <div className="max-h-[150px] md:max-h-[200px] overflow-y-auto pr-1 space-y-2">
+                    {tarefasCriadas.map((tarefa, idx) => (
                         <button 
                           type="button"
                           key={tarefa?.id || idx} 
@@ -496,9 +495,8 @@ export function CriarTarefaPublicacaoDialog({
                             )}
                           </div>
                         </button>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                    ))}
+                  </div>
                 </div>
               )}
               
