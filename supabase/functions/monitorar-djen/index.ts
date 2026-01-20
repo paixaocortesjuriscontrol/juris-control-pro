@@ -676,6 +676,15 @@ async function fetchDJENResultsWithStats(
   const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
   const dataHoje = todayBrasilia.toISOString().split('T')[0];
 
+  // Importante: o parâmetro da API é dataDisponibilizacao (muitas vezes 1 dia antes da data_publicacao).
+  // Para não perder publicações “virando o dia”, em execuções agendadas buscamos ontem->hoje por padrão.
+  const yesterdayBrasilia = new Date(todayBrasilia);
+  yesterdayBrasilia.setDate(yesterdayBrasilia.getDate() - 1);
+  const dataOntem = yesterdayBrasilia.toISOString().split('T')[0];
+
+  const defaultInicio = options.scheduled ? dataOntem : dataHoje;
+  const defaultFim = dataHoje;
+
   while (page < maxPages) {
     const queryParams = new URLSearchParams();
 
@@ -703,9 +712,8 @@ async function fetchDJENResultsWithStats(
     
     if (params.siglaTribunal) queryParams.set('siglaTribunal', params.siglaTribunal);
 
-    // Por padrão, mantém o comportamento atual (hoje em Brasília)
-    queryParams.set('dataDisponibilizacaoInicio', params.dataInicio || dataHoje);
-    queryParams.set('dataDisponibilizacaoFim', params.dataFim || dataHoje);
+    queryParams.set('dataDisponibilizacaoInicio', params.dataInicio || defaultInicio);
+    queryParams.set('dataDisponibilizacaoFim', params.dataFim || defaultFim);
     queryParams.set('pagina', page.toString());
     queryParams.set('itensPorPagina', '100');
 
