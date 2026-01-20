@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Radio, Clock, RefreshCw, StopCircle, CheckCircle2, XCircle, Layers, FileText } from "lucide-react";
+import { Radio, Clock, RefreshCw, StopCircle, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -22,6 +22,21 @@ export interface LiveExecution {
   finalizado_em?: string | null;
   duracao_segundos?: number;
   detalhes?: Record<string, any>;
+}
+
+function IndeterminateProgress() {
+  return (
+    <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+      <div className="absolute inset-y-0 left-0 w-1/3 animate-[indeterminate_1.4s_ease-in-out_infinite] rounded-full bg-primary/30" />
+      <style>{`
+        @keyframes indeterminate {
+          0% { transform: translateX(-100%); }
+          50% { transform: translateX(200%); }
+          100% { transform: translateX(300%); }
+        }
+      `}</style>
+    </div>
+  );
 }
 
 interface LiveExecutionPanelProps {
@@ -45,9 +60,54 @@ export function LiveExecutionPanel({
   const [liveExecution, setLiveExecution] = useState<LiveExecution | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
-  // Real-time subscription para historico_monitoramento
+  // Real-time subscription para historico_monitoramento + fallback via configuracoes_monitoramento
+  // (alguns robôs atualizam apenas configuracoes_monitoramento, sem inserir em historico_monitoramento)
   useEffect(() => {
     let disposed = false;
+    let lastCompleteRunSeen: string | null = null;
+
+    const buildExecutionFromConfig = (cfg: any): LiveExecution | null => {
+      if (!cfg?.ultima_execucao) return null;
+
+      const metadata = (cfg.metadata as Record<string, any> | null) ?? {};
+      const lastRunMs = new Date(cfg.ultima_execucao).getTime();
+      const recentlyUpdated = Date.now() - lastRunMs <= 10 * 60 * 1000;
+      if (!recentlyUpdated) return null;
+
+      const nextOffset = typeof metadata.next_offset === 'number' ? metadata.next_offset : null;
+      const currentTribunalOffset = typeof metadata.current_tribunal_offset === 'number' ? metadata.current_tribunal_offset : null;
+      const monitoramentosProcessados = typeof metadata.monitoramentos_processados === 'number' ? metadata.monitoramentos_processados : null;
+
+      const isRunning =
+        metadata.status === 'em_andamento' ||
+        metadata.continuingRun === true ||
+        (nextOffset !== null && nextOffset > 0) ||
+        (currentTribunalOffset !== null && currentTribunalOffset > 0) ||
+        (monitoramentosProcessados !== null && monitoramentosProcessados > 0);
+
+      if (!isRunning) return null;
+
+      const current =
+        nextOffset ??
+        currentTribunalOffset ??
+        monitoramentosProcessados ??
+        0;
+
+      const total = typeof metadata.total === 'number' ? metadata.total : 0;
+
+      return {
+        id: cfg.id,
+        status: 'em_andamento',
+        tipo: cfg.tipo,
+        processados: current,
+        total,
+        iniciado_em: cfg.ultima_execucao,
+        detalhes: {
+          ...metadata,
+          source: 'configuracoes_monitoramento',
+        },
+      };
+    };
 
     const checkCurrentExecution = async () => {
       // Busca execuções em andamento dos últimos 5 minutos
@@ -86,7 +146,22 @@ export function LiveExecutionPanel({
         } else {
           setLiveExecution(null);
         }
+        return;
       }
+
+      // Fallback: alguns tipos (ex.: termos/distribuicoes) não alimentam historico_monitoramento
+      const { data: cfg } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('id, tipo, ultima_execucao, metadata')
+        .eq('tipo', tipo)
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      if (disposed) return;
+
+      const execFromCfg = buildExecutionFromConfig(cfg);
+      setLiveExecution(execFromCfg);
+      if (execFromCfg) setUpdatedAt(new Date());
     };
 
     checkCurrentExecution();
@@ -144,6 +219,41 @@ export function LiveExecutionPanel({
       )
       .subscribe();
 
+    const configChannel = supabase
+      .channel(`configuracoes-${tipo}-realtime`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'configuracoes_monitoramento',
+          filter: `tipo=eq.${tipo}`,
+        },
+        (payload) => {
+          const cfg = payload.new as any;
+          const metadata = (cfg?.metadata as Record<string, any> | null) ?? {};
+
+          // Se registrou um "last_complete_run" novo, consideramos execução concluída (e soltamos toast)
+          if (metadata.last_complete_run && metadata.last_complete_run !== lastCompleteRunSeen) {
+            lastCompleteRunSeen = metadata.last_complete_run;
+            const completedAtMs = new Date(metadata.last_complete_run).getTime();
+            if (Date.now() - completedAtMs <= 2 * 60 * 1000) {
+              setLiveExecution(null);
+              queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+              queryClient.invalidateQueries({ queryKey: ['historico-monitoramento'] });
+              toast.success(`Execução concluída (${tipo})`);
+              return;
+            }
+          }
+
+          const execFromCfg = buildExecutionFromConfig(cfg);
+          setLiveExecution(execFromCfg);
+          setUpdatedAt(new Date());
+          queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+        }
+      )
+      .subscribe();
+
     // Polling como fallback
     const interval = setInterval(checkCurrentExecution, 5000);
 
@@ -151,6 +261,7 @@ export function LiveExecutionPanel({
       disposed = true;
       clearInterval(interval);
       supabase.removeChannel(channel);
+      supabase.removeChannel(configChannel);
     };
   }, [tipo, queryClient]);
 
@@ -208,12 +319,22 @@ export function LiveExecutionPanel({
         
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span>Processando: {liveExecution.processados}/{liveExecution.total}</span>
+            <span>
+              {liveExecution.total > 0
+                ? `Processando: ${liveExecution.processados}/${liveExecution.total}`
+                : liveExecution.processados > 0
+                  ? `Processando lote (offset: ${liveExecution.processados})`
+                  : 'Processando lote...'}
+            </span>
             {liveExecution.resultados !== undefined && liveExecution.resultados > 0 && (
               <span className="text-primary">+{liveExecution.resultados}</span>
             )}
           </div>
-          <Progress value={percent} className="h-2" />
+          {liveExecution.total > 0 ? (
+            <Progress value={percent} className="h-2" />
+          ) : (
+            <IndeterminateProgress />
+          )}
         </div>
         
         <div className="flex flex-wrap gap-2 text-xs">
@@ -221,6 +342,12 @@ export function LiveExecutionPanel({
             <Badge variant="secondary" className="gap-1">
               <Clock className="h-3 w-3" />
               {liveExecution.duracao_segundos}s
+            </Badge>
+          )}
+          {updatedAt && (
+            <Badge variant="secondary" className="gap-1">
+              <RefreshCw className="h-3 w-3" />
+              atualizado {format(toZonedTime(updatedAt, 'America/Sao_Paulo'), "HH:mm:ss", { locale: ptBR })}
             </Badge>
           )}
           {liveExecution.erros !== undefined && liveExecution.erros > 0 && (
