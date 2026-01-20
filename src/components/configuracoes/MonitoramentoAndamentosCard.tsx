@@ -95,9 +95,20 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
     atualizarHorarios.mutate(novosHorarios);
   };
 
-  const handleCancelar = () => {
+  const handleCancelar = async () => {
     canceladoRef.current = true;
-    toast.info("Cancelando após o lote atual...");
+    toast.info("Cancelando execução...");
+
+    // Marca no banco para interromper a auto-continuação (completeRun)
+    if (config?.id) {
+      const currentMetadata = (config.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando' },
+        })
+        .eq('id', config.id);
+    }
   };
 
 
@@ -241,7 +252,7 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
           executandoManual={executandoCompleto}
           progressoManual={progresso}
           onCancel={handleCancelar}
-          showCancel={executandoCompleto}
+          showCancel
         />
 
         {/* Botão de execução */}

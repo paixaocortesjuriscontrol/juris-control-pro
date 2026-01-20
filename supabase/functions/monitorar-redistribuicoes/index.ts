@@ -453,23 +453,49 @@ serve(async (req) => {
     const { isComplete, results, progress } = await processBatch(supabase);
 
     // Auto-continuation: if completeRun and not complete, trigger next batch
+    // But first check if cancellation was requested (configuracoes_monitoramento.metadata.cancelado)
     if (completeRun && !isComplete) {
-      const functionUrl = `${supabaseUrl}/functions/v1/monitorar-redistribuicoes`;
-      const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
-      
-      // Fire and forget - trigger next batch asynchronously
-      fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({ completeRun: true }),
-      }).catch(err => {
-        console.error('Error triggering next batch:', err);
-      });
+      const { data: freshConfig } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'redistribuicoes')
+        .is('coordenacao_id', null)
+        .maybeSingle();
 
-      console.log(`Batch processed, triggered next batch. Progress: ${progress.percentage}%`);
+      const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
+
+      if (wasCancelled) {
+        console.log('Execution cancelled by user, stopping auto-continuation');
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: {
+              ...(freshConfig?.metadata as any),
+              cancelado: false,
+              status: 'cancelado',
+              continuingRun: false,
+            },
+          })
+          .eq('tipo', 'redistribuicoes')
+          .is('coordenacao_id', null);
+      } else {
+        const functionUrl = `${supabaseUrl}/functions/v1/monitorar-redistribuicoes`;
+        const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+
+        // Fire and forget - trigger next batch asynchronously
+        fetch(functionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({ completeRun: true }),
+        }).catch(err => {
+          console.error('Error triggering next batch:', err);
+        });
+
+        console.log(`Batch processed, triggered next batch. Progress: ${progress.percentage}%`);
+      }
     }
 
     if (isComplete && completeRun) {

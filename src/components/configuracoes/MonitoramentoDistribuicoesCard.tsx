@@ -191,7 +191,7 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
           executandoManual={executandoCompleto}
           progressoManual={progresso}
           onCancel={handleCancelar}
-          showCancel={executandoCompleto}
+          showCancel
         />
 
         {/* Botão de execução */}
