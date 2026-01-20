@@ -887,6 +887,25 @@ const AnaliseDjen = () => {
                                            )}
                                            <span className="text-xs">Importar</span>
                                          </Button>
+                                       ) : pub.tipo_origem === 'descartada' && pub.processo_numero ? (
+                                         <Button
+                                           variant="outline"
+                                           size="sm"
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             handleImportarProcesso(pub);
+                                           }}
+                                           disabled={importingProcessoId === pub.id}
+                                           title="Importar processo descartado e criar pasta"
+                                           className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-400"
+                                         >
+                                           {importingProcessoId === pub.id ? (
+                                             <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1 animate-spin" />
+                                           ) : (
+                                             <FolderPlus className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                           )}
+                                           <span className="text-xs">Importar</span>
+                                         </Button>
                                        ) : null}
                                        
                                        <Button
