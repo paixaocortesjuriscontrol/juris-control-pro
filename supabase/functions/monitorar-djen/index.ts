@@ -42,77 +42,9 @@ const browserHeaders = {
   "Referer": "https://comunica.pje.jus.br/",
 };
 
-// Bright Data API Token (opcional; útil para execuções agendadas onde o IP do datacenter toma 403)
-const BRIGHT_DATA_TOKEN = Deno.env.get('BRIGHT_DATA_AUTH') || '';
-
 // Jina Reader proxy (fast and cheap fallback)
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
-
-// Fetch via Bright Data REST API - IP Residencial BR
-async function fetchViaBrightData(url: string): Promise<any | null> {
-  if (!BRIGHT_DATA_TOKEN) {
-    console.log('[DJEN] BRIGHT_DATA_AUTH not configured');
-    return null;
-  }
-
-  try {
-    console.log('[DJEN] Trying Bright Data (residential IP)...');
-
-    const brightDataUrl = 'https://api.brightdata.com/request';
-    const requestPayload = {
-      zone: 'juris_control',
-      url,
-      country: 'br',
-      format: 'raw',
-    };
-
-    const resp = await fetch(brightDataUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${BRIGHT_DATA_TOKEN}`,
-      },
-      body: JSON.stringify(requestPayload),
-    });
-
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => '');
-      console.log(`[DJEN] Bright Data API error ${resp.status}: ${errText.slice(0, 500)}`);
-      return null;
-    }
-
-    const text = await resp.text();
-
-    try {
-      const data = JSON.parse(text);
-
-      // Pode vir direto
-      if (data && (data.comunicacoes || data.items || Array.isArray(data))) {
-        console.log('[DJEN] ✓ Bright Data success!');
-        return data;
-      }
-
-      // Ou embrulhado em { body: ... }
-      if (data?.body) {
-        const bodyData = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
-        if (bodyData && (bodyData.comunicacoes || bodyData.items || Array.isArray(bodyData))) {
-          console.log('[DJEN] ✓ Bright Data success (wrapped)!');
-          return bodyData;
-        }
-      }
-
-      console.log('[DJEN] Bright Data unexpected structure:', Object.keys(data || {}).slice(0, 10));
-      return null;
-    } catch {
-      console.log('[DJEN] Bright Data returned non-JSON:', text.slice(0, 300));
-      return null;
-    }
-  } catch (e) {
-    console.log('[DJEN] Bright Data fetch failed:', e);
-    return null;
-  }
-}
 
 // Fast Jina proxy fallback (cheap and fast - ~$0.001/request)
 async function fetchJsonViaJina(url: string): Promise<any | null> {
@@ -174,24 +106,6 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
   } finally {
     clearTimeout(timeoutId);
   }
-}
-
-type ProxyOptions = { useBrightData?: boolean };
-
-// Proxy fetch: para agendado, tenta Bright Data (residencial) primeiro; depois cai pro Jina.
-async function fetchViaProxy(url: string, options: ProxyOptions = {}): Promise<any | null> {
-  if (options.useBrightData) {
-    const bright = await fetchViaBrightData(url);
-    if (bright) return bright;
-  }
-
-  if (JINA_API_KEY) {
-    const result = await fetchJsonViaJina(url);
-    if (result) return result;
-  }
-
-  console.log('[DJEN] Proxy fallback failed');
-  return null;
 }
 
 function delay(ms: number): Promise<void> {
@@ -786,12 +700,10 @@ async function fetchDJENResultsWithStats(
 
       let data: any | null = null;
 
-      // Se a API bloquear (403 ou HTML), tenta via proxy:
-      // - agendado: Bright Data (residencial) → Jina
-      // - manual: apenas Jina (mais barato)
+      // Se a API bloquear (403 ou HTML), tenta via Jina
       if (!response.ok || contentType.includes('text/html')) {
         console.error(`API error: ${response.status}`);
-        data = await fetchViaProxy(url, { useBrightData: options.scheduled === true });
+        data = await fetchJsonViaJina(url);
 
         if (!data) break;
       } else {
