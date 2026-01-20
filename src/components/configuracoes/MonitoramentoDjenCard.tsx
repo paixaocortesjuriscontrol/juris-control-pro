@@ -9,7 +9,9 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle, Trash2 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle, Trash2, CalendarIcon } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
 import { format } from "date-fns";
@@ -17,6 +19,7 @@ import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface LiveRun {
   run_id: string;
@@ -81,6 +84,10 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const [cancelando, setCancelando] = useState(false);
   const [limpando, setLimpando] = useState(false);
   const { runDetails } = useDjenRunDetails(selectedRunId);
+  
+  // Estados para período de consulta
+  const [dataInicio, setDataInicio] = useState<Date>(new Date());
+  const [dataFim, setDataFim] = useState<Date>(new Date());
 
   // Fetch last execution report from historico_monitoramento and new djen_runs table
   const { data: ultimoHistorico } = useQuery({
@@ -231,8 +238,10 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       while (hasMore && !cancelarManualRef.current) {
         toast.info(`Processando lote ${Math.floor(offset / 10) + 1}...`);
 
+        const dataInicioStr = format(dataInicio, 'yyyy-MM-dd');
+        const dataFimStr = format(dataFim, 'yyyy-MM-dd');
         const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://bfxahrrvoqxcdmfsvnrk.supabase.co';
-        const url = `${baseUrl}/functions/v1/monitorar-djen?offset=${offset}`;
+        const url = `${baseUrl}/functions/v1/monitorar-djen?offset=${offset}&dataInicio=${dataInicioStr}&dataFim=${dataFimStr}`;
 
         const session = (await supabase.auth.getSession()).data.session;
         if (!session?.access_token) {
@@ -800,6 +809,67 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             </CollapsibleContent>
           </Collapsible>
         )}
+
+        {/* Período de consulta */}
+        <div className="space-y-2">
+          <Label>Período de Consulta</Label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex-1">
+              <Label className="text-xs text-muted-foreground mb-1 block">Data Início</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !dataInicio && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dataInicio ? format(dataInicio, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dataInicio}
+                    onSelect={(date) => date && setDataInicio(date)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="flex-1">
+              <Label className="text-xs text-muted-foreground mb-1 block">Data Fim</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !dataFim && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dataFim ? format(dataFim, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dataFim}
+                    onSelect={(date) => date && setDataFim(date)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+        </div>
 
         {/* Botões de execução */}
         <div className="flex flex-col sm:flex-row gap-2">
