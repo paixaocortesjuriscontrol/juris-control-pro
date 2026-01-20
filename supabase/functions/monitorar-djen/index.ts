@@ -67,11 +67,10 @@ async function fetchViaBrightData(apiUrl: string): Promise<any | null> {
     const brightDataUrl = `https://api.brightdata.com/request`;
     
     const requestPayload = {
-      zone: 'scraping_browser', // Scraping Browser zone
+      zone: 'juris_control', // Browser API zone configured in Bright Data
       url: apiUrl,
       country: 'br', // Brazilian IP
-      format: 'json',
-      render: true, // Use browser rendering
+      format: 'raw', // Return raw response
     };
 
     console.log('[DJEN] Bright Data payload:', JSON.stringify(requestPayload));
