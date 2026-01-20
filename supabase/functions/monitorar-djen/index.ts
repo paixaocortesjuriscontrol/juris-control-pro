@@ -1164,7 +1164,7 @@ serve(async (req) => {
       if (staleRuns && staleRuns.length > 0) {
         console.log(`[DJEN] Cancelling ${staleRuns.length} stale run(s): ${staleRuns.map(r => r.run_id).join(', ')}`);
         await supabase.from('djen_runs')
-          .update({ status: 'cancelado', motivo_erro: 'Cancelado por nova execução agendada' })
+          .update({ status: 'cancelado', motivo_erro: 'Cancelado por nova execução agendada', finalizado_em: new Date().toISOString() })
           .eq('status', 'em_andamento')
           .lt('iniciado_em', new Date(Date.now() - 30 * 60 * 1000).toISOString());
       }
