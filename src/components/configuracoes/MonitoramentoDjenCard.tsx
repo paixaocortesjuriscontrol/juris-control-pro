@@ -75,8 +75,9 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const [selectedRunId, setSelectedRunId] = useState<string>('');
   const [runsHistoryOpen, setRunsHistoryOpen] = useState(false);
   const [liveRun, setLiveRun] = useState<LiveRun | null>(null);
+  const [liveUpdatedAt, setLiveUpdatedAt] = useState<Date | null>(null);
   const { runDetails } = useDjenRunDetails(selectedRunId);
-  
+
   // Fetch last execution report from historico_monitoramento and new djen_runs table
   const { data: ultimoHistorico } = useQuery({
     queryKey: ['historico-monitoramento-djen'],
@@ -115,18 +116,13 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Real-time subscription for djen_runs updates
+  // Real-time subscription for djen_runs updates (+ fallback polling)
   useEffect(() => {
-    // Check for currently running run on mount
-    const checkCurrentRun = async () => {
-      const { data } = await supabase
-        .from('djen_runs')
-        .select('*')
-        .eq('status', 'em_andamento')
-        .order('iniciado_em', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
+    let disposed = false;
+
+    const applyRun = (data: any | null) => {
+      if (disposed) return;
+
       if (data) {
         setLiveRun({
           run_id: data.run_id,
@@ -142,11 +138,37 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           duracao_segundos: data.duracao_segundos || 0,
           iniciado_em: data.iniciado_em,
         });
+        setLiveUpdatedAt(new Date());
+      } else {
+        setLiveRun(null);
+        setLiveUpdatedAt(null);
       }
     };
-    
+
+    // Check for currently running run on mount (and via polling)
+    const checkCurrentRun = async () => {
+      const { data, error } = await supabase
+        .from('djen_runs')
+        .select('*')
+        .eq('status', 'em_andamento')
+        .order('iniciado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        // If the select fails, don't break the screen; just keep the last known state.
+        console.error('[DJEN] Falha ao buscar execução em andamento:', error);
+        return;
+      }
+
+      applyRun(data ?? null);
+    };
+
     checkCurrentRun();
-    
+
+    // Fallback polling (Realtime may not be enabled for the table)
+    const pollId = window.setInterval(checkCurrentRun, 5000);
+
     const channel = supabase
       .channel('djen-runs-realtime')
       .on(
@@ -158,30 +180,21 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         },
         (payload) => {
           const newData = payload.new as any;
-          
+
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             if (newData.status === 'em_andamento') {
-              setLiveRun({
-                run_id: newData.run_id,
-                status: newData.status,
-                processados: newData.processados || 0,
-                novas: newData.novas || 0,
-                descartadas: newData.descartadas || 0,
-                duplicatas: newData.duplicatas || 0,
-                erros: newData.erros || 0,
-                total_monitoramentos: newData.total_monitoramentos || 0,
-                total_paginas: newData.total_paginas || 0,
-                total_resultados: newData.total_resultados || 0,
-                duracao_segundos: newData.duracao_segundos || 0,
-                iniciado_em: newData.iniciado_em,
-              });
-            } else if (newData.status === 'concluido' || newData.status === 'erro' || newData.status === 'cancelado') {
-              // Run finished - clear live run and refresh queries
+              applyRun(newData);
+              return;
+            }
+
+            if (newData.status === 'concluido' || newData.status === 'erro' || newData.status === 'cancelado') {
               setLiveRun(null);
+              setLiveUpdatedAt(null);
+
               queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
               queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
               queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
-              
+
               if (newData.status === 'concluido') {
                 toast.success(`Execução automática concluída: ${newData.processados || 0} verificados, ${newData.novas || 0} novas`);
               }
@@ -192,6 +205,8 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       .subscribe();
 
     return () => {
+      disposed = true;
+      window.clearInterval(pollId);
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
