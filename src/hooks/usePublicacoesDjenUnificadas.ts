@@ -369,6 +369,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' }[]) => {
       const termos = items.filter(i => i.tipo_origem === 'termo').map(i => i.id);
       const processos = items.filter(i => i.tipo_origem === 'processo').map(i => i.id);
+      const descartadas = items.filter(i => i.tipo_origem === 'descartada').map(i => i.id);
 
       if (termos.length > 0) {
         await supabase
@@ -382,6 +383,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           .from('publicacoes_djen_processos')
           .update({ lida: true })
           .in('id', processos);
+      }
+
+      if (descartadas.length > 0) {
+        await supabase
+          .from('publicacoes_djen_descartadas')
+          .update({ lida: true })
+          .in('id', descartadas);
       }
     },
     onSuccess: () => {
