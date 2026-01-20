@@ -144,11 +144,18 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       }
     };
 
+    const isRunTrulyRunning = (row: any) => {
+      // Proteção contra runs "presas": alguns runs podem ficar com status='em_andamento'
+      // mesmo após finalização (finalizado_em preenchido). Esses não devem aparecer como "ao vivo".
+      return row && row.status === 'em_andamento' && !row.finalizado_em;
+    };
+
     const checkCurrentRun = async () => {
       const { data } = await supabase
         .from('djen_runs')
         .select('*')
         .eq('status', 'em_andamento')
+        .is('finalizado_em', null)
         .order('iniciado_em', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -165,9 +172,9 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         (payload) => {
           const newData = payload.new as any;
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            if (newData.status === 'em_andamento') {
+            if (isRunTrulyRunning(newData)) {
               applyRun(newData);
-            } else if (['concluido', 'erro', 'cancelado'].includes(newData.status)) {
+            } else if (['concluido', 'erro', 'cancelado'].includes(newData.status) || (newData.status === 'em_andamento' && newData.finalizado_em)) {
               setLiveRun(null);
               // Invalidar todos os caches relevantes
               queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
