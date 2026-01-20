@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,8 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const { runs } = useDjenRunsHistory();
 
   const [executando, setExecutando] = useState(false);
+  const cancelarManualRef = useRef(false);
+  const currentRunIdRef = useRef<string | null>(null);
   const [progresso, setProgresso] = useState({ atual: 0, total: 0, novas: 0 });
   const [ultimoResultado, setUltimoResultado] = useState<ExecutionResult | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -200,11 +202,12 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
   const handleExecutarManual = async () => {
     setExecutando(true);
+    cancelarManualRef.current = false;
+    currentRunIdRef.current = null;
     setProgresso({ atual: 0, total: 0, novas: 0 });
     setUltimoResultado(null);
 
     let offset = 0;
-    let currentRunId: string | null = null;
     let totalProcessados = 0;
     let totalNovas = 0;
     let totalDescartadas = 0;
@@ -224,7 +227,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       const total = count || 0;
       setProgresso(p => ({ ...p, total }));
 
-      while (hasMore) {
+      while (hasMore && !cancelarManualRef.current) {
         toast.info(`Processando lote ${Math.floor(offset / 10) + 1}...`);
 
         const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://bfxahrrvoqxcdmfsvnrk.supabase.co';
@@ -235,8 +238,8 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           throw new Error('Sessão expirada. Faça login novamente.');
         }
 
-        const requestBody = currentRunId
-          ? { continued: true, parentRunId: currentRunId }
+        const requestBody = currentRunIdRef.current
+          ? { continued: true, parentRunId: currentRunIdRef.current }
           : {};
 
         let response: Response | null = null;
@@ -276,8 +279,8 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         const result = await response.json();
 
         // Mantém o mesmo run_id entre lotes para o Realtime não "pular" entre execuções
-        if (!currentRunId && (result.runId || result.run_id)) {
-          currentRunId = (result.runId || result.run_id) as string;
+        if (!currentRunIdRef.current && (result.runId || result.run_id)) {
+          currentRunIdRef.current = (result.runId || result.run_id) as string;
         }
 
         if (result.error) {
@@ -320,6 +323,21 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           offset = result.nextOffset;
           await new Promise(r => setTimeout(r, 1000));
         }
+      }
+
+      // Se foi cancelado, marcar no banco e sair
+      if (cancelarManualRef.current && currentRunIdRef.current) {
+        await supabase
+          .from('djen_runs')
+          .update({ 
+            status: 'cancelado', 
+            finalizado_em: new Date().toISOString(),
+            motivo_erro: 'Cancelado manualmente pelo usuário'
+          })
+          .eq('run_id', currentRunIdRef.current);
+        
+        toast.info('Execução cancelada pelo usuário');
+        return;
       }
 
       // Sort by resultados
@@ -641,12 +659,26 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
         {/* Progress (Manual execution) */}
         {executando && progresso.total > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
             <div className="flex justify-between text-sm">
               <span>Processando: {progresso.atual}/{progresso.total}</span>
               <span className="text-primary">+{progresso.novas} novas</span>
             </div>
             <Progress value={progressPercent} className="h-2" />
+            
+            {/* Botão Cancelar Execução Manual */}
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={() => {
+                cancelarManualRef.current = true;
+                toast.info('Cancelando execução... Aguarde o lote atual finalizar.');
+              }}
+              className="w-full"
+            >
+              <StopCircle className="h-4 w-4 mr-2" />
+              Cancelar Execução
+            </Button>
           </div>
         )}
 
