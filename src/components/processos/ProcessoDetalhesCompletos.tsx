@@ -160,7 +160,7 @@ export function ProcessoDetalhesCompletos({
     { id: "cobranca", label: "Cobrança", icon: DollarSign },
     { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
     { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
-    { id: "tarefas", label: "Tratamentos", icon: ListTodo, count: tarefas.length },
+    { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.length },
     { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
     { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
     { id: "andamentos", label: "Andamentos", icon: Activity, count: movimentacoes.length },
