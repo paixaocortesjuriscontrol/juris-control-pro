@@ -418,8 +418,12 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   }, [statsToShow, termosPorTribunal]);
 
   // Live run progress
+  const liveProcessedDisplay = liveRun
+    ? Math.min(liveRun.processados ?? 0, liveRun.total_monitoramentos ?? 0)
+    : 0;
+
   const liveProgressPercent = liveRun && liveRun.total_monitoramentos > 0
-    ? Math.round((liveRun.processados / liveRun.total_monitoramentos) * 100)
+    ? Math.min(100, Math.round((liveProcessedDisplay / liveRun.total_monitoramentos) * 100))
     : 0;
 
   if (isLoading) {
@@ -541,7 +545,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span>Processando: {liveRun.processados}/{liveRun.total_monitoramentos}</span>
+                <span>Processando: {liveProcessedDisplay}/{liveRun.total_monitoramentos}</span>
                 <span className="text-primary">+{liveRun.novas} novas</span>
               </div>
               <Progress value={liveProgressPercent} className="h-2" />
