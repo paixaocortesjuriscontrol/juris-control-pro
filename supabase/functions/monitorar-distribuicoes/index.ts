@@ -573,6 +573,21 @@ Deno.serve(async (req) => {
 
         if (isComplete) {
           console.log(`Complete run finished after ${batchCount} batches`);
+          
+          // Salvar no histórico de monitoramento
+          await supabase.from('historico_monitoramento').insert({
+            tipo: 'distribuicoes',
+            processos_verificados: totalTribunaisProcessados,
+            novos_andamentos: totalNovasDistribuicoes,
+            processos_com_novos: totalNovasDistribuicoes,
+            erros: allErrors.length,
+            detalhes: {
+              batchCount,
+              errors: allErrors.length > 0 ? allErrors.slice(0, 10) : undefined,
+            },
+            executado_em: new Date().toISOString(),
+          });
+          
           break;
         }
 
