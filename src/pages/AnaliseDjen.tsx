@@ -141,7 +141,7 @@ const AnaliseDjen = () => {
     apenasNaoLidas,
     apenasHoje,
     tipoOrigem: tipoOrigem === 'todos' ? undefined : tipoOrigem,
-    incluirDescartadas: tipoOrigem === 'descartada',
+    incluirDescartadas: tipoOrigem === 'todos' || tipoOrigem === 'descartada',
   });
 
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
