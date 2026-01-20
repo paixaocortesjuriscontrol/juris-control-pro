@@ -424,7 +424,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         });
       }
 
-      const deduped = dedupePublicacoesDjen(resultados);
+      let deduped = dedupePublicacoesDjen(resultados);
+
+      // Se estamos filtrando apenas descartadas, garantir que só venham descartadas
+      if (filtros.tipoOrigem === 'descartada') {
+        deduped = deduped.filter(p => p.tipo_origem === 'descartada');
+      }
 
       // Ordenar por data de criação (mais recentes primeiro)
       return deduped.sort((a, b) => 
