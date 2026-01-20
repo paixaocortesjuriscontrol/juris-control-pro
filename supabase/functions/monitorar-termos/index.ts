@@ -610,23 +610,51 @@ Deno.serve(async (req) => {
     const percentage = totalMovimentacoes > 0 ? Math.round((processedCount / totalMovimentacoes) * 100) : 100;
 
     // Auto-continuation: if completeRun and not complete, trigger next batch
+    // But first check if cancellation was requested
     if (completeRun && !isComplete) {
-      const functionUrl = `${supabaseUrl}/functions/v1/monitorar-termos`;
-      const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+      // Re-fetch config to check for cancellation
+      const { data: freshConfig } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'termos')
+        .is('coordenacao_id', null)
+        .maybeSingle();
       
-      // Fire and forget - trigger next batch asynchronously
-      fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({ completeRun: true }),
-      }).catch(err => {
-        console.error('Error triggering next batch:', err);
-      });
+      const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
+      
+      if (wasCancelled) {
+        console.log('Execution cancelled by user, stopping auto-continuation');
+        // Reset cancellation flag
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({ 
+            metadata: { 
+              ...freshConfig?.metadata,
+              cancelado: false,
+              status: 'cancelado',
+              continuingRun: false,
+            }
+          })
+          .eq('tipo', 'termos')
+          .is('coordenacao_id', null);
+      } else {
+        const functionUrl = `${supabaseUrl}/functions/v1/monitorar-termos`;
+        const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+        
+        // Fire and forget - trigger next batch asynchronously
+        fetch(functionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({ completeRun: true }),
+        }).catch(err => {
+          console.error('Error triggering next batch:', err);
+        });
 
-      console.log(`Batch processed, triggered next batch. Progress: ${percentage}%`);
+        console.log(`Batch processed, triggered next batch. Progress: ${percentage}%`);
+      }
     }
 
     const totalTime = Date.now() - startTime;

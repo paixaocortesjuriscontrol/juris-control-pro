@@ -31,9 +31,20 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
   const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number } | null>(null);
   const canceladoRef = useRef(false);
 
-  const handleCancelar = () => {
+  const handleCancelar = async () => {
     canceladoRef.current = true;
-    toast.info("Cancelando após o lote atual...");
+    toast.info("Cancelando execução...");
+    
+    // Setar flag de cancelamento no banco para parar auto-continuação
+    if (configuracaoTermos?.id) {
+      const currentMetadata = (configuracaoTermos.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({ 
+          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando' }
+        })
+        .eq('id', configuracaoTermos.id);
+    }
   };
 
   const handleExecutarCompleto = async () => {
