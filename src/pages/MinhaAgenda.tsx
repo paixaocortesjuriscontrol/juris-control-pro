@@ -398,13 +398,9 @@ export default function MinhaAgenda() {
 
   const { data: itensAgenda, isLoading } = useAgendaUnificada(filters);
 
-  // Para evitar inconsistência entre COUNT (HEAD) e o que aparece na lista:
-  // - quando o usuário está em modo "fetch all" (admin/coordenador)
-  // - OU quando o usuário NÃO tem coordenação (caso reportado: totalizadores divergentes)
-  // usamos os totalizadores calculados a partir do array já carregado.
-  const shouldUseClientSideStats = shouldFetchAll || userCoordenacao === null;
+  // ========= TOTALIZADORES UNIFICADOS =========
+  // Calculados 100% a partir do array itensAgenda (elimina discrepâncias com COUNT/HEAD).
   const statsFromItems = useMemo(() => {
-    if (!shouldUseClientSideStats) return null;
     if (!itensAgenda) return null;
 
     const total = itensAgenda.length;
@@ -416,174 +412,11 @@ export default function MinhaAgenda() {
     );
 
     return { total, pendentes, atrasadas, concluidas };
-  }, [itensAgenda, shouldUseClientSideStats]);
+  }, [itensAgenda]);
 
-  // Stats via COUNT - includes both TAREFAS and EVENTOS
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["agenda-stats-unified", coordenacaoFiltro, membrosFiltro, clienteFiltro, user?.id, isAdminOrCoordinator, membroIdsCoordenacao],
-    queryFn: async () => {
-      const hoje = format(toZonedTime(new Date(), TIME_ZONE), "yyyy-MM-dd");
-      
-      // Client filter: tasks without processo_id are excluded when a client is selected
-      let processoIdsCliente: string[] | null = null;
-      if (clienteFiltro !== "todos") {
-        const { data: processosCliente, error: processosClienteError } = await supabase
-          .from("processos")
-          .select("id")
-          .eq("cliente_id", clienteFiltro);
-
-        if (processosClienteError) throw processosClienteError;
-        processoIdsCliente = processosCliente?.map(p => p.id) || [];
-
-        if (processoIdsCliente.length === 0) {
-          return { total: 0, pendentes: 0, atrasadas: 0, concluidas: 0 };
-        }
-      }
-
-      // Coordination filter: for Agenda, it must work even when tasks are not linked to a process.
-      // So we restrict by members of the coordination (responsavel_id).
-      let membroIdsCoord: string[] | null = null;
-      if (coordenacaoFiltro !== "todas") {
-        membroIdsCoord = membroIdsCoordenacao.length > 0 ? membroIdsCoordenacao : null;
-
-        if (!membroIdsCoord || membroIdsCoord.length === 0) {
-          return { total: 0, pendentes: 0, atrasadas: 0, concluidas: 0 };
-        }
-      }
-
-      // ========= TAREFAS STATS =========
-      // shouldFetchAll: admin/coordinator sees all when "todas" coordenações and no member filter
-      const shouldFetchAllStats = isAdminOrCoordinator && coordenacaoFiltro === "todas" && membrosFiltro.length === 0;
-      
-      const buildTarefaQuery = () => {
-        let q = supabase.from("tarefas").select("*", { count: "exact", head: true });
-
-        if (processoIdsCliente !== null) {
-          q = q.in("processo_id", processoIdsCliente);
-        }
-
-        // Admin/coordinator with "todas" coordenações: fetch ALL tarefas
-        if (shouldFetchAllStats) {
-          return q;
-        }
-
-        // When filtering by people
-        if (membrosFiltro.length > 0) {
-          const membrosFilter = membrosFiltro.join(',');
-          if (user?.id && membrosFiltro.includes(user.id)) {
-            q = q.or(`responsavel_id.in.(${membrosFilter}),criado_por.eq.${user.id}`);
-          } else if (user?.id) {
-            q = q.or(`responsavel_id.in.(${membrosFilter}),and(criado_por.eq.${user.id},responsavel_id.in.(${membrosFilter}))`);
-          } else {
-            q = q.in("responsavel_id", membrosFiltro);
-          }
-        } else if (!isAdminOrCoordinator && user?.id) {
-          q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
-        } else if (isAdminOrCoordinator && membroIdsCoord && membroIdsCoord.length > 0) {
-          q = q.in("responsavel_id", membroIdsCoord);
-        }
-
-        return q;
-      };
-
-      // ========= EVENTOS STATS =========
-      // Get participations for coordination members or specific users
-      let userIdsForEvents: string[] = [];
-      
-      if (!shouldFetchAllStats) {
-        if (membrosFiltro.length > 0) {
-          userIdsForEvents = membrosFiltro;
-        } else if (!isAdminOrCoordinator && user?.id) {
-          userIdsForEvents = [user.id];
-        } else if (isAdminOrCoordinator && membroIdsCoord && membroIdsCoord.length > 0) {
-          userIdsForEvents = membroIdsCoord;
-        }
-      }
-
-      // Get event IDs where these users participate
-      let eventosParticipante: string[] = [];
-      if (!shouldFetchAllStats && userIdsForEvents.length > 0) {
-        const { data: participacoes } = await supabase
-          .from("participantes_evento")
-          .select("evento_id")
-          .in("usuario_id", userIdsForEvents);
-        eventosParticipante = participacoes?.map(p => p.evento_id) || [];
-      }
-
-      const buildEventoQuery = (statusFilter?: string, dateFilter?: { field: string; op: 'lt'; value: string }) => {
-        let q = supabase.from("eventos_agenda").select("*", { count: "exact", head: true });
-        
-        // Apply status filter
-        if (statusFilter) {
-          q = q.eq("status", statusFilter);
-        }
-
-        // Apply date filter
-        if (dateFilter) {
-          q = q.lt(dateFilter.field, dateFilter.value);
-        }
-
-        // Admin/coordinator with "todas" coordenações: fetch ALL eventos
-        if (shouldFetchAllStats) {
-          return q;
-        }
-        
-        if (userIdsForEvents.length > 0) {
-          if (eventosParticipante.length > 0) {
-            q = q.or(`criado_por.in.(${userIdsForEvents.join(',')}),id.in.(${eventosParticipante.join(',')})`);
-          } else {
-            q = q.in("criado_por", userIdsForEvents);
-          }
-        } else if (user?.id) {
-          q = q.or(`criado_por.eq.${user.id}`);
-        }
-
-        return q;
-      };
-
-      // Execute all queries in parallel
-      const [
-        tarefasTotalRes,
-        tarefasPendentesRes,
-        tarefasAtrasadasRes,
-        tarefasConcluidasRes,
-        eventosTotalRes,
-        eventosPendentesRes,
-        eventosAtrasadosRes,
-        eventosConcluidosRes,
-      ] = await Promise.all([
-        buildTarefaQuery(),
-        buildTarefaQuery().eq("status", "pendente"),
-        buildTarefaQuery().eq("status", "pendente").lt("data_vencimento", hoje),
-        buildTarefaQuery().eq("status", "cumprido"),
-        buildEventoQuery(),
-        buildEventoQuery("pendente"),
-        buildEventoQuery("pendente", { field: "data_inicio", op: "lt", value: hoje }),
-        buildEventoQuery("concluido"),
-      ]);
-
-      const tarefasTotal = tarefasTotalRes.count ?? 0;
-      const tarefasPendentesTotal = tarefasPendentesRes.count ?? 0;
-      const tarefasAtrasadas = tarefasAtrasadasRes.count ?? 0;
-      const tarefasConcluidas = tarefasConcluidasRes.count ?? 0;
-
-      const eventosTotal = eventosTotalRes.count ?? 0;
-      const eventosPendentesTotal = eventosPendentesRes.count ?? 0;
-      const eventosAtrasados = eventosAtrasadosRes.count ?? 0;
-      const eventosConcluidos = eventosConcluidosRes.count ?? 0;
-
-      const total = tarefasTotal + eventosTotal;
-      const atrasadas = tarefasAtrasadas + eventosAtrasados;
-      const concluidas = tarefasConcluidas + eventosConcluidos;
-      // Pendentes = total de pendentes que NÃO estão atrasadas (garantindo >= 0)
-      const pendentes = Math.max(0, (tarefasPendentesTotal + eventosPendentesTotal) - atrasadas);
-
-      return { total, pendentes, atrasadas, concluidas };
-    },
-    enabled: !!user?.id && !roleLoading && !shouldUseClientSideStats,
-  });
-
-  const statsDisplay = statsFromItems ?? stats;
+  // Loading state para skeleton (enquanto itensAgenda ainda está carregando)
+  const statsLoading = isLoading;
+  const statsDisplay = statsFromItems;
 
   // Filter and sort items
   const itensFiltrados = useMemo(() => {
