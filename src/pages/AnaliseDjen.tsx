@@ -63,6 +63,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada';
+type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'processo' | 'descartada';
 
 const AnaliseDjen = () => {
   const { user } = useAuth();
@@ -94,7 +95,7 @@ const AnaliseDjen = () => {
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
   const [apenasHoje, setApenasHoje] = useState(true);
-  const [tipoOrigem, setTipoOrigem] = useState<'todos' | 'termo' | 'processo' | 'descartada'>('todos');
+  const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
@@ -140,10 +141,11 @@ const AnaliseDjen = () => {
     termoBusca: termoBusca || undefined,
     apenasNaoLidas,
     apenasHoje,
-    tipoOrigem: tipoOrigem === 'todos' ? undefined : tipoOrigem,
+    // 'todos' e 'normal' passam undefined para buscar termos e processos
+    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal') ? undefined : tipoOrigem,
+    // incluir descartadas apenas quando 'todos' ou 'descartada'
     incluirDescartadas: tipoOrigem === 'todos' || tipoOrigem === 'descartada',
   });
-
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
   const isLoading = loadingUserCoord || coordenacaoId === null || isLoadingPublicacoes;
 
@@ -605,7 +607,7 @@ const AnaliseDjen = () => {
                   id="todasPublicacoes"
                   checked={tipoOrigem === 'todos'}
                   onCheckedChange={(checked) => {
-                    if (checked) setTipoOrigem('todos');
+                    setTipoOrigem(checked ? 'todos' : 'normal');
                   }}
                 />
                 <Label htmlFor="todasPublicacoes" className="cursor-pointer text-xs md:text-sm font-medium">
@@ -618,7 +620,7 @@ const AnaliseDjen = () => {
                   id="apenasDescartadas"
                   checked={tipoOrigem === 'descartada'}
                   onCheckedChange={(checked) => {
-                    setTipoOrigem(checked ? 'descartada' : 'todos');
+                    setTipoOrigem(checked ? 'descartada' : 'normal');
                   }}
                 />
                 <Label htmlFor="apenasDescartadas" className="cursor-pointer text-xs md:text-sm text-destructive font-medium">
