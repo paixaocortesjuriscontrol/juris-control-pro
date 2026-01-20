@@ -17,6 +17,7 @@ import {
   ChevronsUpDown,
   ListChecks,
   Download,
+  CheckCheck,
   FolderPlus,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -714,8 +715,8 @@ const AnaliseDjen = () => {
                                         </Link>
                                       )}
                                       
-                                      {/* Botão Importar para processos não cadastrados */}
-                                      {!pub.processo_id && (
+                                      {/* Botão Importar para publicações de TERMO sem processo cadastrado */}
+                                      {pub.tipo_origem === 'termo' && !pub.processo_id && (
                                         <Button
                                           variant="outline"
                                           size="sm"
@@ -744,11 +745,30 @@ const AnaliseDjen = () => {
                                           handleCriarTarefa(pub);
                                         }}
                                         title="Criar tarefa a partir desta publicação"
-                                        className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 ml-auto"
+                                        className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
                                       >
                                         <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
                                         <span className="text-xs">Criar Tarefa</span>
                                       </Button>
+                                      
+                                      {/* Botão Marcar como Lida individual */}
+                                      {!pub.lida && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+                                          }}
+                                          disabled={marcarComoLida.isPending}
+                                          title="Marcar como lida"
+                                          className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
+                                        >
+                                          <CheckCheck className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                          <span className="text-xs">Lida</span>
+                                        </Button>
+                                      )}
+                                      
                                       <Button
                                         variant="ghost"
                                         size="sm"
@@ -757,7 +777,7 @@ const AnaliseDjen = () => {
                                           handleView(pub);
                                         }}
                                         title="Ver detalhes em modal"
-                                        className="p-1 md:p-1.5 h-auto flex-shrink-0"
+                                        className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
                                       >
                                         <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                       </Button>
@@ -782,11 +802,30 @@ const AnaliseDjen = () => {
                                           handleCriarTarefa(pub);
                                         }}
                                         title="Criar tarefa a partir desta publicação"
-                                        className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 ml-auto"
+                                        className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
                                       >
                                         <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
                                         <span className="text-xs">Criar Tarefa</span>
                                       </Button>
+                                      
+                                      {/* Botão Marcar como Lida individual */}
+                                      {!pub.lida && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+                                          }}
+                                          disabled={marcarComoLida.isPending}
+                                          title="Marcar como lida"
+                                          className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
+                                        >
+                                          <CheckCheck className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                          <span className="text-xs">Lida</span>
+                                        </Button>
+                                      )}
+                                      
                                       <Button
                                         variant="ghost"
                                         size="sm"
@@ -795,7 +834,7 @@ const AnaliseDjen = () => {
                                           handleView(pub);
                                         }}
                                         title="Ver detalhes em modal"
-                                        className="p-1 md:p-1.5 h-auto flex-shrink-0"
+                                        className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
                                       >
                                         <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                       </Button>
