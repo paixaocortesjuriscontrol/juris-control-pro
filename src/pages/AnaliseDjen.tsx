@@ -215,9 +215,9 @@ const AnaliseDjen = () => {
 
       if (movError) throw movError;
 
-      // 2. Marcar a publicação como lida (tabela de termos)
+      // 2. Marcar a publicação como lida (tabela correta)
       const { error: lidaError } = await supabase
-        .from('publicacoes_djen')
+        .from(pub.tipo_origem === 'termo' ? 'publicacoes_djen' : 'publicacoes_djen_processos')
         .update({ lida: true })
         .eq('id', pub.id);
 
@@ -804,93 +804,91 @@ const AnaliseDjen = () => {
                                         </Link>
                                       )}
                                       
-                                      {/* Ações de vínculo/importação para publicações de TERMO */}
-                                      {pub.tipo_origem === 'termo' && pub.processo_numero && (
-                                        pub.processo_id ? (
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleSalvarPublicacao(pub);
-                                            }}
-                                            disabled={savingProcessoId === pub.id}
-                                            title="Vincular publicação ao processo existente"
-                                            className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-blue-950/50 dark:border-blue-800 dark:text-blue-400"
-                                          >
-                                            {savingProcessoId === pub.id ? (
-                                              <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1 animate-spin" />
-                                            ) : (
-                                              <Save className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                            )}
-                                            <span className="text-xs">Salvar</span>
-                                          </Button>
-                                        ) : (
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleImportarProcesso(pub);
-                                            }}
-                                            disabled={importingProcessoId === pub.id}
-                                            title="Importar processo e criar pasta"
-                                            className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-400"
-                                          >
-                                            {importingProcessoId === pub.id ? (
-                                              <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1 animate-spin" />
-                                            ) : (
-                                              <FolderPlus className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                            )}
-                                            <span className="text-xs">Importar</span>
-                                          </Button>
-                                        )
-                                      )}
-                                      
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleCriarTarefa(pub);
-                                        }}
-                                        title="Criar tarefa a partir desta publicação"
-                                        className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
-                                      >
-                                        <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                        <span className="text-xs">Criar Tarefa</span>
-                                      </Button>
-                                      
-                                      {/* Botão Marcar como Lida individual */}
-                                      {!pub.lida && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
-                                          }}
-                                          disabled={marcarComoLida.isPending}
-                                          title="Marcar como lida"
-                                          className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
-                                        >
-                                          <CheckCheck className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                          <span className="text-xs">Lida</span>
-                                        </Button>
-                                      )}
-                                      
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleView(pub);
-                                        }}
-                                        title="Ver detalhes em modal"
-                                        className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
-                                      >
-                                        <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                      </Button>
+                                       {/* Ações de vínculo/importação */}
+                                       {pub.processo_id ? (
+                                         <Button
+                                           variant="outline"
+                                           size="sm"
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             handleSalvarPublicacao(pub);
+                                           }}
+                                           disabled={savingProcessoId === pub.id}
+                                           title="Vincular publicação ao processo (criar movimentação)"
+                                           className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-blue-950/50 dark:border-blue-800 dark:text-blue-400"
+                                         >
+                                           {savingProcessoId === pub.id ? (
+                                             <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1 animate-spin" />
+                                           ) : (
+                                             <Save className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                           )}
+                                           <span className="text-xs">Salvar</span>
+                                         </Button>
+                                       ) : pub.tipo_origem === 'termo' ? (
+                                         <Button
+                                           variant="outline"
+                                           size="sm"
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             handleImportarProcesso(pub);
+                                           }}
+                                           disabled={importingProcessoId === pub.id}
+                                           title="Importar processo e criar pasta"
+                                           className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-400"
+                                         >
+                                           {importingProcessoId === pub.id ? (
+                                             <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1 animate-spin" />
+                                           ) : (
+                                             <FolderPlus className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                           )}
+                                           <span className="text-xs">Importar</span>
+                                         </Button>
+                                       ) : null}
+                                       
+                                       <Button
+                                         variant="outline"
+                                         size="sm"
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           handleCriarTarefa(pub);
+                                         }}
+                                         title="Criar tarefa a partir desta publicação"
+                                         className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
+                                       >
+                                         <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                         <span className="text-xs">Criar Tarefa</span>
+                                       </Button>
+                                       
+                                       {/* Botão Marcar como Lida individual */}
+                                       {!pub.lida && (
+                                         <Button
+                                           variant="outline"
+                                           size="sm"
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+                                           }}
+                                           disabled={marcarComoLida.isPending}
+                                           title="Marcar como lida"
+                                           className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
+                                         >
+                                           <CheckCheck className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                           <span className="text-xs">Lida</span>
+                                         </Button>
+                                       )}
+                                       
+                                       <Button
+                                         variant="ghost"
+                                         size="sm"
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           handleView(pub);
+                                         }}
+                                         title="Ver detalhes em modal"
+                                         className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
+                                       >
+                                         <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                       </Button>
                                     </div>
                                   )}
 
