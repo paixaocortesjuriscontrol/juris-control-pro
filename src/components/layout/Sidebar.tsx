@@ -25,9 +25,7 @@ import {
   ClipboardList,
   Brain,
   Library,
-  FileWarning,
-  KeyRound,
-  Activity
+  FileWarning
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -55,12 +53,10 @@ const menuItems = [
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Newspaper, label: "Buscar PJE", path: "/buscar-pje" },
-  { icon: KeyRound, label: "Cofre de Senhas", path: "/cofre-senhas" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
   { icon: Library, label: "Repositório IA", path: "/repositorio" },
   { icon: Brain, label: "Assistente IA", path: "/assistente-juridico" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
-  { icon: Activity, label: "Rel. Execuções", path: "/relatorio-execucoes" },
 ];
 
 

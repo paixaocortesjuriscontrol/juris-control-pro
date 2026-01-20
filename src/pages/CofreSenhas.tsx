@@ -59,7 +59,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-export default function CofreSenhas() {
+interface CofreSenhasProps {
+  embedded?: boolean;
+}
+
+export default function CofreSenhas({ embedded = false }: CofreSenhasProps) {
   const {
     credenciais,
     capturas,
@@ -260,11 +264,11 @@ export default function CofreSenhas() {
     setHistoricoDialogOpen(true);
   };
 
-  return (
-    <MainLayout title="Cofre de Senhas" subtitle="Captura automática de intimações eletrônicas">
-      <div className="container mx-auto p-6 space-y-6">
+  const content = (
+      <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
           <div className="flex items-center gap-3">
             <div className="p-3 rounded-full bg-primary/10">
               <KeyRound className="h-8 w-8 text-primary" />
@@ -724,6 +728,16 @@ export default function CofreSenhas() {
         captura={capturaHistorico}
         buscarHistorico={buscarHistorico}
       />
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <MainLayout title="Cofre de Senhas" subtitle="Captura automática de intimações eletrônicas">
+      {content}
     </MainLayout>
   );
 }

@@ -1,7 +1,7 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Bell, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Mail, Settings } from "lucide-react";
+import { User, Bell, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -10,6 +10,8 @@ import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/Monit
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
+import CofreSenhasPage from "@/pages/CofreSenhas";
+import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
 
 export default function Configuracoes() {
   return (
@@ -42,7 +44,15 @@ export default function Configuracoes() {
           </TabsTrigger>
           <TabsTrigger value="relatorios" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline">Relatórios</span>
+            <span className="hidden sm:inline">Rel. Monitoramento</span>
+          </TabsTrigger>
+          <TabsTrigger value="execucoes" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            <span className="hidden sm:inline">Rel. Execuções</span>
+          </TabsTrigger>
+          <TabsTrigger value="cofre" className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            <span className="hidden sm:inline">Cofre de Senhas</span>
           </TabsTrigger>
           <TabsTrigger value="preferencias" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
@@ -116,7 +126,7 @@ export default function Configuracoes() {
           <MonitoramentoTermosCard coordenacaoId="" />
         </TabsContent>
 
-        {/* Aba Relatórios */}
+        {/* Aba Relatórios de Monitoramento */}
         <TabsContent value="relatorios" className="space-y-4">
           <div className="mb-4">
             <h2 className="text-lg font-semibold">Relatórios de Monitoramento</h2>
@@ -125,6 +135,16 @@ export default function Configuracoes() {
             </p>
           </div>
           <RelatorioMonitoramentoCard />
+        </TabsContent>
+
+        {/* Aba Relatório de Execuções (nova) */}
+        <TabsContent value="execucoes" className="space-y-4">
+          <RelatorioExecucoesPage embedded />
+        </TabsContent>
+
+        {/* Aba Cofre de Senhas (nova) */}
+        <TabsContent value="cofre" className="space-y-4">
+          <CofreSenhasPage embedded />
         </TabsContent>
 
         {/* Aba Preferências */}

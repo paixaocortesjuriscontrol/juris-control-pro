@@ -62,7 +62,11 @@ const TIPOS_MONITORAMENTO = [
   { id: 'distribuicoes', label: 'Distribuições', icon: Globe },
 ];
 
-export default function RelatorioExecucoes() {
+interface RelatorioExecucoesProps {
+  embedded?: boolean;
+}
+
+export default function RelatorioExecucoes({ embedded = false }: RelatorioExecucoesProps) {
   const [dataInicio, setDataInicio] = useState(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
   const [dataFim, setDataFim] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [abaAtiva, setAbaAtiva] = useState('andamentos');
@@ -405,9 +409,9 @@ export default function RelatorioExecucoes() {
     </ScrollArea>
   );
 
-  return (
-    <MainLayout title="Relatório de Execuções" subtitle="Histórico completo de todos os monitoramentos automáticos">
+  const content = (
       <div className="space-y-6">
+        {/* Filtros e Abas no topo */}
         {/* Filtros e Abas no topo */}
         <Card>
           <CardContent className="pt-6">
@@ -520,6 +524,15 @@ export default function RelatorioExecucoes() {
           </CardContent>
         </Card>
       </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <MainLayout title="Relatório de Execuções" subtitle="Histórico completo de todos os monitoramentos automáticos">
+      {content}
     </MainLayout>
   );
 }
