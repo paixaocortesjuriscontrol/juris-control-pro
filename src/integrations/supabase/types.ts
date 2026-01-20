@@ -3021,6 +3021,7 @@ export type Database = {
           fonte: string | null
           hash_conteudo: string
           id: string
+          lida: boolean
           monitoramento_id: string
           motivo_descarte: string
           processo_numero: string | null
@@ -3034,6 +3035,7 @@ export type Database = {
           fonte?: string | null
           hash_conteudo: string
           id?: string
+          lida?: boolean
           monitoramento_id: string
           motivo_descarte: string
           processo_numero?: string | null
@@ -3047,6 +3049,7 @@ export type Database = {
           fonte?: string | null
           hash_conteudo?: string
           id?: string
+          lida?: boolean
           monitoramento_id?: string
           motivo_descarte?: string
           processo_numero?: string | null

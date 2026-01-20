@@ -386,10 +386,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       }
 
       if (descartadas.length > 0) {
-        await supabase
-          .from('publicacoes_djen_descartadas')
+        // Cast para contornar tipagem até regenerar types
+        const { error } = await (supabase
+          .from('publicacoes_djen_descartadas') as any)
           .update({ lida: true })
           .in('id', descartadas);
+        if (error) console.error('Erro ao marcar descartadas:', error);
       }
     },
     onSuccess: () => {
