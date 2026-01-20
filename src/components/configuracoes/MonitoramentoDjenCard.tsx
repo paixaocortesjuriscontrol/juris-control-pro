@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle } from "lucide-react";
+import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle, Trash2 } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
 import { format } from "date-fns";
@@ -79,6 +79,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const [liveRun, setLiveRun] = useState<LiveRun | null>(null);
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<Date | null>(null);
   const [cancelando, setCancelando] = useState(false);
+  const [limpando, setLimpando] = useState(false);
   const { runDetails } = useDjenRunDetails(selectedRunId);
 
   // Fetch last execution report from historico_monitoramento and new djen_runs table
@@ -407,6 +408,54 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       toast.error('Erro ao cancelar execução');
     } finally {
       setCancelando(false);
+    }
+  };
+
+  const handleLimparEExecutar = async () => {
+    if (!confirm('Isso vai limpar TODAS as publicações capturadas hoje e executar novamente do zero. Deseja continuar?')) {
+      return;
+    }
+
+    setLimpando(true);
+    try {
+      const baseUrl = 'https://bfxahrrvoqxcdmfsvnrk.supabase.co';
+      const session = (await supabase.auth.getSession()).data.session;
+      
+      if (!session?.access_token) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+
+      const response = await fetch(`${baseUrl}/functions/v1/limpar-djen-hoje`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao limpar: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      toast.success(`Limpeza concluída: ${result.publicacoesRemovidas || 0} publicações removidas`);
+      
+      // Invalidar queries
+      queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
+      queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
+      
+      // Executar novamente
+      setLimpando(false);
+      handleExecutarManual();
+      
+    } catch (error) {
+      console.error('Erro ao limpar:', error);
+      toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      setLimpando(false);
     }
   };
 
@@ -750,24 +799,45 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           </Collapsible>
         )}
 
-        {/* Botão de execução */}
-        <Button 
-          onClick={handleExecutarManual} 
-          disabled={executando}
-          className="w-full"
-        >
-          {executando ? (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              Processando... {progressPercent > 0 ? `${progressPercent}%` : ''}
-            </>
-          ) : (
-            <>
-              <Play className="h-4 w-4 mr-2" />
-              Executar Agora
-            </>
-          )}
-        </Button>
+        {/* Botões de execução */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button 
+            onClick={handleExecutarManual} 
+            disabled={executando || limpando}
+            className="flex-1"
+          >
+            {executando ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Processando... {progressPercent > 0 ? `${progressPercent}%` : ''}
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4 mr-2" />
+                Executar Agora
+              </>
+            )}
+          </Button>
+          
+          <Button 
+            variant="outline"
+            onClick={handleLimparEExecutar} 
+            disabled={executando || limpando}
+            className="sm:w-auto"
+          >
+            {limpando ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Limpando...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Limpar Dia e Executar
+              </>
+            )}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
