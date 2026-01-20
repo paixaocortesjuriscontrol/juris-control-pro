@@ -26,52 +26,75 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// DataImpulse residential proxy (primary solution for datacenter IP blocks)
-const DATAIMPULSE_PROXY_AUTH = Deno.env.get('DATAIMPULSE_PROXY_AUTH') || '';
-const DATAIMPULSE_PROXY_HOST = 'gw.dataimpulse.com';
-const DATAIMPULSE_PROXY_PORT = 823;
+// Bright Data API Token (same as monitorar-djen)
+const BRIGHT_DATA_TOKEN = Deno.env.get('BRIGHT_DATA_AUTH') || '';
 
-// Jina Reader proxy (fallback when DataImpulse is not available)
+// Jina Reader proxy (fallback when Bright Data is not available)
 const JINA_READER_URL = 'https://r.jina.ai';
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
-// Fetch via DataImpulse residential proxy
-async function fetchViaDataImpulse(url: string): Promise<any | null> {
-  if (!DATAIMPULSE_PROXY_AUTH) return null;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15_000);
+// Fetch via Bright Data REST API - IP Residencial BR
+async function fetchViaBrightData(url: string): Promise<any | null> {
+  if (!BRIGHT_DATA_TOKEN) {
+    console.log('[DJEN Processos] BRIGHT_DATA_AUTH not configured');
+    return null;
+  }
 
   try {
-    const auth = btoa(DATAIMPULSE_PROXY_AUTH);
+    console.log('[DJEN Processos] Trying Bright Data Scraping Browser (residential IP)...');
     
-    const resp = await fetch(url, {
-      method: 'GET',
+    const brightDataUrl = `https://api.brightdata.com/request`;
+    
+    const requestPayload = {
+      zone: 'juris_control',
+      url: url,
+      country: 'br',
+      format: 'raw',
+    };
+
+    console.log('[DJEN Processos] Bright Data payload:', JSON.stringify(requestPayload));
+
+    const resp = await fetch(brightDataUrl, {
+      method: 'POST',
       headers: {
-        ...browserHeaders,
-        'Proxy-Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${BRIGHT_DATA_TOKEN}`,
       },
-      signal: controller.signal,
+      body: JSON.stringify(requestPayload),
     });
 
     if (!resp.ok) {
-      const t = await resp.text().catch(() => '');
-      console.log(`[DJEN Processos] DataImpulse proxy error ${resp.status}: ${t.slice(0, 200)}`);
+      const errText = await resp.text().catch(() => '');
+      console.log(`[DJEN Processos] Bright Data API error ${resp.status}: ${errText.slice(0, 500)}`);
       return null;
     }
 
-    const contentType = resp.headers.get('content-type') || '';
-    if (contentType.includes('text/html')) {
-      console.log('[DJEN Processos] DataImpulse returned HTML instead of JSON');
+    const text = await resp.text();
+    console.log('[DJEN Processos] Bright Data raw response length:', text.length);
+    
+    try {
+      const data = JSON.parse(text);
+      if (data && (data.comunicacoes || data.items || Array.isArray(data))) {
+        console.log('[DJEN Processos] ✓ Bright Data success!');
+        return data;
+      }
+      // Check if wrapped in response object
+      if (data.body) {
+        const bodyData = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+        if (bodyData && (bodyData.comunicacoes || bodyData.items || Array.isArray(bodyData))) {
+          console.log('[DJEN Processos] ✓ Bright Data success (wrapped)!');
+          return bodyData;
+        }
+      }
+      console.log('[DJEN Processos] Bright Data unexpected structure:', Object.keys(data).slice(0, 10));
+      return null;
+    } catch {
+      console.log('[DJEN Processos] Bright Data returned non-JSON:', text.slice(0, 300));
       return null;
     }
-
-    return await resp.json();
   } catch (e) {
-    console.log('[DJEN Processos] DataImpulse proxy fetch failed:', e);
+    console.log('[DJEN Processos] Bright Data fetch failed:', e);
     return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
@@ -114,12 +137,14 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
   }
 }
 
-// Unified proxy fetch: tries DataImpulse first, then Jina as fallback
+// Unified proxy fetch: tries Bright Data first, then Jina as fallback
 async function fetchViaProxy(url: string): Promise<any | null> {
-  if (DATAIMPULSE_PROXY_AUTH) {
-    console.log('[DJEN Processos] Trying DataImpulse residential proxy...');
-    const result = await fetchViaDataImpulse(url);
-    if (result) return result;
+  if (BRIGHT_DATA_TOKEN) {
+    const result = await fetchViaBrightData(url);
+    if (result) {
+      console.log('[DJEN Processos] ✓ Bright Data residential IP worked!');
+      return result;
+    }
   }
   
   if (JINA_API_KEY) {

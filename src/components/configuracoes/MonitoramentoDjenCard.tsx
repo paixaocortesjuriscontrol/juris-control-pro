@@ -482,7 +482,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         <div className="space-y-2">
           <Label htmlFor="frequencia-djen">Frequência de Execução</Label>
           <Select 
-            value={configuracaoDjen?.frequencia || '2x_dia'} 
+            value={configuracaoDjen?.frequencia || 'diario'} 
             onValueChange={handleFrequenciaChange}
             disabled={atualizarConfiguracao.isPending}
           >
@@ -491,13 +491,11 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="diario">Diário (9h BRT)</SelectItem>
-              <SelectItem value="2x_dia">2x ao dia (9h e 18h BRT)</SelectItem>
-              <SelectItem value="3x_dia">3x ao dia (9h, 11:30h e 18h BRT)</SelectItem>
               <SelectItem value="semanal">Semanal (Segunda 9h BRT)</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground mt-1">
-            ⚠️ Horários: 09:00, 11:30 e 18:00 (BRT) com retry automático se vazio
+            Execução automática às 09:00 BRT com retry automático se vazio
           </p>
         </div>
 
