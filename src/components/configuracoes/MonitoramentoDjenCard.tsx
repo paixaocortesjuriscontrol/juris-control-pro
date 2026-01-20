@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio } from "lucide-react";
+import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
 import { format } from "date-fns";
@@ -76,6 +76,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const [runsHistoryOpen, setRunsHistoryOpen] = useState(false);
   const [liveRun, setLiveRun] = useState<LiveRun | null>(null);
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<Date | null>(null);
+  const [cancelando, setCancelando] = useState(false);
   const { runDetails } = useDjenRunDetails(selectedRunId);
 
   // Fetch last execution report from historico_monitoramento and new djen_runs table
@@ -364,6 +365,33 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     }
   };
 
+  const handleCancelarExecucao = async () => {
+    if (!liveRun) return;
+    
+    setCancelando(true);
+    try {
+      const { error } = await supabase
+        .from('djen_runs')
+        .update({ 
+          status: 'cancelado', 
+          finalizado_em: new Date().toISOString(),
+          motivo_erro: 'Cancelado manualmente pelo usuário'
+        })
+        .eq('run_id', liveRun.run_id);
+
+      if (error) throw error;
+      
+      toast.success('Execução cancelada com sucesso');
+      setLiveRun(null);
+      queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
+    } catch (error) {
+      console.error('Erro ao cancelar execução:', error);
+      toast.error('Erro ao cancelar execução');
+    } finally {
+      setCancelando(false);
+    }
+  };
+
   // Parse last execution from historico_monitoramento (persisted data)
   const lastRunFromHistorico: ExecutionResult | null = ultimoHistorico ? (() => {
     const detalhes = ultimoHistorico.detalhes as Record<string, any> | null;
@@ -587,6 +615,27 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
                 {liveRun.duracao_segundos}s
               </Badge>
             </div>
+
+            {/* Botão Cancelar */}
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={handleCancelarExecucao}
+              disabled={cancelando}
+              className="w-full mt-2"
+            >
+              {cancelando ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelando...
+                </>
+              ) : (
+                <>
+                  <StopCircle className="h-4 w-4 mr-2" />
+                  Cancelar Execução
+                </>
+              )}
+            </Button>
           </div>
         )}
 
