@@ -12,7 +12,9 @@ const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 const MAX_PER_INVOCATION = 10;
 
 // Soft time limit (ms) to ensure we respond before the platform/browser cuts the request.
-const SOFT_TIMEOUT_MS = 75_000;
+// Importante: precisamos reservar um buffer para salvar metadados e enfileirar o próximo lote.
+const SOFT_TIMEOUT_MS = 55_000;
+const FINALIZATION_BUFFER_MS = 12_000;
 
 // Retry config: if first batch at 09:00 is empty, retry after this delay
 const RETRY_DELAY_MINUTES = 15;
@@ -1307,8 +1309,10 @@ serve(async (req) => {
     const allTribunaisStats: TribunalStats[] = [];
 
     for (const mon of (monitoramentos || [])) {
-      if (Date.now() - startTime > SOFT_TIMEOUT_MS) {
-        console.log(`Soft timeout reached at ${Math.round((Date.now() - startTime) / 1000)}s. Stopping batch early.`);
+      // Para não estourar o tempo máximo da Edge Function, interrompe o lote com antecedência
+      // e deixa tempo suficiente para salvar estado + enfileirar próximo lote.
+      if (Date.now() - startTime > (SOFT_TIMEOUT_MS - FINALIZATION_BUFFER_MS)) {
+        console.log(`Soft timeout (com buffer) reached at ${Math.round((Date.now() - startTime) / 1000)}s. Stopping batch early.`);
         break;
       }
 
@@ -1337,7 +1341,8 @@ serve(async (req) => {
           }
         }
 
-        await delay(600);
+        // Pequeno espaçamento para reduzir risco de rate limit; em agendado usamos menor delay para caber no runtime.
+        await delay(scheduled ? 150 : 600);
       } catch (error) {
         errorCount++;
         console.error(`Error on ${mon.id}:`, error);
@@ -1507,6 +1512,23 @@ serve(async (req) => {
       .from('configuracoes_monitoramento')
       .update(updatePayload)
       .eq('tipo', 'djen');
+
+    // Atualiza o progresso do run a cada lote (evita ficar "preso" sem números quando a continuação falha)
+    if (hasMore && run) {
+      await supabase.from('djen_runs')
+        .update({
+          status: 'em_andamento',
+          processados: run.totals.processados,
+          novas: run.totals.novas,
+          descartadas: run.totals.descartadas,
+          duplicatas: run.totals.duplicatas,
+          erros: run.totals.erros,
+          total_paginas: run.totals.total_paginas,
+          total_resultados: run.totals.total_resultados,
+          duracao_segundos: run.totals.duracao_s,
+        })
+        .eq('run_id', runId);
+    }
 
     // Update run record and create history when complete
     if (!hasMore && run) {
