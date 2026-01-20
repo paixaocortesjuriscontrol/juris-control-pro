@@ -68,7 +68,6 @@ const AnaliseDjen = () => {
   const queryClient = useQueryClient();
   const [importingProcessoId, setImportingProcessoId] = useState<string | null>(null);
   const [savingProcessoId, setSavingProcessoId] = useState<string | null>(null);
-  const [processosExistentes, setProcessosExistentes] = useState<Map<string, string>>(new Map()); // numero -> id
 
   // Buscar a coordenação do usuário logado
   const { data: userCoordenacao, isLoading: loadingUserCoord } = useQuery({
@@ -185,34 +184,6 @@ const AnaliseDjen = () => {
     setCriarTarefaDialogOpen(true);
   };
 
-  // Verificar quais processos já existem na base quando as publicações carregam
-  useEffect(() => {
-    const verificarProcessosExistentes = async () => {
-      if (publicacoes.length === 0) return;
-      
-      // Pegar números únicos de processos das publicações de tipo 'termo' sem processo_id
-      const numerosParaVerificar = [...new Set(
-        publicacoes
-          .filter(p => p.tipo_origem === 'termo' && !p.processo_id && p.processo_numero)
-          .map(p => p.processo_numero!)
-      )];
-      
-      if (numerosParaVerificar.length === 0) return;
-      
-      const { data: processosExistentesData } = await supabase
-        .from('processos')
-        .select('id, numero')
-        .in('numero', numerosParaVerificar);
-      
-      if (processosExistentesData && processosExistentesData.length > 0) {
-        const mapa = new Map<string, string>();
-        processosExistentesData.forEach(p => mapa.set(p.numero, p.id));
-        setProcessosExistentes(mapa);
-      }
-    };
-    
-    verificarProcessosExistentes();
-  }, [publicacoes]);
 
   // Função para vincular publicação a processo existente
   const handleSalvarPublicacao = async (pub: PublicacaoUnificada) => {
@@ -221,9 +192,10 @@ const AnaliseDjen = () => {
       return;
     }
 
-    const processoId = processosExistentes.get(pub.processo_numero);
+    // O hook já preenche processo_id quando o processo existe
+    const processoId = pub.processo_id;
     if (!processoId) {
-      toast.error("Processo não encontrado na base");
+      toast.error("Processo não está cadastrado. Use Importar para criar.");
       return;
     }
 
@@ -231,7 +203,7 @@ const AnaliseDjen = () => {
 
     try {
       // 1. Vincular a publicação ao processo (adicionar como movimentação)
-      await supabase
+      const { error: movError } = await supabase
         .from('movimentacoes')
         .insert({
           processo_id: processoId,
@@ -241,14 +213,19 @@ const AnaliseDjen = () => {
           data_movimentacao: pub.data_publicacao || new Date().toISOString(),
         });
 
-      // 2. Marcar a publicação como lida
-      await supabase
+      if (movError) throw movError;
+
+      // 2. Marcar a publicação como lida (tabela de termos)
+      const { error: lidaError } = await supabase
         .from('publicacoes_djen')
         .update({ lida: true })
         .eq('id', pub.id);
 
+      if (lidaError) throw lidaError;
+
       // Invalidar queries
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
 
       toast.success("Publicação vinculada ao processo!", {
         action: {
@@ -271,7 +248,13 @@ const AnaliseDjen = () => {
       return;
     }
 
-    // Verificar se o processo já existe
+    // Se já existe processo detectado pelo hook, não deve importar
+    if (pub.processo_id) {
+      toast.error("Processo já existe na base. Use o botão Salvar para vincular a publicação.");
+      return;
+    }
+
+    // Verificar no banco (fallback de segurança)
     const { data: processoExistente } = await supabase
       .from('processos')
       .select('id')
@@ -280,21 +263,18 @@ const AnaliseDjen = () => {
 
     if (processoExistente) {
       toast.error("Processo já existe na base. Use o botão Salvar para vincular a publicação.");
-      // Atualizar o mapa
-      setProcessosExistentes(prev => new Map(prev).set(pub.processo_numero!, processoExistente.id));
       return;
     }
 
     setImportingProcessoId(pub.id);
 
     try {
-      // Gerar nome da pasta baseado no polo passivo e ativo com timestamp para evitar duplicatas
+      // Nome da pasta inclui o número do processo para evitar duplicatas (pastas.nome é UNIQUE)
       const poloAtivo = pub.polo_ativo || "Autor não identificado";
       const poloPassivo = pub.polo_passivo || "Réu não identificado";
-      const timestamp = Date.now();
-      const nomePasta = `${poloPassivo} x ${poloAtivo} - ${pub.processo_numero?.substring(0, 20)}`.substring(0, 200);
+      const nomePasta = `${poloPassivo} x ${poloAtivo} - ${pub.processo_numero}`.substring(0, 200);
 
-      // 1. Verificar se já existe pasta com esse nome e criar com nome único se necessário
+      // 1. Usar pasta existente se houver, senão criar
       const { data: pastaExistente } = await supabase
         .from('pastas')
         .select('id')
@@ -302,12 +282,10 @@ const AnaliseDjen = () => {
         .maybeSingle();
 
       let pastaId: string;
-      
+
       if (pastaExistente) {
-        // Usar pasta existente
         pastaId = pastaExistente.id;
       } else {
-        // Criar nova pasta
         const { data: pasta, error: pastaError } = await supabase
           .from('pastas')
           .insert({
@@ -362,15 +340,14 @@ const AnaliseDjen = () => {
         });
 
       // 5. Marcar a publicação como lida
-      if (pub.tipo_origem === 'termo') {
-        await supabase
-          .from('publicacoes_djen')
-          .update({ lida: true })
-          .eq('id', pub.id);
-      }
+      await supabase
+        .from('publicacoes_djen')
+        .update({ lida: true })
+        .eq('id', pub.id);
 
       // Invalidar queries
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
       queryClient.invalidateQueries({ queryKey: ['processos'] });
       queryClient.invalidateQueries({ queryKey: ['pastas'] });
 
@@ -827,51 +804,47 @@ const AnaliseDjen = () => {
                                         </Link>
                                       )}
                                       
-                                      {/* Botões para publicações de TERMO sem processo_id */}
-                                      {pub.tipo_origem === 'termo' && !pub.processo_id && pub.processo_numero && (
-                                        <>
-                                          {/* Se o processo já existe na base, mostra Salvar */}
-                                          {processosExistentes.has(pub.processo_numero) ? (
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleSalvarPublicacao(pub);
-                                              }}
-                                              disabled={savingProcessoId === pub.id}
-                                              title="Vincular publicação ao processo existente"
-                                              className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-blue-950/50 dark:border-blue-800 dark:text-blue-400"
-                                            >
-                                              {savingProcessoId === pub.id ? (
-                                                <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1 animate-spin" />
-                                              ) : (
-                                                <Save className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                              )}
-                                              <span className="text-xs">Salvar</span>
-                                            </Button>
-                                          ) : (
-                                            /* Se o processo NÃO existe, mostra Importar */
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleImportarProcesso(pub);
-                                              }}
-                                              disabled={importingProcessoId === pub.id}
-                                              title="Importar processo e criar pasta"
-                                              className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-400"
-                                            >
-                                              {importingProcessoId === pub.id ? (
-                                                <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1 animate-spin" />
-                                              ) : (
-                                                <FolderPlus className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                              )}
-                                              <span className="text-xs">Importar</span>
-                                            </Button>
-                                          )}
-                                        </>
+                                      {/* Ações de vínculo/importação para publicações de TERMO */}
+                                      {pub.tipo_origem === 'termo' && pub.processo_numero && (
+                                        pub.processo_id ? (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleSalvarPublicacao(pub);
+                                            }}
+                                            disabled={savingProcessoId === pub.id}
+                                            title="Vincular publicação ao processo existente"
+                                            className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-blue-950/50 dark:border-blue-800 dark:text-blue-400"
+                                          >
+                                            {savingProcessoId === pub.id ? (
+                                              <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1 animate-spin" />
+                                            ) : (
+                                              <Save className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                            )}
+                                            <span className="text-xs">Salvar</span>
+                                          </Button>
+                                        ) : (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleImportarProcesso(pub);
+                                            }}
+                                            disabled={importingProcessoId === pub.id}
+                                            title="Importar processo e criar pasta"
+                                            className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-400"
+                                          >
+                                            {importingProcessoId === pub.id ? (
+                                              <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1 animate-spin" />
+                                            ) : (
+                                              <FolderPlus className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                            )}
+                                            <span className="text-xs">Importar</span>
+                                          </Button>
+                                        )
                                       )}
                                       
                                       <Button
