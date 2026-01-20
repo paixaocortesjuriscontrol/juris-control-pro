@@ -912,14 +912,16 @@ serve(async (req) => {
     console.log(`Fetched ${count} monitoramentos (total active: ${total})`);
 
     // Determine or create run_id
+    // Se parentRunId foi passado, SEMPRE usa ele (mesmo sem flag continued)
+    const hasParentRun = !!parentRunId;
     let runId = parentRunId || crypto.randomUUID();
-    const isNewRun = offset === 0 && !continued;
+    const isNewRun = offset === 0 && !continued && !hasParentRun;
     const loteNumero = Math.floor(offset / MAX_PER_INVOCATION) + 1;
 
+    console.log(`[DJEN] Run decision: parentRunId=${parentRunId} | hasParentRun=${hasParentRun} | isNewRun=${isNewRun} | runId=${runId}`);
+
     // Create run record for new runs (ensureRunExists will handle idempotently)
-    if (isNewRun && !parentRunId) {
-      runId = crypto.randomUUID();
-      
+    if (isNewRun) {
       // Cancel any stale in-progress runs before starting a fresh one
       const { data: staleRuns } = await supabase.from('djen_runs')
         .select('run_id')
@@ -936,6 +938,10 @@ serve(async (req) => {
       
       await ensureRunExists(supabase, runId, total, retryCount);
       console.log(`Initialized new run: ${runId}`);
+    } else if (hasParentRun) {
+      // Garante que o run existe (caso de continuação manual)
+      await ensureRunExists(supabase, runId, total, retryCount);
+      console.log(`Continuing existing run: ${runId}`);
     }
 
     // Handle empty batch at offset 0
