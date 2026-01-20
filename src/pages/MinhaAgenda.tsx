@@ -420,11 +420,19 @@ export default function MinhaAgenda() {
       }
 
       // ========= TAREFAS STATS =========
+      // shouldFetchAll: admin/coordinator sees all when "todas" coordenações and no member filter
+      const shouldFetchAllStats = isAdminOrCoordinator && coordenacaoFiltro === "todas" && membrosFiltro.length === 0;
+      
       const buildTarefaQuery = () => {
         let q = supabase.from("tarefas").select("*", { count: "exact", head: true });
 
         if (processoIdsCliente !== null) {
           q = q.in("processo_id", processoIdsCliente);
+        }
+
+        // Admin/coordinator with "todas" coordenações: fetch ALL tarefas
+        if (shouldFetchAllStats) {
+          return q;
         }
 
         // When filtering by people
@@ -450,26 +458,24 @@ export default function MinhaAgenda() {
       // Get participations for coordination members or specific users
       let userIdsForEvents: string[] = [];
       
-      if (membrosFiltro.length > 0) {
-        userIdsForEvents = membrosFiltro;
-      } else if (!isAdminOrCoordinator && user?.id) {
-        userIdsForEvents = [user.id];
-      } else if (isAdminOrCoordinator && membroIdsCoord && membroIdsCoord.length > 0) {
-        userIdsForEvents = membroIdsCoord;
+      if (!shouldFetchAllStats) {
+        if (membrosFiltro.length > 0) {
+          userIdsForEvents = membrosFiltro;
+        } else if (!isAdminOrCoordinator && user?.id) {
+          userIdsForEvents = [user.id];
+        } else if (isAdminOrCoordinator && membroIdsCoord && membroIdsCoord.length > 0) {
+          userIdsForEvents = membroIdsCoord;
+        }
       }
 
       // Get event IDs where these users participate
       let eventosParticipante: string[] = [];
-      if (userIdsForEvents.length > 0 || (isAdminOrCoordinator && coordenacaoFiltro === "todas")) {
-        const participacoesQuery = supabase.from("participantes_evento").select("evento_id");
-        
-        if (userIdsForEvents.length > 0) {
-          const { data: participacoes } = await participacoesQuery.in("usuario_id", userIdsForEvents);
-          eventosParticipante = participacoes?.map(p => p.evento_id) || [];
-        } else if (user?.id) {
-          const { data: participacoes } = await participacoesQuery.eq("usuario_id", user.id);
-          eventosParticipante = participacoes?.map(p => p.evento_id) || [];
-        }
+      if (!shouldFetchAllStats && userIdsForEvents.length > 0) {
+        const { data: participacoes } = await supabase
+          .from("participantes_evento")
+          .select("evento_id")
+          .in("usuario_id", userIdsForEvents);
+        eventosParticipante = participacoes?.map(p => p.evento_id) || [];
       }
 
       const buildEventoQuery = (statusFilter?: string, dateFilter?: { field: string; op: 'lt'; value: string }) => {
@@ -485,8 +491,8 @@ export default function MinhaAgenda() {
           q = q.lt(dateFilter.field, dateFilter.value);
         }
 
-        // If no filter applied (admin sees all), return all
-        if (userIdsForEvents.length === 0 && isAdminOrCoordinator && coordenacaoFiltro === "todas") {
+        // Admin/coordinator with "todas" coordenações: fetch ALL eventos
+        if (shouldFetchAllStats) {
           return q;
         }
         
@@ -497,11 +503,7 @@ export default function MinhaAgenda() {
             q = q.in("criado_por", userIdsForEvents);
           }
         } else if (user?.id) {
-          if (eventosParticipante.length > 0) {
-            q = q.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(',')})`);
-          } else {
-            q = q.eq("criado_por", user.id);
-          }
+          q = q.or(`criado_por.eq.${user.id}`);
         }
 
         return q;
