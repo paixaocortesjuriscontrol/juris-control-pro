@@ -190,7 +190,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const numerosProcessosTermo: string[] = [];
 
       // Buscar publicações de TERMOS (monitoramentos_djen)
-      if (filtros.tipoOrigem !== 'processo') {
+      // Obs: quando filtrando por 'descartada', não deve trazer termos/processos.
+      if (filtros.tipoOrigem !== 'processo' && filtros.tipoOrigem !== 'descartada') {
         let queryTermos = supabase
           .from('publicacoes_djen')
           .select(`
@@ -283,7 +284,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       }
 
       // Buscar publicações de PROCESSOS (publicacoes_djen_processos)
-      if (filtros.tipoOrigem !== 'termo') {
+      // Obs: quando filtrando por 'descartada', não deve trazer termos/processos.
+      if (filtros.tipoOrigem !== 'termo' && filtros.tipoOrigem !== 'descartada') {
         let queryProcessos = supabase
           .from('publicacoes_djen_processos')
           .select(`

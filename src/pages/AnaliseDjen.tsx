@@ -62,6 +62,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 
+type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada';
+
 const AnaliseDjen = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -103,7 +105,9 @@ const AnaliseDjen = () => {
   }, [userCoordenacao, loadingUserCoord, coordenacaoId]);
   
   // States
-  const [selectedIds, setSelectedIds] = useState<Map<string, 'termo' | 'processo' | 'descartada'>>(new Map());
+  const [selectedIds, setSelectedIds] = useState<Map<string, TipoOrigemPublicacao>>(
+    new Map<string, TipoOrigemPublicacao>()
+  );
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [criarTarefaDialogOpen, setCriarTarefaDialogOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
@@ -145,7 +149,7 @@ const AnaliseDjen = () => {
 
   const { data: coordenacoes } = useCoordenacoes();
 
-  const toggleSelect = (id: string, tipo: 'termo' | 'processo' | 'descartada') => {
+  const toggleSelect = (id: string, tipo: TipoOrigemPublicacao) => {
     const newSelected = new Map(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
@@ -157,9 +161,9 @@ const AnaliseDjen = () => {
 
   const toggleSelectAll = () => {
     if (selectedIds.size === publicacoes.length) {
-      setSelectedIds(new Map());
+      setSelectedIds(new Map<string, TipoOrigemPublicacao>());
     } else {
-      const newMap = new Map<string, 'termo' | 'processo' | 'descartada'>();
+      const newMap = new Map<string, TipoOrigemPublicacao>();
       publicacoes.forEach(p => newMap.set(p.id, p.tipo_origem));
       setSelectedIds(newMap);
     }
@@ -391,7 +395,7 @@ const AnaliseDjen = () => {
     }
     const items = Array.from(selectedIds.entries()).map(([id, tipo]) => ({ id, tipo_origem: tipo }));
     await marcarComoLida.mutateAsync(items);
-    setSelectedIds(new Map());
+    setSelectedIds(new Map<string, TipoOrigemPublicacao>());
   };
 
   const formatDate = (dateString: string | null) => {
