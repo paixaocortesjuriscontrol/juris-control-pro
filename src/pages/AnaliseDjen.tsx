@@ -585,7 +585,7 @@ const AnaliseDjen = () => {
                   onCheckedChange={(checked) => setApenasHoje(checked as boolean)}
                 />
                 <Label htmlFor="apenasHoje" className="cursor-pointer text-xs md:text-sm font-medium">
-                  Apenas hoje
+                  Hoje
                 </Label>
               </div>
 
@@ -596,7 +596,20 @@ const AnaliseDjen = () => {
                   onCheckedChange={(checked) => setApenasNaoLidas(checked as boolean)}
                 />
                 <Label htmlFor="naoLidas" className="cursor-pointer text-xs md:text-sm">
-                  Apenas não lidas
+                  Não Lidas
+                </Label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  id="todasPublicacoes"
+                  checked={tipoOrigem === 'todos'}
+                  onCheckedChange={(checked) => {
+                    if (checked) setTipoOrigem('todos');
+                  }}
+                />
+                <Label htmlFor="todasPublicacoes" className="cursor-pointer text-xs md:text-sm font-medium">
+                  Todas
                 </Label>
               </div>
 
@@ -609,7 +622,7 @@ const AnaliseDjen = () => {
                   }}
                 />
                 <Label htmlFor="apenasDescartadas" className="cursor-pointer text-xs md:text-sm text-destructive font-medium">
-                  Apenas Descartadas
+                  Descartadas
                 </Label>
               </div>
             </div>
