@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History } from "lucide-react";
+import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
 import { format } from "date-fns";
@@ -17,6 +17,21 @@ import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+interface LiveRun {
+  run_id: string;
+  status: string;
+  processados: number;
+  novas: number;
+  descartadas: number;
+  duplicatas: number;
+  erros: number;
+  total_monitoramentos: number;
+  total_paginas: number;
+  total_resultados: number;
+  duracao_segundos: number;
+  iniciado_em: string;
+}
 
 interface Props {
   coordenacaoId: string;
@@ -59,6 +74,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<string>('');
   const [runsHistoryOpen, setRunsHistoryOpen] = useState(false);
+  const [liveRun, setLiveRun] = useState<LiveRun | null>(null);
   const { runDetails } = useDjenRunDetails(selectedRunId);
   
   // Fetch last execution report from historico_monitoramento and new djen_runs table
@@ -98,6 +114,87 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // Real-time subscription for djen_runs updates
+  useEffect(() => {
+    // Check for currently running run on mount
+    const checkCurrentRun = async () => {
+      const { data } = await supabase
+        .from('djen_runs')
+        .select('*')
+        .eq('status', 'em_andamento')
+        .order('iniciado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data) {
+        setLiveRun({
+          run_id: data.run_id,
+          status: data.status,
+          processados: data.processados || 0,
+          novas: data.novas || 0,
+          descartadas: data.descartadas || 0,
+          duplicatas: data.duplicatas || 0,
+          erros: data.erros || 0,
+          total_monitoramentos: data.total_monitoramentos || 0,
+          total_paginas: data.total_paginas || 0,
+          total_resultados: data.total_resultados || 0,
+          duracao_segundos: data.duracao_segundos || 0,
+          iniciado_em: data.iniciado_em,
+        });
+      }
+    };
+    
+    checkCurrentRun();
+    
+    const channel = supabase
+      .channel('djen-runs-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'djen_runs',
+        },
+        (payload) => {
+          const newData = payload.new as any;
+          
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            if (newData.status === 'em_andamento') {
+              setLiveRun({
+                run_id: newData.run_id,
+                status: newData.status,
+                processados: newData.processados || 0,
+                novas: newData.novas || 0,
+                descartadas: newData.descartadas || 0,
+                duplicatas: newData.duplicatas || 0,
+                erros: newData.erros || 0,
+                total_monitoramentos: newData.total_monitoramentos || 0,
+                total_paginas: newData.total_paginas || 0,
+                total_resultados: newData.total_resultados || 0,
+                duracao_segundos: newData.duracao_segundos || 0,
+                iniciado_em: newData.iniciado_em,
+              });
+            } else if (newData.status === 'concluido' || newData.status === 'erro' || newData.status === 'cancelado') {
+              // Run finished - clear live run and refresh queries
+              setLiveRun(null);
+              queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
+              queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
+              queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+              
+              if (newData.status === 'concluido') {
+                toast.success(`Execução automática concluída: ${newData.processados || 0} verificados, ${newData.novas || 0} novas`);
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const handleExecutarManual = async () => {
     setExecutando(true);
@@ -265,21 +362,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     };
   })() : null;
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader className="flex flex-row items-center gap-4">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <RefreshCw className="h-6 w-6 text-primary animate-spin" />
-          </div>
-          <div>
-            <CardTitle className="text-lg">Carregando...</CardTitle>
-          </div>
-        </CardHeader>
-      </Card>
-    );
-  }
-
   const progressPercent = progresso.total > 0 
     ? Math.round((progresso.atual / progresso.total) * 100) 
     : 0;
@@ -340,6 +422,26 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
     return rows;
   }, [statsToShow, termosPorTribunal]);
+
+  // Live run progress
+  const liveProgressPercent = liveRun && liveRun.total_monitoramentos > 0
+    ? Math.round((liveRun.processados / liveRun.total_monitoramentos) * 100)
+    : 0;
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-4">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <RefreshCw className="h-6 w-6 text-primary animate-spin" />
+          </div>
+          <div>
+            <CardTitle className="text-lg">Carregando...</CardTitle>
+          </div>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -432,12 +534,48 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           </div>
         )}
 
-        {/* Progress */}
+        {/* Live Run Progress (Real-time) */}
+        {liveRun && !executando && (
+          <div className="space-y-3 p-3 bg-primary/5 rounded-lg border border-primary/20 animate-pulse">
+            <div className="flex items-center gap-2">
+              <Radio className="h-4 w-4 text-primary animate-pulse" />
+              <span className="text-sm font-medium">Execução em andamento</span>
+              <Badge variant="outline" className="ml-auto text-xs">
+                {format(toZonedTime(new Date(liveRun.iniciado_em), 'America/Sao_Paulo'), "HH:mm", { locale: ptBR })}
+              </Badge>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Processando: {liveRun.processados}/{liveRun.total_monitoramentos}</span>
+                <span className="text-primary">+{liveRun.novas} novas</span>
+              </div>
+              <Progress value={liveProgressPercent} className="h-2" />
+            </div>
+            
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Badge variant="secondary" className="gap-1">
+                <Layers className="h-3 w-3" />
+                {liveRun.total_paginas} páginas
+              </Badge>
+              <Badge variant="secondary" className="gap-1">
+                <FileText className="h-3 w-3" />
+                {liveRun.total_resultados} resultados
+              </Badge>
+              <Badge variant="secondary" className="gap-1">
+                <Clock className="h-3 w-3" />
+                {liveRun.duracao_segundos}s
+              </Badge>
+            </div>
+          </div>
+        )}
+
+        {/* Progress (Manual execution) */}
         {executando && progresso.total > 0 && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>Processando: {progresso.atual}/{progresso.total}</span>
-              <span className="text-green-600">+{progresso.novas} novas</span>
+              <span className="text-primary">+{progresso.novas} novas</span>
             </div>
             <Progress value={progressPercent} className="h-2" />
           </div>
