@@ -92,7 +92,8 @@ const AnaliseDjen = () => {
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
   const [apenasHoje, setApenasHoje] = useState(true);
-  const [tipoOrigem, setTipoOrigem] = useState<'todos' | 'termo' | 'processo'>('todos');
+  const [tipoOrigem, setTipoOrigem] = useState<'todos' | 'termo' | 'processo' | 'descartada'>('todos');
+  const [incluirDescartadas, setIncluirDescartadas] = useState(false);
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
@@ -103,7 +104,7 @@ const AnaliseDjen = () => {
   }, [userCoordenacao, loadingUserCoord, coordenacaoId]);
   
   // States
-  const [selectedIds, setSelectedIds] = useState<Map<string, 'termo' | 'processo'>>(new Map());
+  const [selectedIds, setSelectedIds] = useState<Map<string, 'termo' | 'processo' | 'descartada'>>(new Map());
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [criarTarefaDialogOpen, setCriarTarefaDialogOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
@@ -134,9 +135,10 @@ const AnaliseDjen = () => {
     dataInicio: apenasHoje ? undefined : dataInicio || undefined,
     dataFim: apenasHoje ? undefined : dataFim || undefined,
     termoBusca: termoBusca || undefined,
-    apenasNaoLidas,
+    apenasNaoLidas: tipoOrigem === 'descartada' ? false : apenasNaoLidas,
     apenasHoje,
     tipoOrigem: tipoOrigem === 'todos' ? undefined : tipoOrigem,
+    incluirDescartadas,
   });
 
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
@@ -144,7 +146,7 @@ const AnaliseDjen = () => {
 
   const { data: coordenacoes } = useCoordenacoes();
 
-  const toggleSelect = (id: string, tipo: 'termo' | 'processo') => {
+  const toggleSelect = (id: string, tipo: 'termo' | 'processo' | 'descartada') => {
     const newSelected = new Map(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
@@ -158,7 +160,7 @@ const AnaliseDjen = () => {
     if (selectedIds.size === publicacoes.length) {
       setSelectedIds(new Map());
     } else {
-      const newMap = new Map<string, 'termo' | 'processo'>();
+      const newMap = new Map<string, 'termo' | 'processo' | 'descartada'>();
       publicacoes.forEach(p => newMap.set(p.id, p.tipo_origem));
       setSelectedIds(newMap);
     }
@@ -589,9 +591,21 @@ const AnaliseDjen = () => {
                   id="naoLidas"
                   checked={apenasNaoLidas}
                   onCheckedChange={(checked) => setApenasNaoLidas(checked as boolean)}
+                  disabled={tipoOrigem === 'descartada'}
                 />
                 <Label htmlFor="naoLidas" className="cursor-pointer text-xs md:text-sm">
                   Apenas não lidas
+                </Label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  id="incluirDescartadas"
+                  checked={incluirDescartadas}
+                  onCheckedChange={(checked) => setIncluirDescartadas(checked as boolean)}
+                />
+                <Label htmlFor="incluirDescartadas" className="cursor-pointer text-xs md:text-sm text-red-600">
+                  Incluir descartadas
                 </Label>
               </div>
             </div>
@@ -744,7 +758,11 @@ const AnaliseDjen = () => {
                                     {formatDateShort(pub.data_publicacao)}
                                   </span>
                                   
-                                  {pub.tipo_origem === 'termo' ? (
+                                  {pub.tipo_origem === 'descartada' ? (
+                                    <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
+                                      DESCARTADA
+                                    </Badge>
+                                  ) : pub.tipo_origem === 'termo' ? (
                                     <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 max-w-[150px] md:max-w-none truncate">
                                       <FileSearch className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
                                       <span className="truncate">
@@ -759,6 +777,13 @@ const AnaliseDjen = () => {
                                       <Gavel className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
                                       <span className="hidden sm:inline">Processo Cadastrado</span>
                                       <span className="sm:hidden">Processo</span>
+                                    </Badge>
+                                  )}
+                                  
+                                  {/* Motivo do descarte */}
+                                  {pub.tipo_origem === 'descartada' && pub.motivo_descarte && (
+                                    <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 max-w-[200px] truncate">
+                                      {pub.motivo_descarte}
                                     </Badge>
                                   )}
                                   
