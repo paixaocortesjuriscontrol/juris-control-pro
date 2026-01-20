@@ -839,32 +839,52 @@ serve(async (req) => {
 
     // Auto-continuation: garante completar todos os processos sem depender de múltiplos cron jobs.
     if (completeRun && hasMore) {
-      const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen-processos`;
-      const nextBody = {
-        dataInicio,
-        dataFim,
-        continuarDe: nextOffset,
-        completeRun: true,
-        scheduled: true,
-        continued: true,
-      };
+      // CANCELAMENTO PERSISTENTE: verificar flag antes de disparar próximo lote
+      const { data: freshConfig } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen_processos')
+        .maybeSingle();
 
-      // Use anon key for internal calls (verify_jwt = false, so we just need a valid key)
-      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+      const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
 
-      const p = fetch(nextUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify(nextBody),
-      })
-        .then((r) => r.text().then((t) => console.log(`[DJEN Processos] Queued next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`)))
-        .catch((e) => console.error('[DJEN Processos] Failed to queue next batch', e));
+      if (wasCancelled) {
+        console.log('[DJEN Processos] Cancelamento detectado, parando auto-continuação');
+        const currentMeta = (freshConfig?.metadata as Record<string, any>) || {};
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: { ...currentMeta, cancelado: false, status: 'cancelado', next_offset: 0 },
+          })
+          .eq('tipo', 'djen_processos');
+      } else {
+        const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen-processos`;
+        const nextBody = {
+          dataInicio,
+          dataFim,
+          continuarDe: nextOffset,
+          completeRun: true,
+          scheduled: true,
+          continued: true,
+        };
 
-      const er = (globalThis as any).EdgeRuntime;
-      if (er?.waitUntil) er.waitUntil(p);
+        // Use anon key for internal calls (verify_jwt = false, so we just need a valid key)
+        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+
+        const p = fetch(nextUrl, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify(nextBody),
+        })
+          .then((r) => r.text().then((t) => console.log(`[DJEN Processos] Queued next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`)))
+          .catch((e) => console.error('[DJEN Processos] Failed to queue next batch', e));
+
+        const er = (globalThis as any).EdgeRuntime;
+        if (er?.waitUntil) er.waitUntil(p);
+      }
     }
 
     return new Response(

@@ -542,6 +542,28 @@ Deno.serve(async (req) => {
       while (true) {
         batchCount++;
         console.log(`Processing batch ${batchCount}...`);
+
+        // CANCELAMENTO PERSISTENTE: verificar flag antes de cada lote
+        const { data: freshConfig } = await supabase
+          .from('configuracoes_monitoramento')
+          .select('metadata')
+          .eq('tipo', 'distribuicoes')
+          .maybeSingle();
+
+        const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
+
+        if (wasCancelled) {
+          console.log('[Distribuicoes] Cancelamento detectado, parando execução');
+          // Limpa flag e atualiza status
+          const currentMeta = (freshConfig?.metadata as Record<string, any>) || {};
+          await supabase
+            .from('configuracoes_monitoramento')
+            .update({
+              metadata: { ...currentMeta, cancelado: false, status: 'cancelado' },
+            })
+            .eq('tipo', 'distribuicoes');
+          break;
+        }
         
         const { isComplete, novasDistribuicoes, tribunaisProcessados, errors } = await processBatch(supabase);
         

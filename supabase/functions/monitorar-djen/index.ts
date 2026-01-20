@@ -1441,95 +1441,126 @@ serve(async (req) => {
 
     // Auto-continuation
     if (completeRun && hasMore && typeof nextOffset === 'number') {
-      const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen?offset=${nextOffset}`;
-      const nextBody = {
-        completeRun: true,
-        scheduled: true,
-        continued: true,
-        parentRunId: runId,
-      };
+      // CANCELAMENTO PERSISTENTE: verificar flag antes de disparar próximo lote
+      const { data: freshConfig } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .maybeSingle();
 
-      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
-      const incomingAuth = req.headers.get('authorization') || '';
-      const authHeader = incomingAuth.startsWith('Bearer ')
-        ? incomingAuth
-        : (supabaseAnonKey ? `Bearer ${supabaseAnonKey}` : '');
+      const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
 
-      if (!authHeader) {
-        console.error('[DJEN] No Authorization header available for auto-continuation');
+      if (wasCancelled) {
+        console.log('[DJEN] Cancelamento detectado, parando auto-continuação');
+        const currentFreshMeta = (freshConfig?.metadata as Record<string, any>) || {};
+        
+        // Limpa flag e atualiza status
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: { ...currentFreshMeta, cancelado: false, status: 'cancelado', next_offset: null, has_more: false, djen_run: null },
+          })
+          .eq('tipo', 'djen');
+
+        // Atualiza o run para cancelado
+        await supabase.from('djen_runs')
+          .update({
+            status: 'cancelado',
+            finalizado_em: nowIso,
+            motivo_erro: 'Cancelado manualmente pelo usuário',
+          })
+          .eq('run_id', runId);
       } else {
-        const maxAttempts = 3;
-        let queued = false;
-        let lastErr: unknown = null;
+        const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen?offset=${nextOffset}`;
+        const nextBody = {
+          completeRun: true,
+          scheduled: true,
+          continued: true,
+          parentRunId: runId,
+        };
 
-        for (let attempt = 1; attempt <= maxAttempts && !queued; attempt++) {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 55_000);
+        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+        const incomingAuth = req.headers.get('authorization') || '';
+        const authHeader = incomingAuth.startsWith('Bearer ')
+          ? incomingAuth
+          : (supabaseAnonKey ? `Bearer ${supabaseAnonKey}` : '');
 
-          try {
-            const r = await fetch(nextUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': authHeader,
-              },
-              body: JSON.stringify(nextBody),
-              signal: controller.signal,
-            });
+        if (!authHeader) {
+          console.error('[DJEN] No Authorization header available for auto-continuation');
+        } else {
+          const maxAttempts = 3;
+          let queued = false;
+          let lastErr: unknown = null;
 
-            clearTimeout(timeout);
+          for (let attempt = 1; attempt <= maxAttempts && !queued; attempt++) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 55_000);
 
-            if (r.ok) {
-              console.log(`[DJEN] Queued next batch offset=${nextOffset} (attempt ${attempt}/${maxAttempts})`);
-              queued = true;
-              break;
-            }
-
-            const t = await r.text().catch(() => '');
-            lastErr = new Error(`HTTP ${r.status}`);
-            console.error(`[DJEN] Failed to queue next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`);
-          } catch (e) {
-            clearTimeout(timeout);
-            lastErr = e;
-            console.error(`[DJEN] Failed to queue next batch offset=${nextOffset} (attempt ${attempt}/${maxAttempts})`, e);
-            if (attempt < maxAttempts) {
-              await new Promise((res) => setTimeout(res, 800 * attempt));
-            }
-          }
-        }
-
-        // Se não conseguiu enfileirar, encerra o run para não ficar preso em "em_andamento"
-        if (!queued) {
-          console.error('[DJEN] Giving up queuing next batch', lastErr);
-
-          try {
-            await supabase
-              .from('djen_runs')
-              .update({
-                status: 'erro',
-                finalizado_em: nowIso,
-                motivo_erro: 'failed_to_queue_next_batch',
-              })
-              .eq('run_id', runId);
-          } catch (e) {
-            console.error('[DJEN] Failed to mark run as erro after queue failure', e);
-          }
-
-          // Limpa a continuação para a próxima execução não somar em cima de um run quebrado
-          try {
-            await supabase
-              .from('configuracoes_monitoramento')
-              .update({
-                metadata: {
-                  ...updatedMeta,
-                  has_more: false,
-                  next_offset: null,
-                  djen_run: null,
+            try {
+              const r = await fetch(nextUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': authHeader,
                 },
-              })
-              .eq('tipo', 'djen');
-          } catch (e) {
-            console.error('[DJEN] Failed to clear metadata after queue failure', e);
+                body: JSON.stringify(nextBody),
+                signal: controller.signal,
+              });
+
+              clearTimeout(timeout);
+
+              if (r.ok) {
+                console.log(`[DJEN] Queued next batch offset=${nextOffset} (attempt ${attempt}/${maxAttempts})`);
+                queued = true;
+                break;
+              }
+
+              const t = await r.text().catch(() => '');
+              lastErr = new Error(`HTTP ${r.status}`);
+              console.error(`[DJEN] Failed to queue next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`);
+            } catch (e) {
+              clearTimeout(timeout);
+              lastErr = e;
+              console.error(`[DJEN] Failed to queue next batch offset=${nextOffset} (attempt ${attempt}/${maxAttempts})`, e);
+              if (attempt < maxAttempts) {
+                await new Promise((res) => setTimeout(res, 800 * attempt));
+              }
+            }
+          }
+
+          // Se não conseguiu enfileirar, encerra o run para não ficar preso em "em_andamento"
+          if (!queued) {
+            console.error('[DJEN] Giving up queuing next batch', lastErr);
+
+            try {
+              await supabase
+                .from('djen_runs')
+                .update({
+                  status: 'erro',
+                  finalizado_em: nowIso,
+                  motivo_erro: 'failed_to_queue_next_batch',
+                })
+                .eq('run_id', runId);
+            } catch (e) {
+              console.error('[DJEN] Failed to mark run as erro after queue failure', e);
+            }
+
+            // Limpa a continuação para a próxima execução não somar em cima de um run quebrado
+            try {
+              await supabase
+                .from('configuracoes_monitoramento')
+                .update({
+                  metadata: {
+                    ...updatedMeta,
+                    has_more: false,
+                    next_offset: null,
+                    djen_run: null,
+                  },
+                })
+                .eq('tipo', 'djen');
+            } catch (e) {
+              console.error('[DJEN] Failed to clear metadata after queue failure', e);
+            }
           }
         }
       }
