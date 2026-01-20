@@ -31,15 +31,37 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
   const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number; monitoramento?: string } | null>(null);
   const canceladoRef = useRef(false);
 
-  const handleCancelar = () => {
+  const handleCancelar = async () => {
     canceladoRef.current = true;
     toast.info("Cancelando após o lote atual...");
+
+    // Cancelamento persistente para parar execuções/auto-continuação no backend
+    if (configuracaoDistribuicoes?.id) {
+      const currentMetadata = (configuracaoDistribuicoes.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando' },
+        })
+        .eq('id', configuracaoDistribuicoes.id);
+    }
   };
 
   const handleExecutarCompleto = async () => {
     setExecutandoCompleto(true);
     setProgresso({ current: 0, total: 0, percentage: 0 });
     canceladoRef.current = false;
+
+    // Limpa flag de cancelamento anterior (se houver)
+    if (configuracaoDistribuicoes?.id) {
+      const currentMetadata = (configuracaoDistribuicoes.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: { ...currentMetadata, cancelado: false, status: 'em_andamento' },
+        })
+        .eq('id', configuracaoDistribuicoes.id);
+    }
     
     try {
       let isComplete = false;
@@ -47,7 +69,7 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
       let iterations = 0;
       const maxIterations = 100;
       
-      while (!isComplete && !canceladoRef.current && iterations < maxIterations) {
+        while (!isComplete && !canceladoRef.current && iterations < maxIterations) {
         iterations++;
         
         const { data, error } = await supabase.functions.invoke('monitorar-distribuicoes');
