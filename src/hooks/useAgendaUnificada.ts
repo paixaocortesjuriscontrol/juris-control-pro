@@ -86,14 +86,37 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
       const incluirEventos = !filters.origens || filters.origens.includes("evento");
       const incluirTarefas = !filters.origens || filters.origens.includes("tarefa");
 
+      // Alguns usuários podem não ter permissão SELECT em tabelas relacionadas (ex.: processos/profiles),
+      // o que quebra selects com embeds (PostgREST). Para evitar lista vazia + totalizadores diferentes,
+      // tentamos com joins e, se falhar, fazemos fallback sem joins.
+      const buildEventosQuery = (withJoins: boolean) => {
+        let q = supabase
+          .from("eventos_agenda")
+          .select(
+            withJoins
+              ? "*,processo:processos(id,numero,assunto)"
+              : "*"
+          );
+
+        // Se fetchAll=true (admin vendo tudo), não filtra por criador/participante
+        // (e RLS fará o controle de visibilidade)
+        // Obs: filtro por usuário/participantes será aplicado no bloco de execução abaixo.
+        return q;
+      };
+
+      const buildTarefasQuery = (withJoins: boolean) => {
+        return supabase
+          .from("tarefas")
+          .select(
+            withJoins
+              ? "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas,processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id),responsavel:profiles!tarefas_responsavel_id_fkey(id,nome)"
+              : "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas"
+          );
+      };
+
       // ========= BUSCAR EVENTOS =========
       if (incluirEventos) {
-        let queryEventos = supabase
-          .from("eventos_agenda")
-          .select(`
-            *,
-            processo:processos(id, numero, assunto)
-          `);
+        let queryEventos = buildEventosQuery(true);
 
         // Se fetchAll=true (admin vendo tudo), não filtra por criador/participante
         if (!filters.fetchAll) {
@@ -135,10 +158,67 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
           queryEventos = queryEventos.lte("data_inicio", filters.dataFim.toISOString());
         }
 
-        const { data: eventos, error: eventosError } = await queryEventos;
-        
+        let { data: eventos, error: eventosError } = await queryEventos;
+
+        // Fallback sem joins caso o embed cause erro de permissão
         if (eventosError) {
           console.error("Erro ao buscar eventos:", eventosError);
+          let queryEventosFallback = buildEventosQuery(false);
+
+          if (!filters.fetchAll) {
+            const { data: participacoesUsuario } = await supabase
+              .from("participantes_evento")
+              .select("evento_id")
+              .eq("usuario_id", user.id);
+
+            const eventosParticipante = participacoesUsuario?.map((p) => p.evento_id) || [];
+
+            if (eventosParticipante.length > 0) {
+              queryEventosFallback = queryEventosFallback.or(
+                `criado_por.eq.${user.id},id.in.(${eventosParticipante.join(",")})`
+              );
+            } else {
+              queryEventosFallback = queryEventosFallback.eq("criado_por", user.id);
+            }
+          }
+
+          if (filters.tipos && filters.tipos.length > 0) {
+            const tiposEvento = filters.tipos.filter((t) =>
+              ["evento", "prazo", "audiencia", "parcelamento", "prazo_parcela"].includes(t)
+            );
+            if (tiposEvento.length > 0) {
+              queryEventosFallback = queryEventosFallback.in("tipo", tiposEvento);
+            }
+          }
+
+          if (filters.status && filters.status !== "todas") {
+            queryEventosFallback = queryEventosFallback.eq(
+              "status",
+              filters.status === "pendente" ? "pendente" : filters.status
+            );
+          }
+
+          if (filters.dataInicio) {
+            queryEventosFallback = queryEventosFallback.gte(
+              "data_inicio",
+              filters.dataInicio.toISOString()
+            );
+          }
+
+          if (filters.dataFim) {
+            queryEventosFallback = queryEventosFallback.lte(
+              "data_inicio",
+              filters.dataFim.toISOString()
+            );
+          }
+
+          const fallbackRes = await queryEventosFallback;
+          eventos = fallbackRes.data;
+          eventosError = fallbackRes.error;
+        }
+        
+        if (eventosError) {
+          console.error("Erro ao buscar eventos (fallback):", eventosError);
         } else if (eventos && eventos.length > 0) {
           // Get participants for each event
           const eventIds = eventos.map(e => e.id);
@@ -197,32 +277,7 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
 
       // ========= BUSCAR TAREFAS =========
       if (incluirTarefas) {
-        let queryTarefas = supabase
-          .from("tarefas")
-          .select(`
-            id,
-            titulo,
-            descricao,
-            data_vencimento,
-            data_fatal,
-            tipo_tarefa,
-            status,
-            prioridade,
-            observacoes,
-            created_at,
-            updated_at,
-            processo_id,
-            responsavel_id,
-            criado_por,
-            identificador_projuris,
-            hora_fatal,
-            link_local,
-            orgao,
-            partes_ativas,
-            partes_passivas,
-            processo:processos!tarefas_processo_id_fkey(id, numero, assunto, cliente_id, coordenacao_id),
-            responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
-          `);
+        let queryTarefas = buildTarefasQuery(true);
 
         // Filtrar por responsável OU se é o criador
         // Se fetchAll=true (admin vendo tudo), não filtra por usuário
@@ -261,10 +316,61 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
           queryTarefas = queryTarefas.lte("data_vencimento", filters.dataFim.toISOString().split('T')[0]);
         }
 
-        const { data: tarefas, error: tarefasError } = await queryTarefas;
+        let { data: tarefas, error: tarefasError } = await queryTarefas;
 
+        // Fallback sem joins caso o embed cause erro de permissão
         if (tarefasError) {
           console.error("Erro ao buscar tarefas:", tarefasError);
+          let queryTarefasFallback = buildTarefasQuery(false);
+
+          if (filters.fetchAll) {
+            // sem filtro
+          } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
+            if (filters.responsavelIds.includes(user.id)) {
+              queryTarefasFallback = queryTarefasFallback.or(
+                `responsavel_id.in.(${filters.responsavelIds.join(",")}),criado_por.eq.${user.id}`
+              );
+            } else {
+              const membrosFilter = filters.responsavelIds.join(",");
+              queryTarefasFallback = queryTarefasFallback.or(
+                `responsavel_id.in.(${membrosFilter}),and(criado_por.eq.${user.id},responsavel_id.in.(${membrosFilter}))`
+              );
+            }
+          } else {
+            queryTarefasFallback = queryTarefasFallback.or(
+              `responsavel_id.eq.${user.id},criado_por.eq.${user.id}`
+            );
+          }
+
+          if (filters.status && filters.status !== "todas") {
+            if (filters.status === "pendente") {
+              queryTarefasFallback = queryTarefasFallback.eq("status", "pendente");
+            } else if (filters.status === "concluido") {
+              queryTarefasFallback = queryTarefasFallback.eq("status", "cumprido");
+            }
+          }
+
+          if (filters.dataInicio) {
+            queryTarefasFallback = queryTarefasFallback.gte(
+              "data_vencimento",
+              filters.dataInicio.toISOString().split("T")[0]
+            );
+          }
+
+          if (filters.dataFim) {
+            queryTarefasFallback = queryTarefasFallback.lte(
+              "data_vencimento",
+              filters.dataFim.toISOString().split("T")[0]
+            );
+          }
+
+          const fallbackRes = await queryTarefasFallback;
+          tarefas = fallbackRes.data;
+          tarefasError = fallbackRes.error;
+        }
+
+        if (tarefasError) {
+          console.error("Erro ao buscar tarefas (fallback):", tarefasError);
         } else if (tarefas) {
           // Filtrar por tipos se "tarefa" ou "tarefa_delegada" estiver incluído
           const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || 
