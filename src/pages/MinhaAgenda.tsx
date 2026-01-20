@@ -361,10 +361,10 @@ export default function MinhaAgenda() {
 
   // Fetch-all mode:
   // - admin/coordinator with "todas" and no member filter
-  // - OR user has no coordination (userCoordenacao === null)
+  // OBS: não habilitar fetchAll para usuário comum sem coordenação,
+  // pois isso remove o filtro (responsavel/criado_por) e quebra os totalizadores.
   const isFetchAllMode =
-    (isAdminOrCoordinator && coordenacaoFiltro === "todas" && membrosFiltro.length === 0) ||
-    userCoordenacao === null;
+    isAdminOrCoordinator && coordenacaoFiltro === "todas" && membrosFiltro.length === 0;
 
   const responsavelIdsForAgenda = useMemo(() => {
     // When fetching all, do NOT apply responsavelIds filtering (otherwise events get re-filtered to the user)
