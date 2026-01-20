@@ -539,9 +539,10 @@ export default function MinhaAgenda() {
       const eventosConcluidos = eventosConcluidosRes.count ?? 0;
 
       const total = tarefasTotal + eventosTotal;
-      const pendentes = (tarefasPendentesTotal - tarefasAtrasadas) + (eventosPendentesTotal - eventosAtrasados);
       const atrasadas = tarefasAtrasadas + eventosAtrasados;
       const concluidas = tarefasConcluidas + eventosConcluidos;
+      // Pendentes = total de pendentes que NÃO estão atrasadas (garantindo >= 0)
+      const pendentes = Math.max(0, (tarefasPendentesTotal + eventosPendentesTotal) - atrasadas);
 
       return { total, pendentes, atrasadas, concluidas };
     },
