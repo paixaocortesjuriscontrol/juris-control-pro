@@ -217,6 +217,21 @@ export function CriarTarefaPublicacaoDialog({
     }
   }, [open, publicacao?.id, form]);
 
+  const resetParaNovaTarefa = () => {
+    form.reset({
+      tipo_tarefa: "",
+      titulo: "",
+      descricao: "",
+      responsavel_id: "",
+      data_vencimento: format(new Date(), "yyyy-MM-dd"),
+      data_fatal: "",
+      prioridade: "alta",
+    });
+    setObservacoesIA(null);
+    setMostrarDicaIA(true);
+    setTarefaEditandoId(null);
+  };
+
   // Fetch membros da coordenação do processo
   const { data: membros } = useQuery({
     queryKey: ["membros-tarefa-publicacao", publicacao?.coordenacao_id],
@@ -427,14 +442,23 @@ export function CriarTarefaPublicacaoDialog({
               {/* Card de tarefas criadas - layout separado e mais visível */}
               {tarefasCriadas && tarefasCriadas.length > 0 && (
                 <div className="mb-3 p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <ListChecks className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                      Tarefas criadas ({tarefasCriadas.length})
-                    </span>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ListChecks className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                        Tarefas criadas ({tarefasCriadas.length})
+                      </span>
+                    </div>
+                    {tarefaEditandoId && (
+                      <Button type="button" variant="outline" size="sm" onClick={resetParaNovaTarefa}>
+                        Nova
+                      </Button>
+                    )}
                   </div>
-                  <div className="max-h-[150px] md:max-h-[200px] overflow-y-auto pr-1 space-y-2">
-                    {tarefasCriadas.map((tarefa, idx) => (
+
+                  <ScrollArea className="h-[150px] md:h-[200px] pr-3">
+                    <div className="space-y-2">
+                      {tarefasCriadas.map((tarefa, idx) => (
                         <button 
                           type="button"
                           key={tarefa?.id || idx} 
@@ -495,8 +519,9 @@ export function CriarTarefaPublicacaoDialog({
                             )}
                           </div>
                         </button>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </div>
               )}
               
@@ -587,7 +612,7 @@ export function CriarTarefaPublicacaoDialog({
           {/* Lado Direito - Formulário de Tarefa */}
           <div className="w-full lg:w-[400px] flex flex-col bg-muted/10 min-h-0">
             <div className="p-4 border-b bg-primary/5 shrink-0">
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between gap-2">
                 <div>
                   <h3 className="font-semibold flex items-center gap-2">
                     <ListChecks className="w-4 h-4" />
@@ -597,24 +622,31 @@ export function CriarTarefaPublicacaoDialog({
                     Crie uma tarefa a partir desta publicação
                   </p>
                 </div>
-                <BotaoPreencherIA
-                  conteudo={publicacao.conteudo}
-                  tipoTarefa={form.watch("tipo_tarefa")}
-                  processoNumero={publicacao.processo_numero}
-                  dataPublicacao={publicacao.data_publicacao}
-                  onResultado={(resultado) => {
-                    if (resultado.tipo_tarefa) {
-                      form.setValue("tipo_tarefa", resultado.tipo_tarefa);
-                    }
-                    form.setValue("titulo", resultado.titulo);
-                    form.setValue("descricao", resultado.descricao);
-                    form.setValue("prioridade", resultado.prioridade);
-                    form.setValue("data_vencimento", resultado.data_vencimento);
-                    setObservacoesIA(resultado.observacoes || "Campos preenchidos automaticamente. Revise antes de salvar.");
-                    setMostrarDicaIA(false);
-                  }}
-                  size="sm"
-                />
+                <div className="flex items-center gap-2">
+                  {tarefaEditandoId && (
+                    <Button type="button" variant="outline" size="sm" onClick={resetParaNovaTarefa}>
+                      Limpar
+                    </Button>
+                  )}
+                  <BotaoPreencherIA
+                    conteudo={publicacao.conteudo}
+                    tipoTarefa={form.watch("tipo_tarefa")}
+                    processoNumero={publicacao.processo_numero}
+                    dataPublicacao={publicacao.data_publicacao}
+                    onResultado={(resultado) => {
+                      if (resultado.tipo_tarefa) {
+                        form.setValue("tipo_tarefa", resultado.tipo_tarefa);
+                      }
+                      form.setValue("titulo", resultado.titulo);
+                      form.setValue("descricao", resultado.descricao);
+                      form.setValue("prioridade", resultado.prioridade);
+                      form.setValue("data_vencimento", resultado.data_vencimento);
+                      setObservacoesIA(resultado.observacoes || "Campos preenchidos automaticamente. Revise antes de salvar.");
+                      setMostrarDicaIA(false);
+                    }}
+                    size="sm"
+                  />
+                </div>
               </div>
               {mostrarDicaIA && (
                 <div className="mt-3 p-2.5 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 border border-violet-200 dark:border-violet-800 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300">
@@ -638,9 +670,93 @@ export function CriarTarefaPublicacaoDialog({
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 pb-24 lg:pb-4">
+              {/* Mobile: mostrar tarefas criadas acima do formulário */}
+              {tarefasCriadas && tarefasCriadas.length > 0 && (
+                <div className="lg:hidden mb-4 p-3 bg-muted/30 border rounded-lg">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ListChecks className="w-4 h-4" />
+                      <span className="text-sm font-medium truncate">
+                        Tarefas criadas ({tarefasCriadas.length})
+                      </span>
+                    </div>
+                    {tarefaEditandoId && (
+                      <Button type="button" variant="outline" size="sm" onClick={resetParaNovaTarefa}>
+                        Nova
+                      </Button>
+                    )}
+                  </div>
+
+                  <ScrollArea className="h-[160px] pr-3">
+                    <div className="space-y-2">
+                      {tarefasCriadas.map((tarefa, idx) => (
+                        <button
+                          type="button"
+                          key={tarefa?.id || idx}
+                          onClick={async () => {
+                            if (!tarefa?.id) return;
+                            const { data } = await supabase
+                              .from("tarefas")
+                              .select("*")
+                              .eq("id", tarefa.id)
+                              .single();
+                            if (data) {
+                              form.reset({
+                                tipo_tarefa: data.tipo_tarefa || "",
+                                titulo: data.titulo || "",
+                                descricao: data.descricao || "",
+                                responsavel_id: data.responsavel_id || "",
+                                data_vencimento: data.data_vencimento || "",
+                                data_fatal: data.data_fatal || "",
+                                prioridade: (data.prioridade as "baixa" | "media" | "alta" | "urgente") || "alta",
+                              });
+                              setTarefaEditandoId(tarefa.id);
+                              setObservacoesIA(null);
+                            }
+                          }}
+                          className={`text-xs w-full text-left rounded px-2 py-1.5 border transition-colors ${
+                            tarefaEditandoId === tarefa?.id
+                              ? "bg-muted border-ring"
+                              : "bg-background border-border hover:bg-muted"
+                          }`}
+                        >
+                          <div className="font-medium truncate" title={tarefa?.titulo}>
+                            {tarefa?.tipo_tarefa && (
+                              <Badge variant="outline" className="mr-1.5 text-[10px] px-1 py-0 font-semibold">
+                                {tarefa.tipo_tarefa}
+                              </Badge>
+                            )}
+                            {tarefa?.titulo || "Tarefa"}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5 text-muted-foreground flex-wrap">
+                            {tarefa?.responsavel_nome && (
+                              <span className="flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                {tarefa.responsavel_nome}
+                              </span>
+                            )}
+                            {tarefa?.data_vencimento && (
+                              <span className="flex items-center gap-1" title="Data prevista">
+                                <Calendar className="w-3 h-3" />
+                                {format(new Date(tarefa.data_vencimento), "dd/MM/yy")}
+                              </span>
+                            )}
+                            {tarefa?.data_fatal && (
+                              <span className="flex items-center gap-1 text-destructive" title="Data fatal">
+                                <AlertTriangle className="w-3 h-3" />
+                                {format(new Date(tarefa.data_fatal), "dd/MM/yy")}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  {!publicacao.processo_id && (
                     <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                       <div className="flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5" />
