@@ -202,13 +202,13 @@ export default function MinhaAgenda() {
 
   // Auto-set coordination when detected
   useEffect(() => {
-    // IMPORTANTE: para administradores/coordenadores, o padrão deve ser "Todas Coordenações"
-    // e não auto-selecionar uma coordenação específica.
-    if (userCoordenacao && !coordenacaoAutoDetected && !isAdminOrCoordinator) {
-      setCoordenacaoFiltro(userCoordenacao);
+    // IMPORTANTE: nesta tela, NÃO auto-aplicamos filtro de coordenação.
+    // (Admin/coordenador deve iniciar em "Todas"; e para não-admin, a agenda não deve esconder
+    // itens por coordenação automaticamente.)
+    if (userCoordenacao && !coordenacaoAutoDetected) {
       setCoordenacaoAutoDetected(true);
     }
-  }, [userCoordenacao, coordenacaoAutoDetected, isAdminOrCoordinator]);
+  }, [userCoordenacao, coordenacaoAutoDetected]);
 
   // Auto-filter by logged user when not admin
   useEffect(() => {
@@ -406,8 +406,6 @@ export default function MinhaAgenda() {
     return { total, pendentes, atrasadas, concluidas };
   }, [itensAgenda, shouldUseClientSideStats]);
 
-  const statsDisplay = statsFromItems ?? stats;
-
   // Stats via COUNT - includes both TAREFAS and EVENTOS
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["agenda-stats-unified", coordenacaoFiltro, membrosFiltro, clienteFiltro, user?.id, isAdminOrCoordinator, membroIdsCoordenacao],
@@ -572,6 +570,8 @@ export default function MinhaAgenda() {
     },
     enabled: !!user?.id && !roleLoading,
   });
+
+  const statsDisplay = statsFromItems ?? stats;
 
   // Filter and sort items
   const itensFiltrados = useMemo(() => {
