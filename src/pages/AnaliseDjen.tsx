@@ -150,7 +150,7 @@ const AnaliseDjen = () => {
   const { data: coordenacoes } = useCoordenacoes();
 
   const toggleSelect = (id: string, tipo: TipoOrigemPublicacao) => {
-    const newSelected = new Map(selectedIds);
+    const newSelected = new Map<string, TipoOrigemPublicacao>(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
     } else {
@@ -164,7 +164,7 @@ const AnaliseDjen = () => {
       setSelectedIds(new Map<string, TipoOrigemPublicacao>());
     } else {
       const newMap = new Map<string, TipoOrigemPublicacao>();
-      publicacoes.forEach(p => newMap.set(p.id, p.tipo_origem));
+      publicacoes.forEach(p => newMap.set(p.id, p.tipo_origem as TipoOrigemPublicacao));
       setSelectedIds(newMap);
     }
   };
@@ -751,7 +751,7 @@ const AnaliseDjen = () => {
                             <div className="flex items-start gap-2 md:gap-3">
                               <Checkbox
                                 checked={selectedIds.has(pub.id)}
-                                onCheckedChange={() => toggleSelect(pub.id, pub.tipo_origem)}
+                                onCheckedChange={() => toggleSelect(pub.id, pub.tipo_origem as TipoOrigemPublicacao)}
                                 className="mt-0.5"
                               />
                               
