@@ -600,12 +600,20 @@ const AnaliseDjen = () => {
 
               <div className="flex items-center gap-2">
                 <Checkbox 
-                  id="incluirDescartadas"
-                  checked={incluirDescartadas}
-                  onCheckedChange={(checked) => setIncluirDescartadas(checked as boolean)}
+                  id="apenasDescartadas"
+                  checked={tipoOrigem === 'descartada'}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setTipoOrigem('descartada');
+                      setIncluirDescartadas(true);
+                    } else {
+                      setTipoOrigem('todos');
+                      setIncluirDescartadas(false);
+                    }
+                  }}
                 />
-                <Label htmlFor="incluirDescartadas" className="cursor-pointer text-xs md:text-sm text-red-600">
-                  Incluir descartadas
+                <Label htmlFor="apenasDescartadas" className="cursor-pointer text-xs md:text-sm text-destructive font-medium">
+                  Apenas Descartadas
                 </Label>
               </div>
             </div>
