@@ -688,32 +688,30 @@ async function fetchDJENResultsWithStats(
   while (page < maxPages) {
     const queryParams = new URLSearchParams();
 
-    // IMPORTANTE: A API PJE Comunica NÃO suporta parâmetros numeroOab/ufOab/nomeAdvogado diretamente!
-    // Todas as buscas precisam ser convertidas para o parâmetro "texto"
-    let searchText = params.texto || '';
+    // A API PJE Comunica suporta parâmetros nativos para busca por OAB
+    // ufOab e numeroOab são parâmetros válidos da API
+    if (params.texto) {
+      queryParams.set('texto', params.texto);
+    }
     
-    // Se for busca por OAB, converter para texto
-    if (params.numeroOab && params.ufOab) {
-      // A API indexa advogados de várias formas, então tentamos múltiplos formatos
-      // O formato mais comum é "OAB-UF NUMERO" ou "OAB NUMERO UF"
-      searchText = `OAB ${params.ufOab} ${params.numeroOab}`;
-      console.log(`[OAB Search] Converting numeroOab=${params.numeroOab}, ufOab=${params.ufOab} to texto="${searchText}"`);
-    } else if (params.numeroOab) {
-      searchText = params.numeroOab;
-      console.log(`[OAB Search] Using just numeroOab=${params.numeroOab} as texto`);
-    } else if (params.nomeAdvogado) {
-      searchText = params.nomeAdvogado;
-      console.log(`[Advogado Search] Using nomeAdvogado="${params.nomeAdvogado}" as texto`);
+    // Usar parâmetros nativos da API para OAB (não converter para texto)
+    if (params.numeroOab) {
+      queryParams.set('numeroOab', params.numeroOab);
+      console.log(`[OAB Search] Using native numeroOab=${params.numeroOab}`);
+    }
+    if (params.ufOab) {
+      queryParams.set('ufOab', params.ufOab);
+      console.log(`[OAB Search] Using native ufOab=${params.ufOab}`);
+    }
+    if (params.nomeAdvogado) {
+      queryParams.set('nomeAdvogado', params.nomeAdvogado);
+      console.log(`[Advogado Search] Using native nomeAdvogado="${params.nomeAdvogado}"`);
     }
 
-    if (searchText) {
-      queryParams.set('texto', searchText);
-    }
-    
     if (params.siglaTribunal) queryParams.set('siglaTribunal', params.siglaTribunal);
 
-    queryParams.set('dataDisponibilizacaoInicio', params.dataInicio || defaultInicio);
-    queryParams.set('dataDisponibilizacaoFim', params.dataFim || defaultFim);
+    queryParams.set('dataDisponibilizacaoInicio', params.dataInicio || dataHoje);
+    queryParams.set('dataDisponibilizacaoFim', params.dataFim || dataHoje);
     queryParams.set('pagina', page.toString());
     queryParams.set('itensPorPagina', '100');
 
@@ -743,28 +741,6 @@ async function fetchDJENResultsWithStats(
         page++;
         await delay(500);
       } else {
-        // Se a busca por OAB não retornou resultados, tenta formato alternativo
-        if (params.numeroOab && params.ufOab && page === 0 && searchText.startsWith('OAB')) {
-          const altSearch = `${params.ufOab}-${params.numeroOab}`;
-          console.log(`[OAB Search] No results with "${searchText}", trying alternative format: "${altSearch}"`);
-          queryParams.set('texto', altSearch);
-          const altUrl = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
-          
-          try {
-            const altResponse = await fetchWithRetry(altUrl, { headers: browserHeaders });
-            if (altResponse.ok) {
-              const altData = await altResponse.json();
-              const altItems = altData?.comunicacoes || altData?.items || altData || [];
-              if (Array.isArray(altItems) && altItems.length > 0) {
-                allResults.push(...altItems);
-                page++;
-                continue;
-              }
-            }
-          } catch (e) {
-            console.error('Alt search failed:', e);
-          }
-        }
         break;
       }
     } catch (error) {
