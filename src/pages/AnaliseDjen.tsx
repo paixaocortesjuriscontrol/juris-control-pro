@@ -93,7 +93,6 @@ const AnaliseDjen = () => {
   const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
   const [apenasHoje, setApenasHoje] = useState(true);
   const [tipoOrigem, setTipoOrigem] = useState<'todos' | 'termo' | 'processo' | 'descartada'>('todos');
-  const [incluirDescartadas, setIncluirDescartadas] = useState(false);
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
@@ -135,10 +134,10 @@ const AnaliseDjen = () => {
     dataInicio: apenasHoje ? undefined : dataInicio || undefined,
     dataFim: apenasHoje ? undefined : dataFim || undefined,
     termoBusca: termoBusca || undefined,
-    apenasNaoLidas: tipoOrigem === 'descartada' ? false : apenasNaoLidas,
+    apenasNaoLidas,
     apenasHoje,
     tipoOrigem: tipoOrigem === 'todos' ? undefined : tipoOrigem,
-    incluirDescartadas,
+    incluirDescartadas: tipoOrigem === 'descartada',
   });
 
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
@@ -591,7 +590,6 @@ const AnaliseDjen = () => {
                   id="naoLidas"
                   checked={apenasNaoLidas}
                   onCheckedChange={(checked) => setApenasNaoLidas(checked as boolean)}
-                  disabled={tipoOrigem === 'descartada'}
                 />
                 <Label htmlFor="naoLidas" className="cursor-pointer text-xs md:text-sm">
                   Apenas não lidas
@@ -603,13 +601,7 @@ const AnaliseDjen = () => {
                   id="apenasDescartadas"
                   checked={tipoOrigem === 'descartada'}
                   onCheckedChange={(checked) => {
-                    if (checked) {
-                      setTipoOrigem('descartada');
-                      setIncluirDescartadas(true);
-                    } else {
-                      setTipoOrigem('todos');
-                      setIncluirDescartadas(false);
-                    }
+                    setTipoOrigem(checked ? 'descartada' : 'todos');
                   }}
                 />
                 <Label htmlFor="apenasDescartadas" className="cursor-pointer text-xs md:text-sm text-destructive font-medium">
