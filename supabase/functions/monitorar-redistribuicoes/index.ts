@@ -383,7 +383,10 @@ async function processBatch(supabase: any): Promise<{
   const newMetadata = {
     next_offset: isComplete ? 0 : nextOffset,
     last_batch_size: processos?.length || 0,
-    last_complete_run: isComplete ? new Date().toISOString() : (lastCompleteRun?.toISOString() || null)
+    last_complete_run: isComplete ? new Date().toISOString() : (lastCompleteRun?.toISOString() || null),
+    total: totalCount || 0,
+    status: isComplete ? 'concluido' : 'em_andamento',
+    continuingRun: !isComplete,
   };
   
   const { error: updateError } = await supabase

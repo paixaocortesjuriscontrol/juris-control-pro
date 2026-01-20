@@ -587,11 +587,14 @@ Deno.serve(async (req) => {
     }
 
     // Atualizar metadata com próximo offset (ou resetar se completo)
-    if (configData?.id && completeRun) {
+    if (configData?.id) {
       const newMetadata = {
         ...configData.metadata,
         next_offset: isComplete ? 0 : processedCount,
         last_batch_size: movimentacoesList.length,
+        total: totalMovimentacoes,
+        status: isComplete ? 'concluido' : 'em_andamento',
+        continuingRun: completeRun && !isComplete,
         ...(isComplete && { last_complete_run: new Date().toISOString() }),
       };
 
