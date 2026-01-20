@@ -40,12 +40,144 @@ const browserHeaders = {
   "Referer": "https://comunica.pje.jus.br/",
 };
 
+// Bright Data API Token (for REST API - most reliable)
+const BRIGHT_DATA_TOKEN = Deno.env.get('BRIGHT_DATA_AUTH') || '';
+
 // Browserless API for real browser automation (simulates clicks)
 const BROWSERLESS_API_KEY = Deno.env.get('BROWSERLESS_API_KEY') || '';
 
 // Jina Reader proxy (fallback when Browserless is not available)
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
+
+// =====================================================
+// BRIGHT DATA SCRAPING BROWSER - IP Residencial BR
+// =====================================================
+async function fetchViaBrightData(apiUrl: string): Promise<any | null> {
+  if (!BRIGHT_DATA_TOKEN) {
+    console.log('[DJEN] BRIGHT_DATA_AUTH not configured');
+    return null;
+  }
+
+  try {
+    console.log('[DJEN] Trying Bright Data Scraping Browser (residential IP)...');
+    
+    // Bright Data REST API with Bearer token
+    // Documentation: https://docs.brightdata.com/api-reference/proxy/proxy_api_auth
+    const brightDataUrl = `https://api.brightdata.com/request`;
+    
+    const requestPayload = {
+      zone: 'scraping_browser', // Scraping Browser zone
+      url: apiUrl,
+      country: 'br', // Brazilian IP
+      format: 'json',
+      render: true, // Use browser rendering
+    };
+
+    console.log('[DJEN] Bright Data payload:', JSON.stringify(requestPayload));
+
+    const resp = await fetch(brightDataUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${BRIGHT_DATA_TOKEN}`,
+      },
+      body: JSON.stringify(requestPayload),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      console.log(`[DJEN] Bright Data API error ${resp.status}: ${errText.slice(0, 500)}`);
+      
+      // If the zone doesn't exist, try Web Unlocker
+      if (resp.status === 400 || resp.status === 404) {
+        return await fetchViaBrightDataUnlocker(apiUrl);
+      }
+      return null;
+    }
+
+    const text = await resp.text();
+    console.log('[DJEN] Bright Data raw response length:', text.length);
+    
+    try {
+      const data = JSON.parse(text);
+      if (data && (data.comunicacoes || data.items || Array.isArray(data))) {
+        console.log('[DJEN] ✓ Bright Data success!');
+        return data;
+      }
+      // Check if wrapped in response object
+      if (data.body) {
+        const bodyData = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+        if (bodyData && (bodyData.comunicacoes || bodyData.items || Array.isArray(bodyData))) {
+          console.log('[DJEN] ✓ Bright Data success (wrapped)!');
+          return bodyData;
+        }
+      }
+      console.log('[DJEN] Bright Data unexpected structure:', Object.keys(data).slice(0, 10));
+      return null;
+    } catch {
+      console.log('[DJEN] Bright Data returned non-JSON:', text.slice(0, 300));
+      return null;
+    }
+  } catch (e) {
+    console.log('[DJEN] Bright Data fetch failed:', e);
+    return null;
+  }
+}
+
+// Alternative: Use Bright Data Web Unlocker
+async function fetchViaBrightDataUnlocker(apiUrl: string): Promise<any | null> {
+  try {
+    console.log('[DJEN] Trying Bright Data Web Unlocker...');
+    
+    // Web Unlocker API
+    const webUnlockerUrl = `https://api.brightdata.com/unblocker`;
+    
+    const resp = await fetch(webUnlockerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${BRIGHT_DATA_TOKEN}`,
+      },
+      body: JSON.stringify({
+        url: apiUrl,
+        zone: 'web_unlocker',
+        country: 'br',
+        format: 'json',
+      }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      console.log(`[DJEN] Bright Data Web Unlocker error ${resp.status}: ${errText.slice(0, 300)}`);
+      return null;
+    }
+
+    const text = await resp.text();
+    try {
+      const data = JSON.parse(text);
+      if (data && (data.comunicacoes || data.items || Array.isArray(data))) {
+        console.log('[DJEN] ✓ Bright Data Web Unlocker success!');
+        return data;
+      }
+      if (data.body) {
+        const bodyData = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+        if (bodyData && (bodyData.comunicacoes || bodyData.items || Array.isArray(bodyData))) {
+          console.log('[DJEN] ✓ Bright Data Web Unlocker success (wrapped)!');
+          return bodyData;
+        }
+      }
+      console.log('[DJEN] Web Unlocker unexpected structure:', Object.keys(data).slice(0, 5));
+      return null;
+    } catch {
+      console.log('[DJEN] Web Unlocker returned non-JSON');
+      return null;
+    }
+  } catch (e) {
+    console.log('[DJEN] Web Unlocker failed:', e);
+    return null;
+  }
+}
 
 // Fetch via Browserless Function API (Puppeteer)
 // NOTE: /function expects ESM code: `export default async function({ page, context }) { ... }`
@@ -178,20 +310,37 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
   }
 }
 
-// Unified proxy fetch: tries Browserless first (real browser), then Jina as fallback
+// Unified proxy fetch: tries Bright Data first (residential IP), then Browserless, then Jina
 async function fetchViaProxy(url: string): Promise<any | null> {
-  // Try Browserless with real browser simulation first (most reliable)
+  // Priority 1: Bright Data with Brazilian residential IP (most reliable for DJEN)
+  if (BRIGHT_DATA_TOKEN) {
+    const result = await fetchViaBrightData(url);
+    if (result) {
+      console.log('[DJEN] ✓ Bright Data residential IP worked!');
+      return result;
+    }
+  }
+  
+  // Priority 2: Browserless with real browser simulation
   if (BROWSERLESS_API_KEY) {
     const result = await fetchViaBrowserless(url);
-    if (result) return result;
+    if (result) {
+      console.log('[DJEN] ✓ Browserless worked!');
+      return result;
+    }
   }
   
-  // Fallback to Jina proxy
+  // Priority 3: Jina proxy (last resort)
   if (JINA_API_KEY) {
     console.log('[DJEN] Trying Jina proxy fallback...');
-    return await fetchJsonViaJina(url);
+    const result = await fetchJsonViaJina(url);
+    if (result) {
+      console.log('[DJEN] ✓ Jina proxy worked!');
+      return result;
+    }
   }
   
+  console.log('[DJEN] All proxy methods failed');
   return null;
 }
 
