@@ -398,9 +398,11 @@ export default function MinhaAgenda() {
 
   const { data: itensAgenda, isLoading } = useAgendaUnificada(filters);
 
-  // Para o cenário "Todas Coordenações" (sem membro específico), os totalizadores devem
-  // refletir exatamente o que está na lista (evita inconsistência de filtros/COUNT).
-  const shouldUseClientSideStats = shouldFetchAll;
+  // Para evitar inconsistência entre COUNT (HEAD) e o que aparece na lista:
+  // - quando o usuário está em modo "fetch all" (admin/coordenador)
+  // - OU quando o usuário NÃO tem coordenação (caso reportado: totalizadores divergentes)
+  // usamos os totalizadores calculados a partir do array já carregado.
+  const shouldUseClientSideStats = shouldFetchAll || userCoordenacao === null;
   const statsFromItems = useMemo(() => {
     if (!shouldUseClientSideStats) return null;
     if (!itensAgenda) return null;
@@ -578,7 +580,7 @@ export default function MinhaAgenda() {
 
       return { total, pendentes, atrasadas, concluidas };
     },
-    enabled: !!user?.id && !roleLoading,
+    enabled: !!user?.id && !roleLoading && !shouldUseClientSideStats,
   });
 
   const statsDisplay = statsFromItems ?? stats;
