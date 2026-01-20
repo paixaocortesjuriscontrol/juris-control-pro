@@ -46,6 +46,95 @@ const browserHeaders = {
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
+// Bright Data API Token (residential IP fallback)
+const BRIGHT_DATA_TOKEN = Deno.env.get('BRIGHT_DATA_AUTH') || '';
+
+function tryParseDjenJson(text: string): any | null {
+  // 1) Direct JSON
+  try {
+    const data = JSON.parse(text);
+
+    // Bright Data may wrap the response in { body: "..." }
+    if (data?.body) {
+      try {
+        const bodyData = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+        if (bodyData && (bodyData.comunicacoes || bodyData.items || Array.isArray(bodyData))) {
+          return bodyData;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (data && (data.comunicacoes || data.items || Array.isArray(data))) {
+      return data;
+    }
+  } catch {
+    // ignore
+  }
+
+  // 2) Sometimes Jina returns a text wrapper; try to extract the JSON object containing "comunicacoes"
+  const jsonMatch = text.match(/\{[\s\S]*"comunicacoes"[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
+// Fetch via Bright Data REST API - Residential IP BR (fallback when comunicaapi blocks)
+async function fetchViaBrightData(url: string): Promise<any | null> {
+  if (!BRIGHT_DATA_TOKEN) {
+    console.log('[DJEN] BRIGHT_DATA_AUTH not configured');
+    return null;
+  }
+
+  try {
+    console.log('[DJEN] Trying Bright Data (residential IP)...');
+
+    const brightDataUrl = 'https://api.brightdata.com/request';
+    const requestPayload = {
+      zone: 'juris_control',
+      url,
+      country: 'br',
+      format: 'raw',
+    };
+
+    const resp = await fetch(brightDataUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${BRIGHT_DATA_TOKEN}`,
+      },
+      body: JSON.stringify(requestPayload),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      console.log(`[DJEN] Bright Data API error ${resp.status}: ${errText.slice(0, 500)}`);
+      return null;
+    }
+
+    const text = await resp.text();
+    const parsed = tryParseDjenJson(text);
+
+    if (parsed) {
+      console.log('[DJEN] ✓ Bright Data success!');
+      return parsed;
+    }
+
+    console.log('[DJEN] Bright Data returned non-JSON:', text.slice(0, 300));
+    return null;
+  } catch (e) {
+    console.log('[DJEN] Bright Data fetch failed:', e);
+    return null;
+  }
+}
+
 // Fast Jina proxy fallback (cheap and fast - ~$0.001/request)
 async function fetchJsonViaJina(url: string): Promise<any | null> {
   if (!JINA_API_KEY) {
@@ -76,29 +165,14 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
     }
 
     const text = await resp.text();
+    const parsed = tryParseDjenJson(text);
 
-    // Try to find JSON in the response
-    const jsonMatch = text.match(/\{[\s\S]*"comunicacoes"[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        const data = JSON.parse(jsonMatch[0]);
-        console.log('[DJEN] ✓ Jina proxy success!');
-        return data;
-      } catch {
-        // continue
-      }
+    if (parsed) {
+      console.log('[DJEN] ✓ Jina proxy success!');
+      return parsed;
     }
 
-    try {
-      const data = JSON.parse(text);
-      if (data && (data.comunicacoes || data.items || Array.isArray(data))) {
-        console.log('[DJEN] ✓ Jina proxy success!');
-        return data;
-      }
-    } catch {
-      console.log('[DJEN] Jina proxy returned non-JSON:', text.slice(0, 300));
-    }
-
+    console.log('[DJEN] Jina proxy returned non-JSON:', text.slice(0, 300));
     return null;
   } catch (e) {
     console.log('[DJEN] Jina proxy fetch failed:', e);
@@ -106,6 +180,23 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+// Unified proxy fetch: tries Bright Data first, then Jina as fallback
+async function fetchViaProxy(url: string): Promise<any | null> {
+  if (BRIGHT_DATA_TOKEN) {
+    const result = await fetchViaBrightData(url);
+    if (result) {
+      console.log('[DJEN] ✓ Bright Data residential IP worked!');
+      return result;
+    }
+  }
+
+  if (JINA_API_KEY) {
+    return await fetchJsonViaJina(url);
+  }
+
+  return null;
 }
 
 function delay(ms: number): Promise<void> {
@@ -490,6 +581,16 @@ async function processMonitoramento(
     let pages = 0;
 
     for (const candidate of searchCandidates) {
+      const candidateLabel = candidate.numeroOab
+        ? `numeroOab=${candidate.numeroOab}/${candidate.ufOab || ''}`
+        : candidate.nomeAdvogado
+          ? `nomeAdvogado="${candidate.nomeAdvogado}"`
+          : candidate.texto
+            ? `texto="${candidate.texto}"`
+            : 'unknown';
+
+      console.log(`[DJEN] Trying candidate ${candidateLabel} | tribunal=${tribunal || 'TODOS'} | período=${options.dataInicio || '-'}→${options.dataFim || '-'}`);
+
       const searchParams: SearchParams = { 
         ...candidate, 
         siglaTribunal: tribunal,
@@ -698,7 +799,7 @@ async function fetchDJENResultsWithStats(
     if (params.texto) {
       queryParams.set('texto', params.texto);
     }
-    
+
     // Usar parâmetros nativos da API para OAB (não converter para texto)
     if (params.numeroOab) {
       queryParams.set('numeroOab', params.numeroOab);
@@ -715,8 +816,11 @@ async function fetchDJENResultsWithStats(
 
     if (params.siglaTribunal) queryParams.set('siglaTribunal', params.siglaTribunal);
 
-    queryParams.set('dataDisponibilizacaoInicio', params.dataInicio || dataHoje);
-    queryParams.set('dataDisponibilizacaoFim', params.dataFim || dataHoje);
+    const dataInicio = params.dataInicio || defaultInicio;
+    const dataFim = params.dataFim || defaultFim;
+
+    queryParams.set('dataDisponibilizacaoInicio', dataInicio);
+    queryParams.set('dataDisponibilizacaoFim', dataFim);
     queryParams.set('pagina', page.toString());
     queryParams.set('itensPorPagina', '100');
 
@@ -724,16 +828,17 @@ async function fetchDJENResultsWithStats(
     console.log(`Fetching: ${url}`);
 
     try {
-      const response = await fetchWithRetry(url, { headers: browserHeaders });
+      const response = await fetchWithRetry(url, { headers: browserHeaders }, 3, 2000);
       const contentType = response.headers.get('content-type') || '';
 
       let data: any | null = null;
 
-      // Se a API bloquear (403 ou HTML), tenta via Jina
+      // Se a API bloquear (403 ou HTML), tenta via proxy (Bright Data -> Jina)
       if (!response.ok || contentType.includes('text/html')) {
-        console.error(`API error: ${response.status}`);
-        data = await fetchJsonViaJina(url);
+        const bodyPreview = await response.text().catch(() => '');
+        console.error(`API blocked/error: status=${response.status} content-type=${contentType} preview=${bodyPreview.slice(0, 200)}`);
 
+        data = await fetchViaProxy(url);
         if (!data) break;
       } else {
         data = await response.json();
