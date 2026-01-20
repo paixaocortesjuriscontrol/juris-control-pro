@@ -29,6 +29,7 @@ import ClienteDetalhes from "./pages/ClienteDetalhes";
 import MonitoramentoDistribuicao from "./pages/MonitoramentoDistribuicao";
 import Monitoramento360 from "./pages/Monitoramento360";
 import MonitoramentoDjen from "./pages/MonitoramentoDjen";
+import MonitoracaoHub from "./pages/MonitoracaoHub";
 import MinhaCarteira from "./pages/MinhaCarteira";
 import AnaliseDjen from "./pages/AnaliseDjen";
 import Pastas from "./pages/Pastas";
@@ -108,6 +109,7 @@ const App = () => (
               <Route path="/monitoramento-distribuicao" element={<ProtectedRoute><MonitoramentoDistribuicao /></ProtectedRoute>} />
               <Route path="/monitoramento-360" element={<ProtectedRoute><Monitoramento360 /></ProtectedRoute>} />
               <Route path="/monitoramento-djen" element={<ProtectedRoute><MonitoramentoDjen /></ProtectedRoute>} />
+              <Route path="/monitoracao" element={<ProtectedRoute><MonitoracaoHub /></ProtectedRoute>} />
               <Route path="/pastas" element={<ProtectedRoute><Pastas /></ProtectedRoute>} />
               <Route path="/pastas/:id" element={<ProtectedRoute><PastaDetalhes /></ProtectedRoute>} />
               <Route path="/analise-tarefas-projuris" element={<ProtectedRoute><AnaliseTarefasProjuris /></ProtectedRoute>} />
