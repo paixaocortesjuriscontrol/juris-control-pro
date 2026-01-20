@@ -169,8 +169,12 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
               applyRun(newData);
             } else if (['concluido', 'erro', 'cancelado'].includes(newData.status)) {
               setLiveRun(null);
+              // Invalidar todos os caches relevantes
               queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
               queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
+              queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
+              queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
+              queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
               if (newData.status === 'concluido') {
                 toast.success(`Concluído: ${newData.processados || 0} verificados, ${newData.novas || 0} novas`);
               }
