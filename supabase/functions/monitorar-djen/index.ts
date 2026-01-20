@@ -42,9 +42,77 @@ const browserHeaders = {
   "Referer": "https://comunica.pje.jus.br/",
 };
 
+// Bright Data API Token (opcional; útil para execuções agendadas onde o IP do datacenter toma 403)
+const BRIGHT_DATA_TOKEN = Deno.env.get('BRIGHT_DATA_AUTH') || '';
+
 // Jina Reader proxy (fast and cheap fallback)
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
+
+// Fetch via Bright Data REST API - IP Residencial BR
+async function fetchViaBrightData(url: string): Promise<any | null> {
+  if (!BRIGHT_DATA_TOKEN) {
+    console.log('[DJEN] BRIGHT_DATA_AUTH not configured');
+    return null;
+  }
+
+  try {
+    console.log('[DJEN] Trying Bright Data (residential IP)...');
+
+    const brightDataUrl = 'https://api.brightdata.com/request';
+    const requestPayload = {
+      zone: 'juris_control',
+      url,
+      country: 'br',
+      format: 'raw',
+    };
+
+    const resp = await fetch(brightDataUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${BRIGHT_DATA_TOKEN}`,
+      },
+      body: JSON.stringify(requestPayload),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      console.log(`[DJEN] Bright Data API error ${resp.status}: ${errText.slice(0, 500)}`);
+      return null;
+    }
+
+    const text = await resp.text();
+
+    try {
+      const data = JSON.parse(text);
+
+      // Pode vir direto
+      if (data && (data.comunicacoes || data.items || Array.isArray(data))) {
+        console.log('[DJEN] ✓ Bright Data success!');
+        return data;
+      }
+
+      // Ou embrulhado em { body: ... }
+      if (data?.body) {
+        const bodyData = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+        if (bodyData && (bodyData.comunicacoes || bodyData.items || Array.isArray(bodyData))) {
+          console.log('[DJEN] ✓ Bright Data success (wrapped)!');
+          return bodyData;
+        }
+      }
+
+      console.log('[DJEN] Bright Data unexpected structure:', Object.keys(data || {}).slice(0, 10));
+      return null;
+    } catch {
+      console.log('[DJEN] Bright Data returned non-JSON:', text.slice(0, 300));
+      return null;
+    }
+  } catch (e) {
+    console.log('[DJEN] Bright Data fetch failed:', e);
+    return null;
+  }
+}
 
 // Fast Jina proxy fallback (cheap and fast - ~$0.001/request)
 async function fetchJsonViaJina(url: string): Promise<any | null> {
@@ -65,7 +133,6 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
       headers: {
         'Authorization': `Bearer ${JINA_API_KEY}`,
         'Accept': 'application/json, text/plain, */*',
-        'X-Return-Format': 'text',
       },
       signal: controller.signal,
     });
@@ -77,7 +144,7 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
     }
 
     const text = await resp.text();
-    
+
     // Try to find JSON in the response
     const jsonMatch = text.match(/\{[\s\S]*"comunicacoes"[\s\S]*\}/);
     if (jsonMatch) {
@@ -89,7 +156,7 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
         // continue
       }
     }
-    
+
     try {
       const data = JSON.parse(text);
       if (data && (data.comunicacoes || data.items || Array.isArray(data))) {
@@ -97,9 +164,9 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
         return data;
       }
     } catch {
-      console.log('[DJEN] Jina proxy returned non-JSON');
+      console.log('[DJEN] Jina proxy returned non-JSON:', text.slice(0, 300));
     }
-    
+
     return null;
   } catch (e) {
     console.log('[DJEN] Jina proxy fetch failed:', e);
@@ -109,14 +176,20 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
   }
 }
 
-// Simple proxy fetch: only uses Jina (fast and cheap)
-async function fetchViaProxy(url: string): Promise<any | null> {
-  // Only Jina - it's fast and cheap (~$0.001/request vs $0.20+ for Bright Data)
+type ProxyOptions = { useBrightData?: boolean };
+
+// Proxy fetch: para agendado, tenta Bright Data (residencial) primeiro; depois cai pro Jina.
+async function fetchViaProxy(url: string, options: ProxyOptions = {}): Promise<any | null> {
+  if (options.useBrightData) {
+    const bright = await fetchViaBrightData(url);
+    if (bright) return bright;
+  }
+
   if (JINA_API_KEY) {
     const result = await fetchJsonViaJina(url);
     if (result) return result;
   }
-  
+
   console.log('[DJEN] Proxy fallback failed');
   return null;
 }
@@ -435,7 +508,8 @@ interface SearchParams {
 
 async function processMonitoramento(
   supabase: any,
-  monitoramento: Monitoramento
+  monitoramento: Monitoramento,
+  options: { scheduled?: boolean } = {}
 ): Promise<{ novas: number; descartadas: number; duplicatas: number; tribunaisStats: TribunalStats[] }> {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
   const tribunaisStats: TribunalStats[] = [];
@@ -503,7 +577,7 @@ async function processMonitoramento(
 
     for (const candidate of searchCandidates) {
       const searchParams: SearchParams = { ...candidate, siglaTribunal: tribunal };
-      const result = await fetchDJENResultsWithStats(searchParams);
+      const result = await fetchDJENResultsWithStats(searchParams, { scheduled: options.scheduled === true });
       publications = result.items;
       pages = result.pages;
       if (publications.length > 0) break;
@@ -677,7 +751,8 @@ async function processMonitoramento(
 }
 
 async function fetchDJENResultsWithStats(
-  params: SearchParams
+  params: SearchParams,
+  options: { scheduled?: boolean } = {}
 ): Promise<{ items: any[]; pages: number }> {
   const allResults: any[] = [];
   let page = 0;
@@ -711,10 +786,12 @@ async function fetchDJENResultsWithStats(
 
       let data: any | null = null;
 
-      // Se a API bloquear (403 ou HTML), tenta via proxy (DataImpulse → Jina)
+      // Se a API bloquear (403 ou HTML), tenta via proxy:
+      // - agendado: Bright Data (residencial) → Jina
+      // - manual: apenas Jina (mais barato)
       if (!response.ok || contentType.includes('text/html')) {
         console.error(`API error: ${response.status}`);
-        data = await fetchViaProxy(url);
+        data = await fetchViaProxy(url, { useBrightData: options.scheduled === true });
 
         if (!data) break;
       } else {
@@ -1111,7 +1188,7 @@ serve(async (req) => {
         processedCount++;
         console.log(`[${processedCount}/${count}] ${mon.descricao || mon.termo_busca}`);
 
-        const stats = await processMonitoramento(supabase, mon);
+        const stats = await processMonitoramento(supabase, mon, { scheduled });
         totalNovas += stats.novas;
         totalDescartadas += stats.descartadas;
         totalDuplicatas += stats.duplicatas;
