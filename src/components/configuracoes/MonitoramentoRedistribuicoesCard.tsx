@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { RefreshCw, Play, Clock, PlayCircle, XCircle } from "lucide-react";
+import { RefreshCw, Clock, PlayCircle, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -27,19 +27,9 @@ export function MonitoramentoRedistribuicoesCard({ coordenacaoId }: Props) {
     executarMonitoramento 
   } = useConfiguracoesMonitoramento(coordenacaoId);
 
-  const [executando, setExecutando] = useState(false);
   const [executandoCompleto, setExecutandoCompleto] = useState(false);
   const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number } | null>(null);
   const canceladoRef = useRef(false);
-
-  const handleExecutarManual = async () => {
-    setExecutando(true);
-    try {
-      await executarMonitoramento.mutateAsync('redistribuicoes');
-    } finally {
-      setExecutando(false);
-    }
-  };
 
   const handleCancelar = () => {
     canceladoRef.current = true;
@@ -195,7 +185,7 @@ export function MonitoramentoRedistribuicoesCard({ coordenacaoId }: Props) {
           showCancel={executandoCompleto}
         />
 
-        {/* Botões de execução */}
+        {/* Botão de execução */}
         <div className="flex gap-2">
           {executandoCompleto ? (
             <Button 
@@ -207,35 +197,14 @@ export function MonitoramentoRedistribuicoesCard({ coordenacaoId }: Props) {
               Cancelar
             </Button>
           ) : (
-            <>
-              <Button 
-                onClick={handleExecutarManual} 
-                disabled={executando || executandoCompleto}
-                className="flex-1"
-                variant="outline"
-              >
-                {executando ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Verificando lote...
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4 mr-2" />
-                    Executar Lote
-                  </>
-                )}
-              </Button>
-              
-              <Button 
-                onClick={handleExecutarCompleto} 
-                disabled={executando || executandoCompleto}
-                className="flex-1"
-              >
-                <PlayCircle className="h-4 w-4 mr-2" />
-                Executar Completo
-              </Button>
-            </>
+            <Button 
+              onClick={handleExecutarCompleto} 
+              disabled={executandoCompleto}
+              className="flex-1"
+            >
+              <PlayCircle className="h-4 w-4 mr-2" />
+              Executar Completo
+            </Button>
           )}
         </div>
       </CardContent>

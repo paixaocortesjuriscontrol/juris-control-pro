@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { FileText, Play, Clock, PlayCircle, RefreshCw, XCircle, Calendar } from "lucide-react";
+import { FileText, Clock, PlayCircle, RefreshCw, XCircle, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
@@ -28,7 +28,6 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
   const canceladoRef = useRef(false);
 
-  const [executando, setExecutando] = useState(false);
   const [executandoCompleto, setExecutandoCompleto] = useState(false);
   const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number } | null>(null);
 
@@ -101,32 +100,6 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
     toast.info("Cancelando após o lote atual...");
   };
 
-  const handleExecutarLote = async () => {
-    setExecutando(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('monitorar-andamentos');
-      if (error) throw error;
-      
-      const checked = data?.results?.checked || 0;
-      const newMovements = data?.results?.newMovements || 0;
-      const audienciasDetectadas = data?.results?.audienciasDetectadas || 0;
-      const intimacoesDetectadas = data?.results?.intimacoesDetectadas || 0;
-      
-      let msg = `Lote concluído: ${checked} processos, ${newMovements} novos andamentos`;
-      if (audienciasDetectadas > 0) msg += `, ${audienciasDetectadas} audiências`;
-      if (intimacoesDetectadas > 0) msg += `, ${intimacoesDetectadas} intimações`;
-      
-      toast.success(msg);
-      
-      queryClient.invalidateQueries({ queryKey: ['config-monitoramento'] });
-      queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
-      queryClient.invalidateQueries({ queryKey: ['intimacoes-detectadas'] });
-    } catch (error) {
-      toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    } finally {
-      setExecutando(false);
-    }
-  };
 
   const handleExecutarCompleto = async () => {
     setExecutandoCompleto(true);
@@ -271,7 +244,7 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
           showCancel={executandoCompleto}
         />
 
-        {/* Botões de execução */}
+        {/* Botão de execução */}
         <div className="flex gap-2 pt-4 border-t">
           {executandoCompleto ? (
             <Button 
@@ -283,35 +256,14 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
               Cancelar
             </Button>
           ) : (
-            <>
-              <Button 
-                onClick={handleExecutarLote} 
-                disabled={executando || executandoCompleto}
-                className="flex-1"
-                variant="outline"
-              >
-                {executando ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Buscando...
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4 mr-2" />
-                    Executar Lote
-                  </>
-                )}
-              </Button>
-              
-              <Button 
-                onClick={handleExecutarCompleto} 
-                disabled={executando || executandoCompleto}
-                className="flex-1"
-              >
-                <PlayCircle className="h-4 w-4 mr-2" />
-                Executar Completo
-              </Button>
-            </>
+            <Button 
+              onClick={handleExecutarCompleto} 
+              disabled={executandoCompleto}
+              className="flex-1"
+            >
+              <PlayCircle className="h-4 w-4 mr-2" />
+              Executar Completo
+            </Button>
           )}
         </div>
 
