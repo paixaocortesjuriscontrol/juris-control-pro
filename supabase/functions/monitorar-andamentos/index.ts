@@ -1259,70 +1259,46 @@ serve(async (req) => {
     // Clear terms cache at start
     termosCache = null;
 
-    if (completeRun) {
-      // Execute complete run - process all batches until done
-      let totalResults = {
-        checked: 0,
-        newMovements: 0,
-        processesWithNewMovements: 0,
-        audienciasDetectadas: 0,
-        intimacoesDetectadas: 0,
-        errors: 0,
-      };
-      let batchCount = 0;
-      let lastProgress = { current: 0, total: 0, percentage: 0 };
+    // Single batch execution (used for both manual and complete runs)
+    const { isComplete, results, progress } = await processBatch(supabase);
 
-      while (true) {
-        batchCount++;
-        console.log(`Processing batch ${batchCount}...`);
-        
-        const { isComplete, results, progress } = await processBatch(supabase);
-        
-        totalResults.checked += results.checked;
-        totalResults.newMovements += results.newMovements;
-        totalResults.processesWithNewMovements += results.processesWithNewMovements;
-        totalResults.audienciasDetectadas += results.audienciasDetectadas || 0;
-        totalResults.intimacoesDetectadas += results.intimacoesDetectadas || 0;
-        totalResults.errors += results.errors;
-        lastProgress = progress;
+    // Auto-continuation: if completeRun and not complete, trigger next batch
+    if (completeRun && !isComplete) {
+      const functionUrl = `${supabaseUrl}/functions/v1/monitorar-andamentos`;
+      const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+      
+      // Fire and forget - trigger next batch asynchronously
+      fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({ completeRun: true }),
+      }).catch(err => {
+        console.error('Error triggering next batch:', err);
+      });
 
-        if (isComplete) {
-          console.log(`Complete run finished after ${batchCount} batches`);
-          break;
-        }
-
-        // Small delay between batches to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: `Monitoramento completo: ${totalResults.checked} processos verificados, ${totalResults.newMovements} novos andamentos`,
-          results: totalResults,
-          isComplete: true,
-          batchCount,
-          progress: lastProgress
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
-      // Single batch execution
-      const { isComplete, results, progress } = await processBatch(supabase);
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: isComplete 
-            ? "Monitoramento completo de todos os processos" 
-            : `Lote processado: ${results.currentOffset + 1} a ${results.nextOffset} de ${results.totalProcesses}`,
-          results,
-          isComplete,
-          progress
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.log(`Batch processed, triggered next batch. Progress: ${progress.percentage}%`);
     }
+
+    if (isComplete && completeRun) {
+      console.log('Complete run finished');
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: isComplete 
+          ? "Monitoramento completo de todos os processos" 
+          : `Lote processado: ${results.currentOffset + 1} a ${results.nextOffset} de ${results.totalProcesses}`,
+        results,
+        isComplete,
+        progress,
+        continuingRun: completeRun && !isComplete,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error("Error in monitoring function:", error);

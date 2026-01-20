@@ -605,6 +605,27 @@ Deno.serve(async (req) => {
     }
 
     const percentage = totalMovimentacoes > 0 ? Math.round((processedCount / totalMovimentacoes) * 100) : 100;
+
+    // Auto-continuation: if completeRun and not complete, trigger next batch
+    if (completeRun && !isComplete) {
+      const functionUrl = `${supabaseUrl}/functions/v1/monitorar-termos`;
+      const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+      
+      // Fire and forget - trigger next batch asynchronously
+      fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({ completeRun: true }),
+      }).catch(err => {
+        console.error('Error triggering next batch:', err);
+      });
+
+      console.log(`Batch processed, triggered next batch. Progress: ${percentage}%`);
+    }
+
     const totalTime = Date.now() - startTime;
     
     console.log(`Batch complete in ${totalTime}ms. Progress: ${processedCount}/${totalMovimentacoes} (${percentage}%). isComplete=${isComplete}. Tasks created: ${tarefasCriadas}`);
@@ -623,6 +644,7 @@ Deno.serve(async (req) => {
         tempoExecucao: `${totalTime}ms`,
         isComplete,
         completedRun: isComplete,
+        continuingRun: completeRun && !isComplete,
         progress: {
           current: processedCount,
           total: totalMovimentacoes,
