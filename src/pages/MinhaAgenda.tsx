@@ -202,7 +202,9 @@ export default function MinhaAgenda() {
 
   // Auto-set coordination when detected
   useEffect(() => {
-    if (userCoordenacao && !coordenacaoAutoDetected && isAdminOrCoordinator) {
+    // IMPORTANTE: para administradores/coordenadores, o padrão deve ser "Todas Coordenações"
+    // e não auto-selecionar uma coordenação específica.
+    if (userCoordenacao && !coordenacaoAutoDetected && !isAdminOrCoordinator) {
       setCoordenacaoFiltro(userCoordenacao);
       setCoordenacaoAutoDetected(true);
     }
@@ -385,6 +387,26 @@ export default function MinhaAgenda() {
   };
 
   const { data: itensAgenda, isLoading } = useAgendaUnificada(filters);
+
+  // Para o cenário "Todas Coordenações" (sem membro específico), os totalizadores devem
+  // refletir exatamente o que está na lista (evita inconsistência de filtros/COUNT).
+  const shouldUseClientSideStats = shouldFetchAll;
+  const statsFromItems = useMemo(() => {
+    if (!shouldUseClientSideStats) return null;
+    if (!itensAgenda) return null;
+
+    const total = itensAgenda.length;
+    const concluidas = itensAgenda.filter(i => i.status === "concluido" || i.status === "cumprido").length;
+    const atrasadas = itensAgenda.filter(i => i.is_atrasado).length;
+    const pendentes = Math.max(
+      0,
+      itensAgenda.filter(i => i.status !== "concluido" && i.status !== "cumprido").length - atrasadas
+    );
+
+    return { total, pendentes, atrasadas, concluidas };
+  }, [itensAgenda, shouldUseClientSideStats]);
+
+  const statsDisplay = statsFromItems ?? stats;
 
   // Stats via COUNT - includes both TAREFAS and EVENTOS
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -910,7 +932,7 @@ export default function MinhaAgenda() {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Total</p>
-                  <p className="text-xl sm:text-2xl font-bold">{stats?.total ?? 0}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{statsDisplay?.total ?? 0}</p>
                 </div>
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <ListChecks className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
@@ -930,7 +952,7 @@ export default function MinhaAgenda() {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Pendentes</p>
-                  <p className="text-xl sm:text-2xl font-bold text-blue-600">{stats?.pendentes ?? 0}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-600">{statsDisplay?.pendentes ?? 0}</p>
                 </div>
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
                   <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
@@ -950,7 +972,7 @@ export default function MinhaAgenda() {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Atrasadas</p>
-                  <p className="text-xl sm:text-2xl font-bold text-red-600">{stats?.atrasadas ?? 0}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-red-600">{statsDisplay?.atrasadas ?? 0}</p>
                 </div>
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
                   <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
@@ -970,7 +992,7 @@ export default function MinhaAgenda() {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">Concluídas</p>
-                  <p className="text-xl sm:text-2xl font-bold text-green-600">{stats?.concluidas ?? 0}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-green-600">{statsDisplay?.concluidas ?? 0}</p>
                 </div>
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
