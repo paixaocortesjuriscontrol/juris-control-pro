@@ -103,6 +103,54 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
+// Verifica se já existe tarefa similar para evitar duplicatas
+async function verificarTarefaExistente(
+  supabase: any,
+  processoId: string,
+  responsavelId: string,
+  titulo: string
+): Promise<boolean> {
+  // Busca tarefas com mesmo processo, responsável e título similar nos últimos 30 dias
+  const dataLimite = new Date();
+  dataLimite.setDate(dataLimite.getDate() - 30);
+  
+  const tituloBase = titulo.toLowerCase().replace(/\s+/g, ' ').trim();
+  
+  const { data: existentes } = await supabase
+    .from('tarefas')
+    .select('id, titulo')
+    .eq('processo_id', processoId)
+    .eq('responsavel_id', responsavelId)
+    .gte('created_at', dataLimite.toISOString())
+    .limit(50);
+  
+  if (!existentes || existentes.length === 0) return false;
+  
+  // Verifica se alguma tarefa existente tem título muito similar
+  for (const t of existentes) {
+    const tituloExistente = (t.titulo || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (tituloExistente === tituloBase) {
+      console.log(`[DEDUP] Tarefa duplicada detectada: "${titulo}"`);
+      return true;
+    }
+    // Se ambos começam com [DJEN] e têm mesmo tipo
+    if (tituloBase.startsWith('[djen]') && tituloExistente.startsWith('[djen]')) {
+      const numMatch = tituloBase.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
+      const numExistenteMatch = tituloExistente.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
+      if (numMatch && numExistenteMatch && numMatch[0] === numExistenteMatch[0]) {
+        const tipoMatch = tituloBase.match(/\[(djen|andamento)\]\s*(\w+)/i);
+        const tipoExistenteMatch = tituloExistente.match(/\[(djen|andamento)\]\s*(\w+)/i);
+        if (tipoMatch && tipoExistenteMatch && tipoMatch[2] === tipoExistenteMatch[2]) {
+          console.log(`[DEDUP] Tarefa DJEN duplicada: tipo "${tipoMatch[2]}" já existe`);
+          return true;
+        }
+      }
+    }
+  }
+  
+  return false;
+}
+
 // Função auxiliar para criar tarefas para responsáveis do processo
 // Agora segue o mesmo padrão do CriarTarefaPublicacaoDialog
 async function criarTarefasParaResponsaveis(
@@ -131,6 +179,15 @@ async function criarTarefasParaResponsaveis(
       .single();
 
     if (processo?.advogado_responsavel_id) {
+      // Verificar duplicata antes de criar
+      const jáExiste = await verificarTarefaExistente(
+        supabase, processoId, processo.advogado_responsavel_id, titulo
+      );
+      if (jáExiste) {
+        console.log(`[DEDUP] Pulando criação de tarefa duplicada para processo ${processoId}`);
+        return [];
+      }
+      
       const { data: tarefa, error } = await supabase
         .from('tarefas')
         .insert({
@@ -170,6 +227,15 @@ async function criarTarefasParaResponsaveis(
   // Criar tarefa para cada responsável
   const tarefaIds: string[] = [];
   for (const resp of responsaveis) {
+    // Verificar duplicata antes de criar
+    const jáExiste = await verificarTarefaExistente(
+      supabase, processoId, resp.responsavel_id, titulo
+    );
+    if (jáExiste) {
+      console.log(`[DEDUP] Pulando tarefa duplicada para responsável ${resp.responsavel_id}`);
+      continue;
+    }
+    
     const { data: tarefa, error } = await supabase
       .from('tarefas')
       .insert({

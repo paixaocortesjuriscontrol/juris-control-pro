@@ -118,6 +118,57 @@ async function getActiveTermos(supabase: any) {
   return termosCache;
 }
 
+// ============ FUNÇÃO PARA VERIFICAR DUPLICATAS ============
+async function verificarTarefaExistente(
+  supabase: any,
+  processoId: string,
+  responsavelId: string,
+  titulo: string
+): Promise<boolean> {
+  // Busca tarefas com mesmo processo, responsável e título similar nos últimos 30 dias
+  const dataLimite = new Date();
+  dataLimite.setDate(dataLimite.getDate() - 30);
+  
+  const tituloBase = titulo.toLowerCase().replace(/\s+/g, ' ').trim();
+  
+  const { data: existentes } = await supabase
+    .from('tarefas')
+    .select('id, titulo')
+    .eq('processo_id', processoId)
+    .eq('responsavel_id', responsavelId)
+    .gte('created_at', dataLimite.toISOString())
+    .limit(50);
+  
+  if (!existentes || existentes.length === 0) return false;
+  
+  // Verifica se alguma tarefa existente tem título muito similar
+  for (const t of existentes) {
+    const tituloExistente = (t.titulo || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (tituloExistente === tituloBase) {
+      console.log(`[DEDUP] Tarefa duplicada detectada: "${titulo}"`);
+      return true;
+    }
+    // Se ambos começam com [Andamento] e têm mesmo tipo
+    if (tituloBase.startsWith('[andamento]') && tituloExistente.startsWith('[andamento]')) {
+      const numMatch = tituloBase.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
+      const numExistenteMatch = tituloExistente.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
+      if (numMatch && numExistenteMatch && numMatch[0] === numExistenteMatch[0]) {
+        // Mesmo processo, verifica se é audiência ou intimação similar
+        if (tituloBase.includes('audiência') && tituloExistente.includes('audiência')) {
+          console.log(`[DEDUP] Tarefa de audiência duplicada detectada`);
+          return true;
+        }
+        if (tituloBase.includes('intimação') && tituloExistente.includes('intimação')) {
+          console.log(`[DEDUP] Tarefa de intimação duplicada detectada`);
+          return true;
+        }
+      }
+    }
+  }
+  
+  return false;
+}
+
 // ============ FUNÇÃO PARA CRIAR TAREFAS ============
 async function criarTarefaParaAudiencia(
   supabase: any,
@@ -164,11 +215,20 @@ async function criarTarefaParaAudiencia(
       dataVencimento.setDate(dataVencimento.getDate() + 5);
     }
     
+    const titulo = `[Andamento] ${tipoAudiencia || 'Audiência'} - ${processoNumero}`;
+    
     for (const usuarioId of usuariosParaTarefa) {
+      // Verificar duplicata antes de criar
+      const jáExiste = await verificarTarefaExistente(supabase, processoId, usuarioId, titulo);
+      if (jáExiste) {
+        console.log(`[DEDUP] Pulando tarefa de audiência duplicada para usuário ${usuarioId}`);
+        continue;
+      }
+      
       const { data: tarefaCriada, error: tarefaError } = await supabase
         .from('tarefas')
         .insert({
-          titulo: `[Andamento] ${tipoAudiencia || 'Audiência'} - ${processoNumero}`,
+          titulo,
           descricao: `Audiência detectada via monitoramento de andamentos. Verifique detalhes e prepare-se para a audiência.`,
           data_vencimento: dataVencimento.toISOString().split('T')[0],
           responsavel_id: usuarioId,
@@ -246,12 +306,20 @@ async function criarTarefaParaIntimacao(
     }
     
     const prioridade = prazoDias && prazoDias <= 5 ? 'urgente' : 'alta';
+    const titulo = `[Andamento] ${tipoIntimacao || 'Intimação'} - ${processoNumero}`;
     
     for (const usuarioId of usuariosParaTarefa) {
+      // Verificar duplicata antes de criar
+      const jáExiste = await verificarTarefaExistente(supabase, processoId, usuarioId, titulo);
+      if (jáExiste) {
+        console.log(`[DEDUP] Pulando tarefa de intimação duplicada para usuário ${usuarioId}`);
+        continue;
+      }
+      
       const { data: tarefaCriada, error: tarefaError } = await supabase
         .from('tarefas')
         .insert({
-          titulo: `[Andamento] ${tipoIntimacao || 'Intimação'} - ${processoNumero}`,
+          titulo,
           descricao: `Intimação detectada via monitoramento de andamentos. Prazo: ${prazoDias || 'a confirmar'} dias.`,
           data_vencimento: dataVencimento.toISOString().split('T')[0],
           responsavel_id: usuarioId,
