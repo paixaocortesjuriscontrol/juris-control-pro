@@ -65,22 +65,32 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const queryClient = useQueryClient();
 
   // Query separada para contar descartadas de hoje (sempre, independente dos filtros)
-  const { data: totalDescartadasHoje = 0, isLoading: loadingDescartadas } = useQuery({
+  const { data: totalDescartadasHoje = 0 } = useQuery({
     queryKey: ['descartadas-hoje-count', user?.id],
     queryFn: async () => {
       if (!user?.id) return 0;
-      const inicio = formatToUTC(startOfDay(new Date()));
-      const fim = formatToUTC(endOfDay(new Date()));
-      
-      const { count } = await (supabase
-        .from('publicacoes_djen_descartadas') as any)
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', inicio)
-        .lte('created_at', fim);
-      
-      return count || 0;
+      try {
+        const inicio = formatToUTC(startOfDay(new Date()));
+        const fim = formatToUTC(endOfDay(new Date()));
+        
+        const { count, error } = await (supabase
+          .from('publicacoes_djen_descartadas') as any)
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', inicio)
+          .lte('created_at', fim);
+        
+        if (error) {
+          console.warn('Erro ao contar descartadas:', error);
+          return 0;
+        }
+        return count || 0;
+      } catch (e) {
+        console.warn('Erro ao contar descartadas:', e);
+        return 0;
+      }
     },
     enabled: !!user?.id,
+    staleTime: 30000, // Cache por 30s para não sobrecarregar
   });
 
   // Buscar publicações unificadas
@@ -426,7 +436,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     publicacoes,
     estatisticas,
     isLoading,
-    loadingStats: isLoading || loadingDescartadas,
+    loadingStats: isLoading,
     marcarComoLida,
     totalHoje: estatisticas.reduce((acc, s) => acc + s.total, 0),
     naoLidasHoje: estatisticas.reduce((acc, s) => acc + s.nao_lidas, 0),
