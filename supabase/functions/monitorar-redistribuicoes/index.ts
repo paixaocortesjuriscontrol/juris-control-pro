@@ -447,6 +447,44 @@ serve(async (req) => {
       // No body or invalid JSON, proceed with single batch
     }
 
+    // Early cancellation check: if user requested cancel, stop immediately (don’t process another batch)
+    if (completeRun) {
+      const { data: freshConfig } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('id, metadata')
+        .eq('tipo', 'redistribuicoes')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
+
+      if (wasCancelled && freshConfig?.id) {
+        console.log('Cancellation flag detected at start, skipping batch');
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: {
+              ...(freshConfig.metadata as any),
+              cancelado: false,
+              status: 'cancelado',
+              continuingRun: false,
+            },
+          })
+          .eq('id', freshConfig.id);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            cancelled: true,
+            isComplete: true,
+            continuingRun: false,
+            message: 'Execução cancelada (antes de iniciar o próximo lote)',
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     console.log(`Starting redistribution monitoring... (completeRun: ${completeRun})`);
 
     // Single batch execution (used for both manual and complete runs)

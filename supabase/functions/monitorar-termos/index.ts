@@ -116,6 +116,34 @@ Deno.serve(async (req) => {
       .is('coordenacao_id', null)
       .single();
 
+    // Early cancellation check: if user requested cancel, stop immediately (don’t process another batch)
+    if (completeRun && (configData?.metadata as any)?.cancelado === true && configData?.id) {
+      console.log('Cancellation flag detected at start, skipping batch');
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...(configData.metadata as any),
+            cancelado: false,
+            status: 'cancelado',
+            continuingRun: false,
+          },
+        })
+        .eq('id', configData.id);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          cancelled: true,
+          isComplete: true,
+          continuingRun: false,
+          message: 'Execução cancelada (antes de iniciar o próximo lote)',
+          progress: { current: 0, total: 0, percentage: 100 },
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const currentOffset = completeRun ? (configData?.metadata?.next_offset || 0) : 0;
 
     // Contar total de movimentações e buscar dados em paralelo
