@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 import { Loader2, HelpCircle, ArrowLeft, Upload, FileText, Trash2, Sparkles, CheckCircle2, Link2, X, Download, ExternalLink } from "lucide-react";
 import {
   Tooltip,
@@ -487,6 +488,14 @@ export default function NovaTarefa() {
 
   async function onSubmit(values: FormValues) {
     setLoading(true);
+    const dadosEntrada = { 
+      ...values, 
+      isEditMode, 
+      editarId,
+      anexosCount: anexos.length,
+      tarefaRelacionadaId 
+    };
+    
     try {
       let tarefaId: string;
       
@@ -506,6 +515,17 @@ export default function NovaTarefa() {
 
         if (error) throw error;
         tarefaId = editarId;
+
+        // Registrar auditoria de atualização
+        await registrarAuditoriaTarefa({
+          acao: 'atualizar',
+          sucesso: true,
+          dadosEntrada,
+          dadosSaida: { tarefaId },
+          origem: 'nova_tarefa_page',
+          processoId: values.processo_id,
+          tarefaId,
+        });
       } else {
         // Modo criação - inserir nova tarefa
         const { data: novaTarefa, error } = await supabase.from("tarefas").insert({
@@ -524,6 +544,17 @@ export default function NovaTarefa() {
 
         if (error) throw error;
         tarefaId = novaTarefa.id;
+
+        // Registrar auditoria de criação
+        await registrarAuditoriaTarefa({
+          acao: 'criar',
+          sucesso: true,
+          dadosEntrada,
+          dadosSaida: { tarefaId },
+          origem: 'nova_tarefa_page',
+          processoId: values.processo_id,
+          tarefaId,
+        });
 
         // Se tiver tarefa relacionada, criar o vínculo (apenas na criação)
         if (tarefaId && tarefaRelacionadaId && userData?.id) {
@@ -659,9 +690,22 @@ export default function NovaTarefa() {
       queryClient.invalidateQueries({ queryKey: ["prazos"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
       queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
       
       navigate("/central-delegacao");
     } catch (error: any) {
+      // Registrar auditoria de falha
+      await registrarAuditoriaTarefa({
+        acao: isEditMode ? 'erro_atualizar' : 'erro_criar',
+        sucesso: false,
+        dadosEntrada,
+        erroMensagem: error.message,
+        erroDetalhes: { code: error.code, hint: error.hint, details: error.details },
+        origem: 'nova_tarefa_page',
+        processoId: values.processo_id,
+        tarefaId: editarId,
+      });
+
       toast({
         title: "Erro ao criar tarefa",
         description: error.message,

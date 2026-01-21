@@ -481,6 +481,57 @@ export type Database = {
           },
         ]
       }
+      auditoria_tarefas: {
+        Row: {
+          acao: string
+          created_at: string
+          dados_entrada: Json | null
+          dados_saida: Json | null
+          erro_detalhes: Json | null
+          erro_mensagem: string | null
+          id: string
+          ip_address: string | null
+          origem: string | null
+          processo_id: string | null
+          sucesso: boolean
+          tarefa_id: string | null
+          user_agent: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          acao: string
+          created_at?: string
+          dados_entrada?: Json | null
+          dados_saida?: Json | null
+          erro_detalhes?: Json | null
+          erro_mensagem?: string | null
+          id?: string
+          ip_address?: string | null
+          origem?: string | null
+          processo_id?: string | null
+          sucesso?: boolean
+          tarefa_id?: string | null
+          user_agent?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          acao?: string
+          created_at?: string
+          dados_entrada?: Json | null
+          dados_saida?: Json | null
+          erro_detalhes?: Json | null
+          erro_mensagem?: string | null
+          id?: string
+          ip_address?: string | null
+          origem?: string | null
+          processo_id?: string | null
+          sucesso?: boolean
+          tarefa_id?: string | null
+          user_agent?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       backfill_jobs: {
         Row: {
           completed_at: string | null
