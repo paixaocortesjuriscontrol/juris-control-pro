@@ -496,15 +496,6 @@ export function TarefaAgendaPanel({
       setUpdatingStatus(false);
     }
   };
-      toast({
-        title: "Erro ao concluir",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
 
   const handleReabrir = async () => {
     setUpdatingStatus(true);
