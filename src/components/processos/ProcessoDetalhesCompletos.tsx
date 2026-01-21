@@ -1141,107 +1141,87 @@ export function ProcessoDetalhesCompletos({
                     </h3>
                   </div>
                   {alertas360.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {alertas360.map((alerta: any) => (
-                        <Card key={alerta.id} className="hover:shadow-md transition-shadow border-l-4" style={{
+                        <Card key={alerta.id} className="hover:shadow-sm transition-shadow border-l-2" style={{
                           borderLeftColor: alerta.prioridade === "alta" ? "hsl(var(--destructive))" :
                             alerta.prioridade === "media" ? "hsl(45 93% 47%)" : "hsl(var(--muted-foreground))"
                         }}>
-                          <CardContent className="p-4">
-                            <div className="space-y-3">
-                              {/* Header com badges */}
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Badge className={cn(
-                                    "text-xs font-medium",
-                                    alerta.prioridade === "alta" ? "bg-red-100 text-red-700" :
-                                    alerta.prioridade === "media" ? "bg-amber-100 text-amber-700" :
-                                    "bg-zinc-100 text-zinc-700"
-                                  )}>
-                                    {alerta.prioridade === "alta" ? "🔴 Alta" : 
-                                     alerta.prioridade === "media" ? "🟡 Média" : "⚪ Baixa"}
+                          <CardContent className="p-3">
+                            {/* Linha 1: Badges + Data */}
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge className={cn(
+                                  "text-[10px] px-1.5 py-0",
+                                  alerta.prioridade === "alta" ? "bg-red-100 text-red-700" :
+                                  alerta.prioridade === "media" ? "bg-amber-100 text-amber-700" :
+                                  "bg-zinc-100 text-zinc-700"
+                                )}>
+                                  {alerta.prioridade}
+                                </Badge>
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  {alerta.status}
+                                </Badge>
+                                {alerta.termo?.categoria && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    {alerta.termo.categoria}
                                   </Badge>
-                                  <Badge variant={alerta.status === "pendente" ? "outline" : "secondary"} className="text-xs">
-                                    {alerta.status === "pendente" ? "Pendente" : 
-                                     alerta.status === "tratado" ? "Tratado" : alerta.status}
-                                  </Badge>
-                                </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDate(alerta.created_at)}
-                                </span>
+                                )}
                               </div>
-                              
-                              {/* Termo encontrado */}
-                              <div>
-                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Termo Encontrado</p>
-                                <p className="text-sm font-semibold text-primary">{alerta.termo_encontrado}</p>
-                              </div>
-                              
-                              {/* Categoria do termo */}
-                              {alerta.termo?.categoria && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Categoria</p>
-                                  <Badge variant="outline" className="text-xs">{alerta.termo.categoria}</Badge>
-                                </div>
-                              )}
-                              
-                              {/* Contexto onde foi encontrado */}
-                              {alerta.contexto && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Contexto</p>
-                                  <p className="text-sm text-foreground bg-muted/50 p-2 rounded-md leading-relaxed">
-                                    {alerta.contexto.length > 300 ? `${alerta.contexto.substring(0, 300)}...` : alerta.contexto}
-                                  </p>
-                                </div>
-                              )}
-                              
-                              {/* Detalhes da movimentação vinculada */}
-                              {alerta.movimentacao && (
-                                <div className="bg-muted/30 rounded-md p-3 space-y-2">
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                                    <FileText className="w-3 h-3" />
-                                    Movimentação Vinculada
-                                  </p>
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">{alerta.movimentacao.tipo || alerta.movimentacao.descricao?.substring(0, 60)}</p>
-                                    {alerta.movimentacao.descricao && alerta.movimentacao.descricao !== alerta.movimentacao.tipo && (
-                                      <p className="text-xs text-muted-foreground leading-relaxed">
-                                        {alerta.movimentacao.descricao.length > 200 
-                                          ? `${alerta.movimentacao.descricao.substring(0, 200)}...` 
-                                          : alerta.movimentacao.descricao}
-                                      </p>
-                                    )}
+                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                {formatDate(alerta.created_at)}
+                              </span>
+                            </div>
+                            
+                            {/* Linha 2: Termo + Movimentação */}
+                            <div className="flex items-start gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate" title={alerta.termo_encontrado}>
+                                  {alerta.termo_encontrado}
+                                </p>
+                                {alerta.movimentacao && (
+                                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                                    <span className="font-medium">{alerta.movimentacao.tipo || "Mov."}</span>
                                     {alerta.movimentacao.data_movimentacao && (
-                                      <p className="text-xs text-muted-foreground">
-                                        Data: {formatDate(alerta.movimentacao.data_movimentacao)}
-                                      </p>
+                                      <> · {formatDate(alerta.movimentacao.data_movimentacao)}</>
                                     )}
                                     {alerta.movimentacao.fonte && (
-                                      <Badge variant="outline" className="text-xs mt-1">
-                                        Fonte: {alerta.movimentacao.fonte}
-                                      </Badge>
+                                      <> · {alerta.movimentacao.fonte}</>
                                     )}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {/* Observações */}
-                              {alerta.observacoes && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Observações</p>
-                                  <p className="text-sm text-muted-foreground italic">{alerta.observacoes}</p>
-                                </div>
-                              )}
-                              
-                              {/* Info de tratamento */}
-                              {alerta.tratado_em && (
-                                <div className="pt-2 border-t">
-                                  <p className="text-xs text-muted-foreground">
-                                    Tratado em: {formatDate(alerta.tratado_em)}
                                   </p>
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
+                            
+                            {/* Linha 3: Contexto (compacto) */}
+                            {alerta.contexto && (
+                              <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-snug">
+                                {alerta.contexto}
+                              </p>
+                            )}
+                            
+                            {/* Linha 4: Descrição da movimentação */}
+                            {alerta.movimentacao?.descricao && alerta.movimentacao.descricao !== alerta.movimentacao.tipo && (
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2 bg-muted/40 rounded px-2 py-1">
+                                {alerta.movimentacao.descricao}
+                              </p>
+                            )}
+                            
+                            {/* Rodapé: Observações + Tratado */}
+                            {(alerta.observacoes || alerta.tratado_em) && (
+                              <div className="flex items-center justify-between mt-2 pt-1.5 border-t text-[10px] text-muted-foreground">
+                                {alerta.observacoes && (
+                                  <span className="italic truncate flex-1" title={alerta.observacoes}>
+                                    {alerta.observacoes}
+                                  </span>
+                                )}
+                                {alerta.tratado_em && (
+                                  <span className="whitespace-nowrap ml-2">
+                                    Tratado: {formatDate(alerta.tratado_em)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       ))}
