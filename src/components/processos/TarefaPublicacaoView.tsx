@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
@@ -464,7 +465,7 @@ export function TarefaPublicacaoView({
       queryClient.invalidateQueries({ queryKey: ["tarefa-detalhe", tarefaId] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
     } catch (error: any) {
       toast.error(`Erro ao concluir: ${error.message}`);
     } finally {
@@ -489,7 +490,7 @@ export function TarefaPublicacaoView({
       queryClient.invalidateQueries({ queryKey: ["tarefa-detalhe", tarefaId] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
     } catch (error: any) {
       toast.error(`Erro ao reabrir: ${error.message}`);
     } finally {
@@ -553,7 +554,7 @@ export function TarefaPublicacaoView({
       toast.success("Tarefa excluída com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       onVoltar();
     } catch (error: any) {
       toast.error(`Erro ao excluir: ${error.message}`);

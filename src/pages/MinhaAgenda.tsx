@@ -538,7 +538,8 @@ export default function MinhaAgenda() {
       } else {
         await supabase.from("eventos_agenda").delete().eq("id", id);
       }
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      queryClient.refetchQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
     } catch (error) {
       console.error("Erro ao excluir:", error);
     }
@@ -1430,9 +1431,7 @@ export default function MinhaAgenda() {
                 tarefa={selectedItem}
                 onClose={() => setSelectedItem(null)}
                 onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
                   queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                  // Forçar refetch imediato para atualizar lista
                   queryClient.refetchQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
                 }}
               />

@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -677,7 +678,7 @@ export default function NovaTarefa() {
       queryClient.invalidateQueries({ queryKey: ["prazos"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
       queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       
       navigate("/central-delegacao");
     } catch (error: any) {
