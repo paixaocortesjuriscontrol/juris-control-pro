@@ -137,6 +137,21 @@ serve(async (req: Request): Promise<Response> => {
     const dataFormatada = dataBrt.split("-").reverse().join("/");
 
     function buildEmailHtml(alertasUsuario: any[], coordenacaoNome?: string): string {
+      // Deduplicar alertas por combinação termo + processo
+      const alertasUnicos: any[] = [];
+      const chavesVistas = new Set<string>();
+
+      for (const alerta of alertasUsuario) {
+        const processo = (alerta.processo as any)?.numero || "N/A";
+        const termo = alerta.termo_encontrado || "";
+        const chave = `${termo}|${processo}`;
+        
+        if (!chavesVistas.has(chave)) {
+          chavesVistas.add(chave);
+          alertasUnicos.push(alerta);
+        }
+      }
+
       // Agrupar por prioridade
       const alertasPorPrioridade: Record<string, any[]> = {
         urgente: [],
@@ -145,7 +160,7 @@ serve(async (req: Request): Promise<Response> => {
         baixa: [],
       };
 
-      for (const alerta of alertasUsuario) {
+      for (const alerta of alertasUnicos) {
         const prioridade = alerta.prioridade || "media";
         if (alertasPorPrioridade[prioridade]) {
           alertasPorPrioridade[prioridade].push(alerta);
@@ -185,7 +200,7 @@ serve(async (req: Request): Promise<Response> => {
         `;
       }
 
-      const subtitulo = coordenacaoNome 
+      const subtitulo = coordenacaoNome
         ? `Resumo de ${dataFormatada} - ${coordenacaoNome}`
         : `Resumo de ${dataFormatada}`;
 
@@ -205,7 +220,7 @@ serve(async (req: Request): Promise<Response> => {
           <div style="background-color: #f9fafb; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
             <div style="background-color: white; padding: 16px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid #2563eb;">
               <p style="margin: 0; font-size: 18px;">
-                <strong>${alertasUsuario.length}</strong> alerta(s) detectado(s) nos processos da sua coordenação.
+                <strong>${alertasUnicos.length}</strong> alerta(s) detectado(s) nos processos da sua coordenação.
               </p>
             </div>
             
