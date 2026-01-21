@@ -178,6 +178,11 @@ export function TarefaAgendaPanel({
   const [deleting, setDeleting] = useState(false);
   const [descartando, setDescartando] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  // Local status override para refletir mudanças imediatamente na UI
+  const [statusOverride, setStatusOverride] = useState<string | null>(null);
+  
+  // Usar statusOverride se disponível, senão usar status original
+  const statusAtual = statusOverride ?? tarefa.status;
 
   const isParcelamento = tarefa.tipo === "parcelamento" || tarefa.tipo === "prazo_parcela";
 
@@ -432,11 +437,11 @@ export function TarefaAgendaPanel({
   const dataVencimento = tarefa.data_vencimento 
     ? parseISO(tarefa.data_vencimento) 
     : parseISO(tarefa.data_inicio.split('T')[0]);
-  const isAtrasado = tarefa.status !== "concluido" && tarefa.status !== "cumprido" && isAfter(today, dataVencimento);
+  const isAtrasado = statusAtual !== "concluido" && statusAtual !== "cumprido" && isAfter(today, dataVencimento);
   const dias = differenceInDays(dataVencimento, today);
 
   const getStatusInfo = () => {
-    if (tarefa.status === "concluido" || tarefa.status === "cumprido") {
+    if (statusAtual === "concluido" || statusAtual === "cumprido") {
       return {
         label: "Concluído",
         icon: CheckCircle2,
@@ -472,6 +477,7 @@ export function TarefaAgendaPanel({
           })
           .eq("id", tarefa.id);
         if (error) throw error;
+        setStatusOverride("cumprido");
       } else {
         const { error } = await supabase
           .from("eventos_agenda")
@@ -481,6 +487,7 @@ export function TarefaAgendaPanel({
           })
           .eq("id", tarefa.id);
         if (error) throw error;
+        setStatusOverride("concluido");
       }
       toast({ title: "Concluído com sucesso!" });
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
@@ -509,6 +516,7 @@ export function TarefaAgendaPanel({
           })
           .eq("id", tarefa.id);
         if (error) throw error;
+        setStatusOverride("pendente");
       } else {
         const { error } = await supabase
           .from("eventos_agenda")
@@ -518,8 +526,11 @@ export function TarefaAgendaPanel({
           })
           .eq("id", tarefa.id);
         if (error) throw error;
+        setStatusOverride("pendente");
       }
       toast({ title: "Reaberto com sucesso!" });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"] });
       onUpdate();
     } catch (error: any) {
       toast({
