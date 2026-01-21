@@ -15,7 +15,12 @@ class CancelledError extends Error {
   }
 }
 
-function createCancelChecker(supabase: any, tipo: string, throttleMs = 1500) {
+function createCancelChecker(
+  supabase: any,
+  tipo: string,
+  execucaoId?: string,
+  throttleMs = 1500
+) {
   let lastCheck = 0;
   let cachedCancelled = false;
   let cachedMeta: Record<string, any> = {};
@@ -26,6 +31,21 @@ function createCancelChecker(supabase: any, tipo: string, throttleMs = 1500) {
       const now = Date.now();
       if (now - lastCheck < throttleMs) return false;
       lastCheck = now;
+
+       // Cancelamento forçado via tracking: se a execução foi marcada como cancelada,
+       // paramos mesmo que o metadata ainda não tenha sido lido/gravado.
+       if (execucaoId) {
+         const { data: exec } = await supabase
+           .from('execucoes_agendadas')
+           .select('status')
+           .eq('id', execucaoId)
+           .maybeSingle();
+
+         if (exec?.status === 'cancelado') {
+           cachedCancelled = true;
+           return true;
+         }
+       }
 
       const { data } = await supabase
         .from('configuracoes_monitoramento')
@@ -239,7 +259,7 @@ async function consultarProcessoAPI(numeroProcesso: string): Promise<any> {
 }
 
 // Processa um único lote de processos
-async function processBatch(supabase: any): Promise<{
+async function processBatch(supabase: any, execucaoId?: string): Promise<{
   isComplete: boolean;
   results: any;
   progress: { current: number; total: number; percentage: number };
@@ -305,7 +325,7 @@ async function processBatch(supabase: any): Promise<{
     cancelled: false,
   };
 
-  const cancel = createCancelChecker(supabase, 'redistribuicoes');
+  const cancel = createCancelChecker(supabase, 'redistribuicoes', execucaoId);
 
   // Process in parallel batches (5 concurrent requests to avoid resource limits)
   const PARALLEL_BATCH_SIZE = 5;
@@ -589,7 +609,7 @@ serve(async (req) => {
     console.log(`Starting redistribution monitoring... (completeRun: ${completeRun})`);
 
     // Single batch execution (used for both manual and complete runs)
-    const { isComplete, results, progress } = await processBatch(supabase);
+    const { isComplete, results, progress } = await processBatch(supabase, execucaoId);
 
     if (results?.cancelled) {
       await markExecucaoCancelled(supabase, execucaoId, { tipo: 'redistribuicoes', phase: 'mid-batch' });
@@ -626,13 +646,13 @@ serve(async (req) => {
         const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
 
         // Fire and forget - trigger next batch asynchronously
-        fetch(functionUrl, {
+         fetch(functionUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${anonKey}`,
           },
-          body: JSON.stringify({ completeRun: true }),
+           body: JSON.stringify({ completeRun: true, execucaoId }),
         }).catch(err => {
           console.error('Error triggering next batch:', err);
         });

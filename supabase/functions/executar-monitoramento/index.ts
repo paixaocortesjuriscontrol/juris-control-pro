@@ -96,6 +96,45 @@ Deno.serve(async (req) => {
     const execucaoId = novaExecucao?.id;
     console.log(`[${tipo}] Iniciando execução ${execucaoId}`);
 
+    // Cancelamento forçado: respeitar tanto o metadata.cancelado quanto o status='cancelado'
+    // na tabela de tracking (execucoes_agendadas). Isso evita “queimar crédito” em lotes novos.
+    let cancelled = false;
+    let lastCancelCheck = 0;
+    const CANCEL_THROTTLE_MS = 1500;
+
+    const isCancelled = async () => {
+      if (cancelled) return true;
+      const now = Date.now();
+      if (now - lastCancelCheck < CANCEL_THROTTLE_MS) return false;
+      lastCancelCheck = now;
+
+      if (execucaoId) {
+        const { data: exec } = await supabase
+          .from('execucoes_agendadas')
+          .select('status')
+          .eq('id', execucaoId)
+          .maybeSingle();
+
+        if (exec?.status === 'cancelado') {
+          cancelled = true;
+          return true;
+        }
+      }
+
+      const { data: cfg } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', tipo)
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      const cfgCancelled = (cfg?.metadata as any)?.cancelado === true;
+      if (cfgCancelled) {
+        cancelled = true;
+      }
+      return cancelled;
+    };
+
     let retryCount = 0;
     let lastError: string | null = null;
     let resultado: any = null;
@@ -106,6 +145,10 @@ Deno.serve(async (req) => {
 
     // Loop de execução com retries
     while (!isComplete && retryCount <= MAX_RETRIES) {
+      if (await isCancelled()) {
+        console.log(`[${tipo}] Cancelamento detectado, interrompendo antes do próximo lote`);
+        break;
+      }
       try {
         // Chamar a função de monitoramento
         const controller = new AbortController();
@@ -154,7 +197,8 @@ Deno.serve(async (req) => {
               registros_encontrados: totalEncontrados,
               detalhes: resultado,
             })
-            .eq('id', execucaoId);
+            .eq('id', execucaoId)
+            .neq('status', 'cancelado');
         }
 
         // Reset retry counter on success
@@ -169,6 +213,12 @@ Deno.serve(async (req) => {
         
         console.error(`[${tipo}] Erro no lote ${lotes + 1}, tentativa ${retryCount}/${MAX_RETRIES}:`, lastError);
 
+        // Se já foi cancelado, não faz retry.
+        if (await isCancelled()) {
+          console.log(`[${tipo}] Cancelamento detectado durante erro, abortando retries`);
+          break;
+        }
+
         if (retryCount <= MAX_RETRIES) {
           // Aguardar antes de retry (backoff exponencial)
           const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
@@ -178,7 +228,13 @@ Deno.serve(async (req) => {
     }
 
     // Determinar status final
-    const statusFinal = isComplete ? 'concluido' : (retryCount > MAX_RETRIES ? 'falhou' : 'concluido');
+    if (!isComplete && cancelled) {
+      isComplete = true;
+    }
+
+    const statusFinal = cancelled
+      ? 'cancelado'
+      : (isComplete ? 'concluido' : (retryCount > MAX_RETRIES ? 'falhou' : 'concluido'));
 
     // Atualizar registro final
     if (execucaoId) {
@@ -195,7 +251,33 @@ Deno.serve(async (req) => {
           retry_count: retryCount,
           detalhes: resultado,
         })
-        .eq('id', execucaoId);
+        .eq('id', execucaoId)
+        .neq('status', 'cancelado');
+    }
+
+    // Limpar flag de cancelamento no metadata para não bloquear próximas execuções
+    if (statusFinal === 'cancelado') {
+      const { data: cfg } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', tipo)
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      const meta = ((cfg?.metadata as any) || {}) as Record<string, any>;
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...meta,
+            cancelado: false,
+            status: 'cancelado',
+            continuingRun: false,
+            cancelled_at: new Date().toISOString(),
+          },
+        })
+        .eq('tipo', tipo)
+        .is('coordenacao_id', null);
     }
 
     // Atualizar configuração de monitoramento
