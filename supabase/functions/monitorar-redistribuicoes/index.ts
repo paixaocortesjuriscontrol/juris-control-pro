@@ -380,7 +380,9 @@ async function processBatch(supabase: any): Promise<{
   const isComplete = nextOffset >= (totalCount || 0);
   
   // Update metadata and ultima_execucao
+  // IMPORTANTE: preservar flags existentes (ex.: metadata.cancelado) para o cancelamento funcionar de forma confiável.
   const newMetadata = {
+    ...(metadata as any),
     next_offset: isComplete ? 0 : nextOffset,
     last_batch_size: processos?.length || 0,
     last_complete_run: isComplete ? new Date().toISOString() : (lastCompleteRun?.toISOString() || null),
