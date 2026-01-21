@@ -781,6 +781,14 @@ export default function MinhaAgenda() {
                 </span>
               )}
               
+              {/* Criador - para tarefas delegadas */}
+              {item.origem === "tarefa" && (item as any).criador && (
+                <span className="flex items-center gap-1 text-muted-foreground/70">
+                  <span className="text-[10px]">por</span>
+                  {(item as any).criador.nome}
+                </span>
+              )}
+              
               {item.local && (
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3 h-3" />

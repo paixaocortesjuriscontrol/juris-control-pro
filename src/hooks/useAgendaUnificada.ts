@@ -38,6 +38,7 @@ export interface ItemAgendaUnificado {
   responsavel_id?: string;
   responsavel?: { id: string; nome: string } | null;
   delegado_por_id?: string;
+  criador?: { id: string; nome: string } | null;
   tipo_tarefa?: string | null;
   data_vencimento?: string | null;
   data_fatal?: string | null;
@@ -137,7 +138,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos(id,numero,assunto)" as const;
       const EVENTOS_SELECT_BASE = "*" as const;
       const TAREFAS_SELECT_WITH_JOINS =
-        "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas,processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id),responsavel:profiles!tarefas_responsavel_id_fkey(id,nome)" as const;
+        "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas,processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id),responsavel:profiles!tarefas_responsavel_id_fkey(id,nome),criador:profiles!tarefas_criado_por_fkey(id,nome)" as const;
       const TAREFAS_SELECT_BASE =
         "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas" as const;
 
@@ -475,6 +476,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 responsavel_id: tarefa.responsavel_id,
                 responsavel: tarefa.responsavel,
                 criado_por: tarefa.criado_por,
+                criador: tarefa.criador || null,
                 dias_restantes: diasRestantes,
                 is_atrasado: isAtrasado,
                 tipo_tarefa: tarefa.tipo_tarefa,

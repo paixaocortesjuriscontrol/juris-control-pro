@@ -99,6 +99,10 @@ interface TarefaAgendaPanelProps {
       id: string;
       nome: string;
     } | null;
+    criador?: {
+      id: string;
+      nome: string;
+    } | null;
     tipo_tarefa?: string | null;
     data_vencimento?: string | null;
     data_fatal?: string | null;
