@@ -78,13 +78,20 @@ const AnaliseDjen = () => {
     queryKey: ['user-coordenacao', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('membros_coordenacao')
         .select('coordenacao_id')
-        .eq('usuario_id', user.id)
-        .limit(1)
-        .maybeSingle();
-      return data?.coordenacao_id || null;
+        .eq('usuario_id', user.id);
+
+      if (error) throw error;
+
+      const ids = (data || []).map((r: any) => r.coordenacao_id).filter(Boolean);
+
+      // Se o usuário estiver em várias coordenações, por padrão mostrar TODAS.
+      if (ids.length !== 1) return "";
+
+      // Se estiver em apenas 1, manter a experiência antiga (filtrar pela coordenação do usuário)
+      return ids[0];
     },
     enabled: !!user?.id,
   });
