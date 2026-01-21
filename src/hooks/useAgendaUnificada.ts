@@ -403,8 +403,19 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
             }
 
             for (const tarefa of tarefasFiltradas) {
-              const dataVencimento = parseISO(tarefa.data_vencimento);
-              const diasRestantes = differenceInDays(startOfDay(dataVencimento), today);
+              // Algumas tarefas importadas podem não ter data_vencimento.
+              // Para não quebrar a agenda (queryFn lançando exception), usamos um fallback estável:
+              // 1) data_vencimento (ideal)
+              // 2) data_fatal
+              // 3) created_at (data de criação)
+              const dataBaseISO: string | null =
+                tarefa.data_vencimento ?? tarefa.data_fatal ?? tarefa.created_at ?? null;
+
+              // Se realmente não houver nenhuma data, ignorar o item (evita crash e não polui a agenda).
+              if (!dataBaseISO) continue;
+
+              const dataBase = parseISO(dataBaseISO);
+              const diasRestantes = differenceInDays(startOfDay(dataBase), today);
               const isAtrasado = diasRestantes < 0 && tarefa.status === "pendente";
 
               // Mapear status da tarefa para status unificado
@@ -419,7 +430,10 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
                 descricao: tarefa.descricao,
                 tipo: tipoTarefa,
                 origem: "tarefa",
-                data_inicio: `${tarefa.data_vencimento}T00:00:00`,
+                // Se temos data_vencimento/data_fatal, fixamos 00:00; caso contrário, cai no created_at (timestamp).
+                data_inicio: tarefa.data_vencimento || tarefa.data_fatal
+                  ? `${(tarefa.data_vencimento ?? tarefa.data_fatal)!}T00:00:00`
+                  : tarefa.created_at,
                 data_fim: null,
                 dia_inteiro: true,
                 local: null,
