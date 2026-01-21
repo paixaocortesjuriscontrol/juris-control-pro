@@ -553,15 +553,39 @@ export default function MinhaAgenda() {
     }
   };
 
-  const handleConcluirItem = async (item: ItemAgendaUnificado) => {
-    await updateItemAgenda.mutateAsync({
-      id: item.id,
-      origem: item.origem,
-      status: item.status === "concluido" || item.status === "cumprido" ? "pendente" : "concluido",
-      concluido_em: item.status === "concluido" || item.status === "cumprido" ? null : new Date().toISOString(),
+  const handleConcluirItem = async (item: ItemAgendaUnificado, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    
+    const isConcluido = item.status === "concluido" || item.status === "cumprido";
+    const nextStatus = isConcluido ? "pendente" : "concluido";
+    const concluidoEm = isConcluido ? null : new Date().toISOString();
+    
+    // Atualização otimista no cache
+    queryClient.setQueriesData({ queryKey: [AGENDA_INFINITE_QUERY_KEY] }, (oldData: any) => {
+      if (!oldData?.pages) return oldData;
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page: ItemAgendaUnificado[]) =>
+          page.map((it) =>
+            it.id === item.id
+              ? { ...it, status: nextStatus, concluido_em: concluidoEm, is_atrasado: nextStatus === "concluido" ? false : it.is_atrasado }
+              : it
+          )
+        ),
+      };
     });
-    // Totalizadores são calculados a partir dos itens carregados (por página),
-    // então não há uma query de stats separada para invalidar.
+    
+    try {
+      await updateItemAgenda.mutateAsync({
+        id: item.id,
+        origem: item.origem,
+        status: nextStatus,
+        concluido_em: concluidoEm,
+      });
+    } catch (error) {
+      // Em caso de erro, reverter ao estado anterior
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+    }
   };
 
   const toggleTipo = (tipo: string) => {
@@ -696,17 +720,35 @@ export default function MinhaAgenda() {
               </h3>
             </div>
             
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 shrink-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenItem(item);
-              }}
-            >
-              <Eye className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-1 shrink-0">
+              {/* Botão Concluir/Reabrir rápido */}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className={cn(
+                  "h-8 w-8 transition-colors",
+                  item.status === "concluido" || item.status === "cumprido"
+                    ? "text-green-600 hover:text-yellow-600 hover:bg-yellow-100"
+                    : "text-muted-foreground hover:text-green-600 hover:bg-green-100"
+                )}
+                onClick={(e) => handleConcluirItem(item, e)}
+                title={item.status === "concluido" || item.status === "cumprido" ? "Reabrir" : "Concluir"}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+              </Button>
+              
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenItem(item);
+                }}
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Process info */}
