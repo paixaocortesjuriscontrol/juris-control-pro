@@ -220,7 +220,7 @@ function MonitoramentoCard({ status, onExecutar, onCancelar, executando, cancela
             size="sm" 
             className="flex-1"
             onClick={onExecutar}
-            disabled={executando || status.health_status === 'executando'}
+            disabled={executando || status.health_status === 'executando' || status.health_status === 'timeout_provavel'}
           >
             {executando ? (
               <>
@@ -239,7 +239,7 @@ function MonitoramentoCard({ status, onExecutar, onCancelar, executando, cancela
             size="sm" 
             variant="destructive"
             onClick={onCancelar}
-            disabled={cancelando || status.health_status !== 'executando'}
+            disabled={cancelando || (status.health_status !== 'executando' && status.health_status !== 'timeout_provavel')}
           >
             {cancelando ? (
               <Loader2 className="h-4 w-4 animate-spin" />
