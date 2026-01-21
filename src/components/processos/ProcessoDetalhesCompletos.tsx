@@ -1140,98 +1140,83 @@ export function ProcessoDetalhesCompletos({
                       Monitoramento 360°
                     </h3>
                   </div>
-                  {alertas360.length > 0 ? (
-                    <div className="space-y-2">
-                      {alertas360.map((alerta: any) => (
-                        <Card key={alerta.id} className="hover:shadow-sm transition-shadow border-l-2" style={{
-                          borderLeftColor: alerta.prioridade === "alta" ? "hsl(var(--destructive))" :
-                            alerta.prioridade === "media" ? "hsl(45 93% 47%)" : "hsl(var(--muted-foreground))"
-                        }}>
-                          <CardContent className="p-3">
-                            {/* Linha 1: Badges + Data */}
-                            <div className="flex items-center justify-between gap-2 mb-2">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <Badge className={cn(
-                                  "text-[10px] px-1.5 py-0",
-                                  alerta.prioridade === "alta" ? "bg-red-100 text-red-700" :
-                                  alerta.prioridade === "media" ? "bg-amber-100 text-amber-700" :
-                                  "bg-zinc-100 text-zinc-700"
-                                )}>
-                                  {alerta.prioridade}
-                                </Badge>
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                  {alerta.status}
-                                </Badge>
-                                {alerta.termo?.categoria && (
-                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                    {alerta.termo.categoria}
+                  {(() => {
+                    // Deduplica alertas por movimentacao_id + termo_encontrado
+                    const alertasUnicos = alertas360.reduce((acc: any[], alerta: any) => {
+                      const chave = `${alerta.movimentacao_id || 'sem-mov'}-${alerta.termo_encontrado}`;
+                      if (!acc.find((a: any) => `${a.movimentacao_id || 'sem-mov'}-${a.termo_encontrado}` === chave)) {
+                        acc.push(alerta);
+                      }
+                      return acc;
+                    }, []);
+                    
+                    return alertasUnicos.length > 0 ? (
+                      <div className="space-y-2">
+                        {alertasUnicos.map((alerta: any) => (
+                          <Card key={alerta.id} className="hover:shadow-sm transition-shadow border-l-2" style={{
+                            borderLeftColor: alerta.prioridade === "alta" ? "hsl(var(--destructive))" :
+                              alerta.prioridade === "media" ? "hsl(45 93% 47%)" : "hsl(var(--muted-foreground))"
+                          }}>
+                            <CardContent className="p-3">
+                              {/* Header: Badges + Data da movimentação */}
+                              <div className="flex items-center justify-between gap-2 mb-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <Badge className={cn(
+                                    "text-[10px] px-1.5 py-0",
+                                    alerta.prioridade === "alta" ? "bg-red-100 text-red-700" :
+                                    alerta.prioridade === "media" ? "bg-amber-100 text-amber-700" :
+                                    "bg-zinc-100 text-zinc-700"
+                                  )}>
+                                    {alerta.prioridade}
                                   </Badge>
-                                )}
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                    {alerta.status}
+                                  </Badge>
+                                  {alerta.termo?.categoria && (
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                      {alerta.termo.categoria}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                  {alerta.movimentacao?.data_movimentacao 
+                                    ? formatDate(alerta.movimentacao.data_movimentacao)
+                                    : formatDate(alerta.created_at)}
+                                </span>
                               </div>
-                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                {formatDate(alerta.created_at)}
-                              </span>
-                            </div>
-                            
-                            {/* Linha 2: Termo + Movimentação */}
-                            <div className="flex items-start gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-foreground truncate" title={alerta.termo_encontrado}>
-                                  {alerta.termo_encontrado}
+                              
+                              {/* Termo encontrado em destaque */}
+                              <p className="text-sm font-medium text-foreground">
+                                Termo: <span className="text-primary">{alerta.termo_encontrado}</span>
+                              </p>
+                              
+                              {/* Movimentação onde foi encontrado */}
+                              {alerta.movimentacao && (
+                                <div className="mt-1.5 text-xs text-muted-foreground">
+                                  <span className="font-medium">{alerta.movimentacao.tipo}</span>
+                                  {alerta.movimentacao.fonte && (
+                                    <span className="ml-1 opacity-75">({alerta.movimentacao.fonte})</span>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Descrição da movimentação - info adicional */}
+                              {alerta.movimentacao?.descricao && (
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                  {alerta.movimentacao.descricao}
                                 </p>
-                                {alerta.movimentacao && (
-                                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                                    <span className="font-medium">{alerta.movimentacao.tipo || "Mov."}</span>
-                                    {alerta.movimentacao.data_movimentacao && (
-                                      <> · {formatDate(alerta.movimentacao.data_movimentacao)}</>
-                                    )}
-                                    {alerta.movimentacao.fonte && (
-                                      <> · {alerta.movimentacao.fonte}</>
-                                    )}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* Linha 3: Contexto (compacto) */}
-                            {alerta.contexto && (
-                              <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-snug">
-                                {alerta.contexto}
-                              </p>
-                            )}
-                            
-                            {/* Linha 4: Descrição da movimentação */}
-                            {alerta.movimentacao?.descricao && alerta.movimentacao.descricao !== alerta.movimentacao.tipo && (
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2 bg-muted/40 rounded px-2 py-1">
-                                {alerta.movimentacao.descricao}
-                              </p>
-                            )}
-                            
-                            {/* Rodapé: Observações + Tratado */}
-                            {(alerta.observacoes || alerta.tratado_em) && (
-                              <div className="flex items-center justify-between mt-2 pt-1.5 border-t text-[10px] text-muted-foreground">
-                                {alerta.observacoes && (
-                                  <span className="italic truncate flex-1" title={alerta.observacoes}>
-                                    {alerta.observacoes}
-                                  </span>
-                                )}
-                                {alerta.tratado_em && (
-                                  <span className="whitespace-nowrap ml-2">
-                                    Tratado: {formatDate(alerta.tratado_em)}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Radar className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Nenhum alerta</p>
-                    </div>
-                  )}
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <Radar className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">Nenhum alerta</p>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
