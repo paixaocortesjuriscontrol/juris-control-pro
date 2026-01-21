@@ -1,8 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { startOfDay, parseISO, isAfter, differenceInDays } from "date-fns";
+import { startOfDay, parseISO, differenceInDays } from "date-fns";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -73,12 +73,24 @@ export interface AgendaUnificadaFilters {
   fetchAll?: boolean; // Se true, busca todas as tarefas sem filtrar por usuário (para admins)
 }
 
-export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
+const PAGE_SIZE = 1000; // Supabase default limit
+
+/**
+ * useAgendaUnificadaPaginated - usa useInfiniteQuery para carregar páginas de 1000 registros sob demanda.
+ */
+export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}) {
   const { user } = useAuth();
-  
-  return useQuery({
-    queryKey: ["agenda-unificada", filters, user?.id],
-    queryFn: async () => {
+
+  return useInfiniteQuery<ItemAgendaUnificado[], Error>({
+    queryKey: ["agenda-unificada-paginated", filters, user?.id],
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      // Se a última página retornou PAGE_SIZE itens, provavelmente há mais
+      if (lastPage.length === PAGE_SIZE) return allPages.length;
+      return undefined;
+    },
+    queryFn: async ({ pageParam }) => {
+      const page = pageParam as number;
       if (!user?.id) return [];
 
       const resultItems: ItemAgendaUnificado[] = [];
@@ -86,9 +98,10 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
       const incluirEventos = !filters.origens || filters.origens.includes("evento");
       const incluirTarefas = !filters.origens || filters.origens.includes("tarefa");
 
-      // IMPORTANT: Supabase typed select parser (TS) does NOT like dynamic/conditional
-      // strings inside .select(...). Keep them as literal constants and select them
-      // in separate branches to avoid ParserError types and broken builds.
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      // Constants for queries
       const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos(id,numero,assunto)" as const;
       const EVENTOS_SELECT_BASE = "*" as const;
       const TAREFAS_SELECT_WITH_JOINS =
@@ -96,24 +109,17 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
       const TAREFAS_SELECT_BASE =
         "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas" as const;
 
-      // Alguns usuários podem não ter permissão SELECT em tabelas relacionadas (ex.: processos/profiles),
-      // o que quebra selects com embeds (PostgREST). Para evitar lista vazia + totalizadores diferentes,
-      // tentamos com joins e, se falhar, fazemos fallback sem joins.
       const buildEventosQuery = (withJoins: boolean) => {
-        // NOTE: return as any to keep downstream code simple (we already normalize manually)
         if (withJoins) {
           return supabase.from("eventos_agenda").select(EVENTOS_SELECT_WITH_JOINS) as any;
         }
-
         return supabase.from("eventos_agenda").select(EVENTOS_SELECT_BASE) as any;
       };
 
       const buildTarefasQuery = (withJoins: boolean) => {
-        // NOTE: return as any to keep downstream code simple (we already normalize manually)
         if (withJoins) {
           return supabase.from("tarefas").select(TAREFAS_SELECT_WITH_JOINS) as any;
         }
-
         return supabase.from("tarefas").select(TAREFAS_SELECT_BASE) as any;
       };
 
@@ -121,70 +127,63 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
       if (incluirEventos) {
         let queryEventos = buildEventosQuery(true);
 
-        // Se fetchAll=true (admin vendo tudo), não filtra por criador/participante
         if (!filters.fetchAll) {
-          // Get events where user is a participant
           const { data: participacoesUsuario } = await supabase
             .from("participantes_evento")
             .select("evento_id")
             .eq("usuario_id", user.id);
-          
-          const eventosParticipante = participacoesUsuario?.map(p => p.evento_id) || [];
 
-          // Filter: created by user OR user is participant
+          const eventosParticipante = participacoesUsuario?.map((p) => p.evento_id) || [];
+
           if (eventosParticipante.length > 0) {
-            queryEventos = queryEventos.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(',')})`);
+            queryEventos = queryEventos.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(",")})`);
           } else {
             queryEventos = queryEventos.eq("criado_por", user.id);
           }
         }
 
-        // Filtros de tipo para eventos
         if (filters.tipos && filters.tipos.length > 0) {
-          const tiposEvento = filters.tipos.filter(t => 
+          const tiposEvento = filters.tipos.filter((t) =>
             ["evento", "prazo", "audiencia", "parcelamento", "prazo_parcela"].includes(t)
           );
           if (tiposEvento.length > 0) {
             queryEventos = queryEventos.in("tipo", tiposEvento);
           }
         }
-        
+
         if (filters.status && filters.status !== "todas") {
           queryEventos = queryEventos.eq("status", filters.status === "pendente" ? "pendente" : filters.status);
         }
-        
+
         if (filters.dataInicio) {
           queryEventos = queryEventos.gte("data_inicio", filters.dataInicio.toISOString());
         }
-        
+
         if (filters.dataFim) {
           queryEventos = queryEventos.lte("data_inicio", filters.dataFim.toISOString());
         }
 
+        // Apply range for pagination
+        queryEventos = queryEventos.range(from, to);
+
         let { data: eventos, error: eventosError } = await queryEventos;
 
-        // Fallback sem joins caso o embed cause erro de permissão
         if (eventosError) {
           console.error("Erro ao buscar eventos:", eventosError);
+          // fallback sem joins
           let queryEventosFallback = buildEventosQuery(false);
-
           if (!filters.fetchAll) {
             const { data: participacoesUsuario } = await supabase
               .from("participantes_evento")
               .select("evento_id")
               .eq("usuario_id", user.id);
-
             const eventosParticipante = participacoesUsuario?.map((p) => p.evento_id) || [];
-
             if (eventosParticipante.length > 0) {
-              queryEventosFallback = queryEventosFallback.or(
-                `criado_por.eq.${user.id},id.in.(${eventosParticipante.join(",")})`
-              );
+              queryEventosFallback = queryEventosFallback.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(",")})`);
             } else {
               queryEventosFallback = queryEventosFallback.eq("criado_por", user.id);
             }
           }
-
           if (filters.tipos && filters.tipos.length > 0) {
             const tiposEvento = filters.tipos.filter((t) =>
               ["evento", "prazo", "audiencia", "parcelamento", "prazo_parcela"].includes(t)
@@ -193,57 +192,40 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
               queryEventosFallback = queryEventosFallback.in("tipo", tiposEvento);
             }
           }
-
           if (filters.status && filters.status !== "todas") {
-            queryEventosFallback = queryEventosFallback.eq(
-              "status",
-              filters.status === "pendente" ? "pendente" : filters.status
-            );
+            queryEventosFallback = queryEventosFallback.eq("status", filters.status === "pendente" ? "pendente" : filters.status);
           }
-
           if (filters.dataInicio) {
-            queryEventosFallback = queryEventosFallback.gte(
-              "data_inicio",
-              filters.dataInicio.toISOString()
-            );
+            queryEventosFallback = queryEventosFallback.gte("data_inicio", filters.dataInicio.toISOString());
           }
-
           if (filters.dataFim) {
-            queryEventosFallback = queryEventosFallback.lte(
-              "data_inicio",
-              filters.dataFim.toISOString()
-            );
+            queryEventosFallback = queryEventosFallback.lte("data_inicio", filters.dataFim.toISOString());
           }
-
+          queryEventosFallback = queryEventosFallback.range(from, to);
           const fallbackRes = await queryEventosFallback;
           eventos = fallbackRes.data;
           eventosError = fallbackRes.error;
         }
-        
-        if (eventosError) {
-          console.error("Erro ao buscar eventos (fallback):", eventosError);
-        } else if (eventos && eventos.length > 0) {
-          // Get participants for each event
-          const eventIds = eventos.map(e => e.id);
+
+        if (!eventosError && eventos && eventos.length > 0) {
+          const eventIds = eventos.map((e: any) => e.id);
           const { data: participantes } = await supabase
             .from("participantes_evento")
             .select("evento_id, usuario_id")
             .in("evento_id", eventIds);
 
-          // Filter by responsavel if needed
           let eventosFiltered = eventos;
           if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-            eventosFiltered = eventos.filter(evento => {
-              const eventParticipants = participantes?.filter(p => p.evento_id === evento.id) || [];
-              const participantIds = eventParticipants.map(p => p.usuario_id);
+            eventosFiltered = eventos.filter((evento: any) => {
+              const eventParticipants = participantes?.filter((p) => p.evento_id === evento.id) || [];
+              const participantIds = eventParticipants.map((p) => p.usuario_id);
               return (
                 filters.responsavelIds!.includes(evento.criado_por) ||
-                participantIds.some(id => filters.responsavelIds!.includes(id))
+                participantIds.some((id) => filters.responsavelIds!.includes(id))
               );
             });
           }
 
-          // Transform events to unified format
           for (const evento of eventosFiltered) {
             const dataEvento = parseISO(evento.data_inicio);
             const diasRestantes = differenceInDays(startOfDay(dataEvento), today);
@@ -267,7 +249,7 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
               updated_at: evento.updated_at,
               processo_id: evento.processo_id,
               processo: evento.processo,
-              participantes: participantes?.filter(p => p.evento_id === evento.id) || [],
+              participantes: participantes?.filter((p) => p.evento_id === evento.id) || [],
               enviar_whatsapp: evento.enviar_whatsapp,
               total_parcelas: evento.total_parcelas,
               criado_por: evento.criado_por,
@@ -282,26 +264,19 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
       if (incluirTarefas) {
         let queryTarefas = buildTarefasQuery(true);
 
-        // Filtrar por responsável OU se é o criador
-        // Se fetchAll=true (admin vendo tudo), não filtra por usuário
         if (filters.fetchAll) {
-          // Admin vendo todas as tarefas - sem filtro de usuário
-          // (coordenação/cliente será filtrado depois no código abaixo)
+          // Admin vendo todas
         } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-          // Se o filtro de membro está ativo, mostra tarefas onde o responsável está no filtro OU o usuário logado é criador
           if (filters.responsavelIds.includes(user.id)) {
-            queryTarefas = queryTarefas.or(`responsavel_id.in.(${filters.responsavelIds.join(',')}),criado_por.eq.${user.id}`);
+            queryTarefas = queryTarefas.or(`responsavel_id.in.(${filters.responsavelIds.join(",")}),criado_por.eq.${user.id}`);
           } else {
-            // Só mostra do membro selecionado (mas também inclui as que o usuário criou para esse membro)
-            const membrosFilter = filters.responsavelIds.join(',');
+            const membrosFilter = filters.responsavelIds.join(",");
             queryTarefas = queryTarefas.or(`responsavel_id.in.(${membrosFilter}),and(criado_por.eq.${user.id},responsavel_id.in.(${membrosFilter}))`);
           }
         } else {
-          // Sem filtro de membro: mostrar todas onde o usuário é responsável OU criador
           queryTarefas = queryTarefas.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
         }
 
-        // Filtrar por status
         if (filters.status && filters.status !== "todas") {
           if (filters.status === "pendente") {
             queryTarefas = queryTarefas.eq("status", "pendente");
@@ -310,41 +285,34 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
           }
         }
 
-        // Filtrar por data
         if (filters.dataInicio) {
-          queryTarefas = queryTarefas.gte("data_vencimento", filters.dataInicio.toISOString().split('T')[0]);
+          queryTarefas = queryTarefas.gte("data_vencimento", filters.dataInicio.toISOString().split("T")[0]);
         }
-        
+
         if (filters.dataFim) {
-          queryTarefas = queryTarefas.lte("data_vencimento", filters.dataFim.toISOString().split('T')[0]);
+          queryTarefas = queryTarefas.lte("data_vencimento", filters.dataFim.toISOString().split("T")[0]);
         }
+
+        // Apply range for pagination
+        queryTarefas = queryTarefas.range(from, to);
 
         let { data: tarefas, error: tarefasError } = await queryTarefas;
 
-        // Fallback sem joins caso o embed cause erro de permissão
         if (tarefasError) {
           console.error("Erro ao buscar tarefas:", tarefasError);
           let queryTarefasFallback = buildTarefasQuery(false);
-
           if (filters.fetchAll) {
             // sem filtro
           } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
             if (filters.responsavelIds.includes(user.id)) {
-              queryTarefasFallback = queryTarefasFallback.or(
-                `responsavel_id.in.(${filters.responsavelIds.join(",")}),criado_por.eq.${user.id}`
-              );
+              queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${filters.responsavelIds.join(",")}),criado_por.eq.${user.id}`);
             } else {
               const membrosFilter = filters.responsavelIds.join(",");
-              queryTarefasFallback = queryTarefasFallback.or(
-                `responsavel_id.in.(${membrosFilter}),and(criado_por.eq.${user.id},responsavel_id.in.(${membrosFilter}))`
-              );
+              queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${membrosFilter}),and(criado_por.eq.${user.id},responsavel_id.in.(${membrosFilter}))`);
             }
           } else {
-            queryTarefasFallback = queryTarefasFallback.or(
-              `responsavel_id.eq.${user.id},criado_por.eq.${user.id}`
-            );
+            queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
           }
-
           if (filters.status && filters.status !== "todas") {
             if (filters.status === "pendente") {
               queryTarefasFallback = queryTarefasFallback.eq("status", "pendente");
@@ -352,76 +320,48 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
               queryTarefasFallback = queryTarefasFallback.eq("status", "cumprido");
             }
           }
-
           if (filters.dataInicio) {
-            queryTarefasFallback = queryTarefasFallback.gte(
-              "data_vencimento",
-              filters.dataInicio.toISOString().split("T")[0]
-            );
+            queryTarefasFallback = queryTarefasFallback.gte("data_vencimento", filters.dataInicio.toISOString().split("T")[0]);
           }
-
           if (filters.dataFim) {
-            queryTarefasFallback = queryTarefasFallback.lte(
-              "data_vencimento",
-              filters.dataFim.toISOString().split("T")[0]
-            );
+            queryTarefasFallback = queryTarefasFallback.lte("data_vencimento", filters.dataFim.toISOString().split("T")[0]);
           }
-
+          queryTarefasFallback = queryTarefasFallback.range(from, to);
           const fallbackRes = await queryTarefasFallback;
           tarefas = fallbackRes.data;
           tarefasError = fallbackRes.error;
         }
 
-        if (tarefasError) {
-          console.error("Erro ao buscar tarefas (fallback):", tarefasError);
-        } else if (tarefas) {
-          // Filtrar por tipos se "tarefa" ou "tarefa_delegada" estiver incluído
-          const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || 
-            filters.tipos.includes("tarefa") || filters.tipos.includes("tarefa_delegada");
-          
+        if (!tarefasError && tarefas) {
+          const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || filters.tipos.includes("tarefa") || filters.tipos.includes("tarefa_delegada");
+
           if (incluirTipoTarefa) {
-            // Filtrar por cliente e coordenação se especificado
             let tarefasFiltradas = tarefas;
             if (filters.clienteId) {
-              tarefasFiltradas = tarefasFiltradas.filter(t => 
-                t.processo && (t.processo as { cliente_id?: string }).cliente_id === filters.clienteId
+              tarefasFiltradas = tarefasFiltradas.filter(
+                (t: any) => t.processo && (t.processo as { cliente_id?: string }).cliente_id === filters.clienteId
               );
             }
             if (filters.coordenacaoId) {
-              tarefasFiltradas = tarefasFiltradas.filter(t => {
+              tarefasFiltradas = tarefasFiltradas.filter((t: any) => {
                 const procCoord = t.processo && (t.processo as { coordenacao_id?: string | null }).coordenacao_id;
                 if (procCoord) return procCoord === filters.coordenacaoId;
-
-                // Sem processo: manter apenas se o responsável estiver no conjunto de pessoas filtradas
-                // (ex.: quando a página passa os membros da coordenação via responsavelIds).
                 if (filters.responsavelIds && filters.responsavelIds.length > 0) {
                   return filters.responsavelIds.includes(t.responsavel_id);
                 }
-
                 return false;
               });
             }
 
             for (const tarefa of tarefasFiltradas) {
-              // Algumas tarefas importadas podem não ter data_vencimento.
-              // Para não quebrar a agenda (queryFn lançando exception), usamos um fallback estável:
-              // 1) data_vencimento (ideal)
-              // 2) data_fatal
-              // 3) created_at (data de criação)
-              const dataBaseISO: string | null =
-                tarefa.data_vencimento ?? tarefa.data_fatal ?? tarefa.created_at ?? null;
-
-              // Se realmente não houver nenhuma data, ignorar o item (evita crash e não polui a agenda).
+              const dataBaseISO: string | null = tarefa.data_vencimento ?? tarefa.data_fatal ?? tarefa.created_at ?? null;
               if (!dataBaseISO) continue;
 
               const dataBase = parseISO(dataBaseISO);
               const diasRestantes = differenceInDays(startOfDay(dataBase), today);
               const isAtrasado = diasRestantes < 0 && tarefa.status === "pendente";
 
-              // Mapear status da tarefa para status unificado
               const statusUnificado = tarefa.status === "cumprido" ? "concluido" : tarefa.status;
-
-              // Determinar se é tarefa delegada (criada por outro) ou própria
               const tipoTarefa = tarefa.criado_por !== user.id ? "tarefa_delegada" : "tarefa";
 
               resultItems.push({
@@ -430,10 +370,10 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
                 descricao: tarefa.descricao,
                 tipo: tipoTarefa,
                 origem: "tarefa",
-                // Se temos data_vencimento/data_fatal, fixamos 00:00; caso contrário, cai no created_at (timestamp).
-                data_inicio: tarefa.data_vencimento || tarefa.data_fatal
-                  ? `${(tarefa.data_vencimento ?? tarefa.data_fatal)!}T00:00:00`
-                  : tarefa.created_at,
+                data_inicio:
+                  tarefa.data_vencimento || tarefa.data_fatal
+                    ? `${(tarefa.data_vencimento ?? tarefa.data_fatal)!}T00:00:00`
+                    : tarefa.created_at,
                 data_fim: null,
                 dia_inteiro: true,
                 local: null,
@@ -445,12 +385,14 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
                 created_at: tarefa.created_at,
                 updated_at: tarefa.updated_at,
                 processo_id: tarefa.processo_id,
-                processo: tarefa.processo ? { 
-                  id: tarefa.processo.id, 
-                  numero: tarefa.processo.numero, 
-                  assunto: tarefa.processo.assunto,
-                  cliente_id: (tarefa.processo as { cliente_id?: string }).cliente_id
-                } : null,
+                processo: tarefa.processo
+                  ? {
+                      id: tarefa.processo.id,
+                      numero: tarefa.processo.numero,
+                      assunto: tarefa.processo.assunto,
+                      cliente_id: (tarefa.processo as { cliente_id?: string }).cliente_id,
+                    }
+                  : null,
                 responsavel_id: tarefa.responsavel_id,
                 responsavel: tarefa.responsavel,
                 criado_por: tarefa.criado_por,
@@ -467,141 +409,71 @@ export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
 
       // ========= ORDENAR RESULTADOS =========
       const now = new Date();
-      
-      // Separar futuros e passados
-      const futureItems = resultItems
-        .filter(e => new Date(e.data_inicio) >= now)
-        .sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
-      
-      const pastItems = resultItems
-        .filter(e => new Date(e.data_inicio) < now)
-        .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
-      
+      const futureItems = resultItems.filter((e) => new Date(e.data_inicio) >= now).sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
+      const pastItems = resultItems.filter((e) => new Date(e.data_inicio) < now).sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
+
       return [...futureItems, ...pastItems];
     },
     enabled: !!user,
   });
 }
 
-export function useAgendaUnificadaStats() {
-  const { user } = useAuth();
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  
-  return useQuery({
-    queryKey: ["agenda-unificada-stats", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return { concluidas: 0, pendentes: 0, atrasadas: 0 };
+/**
+ * useAgendaUnificada - wrapper legado que retorna a primeira página (compatibilidade).
+ * Para paginação completa, use useAgendaUnificadaPaginated diretamente.
+ */
+export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
+  const infiniteQuery = useAgendaUnificadaPaginated(filters);
 
-      let concluidas = 0;
-      let pendentes = 0;
-      let atrasadas = 0;
+  // Flatten all pages into a single array for backward compatibility
+  const data = infiniteQuery.data?.pages?.flat() ?? [];
 
-      // ========= STATS DE EVENTOS =========
-      const { data: participacoesUsuario } = await supabase
-        .from("participantes_evento")
-        .select("evento_id")
-        .eq("usuario_id", user.id);
-      
-      const eventosParticipante = participacoesUsuario?.map(p => p.evento_id) || [];
-
-      let queryEventos = supabase
-        .from("eventos_agenda")
-        .select("id, status, data_inicio");
-
-      if (eventosParticipante.length > 0) {
-        queryEventos = queryEventos.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(',')})`);
-      } else {
-        queryEventos = queryEventos.eq("criado_por", user.id);
-      }
-
-      const { data: eventos } = await queryEventos;
-      
-      if (eventos) {
-        concluidas += eventos.filter(e => e.status === "concluido").length;
-        pendentes += eventos.filter(e => {
-          const dataEvento = new Date(e.data_inicio);
-          dataEvento.setHours(0, 0, 0, 0);
-          return e.status === "pendente" && dataEvento.getTime() === hoje.getTime();
-        }).length;
-        atrasadas += eventos.filter(e => {
-          const dataEvento = new Date(e.data_inicio);
-          return e.status === "pendente" && dataEvento < hoje;
-        }).length;
-      }
-
-      // ========= STATS DE TAREFAS =========
-      const { data: tarefas } = await supabase
-        .from("tarefas")
-        .select("id, status, data_vencimento")
-        .or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
-
-      if (tarefas) {
-        concluidas += tarefas.filter(t => t.status === "cumprido").length;
-        pendentes += tarefas.filter(t => {
-          const dataTarefa = new Date(t.data_vencimento);
-          dataTarefa.setHours(0, 0, 0, 0);
-          return t.status === "pendente" && dataTarefa.getTime() === hoje.getTime();
-        }).length;
-        atrasadas += tarefas.filter(t => {
-          const dataTarefa = new Date(t.data_vencimento);
-          return t.status === "pendente" && dataTarefa < hoje;
-        }).length;
-      }
-      
-      return { concluidas, pendentes, atrasadas };
-    },
-    enabled: !!user,
-  });
+  return {
+    data,
+    isLoading: infiniteQuery.isLoading,
+    isFetching: infiniteQuery.isFetching,
+    isError: infiniteQuery.isError,
+    error: infiniteQuery.error,
+    // Infinite query specific methods
+    fetchNextPage: infiniteQuery.fetchNextPage,
+    hasNextPage: infiniteQuery.hasNextPage,
+    isFetchingNextPage: infiniteQuery.isFetchingNextPage,
+    refetch: infiniteQuery.refetch,
+  };
 }
 
 export function useUpdateItemAgenda() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ 
-      id, 
+    mutationFn: async ({
+      id,
       origem,
-      ...updates 
-    }: { id: string; origem: "evento" | "tarefa"; status?: string; concluido_em?: string | null }) => {
-      if (origem === "evento") {
-        const { data, error } = await supabase
-          .from("eventos_agenda")
-          .update(updates)
-          .eq("id", id)
-          .select()
-          .maybeSingle();
-
+      status,
+      concluido_em,
+    }: {
+      id: string;
+      origem: "evento" | "tarefa";
+      status?: string;
+      concluido_em?: string | null;
+    }) => {
+      if (origem === "tarefa") {
+        const tarefaStatus = (status === "concluido" ? "cumprido" : status) as "atrasado" | "cumprido" | "pendente";
+        const { error } = await supabase.from("tarefas").update({ status: tarefaStatus, updated_at: new Date().toISOString() }).eq("id", id);
         if (error) throw error;
-        return data;
       } else {
-        // Para tarefas, mapear status
-        const tarefaUpdates: Record<string, unknown> = {};
-        if (updates.status) {
-          tarefaUpdates.status = updates.status === "concluido" ? "cumprido" : updates.status;
-        }
-
-        const { data, error } = await supabase
-          .from("tarefas")
-          .update(tarefaUpdates)
-          .eq("id", id)
-          .select()
-          .maybeSingle();
-
+        const { error } = await supabase.from("eventos_agenda").update({ status, concluido_em, updated_at: new Date().toISOString() }).eq("id", id);
         if (error) throw error;
-        return data;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-      queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
-      toast.success("Atualizado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-paginated"] });
+      toast.success("Item atualizado com sucesso!");
     },
-    onError: (error: Error) => {
-      toast.error("Erro ao atualizar: " + error.message);
+    onError: (error) => {
+      console.error("Erro ao atualizar item:", error);
+      toast.error("Erro ao atualizar item");
     },
   });
 }
@@ -611,31 +483,22 @@ export function useDeleteItemAgenda() {
 
   return useMutation({
     mutationFn: async ({ id, origem }: { id: string; origem: "evento" | "tarefa" }) => {
-      if (origem === "evento") {
-        const { error } = await supabase
-          .from("eventos_agenda")
-          .delete()
-          .eq("id", id);
-
+      if (origem === "tarefa") {
+        const { error } = await supabase.from("tarefas").delete().eq("id", id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from("tarefas")
-          .delete()
-          .eq("id", id);
-
+        const { error } = await supabase.from("eventos_agenda").delete().eq("id", id);
         if (error) throw error;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
-      toast.success("Excluído com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-paginated"] });
+      toast.success("Item excluído com sucesso!");
     },
-    onError: (error: Error) => {
-      toast.error("Erro ao excluir: " + error.message);
+    onError: (error) => {
+      console.error("Erro ao excluir item:", error);
+      toast.error("Erro ao excluir item");
     },
   });
 }

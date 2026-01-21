@@ -411,7 +411,7 @@ export default function MinhaAgenda() {
     fetchAll: shouldFetchAll,
   };
 
-  const { data: itensAgenda, isLoading } = useAgendaUnificada(filters);
+  const { data: itensAgenda, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useAgendaUnificada(filters);
 
   // ========= TOTALIZADORES UNIFICADOS =========
   // Calculados 100% a partir do array itensAgenda (elimina discrepâncias com COUNT/HEAD).
@@ -1309,6 +1309,25 @@ export default function MinhaAgenda() {
                   <div className="divide-y">
                     {itensFiltrados.map(renderItemCard)}
                   </div>
+                  {/* Botão Carregar Mais */}
+                  {hasNextPage && (
+                    <div className="p-4 text-center">
+                      <Button
+                        variant="outline"
+                        onClick={() => fetchNextPage()}
+                        disabled={isFetchingNextPage}
+                      >
+                        {isFetchingNextPage ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Carregando...
+                          </>
+                        ) : (
+                          "Carregar mais"
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </ScrollArea>
               )}
             </CardContent>
