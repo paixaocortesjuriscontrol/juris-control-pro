@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -177,6 +177,21 @@ export default function MinhaAgenda() {
   const [pessoasPopoverOpen, setPessoasPopoverOpen] = useState(false);
   const [coordenacaoAutoDetected, setCoordenacaoAutoDetected] = useState(false);
   const [membrosAutoDetected, setMembrosAutoDetected] = useState(false);
+
+  // Ao voltar para "todas" as coordenações, limpamos o filtro de pessoas para realmente exibir tudo.
+  // (Evita o caso comum: usuário filtra membros numa coordenação específica e depois seleciona "todas",
+  // ficando sem itens por manter um filtro residual.)
+  const lastCoordenacaoFiltroRef = useRef(coordenacaoFiltro);
+  useEffect(() => {
+    const prev = lastCoordenacaoFiltroRef.current;
+    if (prev !== coordenacaoFiltro) {
+      if (coordenacaoFiltro === "todas") {
+        setMembrosFiltro([]);
+        setMembrosAutoDetected(false);
+      }
+      lastCoordenacaoFiltroRef.current = coordenacaoFiltro;
+    }
+  }, [coordenacaoFiltro]);
 
   const updateEvento = useUpdateEvento();
   const deleteEvento = useDeleteEvento();
