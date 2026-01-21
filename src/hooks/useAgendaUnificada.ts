@@ -85,6 +85,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
     queryKey: ["agenda-unificada-paginated", filters, user?.id],
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
+      // Defensive check: if lastPage is undefined or not an array, no more pages
+      if (!lastPage || !Array.isArray(lastPage) || lastPage.length === 0) {
+        return undefined;
+      }
       // Se a última página retornou PAGE_SIZE itens, provavelmente há mais
       if (lastPage.length === PAGE_SIZE) return allPages.length;
       return undefined;
