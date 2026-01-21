@@ -863,6 +863,41 @@ export type Database = {
         }
         Relationships: []
       }
+      comentarios_eventos: {
+        Row: {
+          autor_id: string
+          conteudo: string
+          created_at: string
+          evento_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          autor_id: string
+          conteudo: string
+          created_at?: string
+          evento_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          autor_id?: string
+          conteudo?: string
+          created_at?: string
+          evento_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comentarios_eventos_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_agenda"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comentarios_tarefas: {
         Row: {
           autor_id: string

@@ -179,8 +179,8 @@ export function TarefaAgendaPanel({
 
   const isParcelamento = tarefa.tipo === "parcelamento" || tarefa.tipo === "prazo_parcela";
 
-  // Fetch comentários
-  const { data: comentarios, isLoading: loadingComentarios } = useQuery({
+  // Fetch comentários de tarefas
+  const { data: comentariosTarefas, isLoading: loadingComentariosTarefas } = useQuery({
     queryKey: ["comentarios-tarefa-agenda", tarefa.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -199,6 +199,46 @@ export function TarefaAgendaPanel({
     },
     enabled: tarefa.origem === "tarefa",
   });
+
+  // Fetch comentários de eventos
+  const { data: comentariosEventos, isLoading: loadingComentariosEventos } = useQuery({
+    queryKey: ["comentarios-evento-agenda", tarefa.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("comentarios_eventos")
+        .select(`
+          id,
+          conteudo,
+          created_at,
+          autor_id
+        `)
+        .eq("evento_id", tarefa.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      
+      // Buscar nomes dos autores
+      if (data && data.length > 0) {
+        const autorIds = [...new Set(data.map(c => c.autor_id))];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, nome")
+          .in("id", autorIds);
+        
+        const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
+        return data.map(c => ({
+          ...c,
+          autor: profilesMap.get(c.autor_id) || null
+        }));
+      }
+      return data || [];
+    },
+    enabled: tarefa.origem === "evento",
+  });
+
+  // Unificar comentários
+  const comentarios = tarefa.origem === "tarefa" ? comentariosTarefas : comentariosEventos;
+  const loadingComentarios = tarefa.origem === "tarefa" ? loadingComentariosTarefas : loadingComentariosEventos;
 
   // Fetch processo completo
   const { data: processoCompleto } = useQuery({
@@ -489,20 +529,29 @@ export function TarefaAgendaPanel({
   };
 
   const handleEnviarComentario = async () => {
-    if (!comentario.trim() || !user || tarefa.origem !== "tarefa") return;
+    if (!comentario.trim() || !user) return;
 
     setSendingComment(true);
     try {
-      const { error } = await supabase.from("comentarios_tarefas").insert({
-        tarefa_id: tarefa.id,
-        autor_id: user.id,
-        conteudo: comentario.trim(),
-      });
-
-      if (error) throw error;
+      if (tarefa.origem === "tarefa") {
+        const { error } = await supabase.from("comentarios_tarefas").insert({
+          tarefa_id: tarefa.id,
+          autor_id: user.id,
+          conteudo: comentario.trim(),
+        });
+        if (error) throw error;
+        queryClient.invalidateQueries({ queryKey: ["comentarios-tarefa-agenda", tarefa.id] });
+      } else {
+        const { error } = await supabase.from("comentarios_eventos").insert({
+          evento_id: tarefa.id,
+          autor_id: user.id,
+          conteudo: comentario.trim(),
+        });
+        if (error) throw error;
+        queryClient.invalidateQueries({ queryKey: ["comentarios-evento-agenda", tarefa.id] });
+      }
 
       setComentario("");
-      queryClient.invalidateQueries({ queryKey: ["comentarios-tarefa-agenda", tarefa.id] });
       toast({ title: "Comentário adicionado!" });
     } catch (error: any) {
       toast({
@@ -1194,10 +1243,9 @@ export function TarefaAgendaPanel({
 
           <Separator />
 
-          {/* Comentários Section - Apenas para tarefas */}
-          {tarefa.origem === "tarefa" && (
-            <Collapsible open={comentariosOpen} onOpenChange={setComentariosOpen}>
-              <CollapsibleTrigger asChild>
+          {/* Comentários Section - Para tarefas e eventos */}
+          <Collapsible open={comentariosOpen} onOpenChange={setComentariosOpen}>
+            <CollapsibleTrigger asChild>
                 <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
                   <span className="flex items-center gap-2 text-sm font-medium">
                     <MessageSquare className="w-4 h-4" />
@@ -1270,7 +1318,6 @@ export function TarefaAgendaPanel({
                 )}
               </CollapsibleContent>
             </Collapsible>
-          )}
         </CardContent>
       </ScrollArea>
 
