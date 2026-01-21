@@ -145,17 +145,53 @@ function delay(ms: number): Promise<void> {
 }
 
 
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  const providedSignal = options.signal;
+  let abortListener: (() => void) | null = null;
+
+  if (providedSignal) {
+    if (providedSignal.aborted) controller.abort();
+    abortListener = () => controller.abort();
+    try {
+      providedSignal.addEventListener('abort', abortListener, { once: true });
+    } catch {
+      // ignore
+    }
+  }
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+    if (providedSignal && abortListener) {
+      try {
+        providedSignal.removeEventListener('abort', abortListener);
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
 async function fetchWithRetry(
   url: string, 
   options: RequestInit, 
   maxRetries = 2,
-  baseDelay = 1500
+  baseDelay = 1500,
+  timeoutMs = 10_000
 ): Promise<Response> {
   let lastError: Error | null = null;
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const response = await fetch(url, options);
+      const response = await fetchWithTimeout(url, options, timeoutMs);
       
       if (response.status === 429) {
         const waitTime = baseDelay * Math.pow(2, attempt);
