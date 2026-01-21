@@ -28,25 +28,25 @@ export function CronJobsStatusCard() {
               </span>
             </p>
             <div className="bg-muted p-3 rounded-lg text-xs font-mono mb-3 max-h-48 overflow-y-auto">
-              <p className="font-bold mb-2">Jobs de Execução Completa (BRT):</p>
+              <p className="font-bold mb-2">Jobs de Execução (BRT):</p>
               <ul className="space-y-1">
                 <li>• <strong>Redistribuições:</strong> 09h e 18h</li>
                 <li>• <strong>Andamentos:</strong> 09h e 18h</li>
                 <li>• <strong>Distribuições:</strong> 09h e 18h</li>
-                <li>• <strong>Monitoração 360 (Termos):</strong> 09h e 18h</li>
-                <li>• <strong>DJEN (Termos):</strong> 09h, 11:30h e 18h</li>
-                <li>• <strong>DJEN Processos:</strong> 09h e 18h</li>
+                <li>• <strong>Monitoração 360:</strong> 09h e 18h</li>
+                <li className="text-muted-foreground">• <strong>DJEN (Termos):</strong> desativado (usar RPA)</li>
+                <li className="text-muted-foreground">• <strong>DJEN Processos:</strong> desativado (usar RPA)</li>
               </ul>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" asChild>
                 <a 
-                  href="/scripts/setup-cron-jobs-completos.sql" 
+                  href="/scripts/setup-cron-jobs-v2.sql" 
                   target="_blank"
                   className="flex items-center gap-2"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  Baixar Script SQL
+                  Baixar Script V2
                 </a>
               </Button>
               <Button variant="default" size="sm" asChild>

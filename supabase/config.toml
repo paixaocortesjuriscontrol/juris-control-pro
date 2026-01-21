@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.enviar-alertas-360-email]
 verify_jwt = false
+
+[functions.executar-monitoramento]
+verify_jwt = false

@@ -1549,6 +1549,63 @@ export type Database = {
           },
         ]
       }
+      execucoes_agendadas: {
+        Row: {
+          agendado_para: string | null
+          created_at: string | null
+          detalhes: Json | null
+          erros: number | null
+          finalizado_em: string | null
+          id: string
+          iniciado_em: string | null
+          job_name: string | null
+          lotes_processados: number | null
+          registros_encontrados: number | null
+          registros_processados: number | null
+          retry_count: number | null
+          status: string
+          tipo: string
+          total_lotes: number | null
+          ultimo_erro: string | null
+        }
+        Insert: {
+          agendado_para?: string | null
+          created_at?: string | null
+          detalhes?: Json | null
+          erros?: number | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string | null
+          job_name?: string | null
+          lotes_processados?: number | null
+          registros_encontrados?: number | null
+          registros_processados?: number | null
+          retry_count?: number | null
+          status?: string
+          tipo: string
+          total_lotes?: number | null
+          ultimo_erro?: string | null
+        }
+        Update: {
+          agendado_para?: string | null
+          created_at?: string | null
+          detalhes?: Json | null
+          erros?: number | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string | null
+          job_name?: string | null
+          lotes_processados?: number | null
+          registros_encontrados?: number | null
+          registros_processados?: number | null
+          retry_count?: number | null
+          status?: string
+          tipo?: string
+          total_lotes?: number | null
+          ultimo_erro?: string | null
+        }
+        Relationships: []
+      }
       google_calendar_tokens: {
         Row: {
           access_token: string
@@ -3928,6 +3985,7 @@ export type Database = {
       is_admin_or_coordenador: { Args: { _user_id: string }; Returns: boolean }
       is_cliente: { Args: { _user_id: string }; Returns: boolean }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
+      limpar_execucoes_antigas: { Args: never; Returns: undefined }
       search_users_basic: {
         Args: { _limit?: number; _query?: string }
         Returns: {
