@@ -143,8 +143,8 @@ const AnaliseDjen = () => {
     apenasHoje,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal') ? undefined : tipoOrigem,
-    // incluir descartadas apenas quando 'todos' ou 'descartada'
-    incluirDescartadas: tipoOrigem === 'todos' || tipoOrigem === 'descartada',
+    // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
+    incluirDescartadas: tipoOrigem === 'descartada',
   });
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
   const isLoading = loadingUserCoord || coordenacaoId === null || isLoadingPublicacoes;
