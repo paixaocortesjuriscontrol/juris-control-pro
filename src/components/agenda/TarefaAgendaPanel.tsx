@@ -632,8 +632,8 @@ export function TarefaAgendaPanel({
         if (error) throw error;
       }
       toast({ title: "Atividade descartada!" });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      queryClient.refetchQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       onClose();
       onUpdate();
     } catch (error: any) {
@@ -665,8 +665,8 @@ export function TarefaAgendaPanel({
         if (error) throw error;
       }
       toast({ title: "Excluído com sucesso!" });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      queryClient.refetchQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       onClose();
       onUpdate();
     } catch (error: any) {
