@@ -77,7 +77,7 @@ export interface AgendaUnificadaFilters {
 }
 
 const PAGE_SIZE = 1000; // Supabase default limit
-const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v1" as const;
+export const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v1" as const;
 
 const normalizeDedupText = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
 

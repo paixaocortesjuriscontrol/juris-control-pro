@@ -70,6 +70,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 
 interface TarefaAgendaPanelProps {
   tarefa: {
@@ -465,33 +466,62 @@ export function TarefaAgendaPanel({
   const status = getStatusInfo();
   const StatusIcon = status.icon;
 
+  const patchAgendaCacheStatus = (nextStatus: string, concluidoEm: string | null) => {
+    // Atualiza otimisticamente a lista (useInfiniteQuery) para refletir o badge imediatamente.
+    queryClient.setQueriesData({ queryKey: [AGENDA_INFINITE_QUERY_KEY] }, (oldData: any) => {
+      if (!oldData?.pages || !Array.isArray(oldData.pages)) return oldData;
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page: any) => {
+          if (!Array.isArray(page)) return page;
+          return page.map((it: any) => {
+            if (!it || it.id !== tarefa.id || it.origem !== tarefa.origem) return it;
+            return {
+              ...it,
+              status: nextStatus,
+              concluido_em: concluidoEm,
+              // Ao concluir, nunca deve aparecer como atrasado.
+              // Ao reabrir, deixamos o cálculo definitivo para o refetch.
+              is_atrasado: nextStatus === "concluido" || nextStatus === "cumprido" ? false : it.is_atrasado,
+            };
+          });
+        }),
+      };
+    });
+  };
+
   const handleConcluir = async () => {
     setUpdatingStatus(true);
     try {
+      const concluidoEm = new Date().toISOString();
       if (tarefa.origem === "tarefa") {
         const { error } = await supabase
           .from("tarefas")
           .update({
             status: "cumprido",
-            data_cumprimento: new Date().toISOString(),
+            data_cumprimento: concluidoEm,
+            updated_at: concluidoEm,
           })
           .eq("id", tarefa.id);
         if (error) throw error;
         setStatusOverride("cumprido");
+        patchAgendaCacheStatus("cumprido", null);
       } else {
         const { error } = await supabase
           .from("eventos_agenda")
           .update({
             status: "concluido",
-            concluido_em: new Date().toISOString(),
+            concluido_em: concluidoEm,
+            updated_at: concluidoEm,
           })
           .eq("id", tarefa.id);
         if (error) throw error;
         setStatusOverride("concluido");
+        patchAgendaCacheStatus("concluido", concluidoEm);
       }
       toast({ title: "Concluído com sucesso!" });
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       onUpdate();
     } catch (error: any) {
       toast({
@@ -507,30 +537,35 @@ export function TarefaAgendaPanel({
   const handleReabrir = async () => {
     setUpdatingStatus(true);
     try {
+      const updatedAt = new Date().toISOString();
       if (tarefa.origem === "tarefa") {
         const { error } = await supabase
           .from("tarefas")
           .update({
             status: "pendente",
             data_cumprimento: null,
+            updated_at: updatedAt,
           })
           .eq("id", tarefa.id);
         if (error) throw error;
         setStatusOverride("pendente");
+        patchAgendaCacheStatus("pendente", null);
       } else {
         const { error } = await supabase
           .from("eventos_agenda")
           .update({
             status: "pendente",
             concluido_em: null,
+            updated_at: updatedAt,
           })
           .eq("id", tarefa.id);
         if (error) throw error;
         setStatusOverride("pendente");
+        patchAgendaCacheStatus("pendente", null);
       }
       toast({ title: "Reaberto com sucesso!" });
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       onUpdate();
     } catch (error: any) {
       toast({
