@@ -119,7 +119,7 @@ export function useStatusMonitoramentos() {
       const agora = new Date();
       const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
       
-      if (ultimaExecucao.status === 'executando' && minutosDecorridos > 30) {
+      if (ultimaExecucao.status === 'executando' && minutosDecorridos > 60) {
         health_status = 'timeout_provavel';
       } else if (ultimaExecucao.status === 'executando') {
         health_status = 'executando';

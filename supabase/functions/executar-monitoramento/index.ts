@@ -54,8 +54,8 @@ Deno.serve(async (req) => {
       const agora = new Date();
       const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
 
-      // Se está executando há mais de 30 minutos, marcar como timeout
-      if (minutosDecorridos > 30) {
+      // Se está executando há mais de 60 minutos, marcar como timeout
+      if (minutosDecorridos > 60) {
         await supabase
           .from('execucoes_agendadas')
           .update({ 
