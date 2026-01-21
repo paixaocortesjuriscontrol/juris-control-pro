@@ -154,10 +154,17 @@ export function ProcessoDetalhesCompletos({
   );
 
   // Deduplica alertas 360 por movimentacao_id + termo_encontrado (usado na contagem e na listagem)
+  // e enriquece com publicação DJEN relacionada (busca por termo no conteúdo)
   const alertas360Unicos = alertas360.reduce((acc: any[], alerta: any) => {
     const chave = `${alerta.movimentacao_id || 'sem-mov'}-${alerta.termo_encontrado}`;
     if (!acc.find((a: any) => `${a.movimentacao_id || 'sem-mov'}-${a.termo_encontrado}` === chave)) {
-      acc.push(alerta);
+      // Busca publicação DJEN que contenha o termo encontrado
+      const publicacaoRelacionada = publicacoesDjen.find((pub: any) => {
+        const conteudo = (pub.conteudo || '').toLowerCase();
+        const termo = (alerta.termo_encontrado || '').toLowerCase();
+        return conteudo.includes(termo);
+      });
+      acc.push({ ...alerta, publicacao_relacionada: publicacaoRelacionada || null });
     }
     return acc;
   }, []);
@@ -1199,8 +1206,30 @@ export function ProcessoDetalhesCompletos({
                                 </div>
                               )}
                               
-                              {/* Descrição da movimentação - info adicional */}
-                              {alerta.movimentacao?.descricao && (
+                              {/* Publicação DJEN relacionada (se encontrada) */}
+                              {alerta.publicacao_relacionada && (
+                                <div className="mt-2 p-2 bg-muted/50 rounded-md border border-border/50">
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <Newspaper className="w-3 h-3 text-primary" />
+                                    <span className="text-[10px] font-medium text-primary">Publicação DJEN</span>
+                                    <span className="text-[10px] text-muted-foreground ml-auto">
+                                      {formatDate(alerta.publicacao_relacionada.data_publicacao)}
+                                    </span>
+                                  </div>
+                                  {alerta.publicacao_relacionada.resumo_ia ? (
+                                    <p className="text-xs text-muted-foreground line-clamp-3">
+                                      {alerta.publicacao_relacionada.resumo_ia}
+                                    </p>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground line-clamp-3">
+                                      {alerta.publicacao_relacionada.conteudo?.substring(0, 200)}...
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Descrição da movimentação - só mostra se não houver publicação */}
+                              {!alerta.publicacao_relacionada && alerta.movimentacao?.descricao && (
                                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                                   {alerta.movimentacao.descricao}
                                 </p>
