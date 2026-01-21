@@ -74,6 +74,7 @@ export interface AgendaUnificadaFilters {
 }
 
 const PAGE_SIZE = 1000; // Supabase default limit
+const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v1" as const;
 
 /**
  * useAgendaUnificadaPaginated - usa useInfiniteQuery para carregar páginas de 1000 registros sob demanda.
@@ -82,7 +83,9 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
   const { user } = useAuth();
 
   return useInfiniteQuery<ItemAgendaUnificado[], Error>({
-    queryKey: ["agenda-unificada-paginated", filters, user?.id],
+    // Important: new key avoids React Query cache shape mismatch (array vs InfiniteData)
+    // that can crash hasNextPage/getNextPageParam.
+    queryKey: [AGENDA_INFINITE_QUERY_KEY, filters, user?.id],
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       // Defensive check: if lastPage is undefined or not an array, no more pages
@@ -472,7 +475,7 @@ export function useUpdateItemAgenda() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-paginated"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       toast.success("Item atualizado com sucesso!");
     },
     onError: (error) => {
@@ -497,7 +500,7 @@ export function useDeleteItemAgenda() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-paginated"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       toast.success("Item excluído com sucesso!");
     },
     onError: (error) => {

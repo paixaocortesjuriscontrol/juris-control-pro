@@ -519,7 +519,6 @@ export default function MinhaAgenda() {
         await supabase.from("eventos_agenda").delete().eq("id", id);
       }
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-stats-unified"] });
     } catch (error) {
       console.error("Erro ao excluir:", error);
     }
@@ -540,7 +539,8 @@ export default function MinhaAgenda() {
       status: item.status === "concluido" || item.status === "cumprido" ? "pendente" : "concluido",
       concluido_em: item.status === "concluido" || item.status === "cumprido" ? null : new Date().toISOString(),
     });
-    queryClient.invalidateQueries({ queryKey: ["agenda-stats-unified"] });
+    // Totalizadores são calculados a partir dos itens carregados (por página),
+    // então não há uma query de stats separada para invalidar.
   };
 
   const toggleTipo = (tipo: string) => {
@@ -1341,7 +1341,6 @@ export default function MinhaAgenda() {
                 onClose={() => setSelectedItem(null)}
                 onUpdate={() => {
                   queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-                  queryClient.invalidateQueries({ queryKey: ["agenda-stats-unified"] });
                 }}
               />
             </div>
@@ -1372,7 +1371,6 @@ export default function MinhaAgenda() {
         onSuccess={() => {
           setSelectedItems([]);
           queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-          queryClient.invalidateQueries({ queryKey: ["agenda-stats-unified"] });
         }}
       />
 
