@@ -14,6 +14,8 @@ export function useCoordenacoesFull() {
           nome,
           area,
           descricao,
+          monitorar_redistribuicoes,
+          monitorar_distribuicoes,
           coordenador:profiles!coordenacoes_coordenador_id_fkey(id, nome, email, telefone)
         `);
 

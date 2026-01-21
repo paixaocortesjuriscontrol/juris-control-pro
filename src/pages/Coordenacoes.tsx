@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -249,6 +249,21 @@ const Coordenacoes = () => {
                     {coord.unassignedCount > 0 && (
                       <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-200">
                         {coord.unassignedCount} não distribuídos
+                      </Badge>
+                    )}
+                  </div>
+                  {/* Indicadores de monitoramento */}
+                  <div className="flex items-center gap-2 mt-2">
+                    {coord.monitorar_redistribuicoes && (
+                      <Badge variant="outline" className="text-xs gap-1 bg-blue-500/5 text-blue-600 border-blue-200">
+                        <RefreshCw className="w-3 h-3" />
+                        Redist.
+                      </Badge>
+                    )}
+                    {coord.monitorar_distribuicoes && (
+                      <Badge variant="outline" className="text-xs gap-1 bg-green-500/5 text-green-600 border-green-200">
+                        <Globe className="w-3 h-3" />
+                        Distrib.
                       </Badge>
                     )}
                   </div>
