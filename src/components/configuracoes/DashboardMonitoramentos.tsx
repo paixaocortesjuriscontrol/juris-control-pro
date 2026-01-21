@@ -6,9 +6,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { 
   RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar,
   CheckCircle2, XCircle, Clock, AlertTriangle, Loader2, PlayCircle,
-  ChevronDown, ChevronUp, History
+  ChevronDown, ChevronUp, History, StopCircle
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   useStatusMonitoramentos, 
   useExecucoesRecentes,
@@ -68,10 +68,12 @@ function HealthBadge({ status }: { status: StatusMonitoramento['health_status'] 
   );
 }
 
-function MonitoramentoCard({ status, onExecutar, executando }: { 
+function MonitoramentoCard({ status, onExecutar, onCancelar, executando, cancelando }: { 
   status: StatusMonitoramento; 
   onExecutar: () => void;
+  onCancelar: () => void;
   executando: boolean;
+  cancelando: boolean;
 }) {
   const [expandido, setExpandido] = useState(false);
   const Icon = ICONS[status.tipo] || Activity;
@@ -198,24 +200,46 @@ function MonitoramentoCard({ status, onExecutar, executando }: {
         
         {/* Ações */}
         <div className="flex gap-2 pt-2">
-          <Button 
-            size="sm" 
-            className="flex-1"
-            onClick={onExecutar}
-            disabled={executando || status.health_status === 'executando'}
-          >
-            {executando || status.health_status === 'executando' ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Executando...
-              </>
-            ) : (
-              <>
-                <PlayCircle className="h-4 w-4 mr-2" />
-                Executar Agora
-              </>
-            )}
-          </Button>
+          {status.health_status === 'executando' ? (
+            <Button 
+              size="sm" 
+              variant="destructive"
+              className="flex-1"
+              onClick={onCancelar}
+              disabled={cancelando}
+            >
+              {cancelando ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelando...
+                </>
+              ) : (
+                <>
+                  <StopCircle className="h-4 w-4 mr-2" />
+                  Cancelar
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button 
+              size="sm" 
+              className="flex-1"
+              onClick={onExecutar}
+              disabled={executando}
+            >
+              {executando ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Iniciando...
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="h-4 w-4 mr-2" />
+                  Executar Agora
+                </>
+              )}
+            </Button>
+          )}
           
           <Button 
             size="sm" 
@@ -287,6 +311,20 @@ function HistoricoExecucoes({ tipo }: { tipo: string }) {
 export function DashboardMonitoramentos() {
   const { statusMonitoramentos, isLoading, refetch } = useStatusMonitoramentos();
   const [executando, setExecutando] = useState<Record<string, boolean>>({});
+  const [cancelando, setCancelando] = useState<Record<string, boolean>>({});
+  
+  // Auto-refresh quando há execuções em andamento
+  const temExecucaoAtiva = statusMonitoramentos.some(s => s.health_status === 'executando');
+  
+  useEffect(() => {
+    if (!temExecucaoAtiva) return;
+    
+    const interval = setInterval(() => {
+      refetch();
+    }, 5000); // Atualiza a cada 5 segundos
+    
+    return () => clearInterval(interval);
+  }, [temExecucaoAtiva, refetch]);
   
   const handleExecutar = async (tipo: string) => {
     const funcao = FUNCOES[tipo];
@@ -339,6 +377,47 @@ export function DashboardMonitoramentos() {
       toast.error(`Erro ao executar ${NOMES[tipo]}: ${error.message}`);
     } finally {
       setExecutando(prev => ({ ...prev, [tipo]: false }));
+    }
+  };
+  
+  const handleCancelar = async (tipo: string) => {
+    setCancelando(prev => ({ ...prev, [tipo]: true }));
+    
+    try {
+      // Buscar configuração do monitoramento
+      const { data: config } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('id, metadata')
+        .eq('tipo', tipo)
+        .single();
+      
+      if (config) {
+        // Marcar como cancelado no metadata
+        const metadata = (config.metadata as any) || {};
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: { ...metadata, cancelado: true }
+          })
+          .eq('id', config.id);
+      }
+      
+      // Também marcar execuções ativas como canceladas
+      await supabase
+        .from('execucoes_agendadas')
+        .update({
+          status: 'cancelado',
+          finalizado_em: new Date().toISOString(),
+        })
+        .eq('tipo', tipo)
+        .eq('status', 'executando');
+      
+      toast.success(`Cancelamento de ${NOMES[tipo]} solicitado`);
+      refetch();
+    } catch (error: any) {
+      toast.error(`Erro ao cancelar: ${error.message}`);
+    } finally {
+      setCancelando(prev => ({ ...prev, [tipo]: false }));
     }
   };
   
@@ -398,7 +477,9 @@ export function DashboardMonitoramentos() {
             key={status.tipo}
             status={status}
             onExecutar={() => handleExecutar(status.tipo)}
+            onCancelar={() => handleCancelar(status.tipo)}
             executando={executando[status.tipo] || false}
+            cancelando={cancelando[status.tipo] || false}
           />
         ))}
       </div>
