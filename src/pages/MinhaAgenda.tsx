@@ -56,7 +56,14 @@ import { cn } from "@/lib/utils";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday, differenceInDays, addDays, parseISO, addWeeks, addMonths, isBefore, isAfter, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
-import { useAgendaUnificada, useUpdateItemAgenda, useDeleteItemAgenda, ItemAgendaUnificado, AgendaUnificadaFilters } from "@/hooks/useAgendaUnificada";
+import {
+  useAgendaUnificada,
+  useUpdateItemAgenda,
+  useDeleteItemAgenda,
+  ItemAgendaUnificado,
+  AgendaUnificadaFilters,
+  AGENDA_INFINITE_QUERY_KEY,
+} from "@/hooks/useAgendaUnificada";
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
@@ -640,18 +647,18 @@ export default function MinhaAgenda() {
             <div className="space-y-1 min-w-0 flex-1">
               <div className="flex items-center gap-1.5 flex-wrap">
                 {/* Status Badge */}
-                {item.status === "concluido" || item.status === "cumprido" ? (
-                  <Badge className="bg-green-500/10 text-green-600 border-green-200 text-xs">
+                 {item.status === "concluido" || item.status === "cumprido" ? (
+                   <Badge className="bg-green-500/10 text-green-600 border-green-200 text-xs transition-colors duration-300">
                     <CheckCircle2 className="w-3 h-3 mr-1" />
                     Concluído
                   </Badge>
                 ) : item.is_atrasado ? (
-                  <Badge variant="destructive" className="text-xs">
+                   <Badge variant="destructive" className="text-xs transition-colors duration-300">
                     <AlertTriangle className="w-3 h-3 mr-1" />
                     Atrasado
                   </Badge>
                 ) : (
-                  <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-xs">
+                   <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-xs transition-colors duration-300">
                     <Clock className="w-3 h-3 mr-1" />
                     Pendente
                   </Badge>
@@ -1424,9 +1431,9 @@ export default function MinhaAgenda() {
                 onClose={() => setSelectedItem(null)}
                 onUpdate={() => {
                   queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-                  queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"] });
+                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
                   // Forçar refetch imediato para atualizar lista
-                  queryClient.refetchQueries({ queryKey: ["agenda-unificada-infinite"] });
+                  queryClient.refetchQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
                 }}
               />
             </div>
