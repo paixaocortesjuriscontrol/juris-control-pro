@@ -391,56 +391,52 @@ export function DashboardMonitoramentos() {
     setCancelando(prev => ({ ...prev, [tipo]: true }));
     
     try {
-      // Buscar execuções ativas
-      const { data: execucoesAtivas, error: fetchError } = await supabase
-        .from('execucoes_agendadas')
-        .select('id')
+      // CANCELAMENTO FORÇADO DIRETO NO BANCO
+      // 1. Buscar e atualizar metadata para marcar cancelado
+      const { data: config } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('id, metadata')
         .eq('tipo', tipo)
-        .eq('status', 'executando');
-      
-      if (fetchError) throw fetchError;
-      
-      const count = execucoesAtivas?.length || 0;
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      if (config) {
+        const currentMeta = (config.metadata as Record<string, any>) || {};
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: { 
+              ...currentMeta, 
+              cancelado: true, 
+              status: 'cancelado',
+              cancelled_at: new Date().toISOString()
+            }
+          })
+          .eq('id', config.id);
+      }
+
+      // 2. Forçar cancelamento de TODAS as execuções ativas deste tipo
+      const { data: canceladas, error: updateError } = await supabase
+        .from('execucoes_agendadas')
+        .update({
+          status: 'cancelado',
+          finalizado_em: new Date().toISOString(),
+          detalhes: { 
+            forced_cancel: true, 
+            cancelado_manualmente: true, 
+            cancelado_em: new Date().toISOString() 
+          },
+        })
+        .eq('tipo', tipo)
+        .eq('status', 'executando')
+        .select('id');
+
+      if (updateError) throw updateError;
+
+      const count = canceladas?.length || 0;
       
       if (count > 0) {
-        // IMPORTANTE: Edge Functions não podem ser “matadas” de fora.
-        // Cancelamento real aqui significa: impedir a continuação entre lotes.
-        // A execução em andamento pode levar até o fim do lote atual.
-        const { data: config, error: configError } = await supabase
-          .from('configuracoes_monitoramento')
-          .select('id, metadata')
-          .eq('tipo', tipo)
-          .single();
-
-        if (configError) throw configError;
-
-        if (config) {
-          const metadata = (config.metadata as any) || {};
-          const { error: metaUpdateError } = await supabase
-            .from('configuracoes_monitoramento')
-            .update({
-              metadata: { ...metadata, cancelado: true }
-            })
-            .eq('id', config.id);
-
-          if (metaUpdateError) throw metaUpdateError;
-        }
-
-        // Atualiza o tracking para não ficar travado como “executando” no dashboard.
-        // (A função em si vai parar no próximo lote por causa do flag acima.)
-        const { error: updateError } = await supabase
-          .from('execucoes_agendadas')
-          .update({
-            status: 'cancelado',
-            finalizado_em: new Date().toISOString(),
-            detalhes: { cancelado_manualmente: true, cancelado_em: new Date().toISOString() },
-          })
-          .eq('tipo', tipo)
-          .eq('status', 'executando');
-
-        if (updateError) throw updateError;
-
-        toast.info(`Cancelamento aplicado: ${NOMES[tipo]} vai parar no próximo lote. Se já havia um lote em voo, ele pode terminar antes de parar.`);
+        toast.success(`${count} execução(ões) de ${NOMES[tipo]} cancelada(s) imediatamente!`);
       } else {
         toast.info(`Nenhuma execução ativa de ${NOMES[tipo]} para cancelar.`);
       }
