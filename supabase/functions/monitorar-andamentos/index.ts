@@ -1330,6 +1330,44 @@ serve(async (req) => {
     // Clear terms cache at start
     termosCache = null;
 
+    // Early cancellation check: if user requested cancel, stop immediately (don’t process another batch)
+    if (completeRun) {
+      const { data: freshConfig } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('id, metadata')
+        .eq('tipo', 'andamentos')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
+
+      if (wasCancelled && freshConfig?.id) {
+        console.log('Cancellation flag detected at start, skipping batch');
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: {
+              ...(freshConfig.metadata as any),
+              cancelado: false,
+              status: 'cancelado',
+              continuingRun: false,
+            },
+          })
+          .eq('id', freshConfig.id);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            cancelled: true,
+            isComplete: true,
+            continuingRun: false,
+            message: 'Execução cancelada (antes de iniciar o próximo lote)',
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Single batch execution (used for both manual and complete runs)
     const { isComplete, results, progress } = await processBatch(supabase);
 
