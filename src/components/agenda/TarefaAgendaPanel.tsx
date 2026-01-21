@@ -174,7 +174,9 @@ export function TarefaAgendaPanel({
   const [parcelamentoOpen, setParcelamentoOpen] = useState(true);
   const [participantesOpen, setParticipantesOpen] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [descartarDialogOpen, setDescartarDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [descartando, setDescartando] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const isParcelamento = tarefa.tipo === "parcelamento" || tarefa.tipo === "prazo_parcela";
@@ -481,8 +483,19 @@ export function TarefaAgendaPanel({
         if (error) throw error;
       }
       toast({ title: "Concluído com sucesso!" });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"] });
       onUpdate();
     } catch (error: any) {
+      toast({
+        title: "Erro ao concluir",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
       toast({
         title: "Erro ao concluir",
         description: error.message,
@@ -564,6 +577,40 @@ export function TarefaAgendaPanel({
     }
   };
 
+  const handleDescartar = async () => {
+    setDescartando(true);
+    try {
+      if (tarefa.origem === "tarefa") {
+        // Usar delete ao invés de status descartado para tarefas (tipo não suporta)
+        const { error } = await supabase
+          .from("tarefas")
+          .delete()
+          .eq("id", tarefa.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("eventos_agenda")
+          .update({ status: "descartado" })
+          .eq("id", tarefa.id);
+        if (error) throw error;
+      }
+      toast({ title: "Atividade descartada!" });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"] });
+      onClose();
+      onUpdate();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao descartar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setDescartando(false);
+      setDescartarDialogOpen(false);
+    }
+  };
+
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -581,6 +628,8 @@ export function TarefaAgendaPanel({
         if (error) throw error;
       }
       toast({ title: "Excluído com sucesso!" });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"] });
       onClose();
       onUpdate();
     } catch (error: any) {
@@ -685,6 +734,19 @@ export function TarefaAgendaPanel({
             <Button size="sm" variant="outline" onClick={handleEdit}>
               <Edit className="w-3 h-3 mr-1" />
               Editar
+            </Button>
+          )}
+
+          {canEdit && !isConcluido && (
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="text-amber-600 hover:text-amber-700"
+              onClick={() => setDescartarDialogOpen(true)}
+              disabled={descartando}
+            >
+              {descartando ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <X className="w-3 h-3 mr-1" />}
+              Descartar
             </Button>
           )}
 
@@ -1320,6 +1382,30 @@ export function TarefaAgendaPanel({
             </Collapsible>
         </CardContent>
       </ScrollArea>
+
+      {/* Descartar Confirmation Dialog */}
+      <AlertDialog open={descartarDialogOpen} onOpenChange={setDescartarDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar atividade</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja descartar "{tarefa.titulo}"? 
+              A atividade será removida da sua lista.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={descartando}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDescartar}
+              disabled={descartando}
+              className="bg-amber-600 text-white hover:bg-amber-700"
+            >
+              {descartando && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Descartar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
