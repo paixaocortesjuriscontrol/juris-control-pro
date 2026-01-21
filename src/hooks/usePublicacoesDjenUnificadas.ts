@@ -64,21 +64,53 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Query separada para contar descartadas de hoje (sempre, independente dos filtros)
+  // Query separada para contar descartadas NO MESMO CONTEXTO DE FILTROS (evita mostrar número incoerente)
   const { data: totalDescartadasHoje = 0 } = useQuery({
-    queryKey: ['descartadas-hoje-count', user?.id],
+    queryKey: [
+      'descartadas-count',
+      user?.id,
+      {
+        coordenacaoId: filtros.coordenacaoId ?? null,
+        apenasHoje: filtros.apenasHoje ?? null,
+        dataInicio: filtros.dataInicio ?? null,
+        dataFim: filtros.dataFim ?? null,
+        apenasNaoLidas: filtros.apenasNaoLidas ?? null,
+      },
+    ],
     queryFn: async () => {
       if (!user?.id) return 0;
+
+      // Mesma lógica de período do hook principal
+      const dataInicioFiltro = filtros.apenasHoje
+        ? formatToUTC(startOfDay(new Date()))
+        : filtros.dataInicio
+          ? `${filtros.dataInicio}T00:00:00Z`
+          : undefined;
+
+      const dataFimFiltro = filtros.apenasHoje
+        ? formatToUTC(endOfDay(new Date()))
+        : filtros.dataFim
+          ? `${filtros.dataFim}T23:59:59Z`
+          : undefined;
+
       try {
-        const inicio = formatToUTC(startOfDay(new Date()));
-        const fim = formatToUTC(endOfDay(new Date()));
-        
-        const { count, error } = await (supabase
+        let q = (supabase
           .from('publicacoes_djen_descartadas') as any)
-          .select('id', { count: 'exact', head: true })
-          .gte('created_at', inicio)
-          .lte('created_at', fim);
-        
+          .select(
+            'id, monitoramento:monitoramentos_djen!inner(coordenacao_id)',
+            { count: 'exact', head: true },
+          );
+
+        if (dataInicioFiltro) q = q.gte('created_at', dataInicioFiltro);
+        if (dataFimFiltro) q = q.lte('created_at', dataFimFiltro);
+        if (filtros.apenasNaoLidas) q = q.eq('lida', false);
+
+        // Respeita o filtro de coordenação
+        if (filtros.coordenacaoId) {
+          q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
+        }
+
+        const { count, error } = await q;
         if (error) {
           console.warn('Erro ao contar descartadas:', error);
           return 0;
@@ -90,7 +122,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       }
     },
     enabled: !!user?.id,
-    staleTime: 30000, // Cache por 30s para não sobrecarregar
+    staleTime: 30_000,
   });
 
   // Buscar publicações unificadas
