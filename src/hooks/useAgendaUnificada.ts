@@ -298,15 +298,15 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         let queryTarefas = buildTarefasQuery(true);
 
         if (filters.fetchAll) {
-          // Admin vendo todas
+          // Admin vendo todas - sem filtro
         } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-          if (filters.responsavelIds.includes(user.id)) {
-            queryTarefas = queryTarefas.or(`responsavel_id.in.(${filters.responsavelIds.join(",")}),criado_por.eq.${user.id}`);
-          } else {
-            const membrosFilter = filters.responsavelIds.join(",");
-            queryTarefas = queryTarefas.or(`responsavel_id.in.(${membrosFilter}),and(criado_por.eq.${user.id},responsavel_id.in.(${membrosFilter}))`);
-          }
+          // Coordenador/admin filtrando por membros específicos:
+          // Mostra TODAS as tarefas onde o membro é responsável, independente de quem criou.
+          // Isso permite que coordenadores vejam tarefas delegadas por outros usuários.
+          const membrosFilter = filters.responsavelIds.join(",");
+          queryTarefas = queryTarefas.in("responsavel_id", filters.responsavelIds);
         } else {
+          // Usuário comum vendo apenas suas próprias tarefas
           queryTarefas = queryTarefas.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
         }
 
@@ -337,12 +337,8 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           if (filters.fetchAll) {
             // sem filtro
           } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-            if (filters.responsavelIds.includes(user.id)) {
-              queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${filters.responsavelIds.join(",")}),criado_por.eq.${user.id}`);
-            } else {
-              const membrosFilter = filters.responsavelIds.join(",");
-              queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${membrosFilter}),and(criado_por.eq.${user.id},responsavel_id.in.(${membrosFilter}))`);
-            }
+            // Coordenador/admin filtrando por membros específicos
+            queryTarefasFallback = queryTarefasFallback.in("responsavel_id", filters.responsavelIds);
           } else {
             queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
           }
