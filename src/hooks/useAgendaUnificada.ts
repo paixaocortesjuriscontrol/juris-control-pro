@@ -27,6 +27,9 @@ export interface ItemAgendaUnificado {
   participantes?: { usuario_id: string; usuario?: { id: string; nome: string } }[];
   enviar_whatsapp?: boolean;
   total_parcelas?: number | null;
+  grupo_parcelas?: string | null;
+  numero_parcela?: number | null;
+  valor_parcela?: number | null;
   dias_restantes?: number;
   is_atrasado?: boolean;
   // Para eventos
@@ -157,16 +160,27 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         let queryEventos = buildEventosQuery(true);
 
         if (!filters.fetchAll) {
-          const { data: participacoesUsuario } = await supabase
+          // Quando há filtro de membros (coordenação/pessoas), precisamos buscar eventos
+          // onde esses usuários são criadores OU participantes (senão o coordenador não enxerga
+          // eventos delegados aos membros, como parcelamentos criados pelo admin).
+          const targetUserIds =
+            filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
+
+          const { data: participacoesUsuarios } = await supabase
             .from("participantes_evento")
             .select("evento_id")
-            .eq("usuario_id", user.id);
+            .in("usuario_id", targetUserIds);
 
-          const eventosParticipante = participacoesUsuario?.map((p) => p.evento_id) || [];
+          const eventosParticipante = participacoesUsuarios?.map((p) => p.evento_id) || [];
 
-          if (eventosParticipante.length > 0) {
-            queryEventos = queryEventos.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(",")})`);
+          const orParts: string[] = [];
+          if (targetUserIds.length > 0) orParts.push(`criado_por.in.(${targetUserIds.join(",")})`);
+          if (eventosParticipante.length > 0) orParts.push(`id.in.(${eventosParticipante.join(",")})`);
+
+          if (orParts.length > 0) {
+            queryEventos = queryEventos.or(orParts.join(","));
           } else {
+            // fallback defensivo
             queryEventos = queryEventos.eq("criado_por", user.id);
           }
         }
@@ -202,13 +216,22 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           // fallback sem joins
           let queryEventosFallback = buildEventosQuery(false);
           if (!filters.fetchAll) {
-            const { data: participacoesUsuario } = await supabase
+            const targetUserIds =
+              filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
+
+            const { data: participacoesUsuarios } = await supabase
               .from("participantes_evento")
               .select("evento_id")
-              .eq("usuario_id", user.id);
-            const eventosParticipante = participacoesUsuario?.map((p) => p.evento_id) || [];
-            if (eventosParticipante.length > 0) {
-              queryEventosFallback = queryEventosFallback.or(`criado_por.eq.${user.id},id.in.(${eventosParticipante.join(",")})`);
+              .in("usuario_id", targetUserIds);
+
+            const eventosParticipante = participacoesUsuarios?.map((p) => p.evento_id) || [];
+
+            const orParts: string[] = [];
+            if (targetUserIds.length > 0) orParts.push(`criado_por.in.(${targetUserIds.join(",")})`);
+            if (eventosParticipante.length > 0) orParts.push(`id.in.(${eventosParticipante.join(",")})`);
+
+            if (orParts.length > 0) {
+              queryEventosFallback = queryEventosFallback.or(orParts.join(","));
             } else {
               queryEventosFallback = queryEventosFallback.eq("criado_por", user.id);
             }
@@ -238,10 +261,30 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
 
         if (!eventosError && eventos && eventos.length > 0) {
           const eventIds = eventos.map((e: any) => e.id);
-          const { data: participantes } = await supabase
+          const { data: participanteRows } = await supabase
             .from("participantes_evento")
             .select("evento_id, usuario_id")
             .in("evento_id", eventIds);
+
+          const participantUserIds = Array.from(
+            new Set((participanteRows || []).map((p: any) => p.usuario_id).filter(Boolean))
+          );
+
+          const profilesById = new Map<string, { id: string; nome: string }>();
+          if (participantUserIds.length > 0) {
+            const { data: participantesUsuarios } = await supabase
+              .from("profiles")
+              .select("id, nome")
+              .in("id", participantUserIds);
+            (participantesUsuarios || []).forEach((u: any) => {
+              if (u?.id) profilesById.set(u.id, { id: u.id, nome: u.nome });
+            });
+          }
+
+          const participantes = (participanteRows || []).map((p: any) => ({
+            ...p,
+            usuario: profilesById.get(p.usuario_id),
+          }));
 
           let eventosFiltered = eventos;
           if (filters.responsavelIds && filters.responsavelIds.length > 0) {
@@ -285,6 +328,9 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
               participantes: participantes?.filter((p) => p.evento_id === evento.id) || [],
               enviar_whatsapp: evento.enviar_whatsapp,
               total_parcelas: evento.total_parcelas,
+              grupo_parcelas: (evento as any).grupo_parcelas ?? null,
+              numero_parcela: (evento as any).numero_parcela ?? null,
+              valor_parcela: (evento as any).valor_parcela ?? null,
               criado_por: evento.criado_por,
               dias_restantes: diasRestantes,
               is_atrasado: isAtrasado,
