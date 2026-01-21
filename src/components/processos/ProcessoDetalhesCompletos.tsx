@@ -153,6 +153,15 @@ export function ProcessoDetalhesCompletos({
     </div>
   );
 
+  // Deduplica alertas 360 por movimentacao_id + termo_encontrado (usado na contagem e na listagem)
+  const alertas360Unicos = alertas360.reduce((acc: any[], alerta: any) => {
+    const chave = `${alerta.movimentacao_id || 'sem-mov'}-${alerta.termo_encontrado}`;
+    if (!acc.find((a: any) => `${a.movimentacao_id || 'sem-mov'}-${a.termo_encontrado}` === chave)) {
+      acc.push(alerta);
+    }
+    return acc;
+  }, []);
+
   // Navigation items for sidebar - inclui todas as abas operacionais
   const navItems = [
     { id: "resumo", label: "Resumo", icon: Home },
@@ -165,7 +174,7 @@ export function ProcessoDetalhesCompletos({
     { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
     { id: "andamentos", label: "Andamentos", icon: Activity, count: movimentacoes.length },
     { id: "redistribuicoes", label: "Redistrib.", icon: Shuffle, count: redistribuicoes.length },
-    { id: "monitoramento360", label: "360º", icon: Radar, count: alertas360.length },
+    { id: "monitoramento360", label: "360º", icon: Radar, count: alertas360Unicos.length },
     { id: "agenda", label: "Agenda", icon: CalendarDays, count: eventosAgenda.length },
     { id: "portal", label: "Portal", icon: Globe },
     { id: "envolvidos", label: "Envolvidos", icon: Users },
@@ -1140,19 +1149,9 @@ export function ProcessoDetalhesCompletos({
                       Monitoramento 360°
                     </h3>
                   </div>
-                  {(() => {
-                    // Deduplica alertas por movimentacao_id + termo_encontrado
-                    const alertasUnicos = alertas360.reduce((acc: any[], alerta: any) => {
-                      const chave = `${alerta.movimentacao_id || 'sem-mov'}-${alerta.termo_encontrado}`;
-                      if (!acc.find((a: any) => `${a.movimentacao_id || 'sem-mov'}-${a.termo_encontrado}` === chave)) {
-                        acc.push(alerta);
-                      }
-                      return acc;
-                    }, []);
-                    
-                    return alertasUnicos.length > 0 ? (
-                      <div className="space-y-2">
-                        {alertasUnicos.map((alerta: any) => (
+                  {alertas360Unicos.length > 0 ? (
+                    <div className="space-y-2">
+                      {alertas360Unicos.map((alerta: any) => (
                           <Card key={alerta.id} className="hover:shadow-sm transition-shadow border-l-2" style={{
                             borderLeftColor: alerta.prioridade === "alta" ? "hsl(var(--destructive))" :
                               alerta.prioridade === "media" ? "hsl(45 93% 47%)" : "hsl(var(--muted-foreground))"
@@ -1209,14 +1208,13 @@ export function ProcessoDetalhesCompletos({
                             </CardContent>
                           </Card>
                         ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <Radar className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">Nenhum alerta</p>
-                      </div>
-                    );
-                  })()}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Radar className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Nenhum alerta</p>
+                    </div>
+                  )}
                 </div>
               )}
 
