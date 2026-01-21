@@ -1,4 +1,4 @@
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -75,6 +75,24 @@ export interface AgendaUnificadaFilters {
 
 const PAGE_SIZE = 1000; // Supabase default limit
 const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v1" as const;
+
+const normalizeDedupText = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * Alguns registros (ex.: tarefas criadas via DJEN) podem existir duplicados no banco.
+ * Para não poluir a UI, deduplicamos por uma chave de negócio SOMENTE para itens DJEN.
+ */
+const getAgendaDedupKey = (item: ItemAgendaUnificado) => {
+  const titulo = item.titulo ?? "";
+  const isDJEN = titulo.trim().startsWith("[DJEN]");
+
+  if (item.origem === "tarefa" && isDJEN) {
+    const data = (item.data_vencimento ?? item.data_fatal ?? item.data_inicio ?? "").slice(0, 10);
+    return `djen:${normalizeDedupText(titulo)}:${data}:${item.processo_id ?? ""}:${item.responsavel_id ?? ""}`;
+  }
+
+  return `${item.origem}:${item.id}`;
+};
 
 /**
  * useAgendaUnificadaPaginated - usa useInfiniteQuery para carregar páginas de 1000 registros sob demanda.
@@ -427,9 +445,23 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       }
 
       // ========= ORDENAR RESULTADOS =========
+      // Dedup final (por chave de negócio DJEN) antes de ordenar
+      const dedupedItems: ItemAgendaUnificado[] = [];
+      const seenKeys = new Set<string>();
+      for (const item of resultItems) {
+        const key = getAgendaDedupKey(item);
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        dedupedItems.push(item);
+      }
+
       const now = new Date();
-      const futureItems = resultItems.filter((e) => new Date(e.data_inicio) >= now).sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
-      const pastItems = resultItems.filter((e) => new Date(e.data_inicio) < now).sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
+      const futureItems = dedupedItems
+        .filter((e) => new Date(e.data_inicio) >= now)
+        .sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
+      const pastItems = dedupedItems
+        .filter((e) => new Date(e.data_inicio) < now)
+        .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
 
       return [...futureItems, ...pastItems];
     },
@@ -444,12 +476,13 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
 export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
   const infiniteQuery = useAgendaUnificadaPaginated(filters);
 
-  // Flatten all pages and deduplicate by ID to prevent duplicates across pages
+  // Flatten all pages and deduplicate by business key (DJEN) / id fallback
   const rawData = infiniteQuery.data?.pages?.flat() ?? [];
   const seen = new Set<string>();
-  const data = rawData.filter(item => {
-    if (seen.has(item.id)) return false;
-    seen.add(item.id);
+  const data = rawData.filter((item) => {
+    const key = getAgendaDedupKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 
