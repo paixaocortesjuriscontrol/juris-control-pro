@@ -1141,24 +1141,106 @@ export function ProcessoDetalhesCompletos({
                     </h3>
                   </div>
                   {alertas360.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {alertas360.map((alerta: any) => (
-                        <Card key={alerta.id} className="hover:shadow-md transition-shadow">
-                          <CardContent className="p-3">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <Badge className={cn(
-                                  "text-xs",
-                                  alerta.prioridade === "alta" ? "bg-red-100 text-red-700" :
-                                  alerta.prioridade === "media" ? "bg-amber-100 text-amber-700" :
-                                  "bg-zinc-100 text-zinc-700"
-                                )}>
-                                  {alerta.prioridade}
-                                </Badge>
-                                <Badge variant="outline" className="text-xs">{alerta.status}</Badge>
+                        <Card key={alerta.id} className="hover:shadow-md transition-shadow border-l-4" style={{
+                          borderLeftColor: alerta.prioridade === "alta" ? "hsl(var(--destructive))" :
+                            alerta.prioridade === "media" ? "hsl(45 93% 47%)" : "hsl(var(--muted-foreground))"
+                        }}>
+                          <CardContent className="p-4">
+                            <div className="space-y-3">
+                              {/* Header com badges */}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Badge className={cn(
+                                    "text-xs font-medium",
+                                    alerta.prioridade === "alta" ? "bg-red-100 text-red-700" :
+                                    alerta.prioridade === "media" ? "bg-amber-100 text-amber-700" :
+                                    "bg-zinc-100 text-zinc-700"
+                                  )}>
+                                    {alerta.prioridade === "alta" ? "🔴 Alta" : 
+                                     alerta.prioridade === "media" ? "🟡 Média" : "⚪ Baixa"}
+                                  </Badge>
+                                  <Badge variant={alerta.status === "pendente" ? "outline" : "secondary"} className="text-xs">
+                                    {alerta.status === "pendente" ? "Pendente" : 
+                                     alerta.status === "tratado" ? "Tratado" : alerta.status}
+                                  </Badge>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatDate(alerta.created_at)}
+                                </span>
                               </div>
-                              <p className="text-sm font-medium">{alerta.termo_encontrado}</p>
-                              <p className="text-xs text-muted-foreground">{formatDate(alerta.created_at)}</p>
+                              
+                              {/* Termo encontrado */}
+                              <div>
+                                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Termo Encontrado</p>
+                                <p className="text-sm font-semibold text-primary">{alerta.termo_encontrado}</p>
+                              </div>
+                              
+                              {/* Categoria do termo */}
+                              {alerta.termo?.categoria && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Categoria</p>
+                                  <Badge variant="outline" className="text-xs">{alerta.termo.categoria}</Badge>
+                                </div>
+                              )}
+                              
+                              {/* Contexto onde foi encontrado */}
+                              {alerta.contexto && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Contexto</p>
+                                  <p className="text-sm text-foreground bg-muted/50 p-2 rounded-md leading-relaxed">
+                                    {alerta.contexto.length > 300 ? `${alerta.contexto.substring(0, 300)}...` : alerta.contexto}
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {/* Detalhes da movimentação vinculada */}
+                              {alerta.movimentacao && (
+                                <div className="bg-muted/30 rounded-md p-3 space-y-2">
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                                    <FileText className="w-3 h-3" />
+                                    Movimentação Vinculada
+                                  </p>
+                                  <div className="space-y-1">
+                                    <p className="text-sm font-medium">{alerta.movimentacao.tipo || alerta.movimentacao.descricao?.substring(0, 60)}</p>
+                                    {alerta.movimentacao.descricao && alerta.movimentacao.descricao !== alerta.movimentacao.tipo && (
+                                      <p className="text-xs text-muted-foreground leading-relaxed">
+                                        {alerta.movimentacao.descricao.length > 200 
+                                          ? `${alerta.movimentacao.descricao.substring(0, 200)}...` 
+                                          : alerta.movimentacao.descricao}
+                                      </p>
+                                    )}
+                                    {alerta.movimentacao.data_movimentacao && (
+                                      <p className="text-xs text-muted-foreground">
+                                        Data: {formatDate(alerta.movimentacao.data_movimentacao)}
+                                      </p>
+                                    )}
+                                    {alerta.movimentacao.fonte && (
+                                      <Badge variant="outline" className="text-xs mt-1">
+                                        Fonte: {alerta.movimentacao.fonte}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Observações */}
+                              {alerta.observacoes && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Observações</p>
+                                  <p className="text-sm text-muted-foreground italic">{alerta.observacoes}</p>
+                                </div>
+                              )}
+                              
+                              {/* Info de tratamento */}
+                              {alerta.tratado_em && (
+                                <div className="pt-2 border-t">
+                                  <p className="text-xs text-muted-foreground">
+                                    Tratado em: {formatDate(alerta.tratado_em)}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           </CardContent>
                         </Card>
