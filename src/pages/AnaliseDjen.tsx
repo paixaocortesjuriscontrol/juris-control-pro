@@ -20,6 +20,7 @@ import {
   CheckCheck,
   FolderPlus,
   Save,
+  Trash2,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -133,7 +134,8 @@ const AnaliseDjen = () => {
     loadingStats,
     marcarComoLida,
     totalHoje,
-    naoLidasHoje
+    naoLidasHoje,
+    totalDescartadasHoje
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
     dataInicio: apenasHoje ? undefined : dataInicio || undefined,
@@ -440,7 +442,7 @@ const AnaliseDjen = () => {
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
         {/* Stats Cards - Mobile optimized */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
@@ -495,6 +497,20 @@ const AnaliseDjen = () => {
                   </p>
                 </div>
                 <Gavel className="w-6 h-6 md:w-10 md:h-10 text-emerald-500/50 flex-shrink-0" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800">
+            <CardContent className="p-3 md:pt-4">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm font-medium text-rose-600 dark:text-rose-400 truncate">Descartadas</p>
+                  <p className="text-xl md:text-3xl font-bold text-rose-700 dark:text-rose-300">
+                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDescartadasHoje}
+                  </p>
+                </div>
+                <Trash2 className="w-6 h-6 md:w-10 md:h-10 text-rose-500/50 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>

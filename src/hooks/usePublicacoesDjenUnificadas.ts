@@ -56,12 +56,32 @@ export interface EstatisticasCoordenacao {
   por_tipo: {
     termo: number;
     processo: number;
+    descartada: number;
   };
 }
 
 export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Query separada para contar descartadas de hoje (sempre, independente dos filtros)
+  const { data: totalDescartadasHoje = 0, isLoading: loadingDescartadas } = useQuery({
+    queryKey: ['descartadas-hoje-count', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return 0;
+      const inicio = formatToUTC(startOfDay(new Date()));
+      const fim = formatToUTC(endOfDay(new Date()));
+      
+      const { count } = await (supabase
+        .from('publicacoes_djen_descartadas') as any)
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', inicio)
+        .lte('created_at', fim);
+      
+      return count || 0;
+    },
+    enabled: !!user?.id,
+  });
 
   // Buscar publicações unificadas
   const { data: publicacoes = [], isLoading } = useQuery({
@@ -345,13 +365,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const coordId = pub.coordenacao_id || 'sem-coordenacao';
       const coordNome = pub.coordenacao_nome || 'Sem Coordenação';
 
-      if (!statsMap.has(coordId)) {
+    if (!statsMap.has(coordId)) {
         statsMap.set(coordId, {
           coordenacao_id: coordId,
           coordenacao_nome: coordNome,
           total: 0,
           nao_lidas: 0,
-          por_tipo: { termo: 0, processo: 0 },
+          por_tipo: { termo: 0, processo: 0, descartada: 0 },
         });
       }
 
@@ -360,6 +380,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       if (!pub.lida) stats.nao_lidas++;
       if (pub.tipo_origem === 'termo') stats.por_tipo.termo++;
       if (pub.tipo_origem === 'processo') stats.por_tipo.processo++;
+      if (pub.tipo_origem === 'descartada') stats.por_tipo.descartada++;
     });
 
     return Array.from(statsMap.values()).sort((a, b) => b.total - a.total);
@@ -405,9 +426,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     publicacoes,
     estatisticas,
     isLoading,
-    loadingStats: isLoading,
+    loadingStats: isLoading || loadingDescartadas,
     marcarComoLida,
     totalHoje: estatisticas.reduce((acc, s) => acc + s.total, 0),
     naoLidasHoje: estatisticas.reduce((acc, s) => acc + s.nao_lidas, 0),
+    totalDescartadasHoje,
   };
 }
