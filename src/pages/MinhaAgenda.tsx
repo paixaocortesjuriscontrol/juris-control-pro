@@ -1424,6 +1424,9 @@ export default function MinhaAgenda() {
                 onClose={() => setSelectedItem(null)}
                 onUpdate={() => {
                   queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+                  queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"] });
+                  // Forçar refetch imediato para atualizar lista
+                  queryClient.refetchQueries({ queryKey: ["agenda-unificada-infinite"] });
                 }}
               />
             </div>
