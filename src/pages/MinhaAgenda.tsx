@@ -1424,9 +1424,9 @@ export default function MinhaAgenda() {
             </CardContent>
           </Card>
 
-          {/* Side Panel for Details */}
+          {/* Side Panel for Details - Takes half screen */}
           {selectedItem && (
-            <div className="w-full lg:w-[400px] shrink-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-200px)] min-w-0">
+            <div className="w-full lg:w-1/2 shrink-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-200px)] min-w-0">
               <TarefaAgendaPanel
                 tarefa={selectedItem}
                 onClose={() => setSelectedItem(null)}
