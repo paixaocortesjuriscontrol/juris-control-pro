@@ -391,35 +391,53 @@ export function DashboardMonitoramentos() {
     setCancelando(prev => ({ ...prev, [tipo]: true }));
     
     try {
-      // Buscar configuração do monitoramento
-      const { data: config } = await supabase
-        .from('configuracoes_monitoramento')
-        .select('id, metadata')
-        .eq('tipo', tipo)
-        .single();
-      
-      if (config) {
-        // Marcar como cancelado no metadata
-        const metadata = (config.metadata as any) || {};
-        await supabase
-          .from('configuracoes_monitoramento')
-          .update({
-            metadata: { ...metadata, cancelado: true }
-          })
-          .eq('id', config.id);
-      }
-      
-      // Também marcar execuções ativas como canceladas
-      await supabase
+      // Marcar todas as execuções ativas como canceladas
+      const { data: execucoesAtivas, error: fetchError } = await supabase
         .from('execucoes_agendadas')
-        .update({
-          status: 'cancelado',
-          finalizado_em: new Date().toISOString(),
-        })
+        .select('id')
         .eq('tipo', tipo)
         .eq('status', 'executando');
       
-      toast.success(`Cancelamento de ${NOMES[tipo]} solicitado`);
+      if (fetchError) throw fetchError;
+      
+      const count = execucoesAtivas?.length || 0;
+      
+      if (count > 0) {
+        // Cancelar todas as execuções ativas
+        const { error: updateError } = await supabase
+          .from('execucoes_agendadas')
+          .update({
+            status: 'cancelado',
+            finalizado_em: new Date().toISOString(),
+            detalhes: { cancelado_manualmente: true, cancelado_em: new Date().toISOString() }
+          })
+          .eq('tipo', tipo)
+          .eq('status', 'executando');
+        
+        if (updateError) throw updateError;
+        
+        // Limpar flag de cancelamento no metadata
+        const { data: config } = await supabase
+          .from('configuracoes_monitoramento')
+          .select('id, metadata')
+          .eq('tipo', tipo)
+          .single();
+        
+        if (config) {
+          const metadata = (config.metadata as any) || {};
+          await supabase
+            .from('configuracoes_monitoramento')
+            .update({
+              metadata: { ...metadata, cancelado: false }
+            })
+            .eq('id', config.id);
+        }
+        
+        toast.success(`${NOMES[tipo]} cancelado! ${count} execução(ões) interrompida(s).`);
+      } else {
+        toast.info(`Nenhuma execução ativa de ${NOMES[tipo]} para cancelar.`);
+      }
+      
       refetch();
     } catch (error: any) {
       toast.error(`Erro ao cancelar: ${error.message}`);
