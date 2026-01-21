@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 
 const formSchema = z.object({
   responsavel_id: z.string().min(1, "Selecione um responsável"),
@@ -90,8 +91,10 @@ export function DelegarTarefaDialog({
 
   async function onSubmit(values: FormValues) {
     setLoading(true);
+    const dadosEntrada = { ...values, coordenacaoId };
+    
     try {
-      const { error } = await supabase
+      const { data: novaTarefa, error } = await supabase
         .from("tarefas")
         .insert({
           processo_id: values.processo_id,
@@ -101,9 +104,22 @@ export function DelegarTarefaDialog({
           data_vencimento: values.data_vencimento,
           prioridade: values.prioridade,
           status: "pendente",
-        });
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
+
+      // Registrar auditoria de sucesso
+      await registrarAuditoriaTarefa({
+        acao: 'criar',
+        sucesso: true,
+        dadosEntrada,
+        dadosSaida: { tarefaId: novaTarefa.id },
+        origem: 'delegar_tarefa_dialog',
+        processoId: values.processo_id,
+        tarefaId: novaTarefa.id,
+      });
 
       toast({ 
         title: "Tarefa delegada!", 
@@ -112,9 +128,21 @@ export function DelegarTarefaDialog({
       
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
       onOpenChange(false);
       form.reset();
     } catch (error: any) {
+      // Registrar auditoria de falha
+      await registrarAuditoriaTarefa({
+        acao: 'erro_criar',
+        sucesso: false,
+        dadosEntrada,
+        erroMensagem: error.message,
+        erroDetalhes: { code: error.code, hint: error.hint, details: error.details },
+        origem: 'delegar_tarefa_dialog',
+        processoId: values.processo_id,
+      });
+
       toast({
         title: "Erro ao delegar tarefa",
         description: error.message,
