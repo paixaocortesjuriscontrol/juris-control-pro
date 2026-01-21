@@ -6,6 +6,81 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const DATAJUD_TIMEOUT_MS = 15_000;
+
+class CancelledError extends Error {
+  constructor(message = 'cancelled') {
+    super(message);
+    this.name = 'CancelledError';
+  }
+}
+
+function createCancelChecker(supabase: any, tipo: string, throttleMs = 1500) {
+  let lastCheck = 0;
+  let cachedCancelled = false;
+  let cachedMeta: Record<string, any> = {};
+
+  return {
+    async isCancelled() {
+      if (cachedCancelled) return true;
+      const now = Date.now();
+      if (now - lastCheck < throttleMs) return false;
+      lastCheck = now;
+
+      const { data } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', tipo)
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      cachedMeta = (data?.metadata as any) || {};
+      cachedCancelled = cachedMeta?.cancelado === true;
+      return cachedCancelled;
+    },
+    getCachedMeta() {
+      return cachedMeta;
+    },
+  };
+}
+
+async function markCancelled(supabase: any, tipo: string, extra: Record<string, any> = {}) {
+  const { data } = await supabase
+    .from('configuracoes_monitoramento')
+    .select('id, metadata')
+    .eq('tipo', tipo)
+    .is('coordenacao_id', null)
+    .maybeSingle();
+
+  const meta = ((data?.metadata as any) || {}) as Record<string, any>;
+  await supabase
+    .from('configuracoes_monitoramento')
+    .update({
+      metadata: {
+        ...meta,
+        cancelado: false,
+        status: 'cancelado',
+        continuingRun: false,
+        cancelled_at: new Date().toISOString(),
+        ...extra,
+      },
+    })
+    .eq('tipo', tipo)
+    .is('coordenacao_id', null);
+}
+
+async function markExecucaoCancelled(supabase: any, execucaoId?: string, details: Record<string, any> = {}) {
+  if (!execucaoId) return;
+  await supabase
+    .from('execucoes_agendadas')
+    .update({
+      status: 'cancelado',
+      finalizado_em: new Date().toISOString(),
+      detalhes: { cancelled: true, ...details },
+    })
+    .eq('id', execucaoId);
+}
+
 // API Key pública do DataJud/CNJ
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
 
@@ -128,6 +203,9 @@ async function consultarProcessoAPI(numeroProcesso: string): Promise<any> {
   const url = `https://api-publica.datajud.cnj.jus.br/${tribunalInfo.endpoint}/_search`;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), DATAJUD_TIMEOUT_MS);
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -136,8 +214,11 @@ async function consultarProcessoAPI(numeroProcesso: string): Promise<any> {
       },
       body: JSON.stringify({
         query: { match: { numeroProcesso: numeroLimpo } }
-      })
+      }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) return null;
 
@@ -148,7 +229,11 @@ async function consultarProcessoAPI(numeroProcesso: string): Promise<any> {
 
     return hits[0]._source;
   } catch (error) {
-    console.error(`Error querying process ${numeroProcesso}:`, error);
+    const msg = error instanceof Error ? error.message : String(error);
+    // AbortError é esperado em timeout
+    if (!msg.toLowerCase().includes('aborted')) {
+      console.error(`Error querying process ${numeroProcesso}:`, error);
+    }
     return null;
   }
 }
@@ -216,23 +301,30 @@ async function processBatch(supabase: any): Promise<{
     totalProcesses: totalCount || 0,
     currentOffset,
     nextOffset: currentOffset + (processos?.length || 0),
-    details: [] as any[]
+    details: [] as any[],
+    cancelled: false,
   };
+
+  const cancel = createCancelChecker(supabase, 'redistribuicoes');
 
   // Process in parallel batches (5 concurrent requests to avoid resource limits)
   const PARALLEL_BATCH_SIZE = 5;
 
-  for (let i = 0; i < (processos?.length || 0); i += PARALLEL_BATCH_SIZE) {
-    const batch = processos!.slice(i, i + PARALLEL_BATCH_SIZE);
+  try {
+    for (let i = 0; i < (processos?.length || 0); i += PARALLEL_BATCH_SIZE) {
+      if (await cancel.isCancelled()) throw new CancelledError();
+
+      const batch = processos!.slice(i, i + PARALLEL_BATCH_SIZE);
     
-    const batchPromises = batch.map(async (processo: any) => {
-      try {
-        results.checked++;
+      const batchPromises = batch.map(async (processo: any) => {
+        try {
+          if (await cancel.isCancelled()) return;
+          results.checked++;
         
-        const apiData = await consultarProcessoAPI(processo.numero);
-        if (!apiData) {
-          return;
-        }
+          const apiData = await consultarProcessoAPI(processo.numero);
+          if (!apiData) {
+            return;
+          }
 
         const currentVara = apiData.orgaoJulgador?.nome || null;
         const storedVara = processo.vara;
@@ -366,29 +458,37 @@ async function processBatch(supabase: any): Promise<{
           }
         }
 
-      } catch (error) {
-        console.error(`Error processing ${processo.numero}:`, error);
-        results.errors++;
-      }
-    });
+        } catch (error) {
+          console.error(`Error processing ${processo.numero}:`, error);
+          results.errors++;
+        }
+      });
 
-    await Promise.all(batchPromises);
+      await Promise.all(batchPromises);
+    }
+  } catch (err) {
+    if (err instanceof CancelledError) {
+      results.cancelled = true;
+      await markCancelled(supabase, 'redistribuicoes', { next_offset: currentOffset });
+    } else {
+      throw err;
+    }
   }
 
   // Calculate next offset and check if complete
   const nextOffset = currentOffset + (processos?.length || 0);
-  const isComplete = nextOffset >= (totalCount || 0);
+  const isComplete = results.cancelled ? true : nextOffset >= (totalCount || 0);
   
   // Update metadata and ultima_execucao
   // IMPORTANTE: preservar flags existentes (ex.: metadata.cancelado) para o cancelamento funcionar de forma confiável.
   const newMetadata = {
     ...(metadata as any),
-    next_offset: isComplete ? 0 : nextOffset,
+    next_offset: results.cancelled ? currentOffset : (isComplete ? 0 : nextOffset),
     last_batch_size: processos?.length || 0,
     last_complete_run: isComplete ? new Date().toISOString() : (lastCompleteRun?.toISOString() || null),
     total: totalCount || 0,
-    status: isComplete ? 'concluido' : 'em_andamento',
-    continuingRun: !isComplete,
+    status: results.cancelled ? 'cancelado' : (isComplete ? 'concluido' : 'em_andamento'),
+    continuingRun: results.cancelled ? false : !isComplete,
   };
   
   const { error: updateError } = await supabase
@@ -404,7 +504,7 @@ async function processBatch(supabase: any): Promise<{
   }
 
   // Save to history if complete
-  if (isComplete) {
+  if (isComplete && !results.cancelled) {
     await supabase
       .from('historico_monitoramento')
       .insert({
@@ -423,9 +523,9 @@ async function processBatch(supabase: any): Promise<{
     isComplete,
     results,
     progress: {
-      current: nextOffset,
+      current: results.cancelled ? currentOffset : nextOffset,
       total: totalCount || 0,
-      percentage: Math.round((nextOffset / (totalCount || 1)) * 100)
+      percentage: Math.round(((results.cancelled ? currentOffset : nextOffset) / (totalCount || 1)) * 100)
     }
   };
 }
@@ -440,14 +540,11 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check for completeRun parameter
-    let completeRun = false;
-    try {
-      const body = await req.json();
-      completeRun = body?.completeRun === true;
-    } catch {
-      // No body or invalid JSON, proceed with single batch
-    }
+    const body = await req.json().catch(() => ({} as any));
+    const completeRun = body?.completeRun === true;
+    const execucaoId = body?.execucaoId as string | undefined;
+    // Quando chamado via executar-monitoramento, ele controla o loop (evita auto-continuation duplicado)
+    const managedByWrapper = typeof body?.continued === 'boolean' && !!execucaoId;
 
     // Early cancellation check: if user requested cancel, stop immediately (don’t process another batch)
     if (completeRun) {
@@ -474,6 +571,8 @@ serve(async (req) => {
           })
           .eq('id', freshConfig.id);
 
+        await markExecucaoCancelled(supabase, execucaoId, { tipo: 'redistribuicoes', phase: 'early' });
+
         return new Response(
           JSON.stringify({
             success: true,
@@ -492,9 +591,13 @@ serve(async (req) => {
     // Single batch execution (used for both manual and complete runs)
     const { isComplete, results, progress } = await processBatch(supabase);
 
+    if (results?.cancelled) {
+      await markExecucaoCancelled(supabase, execucaoId, { tipo: 'redistribuicoes', phase: 'mid-batch' });
+    }
+
     // Auto-continuation: if completeRun and not complete, trigger next batch
     // But first check if cancellation was requested (configuracoes_monitoramento.metadata.cancelado)
-    if (completeRun && !isComplete) {
+    if (!managedByWrapper && completeRun && !isComplete) {
       const { data: freshConfig } = await supabase
         .from('configuracoes_monitoramento')
         .select('metadata')
@@ -545,6 +648,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
+        cancelled: results?.cancelled === true,
         message: isComplete 
           ? "Monitoramento completo de todos os processos" 
           : `Lote processado: ${results.currentOffset + 1} a ${results.nextOffset} de ${results.totalProcesses}`,
