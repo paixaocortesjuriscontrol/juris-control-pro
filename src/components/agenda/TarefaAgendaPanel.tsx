@@ -12,20 +12,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { MentionInput } from "@/components/ui/mention-input";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +28,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   X,
   ExternalLink,
@@ -60,6 +60,13 @@ import {
   Gavel,
   MapPin,
   Scale,
+  Coins,
+  Receipt,
+  DollarSign,
+  CalendarCheck,
+  Users,
+  Hash,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -94,6 +101,8 @@ interface TarefaAgendaPanelProps {
     tipo_tarefa?: string | null;
     data_vencimento?: string | null;
     data_fatal?: string | null;
+    // Parcelamento fields
+    total_parcelas?: number | null;
     // Projuris-specific fields
     identificador_projuris?: string | null;
     hora_criacao?: string | null;
@@ -115,6 +124,8 @@ interface TarefaAgendaPanelProps {
     marcadores?: string | null;
     modulo?: string | null;
     quadro_kanban?: string | null;
+    // Evento/participantes
+    participantes?: { usuario_id: string; usuario?: { id: string; nome: string } }[];
   };
   onClose: () => void;
   onUpdate: () => void;
@@ -134,6 +145,16 @@ const PRIORIDADE_COLORS: Record<string, string> = {
   urgente: "bg-red-100 text-red-700 border-red-300",
 };
 
+const TIPO_LABELS: Record<string, string> = {
+  evento: "Evento",
+  tarefa: "Tarefa",
+  tarefa_delegada: "Tarefa Delegada",
+  prazo: "Prazo",
+  audiencia: "Audiência",
+  prazo_parcela: "Parcela",
+  parcelamento: "Parcelamento",
+};
+
 export function TarefaAgendaPanel({
   tarefa,
   onClose,
@@ -150,9 +171,13 @@ export function TarefaAgendaPanel({
   const [detalhesOpen, setDetalhesOpen] = useState(true);
   const [publicacaoOpen, setPublicacaoOpen] = useState(true);
   const [processoOpen, setProcessoOpen] = useState(true);
+  const [parcelamentoOpen, setParcelamentoOpen] = useState(true);
+  const [participantesOpen, setParticipantesOpen] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const isParcelamento = tarefa.tipo === "parcelamento" || tarefa.tipo === "prazo_parcela";
 
   // Fetch comentários
   const { data: comentarios, isLoading: loadingComentarios } = useQuery({
@@ -276,8 +301,81 @@ export function TarefaAgendaPanel({
   const temPublicacao = publicacao !== null && publicacao !== undefined;
   const loadingPublicacao = loadingVinculoTermo || loadingVinculoProcesso || loadingPublicacaoTermo || loadingPublicacaoProcesso;
 
+  // Fetch parcelas do evento (se for parcelamento)
+  const { data: parcelas, isLoading: loadingParcelas } = useQuery({
+    queryKey: ["parcelas-evento-agenda", tarefa.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("parcelas_evento")
+        .select("*")
+        .eq("evento_id", tarefa.id)
+        .order("numero", { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isParcelamento && tarefa.origem === "evento",
+  });
+
+  // Fetch evento completo para parcelamentos (campos adicionais)
+  const { data: eventoCompleto } = useQuery({
+    queryKey: ["evento-completo-agenda", tarefa.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("eventos_agenda")
+        .select(`
+          *,
+          criador:profiles!eventos_agenda_criado_por_fkey(id, nome)
+        `)
+        .eq("id", tarefa.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: tarefa.origem === "evento",
+  });
+
+  // Fetch cliente do evento separadamente (se tiver cliente_id)
+  const eventoClienteId = (eventoCompleto as any)?.cliente_id;
+  const { data: clienteEvento } = useQuery({
+    queryKey: ["cliente-evento-agenda", eventoClienteId],
+    queryFn: async () => {
+      if (!eventoClienteId) return null;
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nome")
+        .eq("id", eventoClienteId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!eventoClienteId,
+  });
+
+  // Fetch tarefa completa para mais detalhes
+  const { data: tarefaCompleta } = useQuery({
+    queryKey: ["tarefa-completa-agenda", tarefa.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tarefas")
+        .select(`
+          *,
+          criador:profiles!tarefas_criado_por_fkey(id, nome),
+          delegador:profiles!tarefas_delegado_por_id_fkey(id, nome)
+        `)
+        .eq("id", tarefa.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: tarefa.origem === "tarefa",
+  });
+
   // Fetch cliente info (se não tiver processo completo)
-  const clienteInfo = processoCompleto?.cliente || null;
+  const clienteInfo = processoCompleto?.cliente || clienteEvento || null;
 
   const getInitials = (name: string) => {
     return name
@@ -727,6 +825,180 @@ export function TarefaAgendaPanel({
             </>
           )}
 
+          {/* Seção de Parcelamento */}
+          {isParcelamento && tarefa.origem === "evento" && (
+            <>
+              <Collapsible open={parcelamentoOpen} onOpenChange={setParcelamentoOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <Coins className="w-4 h-4 text-emerald-600" />
+                      Detalhes do Parcelamento
+                    </span>
+                    {parcelamentoOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3 space-y-3">
+                  <div className="border rounded-lg p-3 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-3">
+                    {/* Resumo do Parcelamento */}
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Hash className="w-3 h-3" />
+                          <span className="text-xs">Total de Parcelas</span>
+                        </div>
+                        <p className="font-bold text-lg text-emerald-700 dark:text-emerald-400">
+                          {tarefa.total_parcelas || parcelas?.length || "-"}
+                        </p>
+                      </div>
+                      
+                      {eventoCompleto && (eventoCompleto as any).valor_parcela && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <DollarSign className="w-3 h-3" />
+                            <span className="text-xs">Valor Base</span>
+                          </div>
+                          <p className="font-bold text-lg text-emerald-700 dark:text-emerald-400">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((eventoCompleto as any).valor_parcela)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cliente do Parcelamento */}
+                    {clienteInfo && (
+                      <div className="flex items-center gap-2 text-sm border-t pt-2">
+                        <Building2 className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">Cliente:</span>
+                        <span className="font-medium">{clienteInfo.nome}</span>
+                      </div>
+                    )}
+
+                    {/* Tabela de Parcelas */}
+                    {loadingParcelas ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : parcelas && parcelas.length > 0 ? (
+                      <div className="border rounded-lg overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead className="text-xs py-2">#</TableHead>
+                              <TableHead className="text-xs py-2">Vencimento</TableHead>
+                              <TableHead className="text-xs py-2">Valor</TableHead>
+                              <TableHead className="text-xs py-2">Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {parcelas.map((parcela: any) => {
+                              const vencido = parcela.data_vencimento && isAfter(startOfDay(new Date()), startOfDay(parseISO(parcela.data_vencimento)));
+                              const isPago = parcela.status === 'pago' || parcela.status === 'concluido';
+                              return (
+                                <TableRow key={parcela.id} className={cn(isPago && "bg-emerald-50/50 dark:bg-emerald-950/20")}>
+                                  <TableCell className="text-xs py-1.5 font-medium">{parcela.numero}</TableCell>
+                                  <TableCell className="text-xs py-1.5">
+                                    {parcela.data_vencimento 
+                                      ? format(parseISO(parcela.data_vencimento), "dd/MM/yyyy", { locale: ptBR })
+                                      : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-xs py-1.5 font-mono">
+                                    {parcela.valor 
+                                      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parcela.valor)
+                                      : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-xs py-1.5">
+                                    {isPago ? (
+                                      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">
+                                        <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />
+                                        Pago
+                                      </Badge>
+                                    ) : vencido ? (
+                                      <Badge variant="destructive" className="text-[10px]">
+                                        <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                                        Vencido
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="text-[10px]">
+                                        <Clock className="w-2.5 h-2.5 mr-0.5" />
+                                        Pendente
+                                      </Badge>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        Nenhuma parcela individual cadastrada
+                      </p>
+                    )}
+
+                    {/* Estatísticas */}
+                    {parcelas && parcelas.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2 pt-2 border-t text-center">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Pagas</p>
+                          <p className="font-bold text-emerald-600">
+                            {parcelas.filter((p: any) => p.status === 'pago' || p.status === 'concluido').length}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Pendentes</p>
+                          <p className="font-bold text-amber-600">
+                            {parcelas.filter((p: any) => p.status !== 'pago' && p.status !== 'concluido' && !(p.data_vencimento && isAfter(startOfDay(new Date()), startOfDay(parseISO(p.data_vencimento))))).length}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Vencidas</p>
+                          <p className="font-bold text-destructive">
+                            {parcelas.filter((p: any) => p.status !== 'pago' && p.status !== 'concluido' && p.data_vencimento && isAfter(startOfDay(new Date()), startOfDay(parseISO(p.data_vencimento)))).length}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+              <Separator />
+            </>
+          )}
+
+          {/* Seção de Participantes (para eventos) */}
+          {tarefa.origem === "evento" && tarefa.participantes && tarefa.participantes.length > 0 && (
+            <>
+              <Collapsible open={participantesOpen} onOpenChange={setParticipantesOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <Users className="w-4 h-4" />
+                      Participantes ({tarefa.participantes.length})
+                    </span>
+                    {participantesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3">
+                  <div className="border rounded-lg p-3 bg-muted/30 space-y-2">
+                    {tarefa.participantes.map((p) => (
+                      <div key={p.usuario_id} className="flex items-center gap-2">
+                        <Avatar className="w-6 h-6">
+                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                            {p.usuario?.nome ? getInitials(p.usuario.nome) : "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm">{p.usuario?.nome || "Usuário"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+              <Separator />
+            </>
+          )}
+
           {/* Detalhes Section */}
           <Collapsible open={detalhesOpen} onOpenChange={setDetalhesOpen}>
             <CollapsibleTrigger asChild>
@@ -813,6 +1085,52 @@ export function TarefaAgendaPanel({
                     </p>
                   </div>
                 )}
+
+                {/* Tipo do Item */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <Info className="w-3 h-3" />
+                    <span className="text-xs">Tipo</span>
+                  </div>
+                  <Badge variant="outline" className="text-xs">
+                    {TIPO_LABELS[tarefa.tipo] || tarefa.tipo}
+                  </Badge>
+                </div>
+
+                {/* Criado por */}
+                {(tarefaCompleta?.criador || eventoCompleto?.criador) && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <User className="w-3 h-3" />
+                      <span className="text-xs">Criado por</span>
+                    </div>
+                    <span className="text-sm">
+                      {(tarefaCompleta?.criador as any)?.nome || (eventoCompleto?.criador as any)?.nome}
+                    </span>
+                  </div>
+                )}
+
+                {/* Delegado por */}
+                {tarefaCompleta?.delegador && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Users className="w-3 h-3" />
+                      <span className="text-xs">Delegado por</span>
+                    </div>
+                    <span className="text-sm">{(tarefaCompleta.delegador as any)?.nome}</span>
+                  </div>
+                )}
+
+                {/* Data de Criação */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <CalendarCheck className="w-3 h-3" />
+                    <span className="text-xs">Criado em</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {format(parseISO(tarefa.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                </div>
               </div>
 
               {/* Descrição */}
