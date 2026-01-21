@@ -1075,6 +1075,8 @@ export type Database = {
           created_at: string
           descricao: string | null
           id: string
+          monitorar_distribuicoes: boolean
+          monitorar_redistribuicoes: boolean
           nome: string
           updated_at: string
         }
@@ -1084,6 +1086,8 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           id?: string
+          monitorar_distribuicoes?: boolean
+          monitorar_redistribuicoes?: boolean
           nome: string
           updated_at?: string
         }
@@ -1093,6 +1097,8 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           id?: string
+          monitorar_distribuicoes?: boolean
+          monitorar_redistribuicoes?: boolean
           nome?: string
           updated_at?: string
         }
