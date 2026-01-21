@@ -3663,6 +3663,51 @@ export type Database = {
           },
         ]
       }
+      tarefas_duplicadas_backup: {
+        Row: {
+          created_at: string | null
+          criado_por: string | null
+          data_fatal: string | null
+          data_vencimento: string | null
+          deleted_at: string | null
+          id: string
+          kept_id: string | null
+          origem: string | null
+          processo_id: string | null
+          responsavel_id: string | null
+          tipo_tarefa: string | null
+          titulo: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          criado_por?: string | null
+          data_fatal?: string | null
+          data_vencimento?: string | null
+          deleted_at?: string | null
+          id: string
+          kept_id?: string | null
+          origem?: string | null
+          processo_id?: string | null
+          responsavel_id?: string | null
+          tipo_tarefa?: string | null
+          titulo?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          criado_por?: string | null
+          data_fatal?: string | null
+          data_vencimento?: string | null
+          deleted_at?: string | null
+          id?: string
+          kept_id?: string | null
+          origem?: string | null
+          processo_id?: string | null
+          responsavel_id?: string | null
+          tipo_tarefa?: string | null
+          titulo?: string | null
+        }
+        Relationships: []
+      }
       tarefas_publicacoes: {
         Row: {
           created_at: string
