@@ -125,7 +125,8 @@ export function useStatusMonitoramentos() {
         health_status = 'executando';
       } else if (ultimaExecucao.status === 'falhou' || ultimaExecucao.status === 'timeout') {
         health_status = 'erro';
-      } else if (ultimaExecucao.status === 'concluido') {
+      } else if (ultimaExecucao.status === 'concluido' || ultimaExecucao.status === 'cancelado') {
+        // Cancelado é tratado como OK (execução parou, pode executar novamente)
         const horasDecorridas = minutosDecorridos / 60;
         health_status = horasDecorridas < 12 ? 'ok' : 'atrasado';
       }
