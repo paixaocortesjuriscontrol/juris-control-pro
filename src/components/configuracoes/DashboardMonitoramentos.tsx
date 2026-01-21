@@ -216,46 +216,37 @@ function MonitoramentoCard({ status, onExecutar, onCancelar, executando, cancela
         
         {/* Ações */}
         <div className="flex gap-2 pt-2">
-          {status.health_status === 'executando' ? (
-            <Button 
-              size="sm" 
-              variant="destructive"
-              className="flex-1"
-              onClick={onCancelar}
-              disabled={cancelando}
-            >
-              {cancelando ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Cancelando...
-                </>
-              ) : (
-                <>
-                  <StopCircle className="h-4 w-4 mr-2" />
-                  Cancelar
-                </>
-              )}
-            </Button>
-          ) : (
-            <Button 
-              size="sm" 
-              className="flex-1"
-              onClick={onExecutar}
-              disabled={executando}
-            >
-              {executando ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Iniciando...
-                </>
-              ) : (
-                <>
-                  <PlayCircle className="h-4 w-4 mr-2" />
-                  Executar Agora
-                </>
-              )}
-            </Button>
-          )}
+          <Button 
+            size="sm" 
+            className="flex-1"
+            onClick={onExecutar}
+            disabled={executando || status.health_status === 'executando'}
+          >
+            {executando ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Iniciando...
+              </>
+            ) : (
+              <>
+                <PlayCircle className="h-4 w-4 mr-2" />
+                Executar
+              </>
+            )}
+          </Button>
+          
+          <Button 
+            size="sm" 
+            variant="destructive"
+            onClick={onCancelar}
+            disabled={cancelando || status.health_status !== 'executando'}
+          >
+            {cancelando ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <StopCircle className="h-4 w-4" />
+            )}
+          </Button>
           
           <Button 
             size="sm" 
