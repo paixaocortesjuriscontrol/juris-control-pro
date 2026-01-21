@@ -1196,12 +1196,29 @@ export function ProcessoDetalhesCompletos({
                                 Termo: <span className="text-primary">{alerta.termo_encontrado}</span>
                               </p>
                               
-                              {/* Movimentação onde foi encontrado */}
+                              {/* Movimentação DataJud/CNJ onde foi encontrado */}
                               {alerta.movimentacao && (
-                                <div className="mt-1.5 text-xs text-muted-foreground">
-                                  <span className="font-medium">{alerta.movimentacao.tipo}</span>
-                                  {alerta.movimentacao.fonte && (
-                                    <span className="ml-1 opacity-75">({alerta.movimentacao.fonte})</span>
+                                <div className="mt-2 p-2 bg-muted/50 rounded-md border border-border/50">
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <Activity className="w-3 h-3 text-primary" />
+                                    <span className="text-[10px] font-medium text-primary">
+                                      {alerta.movimentacao.fonte || 'Movimentação'}
+                                    </span>
+                                    {alerta.movimentacao.data_movimentacao && (
+                                      <span className="text-[10px] text-muted-foreground ml-auto">
+                                        {formatDate(alerta.movimentacao.data_movimentacao)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {alerta.movimentacao.tipo && (
+                                    <p className="text-xs font-medium text-foreground mb-0.5">
+                                      {alerta.movimentacao.tipo}
+                                    </p>
+                                  )}
+                                  {alerta.movimentacao.descricao && (
+                                    <p className="text-xs text-muted-foreground line-clamp-3">
+                                      {alerta.movimentacao.descricao}
+                                    </p>
                                   )}
                                 </div>
                               )}
@@ -1226,13 +1243,6 @@ export function ProcessoDetalhesCompletos({
                                     </p>
                                   )}
                                 </div>
-                              )}
-                              
-                              {/* Descrição da movimentação - só mostra se não houver publicação */}
-                              {!alerta.publicacao_relacionada && alerta.movimentacao?.descricao && (
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                  {alerta.movimentacao.descricao}
-                                </p>
                               )}
                             </CardContent>
                           </Card>
