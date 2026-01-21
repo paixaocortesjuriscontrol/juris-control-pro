@@ -68,6 +68,79 @@ function HealthBadge({ status }: { status: StatusMonitoramento['health_status'] 
   );
 }
 
+function ProgressoDetalhado({ status }: { status: StatusMonitoramento }) {
+  const exec = status.ultima_execucao;
+  if (!exec) return null;
+  
+  const isExecutando = status.health_status === 'executando';
+  const progresso = exec.total_lotes 
+    ? Math.round((exec.lotes_processados / exec.total_lotes) * 100)
+    : null;
+  
+  const iniciado = new Date(exec.iniciado_em);
+  const agora = new Date();
+  const segundosDecorridos = Math.round((agora.getTime() - iniciado.getTime()) / 1000);
+  const tempoFormatado = formatarDuracao(segundosDecorridos);
+  
+  return (
+    <div className={cn(
+      "rounded-lg p-3 space-y-2 border",
+      isExecutando ? "bg-blue-500/5 border-blue-500/20" : "bg-muted/30 border-border"
+    )}>
+      {/* Barra de progresso */}
+      {progresso !== null && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Progresso</span>
+            <span className="font-medium">{progresso}%</span>
+          </div>
+          <Progress value={progresso} className="h-2" />
+        </div>
+      )}
+      
+      {/* Grid de métricas */}
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Lotes:</span>
+          <span className="font-mono">{exec.lotes_processados}{exec.total_lotes ? `/${exec.total_lotes}` : ''}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Tempo:</span>
+          <span className="font-mono">{isExecutando ? tempoFormatado : formatarDuracao(
+            exec.finalizado_em 
+              ? Math.round((new Date(exec.finalizado_em).getTime() - iniciado.getTime()) / 1000)
+              : segundosDecorridos
+          )}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Processados:</span>
+          <span className="font-mono">{exec.registros_processados.toLocaleString()}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Encontrados:</span>
+          <span className="font-mono text-green-600">{exec.registros_encontrados.toLocaleString()}</span>
+        </div>
+      </div>
+      
+      {/* Erros */}
+      {exec.erros > 0 && (
+        <div className="flex items-center gap-2 text-xs text-orange-600">
+          <AlertTriangle className="h-3 w-3" />
+          <span>{exec.erros} erro(s) - {exec.retry_count} retries</span>
+        </div>
+      )}
+      
+      {/* Status atual */}
+      {isExecutando && (
+        <div className="flex items-center gap-2 text-xs text-blue-600">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>Executando... {progresso !== null ? `(${progresso}% concluído)` : ''}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MonitoramentoCard({ status, onExecutar, onCancelar, executando, cancelando }: { 
   status: StatusMonitoramento; 
   onExecutar: () => void;
@@ -78,10 +151,6 @@ function MonitoramentoCard({ status, onExecutar, onCancelar, executando, cancela
   const [expandido, setExpandido] = useState(false);
   const Icon = ICONS[status.tipo] || Activity;
   const nome = NOMES[status.tipo] || status.tipo;
-  
-  const progresso = status.ultima_execucao?.total_lotes 
-    ? (status.ultima_execucao.lotes_processados / status.ultima_execucao.total_lotes) * 100
-    : null;
   
   return (
     <Card className={cn(
@@ -124,75 +193,22 @@ function MonitoramentoCard({ status, onExecutar, onCancelar, executando, cancela
       </CardHeader>
       
       <CardContent className="space-y-3">
-        {/* Progresso se executando */}
-        {status.health_status === 'executando' && progresso !== null && (
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Progresso</span>
-              <span>{status.ultima_execucao?.lotes_processados}/{status.ultima_execucao?.total_lotes} lotes</span>
-            </div>
-            <Progress value={progresso} className="h-2" />
-          </div>
+        {/* Painel de progresso detalhado - sempre visível quando há execução recente */}
+        {status.ultima_execucao && (
+          <ProgressoDetalhado status={status} />
         )}
         
-        {/* Estatísticas de hoje */}
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="bg-muted/50 rounded-lg p-2">
-                  <div className="text-lg font-bold">{status.execucoes_hoje}</div>
-                  <div className="text-xs text-muted-foreground">Execuções</div>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{status.sucesso_hoje} sucesso, {status.falhas_hoje} falhas</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <div className="bg-muted/50 rounded-lg p-2">
-            <div className="text-lg font-bold text-green-600">{status.sucesso_hoje}</div>
-            <div className="text-xs text-muted-foreground">Sucesso</div>
-          </div>
-          
-          <div className="bg-muted/50 rounded-lg p-2">
-            <div className="text-lg font-bold">{status.encontrados_hoje}</div>
-            <div className="text-xs text-muted-foreground">Encontrados</div>
-          </div>
-        </div>
-        
-        {/* Última execução */}
-        <div className="text-xs text-muted-foreground space-y-1">
-          <div className="flex items-center justify-between">
-            <span>Última execução:</span>
-            <span className="font-medium">
-              {formatarDataExecucao(status.ultima_execucao?.iniciado_em || status.ultima_execucao_config)}
-            </span>
-          </div>
-          {status.ultima_execucao && (
-            <div className="flex items-center justify-between">
-              <span>Duração:</span>
-              <span className="font-medium">
-                {status.ultima_execucao.finalizado_em 
-                  ? formatarDuracao(
-                      Math.round(
-                        (new Date(status.ultima_execucao.finalizado_em).getTime() - 
-                         new Date(status.ultima_execucao.iniciado_em).getTime()) / 1000
-                      )
-                    )
-                  : 'Em andamento...'
-                }
-              </span>
-            </div>
-          )}
+        {/* Estatísticas de hoje - compacto */}
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+          <span>Hoje: {status.execucoes_hoje} exec • {status.sucesso_hoje} ok • {status.encontrados_hoje} encontrados</span>
+          <span>{formatarDataExecucao(status.ultima_execucao?.iniciado_em || status.ultima_execucao_config)}</span>
         </div>
         
         {/* Erro se houver */}
         {status.ultima_execucao?.ultimo_erro && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2">
-            <div className="text-xs text-red-600 font-medium">Último erro:</div>
-            <div className="text-xs text-red-600/80 truncate">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-2">
+            <div className="text-xs text-destructive font-medium">Último erro:</div>
+            <div className="text-xs text-destructive/80 truncate">
               {status.ultima_execucao.ultimo_erro}
             </div>
           </div>
