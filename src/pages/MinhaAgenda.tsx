@@ -90,6 +90,8 @@ interface QuickDateOption {
 
 const TIME_ZONE = "America/Sao_Paulo";
 
+import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
+
 const TIPO_CORES: Record<string, string> = {
   evento: "bg-blue-500",
   tarefa: "bg-amber-500",
@@ -155,9 +157,11 @@ export default function MinhaAgenda() {
   const [dataInicioFiltro, setDataInicioFiltro] = useState<Date | undefined>(undefined);
   const [dataFimFiltro, setDataFimFiltro] = useState<Date | undefined>(undefined);
   const [tiposFiltro, setTiposFiltro] = useState<string[]>(["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"]);
+  const [tipoTarefaFiltro, setTipoTarefaFiltro] = useState<string[]>([]); // Filtro por tipo_tarefa (PRAZO, DEFESA, etc)
   const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>("todas");
   const [ordenacao, setOrdenacao] = useState<string>("mais-antigas");
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+  const [tipoTarefaPopoverOpen, setTipoTarefaPopoverOpen] = useState(false);
   
   // Dialog/Panel state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -459,6 +463,14 @@ export default function MinhaAgenda() {
     if (prioridadeFiltro !== "todas") {
       result = result.filter(item => item.prioridade === prioridadeFiltro);
     }
+
+    // Tipo tarefa filter (PRAZO, DEFESA, etc) - only apply to tarefas
+    if (tipoTarefaFiltro.length > 0) {
+      result = result.filter(item => {
+        if (item.origem === "evento") return true; // Eventos não têm tipo_tarefa, mostrar sempre
+        return tipoTarefaFiltro.includes(item.tipo_tarefa || "");
+      });
+    }
     
     // Sort
     if (ordenacao === "mais-recentes") {
@@ -472,7 +484,7 @@ export default function MinhaAgenda() {
     }
     
     return result;
-  }, [itensAgenda, search, statusFiltro, prioridadeFiltro, ordenacao]);
+  }, [itensAgenda, search, statusFiltro, prioridadeFiltro, tipoTarefaFiltro, ordenacao]);
 
   // Handlers
   const clearAllFilters = () => {
@@ -484,6 +496,7 @@ export default function MinhaAgenda() {
     setDataFimFiltro(undefined);
     setOrdenacao("mais-antigas");
     setTiposFiltro(["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "prazo_parcela", "parcelamento"]);
+    setTipoTarefaFiltro([]);
     if (isAdminOrCoordinator) {
       setCoordenacaoFiltro(userCoordenacao || "todas");
       setMembrosFiltro([]);
@@ -545,6 +558,14 @@ export default function MinhaAgenda() {
 
   const toggleTipo = (tipo: string) => {
     setTiposFiltro(prev =>
+      prev.includes(tipo)
+        ? prev.filter(t => t !== tipo)
+        : [...prev, tipo]
+    );
+  };
+
+  const toggleTipoTarefa = (tipo: string) => {
+    setTipoTarefaFiltro(prev =>
       prev.includes(tipo)
         ? prev.filter(t => t !== tipo)
         : [...prev, tipo]
@@ -1162,12 +1183,12 @@ export default function MinhaAgenda() {
                   </SelectContent>
                 </Select>
 
-                {/* Tipos Filter */}
+                {/* Tipos Filter (Origem) */}
                 <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="gap-2 h-9 text-xs sm:text-sm">
                       <Tag className="w-4 h-4" />
-                      Tipos
+                      Origem
                       <ChevronDown className="w-4 h-4" />
                     </Button>
                   </PopoverTrigger>
@@ -1193,6 +1214,57 @@ export default function MinhaAgenda() {
                           Todos
                         </Button>
                         <Button size="sm" onClick={() => setFilterPopoverOpen(false)}>
+                          Aplicar
+                        </Button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Tipo de Tarefa Filter (PRAZO, DEFESA, etc) */}
+                <Popover open={tipoTarefaPopoverOpen} onOpenChange={setTipoTarefaPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      className={cn(
+                        "gap-2 h-9 text-xs sm:text-sm",
+                        tipoTarefaFiltro.length > 0 && "border-primary text-primary"
+                      )}
+                    >
+                      <ListChecks className="w-4 h-4" />
+                      Tipo Tarefa
+                      {tipoTarefaFiltro.length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                          {tipoTarefaFiltro.length}
+                        </Badge>
+                      )}
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64" align="start">
+                    <div className="space-y-4">
+                      <div className="font-medium">Tipo de Tarefa</div>
+                      <ScrollArea className="h-[250px] pr-3">
+                        <div className="space-y-2">
+                          {TIPOS_TAREFA.map((tipo) => (
+                            <div key={tipo} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`tipo-tarefa-${tipo}`}
+                                checked={tipoTarefaFiltro.includes(tipo)}
+                                onCheckedChange={() => toggleTipoTarefa(tipo)}
+                              />
+                              <Label htmlFor={`tipo-tarefa-${tipo}`} className="cursor-pointer text-sm">
+                                {TIPOS_TAREFA_LABELS[tipo] || tipo}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                      <div className="flex justify-end gap-2 pt-2 border-t">
+                        <Button variant="ghost" size="sm" onClick={() => setTipoTarefaFiltro([])}>
+                          Limpar
+                        </Button>
+                        <Button size="sm" onClick={() => setTipoTarefaPopoverOpen(false)}>
                           Aplicar
                         </Button>
                       </div>
@@ -1229,7 +1301,18 @@ export default function MinhaAgenda() {
                       Prioridade: {prioridadeFiltro}
                     </Badge>
                   )}
-                  {(statusFiltro !== "todas" || prioridadeFiltro !== "todas" || search) && (
+                  {tipoTarefaFiltro.length > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      Tipo: {tipoTarefaFiltro.length === 1 ? tipoTarefaFiltro[0] : `${tipoTarefaFiltro.length} tipos`}
+                      <button 
+                        className="ml-1 hover:text-destructive" 
+                        onClick={() => setTipoTarefaFiltro([])}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {(statusFiltro !== "todas" || prioridadeFiltro !== "todas" || tipoTarefaFiltro.length > 0 || search) && (
                     <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearAllFilters}>
                       Limpar filtros
                     </Button>

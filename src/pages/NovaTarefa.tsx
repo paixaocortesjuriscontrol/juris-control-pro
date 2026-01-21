@@ -70,22 +70,9 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-const tiposTarefa = [
-  "PRAZO",
-  "TAREFA EQUIPE",
-  "VERIFICAÇÃO",
-  "DEFESA",
-  "RECURSO",
-  "CONTRARRAZÕES",
-  "PETIÇÃO",
-  "DILIGÊNCIA",
-  "AUDIÊNCIA",
-  "PROTOCOLO",
-  "ANÁLISE",
-  "ELABORAÇÃO",
-  "SOLICITAÇÃO DE DOCS",
-  "OUTROS"
-];
+import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
+
+const tiposTarefa = [...TIPOS_TAREFA];
 
 export default function NovaTarefa() {
   const navigate = useNavigate();
