@@ -10,9 +10,31 @@
 -- Executa 2x ao dia (09h e 18h BRT)
 -- =============================================
 
--- Remove jobs antigos
-SELECT cron.unschedule('monitorar-andamentos-manha');
-SELECT cron.unschedule('monitorar-andamentos-tarde');
+-- Remove jobs antigos (inclui nomes legados)
+SELECT cron.unschedule('monitorar-andamentos-manha') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-andamentos-manha'
+);
+SELECT cron.unschedule('monitorar-andamentos-tarde') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-andamentos-tarde'
+);
+SELECT cron.unschedule('monitorar-andamentos-08h') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-andamentos-08h'
+);
+SELECT cron.unschedule('monitorar-andamentos-09h') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-andamentos-09h'
+);
+SELECT cron.unschedule('monitorar-andamentos-12h') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-andamentos-12h'
+);
+SELECT cron.unschedule('monitorar-andamentos-14h') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-andamentos-14h'
+);
+SELECT cron.unschedule('monitorar-andamentos-18h') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-andamentos-18h'
+);
+SELECT cron.unschedule('monitorar-andamentos-22h') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-andamentos-22h'
+);
 
 -- 09h BRT = 12h UTC
 SELECT cron.schedule(
@@ -22,7 +44,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-andamentos',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"completeRun": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -35,7 +57,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-andamentos',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"completeRun": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -45,10 +67,19 @@ SELECT cron.schedule(
 -- Executa 3x ao dia (09h, 11:30h e 18h BRT)
 -- =============================================
 
--- Remove jobs antigos
-SELECT cron.unschedule('monitorar-djen-manha');
-SELECT cron.unschedule('monitorar-djen-meio');
-SELECT cron.unschedule('monitorar-djen-tarde');
+-- Remove jobs antigos (inclui nomes legados)
+SELECT cron.unschedule('monitorar-djen-diario') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-djen-diario'
+);
+SELECT cron.unschedule('monitorar-djen-manha') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-djen-manha'
+);
+SELECT cron.unschedule('monitorar-djen-meio') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-djen-meio'
+);
+SELECT cron.unschedule('monitorar-djen-tarde') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-djen-tarde'
+);
 
 -- 09h BRT = 12h UTC
 SELECT cron.schedule(
@@ -58,7 +89,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"scheduled": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -71,7 +102,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"scheduled": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -84,7 +115,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"scheduled": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -94,9 +125,16 @@ SELECT cron.schedule(
 -- Executa 2x ao dia (09h e 18h BRT)
 -- =============================================
 
--- Remove jobs antigos
-SELECT cron.unschedule('monitorar-djen-processos-manha');
-SELECT cron.unschedule('monitorar-djen-processos-tarde');
+-- Remove jobs antigos (inclui nomes legados)
+SELECT cron.unschedule('monitorar-djen-processos-diario') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-djen-processos-diario'
+);
+SELECT cron.unschedule('monitorar-djen-processos-manha') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-djen-processos-manha'
+);
+SELECT cron.unschedule('monitorar-djen-processos-tarde') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-djen-processos-tarde'
+);
 
 -- 09h BRT = 12h UTC
 SELECT cron.schedule(
@@ -106,7 +144,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen-processos',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"completeRun": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -119,7 +157,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-djen-processos',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"completeRun": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -129,9 +167,16 @@ SELECT cron.schedule(
 -- Executa 2x ao dia (09h e 18h BRT)
 -- =============================================
 
--- Remove jobs antigos
-SELECT cron.unschedule('monitorar-redistribuicoes-manha');
-SELECT cron.unschedule('monitorar-redistribuicoes-tarde');
+-- Remove jobs antigos (inclui nomes legados)
+SELECT cron.unschedule('monitorar-redistribuicoes-diario') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-redistribuicoes-diario'
+);
+SELECT cron.unschedule('monitorar-redistribuicoes-manha') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-redistribuicoes-manha'
+);
+SELECT cron.unschedule('monitorar-redistribuicoes-tarde') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-redistribuicoes-tarde'
+);
 
 -- 09h BRT = 12h UTC
 SELECT cron.schedule(
@@ -141,7 +186,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-redistribuicoes',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"completeRun": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -154,7 +199,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-redistribuicoes',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"completeRun": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -165,8 +210,12 @@ SELECT cron.schedule(
 -- =============================================
 
 -- Remove jobs antigos
-SELECT cron.unschedule('monitorar-distribuicoes-manha');
-SELECT cron.unschedule('monitorar-distribuicoes-tarde');
+SELECT cron.unschedule('monitorar-distribuicoes-manha') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-distribuicoes-manha'
+);
+SELECT cron.unschedule('monitorar-distribuicoes-tarde') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'monitorar-distribuicoes-tarde'
+);
 
 -- 09h BRT = 12h UTC
 SELECT cron.schedule(
@@ -176,7 +225,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-distribuicoes',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"completeRun": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -189,7 +238,7 @@ SELECT cron.schedule(
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/monitorar-distribuicoes',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmeGFocnJ2b3F4Y2RtZnN2bnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMjU0MDUsImV4cCI6MjA4MDgwMTQwNX0.bvVxZJYaaAIJXY4n9Gu3btoX5veywtNOSo79PFG6pQM"}'::jsonb,
-    body := '{"completeRun": true}'::jsonb
+    body := '{"scheduled": true, "completeRun": true}'::jsonb
   );
   $$
 );
@@ -241,3 +290,16 @@ SELECT jobid, jobname, schedule, active
 FROM cron.job 
 WHERE jobname LIKE 'monitorar%' OR jobname LIKE 'processar-alertas%' OR jobname LIKE 'enviar-alertas%'
 ORDER BY jobname;
+
+-- (Opcional) Ver a última execução de cada job:
+-- SELECT j.jobid, j.jobname, d.status, d.start_time, d.end_time
+-- FROM cron.job j
+-- LEFT JOIN LATERAL (
+--   SELECT status, start_time, end_time
+--   FROM cron.job_run_details d
+--   WHERE d.jobid = j.jobid
+--   ORDER BY start_time DESC
+--   LIMIT 1
+-- ) d ON true
+-- WHERE j.jobname LIKE 'monitorar%' OR j.jobname LIKE 'processar-alertas%' OR j.jobname LIKE 'enviar-alertas%'
+-- ORDER BY j.jobname;
