@@ -101,12 +101,16 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       if (!user?.id) return [];
 
       const resultItems: ItemAgendaUnificado[] = [];
+      const seenIds = new Set<string>(); // Dedup: track seen IDs
       const today = startOfDay(new Date());
       const incluirEventos = !filters.origens || filters.origens.includes("evento");
       const incluirTarefas = !filters.origens || filters.origens.includes("tarefa");
 
-      const from = page * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
+      // Calculate pagination ranges for each source separately
+      // We'll fetch PAGE_SIZE/2 from each source to stay under limits
+      const halfPage = Math.floor(PAGE_SIZE / 2);
+      const from = page * halfPage;
+      const to = from + halfPage - 1;
 
       // Constants for queries
       const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos(id,numero,assunto)" as const;
@@ -234,6 +238,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           }
 
           for (const evento of eventosFiltered) {
+            // Dedup: skip if already seen
+            if (seenIds.has(evento.id)) continue;
+            seenIds.add(evento.id);
+
             const dataEvento = parseISO(evento.data_inicio);
             const diasRestantes = differenceInDays(startOfDay(dataEvento), today);
             const isAtrasado = diasRestantes < 0 && evento.status !== "concluido";
@@ -361,6 +369,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             }
 
             for (const tarefa of tarefasFiltradas) {
+              // Dedup: skip if already seen
+              if (seenIds.has(tarefa.id)) continue;
+              seenIds.add(tarefa.id);
+
               const dataBaseISO: string | null = tarefa.data_vencimento ?? tarefa.data_fatal ?? tarefa.created_at ?? null;
               if (!dataBaseISO) continue;
 
@@ -432,8 +444,14 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
 export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
   const infiniteQuery = useAgendaUnificadaPaginated(filters);
 
-  // Flatten all pages into a single array for backward compatibility
-  const data = infiniteQuery.data?.pages?.flat() ?? [];
+  // Flatten all pages and deduplicate by ID to prevent duplicates across pages
+  const rawData = infiniteQuery.data?.pages?.flat() ?? [];
+  const seen = new Set<string>();
+  const data = rawData.filter(item => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
 
   return {
     data,
