@@ -83,16 +83,22 @@ export const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v1" as const
 const normalizeDedupText = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
 
 /**
- * Alguns registros (ex.: tarefas criadas via DJEN) podem existir duplicados no banco.
- * Para não poluir a UI, deduplicamos por uma chave de negócio SOMENTE para itens DJEN.
+ * Alguns registros podem existir duplicados no banco (ex.: importações, DJEN, etc.).
+ * Para não poluir a UI, deduplicamos por uma chave de negócio para tarefas.
  */
 const getAgendaDedupKey = (item: ItemAgendaUnificado) => {
   const titulo = item.titulo ?? "";
   const isDJEN = titulo.trim().startsWith("[DJEN]");
 
-  if (item.origem === "tarefa" && isDJEN) {
+  if (item.origem === "tarefa") {
+    // Identificador externo (quando existe) é a forma mais segura de deduplicar.
+    if (item.identificador_projuris) {
+      return `tarefa:projuris:${item.identificador_projuris}`;
+    }
+
     const data = (item.data_vencimento ?? item.data_fatal ?? item.data_inicio ?? "").slice(0, 10);
-    return `djen:${normalizeDedupText(titulo)}:${data}:${item.processo_id ?? ""}:${item.responsavel_id ?? ""}`;
+    const baseKey = `${normalizeDedupText(titulo)}:${data}:${item.processo_id ?? ""}:${item.responsavel_id ?? ""}:${item.criado_por ?? ""}:${item.tipo_tarefa ?? ""}`;
+    return isDJEN ? `djen:${baseKey}` : `tarefa:${baseKey}`;
   }
 
   return `${item.origem}:${item.id}`;
