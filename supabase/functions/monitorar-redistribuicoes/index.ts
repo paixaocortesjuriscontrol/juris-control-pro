@@ -550,6 +550,29 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
   };
 }
 
+// Helper para atualizar execucoes_agendadas com progresso
+async function updateExecucaoProgress(
+  supabase: any,
+  execucaoId: string | undefined,
+  data: {
+    status?: string;
+    registros_processados?: number;
+    registros_encontrados?: number;
+    total_lotes?: number;
+    detalhes?: Record<string, any>;
+    finalizado_em?: string;
+  }
+) {
+  if (!execucaoId) return;
+  await supabase
+    .from('execucoes_agendadas')
+    .update({
+      ...data,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', execucaoId);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -610,6 +633,24 @@ serve(async (req) => {
 
     // Single batch execution (used for both manual and complete runs)
     const { isComplete, results, progress } = await processBatch(supabase, execucaoId);
+
+    // Atualizar progresso em tempo real na tabela execucoes_agendadas
+    await updateExecucaoProgress(supabase, execucaoId, {
+      status: results?.cancelled ? 'cancelado' : (isComplete ? 'concluido' : 'executando'),
+      registros_processados: progress.current,
+      registros_encontrados: results?.redistributions || 0,
+      total_lotes: progress.total,
+      detalhes: {
+        progress: {
+          current: progress.current,
+          total: progress.total,
+          percentage: progress.percentage,
+        },
+        newMovements: results?.newMovements || 0,
+        errors: results?.errors || 0,
+      },
+      ...(isComplete || results?.cancelled ? { finalizado_em: new Date().toISOString() } : {}),
+    });
 
     if (results?.cancelled) {
       await markExecucaoCancelled(supabase, execucaoId, { tipo: 'redistribuicoes', phase: 'mid-batch' });
