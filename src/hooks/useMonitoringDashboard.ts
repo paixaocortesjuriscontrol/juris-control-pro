@@ -114,8 +114,8 @@ export function useMonitoringDashboard() {
       if (error) throw error;
       return (data || []) as MonitoringExecution[];
     },
-    staleTime: 5000,
-    refetchInterval: 10000,
+    staleTime: 0, // Sempre buscar dados frescos - evita UI mostrando estado antigo
+    refetchInterval: 5000, // Polling mais frequente para capturar finalizações
   });
 
   // Today's stats from executions
