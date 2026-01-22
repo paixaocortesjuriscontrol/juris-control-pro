@@ -284,10 +284,12 @@ export function useMonitoringDashboard() {
     };
 
     // IMPORTANTE: Verificar se há execução em andamento via metadata OU execucoes_agendadas
-    // Isso cobre execuções manuais que não criam registro em execucoes_agendadas
+    // Só considera running se EXPLICITAMENTE status=em_andamento e não cancelado
     const metaStatus = metadata?.status as string | undefined;
     const metaCancelado = metadata?.cancelado === true;
-    const metaIsRunning = metaStatus === 'em_andamento' && !metaCancelado;
+    const metaPausedGlobally = metadata?.paused_globally === true;
+    // Só considera running se status for EXATAMENTE 'em_andamento' e não cancelado/pausado
+    const metaIsRunning = metaStatus === 'em_andamento' && !metaCancelado && !metaPausedGlobally;
 
     // Determine status
     let status: MonitoringStatus = 'idle';
