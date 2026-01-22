@@ -63,6 +63,22 @@ interface ExecutionResult {
 
 export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
+  const functionsBaseUrl = 'https://bfxahrrvoqxcdmfsvnrk.supabase.co';
+
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string) => {
+    return await new Promise<T>((resolve, reject) => {
+      const t = window.setTimeout(() => reject(new Error(timeoutMessage)), ms);
+      promise
+        .then((v) => {
+          window.clearTimeout(t);
+          resolve(v);
+        })
+        .catch((e) => {
+          window.clearTimeout(t);
+          reject(e);
+        });
+    });
+  };
   const { 
     configuracaoDjen,
     isLoading, 
@@ -240,8 +256,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
         const dataInicioStr = format(dataInicio, 'yyyy-MM-dd');
         const dataFimStr = format(dataFim, 'yyyy-MM-dd');
-        const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://bfxahrrvoqxcdmfsvnrk.supabase.co';
-        const url = `${baseUrl}/functions/v1/monitorar-djen?offset=${offset}&dataInicio=${dataInicioStr}&dataFim=${dataFimStr}`;
+        const url = `${functionsBaseUrl}/functions/v1/monitorar-djen?offset=${offset}&dataInicio=${dataInicioStr}&dataFim=${dataFimStr}`;
 
         const session = (await supabase.auth.getSession()).data.session;
         if (!session?.access_token) {
@@ -429,43 +444,51 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
     setLimpando(true);
     try {
-      const baseUrl = 'https://bfxahrrvoqxcdmfsvnrk.supabase.co';
-      const session = (await supabase.auth.getSession()).data.session;
-      
-      if (!session?.access_token) {
-        throw new Error('Sessão expirada. Faça login novamente.');
+      // Se houver execução manual em andamento, interromper o loop do frontend antes de limpar
+      if (executando) {
+        const ok = confirm('Existe uma execução manual em andamento. Deseja cancelar e continuar a limpeza?');
+        if (!ok) return;
+        cancelarManualRef.current = true;
       }
 
-      const response = await fetch(`${baseUrl}/functions/v1/limpar-djen-hoje`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erro ao limpar: ${response.status} - ${errorText}`);
+      // Se houver execução “ao vivo” no banco, marcar como cancelada (evita continuação de run antigo)
+      if (liveRun) {
+        try {
+          await handleCancelarExecucao();
+        } catch {
+          // best-effort
+        }
+        await new Promise((r) => setTimeout(r, 500));
       }
 
-      const result = await response.json();
-      
-      toast.success(`Limpeza concluída: ${result.publicacoesRemovidas || 0} publicações removidas`);
+      // Limpeza via SDK (inclui headers corretos). Timeout para não “travar” a UI indefinidamente.
+      const { data, error } = await withTimeout(
+        supabase.functions.invoke('limpar-djen-hoje'),
+        60_000,
+        'A limpeza demorou mais que 60s. Verifique o log da função e tente novamente.'
+      );
+      if (error) throw error;
+
+      toast.success((data as any)?.message ?? 'Limpeza concluída');
       
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
       queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
+
+      // Resetar estado local antes de iniciar nova execução
+      cancelarManualRef.current = false;
+      currentRunIdRef.current = null;
       
       // Executar novamente
-      setLimpando(false);
+      await new Promise((r) => setTimeout(r, 800));
       handleExecutarManual();
       
     } catch (error) {
       console.error('Erro ao limpar:', error);
       toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
       setLimpando(false);
     }
   };
