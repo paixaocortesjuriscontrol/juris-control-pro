@@ -8,11 +8,12 @@ const corsHeaders = {
 
 // Single optimized endpoint
 const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
-const BATCH_SIZE = 50; // Increased batch for parallel processing
-const CONCURRENT_REQUESTS = 5; // Reduced to avoid rate limiting
+const BATCH_SIZE = 50; // Batch size for processing
+const CONCURRENT_REQUESTS = 2; // Very conservative to avoid 429s
 const PAGE_SIZE = 100; // Max page size
 const MAX_PAGES = 2; // Limit pages per process
-const BASE_DELAY = 500; // Base delay between batches
+const BASE_DELAY = 2000; // 2s delay between batches to avoid rate limit
+const STAGGER_DELAY = 500; // 500ms between requests in same chunk
 
 // Browser-like headers
 const browserHeaders = {
@@ -81,20 +82,20 @@ async function fetchViaProxy(url: string): Promise<any | null> {
   return null;
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3, baseDelay = 1500): Promise<Response> {
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 4, baseDelay = 3000): Promise<Response> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 15000);
     
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeout);
       
-      // Rate limited - wait and retry
+      // Rate limited - wait longer and retry
       if (response.status === 429) {
-        const waitTime = baseDelay * Math.pow(2, attempt);
+        const waitTime = baseDelay * Math.pow(2, attempt); // 3s, 6s, 12s, 24s
         console.log(`[DJEN Processos] Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
         await delay(waitTime);
         continue;
@@ -598,20 +599,21 @@ async function processProcessosBatch(
     
     // Add delay between chunks to avoid rate limiting (except first chunk)
     if (i > 0) {
+      console.log(`[DJEN Processos] Aguardando ${BASE_DELAY}ms entre chunks para evitar rate limit...`);
       await delay(BASE_DELAY);
     }
     
-    // Parallel fetch for this chunk
-    const results = await Promise.all(
-      chunk.map(async (processo, idx) => {
-        // Stagger requests within chunk to avoid burst
-        if (idx > 0) {
-          await delay(idx * 100);
-        }
-        const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
-        return { processo, publicacoes };
-      })
-    );
+    // Process sequentially within chunk to be gentler on API
+    const results: Array<{ processo: typeof chunk[0]; publicacoes: any[] }> = [];
+    for (let idx = 0; idx < chunk.length; idx++) {
+      const processo = chunk[idx];
+      // Stagger requests within chunk
+      if (idx > 0) {
+        await delay(STAGGER_DELAY);
+      }
+      const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
+      results.push({ processo, publicacoes });
+    }
 
     // Process results
     for (const { processo, publicacoes } of results) {
