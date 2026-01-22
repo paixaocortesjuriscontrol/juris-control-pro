@@ -347,6 +347,7 @@ export function DashboardMonitoramentos() {
           tipo,
           job_name: `manual-${funcao}`,
           status: 'executando',
+          iniciado_em: new Date().toISOString(),
         })
         .select()
         .single();
@@ -357,29 +358,62 @@ export function DashboardMonitoramentos() {
       
       const execucaoId = execucao?.id;
       
-      // Chamar a edge function
-      const { data, error } = await supabase.functions.invoke(funcao, {
-        body: { completeRun: true, execucaoId }
-      });
+      // IMPORTANTE: Para monitoramentos em background (termos, djen, andamentos, redistribuicoes)
+      // NÃO aguardamos a resposta - apenas disparamos e deixamos o painel acompanhar
+      const isBackgroundJob = ['termos', 'andamentos', 'redistribuicoes', 'djen', 'djen_processos'].includes(tipo);
       
-      if (error) throw error;
-      
-      // Atualizar registro com resultado
-      if (execucaoId) {
-        await supabase
-          .from('execucoes_agendadas')
-          .update({
-            status: 'concluido',
-            finalizado_em: new Date().toISOString(),
-            registros_encontrados: data?.novasPublicacoes || data?.results?.newMovements || data?.novasDistribuicoes || 0,
-            registros_processados: data?.processosVerificados || data?.results?.checked || data?.tribunaisProcessados || 0,
-            detalhes: data,
-          })
-          .eq('id', execucaoId);
+      if (isBackgroundJob) {
+        // Dispara SEM aguardar resposta - execução em background
+        supabase.functions.invoke(funcao, {
+          body: { completeRun: true, execucaoId }
+        }).then(({ data, error }) => {
+          // Callback quando terminar (pode demorar minutos)
+          if (error) {
+            console.error(`Erro em ${tipo}:`, error);
+          }
+          // Atualizar registro com resultado final
+          if (execucaoId && data) {
+            supabase
+              .from('execucoes_agendadas')
+              .update({
+                status: data?.cancelled ? 'cancelado' : 'concluido',
+                finalizado_em: new Date().toISOString(),
+                registros_encontrados: data?.alertasGerados || data?.novasPublicacoes || data?.results?.newMovements || data?.novasDistribuicoes || 0,
+                registros_processados: data?.processosVerificados || data?.results?.checked || data?.tribunaisProcessados || 0,
+                detalhes: data,
+              })
+              .eq('id', execucaoId);
+          }
+        });
+        
+        // Feedback imediato - não espera terminar
+        toast.success(`${NOMES[tipo]} iniciado! Acompanhe o progresso no painel abaixo.`);
+        refetch();
+      } else {
+        // Para jobs síncronos (distribuicoes), aguarda normalmente
+        const { data, error } = await supabase.functions.invoke(funcao, {
+          body: { completeRun: true, execucaoId }
+        });
+        
+        if (error) throw error;
+        
+        // Atualizar registro com resultado
+        if (execucaoId) {
+          await supabase
+            .from('execucoes_agendadas')
+            .update({
+              status: 'concluido',
+              finalizado_em: new Date().toISOString(),
+              registros_encontrados: data?.novasDistribuicoes || 0,
+              registros_processados: data?.tribunaisProcessados || 0,
+              detalhes: data,
+            })
+            .eq('id', execucaoId);
+        }
+        
+        toast.success(`${NOMES[tipo]} executado com sucesso!`);
+        refetch();
       }
-      
-      toast.success(`${NOMES[tipo]} executado com sucesso!`);
-      refetch();
     } catch (error: any) {
       toast.error(`Erro ao executar ${NOMES[tipo]}: ${error.message}`);
     } finally {
