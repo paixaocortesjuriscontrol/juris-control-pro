@@ -121,13 +121,59 @@ Deno.serve(async (req) => {
       .lt('executado_em', dayEnd);
     results['historico_monitoramento'] = r8.error ? r8.error.message : 'ok';
 
+    // 8.5 Cancelar qualquer execução em andamento (evita “começar sozinho” após limpar)
+    console.log('[limpar-djen-hoje] Cancelando execuções em andamento (djen/djen_processos)...');
+    const r8b = await supabase
+      .from('execucoes_agendadas')
+      .update({
+        status: 'cancelado',
+        finalizado_em: new Date().toISOString(),
+        ultimo_erro: 'Cancelado automaticamente pela limpeza do DJEN',
+      })
+      .in('tipo', ['djen', 'djen_processos'])
+      .eq('status', 'executando')
+      .is('finalizado_em', null);
+    results['cancel_execucoes'] = r8b.error ? r8b.error.message : 'ok';
+
     // 9. Reset metadata (offset/run) to prevent old run continuation
     console.log('[limpar-djen-hoje] Resetando metadata em configuracoes_monitoramento...');
-    const r9 = await supabase
+    // Importante: NÃO colocar `cancelado: false` aqui.
+    // Durante a limpeza pode existir continuação automática/retentativa em background.
+    // Se zerarmos `cancelado`, esses processos podem “voltar a rodar” e travar.
+    // O botão Executar já limpa `cancelado` quando o usuário inicia manualmente.
+    const { data: cfgs, error: cfgErr } = await supabase
       .from('configuracoes_monitoramento')
-      .update({ metadata: { next_offset: 0, has_more: false, cancelado: false, status: 'pronto' } })
-      .in('tipo', ['djen', 'djen_processos']);
-    results['reset_offset'] = r9.error ? r9.error.message : 'ok';
+      .select('id, tipo, metadata')
+      .in('tipo', ['djen', 'djen_processos'])
+      .is('coordenacao_id', null);
+
+    if (cfgErr) {
+      results['reset_metadata'] = cfgErr.message;
+    } else {
+      const errs: string[] = [];
+      for (const cfg of cfgs ?? []) {
+        const currentMetadata = (cfg.metadata as Record<string, any>) || {};
+        const nextMetadata = {
+          ...currentMetadata,
+          next_offset: 0,
+          current: 0,
+          total: 0,
+          percentage: 0,
+          has_more: false,
+          cancelado: true,
+          continuingRun: false,
+          status: 'pronto',
+        };
+
+        const { error: upErr } = await supabase
+          .from('configuracoes_monitoramento')
+          .update({ metadata: nextMetadata })
+          .eq('id', cfg.id);
+
+        if (upErr) errs.push(`${cfg.tipo}: ${upErr.message}`);
+      }
+      results['reset_metadata'] = errs.length ? errs.join(' | ') : 'ok';
+    }
 
     const elapsed = Date.now() - startedAt;
     console.log('[limpar-djen-hoje] Concluído', { ms: elapsed, results });
