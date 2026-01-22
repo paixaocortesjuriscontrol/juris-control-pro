@@ -16,10 +16,13 @@ const FUNCOES_MAP: Record<string, string> = {
 };
 
 const MAX_RETRIES = 3;
-const TIMEOUT_MS = 25 * 60 * 1000; // 25 minutos
-// As Edge Functions têm um limite de runtime; se passarmos disso, a execução pode ser encerrada
-// abruptamente e ficar “executando” travada no banco. Então paramos antes e marcamos como timeout.
-const MAX_RUNTIME_MS = 110 * 1000; // 110s (margem de segurança)
+// Timeout por chamada ao worker. Importante manter bem abaixo do limite de runtime da Edge Function
+// para evitar ficar com execução “executando” travada no banco em caso de request pendurado.
+const WORKER_CALL_TIMEOUT_MS = 90 * 1000; // 90s
+
+// Se uma execução estiver marcada como "executando" mas não houver batimento (ultima_execucao)
+// há algum tempo, consideramos que travou e liberamos para nova execução.
+const STALE_HEARTBEAT_MS = 5 * 60 * 1000; // 5min
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -47,7 +50,7 @@ Deno.serve(async (req) => {
     // Isso evita o efeito "cancela e recomeça sozinho".
     const { data: cfgAtivo, error: cfgAtivoErr } = await supabase
       .from('configuracoes_monitoramento')
-      .select('ativo, metadata')
+      .select('ativo, metadata, ultima_execucao')
       .eq('tipo', tipo)
       .is('coordenacao_id', null)
       .maybeSingle();
@@ -106,6 +109,9 @@ Deno.serve(async (req) => {
 
     if (todasExecucoesEmAndamento && todasExecucoesEmAndamento.length > 0) {
       const agora = new Date();
+      const lastHeartbeatAt = cfgAtivo?.ultima_execucao ? new Date(cfgAtivo.ultima_execucao) : null;
+      const heartbeatStale =
+        !!lastHeartbeatAt && (agora.getTime() - lastHeartbeatAt.getTime()) > STALE_HEARTBEAT_MS;
       
       for (const execucao of todasExecucoesEmAndamento) {
         const iniciado = new Date(execucao.iniciado_em);
@@ -126,6 +132,42 @@ Deno.serve(async (req) => {
 
         // Se é do mesmo tipo, bloquear
         if (execucao.tipo === tipo) {
+          // Se aparenta travado (sem atualizar ultima_execucao há um tempo), liberar.
+          // Isso evita ficar “preso” num estado executando quando a Edge Function foi interrompida.
+          if (heartbeatStale) {
+            console.warn(
+              `[${tipo}] Execução ${execucao.id} parece travada (sem heartbeat há ${Math.round(
+                (agora.getTime() - (lastHeartbeatAt?.getTime() || agora.getTime())) / 60000,
+              )}min). Marcando como timeout para liberar nova execução.`,
+            );
+
+            await supabase
+              .from('execucoes_agendadas')
+              .update({
+                status: 'timeout',
+                finalizado_em: agora.toISOString(),
+                ultimo_erro: 'Execução travada (sem progresso/heartbeat).',
+              })
+              .eq('id', execucao.id);
+
+            await supabase
+              .from('configuracoes_monitoramento')
+              .update({
+                metadata: {
+                  ...(metaCfg || {}),
+                  status: 'idle',
+                  continuingRun: true,
+                  last_stop_reason: 'stale',
+                  last_stop_at: agora.toISOString(),
+                  last_error: 'Execução travada (sem progresso/heartbeat).',
+                },
+              })
+              .eq('tipo', tipo)
+              .is('coordenacao_id', null);
+
+            continue;
+          }
+
           return new Response(
             JSON.stringify({ 
               success: false, 
@@ -182,6 +224,97 @@ Deno.serve(async (req) => {
 
     const execucaoId = novaExecucao?.id;
     console.log(`[${tipo}] Iniciando execução ${execucaoId}`);
+
+    // Para tipos pesados, disparamos o worker e retornamos rapidamente.
+    // O próprio worker faz auto-continuação e atualiza execucoes_agendadas/configuracoes_monitoramento.
+    if (tiposPesados.includes(tipo)) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), WORKER_CALL_TIMEOUT_MS);
+      try {
+        const response = await fetch(`${supabaseUrl}/functions/v1/${funcao}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            completeRun: true,
+            scheduled,
+            execucaoId,
+            continued: false,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
+        }
+
+        // Mesmo que o worker retorne um payload, o progresso real é acompanhado na tabela.
+        let payload: any = null;
+        try {
+          payload = await response.json();
+        } catch {
+          // ignore
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            execucaoId,
+            status: 'executando',
+            background: true,
+            initial: payload,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        const lastError = error?.message || 'Erro desconhecido ao iniciar worker';
+
+        if (execucaoId) {
+          await supabase
+            .from('execucoes_agendadas')
+            .update({
+              status: 'falhou',
+              finalizado_em: new Date().toISOString(),
+              erros: 1,
+              ultimo_erro: lastError,
+              detalhes: { error: lastError, phase: 'start-worker' },
+            })
+            .eq('id', execucaoId)
+            .neq('status', 'cancelado');
+        }
+
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: {
+              ...(metaCfg || {}),
+              status: 'idle',
+              continuingRun: true,
+              last_stop_reason: 'falhou',
+              last_stop_at: new Date().toISOString(),
+              last_error: lastError,
+            },
+          })
+          .eq('tipo', tipo)
+          .is('coordenacao_id', null);
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            execucaoId,
+            blocked: false,
+            error: lastError,
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
 
     // Cancelamento forçado: respeitar tanto o metadata.cancelado quanto o status='cancelado'
     // na tabela de tracking (execucoes_agendadas). Isso evita “queimar crédito” em lotes novos.
@@ -240,7 +373,7 @@ Deno.serve(async (req) => {
       try {
         // Chamar a função de monitoramento
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        const timeoutId = setTimeout(() => controller.abort(), WORKER_CALL_TIMEOUT_MS);
 
         // Para DJEN, ler dataInicio/dataFim do metadata da configuração
         let dataInicio: string | undefined;
