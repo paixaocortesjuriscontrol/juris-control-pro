@@ -1,5 +1,3 @@
-import { useState, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,88 +5,33 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { RefreshCw, Clock, PlayCircle, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
+import { useExecutarMonitoramento } from "@/hooks/useExecutarMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { LiveExecutionPanel } from "./LiveExecutionPanel";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
+import { BotaoRetomarLote } from "./BotaoRetomarLote";
 
 interface Props {
   coordenacaoId: string;
 }
 
 export function MonitoramentoRedistribuicoesCard({ coordenacaoId }: Props) {
-  const queryClient = useQueryClient();
   const { 
     configuracaoRedistribuicoes, 
     isLoading, 
     atualizarConfiguracao, 
-    executarMonitoramento 
   } = useConfiguracoesMonitoramento(coordenacaoId);
 
-  const [executandoCompleto, setExecutandoCompleto] = useState(false);
-  const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number } | null>(null);
-  const canceladoRef = useRef(false);
+  const { executando, cancelando, executar, cancelar } = useExecutarMonitoramento({
+    tipo: 'redistribuicoes',
+    configId: configuracaoRedistribuicoes?.id,
+  });
 
-  const handleCancelar = async () => {
-    canceladoRef.current = true;
-    toast.info("Cancelando execução...");
-
-    // Se a execução estiver em auto-continuação (completeRun), marcamos no banco
-    // para que a edge function pare de agendar novos lotes.
-    if (configuracaoRedistribuicoes?.id) {
-      const currentMetadata = (configuracaoRedistribuicoes.metadata as Record<string, any>) || {};
-      await supabase
-        .from('configuracoes_monitoramento')
-        .update({
-          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando' },
-        })
-        .eq('id', configuracaoRedistribuicoes.id);
-    }
-  };
-
-  const handleExecutarCompleto = async () => {
-    setExecutandoCompleto(true);
-    setProgresso({ current: 0, total: 0, percentage: 0 });
-    canceladoRef.current = false;
-    
-    try {
-      let isComplete = false;
-      let totalRedistribuicoes = 0;
-      let totalChecked = 0;
-      
-      while (!isComplete && !canceladoRef.current) {
-        const { data, error } = await supabase.functions.invoke('monitorar-redistribuicoes');
-        
-        if (error) {
-          throw error;
-        }
-        
-        if (data?.progress) {
-          setProgresso(data.progress);
-        }
-        
-        totalChecked += data?.results?.checked || 0;
-        totalRedistribuicoes += data?.results?.redistributions || 0;
-        isComplete = data?.isComplete || false;
-      }
-      
-      if (canceladoRef.current) {
-        toast.info(`Monitoramento cancelado: ${totalChecked} processos verificados até o momento`);
-      } else {
-        toast.success(`Monitoramento completo: ${totalChecked} processos verificados, ${totalRedistribuicoes} redistribuições detectadas`);
-      }
-    } catch (error) {
-      toast.error(`Erro no monitoramento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    } finally {
-      setExecutandoCompleto(false);
-      setProgresso(null);
-      canceladoRef.current = false;
-      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
-    }
-  };
+  const metadata = configuracaoRedistribuicoes?.metadata as Record<string, any> | null;
+  const nextOffset = metadata?.next_offset as number | undefined;
+  const totalProcessos = metadata?.total as number | undefined;
 
   const handleFrequenciaChange = (frequencia: string) => {
     if (configuracaoRedistribuicoes) {
@@ -198,27 +141,32 @@ export function MonitoramentoRedistribuicoesCard({ coordenacaoId }: Props) {
         <LiveExecutionPanel
           tipo="redistribuicoes"
           titulo="Verificando redistribuições..."
-          executandoManual={executandoCompleto}
-          progressoManual={progresso}
-          onCancel={handleCancelar}
+          onCancel={cancelar}
           showCancel
         />
 
         {/* Botão de execução */}
-        <div className="flex gap-2">
-          {executandoCompleto ? (
+        <div className="flex gap-2 flex-wrap">
+          <BotaoRetomarLote
+            nextOffset={nextOffset}
+            total={totalProcessos}
+            onRetomar={() => executar(true)}
+            disabled={executando || cancelando}
+          />
+          {executando ? (
             <Button 
-              onClick={handleCancelar} 
+              onClick={cancelar} 
               variant="destructive"
               className="flex-1"
+              disabled={cancelando}
             >
               <XCircle className="h-4 w-4 mr-2" />
-              Cancelar
+              {cancelando ? 'Cancelando...' : 'Cancelar'}
             </Button>
           ) : (
             <Button 
-              onClick={handleExecutarCompleto} 
-              disabled={executandoCompleto}
+              onClick={() => executar(false)} 
+              disabled={executando}
               className="flex-1"
             >
               <PlayCircle className="h-4 w-4 mr-2" />

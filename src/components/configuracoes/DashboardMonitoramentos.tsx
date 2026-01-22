@@ -334,120 +334,36 @@ export function DashboardMonitoramentos() {
   }, [temExecucaoAtiva, refetch]);
   
   const handleExecutar = async (tipo: string) => {
-    const funcao = FUNCOES[tipo];
-    if (!funcao) return;
-    
     setExecutando(prev => ({ ...prev, [tipo]: true }));
     
     try {
-      // IMPORTANTE: Limpar flag cancelado ANTES de criar execução
-      // Isso previne "cancelamento precoce" de flags anteriores
-      const { data: config } = await supabase
-        .from('configuracoes_monitoramento')
-        .select('id, metadata')
-        .eq('tipo', tipo)
-        .is('coordenacao_id', null)
-        .maybeSingle();
+      // Usar orquestrador para evitar WORKER_LIMIT
+      const { data, error } = await supabase.functions.invoke('executar-monitoramento', {
+        body: { tipo },
+      });
 
-      if (config) {
-        await supabase
-          .from('configuracoes_monitoramento')
-          .update({
-            metadata: {
-              ...(config.metadata as Record<string, any> || {}),
-              next_offset: 0,
-              current: 0,
-              total: 0,
-              percentage: 0,
-              cancelado: false,
-              status: 'em_andamento',
-              continuingRun: true,
-            },
-          })
-          .eq('id', config.id);
+      if (error) {
+        throw error;
       }
 
-      // Registrar início da execução
-      const { data: execucao, error: insertError } = await supabase
-        .from('execucoes_agendadas')
-        .insert({
-          tipo,
-          job_name: `manual-${funcao}`,
-          status: 'executando',
-          iniciado_em: new Date().toISOString(),
-        })
-        .select()
-        .single();
-      
-      if (insertError) {
-        console.warn('Erro ao registrar execução:', insertError);
-      }
-      
-      const execucaoId = execucao?.id;
-      
-      // IMPORTANTE: Para monitoramentos em background (termos, djen, andamentos, redistribuicoes)
-      // NÃO aguardamos a resposta - apenas disparamos e deixamos o painel acompanhar
-      const isBackgroundJob = ['termos', 'andamentos', 'redistribuicoes', 'djen', 'djen_processos', 'distribuicoes'].includes(tipo);
-      
-      if (isBackgroundJob) {
-        // Dispara SEM aguardar resposta - execução em background
-        supabase.functions.invoke(funcao, {
-          body: { completeRun: true, execucaoId }
-        }).then(({ data, error }) => {
-          // Callback quando terminar (pode demorar minutos)
-          if (error) {
-            console.error(`Erro em ${tipo}:`, error);
-          }
-          // Atualizar registro com resultado final
-          if (execucaoId && data) {
-            supabase
-              .from('execucoes_agendadas')
-              .update({
-                status: data?.cancelled ? 'cancelado' : 'concluido',
-                finalizado_em: new Date().toISOString(),
-                registros_encontrados: data?.alertasGerados || data?.novasPublicacoes || data?.results?.newMovements || data?.novasDistribuicoes || 0,
-                registros_processados: data?.processosVerificados || data?.results?.checked || data?.tribunaisProcessados || 0,
-                detalhes: data,
-              })
-              .eq('id', execucaoId);
-          }
-        });
-        
-        // Feedback imediato - não espera terminar
-        toast.success(`${NOMES[tipo]} iniciado! Acompanhe o progresso no painel abaixo.`);
-        refetch();
+      if (data?.blocked) {
+        toast.warning(data.message || 'Aguarde outra execução finalizar');
+      } else if (data?.success) {
+        toast.success(`${NOMES[tipo]} concluído: ${data.totalEncontrados || 0} encontrados`);
+      } else if (data?.success === false && data?.error) {
+        toast.error(`Erro: ${data.error}`);
       } else {
-        // Para jobs síncronos, aguarda normalmente
-        const { data, error } = await supabase.functions.invoke(funcao, {
-          body: { completeRun: true, execucaoId }
-        });
-        
-        if (error) throw error;
-        
-        // Atualizar registro com resultado
-        if (execucaoId) {
-          await supabase
-            .from('execucoes_agendadas')
-            .update({
-              status: 'concluido',
-              finalizado_em: new Date().toISOString(),
-              registros_encontrados: data?.novasDistribuicoes || 0,
-              registros_processados: data?.tribunaisProcessados || 0,
-              detalhes: data,
-            })
-            .eq('id', execucaoId);
-        }
-        
-        toast.success(`${NOMES[tipo]} executado com sucesso!`);
-        refetch();
+        toast.info(`${NOMES[tipo]} iniciado! Acompanhe o progresso no painel.`);
       }
+
+      refetch();
     } catch (error: any) {
       toast.error(`Erro ao executar ${NOMES[tipo]}: ${error.message}`);
     } finally {
       setExecutando(prev => ({ ...prev, [tipo]: false }));
     }
   };
-  
+
   const handleCancelar = async (tipo: string) => {
     setCancelando(prev => ({ ...prev, [tipo]: true }));
     

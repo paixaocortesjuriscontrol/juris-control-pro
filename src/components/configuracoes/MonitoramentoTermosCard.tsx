@@ -1,5 +1,4 @@
-import { useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,13 +6,13 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Radar, Clock, PlayCircle, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
+import { useExecutarMonitoramento } from "@/hooks/useExecutarMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { LiveExecutionPanel } from "./LiveExecutionPanel";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
+import { BotaoRetomarLote } from "./BotaoRetomarLote";
 import { useNavigate } from "react-router-dom";
 
 interface Props {
@@ -21,140 +20,30 @@ interface Props {
 }
 
 export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { 
     configuracaoTermos, 
     isLoading, 
     atualizarConfiguracao, 
-    executarMonitoramento 
   } = useConfiguracoesMonitoramento(coordenacaoId);
 
-  const [disparando, setDisparando] = useState(false);
-  const [execucaoId, setExecucaoId] = useState<string | null>(null);
-  const canceladoRef = useRef(false);
+  const { executando, cancelando, executar, cancelar } = useExecutarMonitoramento({
+    tipo: 'termos',
+    configId: configuracaoTermos?.id,
+  });
+
+  const metadata = configuracaoTermos?.metadata as Record<string, any> | null;
+  const nextOffset = metadata?.next_offset as number | undefined;
+  const totalProcessos = metadata?.total as number | undefined;
 
   const isRunning = useMemo(() => {
-    const md = (configuracaoTermos?.metadata as Record<string, any> | null) ?? {};
+    const md = metadata ?? {};
     return (
       md.status === 'em_andamento' ||
       md.continuingRun === true ||
-      (typeof md.next_offset === 'number' && md.next_offset > 0)
+      executando
     );
-  }, [configuracaoTermos?.metadata]);
-
-  const handleCancelar = async () => {
-    canceladoRef.current = true;
-    toast.info("Cancelando execução...");
-    
-    // 1) Cancelar DIRETO no banco (execucoes_agendadas) para refletir imediatamente no dashboard
-    //    (se não houver execucaoId, tenta cancelar a última execução em andamento do tipo)
-    try {
-      if (execucaoId) {
-        await supabase
-          .from('execucoes_agendadas')
-          .update({
-            status: 'cancelado',
-            finalizado_em: new Date().toISOString(),
-          })
-          .eq('id', execucaoId);
-      } else {
-        const { data: last } = await supabase
-          .from('execucoes_agendadas')
-          .select('id')
-          .eq('tipo', 'termos')
-          .eq('status', 'executando')
-          .order('iniciado_em', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (last?.id) {
-          await supabase
-            .from('execucoes_agendadas')
-            .update({
-              status: 'cancelado',
-              finalizado_em: new Date().toISOString(),
-            })
-            .eq('id', last.id);
-        }
-      }
-    } catch (e) {
-      console.error('Erro ao cancelar execucoes_agendadas:', e);
-    }
-
-    // 2) Setar flag de cancelamento no banco para parar auto-continuação
-    if (configuracaoTermos?.id) {
-      const currentMetadata = (configuracaoTermos.metadata as Record<string, any>) || {};
-      await supabase
-        .from('configuracoes_monitoramento')
-        .update({
-          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando', continuingRun: false },
-        })
-        .eq('id', configuracaoTermos.id);
-    }
-
-    queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
-  };
-
-  const handleExecutarCompleto = async () => {
-    if (disparando || isRunning) return;
-    setDisparando(true);
-    canceladoRef.current = false;
-
-    try {
-      toast.info('Varredura iniciada! Acompanhe o progresso no painel abaixo.');
-
-      // Resetar offset/estado no banco ANTES de disparar (evita "retomar execução antiga")
-      if (configuracaoTermos?.id) {
-        const currentMetadata = (configuracaoTermos.metadata as Record<string, any>) || {};
-        await supabase
-          .from('configuracoes_monitoramento')
-          .update({
-            metadata: {
-              ...currentMetadata,
-              next_offset: 0,
-              current: 0,
-              total: 0,
-              percentage: 0,
-              cancelado: false,
-              status: 'em_andamento',
-              continuingRun: true,
-            },
-            ultima_execucao: new Date().toISOString(),
-          })
-          .eq('id', configuracaoTermos.id);
-      }
-
-      // Criar uma execução (para cancelar direto no banco)
-      const { data: execucao } = await supabase
-        .from('execucoes_agendadas')
-        .insert({
-          tipo: 'termos',
-          job_name: 'manual-monitorar-termos',
-          status: 'executando',
-          iniciado_em: new Date().toISOString(),
-        })
-        .select('id')
-        .single();
-
-      const newExecId = execucao?.id ?? null;
-      setExecucaoId(newExecId);
-
-      // Dispara em background (não aguardamos; o painel acompanha)
-      supabase.functions.invoke('monitorar-termos', {
-        body: { completeRun: true, execucaoId: newExecId },
-      }).catch((err) => {
-        console.error('Erro ao disparar monitorar-termos:', err);
-      });
-
-      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
-    } catch (error) {
-      toast.error(`Erro na varredura: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-      canceladoRef.current = false;
-    } finally {
-      setDisparando(false);
-    }
-  };
+  }, [metadata, executando]);
 
   const handleFrequenciaChange = (frequencia: string) => {
     if (configuracaoTermos) {
@@ -264,28 +153,45 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
         <LiveExecutionPanel
           tipo="termos"
           titulo="Verificando termos estratégicos..."
-          onCancel={handleCancelar}
+          onCancel={cancelar}
           showCancel
         />
 
         {/* Botão de execução */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button
             type="button"
             variant="outline"
             onClick={() => navigate('/monitoramento360')}
-            className="flex-1"
           >
             Ver alertas
           </Button>
-          <Button
-            onClick={handleExecutarCompleto}
-            disabled={disparando || isRunning}
-            className="flex-1"
-          >
-            <PlayCircle className="h-4 w-4 mr-2" />
-            {isRunning ? 'Executando...' : 'Executar Completo'}
-          </Button>
+          <BotaoRetomarLote
+            nextOffset={nextOffset}
+            total={totalProcessos}
+            onRetomar={() => executar(true)}
+            disabled={executando || cancelando || isRunning}
+          />
+          {isRunning ? (
+            <Button
+              onClick={cancelar}
+              variant="destructive"
+              className="flex-1"
+              disabled={cancelando}
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              {cancelando ? 'Cancelando...' : 'Cancelar'}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => executar(false)}
+              disabled={executando || isRunning}
+              className="flex-1"
+            >
+              <PlayCircle className="h-4 w-4 mr-2" />
+              Executar Completo
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
