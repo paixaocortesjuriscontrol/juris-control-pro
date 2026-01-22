@@ -99,7 +99,8 @@ export function useMonitoringDashboard() {
       if (error) throw error;
       return (data || []) as MonitoringConfig[];
     },
-    staleTime: 60000,
+    staleTime: 0, // Sempre buscar dados frescos para capturar status concluído
+    refetchInterval: 5000, // Polling frequente para detectar finalização
   });
 
   // Current/recent executions (last 100)
