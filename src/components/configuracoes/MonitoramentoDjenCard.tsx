@@ -274,8 +274,17 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
     if (outrasExecucoesEmAndamento && outrasExecucoesEmAndamento.length > 0) {
       const tipos = Array.from(new Set(outrasExecucoesEmAndamento.map((e: any) => e.tipo).filter(Boolean)));
+      const nomesTipos: Record<string, string> = {
+        andamentos: 'Andamentos',
+        redistribuicoes: 'Redistribuições',
+        distribuicoes: 'Distribuições',
+        djen_processos: 'DJEN Processos',
+        termos: 'Monitoração 360',
+      };
+      const listaFormatada = tipos.map(t => nomesTipos[t] || t).join(', ');
       toast.warning(
-        `Há outros monitoramentos em andamento (${tipos.join(', ')}). Isso pode causar "WORKER_LIMIT" (546).`
+        `⚠️ Monitoramentos em execução: ${listaFormatada}. Isso pode causar erro "WORKER_LIMIT" (546). Aguarde a conclusão ou cancele-os antes de continuar.`,
+        { duration: Infinity, dismissible: true }
       );
     }
 
