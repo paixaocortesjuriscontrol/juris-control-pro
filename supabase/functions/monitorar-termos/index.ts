@@ -104,6 +104,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const completeRun = body.completeRun === true;
+    const execucaoIdFromBody = typeof body.execucaoId === 'string' ? body.execucaoId : null;
 
     const startTime = Date.now();
     console.log(`Starting term monitoring scan... completeRun=${completeRun}`);
@@ -116,9 +117,28 @@ Deno.serve(async (req) => {
       .is('coordenacao_id', null)
       .single();
 
+    // Execução (para o dashboard): pode vir do body (manual) ou ficar persistida no metadata (continuação)
+    const execucaoId = execucaoIdFromBody || (configData?.metadata as any)?.execucaoId || null;
+
     // Early cancellation check: if user requested cancel, stop immediately (don’t process another batch)
     if (completeRun && (configData?.metadata as any)?.cancelado === true && configData?.id) {
       console.log('Cancellation flag detected at start, skipping batch');
+
+      // Atualiza execução (se houver) para refletir cancelamento no dashboard
+      if (execucaoId) {
+        await supabase
+          .from('execucoes_agendadas')
+          .update({
+            status: 'cancelado',
+            finalizado_em: new Date().toISOString(),
+            detalhes: {
+              cancelled: true,
+              reason: 'cancel_flag_detected_at_start',
+            },
+          })
+          .eq('id', execucaoId);
+      }
+
       await supabase
         .from('configuracoes_monitoramento')
         .update({
@@ -127,6 +147,7 @@ Deno.serve(async (req) => {
             cancelado: false,
             status: 'cancelado',
             continuingRun: false,
+            execucaoId: execucaoId || (configData.metadata as any)?.execucaoId,
           },
         })
         .eq('id', configData.id);
@@ -635,6 +656,7 @@ Deno.serve(async (req) => {
         status: isComplete ? 'concluido' : 'em_andamento',
         continuingRun: completeRun && !isComplete,
         alertasGerados: ((configData.metadata as any)?.alertasGerados || 0) + alertasGerados,
+        execucaoId: execucaoId || (configData.metadata as any)?.execucaoId,
         ...(isComplete && { 
           last_complete_run: new Date().toISOString(),
           cancelado: false,
@@ -650,6 +672,38 @@ Deno.serve(async (req) => {
         .eq('id', configData.id);
       
       console.log(`Updated config metadata: ${processedCount}/${totalMovimentacoes} (${progressPercentage}%)`);
+    }
+
+    // Atualiza a execução em tempo real para o dashboard (execucoes_agendadas)
+    // Obs: usamos "lotes_*" como contadores de itens verificados para permitir progresso contínuo na UI.
+    if (execucaoId) {
+      await supabase
+        .from('execucoes_agendadas')
+        .update({
+          status: isComplete ? 'concluido' : 'executando',
+          finalizado_em: isComplete ? new Date().toISOString() : null,
+          lotes_processados: processedCount,
+          total_lotes: totalMovimentacoes,
+          registros_processados: processedCount,
+          // acumulado total fica no metadata.alertasGerados; aqui somamos de forma incremental
+          registros_encontrados:
+            (((configData?.metadata as any)?.alertasGerados || 0) + alertasGerados) || 0,
+          detalhes: {
+            progress: {
+              current: processedCount,
+              total: totalMovimentacoes,
+              percentage: progressPercentage,
+            },
+            alertasGeradosLote: alertasGerados,
+            audienciasDetectadasLote: audienciasDetectadas,
+            intimacoesDetectadasLote: intimacoesDetectadas,
+            tarefasCriadasTotal: tarefasCriadas,
+            termosAtivos: termos.length,
+            isComplete,
+            continuingRun: completeRun && !isComplete,
+          },
+        })
+        .eq('id', execucaoId);
     }
 
     // Salvar no histórico de monitoramento quando a execução completa
@@ -698,10 +752,25 @@ Deno.serve(async (req) => {
               cancelado: false,
               status: 'cancelado',
               continuingRun: false,
+              execucaoId: execucaoId || (freshConfig?.metadata as any)?.execucaoId,
             }
           })
           .eq('tipo', 'termos')
           .is('coordenacao_id', null);
+
+        if (execucaoId) {
+          await supabase
+            .from('execucoes_agendadas')
+            .update({
+              status: 'cancelado',
+              finalizado_em: new Date().toISOString(),
+              detalhes: {
+                cancelled: true,
+                reason: 'cancel_flag_detected_between_batches',
+              },
+            })
+            .eq('id', execucaoId);
+        }
       } else {
         const functionUrl = `${supabaseUrl}/functions/v1/monitorar-termos`;
         const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
@@ -713,7 +782,7 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${anonKey}`,
           },
-          body: JSON.stringify({ completeRun: true }),
+          body: JSON.stringify({ completeRun: true, execucaoId }),
         }).catch(err => {
           console.error('Error triggering next batch:', err);
         });
