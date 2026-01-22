@@ -23,20 +23,32 @@ const extractDateKey = (dateStr: string | null | undefined): string => {
 
 /**
  * Gera uma chave de deduplicação para uma publicação.
- * Critério: processo_numero + data_primaria (pub ou disp) + head normalizado (150 chars)
+ * Critério: processo_numero + data_primaria (pub ou disp ou created_at) + head normalizado (300 chars)
+ * 
+ * IMPORTANTE: A chave INCLUI processo_numero, então a mesma publicação
+ * aparecerá para processos diferentes (comportamento esperado).
  */
 const makeDedupKey = (pub: PublicacaoUnificada): string => {
   const processo = (pub.processo_numero ?? "").replace(/\D/g, ""); // só dígitos
-  const dataPrimaria = extractDateKey(pub.data_publicacao) !== "null"
-    ? extractDateKey(pub.data_publicacao)
-    : extractDateKey(pub.data_disponibilizacao);
-  const head = normalizeText(pub.conteudo ?? "").slice(0, 150);
+  
+  // Cascata de datas: publicação > disponibilização > created_at
+  let dataPrimaria = extractDateKey(pub.data_publicacao);
+  if (dataPrimaria === "null") {
+    dataPrimaria = extractDateKey(pub.data_disponibilizacao);
+  }
+  if (dataPrimaria === "null") {
+    dataPrimaria = extractDateKey(pub.created_at);
+  }
+  
+  // 300 chars para maior precisão (alinhado com backend que usa 2000)
+  const head = normalizeText(pub.conteudo ?? "").slice(0, 300);
 
   // Se tiver processo, dedup independente da origem (termo/processo)
   if (processo) return `${processo}|${dataPrimaria}|${head}`;
 
   // Fallback para publicações sem número de processo
-  return `${pub.tipo_origem}|${pub.monitoramento_id ?? ""}|${dataPrimaria}|${head}`;
+  // Inclui monitoramento_id E tipo para evitar colisões entre termos diferentes
+  return `${pub.tipo_origem}|${pub.monitoramento_id ?? "sem_mon"}|${dataPrimaria}|${head}`;
 };
 
 /**
