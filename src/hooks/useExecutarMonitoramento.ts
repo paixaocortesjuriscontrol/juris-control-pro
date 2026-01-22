@@ -99,23 +99,41 @@ export function useExecutarMonitoramento({
       // Chamar orquestrador (background job)
       toast.info(`${retomar ? 'Retomando' : 'Iniciando'} ${tipo}... Acompanhe o progresso abaixo.`);
 
-      const { data, error } = await supabase.functions.invoke('executar-monitoramento', {
-        body: { tipo },
-      });
+      try {
+        const { data, error } = await supabase.functions.invoke('executar-monitoramento', {
+          body: { tipo },
+        });
 
-      if (error) {
-        // Se for bloqueado por outro job, mostrar mensagem amigável
-        if (data?.blocked) {
+        if (error) {
+          // Tratar erros de rede/timeout de forma amigável
+          const errorMessage = error.message || '';
+          if (errorMessage.includes('Failed to send a request') || errorMessage.includes('FunctionsHttpError')) {
+            toast.warning('A execução foi iniciada mas pode demorar. Acompanhe o progresso no painel.');
+            // Não é erro fatal - a execução pode estar rodando em background
+          } else if (data?.blocked) {
+            toast.warning(data.message || 'Aguarde outra execução finalizar');
+          } else if (data?.paused) {
+            toast.warning('Monitoramento está pausado. Reative para executar.');
+          } else {
+            throw error;
+          }
+        } else if (data?.blocked) {
           toast.warning(data.message || 'Aguarde outra execução finalizar');
-        } else {
-          throw error;
+        } else if (data?.paused) {
+          toast.warning('Monitoramento está pausado. Reative para executar.');
+        } else if (data?.success) {
+          toast.success(`${tipo} concluído: ${data.totalEncontrados || 0} encontrados`);
+        } else if (data?.success === false && data?.error) {
+          toast.error(`Erro: ${data.error}`);
         }
-      } else if (data?.blocked) {
-        toast.warning(data.message || 'Aguarde outra execução finalizar');
-      } else if (data?.success) {
-        toast.success(`${tipo} concluído: ${data.totalEncontrados || 0} encontrados`);
-      } else if (data?.success === false && data?.error) {
-        toast.error(`Erro: ${data.error}`);
+      } catch (invokeError: any) {
+        // Erros de conexão/timeout não são fatais para o background job
+        const msg = invokeError.message || '';
+        if (msg.includes('Failed to send') || msg.includes('timeout') || msg.includes('504')) {
+          toast.warning('Conexão perdida, mas a execução pode continuar em background. Verifique o progresso.');
+        } else {
+          throw invokeError;
+        }
       }
 
       invalidateQueries();
