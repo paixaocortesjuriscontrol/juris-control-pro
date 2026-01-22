@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,65 +29,129 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
     executarMonitoramento 
   } = useConfiguracoesMonitoramento(coordenacaoId);
 
-  const [executandoCompleto, setExecutandoCompleto] = useState(false);
+  const [disparando, setDisparando] = useState(false);
+  const [execucaoId, setExecucaoId] = useState<string | null>(null);
   const canceladoRef = useRef(false);
+
+  const isRunning = useMemo(() => {
+    const md = (configuracaoTermos?.metadata as Record<string, any> | null) ?? {};
+    return (
+      md.status === 'em_andamento' ||
+      md.continuingRun === true ||
+      (typeof md.next_offset === 'number' && md.next_offset > 0)
+    );
+  }, [configuracaoTermos?.metadata]);
 
   const handleCancelar = async () => {
     canceladoRef.current = true;
     toast.info("Cancelando execução...");
     
-    // Setar flag de cancelamento no banco para parar auto-continuação
+    // 1) Cancelar DIRETO no banco (execucoes_agendadas) para refletir imediatamente no dashboard
+    //    (se não houver execucaoId, tenta cancelar a última execução em andamento do tipo)
+    try {
+      if (execucaoId) {
+        await supabase
+          .from('execucoes_agendadas')
+          .update({
+            status: 'cancelado',
+            finalizado_em: new Date().toISOString(),
+          })
+          .eq('id', execucaoId);
+      } else {
+        const { data: last } = await supabase
+          .from('execucoes_agendadas')
+          .select('id')
+          .eq('tipo', 'termos')
+          .eq('status', 'executando')
+          .order('iniciado_em', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (last?.id) {
+          await supabase
+            .from('execucoes_agendadas')
+            .update({
+              status: 'cancelado',
+              finalizado_em: new Date().toISOString(),
+            })
+            .eq('id', last.id);
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao cancelar execucoes_agendadas:', e);
+    }
+
+    // 2) Setar flag de cancelamento no banco para parar auto-continuação
     if (configuracaoTermos?.id) {
       const currentMetadata = (configuracaoTermos.metadata as Record<string, any>) || {};
       await supabase
         .from('configuracoes_monitoramento')
-        .update({ 
-          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando' }
+        .update({
+          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando', continuingRun: false },
         })
         .eq('id', configuracaoTermos.id);
     }
+
+    queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
   };
 
   const handleExecutarCompleto = async () => {
-    setExecutandoCompleto(true);
+    if (disparando || isRunning) return;
+    setDisparando(true);
     canceladoRef.current = false;
 
     try {
-      // Mostrar feedback imediato - a execução vai rodar em background
       toast.info('Varredura iniciada! Acompanhe o progresso no painel abaixo.');
-      
-      // Invalidar queries para forçar o painel a verificar status
-      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
 
-      // Dispara a edge function em background (fire and forget)
-      // O painel LiveExecutionPanel vai acompanhar via realtime
+      // Resetar offset/estado no banco ANTES de disparar (evita "retomar execução antiga")
+      if (configuracaoTermos?.id) {
+        const currentMetadata = (configuracaoTermos.metadata as Record<string, any>) || {};
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: {
+              ...currentMetadata,
+              next_offset: 0,
+              current: 0,
+              total: 0,
+              percentage: 0,
+              cancelado: false,
+              status: 'em_andamento',
+              continuingRun: true,
+            },
+            ultima_execucao: new Date().toISOString(),
+          })
+          .eq('id', configuracaoTermos.id);
+      }
+
+      // Criar uma execução (para cancelar direto no banco)
+      const { data: execucao } = await supabase
+        .from('execucoes_agendadas')
+        .insert({
+          tipo: 'termos',
+          job_name: 'manual-monitorar-termos',
+          status: 'executando',
+          iniciado_em: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+
+      const newExecId = execucao?.id ?? null;
+      setExecucaoId(newExecId);
+
+      // Dispara em background (não aguardamos; o painel acompanha)
       supabase.functions.invoke('monitorar-termos', {
-        body: { completeRun: true }
-      }).then(({ data, error }) => {
-        // Este callback só executa quando a edge function REALMENTE termina
-        // (pode demorar vários minutos se houver muitos lotes)
-        if (error) {
-          console.error('Erro na varredura:', error);
-          toast.error(`Erro na varredura: ${error.message}`);
-        } else if (data?.cancelled) {
-          toast.info('Varredura cancelada.');
-        }
-        // NÃO mostramos toast de sucesso aqui - o LiveExecutionPanel já faz isso
-        
-        setExecutandoCompleto(false);
-        canceladoRef.current = false;
-        queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
-        queryClient.invalidateQueries({ queryKey: ['alertas-monitoramento'] });
-      }).catch(err => {
-        console.error('Erro na varredura:', err);
-        toast.error(`Erro na varredura: ${err.message}`);
-        setExecutandoCompleto(false);
+        body: { completeRun: true, execucaoId: newExecId },
+      }).catch((err) => {
+        console.error('Erro ao disparar monitorar-termos:', err);
       });
-      
+
+      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
     } catch (error) {
       toast.error(`Erro na varredura: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-      setExecutandoCompleto(false);
       canceladoRef.current = false;
+    } finally {
+      setDisparando(false);
     }
   };
 
@@ -181,8 +245,8 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
                 Progresso: próximo lote a partir do processo #{configuracaoTermos.metadata.next_offset + 1}
               </span>
             )}
-            {configuracaoTermos.metadata?.last_complete_run && (
-              <span className="text-xs text-green-600">
+             {configuracaoTermos.metadata?.last_complete_run && (
+               <span className="text-xs text-primary">
                 Última execução completa: {format(toZonedTime(new Date(configuracaoTermos.metadata.last_complete_run), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
             )}
@@ -207,25 +271,14 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
           >
             Ver alertas
           </Button>
-          {executandoCompleto ? (
-            <Button 
-              onClick={handleCancelar} 
-              variant="destructive"
-              className="flex-1"
-            >
-              <XCircle className="h-4 w-4 mr-2" />
-              Cancelar
-            </Button>
-          ) : (
-            <Button 
-              onClick={handleExecutarCompleto} 
-              disabled={executandoCompleto}
-              className="flex-1"
-            >
-              <PlayCircle className="h-4 w-4 mr-2" />
-              Executar Completo
-            </Button>
-          )}
+          <Button
+            onClick={handleExecutarCompleto}
+            disabled={disparando || isRunning}
+            className="flex-1"
+          >
+            <PlayCircle className="h-4 w-4 mr-2" />
+            {isRunning ? 'Executando...' : 'Executar Completo'}
+          </Button>
         </div>
       </CardContent>
     </Card>
