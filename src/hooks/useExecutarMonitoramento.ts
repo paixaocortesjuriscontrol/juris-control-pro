@@ -65,7 +65,7 @@ export function useExecutarMonitoramento({
           return;
         }
 
-        await supabase
+        const { error: updateError } = await supabase
           .from('configuracoes_monitoramento')
           .update({
             metadata: {
@@ -87,6 +87,10 @@ export function useExecutarMonitoramento({
             },
           })
           .eq('id', configId);
+
+        // Se falhou atualizar config (RLS/permissão), não adianta seguir: o orquestrador pode
+        // interpretar estado antigo (ex.: cancelado) e abortar imediatamente.
+        if (updateError) throw updateError;
       }
 
       // Chamar orquestrador (background job)
@@ -116,6 +120,10 @@ export function useExecutarMonitoramento({
           toast.warning('Monitoramento está pausado. Reative para executar.');
         } else if (data?.success) {
           toast.success(`${tipo} concluído: ${data.totalEncontrados || 0} encontrados`);
+        } else if (data?.status === 'cancelado' || data?.status === 'cancelled') {
+          toast.warning('Execução foi cancelada antes de iniciar. Tente novamente.');
+        } else if (data?.status === 'timeout') {
+          toast.warning('Execução pausou por limite de tempo. Use “Retomar” para continuar.');
         } else if (data?.success === false && data?.error) {
           toast.error(`Erro: ${data.error}`);
         }
