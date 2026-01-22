@@ -31,7 +31,7 @@ export function BotaoRetomarLote({
             disabled={disabled}
             variant="outline"
             size="sm"
-            className="gap-2 border-orange-500/50 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+            className="gap-2 border-primary/30 text-primary hover:bg-primary/5"
           >
             <RotateCcw className="h-4 w-4" />
             Retomar do #{nextOffset + 1}
