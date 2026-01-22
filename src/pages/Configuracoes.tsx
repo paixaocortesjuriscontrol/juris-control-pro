@@ -13,6 +13,7 @@ import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEm
 import { MonitoringDashboard } from "@/components/configuracoes/MonitoringDashboard";
 import { ParametrosDjenCard } from "@/components/configuracoes/ParametrosDjenCard";
 import { MonitoramentosAtivosPanel } from "@/components/configuracoes/MonitoramentosAtivosPanel";
+import { FilaExecucoesPanel } from "@/components/configuracoes/FilaExecucoesPanel";
 import CofreSenhasPage from "@/pages/CofreSenhas";
 import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
 
@@ -73,7 +74,10 @@ export default function Configuracoes() {
 
         {/* Aba Dashboard - Profissional */}
         <TabsContent value="dashboard" className="space-y-4">
-          <MonitoramentosAtivosPanel className="mb-4" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+            <MonitoramentosAtivosPanel className="lg:col-span-2" />
+            <FilaExecucoesPanel />
+          </div>
           <MonitoringDashboard />
         </TabsContent>
 
