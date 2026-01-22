@@ -186,15 +186,13 @@ export function useMonitoringDashboard() {
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
 
-      // Historico monitoramento para redistribuições (usa novos_andamentos como campo de contagem)
-      const { data: redistribuicoesData } = await supabase
-        .from('historico_monitoramento')
-        .select('novos_andamentos')
-        .eq('tipo', 'redistribuicoes')
-        .gte('executado_em', inicioDia)
-        .lte('executado_em', fimDia);
-
-      const redistribuicoesNovas = redistribuicoesData?.reduce((acc, h) => acc + (h.novos_andamentos || 0), 0) || 0;
+      // Redistribuições: contar movimentações do tipo 'Redistribuição' criadas hoje
+      const { count: redistribuicoesNovas } = await supabase
+        .from('movimentacoes')
+        .select('*', { count: 'exact', head: true })
+        .eq('tipo', 'Redistribuição')
+        .gte('created_at', inicioDia)
+        .lte('created_at', fimDia);
 
       return {
         djen: { novas: djenNovas ?? 0, descartadas: djenDescartadas ?? 0 },
