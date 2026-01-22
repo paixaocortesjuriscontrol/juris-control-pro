@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { 
   RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar,
   CheckCircle2, XCircle, Clock, AlertTriangle, Loader2, PlayCircle,
-  StopCircle, TrendingUp, Hash, Timer, Zap, BarChart3
+  StopCircle, TrendingUp, Hash, Timer, Zap, BarChart3, MinusCircle
 } from "lucide-react";
 import { useState } from "react";
 import { 
@@ -295,8 +295,8 @@ function MonitoringCard({
           <span className="text-xs text-muted-foreground font-medium">Hoje:</span>
           <div className="flex items-center gap-4">
             <MetricBadge icon={Zap} value={stats.todayStats.executions} label="Execuções hoje" />
-            <MetricBadge icon={CheckCircle2} value={stats.todayStats.successful} label="Sucesso" variant="success" />
-            <MetricBadge icon={TrendingUp} value={stats.todayStats.found} label="Encontrados" variant="success" />
+            <MetricBadge icon={TrendingUp} value={stats.todayStats.novas ?? 0} label="Novas" variant="success" />
+            <MetricBadge icon={MinusCircle} value={stats.todayStats.descartadas ?? 0} label="Descartadas" />
           </div>
         </div>
 
@@ -384,13 +384,14 @@ export function MonitoringDashboard() {
   // Summary Stats
   const totalToday = monitoringStats.reduce((acc, s) => acc + s.todayStats.executions, 0);
   const successToday = monitoringStats.reduce((acc, s) => acc + s.todayStats.successful, 0);
-  const foundToday = monitoringStats.reduce((acc, s) => acc + s.todayStats.found, 0);
+  const novasToday = monitoringStats.reduce((acc, s) => acc + (s.todayStats.novas ?? 0), 0);
+  const descartadasToday = monitoringStats.reduce((acc, s) => acc + (s.todayStats.descartadas ?? 0), 0);
   const runningCount = monitoringStats.filter(s => s.status === 'running').length;
 
   return (
     <div className="space-y-6">
       {/* Summary Header */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -399,7 +400,7 @@ export function MonitoringDashboard() {
               </div>
               <div>
                 <div className="text-2xl font-bold text-blue-600">{totalToday}</div>
-                <div className="text-xs text-muted-foreground">Execuções hoje</div>
+                <div className="text-xs text-muted-foreground">Execuções</div>
               </div>
             </div>
           </CardContent>
@@ -426,8 +427,22 @@ export function MonitoringDashboard() {
                 <TrendingUp className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold text-emerald-600">{foundToday.toLocaleString('pt-BR')}</div>
-                <div className="text-xs text-muted-foreground">Encontrados</div>
+                <div className="text-2xl font-bold text-emerald-600">{novasToday.toLocaleString('pt-BR')}</div>
+                <div className="text-xs text-muted-foreground">Novas</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-500/20 rounded-lg">
+                <MinusCircle className="h-5 w-5 text-orange-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-orange-600">{descartadasToday.toLocaleString('pt-BR')}</div>
+                <div className="text-xs text-muted-foreground">Descartadas</div>
               </div>
             </div>
           </CardContent>

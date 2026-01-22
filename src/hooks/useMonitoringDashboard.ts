@@ -43,6 +43,8 @@ export interface MonitoringStats {
     failed: number;
     found: number;
     processed: number;
+    novas?: number;
+    descartadas?: number;
   };
   status: MonitoringStatus;
   progress: number | null;
@@ -124,7 +126,7 @@ export function useMonitoringDashboard() {
   });
 
   // CONTADORES REAIS DO BANCO (publicações persistidas hoje)
-  const { data: realDbStats = {} } = useQuery({
+  const { data: realDbStats = {} as Record<string, any> } = useQuery({
     queryKey: ['monitoring-real-db-stats'],
     queryFn: async () => {
       const hoje = new Date();
@@ -134,6 +136,13 @@ export function useMonitoringDashboard() {
       // DJEN Termos - publicações novas hoje
       const { count: djenNovas } = await supabase
         .from('publicacoes_djen')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', inicioDia)
+        .lte('created_at', fimDia);
+
+      // DJEN Termos - descartadas hoje
+      const { count: djenDescartadas } = await supabase
+        .from('publicacoes_djen_descartadas')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
@@ -177,13 +186,13 @@ export function useMonitoringDashboard() {
       const redistribuicoesNovas = redistribuicoesData?.reduce((acc, h) => acc + (h.novos_andamentos || 0), 0) || 0;
 
       return {
-        djen: djenNovas ?? 0,
-        djen_processos: djenProcessosNovas ?? 0,
-        termos: termosAlertas ?? 0,
-        redistribuicoes: redistribuicoesNovas,
-        distribuicoes: distribuicoesNovas ?? 0,
-        andamentos: andamentosNovos ?? 0,
-      } as Record<string, number>;
+        djen: { novas: djenNovas ?? 0, descartadas: djenDescartadas ?? 0 },
+        djen_processos: { novas: djenProcessosNovas ?? 0, descartadas: 0 },
+        termos: { novas: termosAlertas ?? 0, descartadas: 0 },
+        redistribuicoes: { novas: redistribuicoesNovas, descartadas: 0 },
+        distribuicoes: { novas: distribuicoesNovas ?? 0, descartadas: 0 },
+        andamentos: { novas: andamentosNovos ?? 0, descartadas: 0 },
+      };
     },
     staleTime: 30000,
     refetchInterval: 60000, // Atualiza a cada 60s
@@ -259,14 +268,18 @@ export function useMonitoringDashboard() {
     const todayTypeExecs = todayExecutions.filter((e: any) => e.tipo === tipo);
     
     // USAR DADOS REAIS DO BANCO em vez de registros_encontrados das execuções
-    const realFound = (realDbStats as Record<string, number>)[tipo] ?? 0;
+    const dbStatsForType = (realDbStats as Record<string, any>)[tipo];
+    const novas = dbStatsForType?.novas ?? 0;
+    const descartadas = dbStatsForType?.descartadas ?? 0;
     
     const todayStats = {
       executions: todayTypeExecs.length,
       successful: todayTypeExecs.filter((e: any) => e.status === 'concluido').length,
       failed: todayTypeExecs.filter((e: any) => e.status === 'falhou').length,
-      found: realFound, // USAR DADOS REAIS DO BANCO
+      found: novas, // USAR DADOS REAIS DO BANCO
       processed: todayTypeExecs.reduce((acc: number, e: any) => acc + (e.registros_processados || 0), 0),
+      novas,
+      descartadas,
     };
 
     // Determine status
