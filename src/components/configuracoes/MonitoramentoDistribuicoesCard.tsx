@@ -56,27 +56,45 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
     return configuracaoDistribuicoes?.ativo === false || md.paused_globally === true;
   }, [configuracaoDistribuicoes?.ativo, metadata]);
 
-  const reativarMonitoramento = async () => {
+  const reativarMonitoramento = async (mode: 'novo' | 'retomar') => {
     if (!configuracaoDistribuicoes?.id) return;
-    const currentMetadata = (metadata ?? {}) as Record<string, any>;
+
+    // Se for execução nova, limpar TODOS os dados de progresso
+    const resetMetadata = mode === 'novo' 
+      ? {
+          paused_globally: false,
+          cancelado: false,
+          status: 'idle',
+          continuingRun: false,
+          // Limpar progresso antigo para começar do zero
+          current_tribunal_offset: 0,
+          current: 0,
+          total: 0,
+          percentage: 0,
+          processados: 0,
+          encontrados: 0,
+        }
+      : {
+          // Retomar: manter offset, mas resetar flags
+          ...(metadata ?? {}),
+          paused_globally: false,
+          cancelado: false,
+          status: 'idle',
+          continuingRun: true,
+        };
 
     const { error } = await supabase
       .from('configuracoes_monitoramento')
       .update({
         ativo: true,
-        metadata: {
-          ...currentMetadata,
-          paused_globally: false,
-          cancelado: false,
-          status: 'idle',
-          continuingRun: false,
-        },
+        metadata: resetMetadata,
         updated_at: new Date().toISOString(),
       })
       .eq('id', configuracaoDistribuicoes.id);
 
     if (error) throw error;
     queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+    queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
   };
 
   const handleExecutar = async (mode: 'novo' | 'retomar') => {
@@ -243,9 +261,9 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
               <AlertDialogAction
                 onClick={async () => {
                   try {
-                    await reativarMonitoramento();
+                    const mode = pendingRunMode ?? 'novo';
+                    await reativarMonitoramento(mode);
                     toast.success('Monitoramento reativado. Iniciando execução...');
-                    const mode = pendingRunMode;
                     setPendingRunMode(null);
                     await executar(mode === 'retomar');
                   } catch (e: any) {
