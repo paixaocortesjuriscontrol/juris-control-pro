@@ -176,7 +176,22 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     const isRunTrulyRunning = (row: any) => {
       // Proteção contra runs "presas": alguns runs podem ficar com status='em_andamento'
       // mesmo após finalização (finalizado_em preenchido). Esses não devem aparecer como "ao vivo".
-      return row && row.status === 'em_andamento' && !row.finalizado_em;
+      // Também verifica se não está travada há mais de 15 minutos
+      if (!row || row.status !== 'em_andamento' || row.finalizado_em) {
+        return false;
+      }
+      const iniciado = new Date(row.iniciado_em);
+      const agora = new Date();
+      const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
+      // Se iniciou há mais de 15 min e duracao_segundos parou de atualizar, considerar travada
+      if (minutosDecorridos > 15) {
+        const duracaoMin = (row.duracao_segundos || 0) / 60;
+        // Se duracao está muito defasada em relação ao tempo real, está travada
+        if (minutosDecorridos - duracaoMin > 5) {
+          return false;
+        }
+      }
+      return true;
     };
 
     const checkCurrentRun = async () => {
@@ -188,7 +203,21 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         .order('iniciado_em', { ascending: false })
         .limit(1)
         .maybeSingle();
-      applyRun(data ?? null);
+      
+      // Aplicar apenas se realmente estiver em execução
+      if (data && isRunTrulyRunning(data)) {
+        applyRun(data);
+      } else {
+        applyRun(null);
+        // Se encontrou run travada, corrigir no banco
+        if (data && !isRunTrulyRunning(data)) {
+          await supabase
+            .from('djen_runs')
+            .update({ status: 'cancelado', finalizado_em: new Date().toISOString() })
+            .eq('run_id', data.run_id)
+            .eq('status', 'em_andamento');
+        }
+      }
     };
 
     checkCurrentRun();
