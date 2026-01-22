@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle, Trash2, CalendarIcon } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
+import { useExecutarMonitoramento } from "@/hooks/useExecutarMonitoramento";
+import { BotaoRetomarLote } from "./BotaoRetomarLote";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
@@ -78,8 +80,6 @@ const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: 
   });
 };
 
-const FUNCTIONS_BASE_URL = 'https://bfxahrrvoqxcdmfsvnrk.supabase.co';
-
 export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
   const { 
@@ -90,10 +90,17 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
   const { runs } = useDjenRunsHistory();
 
-  const [executando, setExecutando] = useState(false);
-  const cancelarManualRef = useRef(false);
-  const currentRunIdRef = useRef<string | null>(null);
-  const [progresso, setProgresso] = useState({ atual: 0, total: 0, novas: 0 });
+  // Hook centralizado para executar via orquestrador
+  const {
+    executando,
+    cancelando: cancelandoOrquestrador,
+    executar: executarViaOrquestrador,
+    cancelar: cancelarViaOrquestrador,
+  } = useExecutarMonitoramento({
+    tipo: 'djen',
+    configId: configuracaoDjen?.id,
+  });
+
   const [ultimoResultado, setUltimoResultado] = useState<ExecutionResult | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<string>('');
@@ -175,19 +182,14 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     };
 
     const isRunTrulyRunning = (row: any) => {
-      // Proteção contra runs "presas": alguns runs podem ficar com status='em_andamento'
-      // mesmo após finalização (finalizado_em preenchido). Esses não devem aparecer como "ao vivo".
-      // Também verifica se não está travada há mais de 15 minutos
       if (!row || row.status !== 'em_andamento' || row.finalizado_em) {
         return false;
       }
       const iniciado = new Date(row.iniciado_em);
       const agora = new Date();
       const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
-      // Se iniciou há mais de 15 min e duracao_segundos parou de atualizar, considerar travada
       if (minutosDecorridos > 15) {
         const duracaoMin = (row.duracao_segundos || 0) / 60;
-        // Se duracao está muito defasada em relação ao tempo real, está travada
         if (minutosDecorridos - duracaoMin > 5) {
           return false;
         }
@@ -205,12 +207,10 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         .limit(1)
         .maybeSingle();
       
-      // Aplicar apenas se realmente estiver em execução
       if (data && isRunTrulyRunning(data)) {
         applyRun(data);
       } else {
         applyRun(null);
-        // Se encontrou run travada, corrigir no banco
         if (data && !isRunTrulyRunning(data)) {
           await supabase
             .from('djen_runs')
@@ -235,7 +235,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
               applyRun(newData);
             } else if (['concluido', 'erro', 'cancelado'].includes(newData.status) || (newData.status === 'em_andamento' && newData.finalizado_em)) {
               setLiveRun(null);
-              // Invalidar todos os caches relevantes
               queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
               queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
               queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
@@ -256,290 +255,37 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     };
   }, [queryClient]);
 
-  const handleExecutarManual = async () => {
-    // Verificar se já existe execução em andamento (bloqueio de concorrência)
+  // Salvar datas no metadata antes de executar
+  const handleExecutarManual = async (retomar = false) => {
     if (liveRun) {
-      toast.warning('Já existe uma execução DJEN em andamento. Aguarde ou cancele a execução atual.');
+      toast.warning('Já existe uma execução DJEN em andamento. Aguarde ou cancele.');
       return;
     }
 
-    // Observação: o erro 546/WORKER_LIMIT normalmente acontece quando há outras Edge Functions
-    // pesadas executando ao mesmo tempo (ex: andamentos/redistribuições). Não bloqueamos aqui,
-    // mas avisamos o usuário e aplicamos backoff/retry mais adiante.
-    const { data: outrasExecucoesEmAndamento } = await supabase
-      .from('execucoes_agendadas')
-      .select('id, tipo')
-      .eq('status', 'executando')
-      .neq('tipo', 'djen')
-      .limit(10);
+    // Salvar período no metadata para o orquestrador repassar
+    if (configuracaoDjen?.id) {
+      const { data: config } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('id', configuracaoDjen.id)
+        .maybeSingle();
 
-    if (outrasExecucoesEmAndamento && outrasExecucoesEmAndamento.length > 0) {
-      const tipos = Array.from(new Set(outrasExecucoesEmAndamento.map((e: any) => e.tipo).filter(Boolean)));
-      const nomesTipos: Record<string, string> = {
-        andamentos: 'Andamentos',
-        redistribuicoes: 'Redistribuições',
-        distribuicoes: 'Distribuições',
-        djen_processos: 'DJEN Processos',
-        termos: 'Monitoração 360',
-      };
-      const listaFormatada = tipos.map(t => nomesTipos[t] || t).join(', ');
+      const currentMetadata = (config?.metadata as Record<string, any>) || {};
       
-      const cancelarOutros = async () => {
-        try {
-          // Cancelar na tabela execucoes_agendadas
-          const ids = outrasExecucoesEmAndamento.map((e: any) => e.id);
-          await supabase
-            .from('execucoes_agendadas')
-            .update({ status: 'cancelado', finalizado_em: new Date().toISOString() })
-            .in('id', ids);
-          
-          // Marcar cancelado nos metadados de cada tipo
-          for (const tipo of tipos) {
-            await supabase
-              .from('configuracoes_monitoramento')
-              .update({ 
-                metadata: { cancelado: true, status: 'cancelado', cancelled_at: new Date().toISOString() } 
-              })
-              .eq('tipo', tipo)
-              .is('coordenacao_id', null);
-          }
-          
-          toast.success(`${tipos.length} monitoramento(s) cancelado(s): ${listaFormatada}`);
-        } catch (err) {
-          console.error('Erro ao cancelar monitoramentos:', err);
-          toast.error('Erro ao cancelar monitoramentos');
-        }
-      };
-
-      toast.warning(
-        `⚠️ Monitoramentos em execução: ${listaFormatada}. Isso pode causar erro "WORKER_LIMIT" (546).`,
-        { 
-          duration: Infinity, 
-          dismissible: true,
-          action: {
-            label: 'Cancelar Todos',
-            onClick: cancelarOutros,
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...currentMetadata,
+            dataInicio: format(dataInicio, 'yyyy-MM-dd'),
+            dataFim: format(dataFim, 'yyyy-MM-dd'),
           },
-        }
-      );
+        })
+        .eq('id', configuracaoDjen.id);
     }
 
-    // Verificar também na tabela execucoes_agendadas
-    const { data: execucoesEmAndamento } = await supabase
-      .from('execucoes_agendadas')
-      .select('id, iniciado_em')
-      .eq('tipo', 'djen')
-      .eq('status', 'executando')
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (execucoesEmAndamento && execucoesEmAndamento.length > 0) {
-      const execucao = execucoesEmAndamento[0];
-      const iniciado = new Date(execucao.iniciado_em || Date.now());
-      const agora = new Date();
-      const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
-      
-      if (minutosDecorridos < 60) {
-        toast.warning(`Execução em andamento há ${Math.round(minutosDecorridos)} minutos. Aguarde a conclusão.`);
-        return;
-      }
-    }
-
-    setExecutando(true);
-    cancelarManualRef.current = false;
-    currentRunIdRef.current = null;
-    setProgresso({ atual: 0, total: 0, novas: 0 });
-    setUltimoResultado(null);
-
-    let offset = 0;
-    let totalProcessados = 0;
-    let totalNovas = 0;
-    let totalDescartadas = 0;
-    let totalDuplicatas = 0;
-    let totalPaginas = 0;
-    let totalResultados = 0;
-    let allTribunaisStats: TribunalStat[] = [];
-    let hasMore = true;
-    let totalDuration = 0;
-    let mostrouWorkerLimitToast = false;
-
-    try {
-      const { count } = await supabase
-        .from('monitoramentos_djen')
-        .select('*', { count: 'exact', head: true })
-        .eq('ativo', true);
-
-      const total = count || 0;
-      setProgresso(p => ({ ...p, total }));
-
-      while (hasMore && !cancelarManualRef.current) {
-        toast.info(`Processando lote ${Math.floor(offset / 10) + 1}...`);
-
-        const dataInicioStr = format(dataInicio, 'yyyy-MM-dd');
-        const dataFimStr = format(dataFim, 'yyyy-MM-dd');
-        const url = `${FUNCTIONS_BASE_URL}/functions/v1/monitorar-djen?offset=${offset}&dataInicio=${dataInicioStr}&dataFim=${dataFimStr}`;
-
-        const session = (await supabase.auth.getSession()).data.session;
-        if (!session?.access_token) {
-          throw new Error('Sessão expirada. Faça login novamente.');
-        }
-
-        // IMPORTANTE: Não passar completeRun:true para evitar auto-continuação da Edge Function
-        // O loop do frontend já cuida de processar todos os lotes
-        const requestBody = currentRunIdRef.current
-          ? { continued: true, parentRunId: currentRunIdRef.current, completeRun: false }
-          : { completeRun: false };
-
-        let response: Response | null = null;
-        let lastWorkerLimitText: string | null = null;
-        for (let attempt = 0; attempt < 6; attempt++) {
-          try {
-            const controller = new AbortController();
-            const timeout = window.setTimeout(() => controller.abort(), 120000);
-
-            response = await fetch(url, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify(requestBody),
-              signal: controller.signal,
-            });
-
-            window.clearTimeout(timeout);
-
-            // Backoff especial para WORKER_LIMIT (546): aguarda e tenta novamente.
-            if (!response.ok && response.status === 546) {
-              lastWorkerLimitText = await response.text();
-              response = null;
-
-              if (!mostrouWorkerLimitToast) {
-                mostrouWorkerLimitToast = true;
-                toast.warning('Recursos do servidor ocupados (WORKER_LIMIT). Vou tentar novamente em alguns segundos...');
-              }
-
-              const waitMs = Math.min(60000, 5000 * (attempt + 1));
-              await new Promise((r) => setTimeout(r, waitMs));
-              continue;
-            }
-
-            // Para qualquer outro erro HTTP, sai do loop e deixa o handler padrão tratar.
-            break;
-          } catch (e) {
-            // Network-level errors like "Failed to fetch"/timeouts.
-            if (attempt === 5) throw e;
-            await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
-          }
-        }
-
-        if (!response) {
-          if (lastWorkerLimitText) {
-            throw new Error(
-              `Erro: 546 - ${lastWorkerLimitText}\n\nDica: aguarde finalizar outras execuções (andamentos/redistribuições) e tente novamente.`
-            );
-          }
-          throw new Error('Falha ao executar o monitoramento (sem resposta do servidor)');
-        }
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Erro: ${response.status} - ${errorText}`);
-        }
-
-        const result = await response.json();
-
-        // Mantém o mesmo run_id entre lotes para o Realtime não "pular" entre execuções
-        if (!currentRunIdRef.current && (result.runId || result.run_id)) {
-          currentRunIdRef.current = (result.runId || result.run_id) as string;
-        }
-
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
-        totalProcessados += result.processados || 0;
-        totalNovas += result.novasPublicacoes || 0;
-        totalDescartadas += result.descartadas || 0;
-        totalDuplicatas += result.duplicatas || 0;
-        totalPaginas += result.totalPaginas || 0;
-        totalResultados += result.totalResultados || 0;
-        totalDuration += result.duracaoSegundos || 0;
-
-        // Merge tribunal stats
-        if (result.tribunaisStats) {
-          for (const ts of result.tribunaisStats) {
-            const existing = allTribunaisStats.find(t => t.tribunal === ts.tribunal);
-            if (existing) {
-              existing.paginas += ts.paginas;
-              existing.resultados += ts.resultados;
-              existing.novas += ts.novas;
-              existing.descartadas += ts.descartadas;
-              existing.duplicatas += ts.duplicatas;
-            } else {
-              allTribunaisStats.push({ ...ts });
-            }
-          }
-        }
-
-        hasMore = result.hasMore || false;
-
-        setProgresso({
-          atual: totalProcessados,
-          total,
-          novas: totalNovas
-        });
-
-        if (hasMore && result.nextOffset) {
-          offset = result.nextOffset;
-          await new Promise(r => setTimeout(r, 1000));
-        }
-      }
-
-      // Se foi cancelado, marcar no banco e sair
-      if (cancelarManualRef.current && currentRunIdRef.current) {
-        await supabase
-          .from('djen_runs')
-          .update({ 
-            status: 'cancelado', 
-            finalizado_em: new Date().toISOString(),
-            motivo_erro: 'Cancelado manualmente pelo usuário'
-          })
-          .eq('run_id', currentRunIdRef.current);
-        
-        toast.info('Execução cancelada pelo usuário');
-        return;
-      }
-
-      // Sort by resultados
-      allTribunaisStats.sort((a, b) => b.resultados - a.resultados);
-
-      setUltimoResultado({
-        processados: totalProcessados,
-        novas: totalNovas,
-        descartadas: totalDescartadas,
-        duplicatas: totalDuplicatas,
-        totalPaginas,
-        totalResultados,
-        tribunaisStats: allTribunaisStats,
-        duracaoSegundos: totalDuration,
-      });
-
-      if (allTribunaisStats.length > 0) {
-        setStatsOpen(true);
-      }
-
-      toast.success(`Monitoramento concluído: ${totalProcessados} verificados, ${totalNovas} novas, ${totalPaginas} páginas buscadas`);
-      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
-      queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
-
-    } catch (error) {
-      console.error('Erro no monitoramento:', error);
-      toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    } finally {
-      setExecutando(false);
-      setProgresso({ atual: 0, total: 0, novas: 0 });
-    }
+    // Executar via orquestrador (background job)
+    await executarViaOrquestrador(retomar);
   };
 
   const handleFrequenciaChange = (frequencia: string) => {
@@ -559,7 +305,11 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     
     setCancelando(true);
     try {
-      const { error } = await supabase
+      // Cancelar via orquestrador (marca metadata + execucoes_agendadas)
+      await cancelarViaOrquestrador();
+
+      // Também marcar diretamente na djen_runs para UI refletir imediatamente
+      await supabase
         .from('djen_runs')
         .update({ 
           status: 'cancelado', 
@@ -567,8 +317,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           motivo_erro: 'Cancelado manualmente pelo usuário'
         })
         .eq('run_id', liveRun.run_id);
-
-      if (error) throw error;
       
       toast.success('Execução cancelada com sucesso');
       setLiveRun(null);
@@ -589,19 +337,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
     setLimpando(true);
     try {
-      // Se houver execução manual em andamento, interromper o loop do frontend antes de limpar
-      if (executando) {
-        const ok = confirm('Existe uma execução manual em andamento. Deseja cancelar e continuar a limpeza?');
-        if (!ok) {
-          setLimpando(false);
-          return;
-        }
-        cancelarManualRef.current = true;
-        // Aguardar um pouco para o loop reagir
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-
-      // Se houver execução “ao vivo” no banco, marcar como cancelada (evita continuação de run antigo)
+      // Se houver execução "ao vivo" no banco, marcar como cancelada
       if (liveRun) {
         try {
           await handleCancelarExecucao();
@@ -611,7 +347,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         await new Promise((r) => setTimeout(r, 500));
       }
 
-      // Limpeza via SDK (inclui headers corretos). Timeout para não “travar” a UI indefinidamente.
+      // Limpeza via SDK. Timeout para não "travar" a UI indefinidamente.
       const { data, error } = await withTimeout(
         supabase.functions.invoke('limpar-djen-hoje'),
         60_000,
@@ -626,10 +362,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
       queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
-
-      // Resetar estado local (NÃO executa novamente)
-      cancelarManualRef.current = false;
-      currentRunIdRef.current = null;
+      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
     } catch (error) {
       console.error('Erro ao limpar:', error);
       toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
@@ -654,8 +387,12 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     };
   })() : null;
 
-  const progressPercent = progresso.total > 0 
-    ? Math.round((progresso.atual / progresso.total) * 100) 
+  // Calcular progresso do metadata
+  const metadata = configuracaoDjen?.metadata as Record<string, any> | null;
+  const nextOffset = metadata?.next_offset || 0;
+  const totalMonitoramentos = metadata?.djen_run?.totals?.total_monitoramentos || liveRun?.total_monitoramentos || 114;
+  const progressPercent = liveRun 
+    ? Math.round((liveRun.processados / Math.max(liveRun.total_monitoramentos, 1)) * 100)
     : 0;
 
   const statsToShow = ultimoResultado || lastRunFromHistorico;
@@ -720,20 +457,19 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     ? Math.min(liveRun.processados ?? 0, liveRun.total_monitoramentos ?? 0)
     : 0;
 
-  const liveProgressPercent = liveRun && liveRun.total_monitoramentos > 0
+  const livePercent = liveRun && liveRun.total_monitoramentos > 0
     ? Math.min(100, Math.round((liveProcessedDisplay / liveRun.total_monitoramentos) * 100))
     : 0;
 
   if (isLoading) {
     return (
       <Card>
-        <CardHeader className="flex flex-row items-center gap-4">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <RefreshCw className="h-6 w-6 text-primary animate-spin" />
-          </div>
-          <div>
-            <CardTitle className="text-lg">Carregando...</CardTitle>
-          </div>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Newspaper className="h-5 w-5" />
+            Monitoramento DJEN
+          </CardTitle>
+          <CardDescription>Carregando...</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -741,51 +477,51 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center gap-4">
-        <div className="p-2 rounded-lg bg-orange-500/10">
-          <Newspaper className="h-6 w-6 text-orange-500" />
-        </div>
-        <div className="flex-1">
-          <CardTitle className="text-lg">Monitoramento DJEN</CardTitle>
-          <CardDescription>
-            Busca publicações no Diário de Justiça Eletrônico
-          </CardDescription>
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Newspaper className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-lg">Monitoramento DJEN</CardTitle>
+            <CardDescription>Busca publicações no Diário de Justiça Eletrônico</CardDescription>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Status e Toggle */}
+      <CardContent className="space-y-4">
+        {/* Toggle Ativo/Inativo */}
         <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="ativo-djen">Monitoramento Ativo</Label>
+          <div>
+            <Label htmlFor="djen-ativo">Monitoramento Ativo</Label>
             <p className="text-sm text-muted-foreground">
-              {configuracaoDjen?.ativo ? "Executando automaticamente" : "Pausado"}
+              {configuracaoDjen?.ativo ? "Ativo" : "Pausado"}
             </p>
           </div>
           <Switch
-            id="ativo-djen"
-            checked={configuracaoDjen?.ativo ?? true}
+            id="djen-ativo"
+            checked={configuracaoDjen?.ativo ?? false}
             onCheckedChange={handleAtivoChange}
-            disabled={atualizarConfiguracao.isPending}
           />
         </div>
 
         {/* Frequência */}
         <div className="space-y-2">
-          <Label htmlFor="frequencia-djen">Frequência de Execução</Label>
-          <Select 
-            value={configuracaoDjen?.frequencia || 'diario'} 
+          <Label>Frequência de Execução</Label>
+          <Select
+            value={configuracaoDjen?.frequencia ?? 'diario'}
             onValueChange={handleFrequenciaChange}
-            disabled={atualizarConfiguracao.isPending}
           >
-            <SelectTrigger id="frequencia-djen">
-              <SelectValue placeholder="Selecione a frequência" />
+            <SelectTrigger>
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="diario">Diário (9h BRT)</SelectItem>
-              <SelectItem value="semanal">Semanal (Segunda 9h BRT)</SelectItem>
+              <SelectItem value="2x_dia">2x ao dia (9h e 14h BRT)</SelectItem>
+              <SelectItem value="3x_dia">3x ao dia (8h, 12h e 17h BRT)</SelectItem>
+              <SelectItem value="desativado">Desativado</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground">
             Execução automática às 09:00 BRT com retry automático se vazio
           </p>
         </div>
@@ -798,184 +534,88 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
         {/* Última execução */}
         {configuracaoDjen?.ultima_execucao && (
-          <div className="flex flex-col gap-2 text-sm">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              <span>
-                Última execução: {format(toZonedTime(new Date(configuracaoDjen.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-              </span>
-            </div>
-            {lastRunFromHistorico && lastRunFromHistorico.totalPaginas > 0 && (
-              <div className="space-y-1">
-                {/* Show history date if different from last execution */}
-                {lastRunFromHistorico.executadoEm && (
-                  <p className="text-xs text-muted-foreground">
-                    Último relatório: {format(toZonedTime(new Date(lastRunFromHistorico.executadoEm), 'America/Sao_Paulo'), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline" className="gap-1">
-                    <Layers className="h-3 w-3" />
-                    {lastRunFromHistorico.totalPaginas} páginas
-                  </Badge>
-                  <Badge variant="outline" className="gap-1">
-                    <FileText className="h-3 w-3" />
-                    {lastRunFromHistorico.totalResultados} resultados
-                  </Badge>
-                  {lastRunFromHistorico.novas > 0 && (
-                    <Badge variant="default" className="gap-1 bg-green-500">
-                      <CheckCircle2 className="h-3 w-3" />
-                      {lastRunFromHistorico.novas} novas
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            )}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            <span>Última execução: {format(toZonedTime(new Date(configuracaoDjen.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
           </div>
         )}
 
-        {/* Live Run Progress (Real-time) */}
-        {liveRun && !executando && (
-          <div className="space-y-3 p-3 bg-primary/5 rounded-lg border border-primary/20 animate-pulse">
-            <div className="flex items-center gap-2">
-              <Radio className="h-4 w-4 text-primary animate-pulse" />
-              <span className="text-sm font-medium">Execução em andamento</span>
-              <Badge variant="outline" className="ml-auto text-xs">
-                {format(toZonedTime(new Date(liveRun.iniciado_em), 'America/Sao_Paulo'), "HH:mm", { locale: ptBR })}
-              </Badge>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Processando: {liveProcessedDisplay}/{liveRun.total_monitoramentos}</span>
-                <span className="text-primary">+{liveRun.novas} novas</span>
+        {/* Progresso ao vivo */}
+        {liveRun && (
+          <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <Radio className="h-4 w-4 text-primary animate-pulse" />
+                <span className="font-medium">Processando: {liveProcessedDisplay}/{liveRun.total_monitoramentos}</span>
               </div>
-              <Progress value={liveProgressPercent} className="h-2" />
-            </div>
-            
-            <div className="flex flex-wrap gap-2 text-xs">
-              <Badge variant="secondary" className="gap-1">
-                <Layers className="h-3 w-3" />
-                {liveRun.total_paginas} páginas
-              </Badge>
-              <Badge variant="secondary" className="gap-1">
-                <FileText className="h-3 w-3" />
-                {liveRun.total_resultados} resultados
-              </Badge>
-              <Badge variant="secondary" className="gap-1">
-                <Clock className="h-3 w-3" />
-                {liveRun.duracao_segundos}s
+              <Badge variant="secondary" className="text-xs">
+                +{liveRun.novas} novas
               </Badge>
             </div>
-
-            {/* Botão Cancelar */}
-            <Button 
-              variant="destructive" 
-              size="sm" 
+            <Progress value={livePercent} className="h-2" />
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={handleCancelarExecucao}
               disabled={cancelando}
-              className="w-full mt-2"
-            >
-              {cancelando ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Cancelando...
-                </>
-              ) : (
-                <>
-                  <StopCircle className="h-4 w-4 mr-2" />
-                  Cancelar Execução
-                </>
-              )}
-            </Button>
-          </div>
-        )}
-
-        {/* Progress (Manual execution) */}
-        {executando && progresso.total > 0 && (
-          <div className="space-y-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
-            <div className="flex justify-between text-sm">
-              <span>Processando: {progresso.atual}/{progresso.total}</span>
-              <span className="text-primary">+{progresso.novas} novas</span>
-            </div>
-            <Progress value={progressPercent} className="h-2" />
-            
-            {/* Botão Cancelar Execução Manual */}
-            <Button 
-              variant="destructive" 
-              size="sm" 
-              onClick={() => {
-                cancelarManualRef.current = true;
-                toast.info('Cancelando execução... Aguarde o lote atual finalizar.');
-              }}
               className="w-full"
             >
               <StopCircle className="h-4 w-4 mr-2" />
-              Cancelar Execução
+              {cancelando ? 'Cancelando...' : 'Cancelar Execução'}
             </Button>
           </div>
         )}
 
-        {/* Relatório de Execução Detalhado */}
+        {/* Progresso durante execução via orquestrador (sem liveRun ainda) */}
+        {executando && !liveRun && (
+          <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
+            <div className="flex items-center gap-2 text-sm">
+              <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+              <span>Iniciando monitoramento DJEN...</span>
+            </div>
+            <Progress value={0} className="h-2" />
+          </div>
+        )}
+
+        {/* Relatório por tribunal */}
         {linhasTribunais.length > 0 && (
           <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>
             <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="w-full justify-between p-2 h-auto">
-                <span className="flex items-center gap-2 text-sm font-medium">
+              <Button variant="ghost" className="w-full justify-between p-2">
+                <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
-                  Relatório de Execução por Tribunal
-                </span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${statsOpen ? 'rotate-180' : ''}`} />
+                  <span>Relatório de Execução por Tribunal</span>
+                </div>
+                <ChevronDown className={cn("h-4 w-4 transition-transform", statsOpen && "rotate-180")} />
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="mt-2 p-3 bg-muted/50 rounded-lg space-y-3">
-                {/* Summary */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div className="p-2 bg-background rounded text-center">
-                    <p className="text-muted-foreground">Páginas</p>
-                    <p className="font-bold text-lg">{statsToShow?.totalPaginas ?? 0}</p>
-                  </div>
-                  <div className="p-2 bg-background rounded text-center">
-                    <p className="text-muted-foreground">Resultados</p>
-                    <p className="font-bold text-lg">{statsToShow?.totalResultados ?? 0}</p>
-                  </div>
-                  <div className="p-2 bg-background rounded text-center">
-                    <p className="text-muted-foreground">Novas</p>
-                    <p className="font-bold text-lg text-green-600">{statsToShow?.novas ?? 0}</p>
-                  </div>
-                  <div className="p-2 bg-background rounded text-center">
-                    <p className="text-muted-foreground">Duração</p>
-                    <p className="font-bold text-lg">{statsToShow?.duracaoSegundos ?? 0}s</p>
-                  </div>
-                </div>
-
-                {/* Tribunais Table */}
-                <ScrollArea className="h-[280px]">
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-muted">
-                      <tr className="border-b">
-                        <th className="text-left p-1.5 font-medium">Tribunal</th>
-                        <th className="text-right p-1.5 font-medium">Termos</th>
-                        <th className="text-right p-1.5 font-medium">Págs</th>
-                        <th className="text-right p-1.5 font-medium">Res</th>
-                        <th className="text-right p-1.5 font-medium text-green-600">Novas</th>
-                        <th className="text-right p-1.5 font-medium text-yellow-600">Desc</th>
-                        <th className="text-right p-1.5 font-medium text-muted-foreground">Dup</th>
+              <div className="mt-2 border rounded-lg">
+                <ScrollArea className="h-[200px]">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="text-left p-2">Tribunal</th>
+                        <th className="text-right p-2">Termos</th>
+                        <th className="text-right p-2">Pág.</th>
+                        <th className="text-right p-2">Result.</th>
+                        <th className="text-right p-2">Novas</th>
+                        <th className="text-right p-2">Desc.</th>
+                        <th className="text-right p-2">Dup.</th>
                       </tr>
                     </thead>
                     <tbody>
-                        {linhasTribunais.map((t, i) => (
-                          <tr key={i} className="border-b border-border/50 hover:bg-muted/50">
-                            <td className="p-1.5 font-mono">{t.tribunal ?? 'TODOS'}</td>
-                            <td className="p-1.5 text-right text-muted-foreground">{t.termos}</td>
-                            <td className="p-1.5 text-right">{t.paginas || '-'}</td>
-                            <td className="p-1.5 text-right">{t.resultados || '-'}</td>
-                            <td className="p-1.5 text-right text-green-600 font-medium">{t.novas || '-'}</td>
-                            <td className="p-1.5 text-right text-yellow-600">{t.descartadas || '-'}</td>
-                            <td className="p-1.5 text-right text-muted-foreground">{t.duplicatas || '-'}</td>
-                          </tr>
-                        ))}
+                      {linhasTribunais.map((row, i) => (
+                        <tr key={row.tribunal ?? 'todos'} className={i % 2 === 0 ? 'bg-background' : 'bg-muted/30'}>
+                          <td className="p-2 font-medium">{row.tribunal || 'TODOS'}</td>
+                          <td className="p-2 text-right">{row.termos}</td>
+                          <td className="p-2 text-right">{row.paginas}</td>
+                          <td className="p-2 text-right">{row.resultados}</td>
+                          <td className="p-2 text-right text-primary">{row.novas}</td>
+                          <td className="p-2 text-right text-destructive">{row.descartadas}</td>
+                          <td className="p-2 text-right text-muted-foreground">{row.duplicatas}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </ScrollArea>
@@ -1048,14 +688,14 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         {/* Botões de execução */}
         <div className="flex flex-col sm:flex-row gap-2">
           <Button 
-            onClick={handleExecutarManual} 
+            onClick={() => handleExecutarManual(false)} 
             disabled={executando || limpando || !!liveRun}
             className="flex-1"
           >
             {executando ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Processando... {progressPercent > 0 ? `${progressPercent}%` : ''}
+                Iniciando...
               </>
             ) : liveRun ? (
               <>
@@ -1069,6 +709,14 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
               </>
             )}
           </Button>
+
+          {/* Botão Retomar do Lote */}
+          <BotaoRetomarLote
+            nextOffset={nextOffset}
+            total={totalMonitoramentos}
+            onRetomar={() => handleExecutarManual(true)}
+            disabled={executando || limpando || !!liveRun}
+          />
           
           <Button 
             variant="outline"
