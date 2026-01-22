@@ -62,6 +62,20 @@ export function useMonitoringDashboard() {
   const queryClient = useQueryClient();
   const [tick, setTick] = useState(0);
 
+  const toNumber = (value: any): number | null => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  };
+
+  const calcProgress = (current: number, total: number) => {
+    if (!(total > 0) || !(current > 0)) return 0;
+    return Math.min(100, Math.max(0, Math.round((current / total) * 100)));
+  };
+
   // Configs
   const { data: configs = [], refetch: refetchConfigs } = useQuery({
     queryKey: ['monitoring-configs'],
@@ -209,30 +223,41 @@ export function useMonitoringDashboard() {
     // 1. Try config.metadata first (most accurate, updated by edge functions)
     const metadata = config?.metadata as Record<string, any> | null;
     if (metadata) {
-      const nextOffset = typeof metadata.next_offset === 'number' ? metadata.next_offset : null;
-      const currentOffset = typeof metadata.current === 'number' ? metadata.current : null;
-      const metaTotal = typeof metadata.total === 'number' ? metadata.total : null;
-      const metaPercentage = typeof metadata.percentage === 'number' ? metadata.percentage : null;
+      const nextOffset = toNumber(metadata.next_offset);
+      const currentOffset = toNumber(metadata.current);
+      const metaTotal = toNumber(metadata.total);
+      const metaPercentage = toNumber(metadata.percentage);
 
-      if (metaPercentage !== null && metaPercentage > 0) {
+      // If the edge function provides a percentage, accept it (including 0).
+      if (metaPercentage !== null && metaPercentage >= 0) {
         progress = metaPercentage;
       }
+
       if (nextOffset !== null) processados = nextOffset;
       else if (currentOffset !== null) processados = currentOffset;
+
       if (metaTotal !== null && metaTotal > 0) total = metaTotal;
-      
-      // Recalculate percentage if we have total but no percentage
-      if (progress === null && total > 0 && processados > 0) {
-        progress = Math.min(100, Math.round((processados / total) * 100));
+
+      // If we have current/total, compute a correct percentage (fixes “0% com 1550/3427”).
+      if (total > 0 && processados > 0 && (progress === null || progress === 0)) {
+        progress = calcProgress(processados, total);
       }
     }
 
     // 2. Fall back to execucoes_agendadas.detalhes.progress
     const exec = currentExecution || lastCompletedExecution;
     if (exec) {
+      const detalhesTotal = toNumber(exec.detalhes?.progress?.total);
+      const detalhesCurrent = toNumber(exec.detalhes?.progress?.current);
+
       // Override with exec values if config didn't have them
       if (processados === 0 && exec.registros_processados > 0) {
         processados = exec.registros_processados;
+      }
+
+      // If registros_processados isn't being updated, fallback to detalhes.progress.current
+      if (processados === 0 && detalhesCurrent !== null && detalhesCurrent > 0) {
+        processados = detalhesCurrent;
       }
       
       if (progress === null) {
@@ -246,9 +271,14 @@ export function useMonitoringDashboard() {
         }
         
         // Get total from detalhes if not set
-        if (total === 0 && exec.detalhes?.progress?.total) {
-          total = exec.detalhes.progress.total;
+        if (total === 0 && detalhesTotal !== null && detalhesTotal > 0) {
+          total = detalhesTotal;
         }
+      }
+
+      // Final safety: compute percentage from current/total if still missing or stuck at 0
+      if (total > 0 && processados > 0 && (progress === null || progress === 0)) {
+        progress = calcProgress(processados, total);
       }
     }
 
