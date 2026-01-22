@@ -3,6 +3,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar,
   CheckCircle2, XCircle, Clock, AlertTriangle, Loader2, PlayCircle,
@@ -19,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getExecutionProgress } from "@/utils/executionProgress";
+import { supabase } from "@/integrations/supabase/client";
 
 const ICONS: Record<string, React.ElementType> = {
   RefreshCw,
@@ -360,13 +371,80 @@ export function MonitoringDashboard() {
   
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
   const [cancelling, setCancelling] = useState<Record<string, boolean>>({});
+  const [confirmReativarOpen, setConfirmReativarOpen] = useState(false);
+  const [confirmTipo, setConfirmTipo] = useState<string | null>(null);
+
+  const reativarConfig = async (tipo: string) => {
+    const { data: config, error } = await supabase
+      .from('configuracoes_monitoramento')
+      .select('id, ativo, metadata')
+      .eq('tipo', tipo)
+      .is('coordenacao_id', null)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!config?.id) throw new Error('Configuração não encontrada');
+
+    const currentMeta = (config.metadata as Record<string, any>) || {};
+    const { error: updErr } = await supabase
+      .from('configuracoes_monitoramento')
+      .update({
+        ativo: true,
+        metadata: {
+          ...currentMeta,
+          paused_globally: false,
+          cancelado: false,
+          status: 'idle',
+          continuingRun: false,
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', config.id);
+
+    if (updErr) throw updErr;
+  };
+
+  const executarAgora = async (tipo: string) => {
+    const result = await executeMonitoring(tipo);
+    const stats = monitoringStats.find(s => s.tipo === tipo);
+
+    if (result?.blocked) {
+      toast.warning(result.message || 'Aguarde outra execução finalizar');
+      return;
+    }
+    if (result?.paused) {
+      toast.warning('Monitoramento está pausado/desativado. Reative para executar.');
+      return;
+    }
+    if (result?.success === false && result?.error) {
+      toast.error(`Erro: ${result.error}`);
+      return;
+    }
+
+    toast.info(`${stats?.nome || tipo} iniciado! Acompanhe o progresso no painel.`);
+  };
 
   const handleExecute = async (tipo: string) => {
-    setExecuting(prev => ({ ...prev, [tipo]: true }));
+    // Se estiver desativado/pausado, pedir confirmação para reativar
     try {
-      await executeMonitoring(tipo);
-      const stats = monitoringStats.find(s => s.tipo === tipo);
-      toast.success(`${stats?.nome} iniciado! Acompanhe o progresso no painel.`);
+      const { data: cfg, error } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('ativo, metadata')
+        .eq('tipo', tipo)
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      if (error) throw error;
+      const md = (cfg?.metadata as Record<string, any>) || {};
+      const isPaused = cfg?.ativo === false || md.paused_globally === true;
+      if (isPaused) {
+        setConfirmTipo(tipo);
+        setConfirmReativarOpen(true);
+        return;
+      }
+
+      setExecuting(prev => ({ ...prev, [tipo]: true }));
+      await executarAgora(tipo);
     } catch (error: any) {
       toast.error(`Erro ao iniciar: ${error.message}`);
     } finally {
@@ -395,6 +473,40 @@ export function MonitoringDashboard() {
 
   return (
     <div className="space-y-6">
+      <AlertDialog open={confirmReativarOpen} onOpenChange={setConfirmReativarOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Monitoramento está desativado/pausado</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmTipo ? `"${monitoringStats.find(s => s.tipo === confirmTipo)?.nome || confirmTipo}" está desativado ou com pausa global. Deseja reativar e executar agora?` : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmTipo(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!confirmTipo) return;
+                const tipo = confirmTipo;
+                try {
+                  setExecuting(prev => ({ ...prev, [tipo]: true }));
+                  await reativarConfig(tipo);
+                  setConfirmTipo(null);
+                  toast.success('Reativado. Iniciando execução...');
+                  await executarAgora(tipo);
+                } catch (e: any) {
+                  toast.error(`Não foi possível reativar: ${e?.message || 'erro desconhecido'}`);
+                } finally {
+                  setExecuting(prev => ({ ...prev, [tipo]: false }));
+                  setConfirmReativarOpen(false);
+                }
+              }}
+            >
+              Reativar e executar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Summary Header */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
