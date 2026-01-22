@@ -9,9 +9,10 @@ const corsHeaders = {
 // Single optimized endpoint
 const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 const BATCH_SIZE = 50; // Increased batch for parallel processing
-const CONCURRENT_REQUESTS = 10; // Number of parallel requests
+const CONCURRENT_REQUESTS = 5; // Reduced to avoid rate limiting
 const PAGE_SIZE = 100; // Max page size
 const MAX_PAGES = 2; // Limit pages per process
+const BASE_DELAY = 500; // Base delay between batches
 
 // Browser-like headers
 const browserHeaders = {
@@ -78,6 +79,40 @@ async function fetchViaProxy(url: string): Promise<any | null> {
     return await fetchJsonViaJina(url);
   }
   return null;
+}
+
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3, baseDelay = 1500): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
+      
+      // Rate limited - wait and retry
+      if (response.status === 429) {
+        const waitTime = baseDelay * Math.pow(2, attempt);
+        console.log(`[DJEN Processos] Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        await delay(waitTime);
+        continue;
+      }
+      
+      return response;
+    } catch (error) {
+      clearTimeout(timeout);
+      lastError = error as Error;
+      if (attempt < maxRetries - 1) {
+        const waitTime = baseDelay * Math.pow(2, attempt);
+        console.log(`[DJEN Processos] Fetch error. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        await delay(waitTime);
+      }
+    }
+  }
+
+  throw lastError || new Error("Max retries exceeded");
 }
 
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8000): Promise<Response> {
@@ -457,7 +492,7 @@ function detectIntimacao(conteudo: string, processoNumero: string): IntimacaoInf
   return { tipoIntimacao, prazoDias, contexto, hashDedup };
 }
 
-// Fast single-request search per process
+// Fast single-request search per process with retry
 async function searchDJENByProcesso(
   numeroProcesso: string,
   dataInicio?: string,
@@ -473,17 +508,18 @@ async function searchDJENByProcesso(
   const url = `${PJE_COMUNICA_ENDPOINT}?${params.toString()}`;
 
   try {
-    const response = await fetchWithTimeout(url, {
+    // Use fetchWithRetry for better resilience
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: browserHeaders,
-    });
+    }, 2, 1000); // 2 retries, 1s base delay
 
     const contentType = response.headers.get('content-type') || '';
 
     let data: any | null = null;
 
     if (!response.ok || contentType.includes('text/html')) {
-      // Fallback via proxy (DataImpulse → Jina) quando o comunicaapi bloquear
+      // Fallback via proxy when API blocks
       console.log('[DJEN Processos] Blocked by API, trying proxy fallback...');
       data = await fetchViaProxy(url);
 
@@ -501,7 +537,10 @@ async function searchDJENByProcesso(
       const url2 = `${PJE_COMUNICA_ENDPOINT}?${params2.toString()}`;
 
       try {
-        const response2 = await fetchWithTimeout(url2, { method: 'GET', headers: browserHeaders });
+        // Small delay before second page to avoid rate limit
+        await delay(300);
+        
+        const response2 = await fetchWithRetry(url2, { method: 'GET', headers: browserHeaders }, 2, 1000);
         const contentType2 = response2.headers.get('content-type') || '';
 
         let data2: any | null = null;
@@ -525,7 +564,8 @@ async function searchDJENByProcesso(
 
     return Array.isArray(items) ? items : [];
   } catch (error) {
-    // Timeout or network error - skip silently
+    // Timeout or network error - skip silently after retries exhausted
+    console.log(`[DJEN Processos] Failed to fetch for ${numeroProcesso}:`, error);
     return [];
   }
 }
@@ -552,13 +592,22 @@ async function processProcessosBatch(
   // Status considerados "não-ativos" para gerar alerta especial
   const statusNaoAtivos = ['arquivado', 'arquivado_definitivamente', 'arquivado_provisoriamente', 'suspenso', 'encerrado'];
 
-  // Process in chunks of CONCURRENT_REQUESTS
+  // Process in chunks of CONCURRENT_REQUESTS with delays between chunks
   for (let i = 0; i < processos.length; i += CONCURRENT_REQUESTS) {
     const chunk = processos.slice(i, i + CONCURRENT_REQUESTS);
     
+    // Add delay between chunks to avoid rate limiting (except first chunk)
+    if (i > 0) {
+      await delay(BASE_DELAY);
+    }
+    
     // Parallel fetch for this chunk
     const results = await Promise.all(
-      chunk.map(async (processo) => {
+      chunk.map(async (processo, idx) => {
+        // Stagger requests within chunk to avoid burst
+        if (idx > 0) {
+          await delay(idx * 100);
+        }
         const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
         return { processo, publicacoes };
       })
