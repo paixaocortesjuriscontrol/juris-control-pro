@@ -47,50 +47,43 @@ export function useExecutarMonitoramento({
     canceladoRef.current = false;
 
     try {
-      // Se não for retomar, limpar offset no banco
-      if (!retomar && configId) {
+      // IMPORTANTE: não marcar status=em_andamento/continuingRun antes do orquestrador aceitar,
+      // senão o UI mostra "acompanhando" sem existir execução real (fantasma).
+      // Aqui apenas limpamos flags e (se novo run) resetamos o offset.
+      if (configId) {
         const { data: config } = await supabase
           .from('configuracoes_monitoramento')
-          .select('metadata')
+          .select('ativo, metadata')
           .eq('id', configId)
           .maybeSingle();
 
         const currentMetadata = (config?.metadata as Record<string, any>) || {};
-        
+        const isPaused = config?.ativo === false || currentMetadata?.paused_globally === true;
+
+        if (isPaused) {
+          toast.warning('Monitoramento está pausado. Reative para executar.');
+          return;
+        }
+
         await supabase
           .from('configuracoes_monitoramento')
           .update({
             metadata: {
               ...currentMetadata,
-              next_offset: 0,
-              current: 0,
-              total: 0,
-              percentage: 0,
+              // se existir (reset global), remove o bloqueio na execução manual
+              paused_globally: false,
               cancelado: false,
-              status: 'em_andamento',
-              continuingRun: true,
-            },
-            ultima_execucao: new Date().toISOString(),
-          })
-          .eq('id', configId);
-      } else if (configId) {
-        // Para retomar, apenas limpar flag cancelado
-        const { data: config } = await supabase
-          .from('configuracoes_monitoramento')
-          .select('metadata')
-          .eq('id', configId)
-          .maybeSingle();
-
-        const currentMetadata = (config?.metadata as Record<string, any>) || {};
-        
-        await supabase
-          .from('configuracoes_monitoramento')
-          .update({
-            metadata: {
-              ...currentMetadata,
-              cancelado: false,
-              status: 'em_andamento',
-              continuingRun: true,
+              // manter o status neutro; execução real vem de execucoes_agendadas/historico
+              status: 'idle',
+              continuingRun: false,
+              ...(retomar
+                ? {}
+                : {
+                    next_offset: 0,
+                    current: 0,
+                    total: 0,
+                    percentage: 0,
+                  }),
             },
           })
           .eq('id', configId);
