@@ -39,6 +39,9 @@ interface Execucao {
   finalizado_em: string | null;
   lotes_processados: number;
   registros_processados: number;
+  registros_encontrados?: number;
+  total_lotes?: number | null;
+  detalhes?: Record<string, any> | null;
 }
 
 function formatDuration(ms: number): string {
@@ -77,7 +80,7 @@ export function FilaExecucoesPanel({ className }: { className?: string }) {
       
       const { data, error } = await supabase
         .from('execucoes_agendadas')
-        .select('id, tipo, status, iniciado_em, finalizado_em, lotes_processados, registros_processados')
+        .select('id, tipo, status, iniciado_em, finalizado_em, lotes_processados, total_lotes, registros_processados, registros_encontrados, detalhes')
         .gte('iniciado_em', ontem)
         .order('iniciado_em', { ascending: false })
         .limit(50);
@@ -105,7 +108,8 @@ export function FilaExecucoesPanel({ className }: { className?: string }) {
   }, [refetch]);
 
   // Separar execuções por status
-  const executando = execucoes.filter(e => e.status === 'executando');
+  // Só considerar "executando" se não tiver finalizado_em (evita execução fantasma)
+  const executando = execucoes.filter(e => e.status === 'executando' && !e.finalizado_em);
   const recentes = execucoes.filter(e => e.status !== 'executando').slice(0, 10);
 
   // Determinar quais tipos estão bloqueados
@@ -131,6 +135,14 @@ export function FilaExecucoesPanel({ className }: { className?: string }) {
               const config = TIPO_CONFIG[exec.tipo] || { nome: exec.tipo, icon: Activity, cor: 'bg-muted' };
               const Icon = config.icon;
               const elapsed = Date.now() - new Date(exec.iniciado_em).getTime();
+
+              const p = exec.detalhes?.progress as { current?: number; total?: number; percentage?: number } | undefined;
+              const current = (typeof p?.current === 'number' ? p.current : null)
+                ?? (typeof exec.lotes_processados === 'number' ? exec.lotes_processados : 0);
+              const total = (typeof p?.total === 'number' ? p.total : null)
+                ?? (typeof exec.total_lotes === 'number' ? exec.total_lotes : 0);
+              const percent = (typeof p?.percentage === 'number' ? p.percentage : null)
+                ?? (total > 0 ? Math.min(100, Math.round((current / total) * 100)) : null);
               
               return (
                 <div 
@@ -149,7 +161,9 @@ export function FilaExecucoesPanel({ className }: { className?: string }) {
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {formatDuration(elapsed)} • {exec.registros_processados.toLocaleString('pt-BR')} registros
+                      {formatDuration(elapsed)} • {current.toLocaleString('pt-BR')}
+                      {total > 0 ? ` / ${total.toLocaleString('pt-BR')}` : ''} registros
+                      {percent !== null ? ` • ${percent}%` : ''}
                     </div>
                   </div>
                 </div>

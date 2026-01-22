@@ -40,6 +40,35 @@ Deno.serve(async (req) => {
 
     const funcao = FUNCOES_MAP[tipo];
 
+    // Se o monitoramento estiver desativado/pausado, não iniciar (especialmente por cron)
+    // Isso evita o efeito "cancela e recomeça sozinho".
+    const { data: cfgAtivo, error: cfgAtivoErr } = await supabase
+      .from('configuracoes_monitoramento')
+      .select('ativo, metadata')
+      .eq('tipo', tipo)
+      .is('coordenacao_id', null)
+      .maybeSingle();
+
+    if (cfgAtivoErr) {
+      console.error(`[${tipo}] Erro ao ler configuracao de monitoramento:`, cfgAtivoErr);
+    }
+
+    const metaCfg = (cfgAtivo?.metadata as any) || {};
+    const isPaused = cfgAtivo?.ativo === false || metaCfg?.paused_globally === true;
+
+    if (isPaused) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          blocked: true,
+          message: 'Monitoramento está pausado/desativado. Reative em Configurações para executar novamente.',
+          paused: true,
+          scheduled,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Verificar se já existe uma execução em andamento para QUALQUER tipo (evitar WORKER_LIMIT)
     const { data: todasExecucoesEmAndamento } = await supabase
       .from('execucoes_agendadas')

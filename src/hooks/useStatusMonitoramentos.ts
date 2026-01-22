@@ -104,7 +104,9 @@ export function useStatusMonitoramentos() {
   const statusMonitoramentos: StatusMonitoramento[] = TIPOS_MONITORAMENTO.map(({ tipo, nome }) => {
     const config = configuracoes.find((c: any) => c.tipo === tipo);
     const execucoesDoTipo = ultimasExecucoes.filter((e) => e.tipo === tipo);
-    const ultimaExecucao = execucoesDoTipo[0] || null;
+    // Evitar execução "fantasma": status executando mas já tem finalizado_em
+    const execucaoAtiva = execucoesDoTipo.find((e) => e.status === 'executando' && !e.finalizado_em) || null;
+    const ultimaExecucao = execucaoAtiva || execucoesDoTipo[0] || null;
     
     const execucoesHojeTipo = execucoesHoje.filter((e: any) => e.tipo === tipo);
     const sucesso_hoje = execucoesHojeTipo.filter((e: any) => e.status === 'concluido').length;
@@ -119,9 +121,9 @@ export function useStatusMonitoramentos() {
       const agora = new Date();
       const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
       
-      if (ultimaExecucao.status === 'executando' && minutosDecorridos > 60) {
+      if (ultimaExecucao.status === 'executando' && !ultimaExecucao.finalizado_em && minutosDecorridos > 60) {
         health_status = 'timeout_provavel';
-      } else if (ultimaExecucao.status === 'executando') {
+      } else if (ultimaExecucao.status === 'executando' && !ultimaExecucao.finalizado_em) {
         health_status = 'executando';
       } else if (ultimaExecucao.status === 'falhou' || ultimaExecucao.status === 'timeout') {
         health_status = 'erro';

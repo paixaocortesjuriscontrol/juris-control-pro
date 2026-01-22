@@ -69,7 +69,14 @@ export function LiveExecutionPanel({
     const buildExecutionFromConfig = (cfg: any): LiveExecution | null => {
       if (!cfg?.ultima_execucao) return null;
 
+      // Se está pausado/desativado ou cancelado, não exibir como "em andamento"
+      if (cfg.ativo === false) return null;
+
       const metadata = (cfg.metadata as Record<string, any> | null) ?? {};
+
+      if (metadata.cancelado === true) return null;
+      if (metadata.status === 'cancelado' || metadata.status === 'cancelando') return null;
+
       const lastRunMs = new Date(cfg.ultima_execucao).getTime();
       const ageMs = Date.now() - lastRunMs;
       
@@ -177,7 +184,7 @@ export function LiveExecutionPanel({
       // Fallback: alguns tipos (ex.: termos/distribuicoes) não alimentam historico_monitoramento
       const { data: cfg } = await supabase
         .from('configuracoes_monitoramento')
-        .select('id, tipo, ultima_execucao, metadata')
+        .select('id, tipo, ativo, ultima_execucao, metadata')
         .eq('tipo', tipo)
         .is('coordenacao_id', null)
         .maybeSingle();
