@@ -28,7 +28,8 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    const { tipo, scheduled = false, jobName } = await req.json();
+    const body = await req.json();
+    const { tipo, scheduled = false, jobName } = body;
 
     if (!tipo || !FUNCOES_MAP[tipo]) {
       return new Response(
@@ -186,7 +187,41 @@ Deno.serve(async (req) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-        const response = await fetch(`${supabaseUrl}/functions/v1/${funcao}`, {
+        // Para DJEN, ler dataInicio/dataFim do metadata da configuração
+        let dataInicio: string | undefined;
+        let dataFim: string | undefined;
+        if (tipo === 'djen') {
+          const { data: cfg } = await supabase
+            .from('configuracoes_monitoramento')
+            .select('metadata')
+            .eq('tipo', 'djen')
+            .is('coordenacao_id', null)
+            .maybeSingle();
+          const meta = (cfg?.metadata as any) || {};
+          dataInicio = meta.dataInicio;
+          dataFim = meta.dataFim;
+        }
+
+        // Construir URL com query params para DJEN (offset, datas)
+        let fetchUrl = `${supabaseUrl}/functions/v1/${funcao}`;
+        if (tipo === 'djen') {
+          const params = new URLSearchParams();
+          // Offset vem do metadata (next_offset) para retomada
+          const { data: cfgOffset } = await supabase
+            .from('configuracoes_monitoramento')
+            .select('metadata')
+            .eq('tipo', 'djen')
+            .is('coordenacao_id', null)
+            .maybeSingle();
+          const metaOffset = (cfgOffset?.metadata as any) || {};
+          const offset = lotes > 0 ? (metaOffset.next_offset || 0) : 0;
+          params.set('offset', String(offset));
+          if (dataInicio) params.set('dataInicio', dataInicio);
+          if (dataFim) params.set('dataFim', dataFim);
+          fetchUrl = `${fetchUrl}?${params.toString()}`;
+        }
+
+        const response = await fetch(fetchUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
