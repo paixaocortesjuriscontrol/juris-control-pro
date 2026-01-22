@@ -173,17 +173,17 @@ Deno.serve(async (req) => {
     const inicioDoDia = hoje.toISOString();
     console.log(`Filtering movements captured since: ${inicioDoDia}`);
 
-    // Contar total de movimentações DO DIA e buscar dados em paralelo
-    const [countResult, termosResult, alertasResult, audienciasResult, intimacoesResult] = await Promise.all([
+    // Contar total de movimentações DO DIA e buscar apenas termos ativos inicialmente
+    // NÃO carregar alertas/audiências/intimações aqui - usar query sob demanda depois
+    const [countResult, termosResult] = await Promise.all([
       supabase.from('movimentacoes').select('id', { count: 'exact', head: true }).gte('created_at', inicioDoDia),
       supabase.from('termos_monitoramento').select('id, termo, categoria, prioridade').eq('ativo', true),
-      supabase.from('alertas_monitoramento').select('movimentacao_id, termo_id'),
-      supabase.from('audiencias_detectadas').select('movimentacao_id').not('movimentacao_id', 'is', null),
-      supabase.from('intimacoes_detectadas').select('movimentacao_id').not('movimentacao_id', 'is', null),
     ]);
 
     const totalMovimentacoes = countResult.count || 0;
     const termos = termosResult.data || [];
+
+    console.log(`Init: ${termos.length} terms, ${totalMovimentacoes} movements today (${Date.now() - startTime}ms)`);
 
     if (termos.length === 0) {
       console.log('No active terms configured');
@@ -214,7 +214,25 @@ Deno.serve(async (req) => {
     // porque o PostgREST pode cortar em 1000 linhas mesmo havendo mais dados.
     const isComplete = processedCount >= totalMovimentacoes || movimentacoesList.length === 0;
 
-    console.log(`Loaded: ${termos.length} terms, ${movimentacoesList.length} movements (offset ${currentOffset}/${totalMovimentacoes})`);
+    console.log(`Loaded: ${movimentacoesList.length} movements (offset ${currentOffset}/${totalMovimentacoes}) in ${Date.now() - startTime}ms`);
+
+    // OTIMIZAÇÃO: Buscar alertas/audiências/intimações apenas para as movimentações DO LOTE ATUAL
+    // Isso evita carregar toda a tabela de alertas
+    const movIds = movimentacoesList.map(m => m.id);
+    
+    const [alertasResult, audienciasResult, intimacoesResult] = await Promise.all([
+      movIds.length > 0 
+        ? supabase.from('alertas_monitoramento').select('movimentacao_id, termo_id').in('movimentacao_id', movIds)
+        : Promise.resolve({ data: [] }),
+      movIds.length > 0
+        ? supabase.from('audiencias_detectadas').select('movimentacao_id').in('movimentacao_id', movIds)
+        : Promise.resolve({ data: [] }),
+      movIds.length > 0
+        ? supabase.from('intimacoes_detectadas').select('movimentacao_id').in('movimentacao_id', movIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    console.log(`Dedup sets loaded in ${Date.now() - startTime}ms`);
 
     // Criar Sets para verificação rápida de duplicatas
     const alertasSet = new Set(
