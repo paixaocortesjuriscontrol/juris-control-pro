@@ -290,18 +290,26 @@ Deno.serve(async (req) => {
           // Aguardar antes de retry (backoff exponencial)
           const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
           await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          // Esgotar retries = sair do loop
+          console.error(`[${tipo}] Retries esgotadas, marcando como falhou`);
+          break;
         }
       }
     }
 
     // Determinar status final
-    if (!isComplete && cancelled) {
-      isComplete = true;
+    let statusFinal: string;
+    if (cancelled) {
+      statusFinal = 'cancelado';
+    } else if (lastError && retryCount > MAX_RETRIES) {
+      statusFinal = 'falhou';
+    } else if (isComplete) {
+      statusFinal = 'concluido';
+    } else {
+      // Parou por algum motivo não identificado
+      statusFinal = 'falhou';
     }
-
-    const statusFinal = cancelled
-      ? 'cancelado'
-      : (isComplete ? 'concluido' : (retryCount > MAX_RETRIES ? 'falhou' : 'concluido'));
 
     // Atualizar registro final
     if (execucaoId) {
