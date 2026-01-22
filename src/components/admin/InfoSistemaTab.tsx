@@ -25,6 +25,17 @@ import {
   CheckCircle2,
   Info,
   ExternalLink,
+  Activity,
+  RefreshCw,
+  Search,
+  FileText,
+  Scale,
+  Clock,
+  Zap,
+  AlertTriangle,
+  ArrowRightLeft,
+  Newspaper,
+  Target,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -637,29 +648,303 @@ const secretsInfo = [
 const edgeFunctionsInfo = [
   { name: "alertar-audiencias", description: "Processa e envia alertas de audiências próximas." },
   { name: "analisar-documento", description: "Analisa documentos usando IA para extração de informações." },
+  { name: "analisar-publicacao-ia", description: "Analisa publicações do DJEN com IA para detecção de audiências e prazos." },
   { name: "atualizar-cron-monitoramento", description: "Atualiza configurações de cron jobs de monitoramento." },
   { name: "atualizar-usuario", description: "Atualiza dados de usuários com permissões elevadas." },
   { name: "backfill-djen", description: "Processa backfill de publicações do DJEN." },
   { name: "backfill-djen-jina", description: "Extração de conteúdo via Jina AI para backfill." },
   { name: "backfill-djen-job", description: "Gerencia jobs de backfill do DJEN." },
   { name: "buscar-djen", description: "Busca publicações no DJEN." },
+  { name: "buscar-eprocesso", description: "Busca processos no e-Processo/e-SAJ." },
   { name: "buscar-pje", description: "Busca processos no PJE." },
   { name: "cadastrar-equipe", description: "Cadastro de membros em coordenações." },
-  { name: "consultar-processo", description: "Consulta dados de processos em tribunais." },
+  { name: "cadastrar-perfil", description: "Cadastro de perfis de usuários." },
+  { name: "cadastrar-perfis-lote", description: "Cadastro em lote de perfis de usuários." },
+  { name: "capturar-intimacoes", description: "Captura intimações do PJE Comunica." },
+  { name: "capturar-processo-tribunal", description: "Captura dados de processo direto do tribunal." },
+  { name: "consultar-processo", description: "Consulta dados de processos em tribunais via DataJud/CNJ." },
+  { name: "enviar-alertas-360-email", description: "Envia alertas da Monitoração 360 por email." },
+  { name: "enviar-convite-cliente", description: "Envia convite de acesso ao portal do cliente." },
   { name: "enviar-whatsapp-zapi", description: "Envia mensagens WhatsApp via Z-API." },
-  { name: "monitorar-andamentos", description: "Monitora novos andamentos em processos." },
-  { name: "monitorar-distribuicoes", description: "Monitora novas distribuições." },
-  { name: "monitorar-djen", description: "Monitora publicações no DJEN." },
-  { name: "monitorar-djen-processos", description: "Monitora publicações do DJEN por processo." },
+  { name: "executar-monitoramento", description: "Orquestrador central que gerencia a execução de todos os monitoramentos." },
+  { name: "limpar-djen-hoje", description: "Limpa publicações DJEN do dia atual para reprocessamento." },
+  { name: "monitorar-andamentos", description: "Monitora novos andamentos em processos via API DataJud." },
+  { name: "monitorar-distribuicoes", description: "Monitora novas distribuições nos tribunais por termo de busca." },
+  { name: "monitorar-djen", description: "Monitora publicações no DJEN por monitoramento configurado." },
+  { name: "monitorar-djen-processos", description: "Monitora publicações do DJEN para processos cadastrados." },
   { name: "monitorar-pje", description: "Monitora processos no PJE." },
-  { name: "monitorar-redistribuicoes", description: "Monitora redistribuições de processos." },
-  { name: "monitorar-termos", description: "Monitora termos específicos em publicações." },
-  { name: "notificar-evento", description: "Envia notificações de eventos via email." },
+  { name: "monitorar-redistribuicoes", description: "Detecta mudanças de vara/redistribuições em processos." },
+  { name: "monitorar-termos", description: "Monitora termos específicos da Monitoração 360." },
+  { name: "notificar-evento", description: "Envia notificações de eventos via email (Resend)." },
+  { name: "processar-alertas-djen-coordenacao", description: "Processa alertas DJEN por coordenação." },
   { name: "processar-alertas-evento", description: "Processa alertas agendados de eventos." },
-  { name: "processar-lembretes-audiencia", description: "Processa lembretes de audiências." },
-  { name: "repositorio-chat", description: "Chat com documentos do repositório via IA." },
-  { name: "resumir-publicacoes", description: "Resume publicações usando IA." },
+  { name: "processar-alertas-parcela", description: "Processa alertas de parcelas financeiras." },
+  { name: "processar-lembretes-audiencia", description: "Processa lembretes de audiências detectadas." },
+  { name: "repositorio-chat", description: "Chat com documentos do repositório via IA (OpenAI)." },
+  { name: "resumir-publicacoes", description: "Resume publicações DJEN usando IA para facilitar triagem." },
 ];
+
+// ===================== MONITORAMENTOS - DOCUMENTAÇÃO DETALHADA =====================
+
+interface MonitoramentoInfo {
+  id: string;
+  nome: string;
+  icon: React.ReactNode;
+  descricao: string;
+  fontesDados: string[];
+  tabelasEnvolvidas: string[];
+  edgeFunctions: string[];
+  frequenciaPadrao: string;
+  horarioAgendado: string;
+  comoFunciona: string[];
+  oQueEncontra: string[];
+  limitacoes: string[];
+  badge: string;
+  badgeVariant: "default" | "secondary" | "destructive" | "outline";
+}
+
+const monitoramentosInfo: MonitoramentoInfo[] = [
+  {
+    id: "redistribuicoes",
+    nome: "Redistribuições",
+    icon: <ArrowRightLeft className="w-5 h-5" />,
+    descricao: "Detecta automaticamente quando um processo do escritório é redistribuído para outra vara ou juízo.",
+    fontesDados: ["API DataJud/CNJ"],
+    tabelasEnvolvidas: ["processos", "movimentacoes", "notificacoes", "configuracoes_monitoramento", "execucoes_agendadas"],
+    edgeFunctions: ["monitorar-redistribuicoes", "executar-monitoramento"],
+    frequenciaPadrao: "Diário",
+    horarioAgendado: "00:30 BRT",
+    comoFunciona: [
+      "Consulta todos os processos ativos cadastrados no sistema",
+      "Para cada processo, faz uma requisição à API pública do DataJud/CNJ",
+      "Compara a vara atual no banco com a vara retornada pela API",
+      "Se houver diferença, registra uma movimentação do tipo 'Redistribuição'",
+      "Cria notificação para o responsável pelo processo",
+      "Atualiza os dados do processo com a nova vara",
+    ],
+    oQueEncontra: [
+      "Mudanças de vara/juízo (redistribuição propriamente dita)",
+      "Mudanças de competência entre varas especializadas",
+      "Redistribuições por motivo de prevenção",
+    ],
+    limitacoes: [
+      "Depende dos processos já estarem cadastrados no sistema",
+      "A API do CNJ pode ter atraso de algumas horas/dias",
+      "Não detecta redistribuições em processos não cadastrados",
+    ],
+    badge: "DataJud",
+    badgeVariant: "default",
+  },
+  {
+    id: "andamentos",
+    nome: "Andamentos",
+    icon: <Activity className="w-5 h-5" />,
+    descricao: "Monitora novos andamentos processuais nos tribunais para processos já cadastrados no sistema.",
+    fontesDados: ["API DataJud/CNJ"],
+    tabelasEnvolvidas: ["processos", "movimentacoes", "notificacoes", "configuracoes_monitoramento", "execucoes_agendadas"],
+    edgeFunctions: ["monitorar-andamentos", "executar-monitoramento"],
+    frequenciaPadrao: "Diário",
+    horarioAgendado: "23:00 BRT",
+    comoFunciona: [
+      "Consulta processos ativos que possuem monitoramento de andamentos ativado",
+      "Para cada processo, busca os últimos movimentos na API DataJud",
+      "Compara com movimentações já registradas no banco (deduplicação)",
+      "Insere apenas movimentações novas que ainda não existem",
+      "Pode criar tarefas automáticas para movimentações importantes",
+    ],
+    oQueEncontra: [
+      "Despachos e decisões",
+      "Publicações de intimações",
+      "Movimentações de protocolo",
+      "Sentenças e acórdãos",
+      "Qualquer movimentação registrada no tribunal",
+    ],
+    limitacoes: [
+      "Restrito a processos já cadastrados com monitoramento ativo",
+      "Dados dependem da atualização do tribunal na base do CNJ",
+      "Alguns tribunais podem ter atraso maior na sincronização",
+    ],
+    badge: "DataJud",
+    badgeVariant: "default",
+  },
+  {
+    id: "distribuicoes",
+    nome: "Distribuições",
+    icon: <Search className="w-5 h-5" />,
+    descricao: "Busca novas distribuições nos tribunais baseado em termos configurados (nome, CPF, CNPJ, OAB).",
+    fontesDados: ["API DataJud/CNJ"],
+    tabelasEnvolvidas: ["monitoramentos_distribuicao", "distribuicoes_encontradas", "processos", "notificacoes", "configuracoes_monitoramento"],
+    edgeFunctions: ["monitorar-distribuicoes", "executar-monitoramento"],
+    frequenciaPadrao: "Diário",
+    horarioAgendado: "03:30 BRT",
+    comoFunciona: [
+      "Lê os monitoramentos configurados na tabela 'monitoramentos_distribuicao'",
+      "Para cada monitoramento ativo, monta uma query Elasticsearch",
+      "Busca na API DataJud processos distribuídos nos últimos 30 dias",
+      "Filtra por tipo: CPF/CNPJ (documento), OAB (advogado), Nome (parte)",
+      "Verifica se o processo já existe no sistema (deduplicação)",
+      "Salva novos processos encontrados em 'distribuicoes_encontradas' com status 'pendente'",
+      "Usuário pode então importar ou ignorar cada distribuição encontrada",
+    ],
+    oQueEncontra: [
+      "Novos processos onde o termo buscado aparece como parte (ativo ou passivo)",
+      "Novos processos onde o advogado (OAB) está cadastrado",
+      "Novas ações contra clientes monitorados por CPF/CNPJ",
+    ],
+    limitacoes: [
+      "Depende de configurar termos de busca manualmente",
+      "Só encontra processos distribuídos nos últimos 30 dias",
+      "Busca em todos os tribunais pode ser demorada",
+      "Termos muito genéricos podem retornar muitos falsos positivos",
+      "A API do CNJ pode não ter todos os tribunais indexados imediatamente",
+    ],
+    badge: "DataJud",
+    badgeVariant: "secondary",
+  },
+  {
+    id: "djen",
+    nome: "DJEN Publicações",
+    icon: <Newspaper className="w-5 h-5" />,
+    descricao: "Monitora o Diário de Justiça Eletrônico Nacional buscando publicações por termos configurados.",
+    fontesDados: ["PJE Comunica", "Jina AI (extração de conteúdo)"],
+    tabelasEnvolvidas: ["monitoramentos_djen", "publicacoes_djen", "audiencias_detectadas", "notificacoes", "configuracoes_monitoramento", "parametros_monitoramento_djen"],
+    edgeFunctions: ["monitorar-djen", "resumir-publicacoes", "analisar-publicacao-ia", "backfill-djen", "backfill-djen-jina"],
+    frequenciaPadrao: "Diário",
+    horarioAgendado: "05:00 BRT",
+    comoFunciona: [
+      "Lê monitoramentos ativos da tabela 'monitoramentos_djen'",
+      "Para cada monitoramento, acessa o PJE Comunica buscando pelo termo",
+      "Extrai o conteúdo das publicações usando Jina AI (web scraping)",
+      "Analisa o conteúdo com OpenAI para detectar audiências e prazos",
+      "Registra publicações na tabela 'publicacoes_djen'",
+      "Se detectar audiência, cria registro em 'audiencias_detectadas'",
+      "Gera notificações para a coordenação responsável",
+    ],
+    oQueEncontra: [
+      "Intimações de audiências",
+      "Publicações de despachos",
+      "Sentenças e decisões interlocutórias",
+      "Citações e notificações",
+      "Qualquer publicação que mencione o termo monitorado",
+    ],
+    limitacoes: [
+      "Depende do PJE Comunica estar disponível",
+      "Extração via Jina AI pode falhar em páginas muito complexas",
+      "Análise de IA pode ter falsos positivos/negativos na detecção de audiências",
+      "Publicações muito longas podem ser truncadas",
+    ],
+    badge: "PJE Comunica",
+    badgeVariant: "default",
+  },
+  {
+    id: "djen_processos",
+    nome: "DJEN por Processos",
+    icon: <FileText className="w-5 h-5" />,
+    descricao: "Variação do monitoramento DJEN que busca publicações especificamente para números de processos cadastrados.",
+    fontesDados: ["PJE Comunica", "Jina AI"],
+    tabelasEnvolvidas: ["processos", "publicacoes_djen_processos", "notificacoes", "configuracoes_monitoramento"],
+    edgeFunctions: ["monitorar-djen-processos", "executar-monitoramento"],
+    frequenciaPadrao: "Diário",
+    horarioAgendado: "02:00 BRT",
+    comoFunciona: [
+      "Consulta processos ativos que têm monitoramento DJEN habilitado",
+      "Para cada processo, busca no PJE Comunica usando o número do processo",
+      "Extrai e analisa o conteúdo das publicações encontradas",
+      "Vincula as publicações diretamente ao processo",
+      "Cria tarefas automáticas quando detecta intimações relevantes",
+    ],
+    oQueEncontra: [
+      "Publicações específicas de cada processo monitorado",
+      "Intimações direcionadas ao escritório",
+      "Despachos e decisões do processo",
+    ],
+    limitacoes: [
+      "Mais focado que o monitoramento por termo",
+      "Depende do número do processo estar correto no formato CNJ",
+      "Processos sigilosos podem não aparecer no PJE Comunica",
+    ],
+    badge: "PJE Comunica",
+    badgeVariant: "secondary",
+  },
+  {
+    id: "termos_360",
+    nome: "Termos 360°",
+    icon: <Target className="w-5 h-5" />,
+    descricao: "Monitoramento abrangente que analisa dados internos do sistema buscando por termos e padrões configurados.",
+    fontesDados: ["Banco de dados interno (PostgreSQL)"],
+    tabelasEnvolvidas: ["termos_monitoramento", "carteiras_processos", "alertas_monitoramento", "processos", "movimentacoes", "configuracoes_monitoramento"],
+    edgeFunctions: ["monitorar-termos", "enviar-alertas-360-email", "executar-monitoramento"],
+    frequenciaPadrao: "Diário",
+    horarioAgendado: "06:00 BRT",
+    comoFunciona: [
+      "Lê termos configurados na Monitoração 360",
+      "Analisa movimentações recentes buscando os termos",
+      "Verifica processos em carteiras específicas",
+      "Gera alertas quando encontra correspondências",
+      "Pode enviar resumo por email para gestores",
+    ],
+    oQueEncontra: [
+      "Padrões de movimentação específicos (ex: 'sentença', 'arquivamento')",
+      "Processos em determinadas situações",
+      "Alertas customizados baseados em regras do escritório",
+    ],
+    limitacoes: [
+      "Analisa apenas dados já presentes no sistema",
+      "Não busca em fontes externas",
+      "Eficácia depende da qualidade dos termos configurados",
+    ],
+    badge: "Interno",
+    badgeVariant: "outline",
+  },
+];
+
+// Informações sobre a arquitetura de execução
+const arquiteturaExecucaoInfo = {
+  orquestrador: {
+    nome: "executar-monitoramento",
+    descricao: "Edge Function central que coordena a execução de todos os monitoramentos",
+    funcionalidades: [
+      "Serializa tarefas pesadas para evitar sobrecarga (WORKER_LIMIT)",
+      "Gerencia paginação e continuação entre batches",
+      "Detecta heartbeat e marca execuções travadas como timeout",
+      "Reseta flags de cancelamento ao iniciar nova execução",
+      "Dispara workers em background para tarefas longas",
+    ],
+  },
+  tabelasControle: [
+    {
+      nome: "configuracoes_monitoramento",
+      descricao: "Armazena configuração de cada tipo de monitoramento (frequência, horários, ativo/inativo)",
+      campos: ["tipo", "frequencia", "ativo", "horarios_execucao", "metadata", "ultima_execucao"],
+    },
+    {
+      nome: "execucoes_agendadas",
+      descricao: "Registra cada execução individual com status, progresso e métricas",
+      campos: ["tipo", "status", "iniciado_em", "finalizado_em", "registros_processados", "registros_encontrados", "detalhes"],
+    },
+    {
+      nome: "historico_monitoramento",
+      descricao: "Log histórico de execuções para auditoria e relatórios",
+      campos: ["tipo", "data_execucao", "registros_processados", "registros_encontrados", "erros", "duracao_segundos"],
+    },
+  ],
+  statusPossiveis: [
+    { status: "idle", descricao: "Aguardando próxima execução agendada" },
+    { status: "executando", descricao: "Em execução no momento" },
+    { status: "concluido", descricao: "Última execução concluída com sucesso" },
+    { status: "erro", descricao: "Última execução falhou" },
+    { status: "cancelado", descricao: "Execução foi cancelada manualmente" },
+    { status: "timeout", descricao: "Execução excedeu tempo limite (5 min sem atividade)" },
+  ],
+  horariosAgendados: [
+    { tipo: "Andamentos", horario: "23:00 BRT", descricao: "Executa à noite para processar movimentações do dia" },
+    { tipo: "Redistribuições", horario: "00:30 BRT", descricao: "Executa após meia-noite para dados consolidados" },
+    { tipo: "DJEN Processos", horario: "02:00 BRT", descricao: "Madrugada para publicações do dia anterior" },
+    { tipo: "Distribuições", horario: "03:30 BRT", descricao: "Busca novas distribuições durante baixo uso" },
+    { tipo: "DJEN Publicações", horario: "05:00 BRT", descricao: "Antes do expediente para análise matinal" },
+    { tipo: "Termos 360", horario: "06:00 BRT", descricao: "Análise interna antes do início do dia" },
+  ],
+};
 
 const storageBucketsInfo = [
   { name: "projuris_planilhas", description: "Armazena planilhas importadas do Projuris.", public: true },
@@ -888,6 +1173,210 @@ export function InfoSistemaTab() {
                   </div>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ==================== MONITORAMENTOS - SEÇÃO COMPLETA ==================== */}
+        <Card className="print-break">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="w-5 h-5" />
+              Sistema de Monitoramentos Automáticos
+            </CardTitle>
+            <CardDescription>
+              Detalhamento completo de cada tipo de monitoramento, fontes de dados e funcionamento
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Visão Geral */}
+            <div className="p-4 rounded-lg border bg-gradient-to-r from-primary/5 to-primary/10">
+              <h3 className="font-semibold flex items-center gap-2 mb-2">
+                <Zap className="w-4 h-4" />
+                Visão Geral do Sistema
+              </h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                O JurisControl possui um sistema robusto de monitoramentos automáticos que executam diariamente 
+                em horários escalonados para evitar sobrecarga. Cada monitoramento é gerenciado por um orquestrador 
+                central (<code className="bg-muted px-1 rounded">executar-monitoramento</code>) que coordena 
+                a execução, controla progresso e gerencia cancelamentos.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
+                <div className="text-center p-2 rounded bg-background">
+                  <p className="text-2xl font-bold text-primary">{monitoramentosInfo.length}</p>
+                  <p className="text-xs text-muted-foreground">Tipos de Monitoramento</p>
+                </div>
+                <div className="text-center p-2 rounded bg-background">
+                  <p className="text-2xl font-bold text-primary">3</p>
+                  <p className="text-xs text-muted-foreground">Fontes Externas</p>
+                </div>
+                <div className="text-center p-2 rounded bg-background">
+                  <p className="text-2xl font-bold text-primary">24/7</p>
+                  <p className="text-xs text-muted-foreground">Monitoramento Contínuo</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Horários Agendados */}
+            <div>
+              <h3 className="font-semibold flex items-center gap-2 mb-3">
+                <Clock className="w-4 h-4" />
+                Horários de Execução Agendados (Escalonados)
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {arquiteturaExecucaoInfo.horariosAgendados.map((h) => (
+                  <div key={h.tipo} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
+                    <Badge variant="outline" className="font-mono whitespace-nowrap">{h.horario}</Badge>
+                    <div>
+                      <p className="font-medium text-sm">{h.tipo}</p>
+                      <p className="text-xs text-muted-foreground">{h.descricao}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Detalhamento de cada Monitoramento */}
+            <Accordion type="multiple" className="w-full">
+              {monitoramentosInfo.map((mon) => (
+                <AccordionItem key={mon.id} value={mon.id}>
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-3">
+                      <div className="p-1.5 rounded bg-primary/10">
+                        {mon.icon}
+                      </div>
+                      <span className="font-semibold">{mon.nome}</span>
+                      <Badge variant={mon.badgeVariant}>{mon.badge}</Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="pl-10 space-y-4">
+                      {/* Descrição */}
+                      <p className="text-sm text-muted-foreground">{mon.descricao}</p>
+
+                      {/* Info Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="p-3 rounded-lg border bg-muted/30">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Frequência</p>
+                          <p className="font-medium">{mon.frequenciaPadrao}</p>
+                          <p className="text-xs text-muted-foreground">Horário: {mon.horarioAgendado}</p>
+                        </div>
+                        <div className="p-3 rounded-lg border bg-muted/30">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Fontes de Dados</p>
+                          <div className="flex flex-wrap gap-1">
+                            {mon.fontesDados.map((fonte) => (
+                              <Badge key={fonte} variant="secondary" className="text-xs">{fonte}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Como Funciona */}
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">📋 Como Funciona:</p>
+                        <ol className="list-decimal list-inside space-y-1 text-sm">
+                          {mon.comoFunciona.map((passo, i) => (
+                            <li key={i} className="text-muted-foreground">{passo}</li>
+                          ))}
+                        </ol>
+                      </div>
+
+                      {/* O que Encontra */}
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">✅ O que Encontra:</p>
+                        <ul className="list-disc list-inside space-y-1 text-sm">
+                          {mon.oQueEncontra.map((item, i) => (
+                            <li key={i} className="text-muted-foreground">{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Limitações */}
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Limitações:
+                        </p>
+                        <ul className="list-disc list-inside space-y-1 text-sm">
+                          {mon.limitacoes.map((item, i) => (
+                            <li key={i} className="text-muted-foreground">{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Tabelas e Edge Functions */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-2">🗄️ Tabelas Envolvidas:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {mon.tabelasEnvolvidas.map((t) => (
+                              <Badge key={t} variant="outline" className="text-xs font-mono">{t}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-2">⚡ Edge Functions:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {mon.edgeFunctions.map((f) => (
+                              <Badge key={f} variant="secondary" className="text-xs font-mono">{f}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+
+            {/* Arquitetura de Execução */}
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <h3 className="font-semibold flex items-center gap-2 mb-3">
+                <Scale className="w-4 h-4" />
+                Arquitetura de Execução
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium mb-2">Orquestrador Central: <code className="bg-background px-1.5 py-0.5 rounded">{arquiteturaExecucaoInfo.orquestrador.nome}</code></p>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                    {arquiteturaExecucaoInfo.orquestrador.funcionalidades.map((f, i) => (
+                      <li key={i}>{f}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <p className="text-sm font-medium mb-2">Tabelas de Controle:</p>
+                  <div className="space-y-2">
+                    {arquiteturaExecucaoInfo.tabelasControle.map((t) => (
+                      <div key={t.nome} className="p-2 rounded border bg-background">
+                        <p className="font-mono text-sm font-medium">{t.nome}</p>
+                        <p className="text-xs text-muted-foreground mb-1">{t.descricao}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {t.campos.map((c) => (
+                            <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <p className="text-sm font-medium mb-2">Status Possíveis de Execução:</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {arquiteturaExecucaoInfo.statusPossiveis.map((s) => (
+                      <div key={s.status} className="p-2 rounded border bg-background">
+                        <Badge variant="outline" className="font-mono mb-1">{s.status}</Badge>
+                        <p className="text-xs text-muted-foreground">{s.descricao}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
