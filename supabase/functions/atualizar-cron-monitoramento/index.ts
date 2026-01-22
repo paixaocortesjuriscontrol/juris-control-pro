@@ -18,13 +18,14 @@ const tiposValidos = [
 type TipoMonitoramento = (typeof tiposValidos)[number];
 
 // Mapeamento de frequência para expressão cron (apenas informativo; o agendamento em si é feito via SQL/pg_cron)
-// Todos os monitoramentos agora rodam às 09h e 18h BRT (12h e 21h UTC)
+// Monitoração 360 (termos) roda às 11h BRT (14h UTC), outros às 09h BRT
 function getCronExpression(frequencia: string, tipo: TipoMonitoramento): string | null {
-  // 09h BRT = 12h UTC, 18h BRT = 21h UTC
+  // termos: 11h BRT = 14h UTC | outros: 09h BRT = 12h UTC, 18h BRT = 21h UTC
+  const baseHour = tipo === 'termos' ? 14 : 12;
   const map: Record<string, string> = {
-    diario: '0 12 * * *',
-    '2x_dia': '0 12,21 * * *',
-    semanal: '0 12 * * 1',
+    diario: `0 ${baseHour} * * *`,
+    '2x_dia': `0 ${baseHour},21 * * *`,
+    semanal: `0 ${baseHour} * * 1`,
   };
 
   return map[frequencia] ?? null;

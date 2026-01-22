@@ -116,7 +116,7 @@ SELECT cron.schedule(
 
 SELECT cron.schedule(
   'exec-termos-manha',
-  '0 12 * * *',
+  '0 14 * * *',  -- 11h BRT (14h UTC)
   $$
   SELECT net.http_post(
     url := 'https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/executar-monitoramento',
