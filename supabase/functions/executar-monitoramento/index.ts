@@ -39,41 +39,73 @@ Deno.serve(async (req) => {
 
     const funcao = FUNCOES_MAP[tipo];
 
-    // Verificar se já existe uma execução em andamento para este tipo
-    const { data: execucoesEmAndamento } = await supabase
+    // Verificar se já existe uma execução em andamento para QUALQUER tipo (evitar WORKER_LIMIT)
+    const { data: todasExecucoesEmAndamento } = await supabase
       .from('execucoes_agendadas')
-      .select('id, iniciado_em')
-      .eq('tipo', tipo)
+      .select('id, tipo, iniciado_em')
       .eq('status', 'executando')
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .order('created_at', { ascending: false });
 
-    if (execucoesEmAndamento && execucoesEmAndamento.length > 0) {
-      const execucao = execucoesEmAndamento[0];
-      const iniciado = new Date(execucao.iniciado_em);
+    // Tipos pesados que consomem muitos workers
+    const tiposPesados = ['andamentos', 'redistribuicoes', 'djen_processos', 'termos', 'djen'];
+
+    if (todasExecucoesEmAndamento && todasExecucoesEmAndamento.length > 0) {
       const agora = new Date();
-      const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
+      
+      for (const execucao of todasExecucoesEmAndamento) {
+        const iniciado = new Date(execucao.iniciado_em);
+        const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
 
-      // Se está executando há mais de 60 minutos, marcar como timeout
-      if (minutosDecorridos > 60) {
-        await supabase
-          .from('execucoes_agendadas')
-          .update({ 
-            status: 'timeout', 
-            finalizado_em: agora.toISOString(),
-            ultimo_erro: `Timeout após ${Math.round(minutosDecorridos)} minutos`
-          })
-          .eq('id', execucao.id);
-      } else {
-        // Execução ainda está em andamento
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            message: `Execução em andamento há ${Math.round(minutosDecorridos)} minutos`,
-            execucaoId: execucao.id
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        // Se está executando há mais de 60 minutos, marcar como timeout
+        if (minutosDecorridos > 60) {
+          await supabase
+            .from('execucoes_agendadas')
+            .update({ 
+              status: 'timeout', 
+              finalizado_em: agora.toISOString(),
+              ultimo_erro: `Timeout após ${Math.round(minutosDecorridos)} minutos`
+            })
+            .eq('id', execucao.id);
+          continue;
+        }
+
+        // Se é do mesmo tipo, bloquear
+        if (execucao.tipo === tipo) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: `Execução de ${tipo} em andamento há ${Math.round(minutosDecorridos)} minutos`,
+              execucaoId: execucao.id,
+              blocked: true,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Se outro tipo pesado está rodando, bloquear para evitar WORKER_LIMIT
+        if (tiposPesados.includes(tipo) && tiposPesados.includes(execucao.tipo)) {
+          const nomesLegivel: Record<string, string> = {
+            andamentos: 'Andamentos',
+            redistribuicoes: 'Redistribuições',
+            distribuicoes: 'Distribuições',
+            djen_processos: 'DJEN Processos',
+            djen: 'DJEN Publicações',
+            termos: 'Monitoração 360',
+          };
+          
+          console.log(`[${tipo}] Bloqueado: ${execucao.tipo} está em execução há ${Math.round(minutosDecorridos)}min`);
+          
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: `Aguardando ${nomesLegivel[execucao.tipo] || execucao.tipo} finalizar (${Math.round(minutosDecorridos)}min). Execuções pesadas são sequenciais para evitar erro WORKER_LIMIT.`,
+              execucaoId: execucao.id,
+              blocked: true,
+              blockedBy: execucao.tipo,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
     }
 
