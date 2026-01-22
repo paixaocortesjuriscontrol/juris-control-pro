@@ -73,9 +73,30 @@ function ProgressoDetalhado({ status }: { status: StatusMonitoramento }) {
   if (!exec) return null;
   
   const isExecutando = status.health_status === 'executando';
-  const progresso = exec.total_lotes 
-    ? Math.round((exec.lotes_processados / exec.total_lotes) * 100)
-    : null;
+  
+  // Priorizar detalhes.progress (fonte mais precisa vinda do orquestrador)
+  const progress = exec.detalhes?.progress as { current?: number; total?: number; percentage?: number } | undefined;
+  let progresso: number | null = null;
+  let processados = 0;
+  let total = 0;
+  
+  if (progress) {
+    if (typeof progress.percentage === 'number') progresso = progress.percentage;
+    if (typeof progress.current === 'number') processados = progress.current;
+    if (typeof progress.total === 'number') total = progress.total;
+  }
+  
+  // Fallback para lotes_processados/total_lotes se detalhes.progress não existir
+  if (total === 0 && exec.total_lotes && exec.total_lotes > 0) {
+    total = exec.total_lotes;
+    processados = exec.lotes_processados || 0;
+    progresso = Math.min(100, Math.round((processados / total) * 100));
+  }
+  
+  // Calcular progresso se ainda não temos
+  if (total > 0 && processados > 0 && progresso === null) {
+    progresso = Math.min(100, Math.round((processados / total) * 100));
+  }
   
   const iniciado = new Date(exec.iniciado_em);
   const agora = new Date();
@@ -98,11 +119,11 @@ function ProgressoDetalhado({ status }: { status: StatusMonitoramento }) {
         </div>
       )}
       
-      {/* Grid de métricas */}
+      {/* Grid de métricas - usar processados/total de detalhes.progress */}
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Lotes:</span>
-          <span className="font-mono">{exec.lotes_processados}{exec.total_lotes ? `/${exec.total_lotes}` : ''}</span>
+          <span className="text-muted-foreground">Itens:</span>
+          <span className="font-mono">{processados.toLocaleString()}{total > 0 ? `/${total.toLocaleString()}` : ''}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Tempo:</span>
@@ -113,8 +134,8 @@ function ProgressoDetalhado({ status }: { status: StatusMonitoramento }) {
           )}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Processados:</span>
-          <span className="font-mono">{exec.registros_processados.toLocaleString()}</span>
+          <span className="text-muted-foreground">Lotes:</span>
+          <span className="font-mono">{exec.lotes_processados}{exec.total_lotes ? `/${exec.total_lotes}` : ''}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Encontrados:</span>
