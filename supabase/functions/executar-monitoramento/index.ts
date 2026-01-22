@@ -79,6 +79,28 @@ Deno.serve(async (req) => {
       .eq('status', 'executando')
       .order('created_at', { ascending: false });
 
+    // Se a configuração ficou com status "cancelado" por uma execução anterior (sem jobs rodando),
+    // limpamos o estado para permitir novas execuções.
+    // Caso exista job ativo do mesmo tipo, não limpamos (a intenção pode ser cancelar).
+    const hasRunningThisTipo = (todasExecucoesEmAndamento || []).some((e: any) => e.tipo === tipo);
+    const staleCancelledState = metaCfg?.cancelado === true || metaCfg?.status === 'cancelado' || metaCfg?.status === 'cancelando';
+    if (!hasRunningThisTipo && staleCancelledState) {
+      console.log(`[${tipo}] Limpando estado cancelado residual antes de iniciar nova execução`);
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...(metaCfg || {}),
+            cancelado: false,
+            status: 'idle',
+            continuingRun: false,
+            cancelled_at: null,
+          },
+        })
+        .eq('tipo', tipo)
+        .is('coordenacao_id', null);
+    }
+
     // Tipos pesados que consomem muitos workers
     const tiposPesados = ['andamentos', 'redistribuicoes', 'djen_processos', 'termos', 'djen'];
 
