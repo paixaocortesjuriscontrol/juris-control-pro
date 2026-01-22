@@ -63,7 +63,7 @@ export function useMonitoringDashboard() {
   const [tick, setTick] = useState(0);
 
   // Configs
-  const { data: configs = [] } = useQuery({
+  const { data: configs = [], refetch: refetchConfigs } = useQuery({
     queryKey: ['monitoring-configs'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -126,6 +126,32 @@ export function useMonitoringDashboard() {
       supabase.removeChannel(channel);
     };
   }, [refetchExecutions]);
+
+  // Real-time subscription for configuracoes_monitoramento.metadata
+  // This is the primary progress source for long-running edge functions.
+  useEffect(() => {
+    const channel = supabase
+      .channel('monitoring-configs-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'configuracoes_monitoramento',
+          filter: 'coordenacao_id=is.null',
+        },
+        () => {
+          // Ensure progress updates are reflected quickly across the dashboard.
+          queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
+          refetchConfigs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, refetchConfigs]);
 
   // Tick for elapsed time updates
   useEffect(() => {
