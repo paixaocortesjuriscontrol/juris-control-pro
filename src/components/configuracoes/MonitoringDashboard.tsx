@@ -156,13 +156,17 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
   const isRunning = stats.status === 'running' && stats.currentExecution !== null;
   const statusConfig = STATUS_CONFIG[stats.status];
 
-  // Get total from detalhes or config - use getExecutionProgress para consistência
-  const { current: processados, total } = getExecutionProgress({
+  // Get total/progresso da execução atual (fonte única) - evita percentual travado
+  const { current: processados, total, percentage } = getExecutionProgress({
     detalhes: exec.detalhes,
     registros_processados: exec.registros_processados,
     total_lotes: exec.total_lotes,
     lotes_processados: exec.lotes_processados,
   });
+
+  // Preferir percentual calculado a partir de current/total durante execução.
+  // `stats.progress` pode ficar desatualizado (ex.: travar em 6%).
+  const progressPercent = total > 0 ? (percentage ?? 0) : (stats.progress ?? 0);
 
   // Importante: registros_encontrados na tabela execucoes_agendadas nem sempre é atualizado
   // (principalmente em jobs assíncronos). Para confiabilidade, usamos a contagem persistida no banco
@@ -177,7 +181,7 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
       isRunning && "shadow-lg shadow-blue-500/10"
     )}>
       {/* Progress Bar with "Processando X de Y" */}
-      {(stats.progress !== null || isRunning) && (
+      {(progressPercent > 0 || stats.progress !== null || isRunning) && (
         <div className="space-y-1.5">
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground font-medium">
@@ -188,11 +192,11 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
               ) : 'Progresso'}
             </span>
             <span className={cn("font-bold", statusConfig.color)}>
-              {stats.progress !== null ? `${stats.progress}%` : '0%'}
+              {`${progressPercent}%`}
             </span>
           </div>
           <Progress 
-            value={stats.progress || 0} 
+            value={progressPercent} 
             className={cn("h-2.5", isRunning && "animate-pulse")}
           />
         </div>
