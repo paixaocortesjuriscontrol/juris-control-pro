@@ -978,31 +978,32 @@ async function ensureRunExists(
   retryCount: number
 ): Promise<boolean> {
   try {
-    // Check if run already exists
-    const { data: existingRun } = await supabase
-      .from('djen_runs')
-      .select('id')
-      .eq('run_id', runId)
-      .maybeSingle();
+    // IMPORTANT: this function can be called by multiple invocations concurrently.
+    // Use an idempotent write (upsert w/ ignoreDuplicates) to avoid race conditions.
 
-    if (existingRun) {
-      return true;
-    }
-
-    // Create run record
-    const { error } = await supabase.from('djen_runs').insert({
+    const payload = {
       run_id: runId,
       status: 'em_andamento',
       total_monitoramentos: total,
       retry_count: retryCount,
-    });
+    };
+
+    const { error } = await supabase
+      .from('djen_runs')
+      // ignoreDuplicates prevents overwriting an existing run and avoids 23505
+      .upsert(payload, { onConflict: 'run_id', ignoreDuplicates: true });
 
     if (error) {
+      // Defensive: if the client still surfaces a duplicate key error, treat as success.
+      if ((error as any)?.code === '23505') {
+        console.log(`[DJEN] djen_runs already exists for run_id=${runId} (23505), continuing.`);
+        return true;
+      }
+
       console.error('Error creating djen_runs:', error);
       return false;
     }
 
-    console.log(`Created djen_runs record: ${runId}`);
     return true;
   } catch (e) {
     console.error('Error in ensureRunExists:', e);
