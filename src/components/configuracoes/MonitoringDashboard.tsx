@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useMonitoringDashboard";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getExecutionProgress } from "@/utils/executionProgress";
 
 const ICONS: Record<string, React.ElementType> = {
   RefreshCw,
@@ -136,15 +137,21 @@ function MetricBadge({
 }
 
 function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
+  // CORREÇÃO: Só mostrar currentExecution se realmente ativo (sem finalizado_em)
   const exec = stats.currentExecution || stats.lastCompletedExecution;
   if (!exec) return null;
 
-  const isRunning = stats.status === 'running';
+  // isRunning agora é calculado com base no hook que já filtra fantasmas
+  const isRunning = stats.status === 'running' && stats.currentExecution !== null;
   const statusConfig = STATUS_CONFIG[stats.status];
 
-  // Get total from detalhes or config
-  const total = exec.detalhes?.progress?.total || exec.total_lotes || 0;
-  const processados = exec.registros_processados || exec.detalhes?.progress?.current || 0;
+  // Get total from detalhes or config - use getExecutionProgress para consistência
+  const { current: processados, total } = getExecutionProgress({
+    detalhes: exec.detalhes,
+    registros_processados: exec.registros_processados,
+    total_lotes: exec.total_lotes,
+    lotes_processados: exec.lotes_processados,
+  });
 
   return (
     <div className={cn(
