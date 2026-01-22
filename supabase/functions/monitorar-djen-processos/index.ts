@@ -103,6 +103,14 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
+function normalizeConteudo(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 // Verifica se já existe tarefa similar para evitar duplicatas
 async function verificarTarefaExistente(
   supabase: any,
@@ -593,7 +601,12 @@ async function processProcessosBatch(
           }
         }
         
-        const hashConteudo = generateHash(`${processo.numero}-${dataPublicacao || dataDisponibilizacao}-${conteudo.slice(0, 500)}`);
+        // Deduplicação robusta: normaliza HTML/whitespace para evitar duplicatas com pequenas variações.
+        // Importante: muitos registros chegam sem data_publicacao/data_disponibilizacao; nesse caso,
+        // não usamos o intervalo (dataInicio/dataFim) como chave, para não re-gerar duplicatas a cada execução.
+        const conteudoNorm = normalizeConteudo(conteudo);
+        const dataKey = (dataPublicacao || dataDisponibilizacao || '').toString();
+        const hashConteudo = generateHash(`${processo.numero}|${dataKey}|${conteudoNorm.slice(0, 2000)}`);
 
         if (seenHashes.has(hashConteudo)) {
           totalDuplicadas++;
@@ -765,13 +778,18 @@ async function updateExecucaoProgress(
   }
 ) {
   if (!execucaoId) return;
-  await supabase
+  // NOTE: execucoes_agendadas não possui coluna updated_at.
+  // Se enviarmos updated_at aqui, o update falha silenciosamente e o progresso nunca aparece no frontend.
+  const { error } = await supabase
     .from('execucoes_agendadas')
     .update({
       ...data,
-      updated_at: new Date().toISOString(),
     })
     .eq('id', execucaoId);
+
+  if (error) {
+    console.error('Error updating execucoes_agendadas progress:', error);
+  }
 }
 
 serve(async (req) => {

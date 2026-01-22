@@ -564,13 +564,18 @@ async function updateExecucaoProgress(
   }
 ) {
   if (!execucaoId) return;
-  await supabase
+  // NOTE: execucoes_agendadas não possui coluna updated_at.
+  // Se enviarmos updated_at aqui, o update falha silenciosamente e o progresso nunca aparece no frontend.
+  const { error } = await supabase
     .from('execucoes_agendadas')
     .update({
       ...data,
-      updated_at: new Date().toISOString(),
     })
     .eq('id', execucaoId);
+
+  if (error) {
+    console.error('Error updating execucoes_agendadas progress:', error);
+  }
 }
 
 serve(async (req) => {
