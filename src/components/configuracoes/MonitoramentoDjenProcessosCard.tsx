@@ -19,6 +19,7 @@ import { toZonedTime } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
+import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 
 interface ExecutionResult {
   processados: number;
@@ -446,6 +447,12 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             Execução automática às 09:00 BRT
           </p>
         </div>
+
+        {/* Horário agendado */}
+        <HorarioAgendadoInfo 
+          horariosExecucao={config?.horarios_execucao as string[] | null}
+          frequencia={config?.frequencia}
+        />
 
         {/* Progresso */}
         {progresso && (

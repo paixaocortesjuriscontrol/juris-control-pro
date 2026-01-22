@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LiveExecutionPanel } from "./LiveExecutionPanel";
+import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 
 interface Props {
   coordenacaoId: string;
@@ -183,6 +184,12 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
             </SelectContent>
           </Select>
         </div>
+
+        {/* Horário agendado */}
+        <HorarioAgendadoInfo 
+          horariosExecucao={configuracaoDistribuicoes?.horarios_execucao}
+          frequencia={configuracaoDistribuicoes?.frequencia}
+        />
 
         {/* Última execução */}
         {configuracaoDistribuicoes?.ultima_execucao && (

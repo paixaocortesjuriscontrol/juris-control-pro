@@ -20,6 +20,7 @@ import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 
 interface LiveRun {
   run_id: string;
@@ -788,6 +789,12 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             Execução automática às 09:00 BRT com retry automático se vazio
           </p>
         </div>
+
+        {/* Horário agendado */}
+        <HorarioAgendadoInfo 
+          horariosExecucao={configuracaoDjen?.horarios_execucao}
+          frequencia={configuracaoDjen?.frequencia}
+        />
 
         {/* Última execução */}
         {configuracaoDjen?.ultima_execucao && (

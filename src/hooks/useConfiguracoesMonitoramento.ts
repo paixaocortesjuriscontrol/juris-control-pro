@@ -9,6 +9,7 @@ export interface ConfiguracaoMonitoramento {
   ativo: boolean;
   ultima_execucao: string | null;
   coordenacao_id: string | null;
+  horarios_execucao: string[] | null;
   metadata: {
     next_offset?: number;
     last_batch_size?: number;
@@ -32,7 +33,7 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('configuracoes_monitoramento')
-        .select('id, tipo, frequencia, ativo, ultima_execucao, coordenacao_id, metadata, created_at, updated_at')
+        .select('id, tipo, frequencia, ativo, ultima_execucao, coordenacao_id, horarios_execucao, metadata, created_at, updated_at')
         .is('coordenacao_id', null)
         .order('tipo');
 
