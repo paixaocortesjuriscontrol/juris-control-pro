@@ -1,4 +1,3 @@
-import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LiveExecutionPanel } from "./LiveExecutionPanel";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
+import { BotaoRetomarLote } from "./BotaoRetomarLote";
+import { useExecutarMonitoramento } from "@/hooks/useExecutarMonitoramento";
 
 interface Props {
   coordenacaoId: string;
@@ -27,10 +28,6 @@ const HORARIOS_DISPONIVEIS = [
 
 export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
-  const canceladoRef = useRef(false);
-
-  const [executandoCompleto, setExecutandoCompleto] = useState(false);
-  const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number } | null>(null);
 
   // Query para buscar configuração
   const { data: config, isLoading } = useQuery({
@@ -96,70 +93,14 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
     atualizarHorarios.mutate(novosHorarios);
   };
 
-  const handleCancelar = async () => {
-    canceladoRef.current = true;
-    toast.info("Cancelando execução...");
+  const { executando, cancelando, executar, cancelar } = useExecutarMonitoramento({
+    tipo: 'andamentos',
+    configId: config?.id,
+  });
 
-    // Marca no banco para interromper a auto-continuação (completeRun)
-    if (config?.id) {
-      const currentMetadata = (config.metadata as Record<string, any>) || {};
-      await supabase
-        .from('configuracoes_monitoramento')
-        .update({
-          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando' },
-        })
-        .eq('id', config.id);
-    }
-  };
-
-
-  const handleExecutarCompleto = async () => {
-    setExecutandoCompleto(true);
-    setProgresso({ current: 0, total: 0, percentage: 0 });
-    canceladoRef.current = false;
-    
-    try {
-      let isComplete = false;
-      let totalAndamentos = 0;
-      let totalChecked = 0;
-      let totalAudiencias = 0;
-      let totalIntimacoes = 0;
-      
-      while (!isComplete && !canceladoRef.current) {
-        const { data, error } = await supabase.functions.invoke('monitorar-andamentos');
-        
-        if (error) throw error;
-        
-        if (data?.progress) {
-          setProgresso(data.progress);
-        }
-        
-        totalChecked += data?.results?.checked || 0;
-        totalAndamentos += data?.results?.newMovements || 0;
-        totalAudiencias += data?.results?.audienciasDetectadas || 0;
-        totalIntimacoes += data?.results?.intimacoesDetectadas || 0;
-        isComplete = data?.isComplete || false;
-      }
-      
-      if (canceladoRef.current) {
-        toast.info(`Monitoramento cancelado: ${totalChecked} processos verificados`);
-      } else {
-        let msg = `Monitoramento completo: ${totalChecked} processos, ${totalAndamentos} novos andamentos`;
-        if (totalAudiencias > 0) msg += `, ${totalAudiencias} audiências`;
-        if (totalIntimacoes > 0) msg += `, ${totalIntimacoes} intimações`;
-        toast.success(msg);
-      }
-    } catch (error) {
-      toast.error(`Erro no monitoramento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    } finally {
-      setExecutandoCompleto(false);
-      setProgresso(null);
-      canceladoRef.current = false;
-      queryClient.invalidateQueries({ queryKey: ['config-monitoramento'] });
-      queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
-      queryClient.invalidateQueries({ queryKey: ['intimacoes-detectadas'] });
-    }
-  };
+  const metadata = config?.metadata as Record<string, any> | null;
+  const nextOffset = metadata?.next_offset as number | undefined;
+  const totalProcessos = metadata?.total as number | undefined;
 
   if (isLoading) {
     return (
@@ -256,27 +197,32 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
         <LiveExecutionPanel
           tipo="andamentos"
           titulo="Buscando andamentos e audiências..."
-          executandoManual={executandoCompleto}
-          progressoManual={progresso}
-          onCancel={handleCancelar}
+          onCancel={cancelar}
           showCancel
         />
 
         {/* Botão de execução */}
-        <div className="flex gap-2 pt-4 border-t">
-          {executandoCompleto ? (
+        <div className="flex gap-2 pt-4 border-t flex-wrap">
+          <BotaoRetomarLote
+            nextOffset={nextOffset}
+            total={totalProcessos}
+            onRetomar={() => executar(true)}
+            disabled={executando || cancelando}
+          />
+          {executando ? (
             <Button 
-              onClick={handleCancelar} 
+              onClick={cancelar} 
               variant="destructive"
               className="flex-1"
+              disabled={cancelando}
             >
               <XCircle className="h-4 w-4 mr-2" />
-              Cancelar
+              {cancelando ? 'Cancelando...' : 'Cancelar'}
             </Button>
           ) : (
             <Button 
-              onClick={handleExecutarCompleto} 
-              disabled={executandoCompleto}
+              onClick={() => executar(false)} 
+              disabled={executando}
               className="flex-1"
             >
               <PlayCircle className="h-4 w-4 mr-2" />

@@ -302,60 +302,24 @@ export function useMonitoringDashboard() {
 
   const hasRunningJobs = monitoringStats.some(s => s.status === 'running');
 
-  // Execute monitoring
+  // Execute monitoring via orchestrator
   const executeMonitoring = useCallback(async (tipo: string): Promise<string | null> => {
     const monitoringType = MONITORING_TYPES.find(t => t.tipo === tipo);
     if (!monitoringType) throw new Error('Tipo inválido');
 
-    // IMPORTANT: Clear cancelado flag and reset metadata BEFORE creating execution
-    // This prevents "early cancellation" from leftover flags
-    const config = configs.find(c => c.tipo === tipo);
-    if (config) {
-      await supabase
-        .from('configuracoes_monitoramento')
-        .update({
-          metadata: {
-            ...(config.metadata || {}),
-            next_offset: 0,
-            current: 0,
-            total: 0,
-            percentage: 0,
-            cancelado: false,
-            status: 'em_andamento',
-            continuingRun: true,
-          },
-        })
-        .eq('id', config.id);
-    }
-
-    // Create execution record
-    const { data: execution, error } = await supabase
-      .from('execucoes_agendadas')
-      .insert({
-        tipo,
-        job_name: `manual-${monitoringType.funcao}`,
-        status: 'executando',
-        iniciado_em: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
-
-    if (error) throw error;
-
-    const execucaoId = execution?.id;
-
-    // Fire and forget - background execution
-    supabase.functions.invoke(monitoringType.funcao, {
-      body: { completeRun: true, execucaoId },
-    }).catch(err => {
-      console.error(`Error in ${tipo}:`, err);
+    // Use orchestrator to prevent WORKER_LIMIT
+    const { data, error } = await supabase.functions.invoke('executar-monitoramento', {
+      body: { tipo },
     });
 
+    if (error) throw error;
+    
     // Invalidate configs to get fresh metadata
     queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
     refetchExecutions();
-    return execucaoId;
-  }, [configs, queryClient, refetchExecutions]);
+    
+    return data?.execucaoId || null;
+  }, [queryClient, refetchExecutions]);
 
   // Cancel monitoring
   const cancelMonitoring = useCallback(async (tipo: string) => {
