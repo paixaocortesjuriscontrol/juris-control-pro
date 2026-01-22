@@ -4,6 +4,16 @@ import { useEffect, useCallback, useState } from "react";
 
 export type MonitoringStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout';
 
+export type ExecuteMonitoringResult = {
+  execucaoId: string | null;
+  blocked?: boolean;
+  paused?: boolean;
+  message?: string;
+  success?: boolean;
+  error?: string;
+  [key: string]: any;
+};
+
 export interface MonitoringExecution {
   id: string;
   tipo: string;
@@ -411,7 +421,7 @@ export function useMonitoringDashboard() {
   const hasRunningJobs = monitoringStats.some(s => s.status === 'running');
 
   // Execute monitoring via orchestrator
-  const executeMonitoring = useCallback(async (tipo: string): Promise<string | null> => {
+  const executeMonitoring = useCallback(async (tipo: string): Promise<ExecuteMonitoringResult> => {
     const monitoringType = MONITORING_TYPES.find(t => t.tipo === tipo);
     if (!monitoringType) throw new Error('Tipo inválido');
 
@@ -425,8 +435,11 @@ export function useMonitoringDashboard() {
     // Invalidate configs to get fresh metadata
     queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
     refetchExecutions();
-    
-    return data?.execucaoId || null;
+
+    return {
+      execucaoId: data?.execucaoId || null,
+      ...(data || {}),
+    };
   }, [queryClient, refetchExecutions]);
 
   // Cancel monitoring
