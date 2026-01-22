@@ -8,17 +8,26 @@ const corsHeaders = {
 
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 
+// ============================================================================
+// PARÂMETROS DE THROTTLING - alinhados com monitorar-djen-processos
+// ============================================================================
 // Max monitoramentos per invocation - reduzido para evitar timeout e bloqueios
-const MAX_PER_INVOCATION = 5;
+const MAX_PER_INVOCATION = 3; // Reduzido de 5 para 3 (mais conservador)
 
 // Soft time limit (ms) to ensure we respond before the platform/browser cuts the request.
-// Importante: precisamos reservar um buffer para salvar metadados e enfileirar o próximo lote.
-const SOFT_TIMEOUT_MS = 55_000;
-const FINALIZATION_BUFFER_MS = 12_000;
+const SOFT_TIMEOUT_MS = 50_000; // Reduzido de 55s para 50s para mais margem
+const FINALIZATION_BUFFER_MS = 15_000; // Aumentado de 12s para 15s
 
 // Retry config: if first batch at 09:00 is empty, retry after this delay
 const RETRY_DELAY_MINUTES = 15;
 const MAX_RETRIES = 4; // Total max retries for empty result
+
+// Delays entre operações (alinhados com monitorar-djen-processos)
+const BASE_DELAY_MS = 1500; // Delay base entre batches (igual ao processos)
+const STAGGER_DELAY_MS = 500; // Delay entre requests no mesmo chunk
+const INTER_TRIBUNAL_DELAY_MS = 1200; // Delay entre tribunais (era 1000)
+const INTER_PAGE_DELAY_MS = 2000; // Delay entre páginas (era 1500)
+const INTER_CANDIDATE_DELAY_MS = 1000; // Delay entre candidatos de busca (era 800)
 
 interface Monitoramento {
   id: string;
@@ -46,13 +55,13 @@ const browserHeaders = {
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
-// Rate limiting para Jina (limite: 500 req/min = ~8 req/s)
-// Usamos limite MUITO conservador para evitar 429 e bloqueios
+// Rate limiting para Jina - MUITO conservador para evitar 429 e bloqueios
+// Alinhado com monitorar-djen-processos
 let lastJinaRequestTime = 0;
-const JINA_MIN_INTERVAL_MS = 4000; // 4s entre requisições = ~15 req/min (muito conservador)
+const JINA_MIN_INTERVAL_MS = 4000; // 4s entre requisições (mantém)
 
 // Delay entre processamento de cada monitoramento para evitar bloqueio
-const INTER_MONITORAMENTO_DELAY_MS = 2000;
+const INTER_MONITORAMENTO_DELAY_MS = 3000; // Aumentado de 2s para 3s
 
 function tryParseDjenJson(text: string): any | null {
   // 1) Direct JSON
@@ -225,9 +234,9 @@ async function fetchWithTimeout(
 async function fetchWithRetry(
   url: string, 
   options: RequestInit, 
-  maxRetries = 2,
-  baseDelay = 4000, // Aumentado para 4s para evitar bloqueios
-  timeoutMs = 15_000 // Aumentado timeout
+  maxRetries = 4, // Aumentado de 2 para 4 (igual processos)
+  baseDelay = 3000, // Aumentado de 4s para 3s com exponential backoff
+  timeoutMs = 15_000 
 ): Promise<Response> {
   let lastError: Error | null = null;
   
@@ -701,9 +710,8 @@ async function processMonitoramento(
       if (publications.length > 0) break;
       
       // Delay entre candidatos de busca para evitar rate limit
-      await delay(800);
+      await delay(INTER_CANDIDATE_DELAY_MS);
     }
-
     tribunalStat.paginas = pages;
     tribunalStat.resultados = publications.length;
 
@@ -866,9 +874,9 @@ async function processMonitoramento(
 
     tribunaisStats.push(tribunalStat);
     
-    // Delay entre tribunais para evitar rate limit
+    // Delay entre tribunais para evitar rate limit (alinhado com processos)
     if (tribunais.length > 1) {
-      await delay(1000);
+      await delay(INTER_TRIBUNAL_DELAY_MS);
     }
   }
 
@@ -955,8 +963,8 @@ async function fetchDJENResultsWithStats(
       if (Array.isArray(items) && items.length > 0) {
         allResults.push(...items);
         page++;
-        // Delay maior entre páginas para evitar rate limit (era 500ms, agora 1.5s)
-        await delay(1500);
+        // Delay entre páginas para evitar rate limit (alinhado com processos)
+        await delay(INTER_PAGE_DELAY_MS);
       } else {
         break;
       }
