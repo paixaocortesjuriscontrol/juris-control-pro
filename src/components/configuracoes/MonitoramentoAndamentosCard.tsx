@@ -11,6 +11,7 @@ import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LiveExecutionPanel } from "./LiveExecutionPanel";
+import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 
 interface Props {
   coordenacaoId: string;
@@ -227,6 +228,12 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
             ))}
           </div>
         </div>
+
+        {/* Horário agendado */}
+        <HorarioAgendadoInfo 
+          horariosExecucao={config?.horarios_execucao as string[] | null}
+          frequencia={config?.frequencia}
+        />
 
         {/* Última execução */}
         {config?.ultima_execucao && (
