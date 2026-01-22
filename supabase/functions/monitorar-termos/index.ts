@@ -146,9 +146,15 @@ Deno.serve(async (req) => {
 
     const currentOffset = completeRun ? (configData?.metadata?.next_offset || 0) : 0;
 
-    // Contar total de movimentações e buscar dados em paralelo
+    // IMPORTANTE: Filtrar apenas movimentações capturadas HOJE (created_at do dia atual)
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const inicioDoDia = hoje.toISOString();
+    console.log(`Filtering movements captured since: ${inicioDoDia}`);
+
+    // Contar total de movimentações DO DIA e buscar dados em paralelo
     const [countResult, termosResult, alertasResult, audienciasResult, intimacoesResult] = await Promise.all([
-      supabase.from('movimentacoes').select('id', { count: 'exact', head: true }),
+      supabase.from('movimentacoes').select('id', { count: 'exact', head: true }).gte('created_at', inicioDoDia),
       supabase.from('termos_monitoramento').select('id, termo, categoria, prioridade').eq('ativo', true),
       supabase.from('alertas_monitoramento').select('movimentacao_id, termo_id'),
       supabase.from('audiencias_detectadas').select('movimentacao_id').not('movimentacao_id', 'is', null),
@@ -172,11 +178,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar lote de movimentações com offset
+    // Buscar lote de movimentações capturadas HOJE com offset
     const { data: movimentacoes } = await supabase
       .from('movimentacoes')
-      .select('id, processo_id, descricao, data_movimentacao, processo:processos(numero)')
-      .order('data_movimentacao', { ascending: false })
+      .select('id, processo_id, descricao, data_movimentacao, created_at, processo:processos(numero)')
+      .gte('created_at', inicioDoDia)
+      .order('created_at', { ascending: false })
       .range(currentOffset, currentOffset + BATCH_SIZE - 1);
 
     const movimentacoesList = movimentacoes || [];
