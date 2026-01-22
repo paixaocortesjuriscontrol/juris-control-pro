@@ -262,6 +262,23 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       return;
     }
 
+    // Observação: o erro 546/WORKER_LIMIT normalmente acontece quando há outras Edge Functions
+    // pesadas executando ao mesmo tempo (ex: andamentos/redistribuições). Não bloqueamos aqui,
+    // mas avisamos o usuário e aplicamos backoff/retry mais adiante.
+    const { data: outrasExecucoesEmAndamento } = await supabase
+      .from('execucoes_agendadas')
+      .select('tipo')
+      .eq('status', 'executando')
+      .neq('tipo', 'djen')
+      .limit(5);
+
+    if (outrasExecucoesEmAndamento && outrasExecucoesEmAndamento.length > 0) {
+      const tipos = Array.from(new Set(outrasExecucoesEmAndamento.map((e: any) => e.tipo).filter(Boolean)));
+      toast.warning(
+        `Há outros monitoramentos em andamento (${tipos.join(', ')}). Isso pode causar "WORKER_LIMIT" (546).`
+      );
+    }
+
     // Verificar também na tabela execucoes_agendadas
     const { data: execucoesEmAndamento } = await supabase
       .from('execucoes_agendadas')
@@ -299,6 +316,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     let allTribunaisStats: TribunalStat[] = [];
     let hasMore = true;
     let totalDuration = 0;
+    let mostrouWorkerLimitToast = false;
 
     try {
       const { count } = await supabase
@@ -328,7 +346,8 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           : { completeRun: false };
 
         let response: Response | null = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
+        let lastWorkerLimitText: string | null = null;
+        for (let attempt = 0; attempt < 6; attempt++) {
           try {
             const controller = new AbortController();
             const timeout = window.setTimeout(() => controller.abort(), 120000);
@@ -344,15 +363,37 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             });
 
             window.clearTimeout(timeout);
+
+            // Backoff especial para WORKER_LIMIT (546): aguarda e tenta novamente.
+            if (!response.ok && response.status === 546) {
+              lastWorkerLimitText = await response.text();
+              response = null;
+
+              if (!mostrouWorkerLimitToast) {
+                mostrouWorkerLimitToast = true;
+                toast.warning('Recursos do servidor ocupados (WORKER_LIMIT). Vou tentar novamente em alguns segundos...');
+              }
+
+              const waitMs = Math.min(60000, 5000 * (attempt + 1));
+              await new Promise((r) => setTimeout(r, waitMs));
+              continue;
+            }
+
+            // Para qualquer outro erro HTTP, sai do loop e deixa o handler padrão tratar.
             break;
           } catch (e) {
             // Network-level errors like "Failed to fetch"/timeouts.
-            if (attempt === 2) throw e;
+            if (attempt === 5) throw e;
             await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
           }
         }
 
         if (!response) {
+          if (lastWorkerLimitText) {
+            throw new Error(
+              `Erro: 546 - ${lastWorkerLimitText}\n\nDica: aguarde finalizar outras execuções (andamentos/redistribuições) e tente novamente.`
+            );
+          }
           throw new Error('Falha ao executar o monitoramento (sem resposta do servidor)');
         }
 
