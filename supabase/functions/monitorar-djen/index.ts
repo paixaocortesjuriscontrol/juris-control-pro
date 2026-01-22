@@ -1699,6 +1699,12 @@ serve(async (req) => {
       tribunais_stats: metaTotals.tribunais_stats,
       djen_run: hasMore ? run : null,
       last_complete_run: hasMore ? (currentMeta?.last_complete_run ?? null) : nowIso,
+      // CRÍTICO: Definir status explicitamente para evitar processos fantasma
+      status: hasMore ? 'em_andamento' : 'concluido',
+      continuingRun: hasMore,
+      // Campos para sincronização realtime (como monitorar-djen-processos)
+      current: offset + processedCount,
+      total: total,
     };
 
     const updatePayload: Record<string, any> = {

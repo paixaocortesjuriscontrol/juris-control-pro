@@ -88,28 +88,13 @@ export function LiveExecutionPanel({
       const monitoramentosProcessados = typeof metadata.monitoramentos_processados === 'number' ? metadata.monitoramentos_processados : null;
       const lastBatchSize = typeof metadata.last_batch_size === 'number' ? metadata.last_batch_size : null;
 
-      // Detectamos execução em andamento quando:
-      // - status explícito 'em_andamento'
-      // - continuingRun flag
-      // - offset > 0 (ainda há lotes para processar)
-      const isActivelyRunning =
-        metadata.status === 'em_andamento' ||
-        metadata.continuingRun === true ||
-        (nextOffset !== null && nextOffset > 0) ||
-        (currentTribunalOffset !== null && currentTribunalOffset > 0) ||
-        (monitoramentosProcessados !== null && monitoramentosProcessados > 0);
+      // Detectamos execução em andamento APENAS quando:
+      // - status explícito 'em_andamento' (não flags auxiliares)
+      // Isso evita "processos fantasmas" ao usar continuingRun ou offset residual
+      const isActivelyRunning = metadata.status === 'em_andamento' && metadata.cancelado !== true;
 
-      // Se não está ativamente rodando, verificamos se é uma execução recém-concluída (< 30s)
-      // para mostrar brevemente o status de conclusão
+      // Se não está ativamente rodando, não mostrar o painel
       if (!isActivelyRunning) {
-        // Se last_complete_run é muito recente, mostramos como "concluído"
-        if (metadata.last_complete_run) {
-          const completeMs = new Date(metadata.last_complete_run).getTime();
-          if (Date.now() - completeMs <= 30 * 1000) {
-            // Retornamos null para deixar o toast aparecer, mas invalidamos queries
-            return null;
-          }
-        }
         return null;
       }
 
