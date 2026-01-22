@@ -61,24 +61,26 @@ interface ExecutionResult {
   executadoEm?: string;
 }
 
+// Helper para timeout de promises (fora do componente para não violar regras de hooks)
+const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
+  return new Promise<T>((resolve, reject) => {
+    const t = window.setTimeout(() => reject(new Error(timeoutMessage)), ms);
+    promise
+      .then((v) => {
+        window.clearTimeout(t);
+        resolve(v);
+      })
+      .catch((e) => {
+        window.clearTimeout(t);
+        reject(e);
+      });
+  });
+};
+
+const FUNCTIONS_BASE_URL = 'https://bfxahrrvoqxcdmfsvnrk.supabase.co';
+
 export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
-  const functionsBaseUrl = 'https://bfxahrrvoqxcdmfsvnrk.supabase.co';
-
-  const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string) => {
-    return await new Promise<T>((resolve, reject) => {
-      const t = window.setTimeout(() => reject(new Error(timeoutMessage)), ms);
-      promise
-        .then((v) => {
-          window.clearTimeout(t);
-          resolve(v);
-        })
-        .catch((e) => {
-          window.clearTimeout(t);
-          reject(e);
-        });
-    });
-  };
   const { 
     configuracaoDjen,
     isLoading, 
@@ -256,7 +258,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
         const dataInicioStr = format(dataInicio, 'yyyy-MM-dd');
         const dataFimStr = format(dataFim, 'yyyy-MM-dd');
-        const url = `${functionsBaseUrl}/functions/v1/monitorar-djen?offset=${offset}&dataInicio=${dataInicioStr}&dataFim=${dataFimStr}`;
+        const url = `${FUNCTIONS_BASE_URL}/functions/v1/monitorar-djen?offset=${offset}&dataInicio=${dataInicioStr}&dataFim=${dataFimStr}`;
 
         const session = (await supabase.auth.getSession()).data.session;
         if (!session?.access_token) {
