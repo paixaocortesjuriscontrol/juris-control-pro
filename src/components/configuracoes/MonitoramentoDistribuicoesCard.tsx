@@ -1,14 +1,28 @@
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Search, Clock, PlayCircle, RefreshCw, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useExecutarMonitoramento } from "@/hooks/useExecutarMonitoramento";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { LiveExecutionPanel } from "./LiveExecutionPanel";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 import { BotaoRetomarLote } from "./BotaoRetomarLote";
@@ -18,6 +32,10 @@ interface Props {
 }
 
 export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
+  const queryClient = useQueryClient();
+  const [confirmReativarOpen, setConfirmReativarOpen] = useState(false);
+  const [pendingRunMode, setPendingRunMode] = useState<'novo' | 'retomar' | null>(null);
+
   const { 
     configuracaoDistribuicoes, 
     isLoading, 
@@ -32,6 +50,43 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
   const metadata = configuracaoDistribuicoes?.metadata as Record<string, any> | null;
   const nextOffset = metadata?.current_tribunal_offset as number | undefined;
   const totalTribunais = metadata?.total as number | undefined;
+
+  const isPausadoOuDesativado = useMemo(() => {
+    const md = metadata ?? {};
+    return configuracaoDistribuicoes?.ativo === false || md.paused_globally === true;
+  }, [configuracaoDistribuicoes?.ativo, metadata]);
+
+  const reativarMonitoramento = async () => {
+    if (!configuracaoDistribuicoes?.id) return;
+    const currentMetadata = (metadata ?? {}) as Record<string, any>;
+
+    const { error } = await supabase
+      .from('configuracoes_monitoramento')
+      .update({
+        ativo: true,
+        metadata: {
+          ...currentMetadata,
+          paused_globally: false,
+          cancelado: false,
+          status: 'idle',
+          continuingRun: false,
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', configuracaoDistribuicoes.id);
+
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+  };
+
+  const handleExecutar = async (mode: 'novo' | 'retomar') => {
+    if (isPausadoOuDesativado) {
+      setPendingRunMode(mode);
+      setConfirmReativarOpen(true);
+      return;
+    }
+    await executar(mode === 'retomar');
+  };
 
   const handleFrequenciaChange = (frequencia: string) => {
     if (configuracaoDistribuicoes) {
@@ -130,7 +185,7 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
               </span>
             )}
             {configuracaoDistribuicoes.metadata?.last_complete_run && (
-              <span className="text-xs text-green-600">
+              <span className="text-xs text-primary">
                 Última execução completa: {format(toZonedTime(new Date(configuracaoDistribuicoes.metadata.last_complete_run), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
             )}
@@ -150,7 +205,7 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
           <BotaoRetomarLote
             nextOffset={nextOffset}
             total={totalTribunais}
-            onRetomar={() => executar(true)}
+            onRetomar={() => handleExecutar('retomar')}
             disabled={executando || cancelando}
           />
           {executando ? (
@@ -165,7 +220,7 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
             </Button>
           ) : (
             <Button 
-              onClick={() => executar(false)} 
+              onClick={() => handleExecutar('novo')} 
               disabled={executando}
               className="flex-1"
             >
@@ -174,6 +229,35 @@ export function MonitoramentoDistribuicoesCard({ coordenacaoId }: Props) {
             </Button>
           )}
         </div>
+
+        <AlertDialog open={confirmReativarOpen} onOpenChange={setConfirmReativarOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Monitoramento está desativado/pausado</AlertDialogTitle>
+              <AlertDialogDescription>
+                Para executar agora, precisamos reativar o monitoramento (remover pausa global e limpar o estado de cancelamento).
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPendingRunMode(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  try {
+                    await reativarMonitoramento();
+                    toast.success('Monitoramento reativado. Iniciando execução...');
+                    const mode = pendingRunMode;
+                    setPendingRunMode(null);
+                    await executar(mode === 'retomar');
+                  } catch (e: any) {
+                    toast.error(`Não foi possível reativar: ${e?.message || 'erro desconhecido'}`);
+                  }
+                }}
+              >
+                Reativar e executar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
