@@ -340,6 +340,33 @@ export function DashboardMonitoramentos() {
     setExecutando(prev => ({ ...prev, [tipo]: true }));
     
     try {
+      // IMPORTANTE: Limpar flag cancelado ANTES de criar execução
+      // Isso previne "cancelamento precoce" de flags anteriores
+      const { data: config } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('id, metadata')
+        .eq('tipo', tipo)
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      if (config) {
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: {
+              ...(config.metadata as Record<string, any> || {}),
+              next_offset: 0,
+              current: 0,
+              total: 0,
+              percentage: 0,
+              cancelado: false,
+              status: 'em_andamento',
+              continuingRun: true,
+            },
+          })
+          .eq('id', config.id);
+      }
+
       // Registrar início da execução
       const { data: execucao, error: insertError } = await supabase
         .from('execucoes_agendadas')
@@ -360,7 +387,7 @@ export function DashboardMonitoramentos() {
       
       // IMPORTANTE: Para monitoramentos em background (termos, djen, andamentos, redistribuicoes)
       // NÃO aguardamos a resposta - apenas disparamos e deixamos o painel acompanhar
-      const isBackgroundJob = ['termos', 'andamentos', 'redistribuicoes', 'djen', 'djen_processos'].includes(tipo);
+      const isBackgroundJob = ['termos', 'andamentos', 'redistribuicoes', 'djen', 'djen_processos', 'distribuicoes'].includes(tipo);
       
       if (isBackgroundJob) {
         // Dispara SEM aguardar resposta - execução em background
@@ -390,7 +417,7 @@ export function DashboardMonitoramentos() {
         toast.success(`${NOMES[tipo]} iniciado! Acompanhe o progresso no painel abaixo.`);
         refetch();
       } else {
-        // Para jobs síncronos (distribuicoes), aguarda normalmente
+        // Para jobs síncronos, aguarda normalmente
         const { data, error } = await supabase.functions.invoke(funcao, {
           body: { completeRun: true, execucaoId }
         });
