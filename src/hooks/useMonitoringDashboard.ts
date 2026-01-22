@@ -400,6 +400,17 @@ export function useMonitoringDashboard() {
       }
     }
 
+    // NORMALIZAÇÃO: se já processou tudo, progresso deve ser 100%
+    // (evita ficar preso em percentuais antigos vindos de metadata.percentage)
+    if (total > 0 && processados >= total) {
+      progress = 100;
+    }
+
+    // Se a execução está concluída, garantir 100% quando houver total conhecido.
+    if (status === 'completed' && total > 0) {
+      progress = 100;
+    }
+
     return {
       tipo,
       nome,
