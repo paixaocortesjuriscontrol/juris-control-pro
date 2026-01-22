@@ -24,6 +24,7 @@ interface ExecucaoAtiva {
   tipo: string;
   status: string;
   iniciado_em: string;
+  finalizado_em: string | null;
   registros_processados: number;
   registros_encontrados: number;
   lotes_processados: number;
@@ -169,8 +170,10 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
     queryFn: async () => {
       const { data, error } = await supabase
         .from('execucoes_agendadas')
-        .select('id, tipo, status, iniciado_em, registros_processados, registros_encontrados, lotes_processados, total_lotes, detalhes')
+        .select('id, tipo, status, iniciado_em, finalizado_em, registros_processados, registros_encontrados, lotes_processados, total_lotes, detalhes')
         .eq('status', 'executando')
+        // Evitar execuções "fantasmas" (status executando mas já finalizadas)
+        .is('finalizado_em', null)
         .order('iniciado_em', { ascending: false });
       
       if (error) throw error;

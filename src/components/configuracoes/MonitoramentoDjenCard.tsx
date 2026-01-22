@@ -126,6 +126,8 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         .select('*')
         .eq('tipo', 'djen')
         .eq('status', 'executando')
+        // Evitar execução "fantasma" com finalizado_em preenchido
+        .is('finalizado_em', null)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
