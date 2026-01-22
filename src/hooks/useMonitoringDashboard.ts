@@ -106,7 +106,7 @@ export function useMonitoringDashboard() {
     refetchInterval: 10000,
   });
 
-  // Today's stats
+  // Today's stats from executions
   const { data: todayExecutions = [] } = useQuery({
     queryKey: ['monitoring-today-stats'],
     queryFn: async () => {
@@ -121,6 +121,72 @@ export function useMonitoringDashboard() {
       return data || [];
     },
     staleTime: 30000,
+  });
+
+  // CONTADORES REAIS DO BANCO (publicações persistidas hoje)
+  const { data: realDbStats = {} } = useQuery({
+    queryKey: ['monitoring-real-db-stats'],
+    queryFn: async () => {
+      const hoje = new Date();
+      const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0).toISOString();
+      const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59).toISOString();
+
+      // DJEN Termos - publicações novas hoje
+      const { count: djenNovas } = await supabase
+        .from('publicacoes_djen')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', inicioDia)
+        .lte('created_at', fimDia);
+
+      // DJEN Processos - publicações novas hoje
+      const { count: djenProcessosNovas } = await supabase
+        .from('publicacoes_djen_processos')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', inicioDia)
+        .lte('created_at', fimDia);
+
+      // Alertas de termos (Monitoração 360) hoje
+      const { count: termosAlertas } = await supabase
+        .from('alertas_monitoramento')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', inicioDia)
+        .lte('created_at', fimDia);
+
+      // Distribuições encontradas hoje
+      const { count: distribuicoesNovas } = await supabase
+        .from('distribuicoes_encontradas')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', inicioDia)
+        .lte('created_at', fimDia);
+
+      // Movimentações (andamentos) hoje
+      const { count: andamentosNovos } = await supabase
+        .from('movimentacoes')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', inicioDia)
+        .lte('created_at', fimDia);
+
+      // Historico monitoramento para redistribuições (usa novos_andamentos como campo de contagem)
+      const { data: redistribuicoesData } = await supabase
+        .from('historico_monitoramento')
+        .select('novos_andamentos')
+        .eq('tipo', 'redistribuicoes')
+        .gte('executado_em', inicioDia)
+        .lte('executado_em', fimDia);
+
+      const redistribuicoesNovas = redistribuicoesData?.reduce((acc, h) => acc + (h.novos_andamentos || 0), 0) || 0;
+
+      return {
+        djen: djenNovas ?? 0,
+        djen_processos: djenProcessosNovas ?? 0,
+        termos: termosAlertas ?? 0,
+        redistribuicoes: redistribuicoesNovas,
+        distribuicoes: distribuicoesNovas ?? 0,
+        andamentos: andamentosNovos ?? 0,
+      } as Record<string, number>;
+    },
+    staleTime: 30000,
+    refetchInterval: 60000, // Atualiza a cada 60s
   });
 
   // Real-time subscription
@@ -191,11 +257,15 @@ export function useMonitoringDashboard() {
     ) || null;
 
     const todayTypeExecs = todayExecutions.filter((e: any) => e.tipo === tipo);
+    
+    // USAR DADOS REAIS DO BANCO em vez de registros_encontrados das execuções
+    const realFound = (realDbStats as Record<string, number>)[tipo] ?? 0;
+    
     const todayStats = {
       executions: todayTypeExecs.length,
       successful: todayTypeExecs.filter((e: any) => e.status === 'concluido').length,
       failed: todayTypeExecs.filter((e: any) => e.status === 'falhou').length,
-      found: todayTypeExecs.reduce((acc: number, e: any) => acc + (e.registros_encontrados || 0), 0),
+      found: realFound, // USAR DADOS REAIS DO BANCO
       processed: todayTypeExecs.reduce((acc: number, e: any) => acc + (e.registros_processados || 0), 0),
     };
 
