@@ -229,18 +229,10 @@ Deno.serve(async (req) => {
     let totalProcessados = 0;
     let totalEncontrados = 0;
     let lotes = 0;
-    const startedAtMs = Date.now();
-    let stoppedByRuntime = false;
 
     // Loop de execução com retries
     while (!isComplete && retryCount <= MAX_RETRIES) {
-      // Evita travar em status executando caso a edge function seja interrompida pelo runtime.
-      if (Date.now() - startedAtMs > MAX_RUNTIME_MS) {
-        stoppedByRuntime = true;
-        lastError = `Execução parcial: limite de runtime atingido. Retome para continuar do último lote.`;
-        console.warn(`[${tipo}] Parando por limite de runtime. ExecucaoId=${execucaoId}`);
-        break;
-      }
+      // Checagem de cancelamento
       if (await isCancelled()) {
         console.log(`[${tipo}] Cancelamento detectado, interrompendo antes do próximo lote`);
         break;
@@ -365,8 +357,6 @@ Deno.serve(async (req) => {
     let statusFinal: string;
     if (cancelled) {
       statusFinal = 'cancelado';
-    } else if (stoppedByRuntime) {
-      statusFinal = 'timeout';
     } else if (lastError && retryCount > MAX_RETRIES) {
       statusFinal = 'falhou';
     } else if (isComplete) {
