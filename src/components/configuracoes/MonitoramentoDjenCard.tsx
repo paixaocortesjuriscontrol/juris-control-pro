@@ -267,10 +267,10 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     // mas avisamos o usuário e aplicamos backoff/retry mais adiante.
     const { data: outrasExecucoesEmAndamento } = await supabase
       .from('execucoes_agendadas')
-      .select('tipo')
+      .select('id, tipo')
       .eq('status', 'executando')
       .neq('tipo', 'djen')
-      .limit(5);
+      .limit(10);
 
     if (outrasExecucoesEmAndamento && outrasExecucoesEmAndamento.length > 0) {
       const tipos = Array.from(new Set(outrasExecucoesEmAndamento.map((e: any) => e.tipo).filter(Boolean)));
@@ -282,9 +282,44 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         termos: 'Monitoração 360',
       };
       const listaFormatada = tipos.map(t => nomesTipos[t] || t).join(', ');
+      
+      const cancelarOutros = async () => {
+        try {
+          // Cancelar na tabela execucoes_agendadas
+          const ids = outrasExecucoesEmAndamento.map((e: any) => e.id);
+          await supabase
+            .from('execucoes_agendadas')
+            .update({ status: 'cancelado', finalizado_em: new Date().toISOString() })
+            .in('id', ids);
+          
+          // Marcar cancelado nos metadados de cada tipo
+          for (const tipo of tipos) {
+            await supabase
+              .from('configuracoes_monitoramento')
+              .update({ 
+                metadata: { cancelado: true, status: 'cancelado', cancelled_at: new Date().toISOString() } 
+              })
+              .eq('tipo', tipo)
+              .is('coordenacao_id', null);
+          }
+          
+          toast.success(`${tipos.length} monitoramento(s) cancelado(s): ${listaFormatada}`);
+        } catch (err) {
+          console.error('Erro ao cancelar monitoramentos:', err);
+          toast.error('Erro ao cancelar monitoramentos');
+        }
+      };
+
       toast.warning(
-        `⚠️ Monitoramentos em execução: ${listaFormatada}. Isso pode causar erro "WORKER_LIMIT" (546). Aguarde a conclusão ou cancele-os antes de continuar.`,
-        { duration: Infinity, dismissible: true }
+        `⚠️ Monitoramentos em execução: ${listaFormatada}. Isso pode causar erro "WORKER_LIMIT" (546).`,
+        { 
+          duration: Infinity, 
+          dismissible: true,
+          action: {
+            label: 'Cancelar Todos',
+            onClick: cancelarOutros,
+          },
+        }
       );
     }
 
