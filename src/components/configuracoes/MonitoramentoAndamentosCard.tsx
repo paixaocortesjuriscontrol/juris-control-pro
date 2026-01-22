@@ -120,27 +120,45 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
     return config?.ativo === false || md.paused_globally === true;
   }, [config?.ativo, metadata]);
 
-  const reativarMonitoramento = async () => {
+  const reativarMonitoramento = async (mode: 'novo' | 'retomar') => {
     if (!config?.id) return;
-    const currentMetadata = (metadata ?? {}) as Record<string, any>;
+
+    // Se for execução nova, limpar TODOS os dados de progresso
+    const resetMetadata = mode === 'novo' 
+      ? {
+          paused_globally: false,
+          cancelado: false,
+          status: 'idle',
+          continuingRun: false,
+          // Limpar progresso antigo para começar do zero
+          next_offset: 0,
+          current: 0,
+          total: 0,
+          percentage: 0,
+          processados: 0,
+          encontrados: 0,
+        }
+      : {
+          // Retomar: manter next_offset, mas resetar flags
+          ...(metadata ?? {}),
+          paused_globally: false,
+          cancelado: false,
+          status: 'idle',
+          continuingRun: true,
+        };
 
     const { error } = await supabase
       .from('configuracoes_monitoramento')
       .update({
         ativo: true,
-        metadata: {
-          ...currentMetadata,
-          paused_globally: false,
-          cancelado: false,
-          status: 'idle',
-          continuingRun: false,
-        },
+        metadata: resetMetadata,
         updated_at: new Date().toISOString(),
       })
       .eq('id', config.id);
 
     if (error) throw error;
     queryClient.invalidateQueries({ queryKey: ['config-monitoramento'] });
+    queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
   };
 
   const handleExecutar = async (mode: 'novo' | 'retomar') => {
@@ -294,9 +312,9 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
               <AlertDialogAction
                 onClick={async () => {
                   try {
-                    await reativarMonitoramento();
+                    const mode = pendingRunMode ?? 'novo';
+                    await reativarMonitoramento(mode);
                     toast.success('Monitoramento reativado. Iniciando execução...');
-                    const mode = pendingRunMode;
                     setPendingRunMode(null);
                     // dispara a execução após reativar
                     await executar(mode === 'retomar');
