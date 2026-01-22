@@ -367,6 +367,8 @@ export function useMonitoringDashboard() {
     if (exec) {
       const detalhesTotal = toNumber(exec.detalhes?.progress?.total);
       const detalhesCurrent = toNumber(exec.detalhes?.progress?.current);
+      // Para distribuições, o worker usa tribunaisProcessados como total
+      const tribunaisProcessados = toNumber(exec.detalhes?.tribunaisProcessados);
 
       // Override with exec values if config didn't have them
       if (processados === 0 && exec.registros_processados > 0) {
@@ -392,6 +394,11 @@ export function useMonitoringDashboard() {
         if (total === 0 && detalhesTotal !== null && detalhesTotal > 0) {
           total = detalhesTotal;
         }
+        
+        // Para distribuições: usar tribunaisProcessados como total se não houver outro
+        if (total === 0 && tribunaisProcessados !== null && tribunaisProcessados > 0) {
+          total = tribunaisProcessados;
+        }
       }
 
       // Final safety: compute percentage from current/total if still missing or stuck at 0
@@ -407,8 +414,15 @@ export function useMonitoringDashboard() {
     }
 
     // Se a execução está concluída, garantir 100% quando houver total conhecido.
-    if (status === 'completed' && total > 0) {
-      progress = 100;
+    // Para tipos sem total estruturado (distribuições), mostrar 100% se concluído
+    if (status === 'completed') {
+      if (total > 0) {
+        progress = 100;
+      } else if (processados > 0) {
+        // Execução concluída com processados mas sem total = 100%
+        total = processados;
+        progress = 100;
+      }
     }
 
     return {
