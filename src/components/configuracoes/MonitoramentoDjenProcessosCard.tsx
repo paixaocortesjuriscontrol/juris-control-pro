@@ -7,9 +7,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileSearch, Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play } from "lucide-react";
+import { FileSearch, Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play, StopCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
+import { useRealtimeProgress } from "@/hooks/useRealtimeProgress";
 
 interface ExecutionResult {
   processados: number;
@@ -34,13 +35,34 @@ interface Props {
 }
 
 export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
-  const [executando, setExecutando] = useState(false);
-  const [progresso, setProgresso] = useState<{ processados: number; total: number; novas: number } | null>(null);
+  const [executandoManual, setExecutandoManual] = useState(false);
+  const [progressoManual, setProgressoManual] = useState<{ processados: number; total: number; novas: number } | null>(null);
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [statsOpen, setStatsOpen] = useState(false);
   const canceladoRef = useRef(false);
   const queryClient = useQueryClient();
+
+  // Hook de progresso realtime via Supabase
+  const { progress: realtimeProgress } = useRealtimeProgress({
+    tipo: 'djen_processos',
+    enabled: true,
+    onComplete: () => {
+      queryClient.invalidateQueries({ queryKey: ['djen-processos-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['djen-processos-historico'] });
+      toast.success('Busca DJEN por Processo concluída!');
+    },
+  });
+
+  // Determina se está executando (manual ou detectado via realtime)
+  const executando = executandoManual || realtimeProgress.isRunning;
+
+  // Progresso combinado: manual tem prioridade, senão usa realtime
+  const progresso = progressoManual || (realtimeProgress.isRunning ? {
+    processados: realtimeProgress.current,
+    total: realtimeProgress.total,
+    novas: realtimeProgress.novas ?? 0,
+  } : null);
 
   // Buscar configuração
   const { data: config, isLoading } = useQuery({
@@ -148,11 +170,11 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
 
   const handleExecutarManual = async () => {
     if (executando) return; // Prevenir duplo clique
-    setExecutando(true);
+    setExecutandoManual(true);
     canceladoRef.current = false;
     
     // Mostra progresso imediatamente com estado "iniciando"
-    setProgresso({ processados: 0, total: 0, novas: 0 });
+    setProgressoManual({ processados: 0, total: 0, novas: 0 });
 
     // Limpa flag de cancelamento anterior
     if (config?.id) {
@@ -160,7 +182,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
       await supabase
         .from('configuracoes_monitoramento')
         .update({
-          metadata: { ...currentMetadata, cancelado: false, status: 'em_andamento', next_offset: 0 },
+          metadata: { ...currentMetadata, cancelado: false, status: 'em_andamento', next_offset: 0, current: 0, total: 0 },
         })
         .eq('id', config.id);
     }
@@ -181,11 +203,28 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
         totalProcessos = result.totalProcessos;
         offset = result.nextOffset;
 
-        setProgresso({
+        setProgressoManual({
           processados: result.concluido ? totalProcessos : offset,
           total: totalProcessos,
           novas: totalNovas
         });
+
+        // Atualizar metadata para sincronização realtime
+        if (config?.id) {
+          const currentMetadata = (config.metadata as Record<string, any>) || {};
+          await supabase
+            .from('configuracoes_monitoramento')
+            .update({
+              metadata: { 
+                ...currentMetadata, 
+                current: result.concluido ? totalProcessos : offset,
+                total: totalProcessos,
+                novas: totalNovas,
+                status: result.concluido ? 'concluido' : 'em_andamento',
+              },
+            })
+            .eq('id', config.id);
+        }
 
         if (result.concluido) {
           break;
@@ -208,7 +247,8 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
       console.error('Erro:', error);
       toast.error('Erro ao executar monitoramento');
     } finally {
-      setExecutando(false);
+      setExecutandoManual(false);
+      setProgressoManual(null);
     }
   };
 
@@ -456,26 +496,50 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
           frequencia={config?.frequencia}
         />
 
-        {/* Progresso */}
+        {/* Progresso em Tempo Real */}
         {(executando || progresso) && (
-          <div className="space-y-2">
+          <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {realtimeProgress.isRunning && !executandoManual ? 'Execução em andamento' : 'Executando...'}
+              </div>
+              {executando && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelar}
+                  className="h-7 gap-1 text-destructive hover:text-destructive"
+                >
+                  <StopCircle className="h-3 w-3" />
+                  Cancelar
+                </Button>
+              )}
+            </div>
+            
             <div className="flex items-center justify-between text-xs">
               {progresso && progresso.total > 0 ? (
                 <>
-                  <span>{progresso.processados} de {progresso.total} processos</span>
-                  <span className="text-green-600">+{progresso.novas} novas</span>
+                  <span className="text-muted-foreground">
+                    {progresso.processados.toLocaleString('pt-BR')} de {progresso.total.toLocaleString('pt-BR')} processos
+                  </span>
+                  <span className="font-medium text-green-600">+{progresso.novas} novas</span>
                 </>
               ) : (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Iniciando busca...
-                </span>
+                <span className="text-muted-foreground">Iniciando busca...</span>
               )}
             </div>
+            
             <Progress 
               value={progresso && progresso.total > 0 ? progressPercent : undefined} 
               className={cn("h-2", (!progresso || progresso.total === 0) && "animate-pulse")} 
             />
+            
+            {progresso && progresso.total > 0 && (
+              <div className="text-xs text-center text-muted-foreground">
+                {progressPercent}% concluído
+              </div>
+            )}
           </div>
         )}
 
