@@ -1,8 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { FileText, Clock, PlayCircle, RefreshCw, XCircle, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -28,6 +39,8 @@ const HORARIOS_DISPONIVEIS = [
 
 export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
+  const [confirmReativarOpen, setConfirmReativarOpen] = useState(false);
+  const [pendingRunMode, setPendingRunMode] = useState<'novo' | 'retomar' | null>(null);
 
   // Query para buscar configuração
   const { data: config, isLoading } = useQuery({
@@ -102,6 +115,43 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
   const nextOffset = metadata?.next_offset as number | undefined;
   const totalProcessos = metadata?.total as number | undefined;
 
+  const isPausadoOuDesativado = useMemo(() => {
+    const md = metadata ?? {};
+    return config?.ativo === false || md.paused_globally === true;
+  }, [config?.ativo, metadata]);
+
+  const reativarMonitoramento = async () => {
+    if (!config?.id) return;
+    const currentMetadata = (metadata ?? {}) as Record<string, any>;
+
+    const { error } = await supabase
+      .from('configuracoes_monitoramento')
+      .update({
+        ativo: true,
+        metadata: {
+          ...currentMetadata,
+          paused_globally: false,
+          cancelado: false,
+          status: 'idle',
+          continuingRun: false,
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', config.id);
+
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['config-monitoramento'] });
+  };
+
+  const handleExecutar = async (mode: 'novo' | 'retomar') => {
+    if (isPausadoOuDesativado) {
+      setPendingRunMode(mode);
+      setConfirmReativarOpen(true);
+      return;
+    }
+    await executar(mode === 'retomar');
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -120,15 +170,15 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-blue-500/10">
-            <FileText className="h-5 w-5 text-blue-500" />
-          </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
               Monitoramento de Andamentos
               <span title="Detecta audiências automaticamente">
-                <Calendar className="h-4 w-4 text-orange-500" />
+                  <Calendar className="h-4 w-4 text-primary" />
               </span>
             </CardTitle>
             <CardDescription>
@@ -186,7 +236,7 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
               </span>
             </div>
             {config.metadata && typeof config.metadata === 'object' && 'last_complete_run' in config.metadata && config.metadata.last_complete_run && (
-              <span className="text-xs text-green-600 ml-6">
+              <span className="text-xs text-primary ml-6">
                 Última execução completa: {format(toZonedTime(new Date(String(config.metadata.last_complete_run)), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
             )}
@@ -206,7 +256,7 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
           <BotaoRetomarLote
             nextOffset={nextOffset}
             total={totalProcessos}
-            onRetomar={() => executar(true)}
+            onRetomar={() => handleExecutar('retomar')}
             disabled={executando || cancelando}
           />
           {executando ? (
@@ -221,7 +271,7 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
             </Button>
           ) : (
             <Button 
-              onClick={() => executar(false)} 
+              onClick={() => handleExecutar('novo')} 
               disabled={executando}
               className="flex-1"
             >
@@ -230,6 +280,36 @@ export function MonitoramentoAndamentosCard({ coordenacaoId }: Props) {
             </Button>
           )}
         </div>
+
+        <AlertDialog open={confirmReativarOpen} onOpenChange={setConfirmReativarOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Monitoramento está desativado/pausado</AlertDialogTitle>
+              <AlertDialogDescription>
+                Para executar agora, precisamos reativar o monitoramento (remover pausa global e limpar o estado de cancelamento).
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPendingRunMode(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  try {
+                    await reativarMonitoramento();
+                    toast.success('Monitoramento reativado. Iniciando execução...');
+                    const mode = pendingRunMode;
+                    setPendingRunMode(null);
+                    // dispara a execução após reativar
+                    await executar(mode === 'retomar');
+                  } catch (e: any) {
+                    toast.error(`Não foi possível reativar: ${e?.message || 'erro desconhecido'}`);
+                  }
+                }}
+              >
+                Reativar e executar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Nota explicativa */}
         <div className="pt-4 border-t">
