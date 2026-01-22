@@ -991,6 +991,7 @@ serve(async (req) => {
     const hasMore = nextOffset < (totalProcessos || 0);
 
     if (config) {
+      const progressPercentage = (totalProcessos || 0) > 0 ? Math.min(100, Math.round((nextOffset / (totalProcessos || 1)) * 100)) : 0;
       await supabase
         .from('configuracoes_monitoramento')
         .update({
@@ -998,6 +999,12 @@ serve(async (req) => {
           ultima_execucao: offset === 0 ? new Date().toISOString() : config.ultima_execucao,
           metadata: {
             ...(config.metadata || {}),
+            // Campos para sincronização realtime via useRealtimeProgress
+            current: nextOffset,
+            total: totalProcessos || 0,
+            novas: totalNovas,
+            status: hasMore ? 'em_andamento' : 'concluido',
+            // Campos legados de paginação
             next_offset: hasMore ? nextOffset : 0,
             last_batch_processos: processos.length,
             last_batch_novas: totalNovas,
