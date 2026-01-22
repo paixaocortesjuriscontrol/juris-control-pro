@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
+import { getExecutionProgress } from "@/utils/executionProgress";
 
 interface Props {
   coordenacaoId: string;
@@ -175,12 +176,14 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     };
   }, [queryClient]);
 
-  // Derivar progresso da fonte única: execucaoAtiva.detalhes.progress
-  const detalhes = execucaoAtiva?.detalhes as Record<string, any> | null;
-  const execProgress = detalhes?.progress as { current?: number; total?: number; percentage?: number } | undefined;
-  const execProcessados = execProgress?.current ?? 0;
-  const execTotal = execProgress?.total ?? 0;
-  const execPercent = execProgress?.percentage ?? (execTotal > 0 ? Math.round((execProcessados / execTotal) * 100) : 0);
+  // Progresso ao vivo (monótono): evita percentual “voltar” quando detalhes.progress é sobrescrito por lote
+  const { current: execProcessados, total: execTotal, percentage: execPercentRaw } = getExecutionProgress({
+    detalhes: execucaoAtiva?.detalhes,
+    registros_processados: execucaoAtiva?.registros_processados,
+    total_lotes: execucaoAtiva?.total_lotes,
+    lotes_processados: execucaoAtiva?.lotes_processados,
+  });
+  const execPercent = execPercentRaw ?? 0;
   const execNovas = execucaoAtiva?.registros_encontrados ?? 0;
   const isExecuting = !!execucaoAtiva;
 
@@ -453,7 +456,10 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
                 <Radio className="h-4 w-4 text-primary animate-pulse" />
-                <span className="font-medium">Processando: {execProcessados}/{execTotal}</span>
+                <span className="font-medium">
+                  Processando: {execProcessados.toLocaleString('pt-BR')}
+                  {execTotal > 0 ? `/${execTotal.toLocaleString('pt-BR')}` : ''}
+                </span>
               </div>
               <Badge variant="secondary" className="text-xs">
                 {execPercent}%
