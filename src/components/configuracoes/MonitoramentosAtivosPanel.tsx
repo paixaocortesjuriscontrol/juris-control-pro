@@ -18,6 +18,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getExecutionProgress } from '@/utils/executionProgress';
 
 interface ExecucaoAtiva {
   id: string;
@@ -75,35 +76,12 @@ function ExecucaoCard({ execucao, onCancel, cancelando }: {
     return () => clearInterval(interval);
   }, [execucao.iniciado_em]);
 
-  // Calculate progress - SEMPRE priorizar detalhes.progress que tem os valores corretos
-  let progress: number | null = null;
-  let processados = 0;
-  let total = 0;
-
-  // Priorizar detalhes.progress (vem direto da edge function com valores corretos)
-  if (execucao.detalhes?.progress) {
-    const p = execucao.detalhes.progress;
-    if (typeof p.percentage === 'number') progress = p.percentage;
-    if (typeof p.current === 'number') processados = p.current;
-    if (typeof p.total === 'number') total = p.total;
-  }
-  
-  // Fallback para total_lotes/lotes_processados se não houver detalhes.progress
-  if (total === 0 && execucao.total_lotes && execucao.total_lotes > 0) {
-    total = execucao.total_lotes;
-    processados = execucao.lotes_processados || 0;
-    progress = Math.min(100, Math.round((processados / total) * 100));
-  }
-  
-  // Último fallback: registros_processados (pode estar errado para DJEN)
-  if (processados === 0 && execucao.registros_processados) {
-    processados = execucao.registros_processados;
-  }
-
-  // Calcular progresso se ainda não temos
-  if (total > 0 && processados > 0 && progress === null) {
-    progress = Math.min(100, Math.round((processados / total) * 100));
-  }
+  const { current: processados, total, percentage: progress } = getExecutionProgress({
+    detalhes: execucao.detalhes,
+    registros_processados: execucao.registros_processados,
+    total_lotes: execucao.total_lotes,
+    lotes_processados: execucao.lotes_processados,
+  });
 
   return (
     <div className="flex items-center gap-4 p-4 rounded-lg border bg-card">

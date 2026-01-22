@@ -19,6 +19,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useEffect } from 'react';
+import { getExecutionProgress } from '@/utils/executionProgress';
 
 const TIPO_CONFIG: Record<string, { nome: string; icon: React.ElementType; cor: string }> = {
   andamentos: { nome: 'Andamentos', icon: Activity, cor: 'bg-blue-500' },
@@ -136,13 +137,12 @@ export function FilaExecucoesPanel({ className }: { className?: string }) {
               const Icon = config.icon;
               const elapsed = Date.now() - new Date(exec.iniciado_em).getTime();
 
-              const p = exec.detalhes?.progress as { current?: number; total?: number; percentage?: number } | undefined;
-              const current = (typeof p?.current === 'number' ? p.current : null)
-                ?? (typeof exec.lotes_processados === 'number' ? exec.lotes_processados : 0);
-              const total = (typeof p?.total === 'number' ? p.total : null)
-                ?? (typeof exec.total_lotes === 'number' ? exec.total_lotes : 0);
-              const percent = (typeof p?.percentage === 'number' ? p.percentage : null)
-                ?? (total > 0 ? Math.min(100, Math.round((current / total) * 100)) : null);
+               const { current, total, percentage: percent } = getExecutionProgress({
+                 detalhes: exec.detalhes,
+                 registros_processados: exec.registros_processados,
+                 total_lotes: exec.total_lotes ?? null,
+                 lotes_processados: exec.lotes_processados,
+               });
               
               return (
                 <div 
