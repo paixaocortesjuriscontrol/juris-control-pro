@@ -17,6 +17,9 @@ const FUNCOES_MAP: Record<string, string> = {
 
 const MAX_RETRIES = 3;
 const TIMEOUT_MS = 25 * 60 * 1000; // 25 minutos
+// As Edge Functions têm um limite de runtime; se passarmos disso, a execução pode ser encerrada
+// abruptamente e ficar “executando” travada no banco. Então paramos antes e marcamos como timeout.
+const MAX_RUNTIME_MS = 110 * 1000; // 110s (margem de segurança)
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -204,9 +207,18 @@ Deno.serve(async (req) => {
     let totalProcessados = 0;
     let totalEncontrados = 0;
     let lotes = 0;
+    const startedAtMs = Date.now();
+    let stoppedByRuntime = false;
 
     // Loop de execução com retries
     while (!isComplete && retryCount <= MAX_RETRIES) {
+      // Evita travar em status executando caso a edge function seja interrompida pelo runtime.
+      if (Date.now() - startedAtMs > MAX_RUNTIME_MS) {
+        stoppedByRuntime = true;
+        lastError = `Execução parcial: limite de runtime atingido. Retome para continuar do último lote.`;
+        console.warn(`[${tipo}] Parando por limite de runtime. ExecucaoId=${execucaoId}`);
+        break;
+      }
       if (await isCancelled()) {
         console.log(`[${tipo}] Cancelamento detectado, interrompendo antes do próximo lote`);
         break;
@@ -331,6 +343,8 @@ Deno.serve(async (req) => {
     let statusFinal: string;
     if (cancelled) {
       statusFinal = 'cancelado';
+    } else if (stoppedByRuntime) {
+      statusFinal = 'timeout';
     } else if (lastError && retryCount > MAX_RETRIES) {
       statusFinal = 'falhou';
     } else if (isComplete) {
@@ -357,6 +371,34 @@ Deno.serve(async (req) => {
         })
         .eq('id', execucaoId)
         .neq('status', 'cancelado');
+    }
+
+    // Se paramos por timeout/falha, liberar o status no metadata para não parecer “executando” eternamente.
+    // Mantém next_offset/offsets existentes para permitir Retomar.
+    if (statusFinal === 'timeout' || statusFinal === 'falhou') {
+      const { data: cfgMeta } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', tipo)
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      const meta = ((cfgMeta?.metadata as any) || {}) as Record<string, any>;
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...meta,
+            // O worker usa 'em_andamento'/'concluido'/'cancelado'; aqui forçamos idle quando paramos.
+            status: 'idle',
+            continuingRun: true,
+            last_stop_reason: statusFinal,
+            last_stop_at: new Date().toISOString(),
+            last_error: lastError,
+          },
+        })
+        .eq('tipo', tipo)
+        .is('coordenacao_id', null);
     }
 
     // Limpar flag de cancelamento no metadata para não bloquear próximas execuções
