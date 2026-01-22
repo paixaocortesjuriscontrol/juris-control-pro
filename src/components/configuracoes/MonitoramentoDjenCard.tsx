@@ -227,6 +227,33 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   }, [queryClient]);
 
   const handleExecutarManual = async () => {
+    // Verificar se já existe execução em andamento (bloqueio de concorrência)
+    if (liveRun) {
+      toast.warning('Já existe uma execução DJEN em andamento. Aguarde ou cancele a execução atual.');
+      return;
+    }
+
+    // Verificar também na tabela execucoes_agendadas
+    const { data: execucoesEmAndamento } = await supabase
+      .from('execucoes_agendadas')
+      .select('id, iniciado_em')
+      .eq('tipo', 'djen')
+      .eq('status', 'executando')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (execucoesEmAndamento && execucoesEmAndamento.length > 0) {
+      const execucao = execucoesEmAndamento[0];
+      const iniciado = new Date(execucao.iniciado_em || Date.now());
+      const agora = new Date();
+      const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
+      
+      if (minutosDecorridos < 60) {
+        toast.warning(`Execução em andamento há ${Math.round(minutosDecorridos)} minutos. Aguarde a conclusão.`);
+        return;
+      }
+    }
+
     setExecutando(true);
     cancelarManualRef.current = false;
     currentRunIdRef.current = null;
@@ -439,8 +466,9 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     }
   };
 
-  const handleLimparEExecutar = async () => {
-    if (!confirm('Isso vai limpar TODAS as publicações capturadas hoje e executar novamente do zero. Deseja continuar?')) {
+  // Função separada: apenas limpa (cancela execução se houver, mas NÃO executa depois)
+  const handleLimparApenas = async () => {
+    if (!confirm('Isso vai limpar TODAS as publicações DJEN capturadas hoje. Deseja continuar?')) {
       return;
     }
 
@@ -449,8 +477,13 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       // Se houver execução manual em andamento, interromper o loop do frontend antes de limpar
       if (executando) {
         const ok = confirm('Existe uma execução manual em andamento. Deseja cancelar e continuar a limpeza?');
-        if (!ok) return;
+        if (!ok) {
+          setLimpando(false);
+          return;
+        }
         cancelarManualRef.current = true;
+        // Aguardar um pouco para o loop reagir
+        await new Promise((r) => setTimeout(r, 1000));
       }
 
       // Se houver execução “ao vivo” no banco, marcar como cancelada (evita continuação de run antigo)
@@ -471,7 +504,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       );
       if (error) throw error;
 
-      toast.success((data as any)?.message ?? 'Limpeza concluída');
+      toast.success((data as any)?.message ?? 'Limpeza concluída! Agora você pode executar novamente.');
       
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
@@ -479,14 +512,9 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
       queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-djen'] });
 
-      // Resetar estado local antes de iniciar nova execução
+      // Resetar estado local (NÃO executa novamente)
       cancelarManualRef.current = false;
       currentRunIdRef.current = null;
-      
-      // Executar novamente
-      await new Promise((r) => setTimeout(r, 800));
-      handleExecutarManual();
-      
     } catch (error) {
       console.error('Erro ao limpar:', error);
       toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
@@ -900,13 +928,18 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         <div className="flex flex-col sm:flex-row gap-2">
           <Button 
             onClick={handleExecutarManual} 
-            disabled={executando || limpando}
+            disabled={executando || limpando || !!liveRun}
             className="flex-1"
           >
             {executando ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 Processando... {progressPercent > 0 ? `${progressPercent}%` : ''}
+              </>
+            ) : liveRun ? (
+              <>
+                <Activity className="h-4 w-4 mr-2 animate-pulse" />
+                Em Andamento...
               </>
             ) : (
               <>
@@ -918,8 +951,8 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           
           <Button 
             variant="outline"
-            onClick={handleLimparEExecutar} 
-            disabled={executando || limpando}
+            onClick={handleLimparApenas} 
+            disabled={limpando}
             className="sm:w-auto"
           >
             {limpando ? (
@@ -930,7 +963,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             ) : (
               <>
                 <Trash2 className="h-4 w-4 mr-2" />
-                Limpar Dia e Executar
+                Limpar Dados de Hoje
               </>
             )}
           </Button>
