@@ -112,8 +112,12 @@ export function LiveExecutionPanel({
         monitoramentosProcessados ??
         0;
 
-      // Agora usamos o total do metadata se disponível
-      const total = typeof metadata.total === 'number' ? metadata.total : (lastBatchSize ? lastBatchSize * 100 : 0);
+      // Total explícito do metadata tem prioridade
+      const total = typeof metadata.total === 'number' && metadata.total > 0 
+        ? metadata.total 
+        : 0;
+
+      const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
 
       return {
         id: cfg.id,
@@ -124,6 +128,7 @@ export function LiveExecutionPanel({
         iniciado_em: cfg.ultima_execucao,
         detalhes: {
           ...metadata,
+          percentage,
           source: 'configuracoes_monitoramento',
         },
       };
@@ -325,10 +330,12 @@ export function LiveExecutionPanel({
   if (liveExecution) {
     const percent = liveExecution.total > 0 
       ? Math.min(100, Math.round((liveExecution.processados / liveExecution.total) * 100))
-      : 0;
+      : (liveExecution.detalhes?.percentage || 0);
+
+    const hasValidProgress = liveExecution.total > 0 && percent > 0;
 
     return (
-      <div className="space-y-3 p-3 bg-primary/5 rounded-lg border border-primary/20 animate-pulse">
+      <div className="space-y-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
         <div className="flex items-center gap-2">
           <Radio className="h-4 w-4 text-primary animate-pulse" />
           <span className="text-sm font-medium">{titulo}</span>
@@ -340,17 +347,20 @@ export function LiveExecutionPanel({
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span>
-              {liveExecution.total > 0
-                ? `Processando: ${liveExecution.processados}/${liveExecution.total}`
+              {hasValidProgress
+                ? `Processando: ${liveExecution.processados.toLocaleString('pt-BR')} de ${liveExecution.total.toLocaleString('pt-BR')}`
                 : liveExecution.processados > 0
-                  ? `Processando lote (offset: ${liveExecution.processados})`
-                  : 'Processando lote...'}
+                  ? `Processando lote ${Math.ceil(liveExecution.processados / 1000)}...`
+                  : 'Iniciando varredura...'}
             </span>
+            {hasValidProgress && (
+              <span className="text-primary font-medium">{percent}%</span>
+            )}
             {liveExecution.resultados !== undefined && liveExecution.resultados > 0 && (
-              <span className="text-primary">+{liveExecution.resultados}</span>
+              <span className="text-green-600 font-medium">+{liveExecution.resultados} alertas</span>
             )}
           </div>
-          {liveExecution.total > 0 ? (
+          {hasValidProgress ? (
             <Progress value={percent} className="h-2" />
           ) : (
             <IndeterminateProgress />

@@ -53,30 +53,41 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
     canceladoRef.current = false;
 
     try {
-      // Execução robusta: dispara o modo completeRun uma vez.
-      // A própria edge function se auto-encadeia em lotes e o painel abaixo acompanha em tempo real.
-      const { data, error } = await supabase.functions.invoke('monitorar-termos', {
+      // Mostrar feedback imediato - a execução vai rodar em background
+      toast.info('Varredura iniciada! Acompanhe o progresso no painel abaixo.');
+      
+      // Invalidar queries para forçar o painel a verificar status
+      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+
+      // Dispara a edge function em background (fire and forget)
+      // O painel LiveExecutionPanel vai acompanhar via realtime
+      supabase.functions.invoke('monitorar-termos', {
         body: { completeRun: true }
+      }).then(({ data, error }) => {
+        // Este callback só executa quando a edge function REALMENTE termina
+        // (pode demorar vários minutos se houver muitos lotes)
+        if (error) {
+          console.error('Erro na varredura:', error);
+          toast.error(`Erro na varredura: ${error.message}`);
+        } else if (data?.cancelled) {
+          toast.info('Varredura cancelada.');
+        }
+        // NÃO mostramos toast de sucesso aqui - o LiveExecutionPanel já faz isso
+        
+        setExecutandoCompleto(false);
+        canceladoRef.current = false;
+        queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+        queryClient.invalidateQueries({ queryKey: ['alertas-monitoramento'] });
+      }).catch(err => {
+        console.error('Erro na varredura:', err);
+        toast.error(`Erro na varredura: ${err.message}`);
+        setExecutandoCompleto(false);
       });
-
-      if (error) throw error;
-
-      if (data?.cancelled) {
-        toast.info('Varredura cancelada.');
-      } else if (data?.isComplete) {
-        toast.success(`Varredura concluída: ${data?.alertasGerados || 0} alertas gerados`);
-      } else {
-        toast.message('Varredura iniciada — acompanhando em tempo real no painel abaixo.');
-      }
-
-      // Atualiza a tela de alertas (quando o usuário abrir /monitoramento360)
-      queryClient.invalidateQueries({ queryKey: ['alertas-monitoramento'] });
+      
     } catch (error) {
       toast.error(`Erro na varredura: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    } finally {
       setExecutandoCompleto(false);
       canceladoRef.current = false;
-      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
     }
   };
 
