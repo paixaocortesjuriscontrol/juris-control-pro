@@ -363,31 +363,27 @@ export default function MonitoramentoDistribuicao() {
                         </div>
                         <ScrollArea className="h-[300px]">
                           <div className="p-2 space-y-1">
-                            {tribunais.map((trib) => (
-                              <div 
-                                key={trib.value}
-                                className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
-                                onClick={() => {
-                                  setTribunaisSelecionados(prev => 
-                                    prev.includes(trib.value)
-                                      ? prev.filter(t => t !== trib.value)
-                                      : [...prev, trib.value]
-                                  );
-                                }}
-                              >
-                                <Checkbox 
-                                  checked={tribunaisSelecionados.includes(trib.value)}
-                                  onCheckedChange={(checked) => {
-                                    setTribunaisSelecionados(prev => 
-                                      checked 
-                                        ? [...prev, trib.value]
-                                        : prev.filter(t => t !== trib.value)
-                                    );
-                                  }}
-                                />
-                                <span className="text-sm">{trib.label}</span>
-                              </div>
-                            ))}
+                            {tribunais.map((trib) => {
+                              const isSelected = tribunaisSelecionados.includes(trib.value);
+                              return (
+                                <label 
+                                  key={trib.value}
+                                  className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
+                                >
+                                  <Checkbox 
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      setTribunaisSelecionados(prev => 
+                                        checked 
+                                          ? [...prev, trib.value]
+                                          : prev.filter(t => t !== trib.value)
+                                      );
+                                    }}
+                                  />
+                                  <span className="text-sm">{trib.label}</span>
+                                </label>
+                              );
+                            })}
                           </div>
                         </ScrollArea>
                       </PopoverContent>
