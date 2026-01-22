@@ -10,7 +10,7 @@ import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/Monit
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
-import { DashboardMonitoramentos } from "@/components/configuracoes/DashboardMonitoramentos";
+import { MonitoringDashboard } from "@/components/configuracoes/MonitoringDashboard";
 import CofreSenhasPage from "@/pages/CofreSenhas";
 import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
 
@@ -65,9 +65,9 @@ export default function Configuracoes() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Aba Dashboard - NOVA! */}
+        {/* Aba Dashboard - Profissional */}
         <TabsContent value="dashboard" className="space-y-4">
-          <DashboardMonitoramentos />
+          <MonitoringDashboard />
         </TabsContent>
 
         {/* Aba Redistribuições */}
