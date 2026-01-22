@@ -578,27 +578,58 @@ async function processProcessosBatch(
         if (!conteudo || typeof conteudo !== 'string') continue;
 
         // Data de disponibilização (dia que saiu no sistema) vs publicação (dia oficial do diário)
-        // A API pode retornar com diferentes nomes dependendo do tribunal
-        let dataDisponibilizacao = pub.dataDisponibilizacao || pub.dataDJe || pub.dtDisponibilizacao || pub.dataDisp || null;
-        let dataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.dtPublicacao || pub.data || null;
+        // A API PJE Comunica retorna os campos padrão: dataDisponibilizacao e dataPublicacao
+        // Mas também pode vir dentro de 'comunicacao' ou com variações de nome
+        const pubObj = pub.comunicacao || pub;
+        let dataDisponibilizacao = 
+          pubObj.dataDisponibilizacao || 
+          pubObj.dataDJe || 
+          pubObj.dtDisponibilizacao || 
+          pubObj.dataDisp ||
+          pubObj.data_disponibilizacao ||
+          null;
+        let dataPublicacao = 
+          pubObj.dataPublicacao || 
+          pubObj.dataJornal || 
+          pubObj.dtPublicacao || 
+          pubObj.data || 
+          pubObj.data_publicacao ||
+          null;
+        
+        // Log para debug quando datas não são encontradas
+        if (!dataDisponibilizacao && !dataPublicacao) {
+          console.log(`[DJEN Processos] No dates found for pub. Keys: ${Object.keys(pubObj).join(', ')}`);
+        }
         
         // Inferir datas faltantes (típico: disponibilização = publicação - 1 dia)
         if (!dataDisponibilizacao && dataPublicacao) {
           try {
             const pubDate = new Date(dataPublicacao);
-            pubDate.setDate(pubDate.getDate() - 1);
-            dataDisponibilizacao = pubDate.toISOString().split('T')[0];
+            if (!isNaN(pubDate.getTime())) {
+              pubDate.setDate(pubDate.getDate() - 1);
+              dataDisponibilizacao = pubDate.toISOString().split('T')[0];
+            }
           } catch {
             // Ignore date parsing errors
           }
         } else if (dataDisponibilizacao && !dataPublicacao) {
           try {
             const dispDate = new Date(dataDisponibilizacao);
-            dispDate.setDate(dispDate.getDate() + 1);
-            dataPublicacao = dispDate.toISOString().split('T')[0];
+            if (!isNaN(dispDate.getTime())) {
+              dispDate.setDate(dispDate.getDate() + 1);
+              dataPublicacao = dispDate.toISOString().split('T')[0];
+            }
           } catch {
             // Ignore date parsing errors
           }
+        }
+        
+        // Fallback: usar created_at do registro como última opção
+        if (!dataDisponibilizacao && !dataPublicacao) {
+          const hoje = new Date().toISOString().split('T')[0];
+          dataDisponibilizacao = hoje;
+          dataPublicacao = hoje;
+          console.log(`[DJEN Processos] Using today as fallback date for processo ${processo.numero}`);
         }
         
         // Deduplicação robusta: normaliza HTML/whitespace para evitar duplicatas com pequenas variações.
