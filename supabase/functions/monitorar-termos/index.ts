@@ -622,15 +622,23 @@ Deno.serve(async (req) => {
     }
 
     // Atualizar metadata com próximo offset (ou resetar se completo)
+    const progressPercentage = totalMovimentacoes > 0 ? Math.round((processedCount / totalMovimentacoes) * 100) : 100;
+    
     if (configData?.id) {
       const newMetadata = {
-        ...configData.metadata,
+        ...(configData.metadata as Record<string, any>),
         next_offset: isComplete ? 0 : processedCount,
-        last_batch_size: movimentacoesList.length,
+        current: processedCount,
         total: totalMovimentacoes,
+        percentage: progressPercentage,
+        last_batch_size: movimentacoesList.length,
         status: isComplete ? 'concluido' : 'em_andamento',
         continuingRun: completeRun && !isComplete,
-        ...(isComplete && { last_complete_run: new Date().toISOString() }),
+        alertasGerados: ((configData.metadata as any)?.alertasGerados || 0) + alertasGerados,
+        ...(isComplete && { 
+          last_complete_run: new Date().toISOString(),
+          cancelado: false,
+        }),
       };
 
       await supabase
@@ -640,6 +648,8 @@ Deno.serve(async (req) => {
           ultima_execucao: new Date().toISOString(),
         })
         .eq('id', configData.id);
+      
+      console.log(`Updated config metadata: ${processedCount}/${totalMovimentacoes} (${progressPercentage}%)`);
     }
 
     // Salvar no histórico de monitoramento quando a execução completa
