@@ -8,8 +8,8 @@ const corsHeaders = {
 
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 
-// Max monitoramentos per invocation.
-const MAX_PER_INVOCATION = 10;
+// Max monitoramentos per invocation - reduzido para evitar timeout e bloqueios
+const MAX_PER_INVOCATION = 5;
 
 // Soft time limit (ms) to ensure we respond before the platform/browser cuts the request.
 // Importante: precisamos reservar um buffer para salvar metadados e enfileirar o próximo lote.
@@ -47,9 +47,12 @@ const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
 // Rate limiting para Jina (limite: 500 req/min = ~8 req/s)
-// Usamos limite mais conservador de 3 req/s para evitar 429
+// Usamos limite MUITO conservador para evitar 429 e bloqueios
 let lastJinaRequestTime = 0;
-const JINA_MIN_INTERVAL_MS = 1500; // 1.5s entre requisições = ~40 req/min
+const JINA_MIN_INTERVAL_MS = 4000; // 4s entre requisições = ~15 req/min (muito conservador)
+
+// Delay entre processamento de cada monitoramento para evitar bloqueio
+const INTER_MONITORAMENTO_DELAY_MS = 2000;
 
 function tryParseDjenJson(text: string): any | null {
   // 1) Direct JSON
@@ -223,8 +226,8 @@ async function fetchWithRetry(
   url: string, 
   options: RequestInit, 
   maxRetries = 2,
-  baseDelay = 1500,
-  timeoutMs = 10_000
+  baseDelay = 4000, // Aumentado para 4s para evitar bloqueios
+  timeoutMs = 15_000 // Aumentado timeout
 ): Promise<Response> {
   let lastError: Error | null = null;
   
@@ -1424,8 +1427,8 @@ serve(async (req) => {
           }
         }
 
-        // Pequeno espaçamento para reduzir risco de rate limit; em agendado usamos menor delay para caber no runtime.
-        await delay(scheduled ? 150 : 600);
+        // Espaçamento MAIOR entre monitoramentos para evitar bloqueio da API (403) e rate limit (429)
+        await delay(INTER_MONITORAMENTO_DELAY_MS);
       } catch (error) {
         errorCount++;
         console.error(`Error on ${mon.id}:`, error);
