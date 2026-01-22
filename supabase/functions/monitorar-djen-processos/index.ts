@@ -751,6 +751,29 @@ async function processProcessosBatch(
   return { totalNovas, totalDuplicadas, processosComNovas, processosComResultados, alertasProcessosNaoAtivos };
 }
 
+// Helper para atualizar execucoes_agendadas com progresso
+async function updateExecucaoProgress(
+  supabase: any,
+  execucaoId: string | undefined,
+  data: {
+    status?: string;
+    registros_processados?: number;
+    registros_encontrados?: number;
+    total_lotes?: number;
+    detalhes?: Record<string, any>;
+    finalizado_em?: string;
+  }
+) {
+  if (!execucaoId) return;
+  await supabase
+    .from('execucoes_agendadas')
+    .update({
+      ...data,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', execucaoId);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -769,6 +792,7 @@ serve(async (req) => {
     let completeRun = false;
     let scheduled = false;
     let continued = false;
+    let execucaoId: string | undefined;
 
     try {
       const body = await req.json();
@@ -778,6 +802,7 @@ serve(async (req) => {
       completeRun = body.completeRun === true;
       scheduled = body.scheduled === true;
       continued = body.continued === true;
+      execucaoId = body.execucaoId;
     } catch {
       // No body
     }
@@ -789,7 +814,7 @@ serve(async (req) => {
       dataFim = hoje;
     }
 
-    console.log(`[DJEN Processos] Início: ${dataInicio} a ${dataFim} | completeRun=${completeRun} | continued=${continued} | scheduled=${scheduled}`);
+    console.log(`[DJEN Processos] Início: ${dataInicio} a ${dataFim} | completeRun=${completeRun} | continued=${continued} | scheduled=${scheduled} | execucaoId=${execucaoId}`);
 
     // Get config
     const { data: config } = await supabase
@@ -903,6 +928,26 @@ serve(async (req) => {
     const tempoMs = Date.now() - startTime;
     console.log(`[DJEN Processos] Lote: ${totalNovas} novas, ${totalDuplicadas} dup, ${tempoMs}ms, hasMore: ${hasMore}`);
 
+    // Atualizar progresso em tempo real na tabela execucoes_agendadas
+    const progressPercentage = (totalProcessos || 0) > 0 ? Math.min(100, Math.round((nextOffset / (totalProcessos || 1)) * 100)) : 0;
+    await updateExecucaoProgress(supabase, execucaoId, {
+      status: hasMore ? 'executando' : 'concluido',
+      registros_processados: nextOffset,
+      registros_encontrados: totalNovas,
+      total_lotes: totalProcessos || 0,
+      detalhes: {
+        progress: {
+          current: nextOffset,
+          total: totalProcessos || 0,
+          percentage: progressPercentage,
+        },
+        duplicadas: totalDuplicadas,
+        processosComNovas,
+        processosComResultados,
+      },
+      ...(hasMore ? {} : { finalizado_em: new Date().toISOString() }),
+    });
+
     // Auto-continuation: garante completar todos os processos sem depender de múltiplos cron jobs.
     if (completeRun && hasMore) {
       // CANCELAMENTO PERSISTENTE: verificar flag antes de disparar próximo lote
@@ -932,6 +977,7 @@ serve(async (req) => {
           completeRun: true,
           scheduled: true,
           continued: true,
+          execucaoId, // Propagar execucaoId para atualizar progresso
         };
 
         // Use anon key for internal calls (verify_jwt = false, so we just need a valid key)

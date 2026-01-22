@@ -1038,6 +1038,29 @@ async function saveLoteRecord(
   }
 }
 
+// Helper para atualizar execucoes_agendadas com progresso
+async function updateExecucaoProgress(
+  supabase: any,
+  execucaoId: string | undefined,
+  data: {
+    status?: string;
+    registros_processados?: number;
+    registros_encontrados?: number;
+    total_lotes?: number;
+    detalhes?: Record<string, any>;
+    finalizado_em?: string;
+  }
+) {
+  if (!execucaoId) return;
+  await supabase
+    .from('execucoes_agendadas')
+    .update({
+      ...data,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', execucaoId);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1056,6 +1079,7 @@ serve(async (req) => {
     const completeRun = body?.completeRun === true || scheduled;
     const parentRunId = body?.parentRunId as string | undefined;
     const retryCount = (body?.retryCount as number) || 0;
+    const execucaoId = body?.execucaoId as string | undefined;
 
     const urlOffsetRaw = url.searchParams.get('offset');
     const urlOffset = urlOffsetRaw !== null ? Number.parseInt(urlOffsetRaw, 10) : NaN;
@@ -1073,7 +1097,7 @@ serve(async (req) => {
     }
 
     console.log(`=== DJEN Monitor START ===`);
-    console.log(`  Params: offset=${offset} | scheduled=${scheduled} | completeRun=${completeRun} | continued=${continued} | retryCount=${retryCount}`);
+    console.log(`  Params: offset=${offset} | scheduled=${scheduled} | completeRun=${completeRun} | continued=${continued} | retryCount=${retryCount} | execucaoId=${execucaoId}`);
     console.log(`  URL offset param: ${urlOffsetRaw}`);
     console.log(`  Date range: ${dataInicioParam || 'hoje'} to ${dataFimParam || 'hoje'}`);
     console.log(`  Body: ${JSON.stringify(body).slice(0, 200)}`);
@@ -1500,6 +1524,27 @@ serve(async (req) => {
       .update(updatePayload)
       .eq('tipo', 'djen');
 
+    // Atualizar progresso em tempo real na tabela execucoes_agendadas
+    const progressPercentage = total > 0 ? Math.min(100, Math.round(((offset + processedCount) / total) * 100)) : 0;
+    await updateExecucaoProgress(supabase, execucaoId, {
+      status: hasMore ? 'executando' : 'concluido',
+      registros_processados: run?.totals?.processados || processedCount,
+      registros_encontrados: run?.totals?.novas || totalNovas,
+      total_lotes: total,
+      detalhes: {
+        progress: {
+          current: offset + processedCount,
+          total: total,
+          percentage: progressPercentage,
+        },
+        descartadas: run?.totals?.descartadas || totalDescartadas,
+        duplicatas: run?.totals?.duplicatas || totalDuplicatas,
+        erros: run?.totals?.erros || errorCount,
+        runId,
+      },
+      ...(hasMore ? {} : { finalizado_em: nowIso }),
+    });
+
     // Atualiza o progresso do run a cada lote (evita ficar "preso" sem números quando a continuação falha)
     if (hasMore && run) {
       await supabase.from('djen_runs')
@@ -1592,6 +1637,7 @@ serve(async (req) => {
           scheduled: true,
           continued: true,
           parentRunId: runId,
+          execucaoId, // Propagar execucaoId para atualizar progresso
         };
 
         const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
