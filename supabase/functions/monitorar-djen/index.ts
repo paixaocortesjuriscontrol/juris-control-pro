@@ -1146,12 +1146,9 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     
-    // IMPORTANTE: Capturar auth header IMEDIATAMENTE no início antes de qualquer operação async
-    // Se a conexão for fechada depois, ainda teremos o valor
-    const incomingAuth = req.headers.get('authorization') || '';
-    const authHeaderForContinuation = incomingAuth.startsWith('Bearer ')
-      ? incomingAuth
-      : (supabaseAnonKey ? `Bearer ${supabaseAnonKey}` : '');
+    // IMPORTANTE: Para auto-continuação, usar service_role_key diretamente
+    // já que é chamada interna servidor-para-servidor e não depende do auth header do request original
+    const authHeaderForContinuation = `Bearer ${supabaseServiceKey}`;
 
     const body = await req.json().catch(() => ({} as any));
     const scheduled = body?.scheduled === true;
