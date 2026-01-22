@@ -511,6 +511,29 @@ async function processBatch(supabase: any): Promise<{
   };
 }
 
+async function updateExecucaoAgendada(
+  supabase: any,
+  execucaoId: string | undefined,
+  payload: {
+    status?: string;
+    finalizado_em?: string | null;
+    lotes_processados?: number;
+    total_lotes?: number | null;
+    registros_processados?: number;
+    registros_encontrados?: number;
+    erros?: number;
+    ultimo_erro?: string | null;
+    detalhes?: Record<string, any>;
+  }
+) {
+  if (!execucaoId) return;
+  try {
+    await supabase.from('execucoes_agendadas').update(payload).eq('id', execucaoId);
+  } catch (e) {
+    console.error('[Distribuicoes] Falha ao atualizar execucoes_agendadas:', e);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -521,16 +544,44 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check for completeRun parameter
+    // Check for parameters
     let completeRun = false;
+    let execucaoId: string | undefined;
     try {
       const body = await req.json();
       completeRun = body?.completeRun === true;
+      execucaoId = body?.execucaoId;
     } catch {
       // No body or invalid JSON, proceed with single batch
     }
 
     console.log(`Starting distribution monitoring... (completeRun: ${completeRun})`);
+
+    // Para o dashboard: total = total de tribunais a varrer em todos os monitoramentos ativos.
+    // (estimativa calculada 1x por execução)
+    let totalTribunaisEstimado: number | null = null;
+    try {
+      const { data: monitoramentosAtivos } = await supabase
+        .from('monitoramentos_distribuicao')
+        .select('*')
+        .eq('ativo', true)
+        .order('created_at', { ascending: true });
+
+      if (monitoramentosAtivos && monitoramentosAtivos.length > 0) {
+        totalTribunaisEstimado = monitoramentosAtivos.reduce((acc: number, m: any) => {
+          try {
+            return acc + getTribunaisParaMonitoramento(m).length;
+          } catch {
+            return acc;
+          }
+        }, 0);
+      } else {
+        totalTribunaisEstimado = 0;
+      }
+    } catch (e) {
+      console.warn('[Distribuicoes] Não foi possível estimar total de tribunais:', e);
+      totalTribunaisEstimado = null;
+    }
 
     if (completeRun) {
       // Execute complete run - process all batches until done
@@ -562,6 +613,25 @@ Deno.serve(async (req) => {
               metadata: { ...currentMeta, cancelado: false, status: 'cancelado' },
             })
             .eq('tipo', 'distribuicoes');
+
+          await updateExecucaoAgendada(supabase, execucaoId, {
+            status: 'cancelado',
+            finalizado_em: new Date().toISOString(),
+            lotes_processados: totalTribunaisProcessados,
+            total_lotes: totalTribunaisEstimado,
+            registros_processados: totalTribunaisProcessados,
+            registros_encontrados: totalNovasDistribuicoes,
+            detalhes: {
+              cancelled: true,
+              progress: {
+                current: totalTribunaisProcessados,
+                total: totalTribunaisEstimado ?? 0,
+                percentage: totalTribunaisEstimado && totalTribunaisEstimado > 0
+                  ? Math.min(100, Math.round((totalTribunaisProcessados / totalTribunaisEstimado) * 100))
+                  : 0,
+              },
+            },
+          });
           break;
         }
         
@@ -570,6 +640,31 @@ Deno.serve(async (req) => {
         totalNovasDistribuicoes += novasDistribuicoes;
         totalTribunaisProcessados += tribunaisProcessados;
         allErrors = [...allErrors, ...errors];
+
+        // Atualiza painel em tempo real (por lote)
+        await updateExecucaoAgendada(supabase, execucaoId, {
+          status: isComplete ? 'concluido' : 'executando',
+          finalizado_em: isComplete ? new Date().toISOString() : null,
+          lotes_processados: totalTribunaisProcessados,
+          total_lotes: totalTribunaisEstimado,
+          registros_processados: totalTribunaisProcessados,
+          registros_encontrados: totalNovasDistribuicoes,
+          erros: allErrors.length,
+          ultimo_erro: allErrors.length ? allErrors[allErrors.length - 1] : null,
+          detalhes: {
+            batchCount,
+            completedRun: isComplete,
+            novasDistribuicoes: totalNovasDistribuicoes,
+            tribunaisProcessados: totalTribunaisProcessados,
+            progress: {
+              current: totalTribunaisProcessados,
+              total: totalTribunaisEstimado ?? 0,
+              percentage: totalTribunaisEstimado && totalTribunaisEstimado > 0
+                ? Math.min(100, Math.round((totalTribunaisProcessados / totalTribunaisEstimado) * 100))
+                : 0,
+            },
+          },
+        });
 
         if (isComplete) {
           console.log(`Complete run finished after ${batchCount} batches`);
@@ -610,6 +705,27 @@ Deno.serve(async (req) => {
     } else {
       // Single batch execution
       const { isComplete, novasDistribuicoes, tribunaisProcessados, errors } = await processBatch(supabase);
+
+      await updateExecucaoAgendada(supabase, execucaoId, {
+        status: isComplete ? 'concluido' : 'executando',
+        finalizado_em: isComplete ? new Date().toISOString() : null,
+        lotes_processados: tribunaisProcessados,
+        total_lotes: totalTribunaisEstimado,
+        registros_processados: tribunaisProcessados,
+        registros_encontrados: novasDistribuicoes,
+        erros: errors.length,
+        ultimo_erro: errors.length ? errors[errors.length - 1] : null,
+        detalhes: {
+          completedRun: isComplete,
+          progress: {
+            current: tribunaisProcessados,
+            total: totalTribunaisEstimado ?? 0,
+            percentage: totalTribunaisEstimado && totalTribunaisEstimado > 0
+              ? Math.min(100, Math.round((tribunaisProcessados / totalTribunaisEstimado) * 100))
+              : 0,
+          },
+        },
+      });
 
       return new Response(
         JSON.stringify({
