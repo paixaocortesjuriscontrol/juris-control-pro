@@ -1122,9 +1122,17 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const url = new URL(req.url);
+    
+    // IMPORTANTE: Capturar auth header IMEDIATAMENTE no início antes de qualquer operação async
+    // Se a conexão for fechada depois, ainda teremos o valor
+    const incomingAuth = req.headers.get('authorization') || '';
+    const authHeaderForContinuation = incomingAuth.startsWith('Bearer ')
+      ? incomingAuth
+      : (supabaseAnonKey ? `Bearer ${supabaseAnonKey}` : '');
 
     const body = await req.json().catch(() => ({} as any));
     const scheduled = body?.scheduled === true;
@@ -1250,11 +1258,7 @@ serve(async (req) => {
           retryCount: retryCount + 1,
         };
 
-        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
-        const incomingAuth = req.headers.get('authorization') || '';
-        const authHeader = incomingAuth.startsWith('Bearer ')
-          ? incomingAuth
-          : (supabaseAnonKey ? `Bearer ${supabaseAnonKey}` : '');
+        // Usar authHeaderForContinuation já capturado no início (evita "Cannot read headers: request closed")
 
         // Wait for the delay period (max 50 seconds to stay under Edge Function limits)
         const actualDelayMs = Math.min(RETRY_DELAY_MINUTES * 60 * 1000, 50_000);
@@ -1270,7 +1274,7 @@ serve(async (req) => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': authHeader,
+              'Authorization': authHeaderForContinuation,
             },
             body: JSON.stringify(retryBody),
             signal: controller.signal,
@@ -1693,13 +1697,8 @@ serve(async (req) => {
           execucaoId, // Propagar execucaoId para atualizar progresso
         };
 
-        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
-        const incomingAuth = req.headers.get('authorization') || '';
-        const authHeader = incomingAuth.startsWith('Bearer ')
-          ? incomingAuth
-          : (supabaseAnonKey ? `Bearer ${supabaseAnonKey}` : '');
-
-        if (!authHeader) {
+        // Usar authHeaderForContinuation capturado no início (evita "Cannot read headers: request closed")
+        if (!authHeaderForContinuation) {
           console.error('[DJEN] No Authorization header available for auto-continuation');
         } else {
           const maxAttempts = 3;
@@ -1715,7 +1714,7 @@ serve(async (req) => {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': authHeader,
+                  'Authorization': authHeaderForContinuation,
                 },
                 body: JSON.stringify(nextBody),
                 signal: controller.signal,
