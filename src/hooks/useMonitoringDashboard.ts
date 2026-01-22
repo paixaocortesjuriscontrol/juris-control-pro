@@ -180,9 +180,14 @@ export function useMonitoringDashboard() {
   const monitoringStats: MonitoringStats[] = MONITORING_TYPES.map(({ tipo, nome, icon }) => {
     const config = configs.find(c => c.tipo === tipo) || null;
     const typeExecutions = executions.filter(e => e.tipo === tipo);
-    const currentExecution = typeExecutions.find(e => e.status === 'executando') || null;
+    
+    // CORREÇÃO: Só considerar "ativo" se status=executando E finalizado_em=null
+    const currentExecution = typeExecutions.find(e => 
+      e.status === 'executando' && e.finalizado_em === null
+    ) || null;
+    
     const lastCompletedExecution = typeExecutions.find(e => 
-      e.status === 'concluido' || e.status === 'falhou' || e.status === 'cancelado'
+      e.status === 'concluido' || e.status === 'falhou' || e.status === 'cancelado' || e.status === 'timeout'
     ) || null;
 
     const todayTypeExecs = todayExecutions.filter((e: any) => e.tipo === tipo);
