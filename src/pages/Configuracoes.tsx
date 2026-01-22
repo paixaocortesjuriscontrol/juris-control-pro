@@ -1,7 +1,7 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Bell, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard } from "lucide-react";
+import { User, Bell, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -11,6 +11,7 @@ import { MonitoramentoTermosCard } from "@/components/configuracoes/Monitorament
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
 import { MonitoringDashboard } from "@/components/configuracoes/MonitoringDashboard";
+import { ParametrosDjenCard } from "@/components/configuracoes/ParametrosDjenCard";
 import CofreSenhasPage from "@/pages/CofreSenhas";
 import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
 
@@ -62,6 +63,10 @@ export default function Configuracoes() {
           <TabsTrigger value="preferencias" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             <span className="hidden sm:inline">Preferências</span>
+          </TabsTrigger>
+          <TabsTrigger value="parametros-djen" className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4" />
+            <span className="hidden sm:inline">Parâmetros DJEN</span>
           </TabsTrigger>
         </TabsList>
 
@@ -217,6 +222,17 @@ export default function Configuracoes() {
               </CardHeader>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Aba Parâmetros DJEN */}
+        <TabsContent value="parametros-djen" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Parâmetros de Processamento DJEN</h2>
+            <p className="text-sm text-muted-foreground">
+              Configure estratégia, concorrência e delays do monitoramento DJEN
+            </p>
+          </div>
+          <ParametrosDjenCard />
         </TabsContent>
       </Tabs>
     </MainLayout>
