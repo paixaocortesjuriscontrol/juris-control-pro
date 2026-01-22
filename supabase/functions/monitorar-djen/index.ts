@@ -46,6 +46,11 @@ const browserHeaders = {
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
+// Rate limiting para Jina (limite: 500 req/min = ~8 req/s)
+// Usamos limite mais conservador de 3 req/s para evitar 429
+let lastJinaRequestTime = 0;
+const JINA_MIN_INTERVAL_MS = 1500; // 1.5s entre requisições = ~40 req/min
+
 function tryParseDjenJson(text: string): any | null {
   // 1) Direct JSON
   try {
@@ -86,11 +91,22 @@ function tryParseDjenJson(text: string): any | null {
 // Bright Data removed - too expensive. Using only Jina as fallback.
 
 // Fast Jina proxy fallback (cheap and fast - ~$0.001/request)
+// Com rate limiting para evitar 429
 async function fetchJsonViaJina(url: string): Promise<any | null> {
   if (!JINA_API_KEY) {
     console.log('[DJEN] JINA_API_KEY not configured');
     return null;
   }
+
+  // Rate limiting: esperar intervalo mínimo desde última requisição
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastJinaRequestTime;
+  if (timeSinceLastRequest < JINA_MIN_INTERVAL_MS) {
+    const waitTime = JINA_MIN_INTERVAL_MS - timeSinceLastRequest;
+    console.log(`[DJEN] Rate limiting Jina: waiting ${waitTime}ms`);
+    await delay(waitTime);
+  }
+  lastJinaRequestTime = Date.now();
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15_000);
@@ -107,6 +123,29 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
       },
       signal: controller.signal,
     });
+
+    if (resp.status === 429) {
+      // Rate limit hit - esperar mais tempo
+      const retryAfter = parseInt(resp.headers.get('retry-after') || '5', 10);
+      const waitTime = Math.max(retryAfter * 1000, 5000);
+      console.log(`[DJEN] Jina rate limited (429). Waiting ${waitTime}ms before retry...`);
+      await delay(waitTime);
+      // Tentar uma vez mais após esperar
+      const retryResp = await fetch(jinaUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${JINA_API_KEY}`,
+          'Accept': 'application/json, text/plain, */*',
+        },
+      });
+      if (!retryResp.ok) {
+        const t = await retryResp.text().catch(() => '');
+        console.log(`[DJEN] Jina retry failed ${retryResp.status}: ${t.slice(0, 200)}`);
+        return null;
+      }
+      const text = await retryResp.text();
+      return tryParseDjenJson(text);
+    }
 
     if (!resp.ok) {
       const t = await resp.text().catch(() => '');
@@ -657,6 +696,9 @@ async function processMonitoramento(
       publications = result.items;
       pages = result.pages;
       if (publications.length > 0) break;
+      
+      // Delay entre candidatos de busca para evitar rate limit
+      await delay(800);
     }
 
     tribunalStat.paginas = pages;
@@ -820,6 +862,11 @@ async function processMonitoramento(
     }
 
     tribunaisStats.push(tribunalStat);
+    
+    // Delay entre tribunais para evitar rate limit
+    if (tribunais.length > 1) {
+      await delay(1000);
+    }
   }
 
   console.log(`Monitoramento ${monitoramento.id}: novas=${stats.novas}, descartadas=${stats.descartadas}, duplicatas=${stats.duplicatas}`);
@@ -905,7 +952,8 @@ async function fetchDJENResultsWithStats(
       if (Array.isArray(items) && items.length > 0) {
         allResults.push(...items);
         page++;
-        await delay(500);
+        // Delay maior entre páginas para evitar rate limit (era 500ms, agora 1.5s)
+        await delay(1500);
       } else {
         break;
       }
