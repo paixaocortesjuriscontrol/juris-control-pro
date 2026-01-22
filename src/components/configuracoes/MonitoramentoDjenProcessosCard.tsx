@@ -150,7 +150,9 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     if (executando) return; // Prevenir duplo clique
     setExecutando(true);
     canceladoRef.current = false;
-    setProgresso(null);
+    
+    // Mostra progresso imediatamente com estado "iniciando"
+    setProgresso({ processados: 0, total: 0, novas: 0 });
 
     // Limpa flag de cancelamento anterior
     if (config?.id) {
@@ -158,7 +160,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
       await supabase
         .from('configuracoes_monitoramento')
         .update({
-          metadata: { ...currentMetadata, cancelado: false, status: 'em_andamento' },
+          metadata: { ...currentMetadata, cancelado: false, status: 'em_andamento', next_offset: 0 },
         })
         .eq('id', config.id);
     }
@@ -455,13 +457,25 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
         />
 
         {/* Progresso */}
-        {progresso && (
+        {(executando || progresso) && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span>{progresso.processados} de {progresso.total} processos</span>
-              <span className="text-green-600">+{progresso.novas} novas</span>
+              {progresso && progresso.total > 0 ? (
+                <>
+                  <span>{progresso.processados} de {progresso.total} processos</span>
+                  <span className="text-green-600">+{progresso.novas} novas</span>
+                </>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Iniciando busca...
+                </span>
+              )}
             </div>
-            <Progress value={progressPercent} className="h-2" />
+            <Progress 
+              value={progresso && progresso.total > 0 ? progressPercent : undefined} 
+              className={cn("h-2", (!progresso || progresso.total === 0) && "animate-pulse")} 
+            />
           </div>
         )}
 
