@@ -9,11 +9,11 @@ const corsHeaders = {
 // Single optimized endpoint
 const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 const BATCH_SIZE = 50; // Batch size for processing
-const CONCURRENT_REQUESTS = 2; // Very conservative to avoid 429s
+const CONCURRENT_REQUESTS = 3; // Moderate parallelism
 const PAGE_SIZE = 100; // Max page size
 const MAX_PAGES = 2; // Limit pages per process
-const BASE_DELAY = 2000; // 2s delay between batches to avoid rate limit
-const STAGGER_DELAY = 500; // 500ms between requests in same chunk
+const BASE_DELAY = 1500; // 1.5s delay between batches
+const STAGGER_DELAY = 300; // 300ms between requests in same chunk
 
 // Browser-like headers
 const browserHeaders = {
