@@ -591,8 +591,10 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({} as any));
     const completeRun = body?.completeRun === true;
     const execucaoId = body?.execucaoId as string | undefined;
-    // Quando chamado via executar-monitoramento, ele controla o loop (evita auto-continuation duplicado)
-    const managedByWrapper = typeof body?.continued === 'boolean' && !!execucaoId;
+    // Auto-continuation: o worker sempre faz auto-continuation quando completeRun === true.
+    // O orquestrador (executar-monitoramento) agora só dispara e retorna rápido, não faz loop.
+    // Portanto, ignoramos managedByWrapper para garantir que o worker termine sozinho.
+    const managedByWrapper = false;
 
     // Early cancellation check: if user requested cancel, stop immediately (don’t process another batch)
     if (completeRun) {
