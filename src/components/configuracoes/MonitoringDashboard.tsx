@@ -142,6 +142,10 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
   const isRunning = stats.status === 'running';
   const statusConfig = STATUS_CONFIG[stats.status];
 
+  // Get total from detalhes or config
+  const total = exec.detalhes?.progress?.total || exec.total_lotes || 0;
+  const processados = exec.registros_processados || exec.detalhes?.progress?.current || 0;
+
   return (
     <div className={cn(
       "rounded-xl p-4 space-y-3 border-2 transition-all",
@@ -149,15 +153,23 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
       statusConfig.borderColor,
       isRunning && "shadow-lg shadow-blue-500/10"
     )}>
-      {/* Progress Bar */}
-      {stats.progress !== null && (
+      {/* Progress Bar with "Processando X de Y" */}
+      {(stats.progress !== null || isRunning) && (
         <div className="space-y-1.5">
           <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground font-medium">Progresso</span>
-            <span className={cn("font-bold", statusConfig.color)}>{stats.progress}%</span>
+            <span className="text-muted-foreground font-medium">
+              {isRunning ? (
+                total > 0 
+                  ? `Processando: ${processados.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')}`
+                  : 'Processando...'
+              ) : 'Progresso'}
+            </span>
+            <span className={cn("font-bold", statusConfig.color)}>
+              {stats.progress !== null ? `${stats.progress}%` : '0%'}
+            </span>
           </div>
           <Progress 
-            value={stats.progress} 
+            value={stats.progress || 0} 
             className={cn("h-2.5", isRunning && "animate-pulse")}
           />
         </div>
@@ -168,7 +180,7 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
           <div className="text-xs text-muted-foreground mb-0.5">Processados</div>
           <div className="text-lg font-bold font-mono text-foreground">
-            {exec.registros_processados.toLocaleString('pt-BR')}
+            {processados.toLocaleString('pt-BR')}
           </div>
         </div>
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
@@ -178,10 +190,9 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
           </div>
         </div>
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
-          <div className="text-xs text-muted-foreground mb-0.5">Lotes</div>
+          <div className="text-xs text-muted-foreground mb-0.5">Total</div>
           <div className="text-lg font-bold font-mono text-foreground">
-            {exec.lotes_processados}
-            {exec.total_lotes && <span className="text-muted-foreground">/{exec.total_lotes}</span>}
+            {total > 0 ? total.toLocaleString('pt-BR') : '-'}
           </div>
         </div>
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">

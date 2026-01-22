@@ -174,16 +174,55 @@ export function useMonitoringDashboard() {
       else if (lastCompletedExecution.status === 'cancelado') status = 'cancelled';
     }
 
-    // Calculate progress
+    // Calculate progress - prioritize config metadata (real-time from edge function)
+    // then fall back to execucoes_agendadas
     let progress: number | null = null;
+    let processados = 0;
+    let total = 0;
+
+    // 1. Try config.metadata first (most accurate, updated by edge functions)
+    const metadata = config?.metadata as Record<string, any> | null;
+    if (metadata) {
+      const nextOffset = typeof metadata.next_offset === 'number' ? metadata.next_offset : null;
+      const currentOffset = typeof metadata.current === 'number' ? metadata.current : null;
+      const metaTotal = typeof metadata.total === 'number' ? metadata.total : null;
+      const metaPercentage = typeof metadata.percentage === 'number' ? metadata.percentage : null;
+
+      if (metaPercentage !== null && metaPercentage > 0) {
+        progress = metaPercentage;
+      }
+      if (nextOffset !== null) processados = nextOffset;
+      else if (currentOffset !== null) processados = currentOffset;
+      if (metaTotal !== null && metaTotal > 0) total = metaTotal;
+      
+      // Recalculate percentage if we have total but no percentage
+      if (progress === null && total > 0 && processados > 0) {
+        progress = Math.min(100, Math.round((processados / total) * 100));
+      }
+    }
+
+    // 2. Fall back to execucoes_agendadas.detalhes.progress
     const exec = currentExecution || lastCompletedExecution;
     if (exec) {
-      if (exec.total_lotes && exec.total_lotes > 0) {
-        progress = Math.min(100, Math.round((exec.lotes_processados / exec.total_lotes) * 100));
-      } else if (exec.detalhes?.percentage) {
-        progress = exec.detalhes.percentage;
-      } else if (exec.detalhes?.progress?.percentage) {
-        progress = exec.detalhes.progress.percentage;
+      // Override with exec values if config didn't have them
+      if (processados === 0 && exec.registros_processados > 0) {
+        processados = exec.registros_processados;
+      }
+      
+      if (progress === null) {
+        if (exec.total_lotes && exec.total_lotes > 0) {
+          progress = Math.min(100, Math.round((exec.lotes_processados / exec.total_lotes) * 100));
+          if (total === 0) total = exec.total_lotes;
+        } else if (exec.detalhes?.percentage) {
+          progress = exec.detalhes.percentage;
+        } else if (exec.detalhes?.progress?.percentage) {
+          progress = exec.detalhes.progress.percentage;
+        }
+        
+        // Get total from detalhes if not set
+        if (total === 0 && exec.detalhes?.progress?.total) {
+          total = exec.detalhes.progress.total;
+        }
       }
     }
 
@@ -192,7 +231,11 @@ export function useMonitoringDashboard() {
       nome,
       icon,
       config,
-      currentExecution,
+      currentExecution: currentExecution ? {
+        ...currentExecution,
+        // Enhance with metadata values for display
+        registros_processados: processados > currentExecution.registros_processados ? processados : currentExecution.registros_processados,
+      } : null,
       lastCompletedExecution,
       todayStats,
       status,
@@ -207,6 +250,27 @@ export function useMonitoringDashboard() {
   const executeMonitoring = useCallback(async (tipo: string): Promise<string | null> => {
     const monitoringType = MONITORING_TYPES.find(t => t.tipo === tipo);
     if (!monitoringType) throw new Error('Tipo inválido');
+
+    // IMPORTANT: Clear cancelado flag and reset metadata BEFORE creating execution
+    // This prevents "early cancellation" from leftover flags
+    const config = configs.find(c => c.tipo === tipo);
+    if (config) {
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...(config.metadata || {}),
+            next_offset: 0,
+            current: 0,
+            total: 0,
+            percentage: 0,
+            cancelado: false,
+            status: 'em_andamento',
+            continuingRun: true,
+          },
+        })
+        .eq('id', config.id);
+    }
 
     // Create execution record
     const { data: execution, error } = await supabase
@@ -224,28 +288,6 @@ export function useMonitoringDashboard() {
 
     const execucaoId = execution?.id;
 
-    // Reset metadata for termos
-    if (tipo === 'termos') {
-      const config = configs.find(c => c.tipo === 'termos');
-      if (config) {
-        await supabase
-          .from('configuracoes_monitoramento')
-          .update({
-            metadata: {
-              ...(config.metadata || {}),
-              next_offset: 0,
-              current: 0,
-              total: 0,
-              percentage: 0,
-              cancelado: false,
-              status: 'em_andamento',
-              continuingRun: true,
-            },
-          })
-          .eq('id', config.id);
-      }
-    }
-
     // Fire and forget - background execution
     supabase.functions.invoke(monitoringType.funcao, {
       body: { completeRun: true, execucaoId },
@@ -253,9 +295,11 @@ export function useMonitoringDashboard() {
       console.error(`Error in ${tipo}:`, err);
     });
 
+    // Invalidate configs to get fresh metadata
+    queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
     refetchExecutions();
     return execucaoId;
-  }, [configs, refetchExecutions]);
+  }, [configs, queryClient, refetchExecutions]);
 
   // Cancel monitoring
   const cancelMonitoring = useCallback(async (tipo: string) => {
