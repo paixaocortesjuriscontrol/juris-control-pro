@@ -9,25 +9,40 @@ const corsHeaders = {
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 
 // ============================================================================
-// PARÂMETROS DE THROTTLING - alinhados com monitorar-djen-processos
+// PARÂMETROS DE THROTTLING - valores padrão (serão sobrescritos pela tabela)
 // ============================================================================
-// Max monitoramentos per invocation - reduzido para evitar timeout e bloqueios
-const MAX_PER_INVOCATION = 3; // Reduzido de 5 para 3 (mais conservador)
+// Estes valores serão carregados dinamicamente da tabela parametros_monitoramento_djen
+let CONFIG = {
+  modo_processamento: 'semi_paralelo' as 'sequencial' | 'semi_paralelo' | 'paralelo_total',
+  max_paralelo: 5,
+  max_por_invocacao: 10,
+  delay_entre_monitoramentos: 500,
+  delay_entre_paginas: 300,
+  delay_entre_tribunais: 200,
+  delay_jina_api: 2000,
+  soft_timeout_ms: 50000,
+  finalization_buffer_ms: 10000,
+  max_retries: 3,
+  retry_base_delay_ms: 2000,
+};
 
-// Soft time limit (ms) to ensure we respond before the platform/browser cuts the request.
-const SOFT_TIMEOUT_MS = 50_000; // Reduzido de 55s para 50s para mais margem
-const FINALIZATION_BUFFER_MS = 15_000; // Aumentado de 12s para 15s
+// Legacy constants - will be replaced by CONFIG values
+let MAX_PER_INVOCATION = 10;
+let SOFT_TIMEOUT_MS = 50_000;
+let FINALIZATION_BUFFER_MS = 10_000;
+let INTER_MONITORAMENTO_DELAY_MS = 500;
+let INTER_TRIBUNAL_DELAY_MS = 200;
+let INTER_PAGE_DELAY_MS = 300;
+let JINA_MIN_INTERVAL_MS = 2000;
 
 // Retry config: if first batch at 09:00 is empty, retry after this delay
 const RETRY_DELAY_MINUTES = 15;
-const MAX_RETRIES = 4; // Total max retries for empty result
+const MAX_RETRIES = 4;
 
-// Delays entre operações (alinhados com monitorar-djen-processos)
-const BASE_DELAY_MS = 1500; // Delay base entre batches (igual ao processos)
-const STAGGER_DELAY_MS = 500; // Delay entre requests no mesmo chunk
-const INTER_TRIBUNAL_DELAY_MS = 1200; // Delay entre tribunais (era 1000)
-const INTER_PAGE_DELAY_MS = 2000; // Delay entre páginas (era 1500)
-const INTER_CANDIDATE_DELAY_MS = 1000; // Delay entre candidatos de busca (era 800)
+// Outros delays
+const BASE_DELAY_MS = 1500;
+const STAGGER_DELAY_MS = 500;
+const INTER_CANDIDATE_DELAY_MS = 1000;
 
 interface Monitoramento {
   id: string;
@@ -56,12 +71,53 @@ const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
 // Rate limiting para Jina - MUITO conservador para evitar 429 e bloqueios
-// Alinhado com monitorar-djen-processos
 let lastJinaRequestTime = 0;
-const JINA_MIN_INTERVAL_MS = 4000; // 4s entre requisições (mantém)
 
-// Delay entre processamento de cada monitoramento para evitar bloqueio
-const INTER_MONITORAMENTO_DELAY_MS = 3000; // Aumentado de 2s para 3s
+// Função para carregar parâmetros da tabela
+async function loadConfigFromDatabase(supabase: any): Promise<void> {
+  try {
+    const { data, error } = await supabase
+      .from('parametros_monitoramento_djen')
+      .select('*')
+      .eq('ativo', true)
+      .limit(1)
+      .single();
+
+    if (error) {
+      console.log('[DJEN] Erro ao carregar parâmetros da tabela, usando valores padrão:', error.message);
+      return;
+    }
+
+    if (data) {
+      CONFIG = {
+        modo_processamento: data.modo_processamento || 'semi_paralelo',
+        max_paralelo: data.max_paralelo || 5,
+        max_por_invocacao: data.max_por_invocacao || 10,
+        delay_entre_monitoramentos: data.delay_entre_monitoramentos || 500,
+        delay_entre_paginas: data.delay_entre_paginas || 300,
+        delay_entre_tribunais: data.delay_entre_tribunais || 200,
+        delay_jina_api: data.delay_jina_api || 2000,
+        soft_timeout_ms: data.soft_timeout_ms || 50000,
+        finalization_buffer_ms: data.finalization_buffer_ms || 10000,
+        max_retries: data.max_retries || 3,
+        retry_base_delay_ms: data.retry_base_delay_ms || 2000,
+      };
+
+      // Atualizar variáveis legacy
+      MAX_PER_INVOCATION = CONFIG.max_por_invocacao;
+      SOFT_TIMEOUT_MS = CONFIG.soft_timeout_ms;
+      FINALIZATION_BUFFER_MS = CONFIG.finalization_buffer_ms;
+      INTER_MONITORAMENTO_DELAY_MS = CONFIG.delay_entre_monitoramentos;
+      INTER_TRIBUNAL_DELAY_MS = CONFIG.delay_entre_tribunais;
+      INTER_PAGE_DELAY_MS = CONFIG.delay_entre_paginas;
+      JINA_MIN_INTERVAL_MS = CONFIG.delay_jina_api;
+
+      console.log(`[DJEN] Parâmetros carregados: modo=${CONFIG.modo_processamento}, paralelo=${CONFIG.max_paralelo}, por_invocacao=${CONFIG.max_por_invocacao}`);
+    }
+  } catch (e) {
+    console.log('[DJEN] Erro ao carregar config:', e);
+  }
+}
 
 function tryParseDjenJson(text: string): any | null {
   // 1) Direct JSON
@@ -1152,6 +1208,9 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Carregar parâmetros da tabela de configuração
+    await loadConfigFromDatabase(supabase);
+
     const url = new URL(req.url);
     
     // IMPORTANTE: Para auto-continuação, usar service_role_key diretamente
@@ -1385,7 +1444,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Processing ${count} monitoramentos (offset ${offset})`);
+    console.log(`Processing ${count} monitoramentos (offset ${offset}) with mode: ${CONFIG.modo_processamento}`);
 
     let totalNovas = 0;
     let totalDescartadas = 0;
@@ -1396,23 +1455,18 @@ serve(async (req) => {
     let totalResultados = 0;
     const allTribunaisStats: TribunalStats[] = [];
 
-    for (const mon of (monitoramentos || [])) {
-      // Para não estourar o tempo máximo da Edge Function, interrompe o lote com antecedência
-      // e deixa tempo suficiente para salvar estado + enfileirar próximo lote.
-      if (Date.now() - startTime > (SOFT_TIMEOUT_MS - FINALIZATION_BUFFER_MS)) {
-        console.log(`Soft timeout (com buffer) reached at ${Math.round((Date.now() - startTime) / 1000)}s. Stopping batch early.`);
-        break;
-      }
-
+    // Função auxiliar para processar um monitoramento e agregar resultados
+    const processAndAggregate = async (mon: Monitoramento, index: number): Promise<void> => {
       try {
-        processedCount++;
-        console.log(`[${processedCount}/${count}] ${mon.descricao || mon.termo_busca}`);
+        console.log(`[${index + 1}/${count}] ${mon.descricao || mon.termo_busca}`);
 
         const stats = await processMonitoramento(supabase, mon, { 
           scheduled,
           dataInicio: dataInicioParam || undefined,
           dataFim: dataFimParam || undefined,
         });
+        
+        // Agregar resultados (thread-safe para leituras/escritas simples em JS)
         totalNovas += stats.novas;
         totalDescartadas += stats.descartadas;
         totalDuplicatas += stats.duplicatas;
@@ -1432,12 +1486,66 @@ serve(async (req) => {
             allTribunaisStats.push({ ...ts });
           }
         }
-
-        // Espaçamento MAIOR entre monitoramentos para evitar bloqueio da API (403) e rate limit (429)
-        await delay(INTER_MONITORAMENTO_DELAY_MS);
+        
+        processedCount++;
       } catch (error) {
         errorCount++;
+        processedCount++;
         console.error(`Error on ${mon.id}:`, error);
+      }
+    };
+
+    // Processamento baseado no modo configurado
+    const monsToProcess = monitoramentos || [];
+    
+    if (CONFIG.modo_processamento === 'paralelo_total') {
+      // Paralelo total: processar todos de uma vez
+      console.log(`[DJEN] Modo PARALELO TOTAL: processando ${monsToProcess.length} simultaneamente`);
+      await Promise.all(monsToProcess.map((mon, i) => processAndAggregate(mon, i)));
+      
+    } else if (CONFIG.modo_processamento === 'semi_paralelo') {
+      // Semi-paralelo: processar em chunks de N
+      const chunkSize = CONFIG.max_paralelo;
+      console.log(`[DJEN] Modo SEMI-PARALELO: chunks de ${chunkSize}`);
+      
+      for (let i = 0; i < monsToProcess.length; i += chunkSize) {
+        // Verificar timeout antes de cada chunk
+        if (Date.now() - startTime > (SOFT_TIMEOUT_MS - FINALIZATION_BUFFER_MS)) {
+          console.log(`Soft timeout reached at ${Math.round((Date.now() - startTime) / 1000)}s. Stopping batch early.`);
+          break;
+        }
+        
+        const chunk = monsToProcess.slice(i, i + chunkSize);
+        console.log(`[DJEN] Processando chunk ${Math.floor(i/chunkSize) + 1}: ${chunk.length} monitoramentos`);
+        
+        // Processar chunk em paralelo
+        await Promise.all(chunk.map((mon, j) => processAndAggregate(mon, i + j)));
+        
+        // Delay entre chunks
+        if (i + chunkSize < monsToProcess.length) {
+          await delay(INTER_MONITORAMENTO_DELAY_MS);
+        }
+      }
+      
+    } else {
+      // Sequencial: processar um por vez (modo original)
+      console.log(`[DJEN] Modo SEQUENCIAL: processando 1 por vez`);
+      
+      for (let i = 0; i < monsToProcess.length; i++) {
+        const mon = monsToProcess[i];
+        
+        // Verificar timeout
+        if (Date.now() - startTime > (SOFT_TIMEOUT_MS - FINALIZATION_BUFFER_MS)) {
+          console.log(`Soft timeout reached at ${Math.round((Date.now() - startTime) / 1000)}s. Stopping batch early.`);
+          break;
+        }
+        
+        await processAndAggregate(mon, i);
+        
+        // Delay entre monitoramentos
+        if (i < monsToProcess.length - 1) {
+          await delay(INTER_MONITORAMENTO_DELAY_MS);
+        }
       }
     }
 

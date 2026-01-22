@@ -2313,6 +2313,63 @@ export type Database = {
           },
         ]
       }
+      parametros_monitoramento_djen: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          delay_entre_monitoramentos: number
+          delay_entre_paginas: number
+          delay_entre_tribunais: number
+          delay_jina_api: number
+          descricao: string | null
+          finalization_buffer_ms: number
+          id: string
+          max_paralelo: number
+          max_por_invocacao: number
+          max_retries: number
+          modo_processamento: string
+          retry_base_delay_ms: number
+          soft_timeout_ms: number
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          delay_entre_monitoramentos?: number
+          delay_entre_paginas?: number
+          delay_entre_tribunais?: number
+          delay_jina_api?: number
+          descricao?: string | null
+          finalization_buffer_ms?: number
+          id?: string
+          max_paralelo?: number
+          max_por_invocacao?: number
+          max_retries?: number
+          modo_processamento?: string
+          retry_base_delay_ms?: number
+          soft_timeout_ms?: number
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          delay_entre_monitoramentos?: number
+          delay_entre_paginas?: number
+          delay_entre_tribunais?: number
+          delay_jina_api?: number
+          descricao?: string | null
+          finalization_buffer_ms?: number
+          id?: string
+          max_paralelo?: number
+          max_por_invocacao?: number
+          max_retries?: number
+          modo_processamento?: string
+          retry_base_delay_ms?: number
+          soft_timeout_ms?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       parcelas_evento: {
         Row: {
           created_at: string
