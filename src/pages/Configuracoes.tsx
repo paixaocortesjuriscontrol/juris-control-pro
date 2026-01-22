@@ -74,11 +74,11 @@ export default function Configuracoes() {
 
         {/* Aba Dashboard - Profissional */}
         <TabsContent value="dashboard" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-            <MonitoramentosAtivosPanel className="lg:col-span-2" />
+          <MonitoringDashboard />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+            <MonitoramentosAtivosPanel />
             <FilaExecucoesPanel />
           </div>
-          <MonitoringDashboard />
         </TabsContent>
 
         {/* Aba Redistribuições */}
