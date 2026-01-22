@@ -39,8 +39,7 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
   const isRunning = useMemo(() => {
     const md = metadata ?? {};
     return (
-      md.status === 'em_andamento' ||
-      md.continuingRun === true ||
+      (md.status === 'em_andamento' && md.cancelado !== true && md.paused_globally !== true) ||
       executando
     );
   }, [metadata, executando]);

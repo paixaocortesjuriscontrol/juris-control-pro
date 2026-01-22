@@ -74,6 +74,9 @@ export function LiveExecutionPanel({
 
       const metadata = (cfg.metadata as Record<string, any> | null) ?? {};
 
+      // Se está pausado globalmente, não exibir como "em andamento"
+      if (metadata.paused_globally === true) return null;
+
       if (metadata.cancelado === true) return null;
       if (metadata.status === 'cancelado' || metadata.status === 'cancelando') return null;
 
@@ -127,6 +130,44 @@ export function LiveExecutionPanel({
     };
 
     const checkCurrentExecution = async () => {
+      // 0) Fonte de verdade: execucoes_agendadas
+      // Evita UI presa em "Iniciando varredura..." quando o orquestrador bloqueia/pausa.
+      const { data: exec } = await supabase
+        .from('execucoes_agendadas')
+        .select('id, tipo, status, iniciado_em, finalizado_em, detalhes')
+        .eq('tipo', tipo)
+        .eq('status', 'executando')
+        .is('finalizado_em', null)
+        .order('iniciado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (disposed) return;
+
+      if (exec) {
+        const detalhes = (exec.detalhes as Record<string, any> | null) ?? {};
+        const progress = (detalhes.progress as any) ?? null;
+
+        const current =
+          (typeof progress?.current === 'number' ? progress.current : null) ??
+          (typeof detalhes.current === 'number' ? detalhes.current : 0);
+        const total =
+          (typeof progress?.total === 'number' ? progress.total : null) ??
+          (typeof detalhes.total === 'number' ? detalhes.total : 0);
+
+        setLiveExecution({
+          id: exec.id,
+          status: 'em_andamento',
+          tipo: exec.tipo,
+          processados: current,
+          total,
+          iniciado_em: exec.iniciado_em,
+          detalhes: { ...detalhes, source: 'execucoes_agendadas' },
+        });
+        setUpdatedAt(new Date());
+        return;
+      }
+
       // Busca execuções em andamento dos últimos 5 minutos
       const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       
