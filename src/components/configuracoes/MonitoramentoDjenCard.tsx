@@ -142,6 +142,45 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   // Latest run from the new table
   const latestRun = runs && runs.length > 0 ? runs[0] : null;
 
+  // CONTADORES REAIS DO BANCO (publicações persistidas hoje)
+  const { data: statsHoje } = useQuery({
+    queryKey: ['djen-stats-hoje'],
+    queryFn: async () => {
+      const hoje = new Date();
+      const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0).toISOString();
+      const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59).toISOString();
+
+      // Publicações novas hoje
+      const { count: novas, error: e1 } = await supabase
+        .from('publicacoes_djen')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', inicioDia)
+        .lte('created_at', fimDia);
+
+      // Descartadas hoje
+      const { count: descartadas, error: e2 } = await supabase
+        .from('publicacoes_djen_descartadas')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', inicioDia)
+        .lte('created_at', fimDia);
+
+      // Total de monitoramentos ativos
+      const { count: monitoramentos, error: e3 } = await supabase
+        .from('monitoramentos_djen')
+        .select('*', { count: 'exact', head: true })
+        .eq('ativo', true);
+
+      if (e1 || e2 || e3) console.warn('Erro ao buscar stats DJEN:', e1, e2, e3);
+      
+      return {
+        novas: novas ?? 0,
+        descartadas: descartadas ?? 0,
+        monitoramentos: monitoramentos ?? 0,
+      };
+    },
+    refetchInterval: 30000, // Atualiza a cada 30s
+  });
+
   // Fetch configured tribunals (from active DJEN terms) so the report can show
   // tribunals even when the last execution batch didn't reach those terms yet.
   const { data: monitoramentosTribunais } = useQuery({
@@ -449,6 +488,30 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             <span>Última execução: {format(toZonedTime(new Date(configuracaoDjen.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
           </div>
         )}
+
+        {/* CONTADORES REAIS DO BANCO (sempre visíveis) */}
+        <div className="p-3 bg-muted/30 rounded-lg border">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">Publicações Hoje (banco)</span>
+            <Badge variant={isExecuting ? "secondary" : "outline"} className="text-xs">
+              {isExecuting ? "Atualizando..." : "Atualizado"}
+            </Badge>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="p-2 bg-background rounded border">
+              <div className="text-lg font-bold text-primary">{statsHoje?.novas ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Novas</div>
+            </div>
+            <div className="p-2 bg-background rounded border">
+              <div className="text-lg font-bold text-destructive">{statsHoje?.descartadas ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Descartadas</div>
+            </div>
+            <div className="p-2 bg-background rounded border">
+              <div className="text-lg font-bold">{statsHoje?.monitoramentos ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Monitoramentos</div>
+            </div>
+          </div>
+        </div>
 
         {/* Progresso ao vivo (fonte única: execucoes_agendadas) */}
         {isExecuting && (
