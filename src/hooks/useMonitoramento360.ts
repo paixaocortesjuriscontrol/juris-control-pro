@@ -214,14 +214,28 @@ export function useMonitoramento360() {
   // Executar varredura nos andamentos existentes
   const executarVarredura = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('monitorar-termos');
+      // Rodar varredura completa (modo robusto com auto-continuação em lotes)
+      const { data, error } = await supabase.functions.invoke('monitorar-termos', {
+        body: { completeRun: true },
+      });
       if (error) throw error;
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['alertas-monitoramento'] });
-      const alertasEncontrados = data?.alertasGerados || 0;
-      toast.success(`Varredura concluída: ${alertasEncontrados} alertas gerados`);
+
+      if (data?.cancelled) {
+        toast.info('Varredura cancelada.');
+        return;
+      }
+
+      // Quando não está completo, a função seguirá rodando em background; o usuário pode acompanhar no painel de Configurações.
+      if (data?.isComplete) {
+        const alertasEncontrados = data?.alertasGerados || 0;
+        toast.success(`Varredura concluída: ${alertasEncontrados} alertas gerados`);
+      } else {
+        toast.message('Varredura iniciada — ela continuará em lotes automaticamente.');
+      }
     },
     onError: (error) => {
       toast.error(`Erro na varredura: ${error.message}`);

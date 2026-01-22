@@ -13,6 +13,7 @@ import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LiveExecutionPanel } from "./LiveExecutionPanel";
+import { useNavigate } from "react-router-dom";
 
 interface Props {
   coordenacaoId: string;
@@ -20,6 +21,7 @@ interface Props {
 
 export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { 
     configuracaoTermos, 
     isLoading, 
@@ -28,7 +30,6 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
   } = useConfiguracoesMonitoramento(coordenacaoId);
 
   const [executandoCompleto, setExecutandoCompleto] = useState(false);
-  const [progresso, setProgresso] = useState<{ current: number; total: number; percentage: number } | null>(null);
   const canceladoRef = useRef(false);
 
   const handleCancelar = async () => {
@@ -49,42 +50,31 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
 
   const handleExecutarCompleto = async () => {
     setExecutandoCompleto(true);
-    setProgresso({ current: 0, total: 0, percentage: 0 });
     canceladoRef.current = false;
-    
+
     try {
-      let isComplete = false;
-      let totalAlertas = 0;
-      let totalChecked = 0;
-      
-      while (!isComplete && !canceladoRef.current) {
-        const { data, error } = await supabase.functions.invoke('monitorar-termos', {
-          body: { completeRun: true }
-        });
-        
-        if (error) {
-          throw error;
-        }
-        
-        if (data?.progress) {
-          setProgresso(data.progress);
-        }
-        
-        totalChecked += data?.processosVerificados || 0;
-        totalAlertas += data?.alertasCriados || 0;
-        isComplete = data?.isComplete || false;
-      }
-      
-      if (canceladoRef.current) {
-        toast.info(`Varredura cancelada: ${totalChecked} processos verificados até o momento`);
+      // Execução robusta: dispara o modo completeRun uma vez.
+      // A própria edge function se auto-encadeia em lotes e o painel abaixo acompanha em tempo real.
+      const { data, error } = await supabase.functions.invoke('monitorar-termos', {
+        body: { completeRun: true }
+      });
+
+      if (error) throw error;
+
+      if (data?.cancelled) {
+        toast.info('Varredura cancelada.');
+      } else if (data?.isComplete) {
+        toast.success(`Varredura concluída: ${data?.alertasGerados || 0} alertas gerados`);
       } else {
-        toast.success(`Varredura completa: ${totalChecked} processos verificados, ${totalAlertas} alertas criados`);
+        toast.message('Varredura iniciada — acompanhando em tempo real no painel abaixo.');
       }
+
+      // Atualiza a tela de alertas (quando o usuário abrir /monitoramento360)
+      queryClient.invalidateQueries({ queryKey: ['alertas-monitoramento'] });
     } catch (error) {
       toast.error(`Erro na varredura: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setExecutandoCompleto(false);
-      setProgresso(null);
       canceladoRef.current = false;
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
     }
@@ -192,14 +182,20 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
         <LiveExecutionPanel
           tipo="termos"
           titulo="Verificando termos estratégicos..."
-          executandoManual={executandoCompleto}
-          progressoManual={progresso}
           onCancel={handleCancelar}
           showCancel
         />
 
         {/* Botão de execução */}
         <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate('/monitoramento360')}
+            className="flex-1"
+          >
+            Ver alertas
+          </Button>
           {executandoCompleto ? (
             <Button 
               onClick={handleCancelar} 
