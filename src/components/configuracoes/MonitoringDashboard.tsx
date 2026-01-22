@@ -153,6 +153,11 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
     lotes_processados: exec.lotes_processados,
   });
 
+  // Importante: registros_encontrados na tabela execucoes_agendadas nem sempre é atualizado
+  // (principalmente em jobs assíncronos). Para confiabilidade, usamos a contagem persistida no banco
+  // que já alimenta o resumo "Hoje" (todayStats.found).
+  const encontradosBancoHoje = stats.todayStats.found ?? 0;
+
   return (
     <div className={cn(
       "rounded-xl p-4 space-y-3 border-2 transition-all",
@@ -191,9 +196,9 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
           </div>
         </div>
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
-          <div className="text-xs text-muted-foreground mb-0.5">Encontrados</div>
+          <div className="text-xs text-muted-foreground mb-0.5">Encontrados (banco hoje)</div>
           <div className="text-lg font-bold font-mono text-green-600">
-            {exec.registros_encontrados.toLocaleString('pt-BR')}
+            {encontradosBancoHoje.toLocaleString('pt-BR')}
           </div>
         </div>
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
