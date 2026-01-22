@@ -254,6 +254,7 @@ export function useMonitoringDashboard() {
   // Build unified stats
   const monitoringStats: MonitoringStats[] = MONITORING_TYPES.map(({ tipo, nome, icon }) => {
     const config = configs.find(c => c.tipo === tipo) || null;
+    const metadata = config?.metadata as Record<string, any> | null;
     const typeExecutions = executions.filter(e => e.tipo === tipo);
     
     // CORREÇÃO: Só considerar "ativo" se status=executando E finalizado_em=null
@@ -282,6 +283,12 @@ export function useMonitoringDashboard() {
       descartadas,
     };
 
+    // IMPORTANTE: Verificar se há execução em andamento via metadata OU execucoes_agendadas
+    // Isso cobre execuções manuais que não criam registro em execucoes_agendadas
+    const metaStatus = metadata?.status as string | undefined;
+    const metaCancelado = metadata?.cancelado === true;
+    const metaIsRunning = metaStatus === 'em_andamento' && !metaCancelado;
+
     // Determine status
     let status: MonitoringStatus = 'idle';
     let elapsedSeconds = 0;
@@ -296,10 +303,21 @@ export function useMonitoringDashboard() {
       } else {
         status = 'running';
       }
+    } else if (metaIsRunning) {
+      // Execução manual em andamento (detectada via metadata, sem registro em execucoes_agendadas)
+      status = 'running';
+      // Tentar calcular tempo decorrido desde ultima_execucao
+      if (config?.ultima_execucao) {
+        const started = new Date(config.ultima_execucao);
+        const now = new Date();
+        elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
+      }
     } else if (lastCompletedExecution) {
       if (lastCompletedExecution.status === 'concluido') status = 'completed';
       else if (lastCompletedExecution.status === 'falhou') status = 'failed';
       else if (lastCompletedExecution.status === 'cancelado') status = 'cancelled';
+    } else if (metaStatus === 'concluido') {
+      status = 'completed';
     }
 
     // Calculate progress - prioritize config metadata (real-time from edge function)
@@ -309,7 +327,7 @@ export function useMonitoringDashboard() {
     let total = 0;
 
     // 1. Try config.metadata first (most accurate, updated by edge functions)
-    const metadata = config?.metadata as Record<string, any> | null;
+    // Nota: metadata já definido acima
     if (metadata) {
       const nextOffset = toNumber(metadata.next_offset);
       const currentOffset = toNumber(metadata.current);
