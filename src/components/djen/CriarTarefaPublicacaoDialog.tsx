@@ -232,23 +232,34 @@ export function CriarTarefaPublicacaoDialog({
     setTarefaEditandoId(null);
   };
 
-  // Fetch membros da coordenação do processo
+  // Fetch membros de TODAS as coordenações (permite delegar para qualquer membro)
   const { data: membros } = useQuery({
-    queryKey: ["membros-tarefa-publicacao", publicacao?.coordenacao_id],
+    queryKey: ["membros-tarefa-publicacao-todas"],
     queryFn: async () => {
-      if (!publicacao?.coordenacao_id) return [];
       const { data, error } = await supabase
         .from("membros_coordenacao")
         .select(`
           id,
+          coordenacao_id,
           usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
-        `)
-        .eq("coordenacao_id", publicacao.coordenacao_id);
+        `);
 
       if (error) throw error;
-      return data || [];
+      
+      // Deduplicar por usuario.id (um membro pode estar em várias coordenações)
+      const uniqueMap = new Map<string, typeof data[0]>();
+      (data || []).forEach(m => {
+        if (m.usuario?.id && !uniqueMap.has(m.usuario.id)) {
+          uniqueMap.set(m.usuario.id, m);
+        }
+      });
+      
+      // Ordenar por nome
+      return Array.from(uniqueMap.values()).sort((a, b) => 
+        (a.usuario?.nome || '').localeCompare(b.usuario?.nome || '')
+      );
     },
-    enabled: !!publicacao?.coordenacao_id,
+    enabled: open,
   });
 
   // Fetch responsáveis do processo
