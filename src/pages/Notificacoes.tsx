@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,8 +22,12 @@ import {
   TrendingUp,
   Building2,
   Settings,
-  LayoutDashboard
+  LayoutDashboard,
+  ListTodo,
+  Gavel,
+  FileWarning,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
@@ -56,6 +61,85 @@ export default function Notificacoes() {
   const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
   const { alertas } = useMonitoramento360();
   const { data: redistribuicoesData = [] } = useRedistribuicoes();
+
+  // Buscar tarefas pendentes
+  const { data: tarefasPendentesData = [] } = useQuery({
+    queryKey: ["tarefas-pendentes-notificacoes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tarefas")
+        .select(`
+          id,
+          titulo,
+          status,
+          data_vencimento,
+          prioridade,
+          processo:processos!tarefas_processo_id_fkey(
+            id,
+            numero,
+            coordenacao_id
+          )
+        `)
+        .eq("status", "pendente")
+        .order("data_vencimento", { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar audiências pendentes
+  const { data: audienciasPendentesData = [] } = useQuery({
+    queryKey: ["audiencias-pendentes-notificacoes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audiencias_detectadas")
+        .select(`
+          id,
+          processo_numero,
+          data_audiencia,
+          hora,
+          tipo_audiencia,
+          status,
+          processo:processos!audiencias_detectadas_processo_id_fkey(
+            id,
+            numero,
+            coordenacao_id
+          )
+        `)
+        .eq("status", "pendente")
+        .order("data_audiencia", { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar intimações pendentes
+  const { data: intimacoesPendentesData = [] } = useQuery({
+    queryKey: ["intimacoes-pendentes-notificacoes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("intimacoes_detectadas")
+        .select(`
+          id,
+          processo_numero,
+          data_intimacao,
+          tipo_intimacao,
+          status,
+          processo:processos!intimacoes_detectadas_processo_id_fkey(
+            id,
+            numero,
+            coordenacao_id
+          )
+        `)
+        .eq("status", "pendente")
+        .order("data_intimacao", { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   // Filter DJEN publications by coordination
   const publicacoesNaoLidas = publicacoes.filter(p => !p.lida);
@@ -104,6 +188,21 @@ export default function Notificacoes() {
         return alertaRelacionado?.processo?.coordenacao_id === coordenacaoId;
       });
 
+  // Filter tarefas by coordination
+  const tarefasFiltradas = coordenacaoId === "todas"
+    ? tarefasPendentesData
+    : tarefasPendentesData.filter(t => (t.processo as any)?.coordenacao_id === coordenacaoId);
+
+  // Filter audiencias by coordination
+  const audienciasFiltradas = coordenacaoId === "todas"
+    ? audienciasPendentesData
+    : audienciasPendentesData.filter(a => (a.processo as any)?.coordenacao_id === coordenacaoId);
+
+  // Filter intimacoes by coordination
+  const intimacoesFiltradas = coordenacaoId === "todas"
+    ? intimacoesPendentesData
+    : intimacoesPendentesData.filter(i => (i.processo as any)?.coordenacao_id === coordenacaoId);
+
   // Stats
   const stats = {
     djen: publicacoesFiltradas.length,
@@ -112,8 +211,12 @@ export default function Notificacoes() {
     redistribuicoes: redistribuicoesFiltradas.length,
     prazos: prazosFiltrados.length,
     notificacoes: notificacoesFiltradas.length,
+    tarefas: tarefasFiltradas.length,
+    audiencias: audienciasFiltradas.length,
+    intimacoes: intimacoesFiltradas.length,
     total: publicacoesFiltradas.length + distribuicoesFiltradas.length + alertasFiltrados.length + 
-           redistribuicoesFiltradas.length + prazosFiltrados.length + notificacoesFiltradas.length
+           redistribuicoesFiltradas.length + prazosFiltrados.length + notificacoesFiltradas.length +
+           tarefasFiltradas.length + audienciasFiltradas.length + intimacoesFiltradas.length
   };
 
   const getIconByType = (tipo: string) => {
@@ -184,7 +287,7 @@ export default function Notificacoes() {
       </div>
 
       {/* Cards de resumo por tipo */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-3 mb-6">
         <Card 
           className={cn(
             "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
@@ -192,14 +295,13 @@ export default function Notificacoes() {
           )}
           onClick={() => setActiveTab("dashboard")}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <LayoutDashboard className="w-5 h-5 text-primary" />
+              <div className="p-1.5 rounded-lg bg-primary/10">
+                <LayoutDashboard className="w-4 h-4 text-primary" />
               </div>
             </div>
-            <p className="mt-3 text-sm font-medium">Dashboard</p>
-            <p className="text-xs text-muted-foreground">Por Coordenação</p>
+            <p className="mt-2 text-xs font-medium">Dashboard</p>
           </CardContent>
         </Card>
 
@@ -210,17 +312,16 @@ export default function Notificacoes() {
           )}
           onClick={() => setActiveTab("djen")}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <Newspaper className="w-5 h-5 text-blue-500" />
+              <div className="p-1.5 rounded-lg bg-blue-500/10">
+                <Newspaper className="w-4 h-4 text-blue-500" />
               </div>
-              <Badge variant="secondary" className="bg-blue-500/10 text-blue-500">
+              <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 text-xs px-1.5">
                 {stats.djen}
               </Badge>
             </div>
-            <p className="mt-3 text-sm font-medium">DJEN</p>
-            <p className="text-xs text-muted-foreground">Publicações</p>
+            <p className="mt-2 text-xs font-medium">DJEN</p>
           </CardContent>
         </Card>
 
@@ -231,17 +332,16 @@ export default function Notificacoes() {
           )}
           onClick={() => setActiveTab("distribuicoes")}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-purple-500/10">
-                <Scale className="w-5 h-5 text-purple-500" />
+              <div className="p-1.5 rounded-lg bg-purple-500/10">
+                <Scale className="w-4 h-4 text-purple-500" />
               </div>
-              <Badge variant="secondary" className="bg-purple-500/10 text-purple-500">
+              <Badge variant="secondary" className="bg-purple-500/10 text-purple-500 text-xs px-1.5">
                 {stats.distribuicoes}
               </Badge>
             </div>
-            <p className="mt-3 text-sm font-medium">Distribuições</p>
-            <p className="text-xs text-muted-foreground">Novas</p>
+            <p className="mt-2 text-xs font-medium">Distribuições</p>
           </CardContent>
         </Card>
 
@@ -252,17 +352,16 @@ export default function Notificacoes() {
           )}
           onClick={() => setActiveTab("alertas360")}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-amber-500/10">
-                <Radar className="w-5 h-5 text-amber-500" />
+              <div className="p-1.5 rounded-lg bg-amber-500/10">
+                <Radar className="w-4 h-4 text-amber-500" />
               </div>
-              <Badge variant="secondary" className="bg-amber-500/10 text-amber-500">
+              <Badge variant="secondary" className="bg-amber-500/10 text-amber-500 text-xs px-1.5">
                 {stats.alertas360}
               </Badge>
             </div>
-            <p className="mt-3 text-sm font-medium">Alertas 360°</p>
-            <p className="text-xs text-muted-foreground">Termos</p>
+            <p className="mt-2 text-xs font-medium">Alertas 360°</p>
           </CardContent>
         </Card>
 
@@ -273,17 +372,16 @@ export default function Notificacoes() {
           )}
           onClick={() => setActiveTab("redistribuicoes")}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-cyan-500/10">
-                <RefreshCw className="w-5 h-5 text-cyan-500" />
+              <div className="p-1.5 rounded-lg bg-cyan-500/10">
+                <RefreshCw className="w-4 h-4 text-cyan-500" />
               </div>
-              <Badge variant="secondary" className="bg-cyan-500/10 text-cyan-500">
+              <Badge variant="secondary" className="bg-cyan-500/10 text-cyan-500 text-xs px-1.5">
                 {stats.redistribuicoes}
               </Badge>
             </div>
-            <p className="mt-3 text-sm font-medium">Redistribuições</p>
-            <p className="text-xs text-muted-foreground">Pendentes</p>
+            <p className="mt-2 text-xs font-medium">Redistrib.</p>
           </CardContent>
         </Card>
 
@@ -294,17 +392,76 @@ export default function Notificacoes() {
           )}
           onClick={() => setActiveTab("prazos")}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-red-500/10">
-                <Clock className="w-5 h-5 text-red-500" />
+              <div className="p-1.5 rounded-lg bg-red-500/10">
+                <Clock className="w-4 h-4 text-red-500" />
               </div>
-              <Badge variant="secondary" className="bg-red-500/10 text-red-500">
+              <Badge variant="secondary" className="bg-red-500/10 text-red-500 text-xs px-1.5">
                 {stats.prazos}
               </Badge>
             </div>
-            <p className="mt-3 text-sm font-medium">Prazos</p>
-            <p className="text-xs text-muted-foreground">Urgentes</p>
+            <p className="mt-2 text-xs font-medium">Prazos</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
+            activeTab === "tarefas" && "ring-2 ring-green-500"
+          )}
+          onClick={() => setActiveTab("tarefas")}
+        >
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="p-1.5 rounded-lg bg-green-500/10">
+                <ListTodo className="w-4 h-4 text-green-500" />
+              </div>
+              <Badge variant="secondary" className="bg-green-500/10 text-green-500 text-xs px-1.5">
+                {stats.tarefas}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs font-medium">Tarefas</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
+            activeTab === "audiencias" && "ring-2 ring-indigo-500"
+          )}
+          onClick={() => setActiveTab("audiencias")}
+        >
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="p-1.5 rounded-lg bg-indigo-500/10">
+                <Gavel className="w-4 h-4 text-indigo-500" />
+              </div>
+              <Badge variant="secondary" className="bg-indigo-500/10 text-indigo-500 text-xs px-1.5">
+                {stats.audiencias}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs font-medium">Audiências</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
+            activeTab === "intimacoes" && "ring-2 ring-orange-500"
+          )}
+          onClick={() => setActiveTab("intimacoes")}
+        >
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="p-1.5 rounded-lg bg-orange-500/10">
+                <FileWarning className="w-4 h-4 text-orange-500" />
+              </div>
+              <Badge variant="secondary" className="bg-orange-500/10 text-orange-500 text-xs px-1.5">
+                {stats.intimacoes}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs font-medium">Intimações</p>
           </CardContent>
         </Card>
 
@@ -315,17 +472,16 @@ export default function Notificacoes() {
           )}
           onClick={() => setActiveTab("todos")}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Bell className="w-5 h-5 text-primary" />
+              <div className="p-1.5 rounded-lg bg-primary/10">
+                <Bell className="w-4 h-4 text-primary" />
               </div>
-              <Badge variant="secondary" className="bg-primary/10 text-primary">
+              <Badge variant="secondary" className="bg-primary/10 text-primary text-xs px-1.5">
                 {stats.total}
               </Badge>
             </div>
-            <p className="mt-3 text-sm font-medium">Total</p>
-            <p className="text-xs text-muted-foreground">Pendentes</p>
+            <p className="mt-2 text-xs font-medium">Total</p>
           </CardContent>
         </Card>
       </div>
@@ -354,6 +510,15 @@ export default function Notificacoes() {
           </TabsTrigger>
           <TabsTrigger value="prazos" className="data-[state=active]:bg-background">
             Prazos
+          </TabsTrigger>
+          <TabsTrigger value="tarefas" className="data-[state=active]:bg-background">
+            Tarefas
+          </TabsTrigger>
+          <TabsTrigger value="audiencias" className="data-[state=active]:bg-background">
+            Audiências
+          </TabsTrigger>
+          <TabsTrigger value="intimacoes" className="data-[state=active]:bg-background">
+            Intimações
           </TabsTrigger>
         </TabsList>
 
@@ -855,6 +1020,160 @@ export default function Notificacoes() {
                               variant="outline" 
                               size="sm"
                               onClick={() => navigate('/prazos')}
+                            >
+                              Ver detalhes
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tarefas */}
+        <TabsContent value="tarefas">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ListTodo className="w-5 h-5 text-green-500" />
+                Tarefas Pendentes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {tarefasFiltradas.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhuma tarefa pendente
+                </div>
+              ) : (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3">
+                    {tarefasFiltradas.map((tarefa) => (
+                      <Card key={tarefa.id} className="bg-muted/30">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge className={getPrioridadeColor(tarefa.prioridade)}>
+                                  {tarefa.prioridade.toUpperCase()}
+                                </Badge>
+                              </div>
+                              <p className="font-medium">{tarefa.titulo}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Processo: {(tarefa.processo as any)?.numero || '-'}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                Vencimento: {format(new Date(tarefa.data_vencimento), "dd/MM/yyyy")}
+                              </p>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => navigate('/minha-agenda')}
+                            >
+                              Ver detalhes
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Audiências */}
+        <TabsContent value="audiencias">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gavel className="w-5 h-5 text-indigo-500" />
+                Audiências Pendentes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {audienciasFiltradas.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhuma audiência pendente
+                </div>
+              ) : (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3">
+                    {audienciasFiltradas.map((audiencia) => (
+                      <Card key={audiencia.id} className="bg-muted/30">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge variant="outline" className="bg-indigo-500/10 text-indigo-500">
+                                  {audiencia.tipo_audiencia || 'Audiência'}
+                                </Badge>
+                              </div>
+                              <p className="font-medium">{audiencia.processo_numero || (audiencia.processo as any)?.numero}</p>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {audiencia.data_audiencia && format(new Date(audiencia.data_audiencia), "dd/MM/yyyy")}
+                                {audiencia.hora && ` às ${audiencia.hora}`}
+                              </p>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => navigate('/painel-audiencias')}
+                            >
+                              Ver detalhes
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Intimações */}
+        <TabsContent value="intimacoes">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileWarning className="w-5 h-5 text-orange-500" />
+                Intimações Pendentes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {intimacoesFiltradas.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhuma intimação pendente
+                </div>
+              ) : (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3">
+                    {intimacoesFiltradas.map((intimacao) => (
+                      <Card key={intimacao.id} className="bg-muted/30">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge variant="outline" className="bg-orange-500/10 text-orange-500">
+                                  {intimacao.tipo_intimacao || 'Intimação'}
+                                </Badge>
+                              </div>
+                              <p className="font-medium">{intimacao.processo_numero || (intimacao.processo as any)?.numero}</p>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {intimacao.data_intimacao && format(new Date(intimacao.data_intimacao), "dd/MM/yyyy")}
+                              </p>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => navigate('/painel-intimacoes')}
                             >
                               Ver detalhes
                             </Button>
