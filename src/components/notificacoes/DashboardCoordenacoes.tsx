@@ -20,6 +20,8 @@ import {
   AlertTriangle,
   ChevronRight,
   ListTodo,
+  Gavel,
+  FileWarning,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
@@ -41,6 +43,8 @@ interface CoordenacaoStats {
   redistribuicoes: number;
   prazos: number;
   tarefas: number;
+  audiencias: number;
+  intimacoes: number;
   total: number;
   emailHabilitado: boolean;
   whatsappHabilitado: boolean;
@@ -70,6 +74,48 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
           id,
           status,
           processo:processos!tarefas_processo_id_fkey(
+            id,
+            coordenacao_id
+          )
+        `)
+        .eq("status", "pendente");
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar audiências pendentes
+  const { data: audienciasPendentes = [] } = useQuery({
+    queryKey: ["audiencias-pendentes-coordenacao"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audiencias_detectadas")
+        .select(`
+          id,
+          status,
+          processo:processos!audiencias_detectadas_processo_id_fkey(
+            id,
+            coordenacao_id
+          )
+        `)
+        .eq("status", "pendente");
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar intimações pendentes
+  const { data: intimacoesPendentes = [] } = useQuery({
+    queryKey: ["intimacoes-pendentes-coordenacao"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("intimacoes_detectadas")
+        .select(`
+          id,
+          status,
+          processo:processos!intimacoes_detectadas_processo_id_fkey(
             id,
             coordenacao_id
           )
@@ -124,6 +170,16 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
         t => (t.processo as any)?.coordenacao_id === coord.id
       ).length;
 
+      // Audiências pendentes
+      const audiencias = audienciasPendentes.filter(
+        a => (a.processo as any)?.coordenacao_id === coord.id
+      ).length;
+
+      // Intimações pendentes
+      const intimacoes = intimacoesPendentes.filter(
+        i => (i.processo as any)?.coordenacao_id === coord.id
+      ).length;
+
       // Config de alertas
       const config = configs.find(c => c.coordenacao_id === coord.id);
 
@@ -136,12 +192,14 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
         redistribuicoes,
         prazos,
         tarefas,
-        total: djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas,
+        audiencias,
+        intimacoes,
+        total: djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas + audiencias + intimacoes,
         emailHabilitado: config?.email_habilitado || false,
         whatsappHabilitado: config?.whatsapp_habilitado || false,
       };
     }).sort((a, b) => b.total - a.total); // Ordenar por total de alertas
-  }, [coordenacoes, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, tarefasPendentes, configs]);
+  }, [coordenacoes, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, tarefasPendentes, audienciasPendentes, intimacoesPendentes, configs]);
 
   const handleOpenConfig = (coord: { id: string; nome: string }) => {
     setSelectedCoordConfig(coord);
@@ -230,7 +288,7 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
 
                     {/* Breakdown */}
                     {coord.total > 0 && (
-                      <div className="grid grid-cols-6 gap-1 pt-2">
+                      <div className="flex flex-wrap gap-1 pt-2">
                         {coord.djen > 0 && (
                           <div className="flex flex-col items-center p-1 rounded bg-blue-500/10" title="DJEN">
                             <Newspaper className="h-3 w-3 text-blue-500" />
@@ -265,6 +323,18 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
                           <div className="flex flex-col items-center p-1 rounded bg-green-500/10" title="Tarefas">
                             <ListTodo className="h-3 w-3 text-green-500" />
                             <span className="text-xs font-medium">{coord.tarefas}</span>
+                          </div>
+                        )}
+                        {coord.audiencias > 0 && (
+                          <div className="flex flex-col items-center p-1 rounded bg-indigo-500/10" title="Audiências">
+                            <Gavel className="h-3 w-3 text-indigo-500" />
+                            <span className="text-xs font-medium">{coord.audiencias}</span>
+                          </div>
+                        )}
+                        {coord.intimacoes > 0 && (
+                          <div className="flex flex-col items-center p-1 rounded bg-orange-500/10" title="Intimações">
+                            <FileWarning className="h-3 w-3 text-orange-500" />
+                            <span className="text-xs font-medium">{coord.intimacoes}</span>
                           </div>
                         )}
                       </div>
