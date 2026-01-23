@@ -819,10 +819,33 @@ async function processMonitoramento(
       const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
       
       // A API pode retornar datas em diferentes campos dependendo do tribunal
+      // Buscar em níveis raiz e aninhado (pub.comunicacao)
+      const pubObj = pub.comunicacao || pub;
+      
+      // Log detalhado para debug do primeiro item de cada tribunal
+      if (tribunalStat.novas === 0 && tribunalStat.descartadas === 0 && tribunalStat.duplicatas === 0) {
+        console.log(`[DJEN Termos] Pub structure for ${tribunal}:`, JSON.stringify({
+          keys_pub: Object.keys(pub),
+          keys_pubObj: Object.keys(pubObj),
+          dataDisponibilizacao: pub.dataDisponibilizacao || pubObj.dataDisponibilizacao,
+          dataPublicacao: pub.dataPublicacao || pubObj.dataPublicacao,
+        }));
+      }
+      
       // dataDisponibilizacao = data em que foi disponibilizado no DJe (exatamente como vem da API)
       // dataPublicacao = próximo dia útil após a disponibilização (contagem de prazo começa aqui)
-      const rawDataDisponibilizacao = pub.dataDisponibilizacao || pub.dataDJe || pub.dtDisponibilizacao || pub.dataDisp || null;
-      const rawDataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.dtPublicacao || pub.data || null;
+      const rawDataDisponibilizacao = 
+        pub.dataDisponibilizacao || pubObj.dataDisponibilizacao ||
+        pub.dataDJe || pubObj.dataDJe || 
+        pub.dtDisponibilizacao || pubObj.dtDisponibilizacao || 
+        pub.dataDisp || pubObj.dataDisp || 
+        null;
+      const rawDataPublicacao = 
+        pub.dataPublicacao || pubObj.dataPublicacao ||
+        pub.dataJornal || pubObj.dataJornal || 
+        pub.dtPublicacao || pubObj.dtPublicacao || 
+        pub.data || pubObj.data || 
+        null;
       
       // Prioridade: usar data_disponibilizacao exatamente como vem da API
       // Se não tiver, usar data_publicacao da API diretamente
@@ -843,8 +866,9 @@ async function processMonitoramento(
       }
       
       // Se só temos data_publicacao da API, manter como está (caso raro)
-      // Fallback: usar data atual se nenhuma data disponível
+      // Fallback: usar data atual se nenhuma data disponível (último recurso)
       if (!dataDisponibilizacao && !dataPublicacao) {
+        console.log(`[DJEN Termos] WARNING: No dates found for pub in ${tribunal}. Using today as fallback.`);
         dataDisponibilizacao = dataAtual;
         const hoje = new Date(dataAtual);
         hoje.setDate(hoje.getDate() + 1);
