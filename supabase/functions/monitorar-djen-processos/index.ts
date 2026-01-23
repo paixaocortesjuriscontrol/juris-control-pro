@@ -625,31 +625,45 @@ async function processProcessosBatch(
         if (!conteudo || typeof conteudo !== 'string') continue;
 
         // Data de disponibilização (dia que saiu no sistema) vs publicação (dia oficial do diário)
-        // A API PJE Comunica retorna os campos padrão: dataDisponibilizacao e dataPublicacao
-        // Regra: data_disponibilizacao = exatamente como vem da API
-        //        data_publicacao = próximo dia útil após a disponibilização
+        // A API PJE Comunica retorna os campos diretamente no item ou dentro de comunicacao
+        // IMPORTANTE: Buscar em TODOS os níveis possíveis da resposta
         const pubObj = pub.comunicacao || pub;
+        
+        // Log detalhado para debug - mostrar estrutura completa do primeiro item de cada processo
+        if (novasDoProcesso === 0) {
+          console.log(`[DJEN Processos] Pub structure for ${processo.numero}:`, JSON.stringify({
+            keys_pub: Object.keys(pub),
+            keys_pubObj: Object.keys(pubObj),
+            dataDisponibilizacao: pub.dataDisponibilizacao || pubObj.dataDisponibilizacao,
+            dataPublicacao: pub.dataPublicacao || pubObj.dataPublicacao,
+            dataDJe: pub.dataDJe || pubObj.dataDJe,
+          }));
+        }
+        
+        // Buscar dataDisponibilizacao em todos os campos possíveis (nível raiz e aninhado)
         const rawDataDisponibilizacao = 
-          pubObj.dataDisponibilizacao || 
-          pubObj.dataDJe || 
-          pubObj.dtDisponibilizacao || 
-          pubObj.dataDisp ||
-          pubObj.data_disponibilizacao ||
+          pub.dataDisponibilizacao || pubObj.dataDisponibilizacao ||
+          pub.dataDJe || pubObj.dataDJe || 
+          pub.dtDisponibilizacao || pubObj.dtDisponibilizacao || 
+          pub.dataDisp || pubObj.dataDisp ||
+          pub.data_disponibilizacao || pubObj.data_disponibilizacao ||
           null;
+          
+        // Buscar dataPublicacao em todos os campos possíveis
         const rawDataPublicacao = 
-          pubObj.dataPublicacao || 
-          pubObj.dataJornal || 
-          pubObj.dtPublicacao || 
-          pubObj.data || 
-          pubObj.data_publicacao ||
+          pub.dataPublicacao || pubObj.dataPublicacao ||
+          pub.dataJornal || pubObj.dataJornal || 
+          pub.dtPublicacao || pubObj.dtPublicacao || 
+          pub.data || pubObj.data || 
+          pub.data_publicacao || pubObj.data_publicacao ||
           null;
         
         let dataDisponibilizacao = rawDataDisponibilizacao;
         let dataPublicacao = rawDataPublicacao;
         
-        // Log para debug quando datas não são encontradas
+        // Log quando datas não são encontradas para debug
         if (!dataDisponibilizacao && !dataPublicacao) {
-          console.log(`[DJEN Processos] No dates found for pub. Keys: ${Object.keys(pubObj).join(', ')}`);
+          console.log(`[DJEN Processos] No dates found. Full pub keys: ${Object.keys(pub).join(', ')}. Full pubObj keys: ${Object.keys(pubObj).join(', ')}`);
         }
         
         // Se temos data_disponibilizacao, calcular data_publicacao como próximo dia útil
@@ -667,7 +681,8 @@ async function processProcessosBatch(
           }
         }
         
-        // Fallback: usar data atual se nenhuma data disponível
+        // Fallback: usar data atual APENAS se realmente não há data na API
+        // Este fallback é problemático pois pode gravar data errada
         if (!dataDisponibilizacao && !dataPublicacao) {
           const hoje = new Date().toISOString().split('T')[0];
           dataDisponibilizacao = hoje;
@@ -675,7 +690,7 @@ async function processProcessosBatch(
           amanha.setDate(amanha.getDate() + 1);
           const proximoDiaUtil = calcularPrimeiroDiaUtil(amanha);
           dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
-          console.log(`[DJEN Processos] Using today as fallback date for processo ${processo.numero}`);
+          console.log(`[DJEN Processos] WARNING: Using today as fallback date for processo ${processo.numero}. This should be investigated!`);
         } else if (!dataDisponibilizacao && dataPublicacao) {
           // Se só temos data_publicacao da API, manter como está
           dataDisponibilizacao = dataPublicacao; // Fallback seguro
