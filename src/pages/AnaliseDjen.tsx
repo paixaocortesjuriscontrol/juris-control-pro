@@ -53,7 +53,7 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly } from "@/utils/formatConteudo";
 
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
@@ -1039,11 +1039,11 @@ const AnaliseDjen = () => {
                                   <div className="flex flex-wrap items-center gap-2 md:gap-4 text-[10px] md:text-xs ml-4 md:ml-6 mb-1.5">
                                     <div className="flex items-center gap-1">
                                       <span className="text-muted-foreground font-medium">Disp:</span>
-                                      <span className="text-amber-600 dark:text-amber-400">{formatDateShort(pub.data_disponibilizacao)}</span>
+                                      <span className="text-amber-600 dark:text-amber-400">{formatDateOnly(pub.data_disponibilizacao)}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <span className="text-muted-foreground font-medium">Pub:</span>
-                                      <span className="text-amber-600 dark:text-amber-400">{formatDateShort(pub.data_publicacao)}</span>
+                                      <span className="text-amber-600 dark:text-amber-400">{formatDateOnly(pub.data_publicacao)}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <span className="text-muted-foreground font-medium">Captura:</span>
