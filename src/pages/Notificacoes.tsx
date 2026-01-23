@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { 
   Bell, 
   AlertTriangle, 
@@ -26,6 +29,9 @@ import {
   ListTodo,
   Gavel,
   FileWarning,
+  Search,
+  X,
+  CalendarDays,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
@@ -34,7 +40,7 @@ import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
 import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useRedistribuicoes } from "@/hooks/useRedistribuicoes";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, format, isAfter, isBefore, startOfDay, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -44,6 +50,22 @@ export default function Notificacoes() {
   // Central de Notificações
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [prioridadeFilter, setPrioridadeFilter] = useState<string>("todas");
+  const [statusFilter, setStatusFilter] = useState<string>("pendente");
+  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(undefined);
+  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(undefined);
+  
+  // Toggle filters for each type
+  const [showDjen, setShowDjen] = useState(true);
+  const [showDistribuicoes, setShowDistribuicoes] = useState(true);
+  const [showAlertas360, setShowAlertas360] = useState(true);
+  const [showRedistribuicoes, setShowRedistribuicoes] = useState(true);
+  const [showPrazos, setShowPrazos] = useState(true);
+  const [showTarefas, setShowTarefas] = useState(true);
+  const [showAudiencias, setShowAudiencias] = useState(true);
+  const [showIntimacoes, setShowIntimacoes] = useState(true);
+  
   const navigate = useNavigate();
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
@@ -64,9 +86,9 @@ export default function Notificacoes() {
 
   // Buscar tarefas pendentes
   const { data: tarefasPendentesData = [] } = useQuery({
-    queryKey: ["tarefas-pendentes-notificacoes"],
+    queryKey: ["tarefas-pendentes-notificacoes", statusFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("tarefas")
         .select(`
           id,
@@ -80,9 +102,14 @@ export default function Notificacoes() {
             coordenacao_id
           )
         `)
-        .eq("status", "pendente")
         .order("data_vencimento", { ascending: true });
       
+      if (statusFilter !== "todas") {
+        const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
+        query = query.eq("status", status as "pendente" | "cumprido" | "atrasado");
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -90,9 +117,9 @@ export default function Notificacoes() {
 
   // Buscar audiências pendentes
   const { data: audienciasPendentesData = [] } = useQuery({
-    queryKey: ["audiencias-pendentes-notificacoes"],
+    queryKey: ["audiencias-pendentes-notificacoes", statusFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("audiencias_detectadas")
         .select(`
           id,
@@ -107,9 +134,13 @@ export default function Notificacoes() {
             coordenacao_id
           )
         `)
-        .eq("status", "pendente")
         .order("data_audiencia", { ascending: true });
       
+      if (statusFilter !== "todas") {
+        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -117,9 +148,9 @@ export default function Notificacoes() {
 
   // Buscar intimações pendentes
   const { data: intimacoesPendentesData = [] } = useQuery({
-    queryKey: ["intimacoes-pendentes-notificacoes"],
+    queryKey: ["intimacoes-pendentes-notificacoes", statusFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("intimacoes_detectadas")
         .select(`
           id,
@@ -133,90 +164,206 @@ export default function Notificacoes() {
             coordenacao_id
           )
         `)
-        .eq("status", "pendente")
         .order("data_intimacao", { ascending: true });
       
+      if (statusFilter !== "todas") {
+        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
   });
 
-  // Filter DJEN publications by coordination
-  const publicacoesNaoLidas = publicacoes.filter(p => !p.lida);
-  const publicacoesFiltradas = coordenacaoId === "todas" 
-    ? publicacoesNaoLidas 
-    : publicacoesNaoLidas.filter(p => {
-        const mon = monitoramentosDjen.find(m => m.id === p.monitoramento_id);
-        return mon?.coordenacao_id === coordenacaoId;
-      });
+  // Filter helper function
+  const matchesSearch = (text: string | null | undefined) => {
+    if (!searchQuery) return true;
+    return text?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+  };
 
-  // Filter distributions by coordination (via monitoramento)
-  const distribuicoesPendentes = distribuicoesEncontradas.filter(d => d.status === 'pendente');
-  const distribuicoesFiltradas = coordenacaoId === "todas"
-    ? distribuicoesPendentes
-    : distribuicoesPendentes.filter(d => {
-        return (d as any).monitoramento?.coordenacao_id === coordenacaoId;
-      });
+  const matchesPeriodo = (dateStr: string | null | undefined) => {
+    if (!dateStr) return true;
+    if (!periodoInicio && !periodoFim) return true;
+    
+    const date = startOfDay(parseISO(dateStr));
+    if (periodoInicio && isBefore(date, startOfDay(periodoInicio))) return false;
+    if (periodoFim && isAfter(date, startOfDay(periodoFim))) return false;
+    return true;
+  };
+
+  const matchesPrioridade = (prioridade: string | null | undefined) => {
+    if (prioridadeFilter === "todas") return true;
+    return prioridade === prioridadeFilter;
+  };
+
+  // Filter DJEN publications by coordination and filters
+  const publicacoesNaoLidas = publicacoes.filter(p => statusFilter === "todas" || !p.lida);
+  const publicacoesFiltradas = useMemo(() => {
+    return publicacoesNaoLidas.filter(p => {
+      if (coordenacaoId !== "todas") {
+        const mon = monitoramentosDjen.find(m => m.id === p.monitoramento_id);
+        if (mon?.coordenacao_id !== coordenacaoId) return false;
+      }
+      if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero)) return false;
+      if (!matchesPeriodo(p.data_publicacao)) return false;
+      return true;
+    });
+  }, [publicacoesNaoLidas, coordenacaoId, monitoramentosDjen, searchQuery, periodoInicio, periodoFim]);
+
+  // Filter distributions by coordination
+  const distribuicoesPendentes = distribuicoesEncontradas.filter(d => 
+    statusFilter === "todas" || d.status === 'pendente'
+  );
+  const distribuicoesFiltradas = useMemo(() => {
+    return distribuicoesPendentes.filter(d => {
+      if (coordenacaoId !== "todas") {
+        if ((d as any).monitoramento?.coordenacao_id !== coordenacaoId) return false;
+      }
+      if (!matchesSearch(d.numero_processo) && !matchesSearch(d.polo_ativo) && !matchesSearch(d.polo_passivo)) return false;
+      if (!matchesPeriodo(d.data_distribuicao)) return false;
+      return true;
+    });
+  }, [distribuicoesPendentes, coordenacaoId, searchQuery, periodoInicio, periodoFim]);
 
   // Filter alerts by coordination
-  const alertasPendentes = alertas.filter(a => a.status === 'pendente');
-  const alertasFiltrados = coordenacaoId === "todas"
-    ? alertasPendentes
-    : alertasPendentes.filter(a => a.processo?.coordenacao_id === coordenacaoId);
+  const alertasPendentes = alertas.filter(a => 
+    statusFilter === "todas" || a.status === 'pendente'
+  );
+  const alertasFiltrados = useMemo(() => {
+    return alertasPendentes.filter(a => {
+      if (coordenacaoId !== "todas" && a.processo?.coordenacao_id !== coordenacaoId) return false;
+      if (!matchesSearch(a.termo_encontrado) && !matchesSearch(a.processo?.numero)) return false;
+      if (!matchesPeriodo(a.created_at)) return false;
+      if (!matchesPrioridade(a.prioridade)) return false;
+      return true;
+    });
+  }, [alertasPendentes, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter]);
 
-  // Redistribuições recentes (últimos 7 dias) - filter by coordination
-  const redistribuicoesRecentes = redistribuicoesData.slice(0, 10);
-  const redistribuicoesFiltradas = coordenacaoId === "todas"
-    ? redistribuicoesRecentes
-    : redistribuicoesRecentes.filter(r => {
+  // Redistribuições recentes
+  const redistribuicoesRecentes = redistribuicoesData.slice(0, 50);
+  const redistribuicoesFiltradas = useMemo(() => {
+    return redistribuicoesRecentes.filter(r => {
+      if (coordenacaoId !== "todas") {
         const coord = coordenacoes.find(c => c.id === coordenacaoId);
-        return coord && r.coordenacao_nome === coord.nome;
-      });
+        if (!coord || r.coordenacao_nome !== coord.nome) return false;
+      }
+      if (!matchesSearch(r.processo_numero)) return false;
+      if (!matchesPeriodo(r.data_redistribuicao)) return false;
+      return true;
+    });
+  }, [redistribuicoesRecentes, coordenacaoId, coordenacoes, searchQuery, periodoInicio, periodoFim]);
 
   // Filter prazos by coordination
-  const prazosFiltrados = coordenacaoId === "todas"
-    ? prazosUrgentes
-    : prazosUrgentes.filter(p => p.processo?.coordenacao_id === coordenacaoId);
+  const prazosFiltrados = useMemo(() => {
+    const basePrazos = statusFilter === "todas" ? prazosPendentes : prazosUrgentes;
+    return basePrazos.filter(p => {
+      if (coordenacaoId !== "todas" && p.processo?.coordenacao_id !== coordenacaoId) return false;
+      if (!matchesSearch(p.titulo) && !matchesSearch(p.processo?.numero)) return false;
+      if (!matchesPeriodo(p.data_vencimento)) return false;
+      if (!matchesPrioridade(p.prioridade)) return false;
+      return true;
+    });
+  }, [prazosPendentes, prazosUrgentes, statusFilter, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter]);
 
-  // Filter notificacoes by coordination (via dados.processo_id -> process coordination)
-  const notificacoesFiltradas = coordenacaoId === "todas"
-    ? naoLidas
-    : naoLidas.filter(n => {
+  // Filter notificacoes by coordination
+  const notificacoesFiltradas = useMemo(() => {
+    const baseNotifs = statusFilter === "todas" ? notificacoes : naoLidas;
+    return baseNotifs.filter(n => {
+      if (coordenacaoId !== "todas") {
         const processoId = n.dados?.processo_id;
         if (!processoId) return false;
         const alertaRelacionado = alertas.find(a => a.processo_id === processoId);
-        return alertaRelacionado?.processo?.coordenacao_id === coordenacaoId;
-      });
+        if (alertaRelacionado?.processo?.coordenacao_id !== coordenacaoId) return false;
+      }
+      if (!matchesSearch(n.titulo) && !matchesSearch(n.mensagem)) return false;
+      if (!matchesPeriodo(n.created_at)) return false;
+      return true;
+    });
+  }, [notificacoes, naoLidas, statusFilter, coordenacaoId, alertas, searchQuery, periodoInicio, periodoFim]);
 
   // Filter tarefas by coordination
-  const tarefasFiltradas = coordenacaoId === "todas"
-    ? tarefasPendentesData
-    : tarefasPendentesData.filter(t => (t.processo as any)?.coordenacao_id === coordenacaoId);
+  const tarefasFiltradas = useMemo(() => {
+    return tarefasPendentesData.filter(t => {
+      if (coordenacaoId !== "todas" && (t.processo as any)?.coordenacao_id !== coordenacaoId) return false;
+      if (!matchesSearch(t.titulo) && !matchesSearch((t.processo as any)?.numero)) return false;
+      if (!matchesPeriodo(t.data_vencimento)) return false;
+      if (!matchesPrioridade(t.prioridade)) return false;
+      return true;
+    });
+  }, [tarefasPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter]);
 
   // Filter audiencias by coordination
-  const audienciasFiltradas = coordenacaoId === "todas"
-    ? audienciasPendentesData
-    : audienciasPendentesData.filter(a => (a.processo as any)?.coordenacao_id === coordenacaoId);
+  const audienciasFiltradas = useMemo(() => {
+    return audienciasPendentesData.filter(a => {
+      if (coordenacaoId !== "todas" && (a.processo as any)?.coordenacao_id !== coordenacaoId) return false;
+      if (!matchesSearch(a.processo_numero) && !matchesSearch((a.processo as any)?.numero) && !matchesSearch(a.tipo_audiencia)) return false;
+      if (!matchesPeriodo(a.data_audiencia)) return false;
+      return true;
+    });
+  }, [audienciasPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim]);
 
   // Filter intimacoes by coordination
-  const intimacoesFiltradas = coordenacaoId === "todas"
-    ? intimacoesPendentesData
-    : intimacoesPendentesData.filter(i => (i.processo as any)?.coordenacao_id === coordenacaoId);
+  const intimacoesFiltradas = useMemo(() => {
+    return intimacoesPendentesData.filter(i => {
+      if (coordenacaoId !== "todas" && (i.processo as any)?.coordenacao_id !== coordenacaoId) return false;
+      if (!matchesSearch(i.processo_numero) && !matchesSearch((i.processo as any)?.numero) && !matchesSearch(i.tipo_intimacao)) return false;
+      if (!matchesPeriodo(i.data_intimacao)) return false;
+      return true;
+    });
+  }, [intimacoesPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim]);
 
-  // Stats
-  const stats = {
-    djen: publicacoesFiltradas.length,
-    distribuicoes: distribuicoesFiltradas.length,
-    alertas360: alertasFiltrados.length,
-    redistribuicoes: redistribuicoesFiltradas.length,
-    prazos: prazosFiltrados.length,
-    notificacoes: notificacoesFiltradas.length,
-    tarefas: tarefasFiltradas.length,
-    audiencias: audienciasFiltradas.length,
-    intimacoes: intimacoesFiltradas.length,
-    total: publicacoesFiltradas.length + distribuicoesFiltradas.length + alertasFiltrados.length + 
-           redistribuicoesFiltradas.length + prazosFiltrados.length + notificacoesFiltradas.length +
-           tarefasFiltradas.length + audienciasFiltradas.length + intimacoesFiltradas.length
+  // Stats - recalculated based on toggle filters
+  const stats = useMemo(() => {
+    const djen = showDjen ? publicacoesFiltradas.length : 0;
+    const distribuicoes = showDistribuicoes ? distribuicoesFiltradas.length : 0;
+    const alertas360 = showAlertas360 ? alertasFiltrados.length : 0;
+    const redistribuicoes = showRedistribuicoes ? redistribuicoesFiltradas.length : 0;
+    const prazos = showPrazos ? prazosFiltrados.length : 0;
+    const notifs = notificacoesFiltradas.length;
+    const tarefas = showTarefas ? tarefasFiltradas.length : 0;
+    const audiencias = showAudiencias ? audienciasFiltradas.length : 0;
+    const intimacoes = showIntimacoes ? intimacoesFiltradas.length : 0;
+    
+    return {
+      djen: publicacoesFiltradas.length,
+      distribuicoes: distribuicoesFiltradas.length,
+      alertas360: alertasFiltrados.length,
+      redistribuicoes: redistribuicoesFiltradas.length,
+      prazos: prazosFiltrados.length,
+      notificacoes: notificacoesFiltradas.length,
+      tarefas: tarefasFiltradas.length,
+      audiencias: audienciasFiltradas.length,
+      intimacoes: intimacoesFiltradas.length,
+      total: djen + distribuicoes + alertas360 + redistribuicoes + prazos + notifs + tarefas + audiencias + intimacoes,
+      filteredTotal: djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas + audiencias + intimacoes
+    };
+  }, [
+    publicacoesFiltradas, distribuicoesFiltradas, alertasFiltrados, redistribuicoesFiltradas,
+    prazosFiltrados, notificacoesFiltradas, tarefasFiltradas, audienciasFiltradas, intimacoesFiltradas,
+    showDjen, showDistribuicoes, showAlertas360, showRedistribuicoes, showPrazos, showTarefas, showAudiencias, showIntimacoes
+  ]);
+
+  const hasActiveFilters = searchQuery || prioridadeFilter !== "todas" || statusFilter !== "pendente" || 
+    periodoInicio || periodoFim || coordenacaoId !== "todas" ||
+    !showDjen || !showDistribuicoes || !showAlertas360 || !showRedistribuicoes || 
+    !showPrazos || !showTarefas || !showAudiencias || !showIntimacoes;
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setPrioridadeFilter("todas");
+    setStatusFilter("pendente");
+    setPeriodoInicio(undefined);
+    setPeriodoFim(undefined);
+    setCoordenacaoId("todas");
+    setShowDjen(true);
+    setShowDistribuicoes(true);
+    setShowAlertas360(true);
+    setShowRedistribuicoes(true);
+    setShowPrazos(true);
+    setShowTarefas(true);
+    setShowAudiencias(true);
+    setShowIntimacoes(true);
   };
 
   const getIconByType = (tipo: string) => {
@@ -252,28 +399,267 @@ export default function Notificacoes() {
   };
 
   return (
-    <MainLayout title="Central de Notificações" subtitle="Painel inteligente de monitoramentos e alertas">
-      {/* Header com filtros */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-muted-foreground" />
-          <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
-            <SelectTrigger className="w-[280px]">
-              <Building2 className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Filtrar por coordenação" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas as coordenações</SelectItem>
-              {coordenacoes.map((coord) => (
-                <SelectItem key={coord.id} value={coord.id}>
-                  {coord.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+    <MainLayout title="Central de Notificações" subtitle={`${stats.filteredTotal} alertas encontrados`}>
+      {/* Filters Bar */}
+      <div className="bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in">
+        <div className="flex flex-col gap-4">
+          {/* Search Row */}
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input 
+                placeholder="Buscar por processo, termo, título..." 
+                className="pl-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todos</SelectItem>
+                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="concluido">Concluído</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={prioridadeFilter} onValueChange={setPrioridadeFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Prioridade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="urgente">Urgente</SelectItem>
+                <SelectItem value="alta">Alta</SelectItem>
+                <SelectItem value="media">Média</SelectItem>
+                <SelectItem value="baixa">Baixa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        {naoLidas.length > 0 && (
+          {/* Second Row - Coordination & Period */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
+              <SelectTrigger className="w-full sm:w-64">
+                <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as coordenações</SelectItem>
+                {coordenacoes.map((coord) => (
+                  <SelectItem key={coord.id} value={coord.id}>
+                    {coord.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Period Filter */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("h-9 gap-2", periodoInicio && "bg-primary/10")}>
+                  <CalendarDays className="w-4 h-4" />
+                  {periodoInicio ? (
+                    <>
+                      {format(periodoInicio, "dd/MM")}
+                      {periodoFim && ` - ${format(periodoFim, "dd/MM")}`}
+                    </>
+                  ) : (
+                    "Período"
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="p-3 border-b">
+                  <p className="text-sm font-medium">Selecione o período</p>
+                </div>
+                <div className="flex gap-2 p-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">De</p>
+                    <Calendar
+                      mode="single"
+                      selected={periodoInicio}
+                      onSelect={setPeriodoInicio}
+                      locale={ptBR}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Até</p>
+                    <Calendar
+                      mode="single"
+                      selected={periodoFim}
+                      onSelect={setPeriodoFim}
+                      locale={ptBR}
+                    />
+                  </div>
+                </div>
+                <div className="p-3 border-t flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setPeriodoInicio(undefined); setPeriodoFim(undefined); }}>
+                    Limpar
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Results counter chip */}
+            <Badge variant="outline" className="h-8 px-3 text-xs font-medium bg-primary/10 border-primary/30 text-primary">
+              {stats.filteredTotal} alerta{stats.filteredTotal !== 1 ? "s" : ""} encontrado{stats.filteredTotal !== 1 ? "s" : ""}
+            </Badge>
+            
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-8 text-xs">
+                <X className="w-3 h-3 mr-1" />
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+
+          {/* Toggle Filters Row */}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                showDjen && "bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+              )}
+              onClick={() => setShowDjen(prev => !prev)}
+            >
+              <Newspaper className="w-3.5 h-3.5" />
+              DJEN
+              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showDjen && "bg-blue-500 text-white")}>
+                {stats.djen}
+              </Badge>
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                showDistribuicoes && "bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
+              )}
+              onClick={() => setShowDistribuicoes(prev => !prev)}
+            >
+              <Scale className="w-3.5 h-3.5" />
+              Distribuições
+              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showDistribuicoes && "bg-purple-500 text-white")}>
+                {stats.distribuicoes}
+              </Badge>
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                showAlertas360 && "bg-amber-600 hover:bg-amber-700 text-white border-amber-600"
+              )}
+              onClick={() => setShowAlertas360(prev => !prev)}
+            >
+              <Radar className="w-3.5 h-3.5" />
+              Alertas 360°
+              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAlertas360 && "bg-amber-500 text-white")}>
+                {stats.alertas360}
+              </Badge>
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                showRedistribuicoes && "bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-600"
+              )}
+              onClick={() => setShowRedistribuicoes(prev => !prev)}
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Redistrib.
+              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showRedistribuicoes && "bg-cyan-500 text-white")}>
+                {stats.redistribuicoes}
+              </Badge>
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                showPrazos && "bg-red-600 hover:bg-red-700 text-white border-red-600"
+              )}
+              onClick={() => setShowPrazos(prev => !prev)}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              Prazos
+              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showPrazos && "bg-red-500 text-white")}>
+                {stats.prazos}
+              </Badge>
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                showTarefas && "bg-green-600 hover:bg-green-700 text-white border-green-600"
+              )}
+              onClick={() => setShowTarefas(prev => !prev)}
+            >
+              <ListTodo className="w-3.5 h-3.5" />
+              Tarefas
+              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showTarefas && "bg-green-500 text-white")}>
+                {stats.tarefas}
+              </Badge>
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                showAudiencias && "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600"
+              )}
+              onClick={() => setShowAudiencias(prev => !prev)}
+            >
+              <Gavel className="w-3.5 h-3.5" />
+              Audiências
+              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAudiencias && "bg-indigo-500 text-white")}>
+                {stats.audiencias}
+              </Badge>
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                showIntimacoes && "bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
+              )}
+              onClick={() => setShowIntimacoes(prev => !prev)}
+            >
+              <FileWarning className="w-3.5 h-3.5" />
+              Intimações
+              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showIntimacoes && "bg-orange-500 text-white")}>
+                {stats.intimacoes}
+              </Badge>
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {naoLidas.length > 0 && (
+        <div className="flex justify-end mb-4">
           <Button
             variant="outline"
             size="sm"
@@ -283,8 +669,8 @@ export default function Notificacoes() {
             <CheckCheck className="w-4 h-4 mr-2" />
             Marcar todas como lidas
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Cards de resumo por tipo */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-3 mb-6">
