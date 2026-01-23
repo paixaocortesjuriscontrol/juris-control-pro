@@ -172,6 +172,7 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
   // (principalmente em jobs assíncronos). Para confiabilidade, usamos a contagem persistida no banco
   // que já alimenta o resumo "Hoje" (todayStats.found).
   const encontradosBancoHoje = stats.todayStats.found ?? 0;
+  const descartadasBancoHoje = stats.todayStats.descartadas ?? 0;
 
   return (
     <div className={cn(
@@ -211,9 +212,12 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
           </div>
         </div>
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
-          <div className="text-xs text-muted-foreground mb-0.5">Encontrados (banco hoje)</div>
+          <div className="text-xs text-muted-foreground mb-0.5">Encontrados / Descartadas (hoje)</div>
           <div className="text-lg font-bold font-mono text-green-600">
             {encontradosBancoHoje.toLocaleString('pt-BR')}
+          </div>
+          <div className="text-xs font-mono text-red-600">
+            {descartadasBancoHoje.toLocaleString('pt-BR')}
           </div>
         </div>
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
@@ -230,15 +234,21 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
         </div>
       </div>
 
-      {/* Error Display */}
-      {exec.ultimo_erro && (
+      {/* Error Display (oculta mensagens técnicas de abort/timeout de signal) */}
+      {(() => {
+        const ultimoErro = exec.ultimo_erro?.trim();
+        const isTechnicalAbort = !!ultimoErro && /signal.*aborted|aborted/i.test(ultimoErro);
+        if (!ultimoErro || isTechnicalAbort) return null;
+
+        return (
         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5">
           <div className="flex items-center gap-2 text-red-600 text-sm">
             <XCircle className="h-4 w-4 flex-shrink-0" />
-            <span className="font-medium line-clamp-2">{exec.ultimo_erro}</span>
+            <span className="font-medium line-clamp-2">{ultimoErro}</span>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Running Indicator */}
       {isRunning && (
