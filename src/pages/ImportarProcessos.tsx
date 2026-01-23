@@ -4648,55 +4648,50 @@ export default function ImportarProcessos() {
 
   // Função para encontrar cliente similar por nome
   const findSimilarClient = (clienteNome: string, clientesList: { id: string; nome: string; tipo: string }[]): { id: string; nome: string } | null => {
-    if (!clienteNome) return null;
-    const normalizedInput = clienteNome
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9\s]/g, "")
-      .trim();
+    if (!clienteNome || !clienteNome.trim()) return null;
     
-    // Busca exata primeiro
+    const normalizeForComparison = (text: string) => {
+      return text
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\b(ltda|s\/?a|me|epp|eireli|ss|empresa|cia|companhia)\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+    
+    const normalizedInput = normalizeForComparison(clienteNome);
+    
+    // 1. Busca exata pelo nome original (case insensitive)
     const exactMatch = clientesList.find(c => 
       c.nome.toLowerCase().trim() === clienteNome.toLowerCase().trim()
     );
     if (exactMatch) return { id: exactMatch.id, nome: exactMatch.nome };
     
-    // Busca por nome normalizado
+    // 2. Busca por nome normalizado (remove acentos, sufixos corporativos)
     const normalizedMatch = clientesList.find(c => {
-      const normalizedCliente = c.nome
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9\s]/g, "")
-        .trim();
+      const normalizedCliente = normalizeForComparison(c.nome);
       return normalizedCliente === normalizedInput;
     });
     if (normalizedMatch) return { id: normalizedMatch.id, nome: normalizedMatch.nome };
     
-    // Busca por similaridade parcial (contém)
+    // 3. Busca parcial (um contém o outro)
     const partialMatch = clientesList.find(c => {
-      const normalizedCliente = c.nome
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9\s]/g, "")
-        .trim();
-      // Verifica se um contém o outro (mais de 80% do tamanho)
+      const normalizedCliente = normalizeForComparison(c.nome);
+      if (normalizedCliente.length < 3 || normalizedInput.length < 3) return false;
       return normalizedCliente.includes(normalizedInput) || normalizedInput.includes(normalizedCliente);
     });
     if (partialMatch) return { id: partialMatch.id, nome: partialMatch.nome };
     
-    // Busca por palavras-chave principais (hospital, clínica, etc.)
+    // 4. Busca por palavras-chave principais (ignora palavras pequenas)
     const keywords = normalizedInput.split(/\s+/).filter(w => w.length > 3);
-    if (keywords.length > 0) {
+    if (keywords.length >= 2) {
       const keywordMatch = clientesList.find(c => {
-        const normalizedCliente = c.nome
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .trim();
-        return keywords.every(keyword => normalizedCliente.includes(keyword));
+        const normalizedCliente = normalizeForComparison(c.nome);
+        // Pelo menos 70% das palavras-chave devem estar presentes
+        const matchCount = keywords.filter(keyword => normalizedCliente.includes(keyword)).length;
+        return matchCount >= Math.ceil(keywords.length * 0.7);
       });
       if (keywordMatch) return { id: keywordMatch.id, nome: keywordMatch.nome };
     }
@@ -4773,10 +4768,14 @@ export default function ImportarProcessos() {
         ]) || "";
 
         // Extrair título (será usado como nome da pasta)
-        const titulo = getFromRow(row, ["Título", "Titulo", "titulo"]) || "";
+        const titulo = getFromRow(row, ["Título", "Titulo", "titulo", "TÍTULO", "TITULO"]) || "";
         
-        // Extrair cliente
-        const cliente = getFromRow(row, ["Cliente", "cliente"]) || "";
+        // Extrair cliente - priorizar coluna "Cliente" que contém o nome da empresa
+        const cliente = getFromRow(row, [
+          "Cliente", "cliente", "CLIENTE",
+          "Nome do Cliente", "Nome cliente", "nome_cliente",
+          "Empresa", "empresa", "EMPRESA"
+        ]) || "";
         
         // Extrair outros envolvidos (para polos ativo/passivo)
         const outrosEnvolvidos = getFromRow(row, ["Outros envolvidos", "Outros Envolvidos"]) || "";
@@ -4986,7 +4985,13 @@ export default function ImportarProcessos() {
 
         // Determinar cliente - buscar por similaridade primeiro
         let clienteIdToUse: string | null = null;
-        let clienteNomeFromSheet = astreaData.cliente?.trim() || null;
+        const clienteNomeFromSheet = astreaData.cliente?.trim() || null;
+        
+        console.log(`[Astrea Import] Processo ${processo.numero}:`, {
+          clienteColuna: clienteNomeFromSheet,
+          titulo: astreaData.titulo,
+          papelCliente: astreaData.papelCliente,
+        });
         
         if (clienteNomeFromSheet) {
           // Buscar cliente similar existente
@@ -4994,26 +4999,41 @@ export default function ImportarProcessos() {
           
           if (similarClient) {
             clienteIdToUse = similarClient.id;
-            console.log(`Cliente "${clienteNomeFromSheet}" mapeado para "${similarClient.nome}"`);
+            console.log(`[Astrea Import] Cliente "${clienteNomeFromSheet}" mapeado para existente: "${similarClient.nome}"`);
           } else {
-            // Criar novo cliente apenas se não encontrou similar
-            const { data: novoCliente, error: clienteError } = await supabase
+            // Verificar no banco se já existe (pode ter sido criado em outra sessão)
+            const { data: existingCliente } = await supabase
               .from("clientes")
-              .insert({
-                nome: clienteNomeFromSheet,
-                tipo: "pessoa_juridica",
-              })
               .select("id, nome")
-              .single();
+              .ilike("nome", clienteNomeFromSheet)
+              .maybeSingle();
             
-            if (!clienteError && novoCliente) {
-              clienteIdToUse = novoCliente.id;
-              clientesCache.push({ id: novoCliente.id, nome: novoCliente.nome, tipo: "pessoa_juridica" });
-              console.log(`Novo cliente criado: ${novoCliente.nome}`);
+            if (existingCliente) {
+              clienteIdToUse = existingCliente.id;
+              clientesCache.push({ id: existingCliente.id, nome: existingCliente.nome, tipo: "pessoa_juridica" });
+              console.log(`[Astrea Import] Cliente encontrado no banco: "${existingCliente.nome}"`);
             } else {
-              console.warn(`Falha ao criar cliente ${clienteNomeFromSheet}:`, clienteError?.message);
+              // Criar novo cliente apenas se não encontrou
+              const { data: novoCliente, error: clienteError } = await supabase
+                .from("clientes")
+                .insert({
+                  nome: clienteNomeFromSheet,
+                  tipo: "pessoa_juridica",
+                })
+                .select("id, nome")
+                .single();
+              
+              if (!clienteError && novoCliente) {
+                clienteIdToUse = novoCliente.id;
+                clientesCache.push({ id: novoCliente.id, nome: novoCliente.nome, tipo: "pessoa_juridica" });
+                console.log(`[Astrea Import] Novo cliente criado: ${novoCliente.nome}`);
+              } else {
+                console.warn(`[Astrea Import] Falha ao criar cliente ${clienteNomeFromSheet}:`, clienteError?.message);
+              }
             }
           }
+        } else {
+          console.warn(`[Astrea Import] Coluna Cliente vazia para processo ${processo.numero}`);
         }
 
         let isUpdate = false;
