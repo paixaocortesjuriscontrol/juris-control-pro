@@ -1473,8 +1473,8 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({} as any));
     const completeRun = body?.completeRun === true;
     const execucaoId = body?.execucaoId as string | undefined;
-    // Quando chamado via executar-monitoramento, ele controla o loop (evita auto-continuation duplicado)
-    const managedByWrapper = typeof body?.continued === 'boolean' && !!execucaoId;
+    // Auto-continuation should ALWAYS work for heavy types - remove managedByWrapper check
+    // The orchestrator just kicks off the first batch, worker handles the rest
 
     console.log(`Starting andamentos monitoring... (completeRun: ${completeRun})`);
 
@@ -1548,8 +1548,8 @@ serve(async (req) => {
     }
 
     // Auto-continuation: if completeRun and not complete, trigger next batch
-    // But first check if cancellation was requested (configuracoes_monitoramento.metadata.cancelado)
-    if (!managedByWrapper && completeRun && !isComplete) {
+    // Check if cancellation was requested first
+    if (completeRun && !isComplete) {
       const { data: freshConfig } = await supabase
         .from('configuracoes_monitoramento')
         .select('metadata')
@@ -1575,14 +1575,15 @@ serve(async (req) => {
           .is('coordenacao_id', null);
       } else {
         const functionUrl = `${supabaseUrl}/functions/v1/monitorar-andamentos`;
-        const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+        // Use service role key for reliable auto-continuation (anon key may lack permissions)
+        const serviceKey = supabaseServiceKey;
 
         // Fire and forget - trigger next batch asynchronously
         fetch(functionUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${anonKey}`,
+            'Authorization': `Bearer ${serviceKey}`,
           },
           body: JSON.stringify({ completeRun: true, execucaoId }),
         }).catch(err => {
