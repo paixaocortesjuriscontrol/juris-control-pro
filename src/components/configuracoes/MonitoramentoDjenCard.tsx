@@ -93,6 +93,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const [runsHistoryOpen, setRunsHistoryOpen] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [limpando, setLimpando] = useState(false);
+  const [ocultarErroAnterior, setOcultarErroAnterior] = useState(false);
   const { runDetails } = useDjenRunDetails(selectedRunId);
   
   // Estados para período de consulta
@@ -257,6 +258,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         { event: '*', schema: 'public', table: 'execucoes_agendadas', filter: 'tipo=eq.djen' },
         () => {
           queryClient.invalidateQueries({ queryKey: ['execucao-ativa-djen'] });
+          queryClient.invalidateQueries({ queryKey: ['ultima-execucao-erro-djen'] });
         }
       )
       .subscribe();
@@ -265,6 +267,11 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
+
+  // Resetar ocultarErroAnterior quando mudar a última execução com erro
+  useEffect(() => {
+    setOcultarErroAnterior(false);
+  }, [ultimaExecucaoErro?.id]);
 
   // Progresso ao vivo (monótono): evita percentual “voltar” quando detalhes.progress é sobrescrito por lote
   const { current: execProcessados, total: execTotal, percentage: execPercentRaw } = getExecutionProgress({
@@ -288,6 +295,9 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       toast.warning('Já existe uma execução DJEN em andamento. Aguarde ou cancele.');
       return;
     }
+    
+    // Ocultar mensagens de erro da execução anterior ao iniciar nova
+    setOcultarErroAnterior(true);
 
     // Salvar período no metadata para o orquestrador repassar
     if (configuracaoDjen?.id) {
@@ -546,28 +556,35 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         )}
 
         {/* Alerta de erro na última execução */}
-        {ultimaExecucaoErro && !isExecuting && (
-          <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/30">
-            <div className="flex items-center gap-2 text-sm text-destructive">
-              <XCircle className="h-4 w-4" />
-              <span className="font-medium">
-                {ultimaExecucaoErro.status === 'timeout' 
-                  ? 'Execução expirou (timeout)' 
-                  : ultimaExecucaoErro.status === 'cancelado'
-                  ? 'Execução cancelada'
-                  : 'Falha na última execução'}
-              </span>
-            </div>
-            {ultimaExecucaoErro.ultimo_erro && (
-              <p className="text-xs text-muted-foreground mt-1 truncate">
-                {ultimaExecucaoErro.ultimo_erro}
+        {ultimaExecucaoErro && !isExecuting && !ocultarErroAnterior && (() => {
+          // Ocultar mensagens técnicas de abort/signal
+          const erroTecnico = ultimaExecucaoErro.ultimo_erro?.toLowerCase().includes('signal') ||
+                              ultimaExecucaoErro.ultimo_erro?.toLowerCase().includes('aborted');
+          if (erroTecnico && ultimaExecucaoErro.status !== 'falhou') return null;
+          
+          return (
+            <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/30">
+              <div className="flex items-center gap-2 text-sm text-destructive">
+                <XCircle className="h-4 w-4" />
+                <span className="font-medium">
+                  {ultimaExecucaoErro.status === 'timeout' 
+                    ? 'Execução expirou (timeout)' 
+                    : ultimaExecucaoErro.status === 'cancelado'
+                    ? 'Execução cancelada'
+                    : 'Falha na última execução'}
+                </span>
+              </div>
+              {ultimaExecucaoErro.ultimo_erro && !erroTecnico && (
+                <p className="text-xs text-muted-foreground mt-1 truncate">
+                  {ultimaExecucaoErro.ultimo_erro}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Você pode tentar executar novamente.
               </p>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">
-              Você pode tentar executar novamente.
-            </p>
-          </div>
-        )}
+            </div>
+          );
+        })()}
 
         {/* CONTADORES REAIS DO BANCO (sempre visíveis) */}
         <div className="p-3 bg-muted/30 rounded-lg border">
