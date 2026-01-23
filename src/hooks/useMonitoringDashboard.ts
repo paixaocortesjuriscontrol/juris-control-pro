@@ -327,6 +327,13 @@ export function useMonitoringDashboard() {
       if (lastCompletedExecution.status === 'concluido') status = 'completed';
       else if (lastCompletedExecution.status === 'falhou') status = 'failed';
       else if (lastCompletedExecution.status === 'cancelado') status = 'cancelled';
+      
+      // Calcular tempo da última execução concluída
+      if (lastCompletedExecution.iniciado_em && lastCompletedExecution.finalizado_em) {
+        const started = new Date(lastCompletedExecution.iniciado_em);
+        const finished = new Date(lastCompletedExecution.finalizado_em);
+        elapsedSeconds = Math.round((finished.getTime() - started.getTime()) / 1000);
+      }
     } else if (metaStatus === 'concluido') {
       status = 'completed';
     }
