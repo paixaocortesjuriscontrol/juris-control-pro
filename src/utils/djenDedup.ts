@@ -23,12 +23,15 @@ const extractDateKey = (dateStr: string | null | undefined): string => {
 
 /**
  * Gera uma chave de deduplicação para uma publicação.
- * Critério: processo_numero + data_primaria (pub ou disp ou created_at) + head normalizado (300 chars)
+ * Critério: coordenacao_id + processo_numero + data_primaria + head normalizado
  * 
- * IMPORTANTE: A chave INCLUI processo_numero, então a mesma publicação
- * aparecerá para processos diferentes (comportamento esperado).
+ * IMPORTANTE: A chave INCLUI coordenacao_id, permitindo que a mesma publicação
+ * apareça para coordenações diferentes (cada coordenação analisa suas publicações).
+ * A deduplicação só remove duplicatas DENTRO da mesma coordenação.
  */
 const makeDedupKey = (pub: PublicacaoUnificada): string => {
+  // Coordenação é parte fundamental da chave - mesma pub pode aparecer em coordenações diferentes
+  const coordenacao = pub.coordenacao_id ?? "sem_coord";
   const processo = (pub.processo_numero ?? "").replace(/\D/g, ""); // só dígitos
   
   // Cascata de datas: publicação > disponibilização > created_at
@@ -43,12 +46,12 @@ const makeDedupKey = (pub: PublicacaoUnificada): string => {
   // 300 chars para maior precisão (alinhado com backend que usa 2000)
   const head = normalizeText(pub.conteudo ?? "").slice(0, 300);
 
-  // Se tiver processo, dedup independente da origem (termo/processo)
-  if (processo) return `${processo}|${dataPrimaria}|${head}`;
+  // Se tiver processo, dedup por coordenação + processo + data + conteúdo
+  if (processo) return `${coordenacao}|${processo}|${dataPrimaria}|${head}`;
 
   // Fallback para publicações sem número de processo
-  // Inclui monitoramento_id E tipo para evitar colisões entre termos diferentes
-  return `${pub.tipo_origem}|${pub.monitoramento_id ?? "sem_mon"}|${dataPrimaria}|${head}`;
+  // Inclui coordenação + monitoramento_id + tipo para evitar colisões
+  return `${coordenacao}|${pub.tipo_origem}|${pub.monitoramento_id ?? "sem_mon"}|${dataPrimaria}|${head}`;
 };
 
 /**
