@@ -16,11 +16,12 @@ import {
   RefreshCw, 
   Radar,
   Eye,
-  Trash2,
   CheckCheck,
   Filter,
   TrendingUp,
-  Calendar
+  Building2,
+  Settings,
+  LayoutDashboard
 } from "lucide-react";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
@@ -32,11 +33,12 @@ import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { DashboardCoordenacoes } from "@/components/notificacoes/DashboardCoordenacoes";
 
 export default function Notificacoes() {
   // Central de Notificações
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
-  const [activeTab, setActiveTab] = useState("todos");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const navigate = useNavigate();
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
@@ -69,7 +71,6 @@ export default function Notificacoes() {
   const distribuicoesFiltradas = coordenacaoId === "todas"
     ? distribuicoesPendentes
     : distribuicoesPendentes.filter(d => {
-        // Get coordination from the monitoramento's coordenacao_id (if available)
         return (d as any).monitoramento?.coordenacao_id === coordenacaoId;
       });
 
@@ -84,7 +85,6 @@ export default function Notificacoes() {
   const redistribuicoesFiltradas = coordenacaoId === "todas"
     ? redistribuicoesRecentes
     : redistribuicoesRecentes.filter(r => {
-        // Match by coordenacao_nome
         const coord = coordenacoes.find(c => c.id === coordenacaoId);
         return coord && r.coordenacao_nome === coord.nome;
       });
@@ -98,10 +98,8 @@ export default function Notificacoes() {
   const notificacoesFiltradas = coordenacaoId === "todas"
     ? naoLidas
     : naoLidas.filter(n => {
-        // Check if notification has process data linked to the coordination
         const processoId = n.dados?.processo_id;
         if (!processoId) return false;
-        // Try to match with alertas which have process coordination info
         const alertaRelacionado = alertas.find(a => a.processo_id === processoId);
         return alertaRelacionado?.processo?.coordenacao_id === coordenacaoId;
       });
@@ -145,6 +143,11 @@ export default function Notificacoes() {
     }
   };
 
+  const handleSelectCoordenacao = (id: string) => {
+    setCoordenacaoId(id);
+    setActiveTab("todos");
+  };
+
   return (
     <MainLayout title="Central de Notificações" subtitle="Painel inteligente de monitoramentos e alertas">
       {/* Header com filtros */}
@@ -153,6 +156,7 @@ export default function Notificacoes() {
           <Filter className="w-4 h-4 text-muted-foreground" />
           <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
             <SelectTrigger className="w-[280px]">
+              <Building2 className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Filtrar por coordenação" />
             </SelectTrigger>
             <SelectContent>
@@ -180,7 +184,25 @@ export default function Notificacoes() {
       </div>
 
       {/* Cards de resumo por tipo */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
+            activeTab === "dashboard" && "ring-2 ring-primary"
+          )}
+          onClick={() => setActiveTab("dashboard")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <LayoutDashboard className="w-5 h-5 text-primary" />
+              </div>
+            </div>
+            <p className="mt-3 text-sm font-medium">Dashboard</p>
+            <p className="text-xs text-muted-foreground">Por Coordenação</p>
+          </CardContent>
+        </Card>
+
         <Card 
           className={cn(
             "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
@@ -219,7 +241,7 @@ export default function Notificacoes() {
               </Badge>
             </div>
             <p className="mt-3 text-sm font-medium">Distribuições</p>
-            <p className="text-xs text-muted-foreground">Novas encontradas</p>
+            <p className="text-xs text-muted-foreground">Novas</p>
           </CardContent>
         </Card>
 
@@ -240,7 +262,7 @@ export default function Notificacoes() {
               </Badge>
             </div>
             <p className="mt-3 text-sm font-medium">Alertas 360°</p>
-            <p className="text-xs text-muted-foreground">Termos encontrados</p>
+            <p className="text-xs text-muted-foreground">Termos</p>
           </CardContent>
         </Card>
 
@@ -310,7 +332,11 @@ export default function Notificacoes() {
 
       {/* Área de conteúdo */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted/50 p-1">
+        <TabsList className="bg-muted/50 p-1 flex-wrap h-auto gap-1">
+          <TabsTrigger value="dashboard" className="data-[state=active]:bg-background gap-1">
+            <LayoutDashboard className="h-4 w-4" />
+            Dashboard
+          </TabsTrigger>
           <TabsTrigger value="todos" className="data-[state=active]:bg-background">
             Todos
           </TabsTrigger>
@@ -331,6 +357,14 @@ export default function Notificacoes() {
           </TabsTrigger>
         </TabsList>
 
+        {/* Dashboard por Coordenação */}
+        <TabsContent value="dashboard" className="space-y-4">
+          <DashboardCoordenacoes 
+            onSelectCoordenacao={handleSelectCoordenacao}
+            selectedCoordenacaoId={coordenacaoId}
+          />
+        </TabsContent>
+
         {/* Todos */}
         <TabsContent value="todos" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -346,7 +380,6 @@ export default function Notificacoes() {
                 <CardContent>
                   <ScrollArea className="h-[200px]">
                     {publicacoesFiltradas.slice(0, 5).map((pub) => {
-                      // Extract process number from content if not available
                       const processoDisplay = pub.processo_numero || (() => {
                         const match = pub.conteudo?.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
                         return match ? match[1] : null;
@@ -568,7 +601,6 @@ export default function Notificacoes() {
                   <div className="space-y-3">
                     {publicacoesFiltradas.map((pub) => {
                       const monitoramento = monitoramentosDjen.find(m => m.id === pub.monitoramento_id);
-                      // Extract process number from content if not available
                       const processoDisplay = pub.processo_numero || (() => {
                         const match = pub.conteudo?.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
                         return match ? match[1] : null;
@@ -799,36 +831,24 @@ export default function Notificacoes() {
                 <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
                     {prazosFiltrados.map((prazo) => (
-                      <Card key={prazo.id} className={cn(
-                        "bg-muted/30",
-                        prazo.is_atrasado && "border-red-500/50"
-                      )}>
+                      <Card key={prazo.id} className="bg-muted/30">
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
                                 <Badge 
                                   variant={prazo.is_atrasado ? "destructive" : "outline"}
-                                  className={!prazo.is_atrasado ? getPrioridadeColor(prazo.prioridade) : ""}
+                                  className={prazo.is_atrasado ? "" : "bg-amber-500/10 text-amber-500"}
                                 >
-                                  {prazo.is_atrasado ? 'ATRASADO' : prazo.prioridade.toUpperCase()}
-                                </Badge>
-                                <Badge variant="outline">
-                                  <Calendar className="w-3 h-3 mr-1" />
-                                  {format(new Date(prazo.data_vencimento), 'dd/MM/yyyy')}
+                                  {prazo.is_atrasado ? 'ATRASADO' : `${prazo.dias_restantes} dias`}
                                 </Badge>
                               </div>
                               <p className="font-medium">{prazo.titulo}</p>
                               <p className="text-sm text-muted-foreground">
                                 Processo: {prazo.processo?.numero}
                               </p>
-                              <p className="text-xs mt-2">
-                                {prazo.is_atrasado 
-                                  ? <span className="text-red-500">Atrasado há {Math.abs(prazo.dias_restantes)} dia(s)</span>
-                                  : prazo.dias_restantes === 0 
-                                    ? <span className="text-amber-500">Vence hoje!</span>
-                                    : <span className="text-muted-foreground">Vence em {prazo.dias_restantes} dia(s)</span>
-                                }
+                              <p className="text-xs text-muted-foreground mt-2">
+                                Vencimento: {format(new Date(prazo.data_vencimento), "dd/MM/yyyy")}
                               </p>
                             </div>
                             <Button 
@@ -836,7 +856,7 @@ export default function Notificacoes() {
                               size="sm"
                               onClick={() => navigate('/prazos')}
                             >
-                              Ver prazo
+                              Ver detalhes
                             </Button>
                           </div>
                         </CardContent>

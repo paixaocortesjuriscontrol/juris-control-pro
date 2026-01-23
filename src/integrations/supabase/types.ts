@@ -977,6 +977,79 @@ export type Database = {
         }
         Relationships: []
       }
+      config_alertas_coordenacao: {
+        Row: {
+          apenas_urgentes: boolean
+          coordenacao_id: string
+          created_at: string
+          created_by: string | null
+          dias_semana: number[] | null
+          email_habilitado: boolean
+          emails_destinatarios: string[] | null
+          horario_fim: string | null
+          horario_inicio: string | null
+          id: string
+          telefones_whatsapp: string[] | null
+          tipos_alerta: string[] | null
+          updated_at: string
+          whatsapp_habilitado: boolean
+        }
+        Insert: {
+          apenas_urgentes?: boolean
+          coordenacao_id: string
+          created_at?: string
+          created_by?: string | null
+          dias_semana?: number[] | null
+          email_habilitado?: boolean
+          emails_destinatarios?: string[] | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
+          id?: string
+          telefones_whatsapp?: string[] | null
+          tipos_alerta?: string[] | null
+          updated_at?: string
+          whatsapp_habilitado?: boolean
+        }
+        Update: {
+          apenas_urgentes?: boolean
+          coordenacao_id?: string
+          created_at?: string
+          created_by?: string | null
+          dias_semana?: number[] | null
+          email_habilitado?: boolean
+          emails_destinatarios?: string[] | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
+          id?: string
+          telefones_whatsapp?: string[] | null
+          tipos_alerta?: string[] | null
+          updated_at?: string
+          whatsapp_habilitado?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_alertas_coordenacao_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: true
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "config_alertas_coordenacao_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "config_alertas_coordenacao_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       configuracoes_monitoramento: {
         Row: {
           ativo: boolean
@@ -1668,6 +1741,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      historico_alertas_enviados: {
+        Row: {
+          canal: string
+          conteudo: string
+          coordenacao_id: string
+          destinatario: string
+          enviado_em: string
+          erro: string | null
+          id: string
+          referencia_id: string | null
+          status: string
+          tipo_alerta: string
+        }
+        Insert: {
+          canal: string
+          conteudo: string
+          coordenacao_id: string
+          destinatario: string
+          enviado_em?: string
+          erro?: string | null
+          id?: string
+          referencia_id?: string | null
+          status?: string
+          tipo_alerta: string
+        }
+        Update: {
+          canal?: string
+          conteudo?: string
+          coordenacao_id?: string
+          destinatario?: string
+          enviado_em?: string
+          erro?: string | null
+          id?: string
+          referencia_id?: string | null
+          status?: string
+          tipo_alerta?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historico_alertas_enviados_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       historico_capturas: {
         Row: {
