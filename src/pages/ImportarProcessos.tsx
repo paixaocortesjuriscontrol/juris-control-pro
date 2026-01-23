@@ -5091,7 +5091,8 @@ export default function ImportarProcessos() {
             if (!existingProcesso.valor_provisionado && processo.valorProvisionado) updateData.valor_provisionado = processo.valorProvisionado;
             if (!existingProcesso.polo_ativo && processo.parteAtiva) updateData.polo_ativo = processo.parteAtiva;
             if (!existingProcesso.polo_passivo && processo.partePassiva) updateData.polo_passivo = processo.partePassiva;
-            if (!existingProcesso.cliente_id && clienteIdToUse) updateData.cliente_id = clienteIdToUse;
+            // Sempre atualizar cliente com valor da planilha
+            if (clienteIdToUse) updateData.cliente_id = clienteIdToUse;
             if (!existingProcesso.resultado && astreaData.resultadoProcesso) updateData.resultado = astreaData.resultadoProcesso;
             if (!existingProcesso.andamento_atual && astreaData.descricaoUltimoHistorico) updateData.andamento_atual = astreaData.descricaoUltimoHistorico;
             if (!existingProcesso.observacoes_processo) {
