@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnlyFull } from "@/utils/formatConteudo";
 import {
   Form,
   FormControl,
@@ -727,7 +727,7 @@ export function TarefaPublicacaoView({
                       </p>
                     )}
                     <p className="text-xs md:text-sm text-muted-foreground">
-                      Disponibilização: <strong>{formatDate(publicacao.data_disponibilizacao)}</strong> | Publicação: <strong>{formatDate(publicacao.data_publicacao)}</strong>
+                      Disponibilização: <strong>{formatDateOnlyFull(publicacao.data_disponibilizacao)}</strong> | Publicação: <strong>{formatDateOnlyFull(publicacao.data_publicacao)}</strong>
                     </p>
                     <p className="text-xs md:text-sm break-all">
                       Processo: <span className="font-mono font-medium">{publicacao.processo_numero || processo?.numero}</span>

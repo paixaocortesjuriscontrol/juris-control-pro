@@ -56,3 +56,39 @@ export const formatConteudoParaExibicao = (conteudo: string | null | undefined):
  */
 export const conteudoDisplayClasses = 
   "w-full max-w-full text-left leading-relaxed break-words [overflow-wrap:anywhere] whitespace-pre-wrap";
+
+/**
+ * Formata uma data como "dd/MM" ignorando timezone (trata como data pura).
+ * Útil para data_disponibilizacao e data_publicacao que são datas sem hora.
+ */
+export const formatDateOnly = (dateString: string | null | undefined): string => {
+  if (!dateString) return "-";
+  try {
+    // Extrai apenas YYYY-MM-DD da string (ignora timezone)
+    const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const [, , month, day] = match;
+      return `${day}/${month}`;
+    }
+    return dateString;
+  } catch {
+    return dateString;
+  }
+};
+
+/**
+ * Formata uma data como "dd/MM/yyyy" ignorando timezone (trata como data pura).
+ */
+export const formatDateOnlyFull = (dateString: string | null | undefined): string => {
+  if (!dateString) return "-";
+  try {
+    const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const [, year, month, day] = match;
+      return `${day}/${month}/${year}`;
+    }
+    return dateString;
+  } catch {
+    return dateString;
+  }
+};

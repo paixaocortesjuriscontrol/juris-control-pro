@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnlyFull } from "@/utils/formatConteudo";
 import {
   Dialog,
   DialogContent,
@@ -586,11 +586,11 @@ export function CriarTarefaPublicacaoDialog({
                 <div className="flex gap-6 text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
-                    <span>Disp: {formatDate(publicacao.data_disponibilizacao)}</span>
+                    <span>Disp: {formatDateOnlyFull(publicacao.data_disponibilizacao)}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
-                    <span>Pub: {formatDate(publicacao.data_publicacao)}</span>
+                    <span>Pub: {formatDateOnlyFull(publicacao.data_publicacao)}</span>
                   </div>
                 </div>
 

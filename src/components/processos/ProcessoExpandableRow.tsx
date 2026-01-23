@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnlyFull } from "@/utils/formatConteudo";
 
 interface ProcessoExpandableRowProps {
   processo: {
@@ -551,10 +551,10 @@ export function ProcessoExpandableRow({
                         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                           <span className="text-sm font-medium text-muted-foreground">
                             Disp.: {pub.data_disponibilizacao
-                              ? format(new Date(pub.data_disponibilizacao), "dd/MM/yyyy")
+                              ? formatDateOnlyFull(pub.data_disponibilizacao)
                               : "-"} | Pub.: {pub.data_publicacao
-                              ? format(new Date(pub.data_publicacao), "dd/MM/yyyy")
-                              : format(new Date(pub.created_at), "dd/MM/yyyy")}
+                              ? formatDateOnlyFull(pub.data_publicacao)
+                              : formatDateOnlyFull(pub.created_at)}
                           </span>
                           {pub.fonte && (
                             <Badge variant="outline" className="text-xs">
