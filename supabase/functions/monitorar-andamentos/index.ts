@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const DATAJUD_TIMEOUT_MS = 12_000; // Reduced from 15s to 12s
+const DATAJUD_TIMEOUT_MS = 8_000; // Reduced from 12s to 8s for faster fail-fast
 
 class CancelledError extends Error {
   constructor(message = 'cancelled') {
@@ -1064,8 +1064,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
   results: any;
   progress: { current: number; total: number; percentage: number };
 }> {
-  // Increased batch size for faster processing (was 50)
-  const PROCESSES_PER_RUN = 100;
+  // Increased batch size for faster processing (was 50, then 100)
+  const PROCESSES_PER_RUN = 200;
   
   // Get count of active processes for pagination (only those with monitoring enabled)
   const { count: totalCount } = await supabase
@@ -1129,8 +1129,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
     cancelled: false,
   };
 
-  // Process in parallel batches (increased from 5 to 8 for faster processing)
-  const PARALLEL_BATCH_SIZE = 8;
+  // Process in parallel batches (increased from 5 to 12 for faster processing)
+  const PARALLEL_BATCH_SIZE = 12;
 
   const isCancelled = createCancelChecker(supabase, 'andamentos', execucaoId);
 
