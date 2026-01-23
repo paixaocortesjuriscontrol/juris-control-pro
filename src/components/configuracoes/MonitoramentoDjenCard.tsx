@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle, Trash2, CalendarIcon } from "lucide-react";
+import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle, Trash2, CalendarIcon, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
 import { useExecutarMonitoramento } from "@/hooks/useExecutarMonitoramento";
@@ -134,9 +134,59 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         .maybeSingle();
 
       if (error) throw error;
+      
+      // Verificar se a execução está realmente ativa (não mais de 10 min sem progresso)
+      if (data) {
+        const iniciadoEm = new Date(data.iniciado_em).getTime();
+        const agora = Date.now();
+        const tempoDecorridoMs = agora - iniciadoEm;
+        
+        // Se passou mais de 10 minutos sem finalizar, considerar como ghost
+        if (tempoDecorridoMs > 10 * 60 * 1000) {
+          // Atualizar para timeout automaticamente
+          await supabase
+            .from('execucoes_agendadas')
+            .update({ 
+              status: 'timeout', 
+              finalizado_em: new Date().toISOString(),
+              ultimo_erro: 'Execução expirou (timeout automático)'
+            })
+            .eq('id', data.id);
+          return null;
+        }
+      }
+      
       return data;
     },
     refetchInterval: 2000, // Atualiza a cada 2s enquanto executa
+  });
+
+  // Buscar última execução com erro/falha para exibir alerta
+  const { data: ultimaExecucaoErro } = useQuery({
+    queryKey: ['ultima-execucao-erro-djen'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('execucoes_agendadas')
+        .select('*')
+        .eq('tipo', 'djen')
+        .in('status', ['falhou', 'timeout', 'cancelado'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      // Só mostrar se foi nos últimos 30 minutos
+      if (data) {
+        const finalizadoEm = data.finalizado_em ? new Date(data.finalizado_em).getTime() : 0;
+        if (Date.now() - finalizadoEm > 30 * 60 * 1000) {
+          return null;
+        }
+      }
+      
+      return data;
+    },
+    refetchInterval: 30000,
   });
 
   // Latest run from the new table
@@ -486,6 +536,30 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="h-4 w-4" />
             <span>Última execução: {format(toZonedTime(new Date(configuracaoDjen.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+          </div>
+        )}
+
+        {/* Alerta de erro na última execução */}
+        {ultimaExecucaoErro && !isExecuting && (
+          <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/30">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <XCircle className="h-4 w-4" />
+              <span className="font-medium">
+                {ultimaExecucaoErro.status === 'timeout' 
+                  ? 'Execução expirou (timeout)' 
+                  : ultimaExecucaoErro.status === 'cancelado'
+                  ? 'Execução cancelada'
+                  : 'Falha na última execução'}
+              </span>
+            </div>
+            {ultimaExecucaoErro.ultimo_erro && (
+              <p className="text-xs text-muted-foreground mt-1 truncate">
+                {ultimaExecucaoErro.ultimo_erro}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              Você pode tentar executar novamente.
+            </p>
           </div>
         )}
 
