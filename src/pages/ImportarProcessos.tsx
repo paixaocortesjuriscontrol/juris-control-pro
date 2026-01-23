@@ -4946,215 +4946,192 @@ export default function ImportarProcessos() {
     let errorCountLocal = 0;
     let rejectedCountLocal = 0;
     
-    // Create a mutable copy of clientes to track newly created clients during import
+    // ========== OTIMIZAÇÃO: PRÉ-CARREGAR DADOS EM LOTE ==========
+    console.log("[Astrea Import] Pré-carregando dados...");
+    
+    // 1. Pré-carregar todos os clientes existentes
     const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
-
-    for (let i = 0; i < updatedProcessos.length; i++) {
+    
+    // 2. Pré-carregar processos existentes (apenas os números que vamos importar)
+    const numerosProcessos = validProcessos.map(p => p.numero.trim());
+    const { data: processosExistentes } = await supabase
+      .from("processos")
+      .select("id, numero, coordenacao_id, advogado_responsavel_id, cliente_id, pasta_id, assunto, descricao, vara, tribunal, instancia, classe, data_distribuicao, valor_causa, valor_condenacao, valor_provisionado, polo_ativo, polo_passivo, resultado, andamento_atual, observacoes_processo")
+      .in("numero", numerosProcessos);
+    
+    const processosExistentesMap = new Map<string, any>();
+    (processosExistentes || []).forEach(p => {
+      processosExistentesMap.set(p.numero, p);
+    });
+    console.log(`[Astrea Import] ${processosExistentesMap.size} processos já existem no banco`);
+    
+    // 3. Pré-carregar pastas existentes
+    const nomesPastas = validProcessos.map(p => {
+      const astreaData = (p as any).astreaData || {};
+      return astreaData.titulo || `${p.parteAtiva || "Sem Parte"} x ${astreaData.cliente?.trim() || "Sem Cliente"}`;
+    });
+    const { data: pastasExistentes } = await supabase
+      .from("pastas")
+      .select("id, nome")
+      .in("nome", nomesPastas);
+    
+    const pastasMap = new Map<string, string>();
+    (pastasExistentes || []).forEach(p => {
+      pastasMap.set(p.nome, p.id);
+    });
+    console.log(`[Astrea Import] ${pastasMap.size} pastas já existem`);
+    
+    // 4. Pré-processar e criar clientes únicos em lote
+    const clientesParaCriar = new Map<string, string>(); // nome normalizado -> nome original
+    for (const processo of validProcessos) {
+      const astreaData = (processo as any).astreaData || {};
+      const clienteNome = astreaData.cliente?.trim();
+      if (!clienteNome) continue;
+      
+      const similarClient = findSimilarClient(clienteNome, clientesCache);
+      if (!similarClient) {
+        // Normalizar para evitar duplicatas no lote
+        const normalized = clienteNome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (!clientesParaCriar.has(normalized)) {
+          clientesParaCriar.set(normalized, clienteNome);
+        }
+      }
+    }
+    
+    // Criar clientes faltantes em lote
+    if (clientesParaCriar.size > 0) {
+      console.log(`[Astrea Import] Criando ${clientesParaCriar.size} clientes em lote...`);
+      const clientesToInsert = Array.from(clientesParaCriar.values()).map(nome => ({
+        nome,
+        tipo: "pessoa_juridica" as const,
+      }));
+      
+      const { data: novosClientes, error: clientesError } = await supabase
+        .from("clientes")
+        .insert(clientesToInsert)
+        .select("id, nome");
+      
+      if (!clientesError && novosClientes) {
+        novosClientes.forEach(c => {
+          clientesCache.push({ id: c.id, nome: c.nome, tipo: "pessoa_juridica" });
+        });
+        console.log(`[Astrea Import] ${novosClientes.length} clientes criados com sucesso`);
+      }
+    }
+    
+    // 5. Garantir área existe (uma única vez)
+    const areaSlug = await ensureAreaExists("trabalhista");
+    
+    // 6. Obter usuário uma única vez
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    console.log("[Astrea Import] Pré-carregamento concluído. Iniciando importação...");
+    
+    // ========== PROCESSAR EM BATCHES ==========
+    const BATCH_SIZE = 10;
+    const totalProcessos = updatedProcessos.length;
+    
+    for (let batchStart = 0; batchStart < totalProcessos; batchStart += BATCH_SIZE) {
       // Check for cancellation
       if (astreaCancelledRef.current) {
         toast({
           title: "Importação cancelada",
-          description: `Cancelada após processar ${i} de ${updatedProcessos.length} registros.`,
+          description: `Cancelada após processar ${batchStart} de ${totalProcessos} registros.`,
         });
         setAstreaImporting(false);
         endImport();
         return;
       }
-
-      const processo = updatedProcessos[i];
       
-      // Process invalid records - mark them as rejected with clear reason
-      if (processo.status === "invalido") {
-        rejectedCountLocal++;
-        setAstreaProgress(((i + 1) / updatedProcessos.length) * 100);
-        setAstreaProcessos([...updatedProcessos]);
-        continue;
-      }
-
-      try {
-        const astreaData = (processo as any).astreaData || {};
-
-        // Check if process already exists
-        const { data: existingProcesso } = await supabase
-          .from("processos")
-          .select("id, coordenacao_id, advogado_responsavel_id, cliente_id, pasta_id")
-          .eq("numero", processo.numero.trim())
-          .maybeSingle();
-
-        const areaSlug = await ensureAreaExists(processo.area);
-
-        // Determinar cliente - buscar por similaridade primeiro
-        let clienteIdToUse: string | null = null;
-        const clienteNomeFromSheet = astreaData.cliente?.trim() || null;
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, totalProcessos);
+      const batchProcessos = updatedProcessos.slice(batchStart, batchEnd);
+      
+      // Processar batch em paralelo com Promise.all
+      const batchPromises = batchProcessos.map(async (processo, batchIndex) => {
+        const globalIndex = batchStart + batchIndex;
         
-        console.log(`[Astrea Import] Processo ${processo.numero}:`, {
-          clienteColuna: clienteNomeFromSheet,
-          titulo: astreaData.titulo,
-          papelCliente: astreaData.papelCliente,
-        });
-        
-        if (clienteNomeFromSheet) {
-          // Buscar cliente similar existente
-          const similarClient = findSimilarClient(clienteNomeFromSheet, clientesCache);
-          
-          if (similarClient) {
-            clienteIdToUse = similarClient.id;
-            console.log(`[Astrea Import] Cliente "${clienteNomeFromSheet}" mapeado para existente: "${similarClient.nome}"`);
-          } else {
-            // Verificar no banco se já existe (pode ter sido criado em outra sessão)
-            const { data: existingCliente } = await supabase
-              .from("clientes")
-              .select("id, nome")
-              .ilike("nome", clienteNomeFromSheet)
-              .maybeSingle();
-            
-            if (existingCliente) {
-              clienteIdToUse = existingCliente.id;
-              clientesCache.push({ id: existingCliente.id, nome: existingCliente.nome, tipo: "pessoa_juridica" });
-              console.log(`[Astrea Import] Cliente encontrado no banco: "${existingCliente.nome}"`);
-            } else {
-              // Criar novo cliente apenas se não encontrou
-              const { data: novoCliente, error: clienteError } = await supabase
-                .from("clientes")
-                .insert({
-                  nome: clienteNomeFromSheet,
-                  tipo: "pessoa_juridica",
-                })
-                .select("id, nome")
-                .single();
-              
-              if (!clienteError && novoCliente) {
-                clienteIdToUse = novoCliente.id;
-                clientesCache.push({ id: novoCliente.id, nome: novoCliente.nome, tipo: "pessoa_juridica" });
-                console.log(`[Astrea Import] Novo cliente criado: ${novoCliente.nome}`);
-              } else {
-                console.warn(`[Astrea Import] Falha ao criar cliente ${clienteNomeFromSheet}:`, clienteError?.message);
-              }
-            }
-          }
-        } else {
-          console.warn(`[Astrea Import] Coluna Cliente vazia para processo ${processo.numero}`);
+        // Process invalid records - mark them as rejected with clear reason
+        if (processo.status === "invalido") {
+          return { index: globalIndex, result: "rejected" };
         }
 
-        let isUpdate = false;
+        try {
+          const astreaData = (processo as any).astreaData || {};
+          const numeroTrimmed = processo.numero.trim();
 
-        if (existingProcesso) {
-          // SMART MERGE: Processo já existe - atualizar apenas campos vazios, NÃO alterar responsáveis
-          const { data: currentProcesso } = await supabase
-            .from("processos")
-            .select("*")
-            .eq("id", existingProcesso.id)
-            .single();
-          
-          if (!currentProcesso) {
-            throw new Error("Processo não encontrado após verificação");
-          }
+          // Verificar se processo existe usando cache pré-carregado
+          const existingProcesso = processosExistentesMap.get(numeroTrimmed);
 
-          const updateData: Record<string, any> = {};
+          // Determinar cliente usando cache local
+          let clienteIdToUse: string | null = null;
+          const clienteNomeFromSheet = astreaData.cliente?.trim() || null;
           
-          // Só atualiza campos que estão vazios no banco
-          if (!currentProcesso.assunto && processo.assunto) {
-            updateData.assunto = processo.assunto;
-          }
-          if (!currentProcesso.descricao && processo.descricao) {
-            updateData.descricao = processo.descricao;
-          }
-          if (!currentProcesso.vara && processo.orgaoJulgador) {
-            updateData.vara = processo.orgaoJulgador;
-          }
-          if (!currentProcesso.tribunal && processo.orgao) {
-            updateData.tribunal = processo.orgao;
-          }
-          if (!currentProcesso.instancia && processo.instancia) {
-            updateData.instancia = processo.instancia;
-          }
-          if (!currentProcesso.classe && processo.classeCNJ) {
-            updateData.classe = processo.classeCNJ;
-          }
-          if (!currentProcesso.data_distribuicao && parseDate(processo.dataDistribuicao)) {
-            updateData.data_distribuicao = parseDate(processo.dataDistribuicao);
-          }
-          if (!currentProcesso.valor_causa && processo.valorAcao) {
-            updateData.valor_causa = processo.valorAcao;
-          }
-          if (!currentProcesso.valor_condenacao && processo.valorCondenacao) {
-            updateData.valor_condenacao = processo.valorCondenacao;
-          }
-          if (!currentProcesso.valor_provisionado && processo.valorProvisionado) {
-            updateData.valor_provisionado = processo.valorProvisionado;
-          }
-          if (!currentProcesso.polo_ativo && processo.parteAtiva) {
-            updateData.polo_ativo = processo.parteAtiva;
-          }
-          if (!currentProcesso.polo_passivo && processo.partePassiva) {
-            updateData.polo_passivo = processo.partePassiva;
-          }
-          // Cliente só atualiza se estiver vazio
-          if (!currentProcesso.cliente_id && clienteIdToUse) {
-            updateData.cliente_id = clienteIdToUse;
-          }
-          // Astrea specific
-          if (!currentProcesso.resultado && astreaData.resultadoProcesso) {
-            updateData.resultado = astreaData.resultadoProcesso;
-          }
-          if (!currentProcesso.andamento_atual && astreaData.descricaoUltimoHistorico) {
-            updateData.andamento_atual = astreaData.descricaoUltimoHistorico;
-          }
-          // Guardar etiquetas e url nas observações se não existir
-          if (!currentProcesso.observacoes_processo) {
-            const extras: string[] = [];
-            if (astreaData.etiquetas) extras.push(`Etiquetas: ${astreaData.etiquetas}`);
-            if (astreaData.urlProcesso) extras.push(`URL: ${astreaData.urlProcesso}`);
-            if (extras.length > 0) {
-              updateData.observacoes_processo = extras.join("\n");
+          if (clienteNomeFromSheet) {
+            const similarClient = findSimilarClient(clienteNomeFromSheet, clientesCache);
+            if (similarClient) {
+              clienteIdToUse = similarClient.id;
             }
           }
 
-          // NÃO alterar coordenacao_id ou advogado_responsavel_id existentes
-          
-          if (Object.keys(updateData).length > 0) {
-            const { error } = await supabase
-              .from("processos")
-              .update(updateData)
-              .eq("id", existingProcesso.id);
-
-            if (error) {
-              updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
-              errorCountLocal++;
-              continue;
-            }
-          }
-          
-          isUpdate = true;
-          updatedProcessos[i] = { 
-            ...processo, 
-            status: "sucesso", 
-            erroImport: "Atualizado (campos vazios preenchidos)" 
-          };
-          updateCountLocal++;
-        } else {
-          // Novo processo - criar pasta usando o título da planilha
-          let pastaId: string | null = null;
-          const nomePasta = astreaData.titulo || `${processo.parteAtiva || "Sem Parte"} x ${clienteNomeFromSheet || "Sem Cliente"}`;
-          
-          const { data: { user } } = await supabase.auth.getUser();
-          
-          if (user) {
-            // Verificar se pasta já existe com esse nome
-            const { data: pastaExistente } = await supabase
-              .from("pastas")
-              .select("id")
-              .eq("nome", nomePasta)
-              .maybeSingle();
+          if (existingProcesso) {
+            // SMART MERGE: Processo já existe - atualizar apenas campos vazios
+            const updateData: Record<string, any> = {};
             
-            if (pastaExistente) {
-              pastaId = pastaExistente.id;
-            } else {
+            if (!existingProcesso.assunto && processo.assunto) updateData.assunto = processo.assunto;
+            if (!existingProcesso.descricao && processo.descricao) updateData.descricao = processo.descricao;
+            if (!existingProcesso.vara && processo.orgaoJulgador) updateData.vara = processo.orgaoJulgador;
+            if (!existingProcesso.tribunal && processo.orgao) updateData.tribunal = processo.orgao;
+            if (!existingProcesso.instancia && processo.instancia) updateData.instancia = processo.instancia;
+            if (!existingProcesso.classe && processo.classeCNJ) updateData.classe = processo.classeCNJ;
+            if (!existingProcesso.data_distribuicao && parseDate(processo.dataDistribuicao)) {
+              updateData.data_distribuicao = parseDate(processo.dataDistribuicao);
+            }
+            if (!existingProcesso.valor_causa && processo.valorAcao) updateData.valor_causa = processo.valorAcao;
+            if (!existingProcesso.valor_condenacao && processo.valorCondenacao) updateData.valor_condenacao = processo.valorCondenacao;
+            if (!existingProcesso.valor_provisionado && processo.valorProvisionado) updateData.valor_provisionado = processo.valorProvisionado;
+            if (!existingProcesso.polo_ativo && processo.parteAtiva) updateData.polo_ativo = processo.parteAtiva;
+            if (!existingProcesso.polo_passivo && processo.partePassiva) updateData.polo_passivo = processo.partePassiva;
+            if (!existingProcesso.cliente_id && clienteIdToUse) updateData.cliente_id = clienteIdToUse;
+            if (!existingProcesso.resultado && astreaData.resultadoProcesso) updateData.resultado = astreaData.resultadoProcesso;
+            if (!existingProcesso.andamento_atual && astreaData.descricaoUltimoHistorico) updateData.andamento_atual = astreaData.descricaoUltimoHistorico;
+            if (!existingProcesso.observacoes_processo) {
+              const extras: string[] = [];
+              if (astreaData.etiquetas) extras.push(`Etiquetas: ${astreaData.etiquetas}`);
+              if (astreaData.urlProcesso) extras.push(`URL: ${astreaData.urlProcesso}`);
+              if (extras.length > 0) updateData.observacoes_processo = extras.join("\n");
+            }
+            
+            if (Object.keys(updateData).length > 0) {
+              const { error } = await supabase
+                .from("processos")
+                .update(updateData)
+                .eq("id", existingProcesso.id);
+
+              if (error) {
+                updatedProcessos[globalIndex] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+                return { index: globalIndex, result: "error" };
+              }
+            }
+            
+            updatedProcessos[globalIndex] = { 
+              ...processo, 
+              status: "sucesso", 
+              erroImport: "Atualizado (campos vazios preenchidos)" 
+            };
+            return { index: globalIndex, result: "updated" };
+          } else {
+            // Novo processo - usar pasta do cache ou criar
+            let pastaId: string | null = null;
+            const nomePasta = astreaData.titulo || `${processo.parteAtiva || "Sem Parte"} x ${clienteNomeFromSheet || "Sem Cliente"}`;
+            
+            if (pastasMap.has(nomePasta)) {
+              pastaId = pastasMap.get(nomePasta)!;
+            } else if (user) {
               const { data: novaPasta, error: pastaError } = await supabase
                 .from("pastas")
                 .insert({
                   nome: nomePasta,
-                  descricao: `Pasta importada do Astrea para o processo ${processo.numero}`,
+                  descricao: `Pasta importada do Astrea para o processo ${numeroTrimmed}`,
                   cliente_id: clienteIdToUse,
                   coordenacao_id: selectedCoordenacao || null,
                   criado_por: user.id,
@@ -5164,89 +5141,95 @@ export default function ImportarProcessos() {
               
               if (!pastaError && novaPasta) {
                 pastaId = novaPasta.id;
-              } else {
-                console.warn(`Falha ao criar pasta para processo ${processo.numero}:`, pastaError?.message);
+                pastasMap.set(nomePasta, novaPasta.id); // Cache para próximos
               }
             }
-          }
 
-          const processoData: any = {
-            numero: processo.numero.trim(),
-            area: areaSlug,
-            status: mapStatusToEnum(processo.situacao),
-            assunto: processo.assunto,
-            descricao: processo.descricao,
-            vara: processo.orgaoJulgador,
-            tribunal: processo.orgao,
-            instancia: processo.instancia,
-            classe: processo.classeCNJ,
-            data_distribuicao: parseDate(processo.dataDistribuicao),
-            valor_causa: processo.valorAcao,
-            valor_condenacao: processo.valorCondenacao,
-            valor_provisionado: processo.valorProvisionado,
-            polo_ativo: processo.parteAtiva,
-            polo_passivo: processo.partePassiva,
-            cliente_id: clienteIdToUse,
-            coordenacao_id: selectedCoordenacao || null,
-            advogado_responsavel_id: selectedMembro || null,
-            pasta_id: pastaId,
-            monitorar_andamentos: astreaBuscarAndamentos,
-            // Astrea specific fields (etiquetas stored in observacoes since column doesn't exist)
-            resultado: astreaData.resultadoProcesso,
-            andamento_atual: astreaData.descricaoUltimoHistorico,
-            advogado_externo: astreaData.responsavel,
-            observacoes_processo: (() => {
-              const extras: string[] = [];
-              if (astreaData.etiquetas) extras.push(`Etiquetas: ${astreaData.etiquetas}`);
-              if (astreaData.urlProcesso) extras.push(`URL: ${astreaData.urlProcesso}`);
-              return extras.length > 0 ? extras.join("\n") : null;
-            })(),
-          };
+            const processoData: any = {
+              numero: numeroTrimmed,
+              area: areaSlug,
+              status: mapStatusToEnum(processo.situacao),
+              assunto: processo.assunto,
+              descricao: processo.descricao,
+              vara: processo.orgaoJulgador,
+              tribunal: processo.orgao,
+              instancia: processo.instancia,
+              classe: processo.classeCNJ,
+              data_distribuicao: parseDate(processo.dataDistribuicao),
+              valor_causa: processo.valorAcao,
+              valor_condenacao: processo.valorCondenacao,
+              valor_provisionado: processo.valorProvisionado,
+              polo_ativo: processo.parteAtiva,
+              polo_passivo: processo.partePassiva,
+              cliente_id: clienteIdToUse,
+              coordenacao_id: selectedCoordenacao || null,
+              advogado_responsavel_id: selectedMembro || null,
+              pasta_id: pastaId,
+              monitorar_andamentos: astreaBuscarAndamentos,
+              resultado: astreaData.resultadoProcesso,
+              andamento_atual: astreaData.descricaoUltimoHistorico,
+              advogado_externo: astreaData.responsavel,
+              observacoes_processo: (() => {
+                const extras: string[] = [];
+                if (astreaData.etiquetas) extras.push(`Etiquetas: ${astreaData.etiquetas}`);
+                if (astreaData.urlProcesso) extras.push(`URL: ${astreaData.urlProcesso}`);
+                return extras.length > 0 ? extras.join("\n") : null;
+              })(),
+            };
 
-          const { data: insertedProcesso, error } = await supabase
-            .from("processos")
-            .insert(processoData)
-            .select("id")
-            .single();
+            const { data: insertedProcesso, error } = await supabase
+              .from("processos")
+              .insert(processoData)
+              .select("id")
+              .single();
 
-          if (error) {
-            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
-            errorCountLocal++;
-            continue;
-          }
-
-          // Vincular responsável na tabela processos_responsaveis se selecionado
-          if (selectedMembro && insertedProcesso) {
-            await supabase
-              .from("processos_responsaveis")
-              .insert({
-                processo_id: insertedProcesso.id,
-                usuario_id: selectedMembro,
-                papel: "responsavel",
-              })
-              .select()
-              .maybeSingle();
-          }
-
-          if (astreaBuscarAndamentos && insertedProcesso) {
-            const andamentosRes = await buscarAndamentosExternos(insertedProcesso.id, processo.numero.trim());
-            if (!andamentosRes.success) {
-              console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+            if (error) {
+              updatedProcessos[globalIndex] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+              return { index: globalIndex, result: "error" };
             }
-          }
-          
-          updatedProcessos[i] = { 
-            ...processo, 
-            status: "sucesso", 
-          };
-          successCountLocal++;
-        }
-      } catch (err: any) {
-        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
-        errorCountLocal++;
-      }
 
-      setAstreaProgress(((i + 1) / updatedProcessos.length) * 100);
+            // Vincular responsável se selecionado
+            if (selectedMembro && insertedProcesso) {
+              await supabase
+                .from("processos_responsaveis")
+                .insert({
+                  processo_id: insertedProcesso.id,
+                  usuario_id: selectedMembro,
+                  papel: "responsavel",
+                })
+                .select()
+                .maybeSingle();
+            }
+
+            if (astreaBuscarAndamentos && insertedProcesso) {
+              const andamentosRes = await buscarAndamentosExternos(insertedProcesso.id, numeroTrimmed);
+              if (!andamentosRes.success) {
+                console.warn(`Falha ao buscar andamentos do processo ${numeroTrimmed}:`, andamentosRes.error);
+              }
+            }
+            
+            updatedProcessos[globalIndex] = { ...processo, status: "sucesso" };
+            return { index: globalIndex, result: "success" };
+          }
+        } catch (err: any) {
+          updatedProcessos[globalIndex] = { ...processo, status: "erro", erroImport: err.message };
+          return { index: globalIndex, result: "error" };
+        }
+      });
+      
+      // Aguardar batch atual
+      const batchResults = await Promise.all(batchPromises);
+      
+      // Contabilizar resultados
+      batchResults.forEach(r => {
+        if (r.result === "success") successCountLocal++;
+        else if (r.result === "updated") updateCountLocal++;
+        else if (r.result === "rejected") rejectedCountLocal++;
+        else if (r.result === "error") errorCountLocal++;
+      });
+      
+      // Atualizar progresso após cada batch
+      setAstreaProgress((batchEnd / totalProcessos) * 100);
       setAstreaProcessos([...updatedProcessos]);
     }
 
