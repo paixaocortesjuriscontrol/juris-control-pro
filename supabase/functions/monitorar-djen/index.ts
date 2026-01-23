@@ -348,6 +348,47 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
+// Calcular próximo dia útil considerando recesso forense (20/dez a 6/jan)
+function calcularPrimeiroDiaUtil(dataBase: Date, diasUteisAdicionar: number = 0): Date {
+  const resultado = new Date(dataBase);
+  
+  // Função para verificar se está no recesso forense
+  const estaNoRecesso = (d: Date): boolean => {
+    const mes = d.getMonth(); // 0-11
+    const dia = d.getDate();
+    return (mes === 11 && dia >= 20) || (mes === 0 && dia <= 6);
+  };
+  
+  // Função para avançar para próximo dia útil
+  const proximoDiaUtil = (d: Date): Date => {
+    while (d.getDay() === 0 || d.getDay() === 6) {
+      d.setDate(d.getDate() + 1);
+    }
+    if (estaNoRecesso(d)) {
+      d.setMonth(0); // Janeiro
+      d.setDate(7);
+      if (d.getMonth() === 11) d.setFullYear(d.getFullYear() + 1);
+      while (d.getDay() === 0 || d.getDay() === 6) {
+        d.setDate(d.getDate() + 1);
+      }
+    }
+    return d;
+  };
+  
+  // Ajustar data base para dia útil
+  proximoDiaUtil(resultado);
+  
+  // Adicionar dias úteis
+  let contador = 0;
+  while (contador < diasUteisAdicionar) {
+    resultado.setDate(resultado.getDate() + 1);
+    proximoDiaUtil(resultado);
+    contador++;
+  }
+  
+  return resultado;
+}
+
 // Gera hash para deduplicação de tarefas
 function generateTaskDedupKey(processoId: string, titulo: string, dataVencimento: string): string {
   // Normaliza título removendo variações de espaço e case
@@ -778,28 +819,40 @@ async function processMonitoramento(
       const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
       
       // A API pode retornar datas em diferentes campos dependendo do tribunal
-      // dataDisponibilizacao = data em que foi disponibilizado no DJe (geralmente 1 dia antes da publicação)
-      // dataPublicacao = data da publicação oficial (contagem de prazo começa aqui)
+      // dataDisponibilizacao = data em que foi disponibilizado no DJe (exatamente como vem da API)
+      // dataPublicacao = próximo dia útil após a disponibilização (contagem de prazo começa aqui)
       const rawDataDisponibilizacao = pub.dataDisponibilizacao || pub.dataDJe || pub.dtDisponibilizacao || pub.dataDisp || null;
-      const rawDataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.dtPublicacao || pub.data || dataAtual;
+      const rawDataPublicacao = pub.dataPublicacao || pub.dataJornal || pub.dtPublicacao || pub.data || null;
       
-      // Se só temos dataPublicacao, calcular dataDisponibilizacao como dia anterior
-      // Se só temos dataDisponibilizacao, calcular dataPublicacao como dia seguinte
+      // Prioridade: usar data_disponibilizacao exatamente como vem da API
+      // Se não tiver, usar data_publicacao da API diretamente
       let dataDisponibilizacao = rawDataDisponibilizacao;
       let dataPublicacao = rawDataPublicacao;
       
-      if (!dataDisponibilizacao && dataPublicacao) {
-        try {
-          const pubDate = new Date(dataPublicacao);
-          pubDate.setDate(pubDate.getDate() - 1);
-          dataDisponibilizacao = pubDate.toISOString().split('T')[0];
-        } catch { /* ignore */ }
-      } else if (dataDisponibilizacao && !rawDataPublicacao) {
+      // Se temos data_disponibilizacao, calcular data_publicacao como próximo dia útil
+      if (dataDisponibilizacao && !rawDataPublicacao) {
         try {
           const dispDate = new Date(dataDisponibilizacao);
-          dispDate.setDate(dispDate.getDate() + 1);
-          dataPublicacao = dispDate.toISOString().split('T')[0];
+          if (!isNaN(dispDate.getTime())) {
+            // Data de publicação = próximo dia útil após disponibilização
+            dispDate.setDate(dispDate.getDate() + 1); // Avança 1 dia
+            const proximoDiaUtil = calcularPrimeiroDiaUtil(dispDate);
+            dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+          }
         } catch { /* ignore */ }
+      }
+      
+      // Se só temos data_publicacao da API, manter como está (caso raro)
+      // Fallback: usar data atual se nenhuma data disponível
+      if (!dataDisponibilizacao && !dataPublicacao) {
+        dataDisponibilizacao = dataAtual;
+        const hoje = new Date(dataAtual);
+        hoje.setDate(hoje.getDate() + 1);
+        const proximoDiaUtil = calcularPrimeiroDiaUtil(hoje);
+        dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+      } else if (!dataDisponibilizacao && dataPublicacao) {
+        // Mantém data_publicacao da API, não inferir disponibilização
+        dataDisponibilizacao = dataPublicacao; // Fallback seguro
       }
       
       const globalHash = generateGlobalHash(conteudo, dataPublicacao);

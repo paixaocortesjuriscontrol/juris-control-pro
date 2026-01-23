@@ -626,16 +626,17 @@ async function processProcessosBatch(
 
         // Data de disponibilização (dia que saiu no sistema) vs publicação (dia oficial do diário)
         // A API PJE Comunica retorna os campos padrão: dataDisponibilizacao e dataPublicacao
-        // Mas também pode vir dentro de 'comunicacao' ou com variações de nome
+        // Regra: data_disponibilizacao = exatamente como vem da API
+        //        data_publicacao = próximo dia útil após a disponibilização
         const pubObj = pub.comunicacao || pub;
-        let dataDisponibilizacao = 
+        const rawDataDisponibilizacao = 
           pubObj.dataDisponibilizacao || 
           pubObj.dataDJe || 
           pubObj.dtDisponibilizacao || 
           pubObj.dataDisp ||
           pubObj.data_disponibilizacao ||
           null;
-        let dataPublicacao = 
+        const rawDataPublicacao = 
           pubObj.dataPublicacao || 
           pubObj.dataJornal || 
           pubObj.dtPublicacao || 
@@ -643,40 +644,41 @@ async function processProcessosBatch(
           pubObj.data_publicacao ||
           null;
         
+        let dataDisponibilizacao = rawDataDisponibilizacao;
+        let dataPublicacao = rawDataPublicacao;
+        
         // Log para debug quando datas não são encontradas
         if (!dataDisponibilizacao && !dataPublicacao) {
           console.log(`[DJEN Processos] No dates found for pub. Keys: ${Object.keys(pubObj).join(', ')}`);
         }
         
-        // Inferir datas faltantes (típico: disponibilização = publicação - 1 dia)
-        if (!dataDisponibilizacao && dataPublicacao) {
-          try {
-            const pubDate = new Date(dataPublicacao);
-            if (!isNaN(pubDate.getTime())) {
-              pubDate.setDate(pubDate.getDate() - 1);
-              dataDisponibilizacao = pubDate.toISOString().split('T')[0];
-            }
-          } catch {
-            // Ignore date parsing errors
-          }
-        } else if (dataDisponibilizacao && !dataPublicacao) {
+        // Se temos data_disponibilizacao, calcular data_publicacao como próximo dia útil
+        if (dataDisponibilizacao && !rawDataPublicacao) {
           try {
             const dispDate = new Date(dataDisponibilizacao);
             if (!isNaN(dispDate.getTime())) {
-              dispDate.setDate(dispDate.getDate() + 1);
-              dataPublicacao = dispDate.toISOString().split('T')[0];
+              // Data de publicação = próximo dia útil após disponibilização
+              dispDate.setDate(dispDate.getDate() + 1); // Avança 1 dia
+              const proximoDiaUtil = calcularPrimeiroDiaUtil(dispDate);
+              dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
             }
           } catch {
             // Ignore date parsing errors
           }
         }
         
-        // Fallback: usar created_at do registro como última opção
+        // Fallback: usar data atual se nenhuma data disponível
         if (!dataDisponibilizacao && !dataPublicacao) {
           const hoje = new Date().toISOString().split('T')[0];
           dataDisponibilizacao = hoje;
-          dataPublicacao = hoje;
+          const amanha = new Date();
+          amanha.setDate(amanha.getDate() + 1);
+          const proximoDiaUtil = calcularPrimeiroDiaUtil(amanha);
+          dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
           console.log(`[DJEN Processos] Using today as fallback date for processo ${processo.numero}`);
+        } else if (!dataDisponibilizacao && dataPublicacao) {
+          // Se só temos data_publicacao da API, manter como está
+          dataDisponibilizacao = dataPublicacao; // Fallback seguro
         }
         
         // Deduplicação robusta: normaliza HTML/whitespace para evitar duplicatas com pequenas variações.
