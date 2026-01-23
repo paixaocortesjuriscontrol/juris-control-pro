@@ -273,7 +273,12 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     total_lotes: execucaoAtiva?.total_lotes,
     lotes_processados: execucaoAtiva?.lotes_processados,
   });
-  const execPercent = execPercentRaw ?? 0;
+  // Só mostra percentual se tiver um total válido (>0) e a execução iniciou há mais de 5s
+  const execucaoIniciouHa = execucaoAtiva?.iniciado_em 
+    ? Date.now() - new Date(execucaoAtiva.iniciado_em).getTime() 
+    : 0;
+  const hasValidProgress = execTotal > 0 && execPercentRaw !== null && execucaoIniciouHa > 5000;
+  const execPercent = hasValidProgress ? execPercentRaw : 0;
   const execNovas = execucaoAtiva?.registros_encontrados ?? 0;
   const isExecuting = !!execucaoAtiva;
 
@@ -595,15 +600,31 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
               <div className="flex items-center gap-2">
                 <Radio className="h-4 w-4 text-primary animate-pulse" />
                 <span className="font-medium">
-                  Processando: {execProcessados.toLocaleString('pt-BR')}
-                  {execTotal > 0 ? `/${execTotal.toLocaleString('pt-BR')}` : ''}
+                  {hasValidProgress 
+                    ? `Processando: ${execProcessados.toLocaleString('pt-BR')}/${execTotal.toLocaleString('pt-BR')}`
+                    : 'Iniciando monitoramento...'}
                 </span>
               </div>
-              <Badge variant="secondary" className="text-xs">
-                {execPercent}%
-              </Badge>
+              {hasValidProgress && (
+                <Badge variant="secondary" className="text-xs">
+                  {execPercent}%
+                </Badge>
+              )}
             </div>
-            <Progress value={execPercent} className="h-2" />
+            {hasValidProgress ? (
+              <Progress value={execPercent} className="h-2" />
+            ) : (
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div className="absolute inset-y-0 left-0 w-1/3 animate-[indeterminate_1.4s_ease-in-out_infinite] rounded-full bg-primary/50" />
+                <style>{`
+                  @keyframes indeterminate {
+                    0% { transform: translateX(-100%); }
+                    50% { transform: translateX(200%); }
+                    100% { transform: translateX(300%); }
+                  }
+                `}</style>
+              </div>
+            )}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>+{execNovas} novas encontradas</span>
             </div>
