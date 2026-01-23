@@ -9,11 +9,11 @@ const corsHeaders = {
 // Single optimized endpoint
 const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 const BATCH_SIZE = 50; // Batch size for processing
-const CONCURRENT_REQUESTS = 3; // Moderate parallelism
+const CONCURRENT_REQUESTS = 5; // Increased parallelism for speed
 const PAGE_SIZE = 100; // Max page size
 const MAX_PAGES = 2; // Limit pages per process
-const BASE_DELAY = 1500; // 1.5s delay between batches
-const STAGGER_DELAY = 300; // 300ms between requests in same chunk
+const BASE_DELAY = 800; // 800ms delay between batches (reduced from 1500ms)
+const STAGGER_DELAY = 150; // 150ms between requests in same chunk (reduced from 300ms)
 
 // Browser-like headers
 const browserHeaders = {
@@ -599,21 +599,17 @@ async function processProcessosBatch(
     
     // Add delay between chunks to avoid rate limiting (except first chunk)
     if (i > 0) {
-      console.log(`[DJEN Processos] Aguardando ${BASE_DELAY}ms entre chunks para evitar rate limit...`);
+      console.log(`[DJEN Processos] Chunk ${Math.floor(i / CONCURRENT_REQUESTS) + 1}: processando ${chunk.length} processos...`);
       await delay(BASE_DELAY);
     }
     
-    // Process sequentially within chunk to be gentler on API
-    const results: Array<{ processo: typeof chunk[0]; publicacoes: any[] }> = [];
-    for (let idx = 0; idx < chunk.length; idx++) {
-      const processo = chunk[idx];
-      // Stagger requests within chunk
-      if (idx > 0) {
-        await delay(STAGGER_DELAY);
-      }
-      const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
-      results.push({ processo, publicacoes });
-    }
+    // Process chunk in parallel (Promise.all) - much faster than sequential
+    const results = await Promise.all(
+      chunk.map(async (processo) => {
+        const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
+        return { processo, publicacoes };
+      })
+    );
 
     // Process results
     for (const { processo, publicacoes } of results) {
