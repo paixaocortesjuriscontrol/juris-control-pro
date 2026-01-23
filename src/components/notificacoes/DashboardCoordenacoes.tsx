@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,9 @@ import {
   TrendingUp,
   AlertTriangle,
   ChevronRight,
+  ListTodo,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
@@ -37,6 +40,7 @@ interface CoordenacaoStats {
   alertas360: number;
   redistribuicoes: number;
   prazos: number;
+  tarefas: number;
   total: number;
   emailHabilitado: boolean;
   whatsappHabilitado: boolean;
@@ -55,6 +59,27 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
   const { data: redistribuicoesData = [] } = useRedistribuicoes();
   const { prazosUrgentes } = useNotificacoes();
   const { configs } = useConfigAlertasCoordenacao();
+
+  // Buscar tarefas pendentes com coordenação via processo
+  const { data: tarefasPendentes = [] } = useQuery({
+    queryKey: ["tarefas-pendentes-coordenacao"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tarefas")
+        .select(`
+          id,
+          status,
+          processo:processos!tarefas_processo_id_fkey(
+            id,
+            coordenacao_id
+          )
+        `)
+        .eq("status", "pendente");
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedCoordConfig, setSelectedCoordConfig] = useState<{ id: string; nome: string } | null>(null);
@@ -94,6 +119,11 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
         p => p.processo?.coordenacao_id === coord.id
       ).length;
 
+      // Tarefas pendentes da agenda
+      const tarefas = tarefasPendentes.filter(
+        t => (t.processo as any)?.coordenacao_id === coord.id
+      ).length;
+
       // Config de alertas
       const config = configs.find(c => c.coordenacao_id === coord.id);
 
@@ -105,12 +135,13 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
         alertas360,
         redistribuicoes,
         prazos,
-        total: djen + distribuicoes + alertas360 + redistribuicoes + prazos,
+        tarefas,
+        total: djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas,
         emailHabilitado: config?.email_habilitado || false,
         whatsappHabilitado: config?.whatsapp_habilitado || false,
       };
     }).sort((a, b) => b.total - a.total); // Ordenar por total de alertas
-  }, [coordenacoes, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, configs]);
+  }, [coordenacoes, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, tarefasPendentes, configs]);
 
   const handleOpenConfig = (coord: { id: string; nome: string }) => {
     setSelectedCoordConfig(coord);
@@ -199,7 +230,7 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
 
                     {/* Breakdown */}
                     {coord.total > 0 && (
-                      <div className="grid grid-cols-5 gap-1 pt-2">
+                      <div className="grid grid-cols-6 gap-1 pt-2">
                         {coord.djen > 0 && (
                           <div className="flex flex-col items-center p-1 rounded bg-blue-500/10" title="DJEN">
                             <Newspaper className="h-3 w-3 text-blue-500" />
@@ -228,6 +259,12 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
                           <div className="flex flex-col items-center p-1 rounded bg-red-500/10" title="Prazos">
                             <Clock className="h-3 w-3 text-red-500" />
                             <span className="text-xs font-medium">{coord.prazos}</span>
+                          </div>
+                        )}
+                        {coord.tarefas > 0 && (
+                          <div className="flex flex-col items-center p-1 rounded bg-green-500/10" title="Tarefas">
+                            <ListTodo className="h-3 w-3 text-green-500" />
+                            <span className="text-xs font-medium">{coord.tarefas}</span>
                           </div>
                         )}
                       </div>
