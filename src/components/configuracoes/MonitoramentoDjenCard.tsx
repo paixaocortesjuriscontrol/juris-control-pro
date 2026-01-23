@@ -167,6 +167,16 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const { data: ultimaExecucaoErro } = useQuery({
     queryKey: ['ultima-execucao-erro-djen'],
     queryFn: async () => {
+      // Buscar última execução (qualquer status)
+      const { data: ultimaConcluida } = await supabase
+        .from('execucoes_agendadas')
+        .select('id, finalizado_em')
+        .eq('tipo', 'djen')
+        .eq('status', 'concluido')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       const { data, error } = await supabase
         .from('execucoes_agendadas')
         .select('*')
@@ -178,13 +188,25 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
       if (error) throw error;
       
-      // Só mostrar se foi nos últimos 30 minutos
-      if (data) {
-        const finalizadoEm = data.finalizado_em ? new Date(data.finalizado_em).getTime() : 0;
-        if (Date.now() - finalizadoEm > 30 * 60 * 1000) {
-          return null;
-        }
+      if (!data) return null;
+      
+      // Se existe uma execução concluída com sucesso MAIS RECENTE, ocultar erro
+      if (ultimaConcluida?.finalizado_em && data.finalizado_em) {
+        const concluidaEm = new Date(ultimaConcluida.finalizado_em).getTime();
+        const erroEm = new Date(data.finalizado_em).getTime();
+        if (concluidaEm > erroEm) return null;
       }
+      
+      // Só mostrar se foi nos últimos 30 minutos
+      const finalizadoEm = data.finalizado_em ? new Date(data.finalizado_em).getTime() : 0;
+      if (Date.now() - finalizadoEm > 30 * 60 * 1000) {
+        return null;
+      }
+      
+      // Ocultar mensagens técnicas de signal/aborted
+      const erroTecnico = data.ultimo_erro?.toLowerCase().includes('signal') ||
+                          data.ultimo_erro?.toLowerCase().includes('aborted');
+      if (erroTecnico) return null;
       
       return data;
     },
@@ -195,6 +217,8 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const latestRun = runs && runs.length > 0 ? runs[0] : null;
 
   // CONTADORES REAIS DO BANCO (publicações persistidas hoje)
+  // Nota: usa contagem bruta do banco. A página Análise DJEN pode ter números diferentes
+  // por aplicar deduplicação e filtros de coordenação.
   const { data: statsHoje } = useQuery({
     queryKey: ['djen-stats-hoje'],
     queryFn: async () => {
@@ -202,7 +226,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0).toISOString();
       const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59).toISOString();
 
-      // Publicações novas hoje
+      // Publicações novas hoje (contagem bruta)
       const { count: novas, error: e1 } = await supabase
         .from('publicacoes_djen')
         .select('*', { count: 'exact', head: true })
@@ -230,7 +254,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         monitoramentos: monitoramentos ?? 0,
       };
     },
-    refetchInterval: 30000, // Atualiza a cada 30s
+    refetchInterval: 10000, // Atualiza a cada 10s
   });
 
   // Fetch configured tribunals (from active DJEN terms) so the report can show
@@ -556,45 +580,42 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         )}
 
         {/* Alerta de erro na última execução */}
-        {ultimaExecucaoErro && !isExecuting && !ocultarErroAnterior && (() => {
-          // Ocultar mensagens técnicas de abort/signal
-          const erroTecnico = ultimaExecucaoErro.ultimo_erro?.toLowerCase().includes('signal') ||
-                              ultimaExecucaoErro.ultimo_erro?.toLowerCase().includes('aborted');
-          if (erroTecnico && ultimaExecucaoErro.status !== 'falhou') return null;
-          
-          return (
-            <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/30">
-              <div className="flex items-center gap-2 text-sm text-destructive">
-                <XCircle className="h-4 w-4" />
-                <span className="font-medium">
-                  {ultimaExecucaoErro.status === 'timeout' 
-                    ? 'Execução expirou (timeout)' 
-                    : ultimaExecucaoErro.status === 'cancelado'
-                    ? 'Execução cancelada'
-                    : 'Falha na última execução'}
-                </span>
-              </div>
-              {ultimaExecucaoErro.ultimo_erro && !erroTecnico && (
-                <p className="text-xs text-muted-foreground mt-1 truncate">
-                  {ultimaExecucaoErro.ultimo_erro}
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">
-                Você pode tentar executar novamente.
-              </p>
+        {ultimaExecucaoErro && !isExecuting && !ocultarErroAnterior && (
+          <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/30">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <XCircle className="h-4 w-4" />
+              <span className="font-medium">
+                {ultimaExecucaoErro.status === 'timeout' 
+                  ? 'Execução expirou (timeout)' 
+                  : ultimaExecucaoErro.status === 'cancelado'
+                  ? 'Execução cancelada'
+                  : 'Falha na última execução'}
+              </span>
             </div>
-          );
-        })()}
+            {ultimaExecucaoErro.ultimo_erro && (
+              <p className="text-xs text-muted-foreground mt-1 truncate">
+                {ultimaExecucaoErro.ultimo_erro}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              Você pode tentar executar novamente.
+            </p>
+          </div>
+        )}
 
         {/* CONTADORES REAIS DO BANCO (sempre visíveis) */}
         <div className="p-3 bg-muted/30 rounded-lg border">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Publicações Hoje (banco)</span>
+            <span className="text-sm font-medium">Publicações Hoje</span>
             <Badge variant={isExecuting ? "secondary" : "outline"} className="text-xs">
               {isExecuting ? "Atualizando..." : "Atualizado"}
             </Badge>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="p-2 bg-background rounded border">
+              <div className="text-lg font-bold">{(statsHoje?.novas ?? 0) + (statsHoje?.descartadas ?? 0)}</div>
+              <div className="text-xs text-muted-foreground">Total</div>
+            </div>
             <div className="p-2 bg-background rounded border">
               <div className="text-lg font-bold text-primary">{statsHoje?.novas ?? 0}</div>
               <div className="text-xs text-muted-foreground">Novas</div>
@@ -604,8 +625,8 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
               <div className="text-xs text-muted-foreground">Descartadas</div>
             </div>
             <div className="p-2 bg-background rounded border">
-              <div className="text-lg font-bold">{statsHoje?.monitoramentos ?? 0}</div>
-              <div className="text-xs text-muted-foreground">Monitoramentos</div>
+              <div className="text-lg font-bold text-muted-foreground">{statsHoje?.monitoramentos ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Termos</div>
             </div>
           </div>
         </div>
