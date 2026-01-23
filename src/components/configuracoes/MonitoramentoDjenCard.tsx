@@ -135,21 +135,22 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
       if (error) throw error;
       
-      // Verificar se a execução está realmente ativa (não mais de 10 min sem progresso)
+      // Verificar se a execução está realmente ativa (não mais de 30 min sem progresso)
       if (data) {
         const iniciadoEm = new Date(data.iniciado_em).getTime();
         const agora = Date.now();
         const tempoDecorridoMs = agora - iniciadoEm;
         
-        // Se passou mais de 10 minutos sem finalizar, considerar como ghost
-        if (tempoDecorridoMs > 10 * 60 * 1000) {
+        // Se passou mais de 30 minutos sem finalizar, considerar como ghost
+        // (execuções DJEN normalmente levam 12-15 minutos com 114 monitoramentos)
+        if (tempoDecorridoMs > 30 * 60 * 1000) {
           // Atualizar para timeout automaticamente
           await supabase
             .from('execucoes_agendadas')
             .update({ 
               status: 'timeout', 
               finalizado_em: new Date().toISOString(),
-              ultimo_erro: 'Execução expirou (timeout automático)'
+              ultimo_erro: 'Execução expirou após 30 minutos (timeout automático)'
             })
             .eq('id', data.id);
           return null;
