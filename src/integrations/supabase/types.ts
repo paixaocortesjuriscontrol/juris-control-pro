@@ -4094,6 +4094,7 @@ export type Database = {
       is_cliente: { Args: { _user_id: string }; Returns: boolean }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
       limpar_execucoes_antigas: { Args: never; Returns: undefined }
+      proximo_dia_util: { Args: { data_base: string }; Returns: string }
       search_users_basic: {
         Args: { _limit?: number; _query?: string }
         Returns: {
