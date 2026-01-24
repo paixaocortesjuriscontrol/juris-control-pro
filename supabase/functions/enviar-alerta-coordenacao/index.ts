@@ -183,6 +183,9 @@ serve(async (req) => {
               }),
             });
 
+            const responseData = await response.json();
+            console.log(`Resposta Resend para ${email}:`, JSON.stringify(responseData));
+            
             if (response.ok) {
               resultados.emails++;
               // Registrar no histórico
