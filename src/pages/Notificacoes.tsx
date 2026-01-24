@@ -49,7 +49,6 @@ import { DashboardCoordenacoes } from "@/components/notificacoes/DashboardCoorde
 export default function Notificacoes() {
   // Central de Notificações
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
-  const [membroId, setMembroId] = useState<string>("todos");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("todas");
@@ -84,42 +83,6 @@ export default function Notificacoes() {
   const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
   const { alertas } = useMonitoramento360();
   const { data: redistribuicoesData = [] } = useRedistribuicoes();
-
-  // Buscar membros da coordenação selecionada
-  const { data: membrosCoordenacao = [] } = useQuery({
-    queryKey: ["membros-coordenacao-filtro", coordenacaoId],
-    queryFn: async () => {
-      if (coordenacaoId === "todas") {
-        // Buscar todos os membros de todas as coordenações
-        const { data, error } = await supabase
-          .from("membros_coordenacao")
-          .select(`
-            id,
-            coordenacao_id,
-            usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
-          `);
-        if (error) throw error;
-        // Remover duplicatas por usuario_id
-        const uniqueUsers = new Map();
-        (data || []).forEach(m => {
-          if (m.usuario && !uniqueUsers.has((m.usuario as any).id)) {
-            uniqueUsers.set((m.usuario as any).id, m.usuario);
-          }
-        });
-        return Array.from(uniqueUsers.values());
-      }
-      
-      const { data, error } = await supabase
-        .from("membros_coordenacao")
-        .select(`
-          id,
-          usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
-        `)
-        .eq("coordenacao_id", coordenacaoId);
-      if (error) throw error;
-      return (data || []).map(m => m.usuario).filter(Boolean);
-    },
-  });
 
   // Buscar tarefas pendentes
   const { data: tarefasPendentesData = [] } = useQuery({
@@ -396,7 +359,7 @@ export default function Notificacoes() {
   const hasActiveFilters = searchQuery || prioridadeFilter !== "todas" || statusFilter !== "pendente" || 
     (periodoInicio && periodoInicio.getTime() !== hoje.getTime()) || 
     (periodoFim && periodoFim.getTime() !== hoje.getTime()) || 
-    coordenacaoId !== "todas" || membroId !== "todos" ||
+    coordenacaoId !== "todas" ||
     !showDjen || !showDistribuicoes || !showAlertas360 || !showRedistribuicoes || 
     !showPrazos || !showTarefas || !showAudiencias || !showIntimacoes;
 
@@ -407,7 +370,6 @@ export default function Notificacoes() {
     setPeriodoInicio(startOfDay(new Date()));
     setPeriodoFim(startOfDay(new Date()));
     setCoordenacaoId("todas");
-    setMembroId("todos");
     setShowDjen(true);
     setShowDistribuicoes(true);
     setShowAlertas360(true);
@@ -494,39 +456,6 @@ export default function Notificacoes() {
 
           {/* Second Row - Coordination, Member & Period */}
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={coordenacaoId} onValueChange={(value) => {
-              setCoordenacaoId(value);
-              setMembroId("todos"); // Reset membro ao mudar coordenação
-            }}>
-              <SelectTrigger className="w-full sm:w-56">
-                <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Coordenação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas as coordenações</SelectItem>
-                {coordenacoes.map((coord) => (
-                  <SelectItem key={coord.id} value={coord.id}>
-                    {coord.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Filtro de Membro */}
-            <Select value={membroId} onValueChange={setMembroId}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Membro" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os membros</SelectItem>
-                {membrosCoordenacao.map((membro: any) => (
-                  <SelectItem key={membro.id} value={membro.id}>
-                    {membro.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             {/* Period Filters - Data Início */}
             <Popover>
               <PopoverTrigger asChild>
