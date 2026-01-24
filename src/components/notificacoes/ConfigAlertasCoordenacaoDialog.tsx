@@ -60,34 +60,45 @@ export function ConfigAlertasCoordenacaoDialog({
   const [novoEmail, setNovoEmail] = useState('');
   const [novoTelefone, setNovoTelefone] = useState('');
 
+  // Evita que refetch/re-render do hook resete o estado enquanto o usuário está editando
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+
   // Carregar config existente
   useEffect(() => {
-    if (open) {
-      const config = getConfigByCoordenacao(coordenacaoId);
-      if (config) {
-        setEmailHabilitado(config.email_habilitado);
-        setWhatsappHabilitado(config.whatsapp_habilitado);
-        setEmails(config.emails_destinatarios || []);
-        setTelefones(config.telefones_whatsapp || []);
-        setTiposAlerta(config.tipos_alerta || []);
-        setApenasUrgentes(config.apenas_urgentes);
-        setHorarioInicio(config.horario_inicio || '08:00');
-        setHorarioFim(config.horario_fim || '18:00');
-        setDiasSemana(config.dias_semana || [1, 2, 3, 4, 5]);
-      } else {
-        // Reset para defaults
-        setEmailHabilitado(false);
-        setWhatsappHabilitado(false);
-        setEmails([]);
-        setTelefones([]);
-        setTiposAlerta(['alertas360', 'prazos', 'redistribuicoes']);
-        setApenasUrgentes(false);
-        setHorarioInicio('08:00');
-        setHorarioFim('18:00');
-        setDiasSemana([1, 2, 3, 4, 5]);
-      }
+    if (!open) {
+      if (loadedFor !== null) setLoadedFor(null);
+      return;
     }
-  }, [open, coordenacaoId, getConfigByCoordenacao]);
+
+    // Carrega apenas 1x por abertura/coordenação (não reseta enquanto edita)
+    if (loadedFor === coordenacaoId) return;
+
+    const config = getConfigByCoordenacao(coordenacaoId);
+    if (config) {
+      setEmailHabilitado(config.email_habilitado);
+      setWhatsappHabilitado(config.whatsapp_habilitado);
+      setEmails(config.emails_destinatarios || []);
+      setTelefones(config.telefones_whatsapp || []);
+      setTiposAlerta(config.tipos_alerta || []);
+      setApenasUrgentes(config.apenas_urgentes);
+      setHorarioInicio(config.horario_inicio || '08:00');
+      setHorarioFim(config.horario_fim || '18:00');
+      setDiasSemana(config.dias_semana || [1, 2, 3, 4, 5]);
+    } else {
+      // Reset para defaults
+      setEmailHabilitado(false);
+      setWhatsappHabilitado(false);
+      setEmails([]);
+      setTelefones([]);
+      setTiposAlerta(['alertas360', 'prazos', 'redistribuicoes']);
+      setApenasUrgentes(false);
+      setHorarioInicio('08:00');
+      setHorarioFim('18:00');
+      setDiasSemana([1, 2, 3, 4, 5]);
+    }
+
+    setLoadedFor(coordenacaoId);
+  }, [open, coordenacaoId, getConfigByCoordenacao, loadedFor]);
 
   const handleAddEmail = () => {
     if (novoEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novoEmail)) {
@@ -146,7 +157,7 @@ export function ConfigAlertasCoordenacaoDialog({
       <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            <AlertTriangle className="h-5 w-5 text-primary" />
             Configurar Alertas - {coordenacaoNome}
           </DialogTitle>
           <DialogDescription>
@@ -163,15 +174,15 @@ export function ConfigAlertasCoordenacaoDialog({
               </h4>
               
               {/* Email */}
-              <div 
+              <div
                 className={`space-y-3 p-4 rounded-lg border transition-all cursor-pointer ${
-                  emailHabilitado ? 'border-blue-500/50 bg-blue-500/5' : 'bg-muted/30 hover:bg-muted/50'
+                  emailHabilitado ? 'border-primary/50 bg-primary/5' : 'bg-muted/30 hover:bg-muted/50'
                 }`}
                 onClick={() => !emailHabilitado && setEmailHabilitado(true)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Mail className={`h-4 w-4 ${emailHabilitado ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                    <Mail className={`h-4 w-4 ${emailHabilitado ? 'text-primary' : 'text-muted-foreground'}`} />
                     <span className="font-medium">E-mail</span>
                     {!emailHabilitado && (
                       <span className="text-xs text-muted-foreground">(clique aqui para ativar)</span>
@@ -187,7 +198,7 @@ export function ConfigAlertasCoordenacaoDialog({
                 </div>
                 
                 {emailHabilitado && (
-                  <div className="space-y-2 pt-2 border-t border-blue-500/20" onClick={(e) => e.stopPropagation()}>
+                  <div className="space-y-2 pt-2 border-t border-primary/20" onClick={(e) => e.stopPropagation()}>
                     <Label className="text-sm font-medium">Destinatários de E-mail</Label>
                     <div className="flex gap-2">
                       <Input
@@ -203,11 +214,11 @@ export function ConfigAlertasCoordenacaoDialog({
                       </Button>
                     </div>
                     {emails.length === 0 && (
-                      <p className="text-xs text-amber-600">⚠️ Adicione pelo menos um e-mail para receber alertas</p>
+                      <p className="text-xs text-muted-foreground">Adicione pelo menos um e-mail para receber alertas</p>
                     )}
                     <div className="flex flex-wrap gap-2">
                       {emails.map((email) => (
-                        <Badge key={email} variant="secondary" className="gap-1 bg-blue-500/10">
+                        <Badge key={email} variant="secondary" className="gap-1 bg-primary/10">
                           {email}
                           <X 
                             className="h-3 w-3 cursor-pointer hover:text-destructive" 
@@ -221,15 +232,15 @@ export function ConfigAlertasCoordenacaoDialog({
               </div>
 
               {/* WhatsApp */}
-              <div 
+              <div
                 className={`space-y-3 p-4 rounded-lg border transition-all cursor-pointer ${
-                  whatsappHabilitado ? 'border-green-500/50 bg-green-500/5' : 'bg-muted/30 hover:bg-muted/50'
+                  whatsappHabilitado ? 'border-primary/50 bg-primary/5' : 'bg-muted/30 hover:bg-muted/50'
                 }`}
                 onClick={() => !whatsappHabilitado && setWhatsappHabilitado(true)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <MessageCircle className={`h-4 w-4 ${whatsappHabilitado ? 'text-green-500' : 'text-muted-foreground'}`} />
+                    <MessageCircle className={`h-4 w-4 ${whatsappHabilitado ? 'text-primary' : 'text-muted-foreground'}`} />
                     <span className="font-medium">WhatsApp</span>
                     {!whatsappHabilitado && (
                       <span className="text-xs text-muted-foreground">(clique aqui para ativar)</span>
@@ -245,7 +256,7 @@ export function ConfigAlertasCoordenacaoDialog({
                 </div>
                 
                 {whatsappHabilitado && (
-                  <div className="space-y-2 pt-2 border-t border-green-500/20" onClick={(e) => e.stopPropagation()}>
+                  <div className="space-y-2 pt-2 border-t border-primary/20" onClick={(e) => e.stopPropagation()}>
                     <Label className="text-sm font-medium">Telefones (com DDD)</Label>
                     <div className="flex gap-2">
                       <Input
@@ -261,11 +272,11 @@ export function ConfigAlertasCoordenacaoDialog({
                       </Button>
                     </div>
                     {telefones.length === 0 && (
-                      <p className="text-xs text-amber-600">⚠️ Adicione pelo menos um telefone para receber alertas</p>
+                      <p className="text-xs text-muted-foreground">Adicione pelo menos um telefone para receber alertas</p>
                     )}
                     <div className="flex flex-wrap gap-2">
                       {telefones.map((tel) => (
-                        <Badge key={tel} variant="secondary" className="gap-1 bg-green-500/10">
+                        <Badge key={tel} variant="secondary" className="gap-1 bg-primary/10">
                           {tel.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')}
                           <X 
                             className="h-3 w-3 cursor-pointer hover:text-destructive" 
@@ -286,22 +297,24 @@ export function ConfigAlertasCoordenacaoDialog({
               <h4 className="font-medium">Tipos de Alertas</h4>
               <div className="grid grid-cols-2 gap-2">
                 {TIPOS_ALERTA.map((tipo) => (
-                  <div
+                  <Label
                     key={tipo.value}
+                    htmlFor={`tipo-alerta-${tipo.value}`}
                     className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${
                       tiposAlerta.includes(tipo.value)
                         ? 'border-primary bg-primary/10'
                         : 'border-muted hover:border-muted-foreground/50'
                     }`}
-                    onClick={() => toggleTipoAlerta(tipo.value)}
                   >
-                    <Checkbox 
-                      checked={tiposAlerta.includes(tipo.value)} 
+                    <Checkbox
+                      id={`tipo-alerta-${tipo.value}`}
+                      checked={tiposAlerta.includes(tipo.value)}
                       onCheckedChange={() => toggleTipoAlerta(tipo.value)}
+                      onClick={(e) => e.stopPropagation()}
                     />
                     <span className="text-lg">{tipo.icon}</span>
                     <span className="text-sm">{tipo.label}</span>
-                  </div>
+                  </Label>
                 ))}
               </div>
               
