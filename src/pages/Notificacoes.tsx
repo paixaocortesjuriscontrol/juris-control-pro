@@ -714,19 +714,6 @@ export default function Notificacoes() {
         </div>
       </div>
 
-      {naoLidas.length > 0 && (
-        <div className="flex justify-end mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => marcarTodasComoLidas.mutate()}
-            disabled={marcarTodasComoLidas.isPending}
-          >
-            <CheckCheck className="w-4 h-4 mr-2" />
-            Marcar todas como lidas
-          </Button>
-        </div>
-      )}
 
       {/* Cards de resumo por tipo */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-3 mb-6">
