@@ -77,10 +77,14 @@ serve(async (req) => {
       );
     }
 
-    // Verificar horário de envio
+    // Verificar horário de envio (usando horário de Brasília)
     const agora = new Date();
-    const horaAtual = agora.toTimeString().slice(0, 5);
-    const diaSemana = agora.getDay();
+    const brasiliaOffset = -3 * 60; // UTC-3 em minutos
+    const localOffset = agora.getTimezoneOffset();
+    const brasiliaTime = new Date(agora.getTime() + (localOffset + brasiliaOffset) * 60 * 1000);
+    
+    const horaAtual = brasiliaTime.toTimeString().slice(0, 5);
+    const diaSemana = brasiliaTime.getDay();
 
     if (config.dias_semana && !config.dias_semana.includes(diaSemana)) {
       console.log("Fora dos dias permitidos para envio");
@@ -100,14 +104,52 @@ serve(async (req) => {
       }
     }
 
+    // Buscar membros da coordenação com seus dados de contato
+    const { data: membros, error: membrosError } = await supabase
+      .from('membros_coordenacao')
+      .select(`
+        usuario_id,
+        profiles!membros_coordenacao_usuario_id_fkey (
+          id,
+          nome,
+          email,
+          telefone
+        )
+      `)
+      .eq('coordenacao_id', coordenacao_id);
+
+    if (membrosError) {
+      console.error("Erro ao buscar membros:", membrosError);
+      return new Response(
+        JSON.stringify({ error: "Erro ao buscar membros da coordenação" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Extrair emails e telefones dos membros
+    const emailsDestino: string[] = [];
+    const telefonesDestino: string[] = [];
+
+    for (const membro of membros || []) {
+      const profile = membro.profiles as any;
+      if (profile?.email) {
+        emailsDestino.push(profile.email);
+      }
+      if (profile?.telefone) {
+        telefonesDestino.push(profile.telefone);
+      }
+    }
+
+    console.log(`Membros encontrados: ${membros?.length || 0}, Emails: ${emailsDestino.length}, Telefones: ${telefonesDestino.length}`);
+
     const resultados = { emails: 0, whatsapp: 0, erros: [] as string[] };
 
-    // Enviar E-mails
-    if (config.email_habilitado && config.emails_destinatarios?.length > 0) {
+    // Enviar E-mails para os membros
+    if (config.email_habilitado && emailsDestino.length > 0) {
       const resendApiKey = Deno.env.get("RESEND_API_KEY");
       
       if (resendApiKey) {
-        for (const email of config.emails_destinatarios) {
+        for (const email of emailsDestino) {
           try {
             const prioridadeEmoji = prioridade === 'urgente' ? '🚨' : prioridade === 'alta' ? '⚠️' : 'ℹ️';
             const emailHtml = `
@@ -134,7 +176,7 @@ serve(async (req) => {
                 Authorization: `Bearer ${resendApiKey}`,
               },
               body: JSON.stringify({
-                from: "Juris Control <alertas@resend.dev>",
+                from: "Juris Control <paixaocortesjuriscontrol@gmail.com>",
                 to: [email],
                 subject: `${prioridadeEmoji} ${titulo}`,
                 html: emailHtml,
@@ -178,8 +220,8 @@ serve(async (req) => {
       }
     }
 
-    // Enviar WhatsApp
-    if (config.whatsapp_habilitado && config.telefones_whatsapp?.length > 0) {
+    // Enviar WhatsApp para os membros
+    if (config.whatsapp_habilitado && telefonesDestino.length > 0) {
       const zapiInstanceId = Deno.env.get("ZAPI_INSTANCE_ID");
       const zapiToken = Deno.env.get("ZAPI_TOKEN");
       const zapiClientToken = Deno.env.get("ZAPI_CLIENT_TOKEN");
@@ -188,13 +230,24 @@ serve(async (req) => {
         const prioridadeEmoji = prioridade === 'urgente' ? '🚨' : prioridade === 'alta' ? '⚠️' : 'ℹ️';
         const whatsappMensagem = `${prioridadeEmoji} *${titulo}*\n\n${mensagem}${processo_numero ? `\n\n📋 Processo: ${processo_numero}` : ''}\n\n_Alerta automático - Juris Control Pro_`;
 
-        for (const telefone of config.telefones_whatsapp) {
+        for (const telefone of telefonesDestino) {
           try {
-            // Formatar telefone
+            // Formatar telefone - remover caracteres não numéricos
             let phoneFormatted = telefone.replace(/\D/g, '');
+            
+            // Adicionar código do país se não tiver
             if (!phoneFormatted.startsWith('55')) {
               phoneFormatted = '55' + phoneFormatted;
             }
+            
+            // Garantir 9 dígitos após DDD (celular brasileiro)
+            if (phoneFormatted.length === 12 && phoneFormatted.startsWith('55')) {
+              const ddd = phoneFormatted.slice(2, 4);
+              const numero = phoneFormatted.slice(4);
+              phoneFormatted = `55${ddd}9${numero}`;
+            }
+
+            console.log(`Enviando WhatsApp para: ${phoneFormatted} (original: ${telefone})`);
 
             const response = await fetch(
               `https://api.z-api.io/instances/${zapiInstanceId}/token/${zapiToken}/send-text`,
@@ -254,6 +307,7 @@ serve(async (req) => {
         success: true,
         enviados: resultados.emails + resultados.whatsapp,
         detalhes: resultados,
+        membrosEncontrados: membros?.length || 0,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

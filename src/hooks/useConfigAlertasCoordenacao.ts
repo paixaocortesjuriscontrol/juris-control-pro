@@ -8,8 +8,6 @@ export interface ConfigAlertaCoordenacao {
   coordenacao_id: string;
   email_habilitado: boolean;
   whatsapp_habilitado: boolean;
-  emails_destinatarios: string[];
-  telefones_whatsapp: string[];
   tipos_alerta: string[];
   apenas_urgentes: boolean;
   horario_inicio: string | null;
@@ -109,8 +107,6 @@ export function useConfigAlertasCoordenacao(coordenacaoId?: string) {
           .update({
             email_habilitado: config.email_habilitado,
             whatsapp_habilitado: config.whatsapp_habilitado,
-            emails_destinatarios: config.emails_destinatarios,
-            telefones_whatsapp: config.telefones_whatsapp,
             tipos_alerta: config.tipos_alerta,
             apenas_urgentes: config.apenas_urgentes,
             horario_inicio: config.horario_inicio,
