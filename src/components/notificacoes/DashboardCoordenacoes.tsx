@@ -532,28 +532,30 @@ export function DashboardCoordenacoes({
                             <ChevronRight className="h-3 w-3" />
                           )}
                         </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-1.5">
+                        <CollapsibleContent className="space-y-2 pt-1">
                           {coord.membros.map((membro) => (
                             <div 
                               key={membro.id} 
-                              className="flex items-center justify-between py-1.5 px-2 rounded bg-muted/50 text-xs"
+                              className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50"
                             >
-                              <span className="truncate flex-1">{membro.nome}</span>
-                              <div className="flex items-center gap-1 ml-2">
+                              <span className="truncate flex-1 text-sm font-medium">{membro.nome}</span>
+                              <div className="flex items-center gap-2 ml-2">
                                 {membro.tarefas > 0 && (
-                                  <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-primary/10" title="Tarefas">
-                                    <ListTodo className="h-2.5 w-2.5 text-primary" />
-                                    <span className="text-[10px] font-medium">{membro.tarefas}</span>
+                                  <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-500/15" title="Tarefas">
+                                    <ListTodo className="h-4 w-4 text-blue-500" />
+                                    <span className="text-sm font-semibold text-blue-600">{membro.tarefas}</span>
                                   </div>
                                 )}
                                 {membro.prazos > 0 && (
-                                  <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-destructive/10" title="Prazos">
-                                    <Clock className="h-2.5 w-2.5 text-destructive" />
-                                    <span className="text-[10px] font-medium">{membro.prazos}</span>
+                                  <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-orange-500/15" title="Prazos">
+                                    <Clock className="h-4 w-4 text-orange-500" />
+                                    <span className="text-sm font-semibold text-orange-600">{membro.prazos}</span>
                                   </div>
                                 )}
                                 {membro.total === 0 && (
-                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">0</Badge>
+                                  <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/15">
+                                    <span className="text-sm font-semibold text-emerald-600">0</span>
+                                  </div>
                                 )}
                               </div>
                             </div>
