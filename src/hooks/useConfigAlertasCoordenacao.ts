@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -152,10 +153,11 @@ export function useConfigAlertasCoordenacao(coordenacaoId?: string) {
     },
   });
 
-  // Obter config de uma coordenação específica
-  const getConfigByCoordenacao = (id: string) => {
-    return configs.find(c => c.coordenacao_id === id);
-  };
+  // Obter config de uma coordenação específica (memoizado para evitar resets de estado em componentes consumidores)
+  const getConfigByCoordenacao = useCallback(
+    (id: string) => configs.find((c) => c.coordenacao_id === id),
+    [configs]
+  );
 
   // Estatísticas de envio por coordenação
   const estatisticasEnvio = (id?: string) => {
