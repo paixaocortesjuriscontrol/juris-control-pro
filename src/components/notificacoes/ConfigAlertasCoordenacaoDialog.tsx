@@ -12,25 +12,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Mail, 
   MessageCircle, 
-  Plus, 
-  X, 
   Clock, 
   Calendar,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Users,
+  Info
 } from "lucide-react";
 import { 
   useConfigAlertasCoordenacao, 
-  ConfigAlertaCoordenacao,
   TIPOS_ALERTA,
   DIAS_SEMANA 
 } from "@/hooks/useConfigAlertasCoordenacao";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Props {
   open: boolean;
@@ -49,16 +48,11 @@ export function ConfigAlertasCoordenacaoDialog({
   
   const [emailHabilitado, setEmailHabilitado] = useState(false);
   const [whatsappHabilitado, setWhatsappHabilitado] = useState(false);
-  const [emails, setEmails] = useState<string[]>([]);
-  const [telefones, setTelefones] = useState<string[]>([]);
   const [tiposAlerta, setTiposAlerta] = useState<string[]>([]);
   const [apenasUrgentes, setApenasUrgentes] = useState(false);
   const [horarioInicio, setHorarioInicio] = useState('08:00');
   const [horarioFim, setHorarioFim] = useState('18:00');
   const [diasSemana, setDiasSemana] = useState<number[]>([1, 2, 3, 4, 5]);
-  
-  const [novoEmail, setNovoEmail] = useState('');
-  const [novoTelefone, setNovoTelefone] = useState('');
 
   // Evita que refetch/re-render do hook resete o estado enquanto o usuário está editando
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -77,8 +71,6 @@ export function ConfigAlertasCoordenacaoDialog({
     if (config) {
       setEmailHabilitado(config.email_habilitado);
       setWhatsappHabilitado(config.whatsapp_habilitado);
-      setEmails(config.emails_destinatarios || []);
-      setTelefones(config.telefones_whatsapp || []);
       setTiposAlerta(config.tipos_alerta || []);
       setApenasUrgentes(config.apenas_urgentes);
       setHorarioInicio(config.horario_inicio || '08:00');
@@ -88,8 +80,6 @@ export function ConfigAlertasCoordenacaoDialog({
       // Reset para defaults
       setEmailHabilitado(false);
       setWhatsappHabilitado(false);
-      setEmails([]);
-      setTelefones([]);
       setTiposAlerta(['alertas360', 'prazos', 'redistribuicoes']);
       setApenasUrgentes(false);
       setHorarioInicio('08:00');
@@ -99,25 +89,6 @@ export function ConfigAlertasCoordenacaoDialog({
 
     setLoadedFor(coordenacaoId);
   }, [open, coordenacaoId, getConfigByCoordenacao, loadedFor]);
-
-  const handleAddEmail = () => {
-    if (novoEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novoEmail)) {
-      if (!emails.includes(novoEmail)) {
-        setEmails([...emails, novoEmail]);
-      }
-      setNovoEmail('');
-    }
-  };
-
-  const handleAddTelefone = () => {
-    const tel = novoTelefone.replace(/\D/g, '');
-    if (tel.length >= 10) {
-      if (!telefones.includes(tel)) {
-        setTelefones([...telefones, tel]);
-      }
-      setNovoTelefone('');
-    }
-  };
 
   const toggleTipoAlerta = (tipo: string) => {
     if (tiposAlerta.includes(tipo)) {
@@ -140,8 +111,6 @@ export function ConfigAlertasCoordenacaoDialog({
       coordenacao_id: coordenacaoId,
       email_habilitado: emailHabilitado,
       whatsapp_habilitado: whatsappHabilitado,
-      emails_destinatarios: emails,
-      telefones_whatsapp: telefones,
       tipos_alerta: tiposAlerta,
       apenas_urgentes: apenasUrgentes,
       horario_inicio: horarioInicio,
@@ -167,6 +136,14 @@ export function ConfigAlertasCoordenacaoDialog({
 
         <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-6">
+            {/* Informação sobre destinatários */}
+            <Alert>
+              <Users className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Destinatários:</strong> Os alertas serão enviados automaticamente para todos os <strong>membros da coordenação</strong> que possuem e-mail e/ou telefone cadastrados no perfil.
+              </AlertDescription>
+            </Alert>
+
             {/* Canais */}
             <div className="space-y-4">
               <h4 className="font-medium flex items-center gap-2">
@@ -198,35 +175,11 @@ export function ConfigAlertasCoordenacaoDialog({
                 </div>
                 
                 {emailHabilitado && (
-                  <div className="space-y-2 pt-2 border-t border-primary/20" onClick={(e) => e.stopPropagation()}>
-                    <Label className="text-sm font-medium">Destinatários de E-mail</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="email"
-                        placeholder="email@exemplo.com"
-                        value={novoEmail}
-                        onChange={(e) => setNovoEmail(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddEmail()}
-                        className="flex-1"
-                      />
-                      <Button type="button" size="icon" onClick={handleAddEmail} variant="secondary">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {emails.length === 0 && (
-                      <p className="text-xs text-muted-foreground">Adicione pelo menos um e-mail para receber alertas</p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {emails.map((email) => (
-                        <Badge key={email} variant="secondary" className="gap-1 bg-primary/10">
-                          {email}
-                          <X 
-                            className="h-3 w-3 cursor-pointer hover:text-destructive" 
-                            onClick={() => setEmails(emails.filter(e => e !== email))}
-                          />
-                        </Badge>
-                      ))}
-                    </div>
+                  <div className="pt-2 border-t border-primary/20" onClick={(e) => e.stopPropagation()}>
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Info className="h-4 w-4" />
+                      Será enviado para os e-mails cadastrados nos perfis dos membros
+                    </p>
                   </div>
                 )}
               </div>
@@ -256,35 +209,11 @@ export function ConfigAlertasCoordenacaoDialog({
                 </div>
                 
                 {whatsappHabilitado && (
-                  <div className="space-y-2 pt-2 border-t border-primary/20" onClick={(e) => e.stopPropagation()}>
-                    <Label className="text-sm font-medium">Telefones (com DDD)</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="tel"
-                        placeholder="(11) 99999-9999"
-                        value={novoTelefone}
-                        onChange={(e) => setNovoTelefone(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddTelefone()}
-                        className="flex-1"
-                      />
-                      <Button type="button" size="icon" onClick={handleAddTelefone} variant="secondary">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {telefones.length === 0 && (
-                      <p className="text-xs text-muted-foreground">Adicione pelo menos um telefone para receber alertas</p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {telefones.map((tel) => (
-                        <Badge key={tel} variant="secondary" className="gap-1 bg-primary/10">
-                          {tel.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')}
-                          <X 
-                            className="h-3 w-3 cursor-pointer hover:text-destructive" 
-                            onClick={() => setTelefones(telefones.filter(t => t !== tel))}
-                          />
-                        </Badge>
-                      ))}
-                    </div>
+                  <div className="pt-2 border-t border-primary/20" onClick={(e) => e.stopPropagation()}>
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Info className="h-4 w-4" />
+                      Será enviado para os telefones cadastrados nos perfis dos membros
+                    </p>
                   </div>
                 )}
               </div>
