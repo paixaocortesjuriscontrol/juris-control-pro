@@ -163,21 +163,27 @@ export function ConfigAlertasCoordenacaoDialog({
               </h4>
               
               {/* Email */}
-              <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+              <div className={`space-y-3 p-4 rounded-lg border transition-all ${
+                emailHabilitado ? 'border-blue-500/50 bg-blue-500/5' : 'bg-muted/30'
+              }`}>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-blue-500" />
+                  <Label htmlFor="email-switch" className="flex items-center gap-2 cursor-pointer">
+                    <Mail className={`h-4 w-4 ${emailHabilitado ? 'text-blue-500' : 'text-muted-foreground'}`} />
                     <span className="font-medium">E-mail</span>
-                  </div>
+                    {!emailHabilitado && (
+                      <span className="text-xs text-muted-foreground">(clique para ativar)</span>
+                    )}
+                  </Label>
                   <Switch 
+                    id="email-switch"
                     checked={emailHabilitado} 
                     onCheckedChange={setEmailHabilitado} 
                   />
                 </div>
                 
                 {emailHabilitado && (
-                  <div className="space-y-2 pt-2">
-                    <Label className="text-sm">Destinatários</Label>
+                  <div className="space-y-2 pt-2 border-t border-blue-500/20">
+                    <Label className="text-sm font-medium">Destinatários de E-mail</Label>
                     <div className="flex gap-2">
                       <Input
                         type="email"
@@ -185,17 +191,21 @@ export function ConfigAlertasCoordenacaoDialog({
                         value={novoEmail}
                         onChange={(e) => setNovoEmail(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddEmail()}
+                        className="flex-1"
                       />
-                      <Button type="button" size="icon" onClick={handleAddEmail}>
+                      <Button type="button" size="icon" onClick={handleAddEmail} variant="secondary">
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
+                    {emails.length === 0 && (
+                      <p className="text-xs text-amber-600">⚠️ Adicione pelo menos um e-mail para receber alertas</p>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       {emails.map((email) => (
-                        <Badge key={email} variant="secondary" className="gap-1">
+                        <Badge key={email} variant="secondary" className="gap-1 bg-blue-500/10">
                           {email}
                           <X 
-                            className="h-3 w-3 cursor-pointer" 
+                            className="h-3 w-3 cursor-pointer hover:text-destructive" 
                             onClick={() => setEmails(emails.filter(e => e !== email))}
                           />
                         </Badge>
@@ -206,21 +216,27 @@ export function ConfigAlertasCoordenacaoDialog({
               </div>
 
               {/* WhatsApp */}
-              <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+              <div className={`space-y-3 p-4 rounded-lg border transition-all ${
+                whatsappHabilitado ? 'border-green-500/50 bg-green-500/5' : 'bg-muted/30'
+              }`}>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageCircle className="h-4 w-4 text-green-500" />
+                  <Label htmlFor="whatsapp-switch" className="flex items-center gap-2 cursor-pointer">
+                    <MessageCircle className={`h-4 w-4 ${whatsappHabilitado ? 'text-green-500' : 'text-muted-foreground'}`} />
                     <span className="font-medium">WhatsApp</span>
-                  </div>
+                    {!whatsappHabilitado && (
+                      <span className="text-xs text-muted-foreground">(clique para ativar)</span>
+                    )}
+                  </Label>
                   <Switch 
+                    id="whatsapp-switch"
                     checked={whatsappHabilitado} 
                     onCheckedChange={setWhatsappHabilitado} 
                   />
                 </div>
                 
                 {whatsappHabilitado && (
-                  <div className="space-y-2 pt-2">
-                    <Label className="text-sm">Telefones (com DDD)</Label>
+                  <div className="space-y-2 pt-2 border-t border-green-500/20">
+                    <Label className="text-sm font-medium">Telefones (com DDD)</Label>
                     <div className="flex gap-2">
                       <Input
                         type="tel"
@@ -228,17 +244,21 @@ export function ConfigAlertasCoordenacaoDialog({
                         value={novoTelefone}
                         onChange={(e) => setNovoTelefone(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddTelefone()}
+                        className="flex-1"
                       />
-                      <Button type="button" size="icon" onClick={handleAddTelefone}>
+                      <Button type="button" size="icon" onClick={handleAddTelefone} variant="secondary">
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
+                    {telefones.length === 0 && (
+                      <p className="text-xs text-amber-600">⚠️ Adicione pelo menos um telefone para receber alertas</p>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       {telefones.map((tel) => (
-                        <Badge key={tel} variant="secondary" className="gap-1">
+                        <Badge key={tel} variant="secondary" className="gap-1 bg-green-500/10">
                           {tel.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')}
                           <X 
-                            className="h-3 w-3 cursor-pointer" 
+                            className="h-3 w-3 cursor-pointer hover:text-destructive" 
                             onClick={() => setTelefones(telefones.filter(t => t !== tel))}
                           />
                         </Badge>
