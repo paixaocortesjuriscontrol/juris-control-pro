@@ -33,6 +33,7 @@ import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao";
 import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
+import { startOfDay, parseISO, isBefore, isAfter } from "date-fns";
 
 interface CoordenacaoStats {
   id: string;
@@ -53,9 +54,20 @@ interface CoordenacaoStats {
 interface Props {
   onSelectCoordenacao: (id: string) => void;
   selectedCoordenacaoId: string;
+  periodoInicio?: Date;
+  periodoFim?: Date;
+  statusFilter?: string;
+  searchQuery?: string;
 }
 
-export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacaoId }: Props) {
+export function DashboardCoordenacoes({ 
+  onSelectCoordenacao, 
+  selectedCoordenacaoId,
+  periodoInicio,
+  periodoFim,
+  statusFilter = "pendente",
+  searchQuery = ""
+}: Props) {
   const { data: coordenacoes = [], isLoading: loadingCoord } = useCoordenacoesFull();
   const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
   const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
@@ -64,22 +76,54 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
   const { prazosUrgentes } = useNotificacoes();
   const { configs } = useConfigAlertasCoordenacao();
 
+  // Helper para filtrar por período
+  const matchesPeriodo = useMemo(() => {
+    return (dateStr: string | null | undefined) => {
+      if (!dateStr) return true;
+      if (!periodoInicio && !periodoFim) return true;
+      
+      try {
+        const date = startOfDay(parseISO(dateStr));
+        if (periodoInicio && isBefore(date, startOfDay(periodoInicio))) return false;
+        if (periodoFim && isAfter(date, startOfDay(periodoFim))) return false;
+        return true;
+      } catch {
+        return true;
+      }
+    };
+  }, [periodoInicio, periodoFim]);
+
+  // Helper para filtrar por busca
+  const matchesSearch = useMemo(() => {
+    return (text: string | null | undefined) => {
+      if (!searchQuery) return true;
+      return text?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+    };
+  }, [searchQuery]);
+
   // Buscar tarefas pendentes com coordenação via processo
   const { data: tarefasPendentes = [] } = useQuery({
-    queryKey: ["tarefas-pendentes-coordenacao"],
+    queryKey: ["tarefas-pendentes-coordenacao", statusFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("tarefas")
         .select(`
           id,
+          titulo,
           status,
+          data_vencimento,
           processo:processos!tarefas_processo_id_fkey(
             id,
             coordenacao_id
           )
-        `)
-        .eq("status", "pendente");
+        `);
       
+      if (statusFilter !== "todas") {
+        const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
+        query = query.eq("status", status as "pendente" | "cumprido" | "atrasado");
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -87,20 +131,26 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
 
   // Buscar audiências pendentes
   const { data: audienciasPendentes = [] } = useQuery({
-    queryKey: ["audiencias-pendentes-coordenacao"],
+    queryKey: ["audiencias-pendentes-coordenacao", statusFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("audiencias_detectadas")
         .select(`
           id,
+          processo_numero,
           status,
+          data_audiencia,
           processo:processos!audiencias_detectadas_processo_id_fkey(
             id,
             coordenacao_id
           )
-        `)
-        .eq("status", "pendente");
+        `);
       
+      if (statusFilter !== "todas") {
+        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -108,20 +158,26 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
 
   // Buscar intimações pendentes
   const { data: intimacoesPendentes = [] } = useQuery({
-    queryKey: ["intimacoes-pendentes-coordenacao"],
+    queryKey: ["intimacoes-pendentes-coordenacao", statusFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("intimacoes_detectadas")
         .select(`
           id,
+          processo_numero,
           status,
+          data_intimacao,
           processo:processos!intimacoes_detectadas_processo_id_fkey(
             id,
             coordenacao_id
           )
-        `)
-        .eq("status", "pendente");
+        `);
       
+      if (statusFilter !== "todas") {
+        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -130,53 +186,108 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedCoordConfig, setSelectedCoordConfig] = useState<{ id: string; nome: string } | null>(null);
 
-  // Calcular estatísticas por coordenação
+  // Calcular estatísticas por coordenação - aplicando filtros
   const coordenacoesStats = useMemo<CoordenacaoStats[]>(() => {
     if (!coordenacoes.length) return [];
 
-    const publicacoesNaoLidas = publicacoes.filter(p => !p.lida);
-    const distribuicoesPendentes = distribuicoesEncontradas.filter(d => d.status === 'pendente');
-    const alertasPendentes = alertas.filter(a => a.status === 'pendente');
+    // Filtrar publicações DJEN por status e período
+    const publicacoesFiltradas = publicacoes.filter(p => {
+      if (statusFilter !== "todas" && p.lida) return false;
+      if (!matchesPeriodo(p.data_publicacao)) return false;
+      if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero)) return false;
+      return true;
+    });
+
+    // Filtrar distribuições por status e período
+    const distribuicoesFiltradas = distribuicoesEncontradas.filter(d => {
+      if (statusFilter !== "todas" && d.status !== 'pendente') return false;
+      if (!matchesPeriodo(d.data_distribuicao)) return false;
+      if (!matchesSearch(d.numero_processo)) return false;
+      return true;
+    });
+
+    // Filtrar alertas por status e período
+    const alertasFiltrados = alertas.filter(a => {
+      if (statusFilter !== "todas" && a.status !== 'pendente') return false;
+      if (!matchesPeriodo(a.created_at)) return false;
+      if (!matchesSearch(a.termo_encontrado)) return false;
+      return true;
+    });
+
+    // Filtrar redistribuições por período
+    const redistribuicoesFiltradas = redistribuicoesData.filter(r => {
+      if (!matchesPeriodo(r.data_redistribuicao)) return false;
+      if (!matchesSearch(r.processo_numero)) return false;
+      return true;
+    });
+
+    // Filtrar prazos por período
+    const prazosFiltrados = prazosUrgentes.filter(p => {
+      if (!matchesPeriodo(p.data_vencimento)) return false;
+      if (!matchesSearch(p.titulo) && !matchesSearch(p.processo?.numero)) return false;
+      return true;
+    });
+
+    // Filtrar tarefas por período
+    const tarefasFiltradas = tarefasPendentes.filter(t => {
+      if (!matchesPeriodo((t as any).data_vencimento)) return false;
+      if (!matchesSearch((t as any).titulo)) return false;
+      return true;
+    });
+
+    // Filtrar audiências por período
+    const audienciasFiltradas = audienciasPendentes.filter(a => {
+      if (!matchesPeriodo((a as any).data_audiencia)) return false;
+      if (!matchesSearch((a as any).processo_numero)) return false;
+      return true;
+    });
+
+    // Filtrar intimações por período
+    const intimacoesFiltradas = intimacoesPendentes.filter(i => {
+      if (!matchesPeriodo((i as any).data_intimacao)) return false;
+      if (!matchesSearch((i as any).processo_numero)) return false;
+      return true;
+    });
 
     return coordenacoes.map(coord => {
       // DJEN: via monitoramento
       const monIds = monitoramentosDjen
         .filter(m => m.coordenacao_id === coord.id)
         .map(m => m.id);
-      const djen = publicacoesNaoLidas.filter(p => monIds.includes(p.monitoramento_id)).length;
+      const djen = publicacoesFiltradas.filter(p => monIds.includes(p.monitoramento_id)).length;
 
       // Distribuições
-      const distribuicoes = distribuicoesPendentes.filter(
+      const distribuicoes = distribuicoesFiltradas.filter(
         d => (d as any).monitoramento?.coordenacao_id === coord.id
       ).length;
 
       // Alertas 360
-      const alertas360 = alertasPendentes.filter(
+      const alertas360 = alertasFiltrados.filter(
         a => a.processo?.coordenacao_id === coord.id
       ).length;
 
       // Redistribuições
-      const redistribuicoes = redistribuicoesData.filter(
+      const redistribuicoes = redistribuicoesFiltradas.filter(
         r => r.coordenacao_nome === coord.nome
       ).length;
 
       // Prazos
-      const prazos = prazosUrgentes.filter(
+      const prazos = prazosFiltrados.filter(
         p => p.processo?.coordenacao_id === coord.id
       ).length;
 
       // Tarefas pendentes da agenda
-      const tarefas = tarefasPendentes.filter(
+      const tarefas = tarefasFiltradas.filter(
         t => (t.processo as any)?.coordenacao_id === coord.id
       ).length;
 
       // Audiências pendentes
-      const audiencias = audienciasPendentes.filter(
+      const audiencias = audienciasFiltradas.filter(
         a => (a.processo as any)?.coordenacao_id === coord.id
       ).length;
 
       // Intimações pendentes
-      const intimacoes = intimacoesPendentes.filter(
+      const intimacoes = intimacoesFiltradas.filter(
         i => (i.processo as any)?.coordenacao_id === coord.id
       ).length;
 
@@ -198,8 +309,8 @@ export function DashboardCoordenacoes({ onSelectCoordenacao, selectedCoordenacao
         emailHabilitado: config?.email_habilitado || false,
         whatsappHabilitado: config?.whatsapp_habilitado || false,
       };
-    }).sort((a, b) => b.total - a.total); // Ordenar por total de alertas
-  }, [coordenacoes, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, tarefasPendentes, audienciasPendentes, intimacoesPendentes, configs]);
+    }).sort((a, b) => b.total - a.total);
+  }, [coordenacoes, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, tarefasPendentes, audienciasPendentes, intimacoesPendentes, configs, matchesPeriodo, matchesSearch, statusFilter]);
 
   const handleOpenConfig = (coord: { id: string; nome: string }) => {
     setSelectedCoordConfig(coord);
