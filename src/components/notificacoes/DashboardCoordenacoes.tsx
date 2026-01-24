@@ -401,8 +401,8 @@ export function DashboardCoordenacoes({
           </Badge>
         </div>
 
-        <ScrollArea className="h-[400px]">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-4">
+        <ScrollArea className="h-[500px] md:h-[400px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 pr-2 md:pr-4">
             {coordenacoesStats.map((coord) => (
               <Card
                 key={coord.id}
@@ -460,53 +460,53 @@ export function DashboardCoordenacoes({
 
                     {/* Breakdown por tipo */}
                     {coord.total > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-2">
+                      <div className="flex flex-wrap gap-1.5 pt-2">
                         {coord.djen > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="DJEN">
-                            <Newspaper className="h-3 w-3 text-primary" />
-                            <span className="text-xs font-medium">{coord.djen}</span>
+                          <div className="flex flex-col items-center p-1.5 rounded-md bg-violet-500/15" title="DJEN">
+                            <Newspaper className="h-4 w-4 text-violet-500" />
+                            <span className="text-xs font-semibold text-violet-600">{coord.djen}</span>
                           </div>
                         )}
                         {coord.distribuicoes > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Distribuições">
-                            <Scale className="h-3 w-3 text-primary" />
-                            <span className="text-xs font-medium">{coord.distribuicoes}</span>
+                          <div className="flex flex-col items-center p-1.5 rounded-md bg-cyan-500/15" title="Distribuições">
+                            <Scale className="h-4 w-4 text-cyan-500" />
+                            <span className="text-xs font-semibold text-cyan-600">{coord.distribuicoes}</span>
                           </div>
                         )}
                         {coord.alertas360 > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Alertas 360°">
-                            <Radar className="h-3 w-3 text-primary" />
-                            <span className="text-xs font-medium">{coord.alertas360}</span>
+                          <div className="flex flex-col items-center p-1.5 rounded-md bg-emerald-500/15" title="Alertas 360°">
+                            <Radar className="h-4 w-4 text-emerald-500" />
+                            <span className="text-xs font-semibold text-emerald-600">{coord.alertas360}</span>
                           </div>
                         )}
                         {coord.redistribuicoes > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Redistribuições">
-                            <RefreshCw className="h-3 w-3 text-primary" />
-                            <span className="text-xs font-medium">{coord.redistribuicoes}</span>
+                          <div className="flex flex-col items-center p-1.5 rounded-md bg-amber-500/15" title="Redistribuições">
+                            <RefreshCw className="h-4 w-4 text-amber-500" />
+                            <span className="text-xs font-semibold text-amber-600">{coord.redistribuicoes}</span>
                           </div>
                         )}
                         {coord.prazos > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-destructive/10" title="Prazos">
-                            <Clock className="h-3 w-3 text-destructive" />
-                            <span className="text-xs font-medium">{coord.prazos}</span>
+                          <div className="flex flex-col items-center p-1.5 rounded-md bg-orange-500/15" title="Prazos">
+                            <Clock className="h-4 w-4 text-orange-500" />
+                            <span className="text-xs font-semibold text-orange-600">{coord.prazos}</span>
                           </div>
                         )}
                         {coord.tarefas > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Tarefas">
-                            <ListTodo className="h-3 w-3 text-primary" />
-                            <span className="text-xs font-medium">{coord.tarefas}</span>
+                          <div className="flex flex-col items-center p-1.5 rounded-md bg-blue-500/15" title="Tarefas">
+                            <ListTodo className="h-4 w-4 text-blue-500" />
+                            <span className="text-xs font-semibold text-blue-600">{coord.tarefas}</span>
                           </div>
                         )}
                         {coord.audiencias > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Audiências">
-                            <Gavel className="h-3 w-3 text-primary" />
-                            <span className="text-xs font-medium">{coord.audiencias}</span>
+                          <div className="flex flex-col items-center p-1.5 rounded-md bg-pink-500/15" title="Audiências">
+                            <Gavel className="h-4 w-4 text-pink-500" />
+                            <span className="text-xs font-semibold text-pink-600">{coord.audiencias}</span>
                           </div>
                         )}
                         {coord.intimacoes > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Intimações">
-                            <FileWarning className="h-3 w-3 text-primary" />
-                            <span className="text-xs font-medium">{coord.intimacoes}</span>
+                          <div className="flex flex-col items-center p-1.5 rounded-md bg-rose-500/15" title="Intimações">
+                            <FileWarning className="h-4 w-4 text-rose-500" />
+                            <span className="text-xs font-semibold text-rose-600">{coord.intimacoes}</span>
                           </div>
                         )}
                       </div>
