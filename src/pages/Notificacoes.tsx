@@ -923,6 +923,10 @@ export default function Notificacoes() {
           <DashboardCoordenacoes 
             onSelectCoordenacao={handleSelectCoordenacao}
             selectedCoordenacaoId={coordenacaoId}
+            periodoInicio={periodoInicio}
+            periodoFim={periodoFim}
+            statusFilter={statusFilter}
+            searchQuery={searchQuery}
           />
         </TabsContent>
 
