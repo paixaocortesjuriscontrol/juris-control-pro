@@ -35,6 +35,8 @@ import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao
 import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
 import { startOfDay, parseISO, isBefore, isAfter } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface MembroStats {
   id: string;
@@ -78,6 +80,9 @@ export function DashboardCoordenacoes({
   statusFilter = "pendente",
   searchQuery = ""
 }: Props) {
+  const { user } = useAuth();
+  const { isAdmin, loading: loadingRole } = useUserRole();
+  
   const { data: coordenacoes = [], isLoading: loadingCoord } = useCoordenacoesFull();
   const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
   const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
@@ -85,6 +90,31 @@ export function DashboardCoordenacoes({
   const { data: redistribuicoesData = [] } = useRedistribuicoes();
   const { prazosUrgentes } = useNotificacoes();
   const { configs } = useConfigAlertasCoordenacao();
+
+  // Buscar coordenações que o usuário é membro (para não-admins)
+  const { data: minhasCoordenacoes = [] } = useQuery({
+    queryKey: ["minhas-coordenacoes", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id);
+      if (error) throw error;
+      return data?.map(m => m.coordenacao_id) || [];
+    },
+    enabled: !!user?.id && !isAdmin,
+  });
+
+  // Filtrar coordenações baseado no perfil do usuário
+  const coordenacoesFiltradas = useMemo(() => {
+    if (isAdmin) {
+      // Admin vê todas as coordenações
+      return coordenacoes;
+    }
+    // Outros perfis só veem coordenações onde são membros
+    return coordenacoes.filter(c => minhasCoordenacoes.includes(c.id));
+  }, [coordenacoes, minhasCoordenacoes, isAdmin]);
 
   // Helper para filtrar por período
   const matchesPeriodo = useMemo(() => {
@@ -224,7 +254,7 @@ export function DashboardCoordenacoes({
 
   // Calcular estatísticas por coordenação - aplicando filtros
   const coordenacoesStats = useMemo<CoordenacaoStats[]>(() => {
-    if (!coordenacoes.length) return [];
+    if (!coordenacoesFiltradas.length) return [];
 
     // Filtrar publicações DJEN por status e período - usando created_at (data da captura)
     const publicacoesFiltradas = publicacoes.filter(p => {
@@ -285,7 +315,7 @@ export function DashboardCoordenacoes({
       return true;
     });
 
-    return coordenacoes.map(coord => {
+    return coordenacoesFiltradas.map(coord => {
       // Membros da coordenação
       const membrosCoord = membrosCoordenacao.filter(m => m.coordenacao_id === coord.id);
       
@@ -371,14 +401,14 @@ export function DashboardCoordenacoes({
         membros,
       };
     }).sort((a, b) => b.total - a.total);
-  }, [coordenacoes, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, tarefasPendentes, audienciasPendentes, intimacoesPendentes, configs, matchesPeriodo, matchesSearch, statusFilter, membrosCoordenacao]);
+  }, [coordenacoesFiltradas, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, tarefasPendentes, audienciasPendentes, intimacoesPendentes, configs, matchesPeriodo, matchesSearch, statusFilter, membrosCoordenacao]);
 
   const handleOpenConfig = (coord: { id: string; nome: string }) => {
     setSelectedCoordConfig(coord);
     setConfigDialogOpen(true);
   };
 
-  if (loadingCoord) {
+  if (loadingCoord || loadingRole) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {[1, 2, 3, 4, 5, 6].map(i => (
