@@ -163,26 +163,31 @@ export function ConfigAlertasCoordenacaoDialog({
               </h4>
               
               {/* Email */}
-              <div className={`space-y-3 p-4 rounded-lg border transition-all ${
-                emailHabilitado ? 'border-blue-500/50 bg-blue-500/5' : 'bg-muted/30'
-              }`}>
+              <div 
+                className={`space-y-3 p-4 rounded-lg border transition-all cursor-pointer ${
+                  emailHabilitado ? 'border-blue-500/50 bg-blue-500/5' : 'bg-muted/30 hover:bg-muted/50'
+                }`}
+                onClick={() => !emailHabilitado && setEmailHabilitado(true)}
+              >
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="email-switch" className="flex items-center gap-2 cursor-pointer">
+                  <div className="flex items-center gap-2">
                     <Mail className={`h-4 w-4 ${emailHabilitado ? 'text-blue-500' : 'text-muted-foreground'}`} />
                     <span className="font-medium">E-mail</span>
                     {!emailHabilitado && (
-                      <span className="text-xs text-muted-foreground">(clique para ativar)</span>
+                      <span className="text-xs text-muted-foreground">(clique aqui para ativar)</span>
                     )}
-                  </Label>
+                  </div>
                   <Switch 
-                    id="email-switch"
                     checked={emailHabilitado} 
-                    onCheckedChange={setEmailHabilitado} 
+                    onCheckedChange={(checked) => {
+                      setEmailHabilitado(checked);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </div>
                 
                 {emailHabilitado && (
-                  <div className="space-y-2 pt-2 border-t border-blue-500/20">
+                  <div className="space-y-2 pt-2 border-t border-blue-500/20" onClick={(e) => e.stopPropagation()}>
                     <Label className="text-sm font-medium">Destinatários de E-mail</Label>
                     <div className="flex gap-2">
                       <Input
@@ -216,26 +221,31 @@ export function ConfigAlertasCoordenacaoDialog({
               </div>
 
               {/* WhatsApp */}
-              <div className={`space-y-3 p-4 rounded-lg border transition-all ${
-                whatsappHabilitado ? 'border-green-500/50 bg-green-500/5' : 'bg-muted/30'
-              }`}>
+              <div 
+                className={`space-y-3 p-4 rounded-lg border transition-all cursor-pointer ${
+                  whatsappHabilitado ? 'border-green-500/50 bg-green-500/5' : 'bg-muted/30 hover:bg-muted/50'
+                }`}
+                onClick={() => !whatsappHabilitado && setWhatsappHabilitado(true)}
+              >
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="whatsapp-switch" className="flex items-center gap-2 cursor-pointer">
+                  <div className="flex items-center gap-2">
                     <MessageCircle className={`h-4 w-4 ${whatsappHabilitado ? 'text-green-500' : 'text-muted-foreground'}`} />
                     <span className="font-medium">WhatsApp</span>
                     {!whatsappHabilitado && (
-                      <span className="text-xs text-muted-foreground">(clique para ativar)</span>
+                      <span className="text-xs text-muted-foreground">(clique aqui para ativar)</span>
                     )}
-                  </Label>
+                  </div>
                   <Switch 
-                    id="whatsapp-switch"
                     checked={whatsappHabilitado} 
-                    onCheckedChange={setWhatsappHabilitado} 
+                    onCheckedChange={(checked) => {
+                      setWhatsappHabilitado(checked);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </div>
                 
                 {whatsappHabilitado && (
-                  <div className="space-y-2 pt-2 border-t border-green-500/20">
+                  <div className="space-y-2 pt-2 border-t border-green-500/20" onClick={(e) => e.stopPropagation()}>
                     <Label className="text-sm font-medium">Telefones (com DDD)</Label>
                     <div className="flex gap-2">
                       <Input
