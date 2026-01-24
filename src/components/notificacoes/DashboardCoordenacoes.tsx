@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Building2,
   Newspaper,
@@ -12,16 +13,16 @@ import {
   Radar,
   RefreshCw,
   Clock,
-  FileText,
   Settings,
   Mail,
   MessageCircle,
   TrendingUp,
-  AlertTriangle,
   ChevronRight,
+  ChevronDown,
   ListTodo,
   Gavel,
   FileWarning,
+  User,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
@@ -34,6 +35,12 @@ import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao
 import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
 import { startOfDay, parseISO, isBefore, isAfter } from "date-fns";
+
+interface MembroStats {
+  id: string;
+  nome: string;
+  total: number;
+}
 
 interface CoordenacaoStats {
   id: string;
@@ -49,6 +56,7 @@ interface CoordenacaoStats {
   total: number;
   emailHabilitado: boolean;
   whatsappHabilitado: boolean;
+  membros: MembroStats[];
 }
 
 interface Props {
@@ -101,7 +109,23 @@ export function DashboardCoordenacoes({
     };
   }, [searchQuery]);
 
-  // Buscar tarefas pendentes com coordenação via processo
+  // Buscar todos os membros de coordenações
+  const { data: membrosCoordenacao = [] } = useQuery({
+    queryKey: ["membros-todas-coordenacoes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select(`
+          id,
+          coordenacao_id,
+          usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
+        `);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar tarefas pendentes com coordenação via processo e responsável
   const { data: tarefasPendentes = [] } = useQuery({
     queryKey: ["tarefas-pendentes-coordenacao", statusFilter],
     queryFn: async () => {
@@ -112,6 +136,7 @@ export function DashboardCoordenacoes({
           titulo,
           status,
           data_vencimento,
+          responsavel_id,
           processo:processos!tarefas_processo_id_fkey(
             id,
             coordenacao_id
@@ -183,6 +208,15 @@ export function DashboardCoordenacoes({
     },
   });
 
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+
+  const toggleCardExpanded = (coordId: string) => {
+    setExpandedCards(prev => ({
+      ...prev,
+      [coordId]: !prev[coordId]
+    }));
+  };
+
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedCoordConfig, setSelectedCoordConfig] = useState<{ id: string; nome: string } | null>(null);
 
@@ -250,6 +284,9 @@ export function DashboardCoordenacoes({
     });
 
     return coordenacoes.map(coord => {
+      // Membros da coordenação
+      const membrosCoord = membrosCoordenacao.filter(m => m.coordenacao_id === coord.id);
+      
       // DJEN: via monitoramento
       const monIds = monitoramentosDjen
         .filter(m => m.coordenacao_id === coord.id)
@@ -276,10 +313,11 @@ export function DashboardCoordenacoes({
         p => p.processo?.coordenacao_id === coord.id
       ).length;
 
-      // Tarefas pendentes da agenda
-      const tarefas = tarefasFiltradas.filter(
+      // Tarefas pendentes da coordenação
+      const tarefasCoord = tarefasFiltradas.filter(
         t => (t.processo as any)?.coordenacao_id === coord.id
-      ).length;
+      );
+      const tarefas = tarefasCoord.length;
 
       // Audiências pendentes
       const audiencias = audienciasFiltradas.filter(
@@ -293,6 +331,21 @@ export function DashboardCoordenacoes({
 
       // Config de alertas
       const config = configs.find(c => c.coordenacao_id === coord.id);
+
+      // Calcular totais por membro (baseado em tarefas atribuídas)
+      const membros: MembroStats[] = membrosCoord.map(m => {
+        const membroId = (m.usuario as any)?.id;
+        const membroNome = (m.usuario as any)?.nome || "Sem nome";
+        
+        // Tarefas do membro nesta coordenação
+        const tarefasMembro = tarefasCoord.filter(t => (t as any).responsavel_id === membroId).length;
+        
+        return {
+          id: membroId,
+          nome: membroNome,
+          total: tarefasMembro,
+        };
+      }).filter(m => m.id);
 
       return {
         id: coord.id,
@@ -308,9 +361,10 @@ export function DashboardCoordenacoes({
         total: djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas + audiencias + intimacoes,
         emailHabilitado: config?.email_habilitado || false,
         whatsappHabilitado: config?.whatsapp_habilitado || false,
+        membros,
       };
     }).sort((a, b) => b.total - a.total);
-  }, [coordenacoes, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, tarefasPendentes, audienciasPendentes, intimacoesPendentes, configs, matchesPeriodo, matchesSearch, statusFilter]);
+  }, [coordenacoes, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, tarefasPendentes, audienciasPendentes, intimacoesPendentes, configs, matchesPeriodo, matchesSearch, statusFilter, membrosCoordenacao]);
 
   const handleOpenConfig = (coord: { id: string; nome: string }) => {
     setSelectedCoordConfig(coord);
@@ -397,58 +451,97 @@ export function DashboardCoordenacoes({
                       </Badge>
                     </div>
 
-                    {/* Breakdown */}
+                    {/* Breakdown por tipo */}
                     {coord.total > 0 && (
                       <div className="flex flex-wrap gap-1 pt-2">
                         {coord.djen > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-blue-500/10" title="DJEN">
-                            <Newspaper className="h-3 w-3 text-blue-500" />
+                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="DJEN">
+                            <Newspaper className="h-3 w-3 text-primary" />
                             <span className="text-xs font-medium">{coord.djen}</span>
                           </div>
                         )}
                         {coord.distribuicoes > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-purple-500/10" title="Distribuições">
-                            <Scale className="h-3 w-3 text-purple-500" />
+                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Distribuições">
+                            <Scale className="h-3 w-3 text-primary" />
                             <span className="text-xs font-medium">{coord.distribuicoes}</span>
                           </div>
                         )}
                         {coord.alertas360 > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-amber-500/10" title="Alertas 360°">
-                            <Radar className="h-3 w-3 text-amber-500" />
+                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Alertas 360°">
+                            <Radar className="h-3 w-3 text-primary" />
                             <span className="text-xs font-medium">{coord.alertas360}</span>
                           </div>
                         )}
                         {coord.redistribuicoes > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-cyan-500/10" title="Redistribuições">
-                            <RefreshCw className="h-3 w-3 text-cyan-500" />
+                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Redistribuições">
+                            <RefreshCw className="h-3 w-3 text-primary" />
                             <span className="text-xs font-medium">{coord.redistribuicoes}</span>
                           </div>
                         )}
                         {coord.prazos > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-red-500/10" title="Prazos">
-                            <Clock className="h-3 w-3 text-red-500" />
+                          <div className="flex flex-col items-center p-1 rounded bg-destructive/10" title="Prazos">
+                            <Clock className="h-3 w-3 text-destructive" />
                             <span className="text-xs font-medium">{coord.prazos}</span>
                           </div>
                         )}
                         {coord.tarefas > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-green-500/10" title="Tarefas">
-                            <ListTodo className="h-3 w-3 text-green-500" />
+                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Tarefas">
+                            <ListTodo className="h-3 w-3 text-primary" />
                             <span className="text-xs font-medium">{coord.tarefas}</span>
                           </div>
                         )}
                         {coord.audiencias > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-indigo-500/10" title="Audiências">
-                            <Gavel className="h-3 w-3 text-indigo-500" />
+                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Audiências">
+                            <Gavel className="h-3 w-3 text-primary" />
                             <span className="text-xs font-medium">{coord.audiencias}</span>
                           </div>
                         )}
                         {coord.intimacoes > 0 && (
-                          <div className="flex flex-col items-center p-1 rounded bg-orange-500/10" title="Intimações">
-                            <FileWarning className="h-3 w-3 text-orange-500" />
+                          <div className="flex flex-col items-center p-1 rounded bg-primary/10" title="Intimações">
+                            <FileWarning className="h-3 w-3 text-primary" />
                             <span className="text-xs font-medium">{coord.intimacoes}</span>
                           </div>
                         )}
                       </div>
+                    )}
+
+                    {/* Membros da coordenação */}
+                    {coord.membros.length > 0 && (
+                      <Collapsible 
+                        open={expandedCards[coord.id]}
+                        onOpenChange={() => toggleCardExpanded(coord.id)}
+                      >
+                        <CollapsibleTrigger 
+                          className="w-full flex items-center justify-between py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <User className="h-3 w-3" />
+                            {coord.membros.length} membro{coord.membros.length !== 1 ? 's' : ''}
+                          </span>
+                          {expandedCards[coord.id] ? (
+                            <ChevronDown className="h-3 w-3" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3" />
+                          )}
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-1.5">
+                          {coord.membros.map((membro) => (
+                            <div 
+                              key={membro.id} 
+                              className="flex items-center justify-between py-1 px-2 rounded bg-muted/50 text-xs"
+                            >
+                              <span className="truncate flex-1">{membro.nome}</span>
+                              <Badge 
+                                variant={membro.total > 0 ? "default" : "secondary"} 
+                                className="ml-2 text-[10px] px-1.5 py-0"
+                              >
+                                {membro.total}
+                              </Badge>
+                            </div>
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
                     )}
 
                     {/* Action hint */}
