@@ -1,7 +1,7 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Bell, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal } from "lucide-react";
+import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -9,7 +9,6 @@ import { MonitoramentoDjenCard } from "@/components/configuracoes/MonitoramentoD
 import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/MonitoramentoDjenProcessosCard";
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
-import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
 import { MonitoringDashboard } from "@/components/configuracoes/MonitoringDashboard";
 import { ParametrosDjenCard } from "@/components/configuracoes/ParametrosDjenCard";
 import { MonitoramentosAtivosPanel } from "@/components/configuracoes/MonitoramentosAtivosPanel";
@@ -173,13 +172,11 @@ export default function Configuracoes() {
           <div className="mb-4">
             <h2 className="text-lg font-semibold">Preferências Pessoais</h2>
             <p className="text-sm text-muted-foreground">
-              Configure suas preferências de notificações e aparência
+              Configure suas preferências de aparência e acesso
             </p>
           </div>
-          
-          <NotificacoesEmailCard />
 
-          <div className="grid gap-4 md:grid-cols-2 mt-6">
+          <div className="grid gap-4 md:grid-cols-2">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="flex flex-row items-center gap-4">
                 <div className="p-2 rounded-lg bg-primary/10">
@@ -188,18 +185,6 @@ export default function Configuracoes() {
                 <div>
                   <CardTitle className="text-lg">Perfil</CardTitle>
                   <CardDescription>Gerencie suas informações pessoais</CardDescription>
-                </div>
-              </CardHeader>
-            </Card>
-
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader className="flex flex-row items-center gap-4">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Bell className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Notificações</CardTitle>
-                  <CardDescription>Configure alertas e lembretes</CardDescription>
                 </div>
               </CardHeader>
             </Card>
