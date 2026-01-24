@@ -190,10 +190,10 @@ export function DashboardCoordenacoes({
   const coordenacoesStats = useMemo<CoordenacaoStats[]>(() => {
     if (!coordenacoes.length) return [];
 
-    // Filtrar publicações DJEN por status e período
+    // Filtrar publicações DJEN por status e período - usando created_at (data da captura)
     const publicacoesFiltradas = publicacoes.filter(p => {
       if (statusFilter !== "todas" && p.lida) return false;
-      if (!matchesPeriodo(p.data_publicacao)) return false;
+      if (!matchesPeriodo(p.created_at)) return false;
       if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero)) return false;
       return true;
     });

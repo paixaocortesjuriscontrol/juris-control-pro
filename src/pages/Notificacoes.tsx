@@ -49,6 +49,7 @@ import { DashboardCoordenacoes } from "@/components/notificacoes/DashboardCoorde
 export default function Notificacoes() {
   // Central de Notificações
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
+  const [membroId, setMembroId] = useState<string>("todos");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("todas");
@@ -83,6 +84,42 @@ export default function Notificacoes() {
   const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
   const { alertas } = useMonitoramento360();
   const { data: redistribuicoesData = [] } = useRedistribuicoes();
+
+  // Buscar membros da coordenação selecionada
+  const { data: membrosCoordenacao = [] } = useQuery({
+    queryKey: ["membros-coordenacao-filtro", coordenacaoId],
+    queryFn: async () => {
+      if (coordenacaoId === "todas") {
+        // Buscar todos os membros de todas as coordenações
+        const { data, error } = await supabase
+          .from("membros_coordenacao")
+          .select(`
+            id,
+            coordenacao_id,
+            usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
+          `);
+        if (error) throw error;
+        // Remover duplicatas por usuario_id
+        const uniqueUsers = new Map();
+        (data || []).forEach(m => {
+          if (m.usuario && !uniqueUsers.has((m.usuario as any).id)) {
+            uniqueUsers.set((m.usuario as any).id, m.usuario);
+          }
+        });
+        return Array.from(uniqueUsers.values());
+      }
+      
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select(`
+          id,
+          usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
+        `)
+        .eq("coordenacao_id", coordenacaoId);
+      if (error) throw error;
+      return (data || []).map(m => m.usuario).filter(Boolean);
+    },
+  });
 
   // Buscar tarefas pendentes
   const { data: tarefasPendentesData = [] } = useQuery({
@@ -207,7 +244,7 @@ export default function Notificacoes() {
     };
   }, [prioridadeFilter]);
 
-  // Filter DJEN publications by coordination and filters
+  // Filter DJEN publications by coordination and filters - usando created_at (data da captura)
   const publicacoesNaoLidas = publicacoes.filter(p => statusFilter === "todas" || !p.lida);
   const publicacoesFiltradas = useMemo(() => {
     return publicacoesNaoLidas.filter(p => {
@@ -216,10 +253,11 @@ export default function Notificacoes() {
         if (mon?.coordenacao_id !== coordenacaoId) return false;
       }
       if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero)) return false;
-      if (!matchesPeriodo(p.data_publicacao)) return false;
+      // Usar created_at (data da captura) para filtro de período
+      if (!matchesPeriodo(p.created_at)) return false;
       return true;
     });
-  }, [publicacoesNaoLidas, coordenacaoId, monitoramentosDjen, searchQuery, periodoInicio, periodoFim]);
+  }, [publicacoesNaoLidas, coordenacaoId, monitoramentosDjen, matchesSearch, matchesPeriodo]);
 
   // Filter distributions by coordination
   const distribuicoesPendentes = distribuicoesEncontradas.filter(d => 
@@ -358,7 +396,7 @@ export default function Notificacoes() {
   const hasActiveFilters = searchQuery || prioridadeFilter !== "todas" || statusFilter !== "pendente" || 
     (periodoInicio && periodoInicio.getTime() !== hoje.getTime()) || 
     (periodoFim && periodoFim.getTime() !== hoje.getTime()) || 
-    coordenacaoId !== "todas" ||
+    coordenacaoId !== "todas" || membroId !== "todos" ||
     !showDjen || !showDistribuicoes || !showAlertas360 || !showRedistribuicoes || 
     !showPrazos || !showTarefas || !showAudiencias || !showIntimacoes;
 
@@ -369,6 +407,7 @@ export default function Notificacoes() {
     setPeriodoInicio(startOfDay(new Date()));
     setPeriodoFim(startOfDay(new Date()));
     setCoordenacaoId("todas");
+    setMembroId("todos");
     setShowDjen(true);
     setShowDistribuicoes(true);
     setShowAlertas360(true);
@@ -453,10 +492,13 @@ export default function Notificacoes() {
             </Select>
           </div>
 
-          {/* Second Row - Coordination & Period */}
+          {/* Second Row - Coordination, Member & Period */}
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
-              <SelectTrigger className="w-full sm:w-64">
+            <Select value={coordenacaoId} onValueChange={(value) => {
+              setCoordenacaoId(value);
+              setMembroId("todos"); // Reset membro ao mudar coordenação
+            }}>
+              <SelectTrigger className="w-full sm:w-56">
                 <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Coordenação" />
               </SelectTrigger>
@@ -465,6 +507,21 @@ export default function Notificacoes() {
                 {coordenacoes.map((coord) => (
                   <SelectItem key={coord.id} value={coord.id}>
                     {coord.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Filtro de Membro */}
+            <Select value={membroId} onValueChange={setMembroId}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Membro" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os membros</SelectItem>
+                {membrosCoordenacao.map((membro: any) => (
+                  <SelectItem key={membro.id} value={membro.id}>
+                    {membro.nome}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -555,12 +612,10 @@ export default function Notificacoes() {
               {stats.filteredTotal} alerta{stats.filteredTotal !== 1 ? "s" : ""} encontrado{stats.filteredTotal !== 1 ? "s" : ""}
             </Badge>
             
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-8 text-xs">
-                <X className="w-3 h-3 mr-1" />
-                Limpar filtros
-              </Button>
-            )}
+            <Button variant="outline" size="sm" onClick={clearAllFilters} className="h-8 text-xs gap-1">
+              <X className="w-3 h-3" />
+              Limpar filtros
+            </Button>
           </div>
 
           {/* Toggle Filters Row */}
