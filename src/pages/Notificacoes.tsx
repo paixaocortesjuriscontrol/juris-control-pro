@@ -53,8 +53,8 @@ export default function Notificacoes() {
   const [searchQuery, setSearchQuery] = useState("");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("todas");
   const [statusFilter, setStatusFilter] = useState<string>("pendente");
-  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(undefined);
-  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(undefined);
+  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() => startOfDay(new Date()));
+  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() => startOfDay(new Date()));
   
   // Toggle filters for each type
   const [showDjen, setShowDjen] = useState(true);
@@ -354,8 +354,11 @@ export default function Notificacoes() {
     showDjen, showDistribuicoes, showAlertas360, showRedistribuicoes, showPrazos, showTarefas, showAudiencias, showIntimacoes
   ]);
 
+  const hoje = startOfDay(new Date());
   const hasActiveFilters = searchQuery || prioridadeFilter !== "todas" || statusFilter !== "pendente" || 
-    periodoInicio || periodoFim || coordenacaoId !== "todas" ||
+    (periodoInicio && periodoInicio.getTime() !== hoje.getTime()) || 
+    (periodoFim && periodoFim.getTime() !== hoje.getTime()) || 
+    coordenacaoId !== "todas" ||
     !showDjen || !showDistribuicoes || !showAlertas360 || !showRedistribuicoes || 
     !showPrazos || !showTarefas || !showAudiencias || !showIntimacoes;
 
@@ -363,8 +366,8 @@ export default function Notificacoes() {
     setSearchQuery("");
     setPrioridadeFilter("todas");
     setStatusFilter("pendente");
-    setPeriodoInicio(undefined);
-    setPeriodoFim(undefined);
+    setPeriodoInicio(startOfDay(new Date()));
+    setPeriodoFim(startOfDay(new Date()));
     setCoordenacaoId("todas");
     setShowDjen(true);
     setShowDistribuicoes(true);
@@ -467,47 +470,80 @@ export default function Notificacoes() {
               </SelectContent>
             </Select>
 
-            {/* Period Filter */}
+            {/* Period Filters - Data Início */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("h-9 gap-2", periodoInicio && "bg-primary/10")}>
+                <Button variant="outline" size="sm" className={cn("h-9 gap-2 w-full sm:w-auto", periodoInicio && "bg-primary/10")}>
                   <CalendarDays className="w-4 h-4" />
-                  {periodoInicio ? (
-                    <>
-                      {format(periodoInicio, "dd/MM")}
-                      {periodoFim && ` - ${format(periodoFim, "dd/MM")}`}
-                    </>
-                  ) : (
-                    "Período"
-                  )}
+                  <span className="hidden sm:inline">De:</span>
+                  {periodoInicio ? format(periodoInicio, "dd/MM/yyyy") : "Data início"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <div className="p-3 border-b">
-                  <p className="text-sm font-medium">Selecione o período</p>
+                  <p className="text-sm font-medium">Data Início</p>
                 </div>
-                <div className="flex gap-2 p-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">De</p>
-                    <Calendar
-                      mode="single"
-                      selected={periodoInicio}
-                      onSelect={setPeriodoInicio}
-                      locale={ptBR}
-                    />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Até</p>
-                    <Calendar
-                      mode="single"
-                      selected={periodoFim}
-                      onSelect={setPeriodoFim}
-                      locale={ptBR}
-                    />
-                  </div>
+                <Calendar
+                  mode="single"
+                  selected={periodoInicio}
+                  onSelect={setPeriodoInicio}
+                  locale={ptBR}
+                  className="p-3 pointer-events-auto"
+                  initialFocus
+                />
+                <div className="p-3 border-t flex justify-between gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setPeriodoInicio(startOfDay(new Date()))}
+                  >
+                    Hoje
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setPeriodoInicio(undefined)}
+                  >
+                    Limpar
+                  </Button>
                 </div>
-                <div className="p-3 border-t flex justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => { setPeriodoInicio(undefined); setPeriodoFim(undefined); }}>
+              </PopoverContent>
+            </Popover>
+
+            {/* Period Filters - Data Fim */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("h-9 gap-2 w-full sm:w-auto", periodoFim && "bg-primary/10")}>
+                  <CalendarDays className="w-4 h-4" />
+                  <span className="hidden sm:inline">Até:</span>
+                  {periodoFim ? format(periodoFim, "dd/MM/yyyy") : "Data fim"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="p-3 border-b">
+                  <p className="text-sm font-medium">Data Fim</p>
+                </div>
+                <Calendar
+                  mode="single"
+                  selected={periodoFim}
+                  onSelect={setPeriodoFim}
+                  locale={ptBR}
+                  className="p-3 pointer-events-auto"
+                  initialFocus
+                />
+                <div className="p-3 border-t flex justify-between gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setPeriodoFim(startOfDay(new Date()))}
+                  >
+                    Hoje
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setPeriodoFim(undefined)}
+                  >
                     Limpar
                   </Button>
                 </div>
