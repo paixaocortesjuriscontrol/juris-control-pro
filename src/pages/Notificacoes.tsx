@@ -176,26 +176,36 @@ export default function Notificacoes() {
     },
   });
 
-  // Filter helper function
-  const matchesSearch = (text: string | null | undefined) => {
-    if (!searchQuery) return true;
-    return text?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
-  };
+  // Filter helper functions - usando useMemo para garantir reatividade
+  const matchesSearch = useMemo(() => {
+    return (text: string | null | undefined) => {
+      if (!searchQuery) return true;
+      return text?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+    };
+  }, [searchQuery]);
 
-  const matchesPeriodo = (dateStr: string | null | undefined) => {
-    if (!dateStr) return true;
-    if (!periodoInicio && !periodoFim) return true;
-    
-    const date = startOfDay(parseISO(dateStr));
-    if (periodoInicio && isBefore(date, startOfDay(periodoInicio))) return false;
-    if (periodoFim && isAfter(date, startOfDay(periodoFim))) return false;
-    return true;
-  };
+  const matchesPeriodo = useMemo(() => {
+    return (dateStr: string | null | undefined) => {
+      if (!dateStr) return true;
+      if (!periodoInicio && !periodoFim) return true;
+      
+      try {
+        const date = startOfDay(parseISO(dateStr));
+        if (periodoInicio && isBefore(date, startOfDay(periodoInicio))) return false;
+        if (periodoFim && isAfter(date, startOfDay(periodoFim))) return false;
+        return true;
+      } catch {
+        return true;
+      }
+    };
+  }, [periodoInicio, periodoFim]);
 
-  const matchesPrioridade = (prioridade: string | null | undefined) => {
-    if (prioridadeFilter === "todas") return true;
-    return prioridade === prioridadeFilter;
-  };
+  const matchesPrioridade = useMemo(() => {
+    return (prioridade: string | null | undefined) => {
+      if (prioridadeFilter === "todas") return true;
+      return prioridade === prioridadeFilter;
+    };
+  }, [prioridadeFilter]);
 
   // Filter DJEN publications by coordination and filters
   const publicacoesNaoLidas = publicacoes.filter(p => statusFilter === "todas" || !p.lida);
