@@ -30,7 +30,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: Bell, label: "Notificações", path: "/" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },
@@ -41,8 +42,6 @@ const menuItems = [
   { icon: ClipboardList, label: "Painel da Equipe", path: "/painel-equipe" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: Radar, label: "Monitoração", path: "/monitoracao" },
-  
-  { icon: Bell, label: "Notificações", path: "/notificacoes" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
