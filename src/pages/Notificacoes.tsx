@@ -456,13 +456,39 @@ export default function Notificacoes() {
 
           {/* Second Row - Coordination, Member & Period */}
           <div className="flex flex-wrap items-center gap-3">
+            {/* Quick Period Filters */}
+            <div className="flex gap-1">
+              <Button
+                variant={periodoInicio?.getTime() === startOfDay(new Date()).getTime() && periodoFim?.getTime() === startOfDay(new Date()).getTime() ? "default" : "outline"}
+                size="sm"
+                className="h-9"
+                onClick={() => {
+                  setPeriodoInicio(startOfDay(new Date()));
+                  setPeriodoFim(startOfDay(new Date()));
+                }}
+              >
+                Hoje
+              </Button>
+              <Button
+                variant={!periodoInicio && !periodoFim ? "default" : "outline"}
+                size="sm"
+                className="h-9"
+                onClick={() => {
+                  setPeriodoInicio(undefined);
+                  setPeriodoFim(undefined);
+                }}
+              >
+                Tudo
+              </Button>
+            </div>
+
             {/* Period Filters - Data Início */}
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className={cn("h-9 gap-2 w-full sm:w-auto", periodoInicio && "bg-primary/10")}>
                   <CalendarDays className="w-4 h-4" />
                   <span className="hidden sm:inline">De:</span>
-                  {periodoInicio ? format(periodoInicio, "dd/MM/yyyy") : "Data início"}
+                  {periodoInicio ? format(periodoInicio, "dd/MM/yyyy") : "Início"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -502,7 +528,7 @@ export default function Notificacoes() {
                 <Button variant="outline" size="sm" className={cn("h-9 gap-2 w-full sm:w-auto", periodoFim && "bg-primary/10")}>
                   <CalendarDays className="w-4 h-4" />
                   <span className="hidden sm:inline">Até:</span>
-                  {periodoFim ? format(periodoFim, "dd/MM/yyyy") : "Data fim"}
+                  {periodoFim ? format(periodoFim, "dd/MM/yyyy") : "Fim"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">

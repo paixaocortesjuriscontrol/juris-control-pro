@@ -39,6 +39,8 @@ import { startOfDay, parseISO, isBefore, isAfter } from "date-fns";
 interface MembroStats {
   id: string;
   nome: string;
+  tarefas: number;
+  prazos: number;
   total: number;
 }
 
@@ -332,7 +334,7 @@ export function DashboardCoordenacoes({
       // Config de alertas
       const config = configs.find(c => c.coordenacao_id === coord.id);
 
-      // Calcular totais por membro (baseado em tarefas atribuídas)
+      // Calcular totais por membro
       const membros: MembroStats[] = membrosCoord.map(m => {
         const membroId = (m.usuario as any)?.id;
         const membroNome = (m.usuario as any)?.nome || "Sem nome";
@@ -340,10 +342,15 @@ export function DashboardCoordenacoes({
         // Tarefas do membro nesta coordenação
         const tarefasMembro = tarefasCoord.filter(t => (t as any).responsavel_id === membroId).length;
         
+        // Prazos do membro (tarefas com data de vencimento próxima)
+        const prazosMembro = prazosFiltrados.filter(p => (p as any).responsavel_id === membroId && p.processo?.coordenacao_id === coord.id).length;
+        
         return {
           id: membroId,
           nome: membroNome,
-          total: tarefasMembro,
+          tarefas: tarefasMembro,
+          prazos: prazosMembro,
+          total: tarefasMembro + prazosMembro,
         };
       }).filter(m => m.id);
 
@@ -529,15 +536,26 @@ export function DashboardCoordenacoes({
                           {coord.membros.map((membro) => (
                             <div 
                               key={membro.id} 
-                              className="flex items-center justify-between py-1 px-2 rounded bg-muted/50 text-xs"
+                              className="flex items-center justify-between py-1.5 px-2 rounded bg-muted/50 text-xs"
                             >
                               <span className="truncate flex-1">{membro.nome}</span>
-                              <Badge 
-                                variant={membro.total > 0 ? "default" : "secondary"} 
-                                className="ml-2 text-[10px] px-1.5 py-0"
-                              >
-                                {membro.total}
-                              </Badge>
+                              <div className="flex items-center gap-1 ml-2">
+                                {membro.tarefas > 0 && (
+                                  <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-primary/10" title="Tarefas">
+                                    <ListTodo className="h-2.5 w-2.5 text-primary" />
+                                    <span className="text-[10px] font-medium">{membro.tarefas}</span>
+                                  </div>
+                                )}
+                                {membro.prazos > 0 && (
+                                  <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-destructive/10" title="Prazos">
+                                    <Clock className="h-2.5 w-2.5 text-destructive" />
+                                    <span className="text-[10px] font-medium">{membro.prazos}</span>
+                                  </div>
+                                )}
+                                {membro.total === 0 && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">0</Badge>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </CollapsibleContent>
