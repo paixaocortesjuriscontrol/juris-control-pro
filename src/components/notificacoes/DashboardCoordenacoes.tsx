@@ -89,7 +89,10 @@ export function DashboardCoordenacoes({
   const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
   const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
   const { alertas } = useMonitoramento360();
-  const { data: redistribuicoesData = [] } = useRedistribuicoes();
+  const { data: redistribuicoesData = [] } = useRedistribuicoes({
+    dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
+    dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
+  });
   const { prazosUrgentes } = useNotificacoes();
   const { configs } = useConfigAlertasCoordenacao();
 
@@ -264,7 +267,6 @@ export function DashboardCoordenacoes({
         `)
         .neq("tipo", "Redistribuição")
         .order("created_at", { ascending: false })
-        .limit(1000);
       
       // CRÍTICO: Aplicar filtros de período usando created_at (data da captura)
       if (inicioDia) {
@@ -621,7 +623,7 @@ export function DashboardCoordenacoes({
                             <ChevronRight className="h-3 w-3" />
                           )}
                         </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-2 pt-1 max-h-[300px] overflow-y-auto pr-2">
+                        <CollapsibleContent className="space-y-2 pt-1">
                           {coord.membros.map((membro) => (
                             <div 
                               key={membro.id} 
