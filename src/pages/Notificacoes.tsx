@@ -32,6 +32,7 @@ import {
   X,
   CalendarDays,
   FileText,
+  Activity,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
@@ -981,7 +982,7 @@ export default function Notificacoes() {
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <div className="p-1.5 rounded-lg bg-violet-600/10">
-                <FileText className="w-4 h-4 text-violet-600" />
+                <Activity className="w-4 h-4 text-violet-600" />
               </div>
               <Badge variant="secondary" className="bg-violet-600/10 text-violet-600 text-xs px-1.5">
                 {stats.andamentos}
