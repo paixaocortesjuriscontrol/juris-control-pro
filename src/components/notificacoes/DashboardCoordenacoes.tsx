@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -249,6 +248,12 @@ export function DashboardCoordenacoes({
   const { data: andamentosData = [] } = useQuery({
     queryKey: ["andamentos-coordenacao", periodoInicio, periodoFim],
     queryFn: async () => {
+      console.log("🔍 [DashboardCoordenacoes] Buscando andamentos...");
+      console.log("📅 Período:", { 
+        inicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : "sem filtro",
+        fim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : "sem filtro"
+      });
+      
       const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
       const fimDiaMaisUm = periodoFim ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd") : undefined;
       
@@ -262,6 +267,7 @@ export function DashboardCoordenacoes({
           tipo,
           processo:processos!movimentacoes_processo_id_fkey(
             id,
+            numero,
             coordenacao_id
           )
         `)
@@ -278,6 +284,18 @@ export function DashboardCoordenacoes({
       
       const { data, error } = await query;
       if (error) throw error;
+      
+      console.log("✅ [DashboardCoordenacoes] Total andamentos encontrados:", data?.length || 0);
+      console.log("📊 [DashboardCoordenacoes] Tipos únicos:", [...new Set(data?.map((d: any) => d.tipo) || [])]);
+      
+      // Agrupar por coordenação para debug
+      const porCoord = data?.reduce((acc: any, mov: any) => {
+        const coordId = (mov.processo as any)?.coordenacao_id || 'sem-coord';
+        acc[coordId] = (acc[coordId] || 0) + 1;
+        return acc;
+      }, {});
+      console.log("📋 [DashboardCoordenacoes] Andamentos por coordenação:", porCoord);
+      
       return data || [];
     },
   });
@@ -486,8 +504,7 @@ export function DashboardCoordenacoes({
           </Badge>
         </div>
 
-        <ScrollArea className="h-[500px] md:h-[400px]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 pr-2 md:pr-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {coordenacoesStats.map((coord) => (
               <Card
                 key={coord.id}
@@ -672,7 +689,6 @@ export function DashboardCoordenacoes({
               </div>
             )}
           </div>
-        </ScrollArea>
       </div>
 
       {selectedCoordConfig && (
