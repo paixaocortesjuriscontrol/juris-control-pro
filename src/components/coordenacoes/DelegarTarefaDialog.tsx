@@ -111,6 +111,19 @@ export function DelegarTarefaDialog({
 
       if (error) throw error;
 
+      // Disparar notificação para o responsável (fire and forget)
+      supabase.functions.invoke("notificar-tarefa-criada", {
+        body: {
+          tarefa_id: novaTarefa.id,
+          titulo: values.titulo,
+          descricao: values.descricao,
+          data_vencimento: values.data_vencimento,
+          prioridade: values.prioridade,
+          processo_id: values.processo_id,
+          responsavel_id: values.responsavel_id,
+        },
+      }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
+
       // Registrar auditoria de sucesso
       await registrarAuditoriaTarefa({
         acao: 'criar',

@@ -323,6 +323,21 @@ export function NovaTarefaDialog({
 
       if (error) throw error;
 
+      // Disparar notificação para o responsável (fire and forget)
+      if (novaTarefa?.id && values.responsavel_id) {
+        supabase.functions.invoke("notificar-tarefa-criada", {
+          body: {
+            tarefa_id: novaTarefa.id,
+            titulo: values.titulo,
+            descricao: values.descricao,
+            data_vencimento: values.data_vencimento,
+            prioridade: values.prioridade,
+            processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
+            responsavel_id: values.responsavel_id,
+          },
+        }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
+      }
+
       // Upload de anexos (funciona com ou sem processo)
       if (anexos.length > 0 && novaTarefa?.id) {
         setUploadingAnexos(true);

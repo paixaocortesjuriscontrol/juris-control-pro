@@ -200,6 +200,21 @@ export function CriarTarefaAudienciaDialog({
 
       if (error) throw error;
 
+      // Disparar notificação para o responsável (fire and forget)
+      if (tarefa?.id && values.responsavel_id) {
+        supabase.functions.invoke("notificar-tarefa-criada", {
+          body: {
+            tarefa_id: tarefa.id,
+            titulo: values.titulo,
+            descricao: values.descricao,
+            data_vencimento: values.data_vencimento,
+            prioridade: values.prioridade,
+            processo_id: audiencia.processo_id,
+            responsavel_id: values.responsavel_id,
+          },
+        }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
+      }
+
       // Vincular tarefa à audiência
       if (tarefa?.id) {
         await supabase
