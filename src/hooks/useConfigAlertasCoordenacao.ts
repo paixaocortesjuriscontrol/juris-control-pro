@@ -36,6 +36,7 @@ export const TIPOS_ALERTA = [
   { value: 'distribuicoes', label: 'Novas Distribuições', icon: '⚖️' },
   { value: 'alertas360', label: 'Alertas 360°', icon: '🎯' },
   { value: 'redistribuicoes', label: 'Redistribuições', icon: '🔄' },
+  { value: 'audiencias', label: 'Audiências Detectadas', icon: '📅' },
   { value: 'prazos', label: 'Prazos Vencendo', icon: '⏰' },
   { value: 'andamentos', label: 'Novos Andamentos', icon: '📋' },
 ];

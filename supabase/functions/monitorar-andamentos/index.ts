@@ -881,6 +881,32 @@ async function notifyAudienciaDetectada(
     }
 
     console.log(`Notified ${usersToNotify.length} users about new audiência`);
+
+    // Enviar alerta externo via Email/WhatsApp se a coordenação tiver configuração
+    if (processo.coordenacao_id) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        await fetch(`${supabaseUrl}/functions/v1/enviar-alerta-coordenacao`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({
+            tipo_alerta: "audiencias",
+            coordenacao_id: processo.coordenacao_id,
+            titulo: `📅 Audiência Detectada: ${tipoAudiencia || 'Audiência'}`,
+            mensagem: `Audiência identificada no processo ${processoNumero}. Data: ${dataFormatada}`,
+            prioridade: "alta",
+            referencia_id: processoId,
+            processo_numero: processoNumero,
+          }),
+        });
+        console.log(`Alerta de audiência enviado para coordenação ${processo.coordenacao_id}`);
+      } catch (alertError) {
+        console.error("Erro ao enviar alerta de audiência:", alertError);
+      }
+    }
   } catch (error) {
     console.error('Error notifying about audiência:', error);
   }
