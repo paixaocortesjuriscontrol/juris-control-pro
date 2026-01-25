@@ -778,13 +778,13 @@ export default function Notificacoes() {
               size="sm"
               className={cn(
                 "h-8 gap-1.5 text-xs",
-                showAndamentos && "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
+                showAndamentos && "bg-violet-600 hover:bg-violet-700 text-white border-violet-600"
               )}
               onClick={() => setShowAndamentos(prev => !prev)}
             >
-              <FileText className="w-3.5 h-3.5" />
+              <Activity className="w-3.5 h-3.5" />
               Andamentos
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAndamentos && "bg-emerald-500 text-white")}>
+              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAndamentos && "bg-violet-500 text-white")}>
                 {stats.andamentos}
               </Badge>
             </Button>
