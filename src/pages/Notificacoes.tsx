@@ -84,7 +84,10 @@ export default function Notificacoes() {
   const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
   const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
   const { alertas } = useMonitoramento360();
-  const { data: redistribuicoesData = [] } = useRedistribuicoes();
+  const { data: redistribuicoesData = [] } = useRedistribuicoes({
+    dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
+    dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
+  });
 
   // Buscar tarefas pendentes
   const { data: tarefasPendentesData = [] } = useQuery({
@@ -198,8 +201,7 @@ export default function Notificacoes() {
           )
         `)
         .neq("tipo", "Redistribuição")
-        .order("created_at", { ascending: false })
-        .limit(500);
+        .order("created_at", { ascending: false });
       
       // Filtrar por período usando created_at (data da captura), não data_movimentacao
       if (periodoInicio) {
@@ -293,19 +295,17 @@ export default function Notificacoes() {
     });
   }, [alertasPendentes, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter]);
 
-  // Redistribuições recentes
-  const redistribuicoesRecentes = redistribuicoesData.slice(0, 50);
+  // Redistribuições filtradas por período
   const redistribuicoesFiltradas = useMemo(() => {
-    return redistribuicoesRecentes.filter(r => {
+    return redistribuicoesData.filter(r => {
       if (coordenacaoId !== "todas") {
         const coord = coordenacoes.find(c => c.id === coordenacaoId);
         if (!coord || r.coordenacao_nome !== coord.nome) return false;
       }
       if (!matchesSearch(r.processo_numero)) return false;
-      if (!matchesPeriodo(r.data_redistribuicao)) return false;
       return true;
     });
-  }, [redistribuicoesRecentes, coordenacaoId, coordenacoes, searchQuery, periodoInicio, periodoFim]);
+  }, [redistribuicoesData, coordenacaoId, coordenacoes, searchQuery]);
 
   // Filter prazos by coordination
   const prazosFiltrados = useMemo(() => {
