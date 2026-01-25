@@ -640,55 +640,28 @@ export default function NovaTarefa() {
         setUploadingAnexos(false);
       }
 
-      // Enviar WhatsApp apenas para novas tarefas (não edição)
-      if (!isEditMode) {
-        const { data: responsavel } = await supabase
-          .from("profiles")
-          .select("nome, telefone")
-          .eq("id", values.responsavel_id)
-          .single();
-
-        if (responsavel?.telefone) {
-          const dataFormatada = format(new Date(values.data_vencimento), "dd/MM/yyyy");
-          const prioridadeLabel = {
-            baixa: "Baixa",
-            media: "Média", 
-            alta: "Alta",
-            urgente: "🚨 URGENTE"
-          }[values.prioridade] || values.prioridade;
-
-          let mensagem = `📋 *NOVA TAREFA DELEGADA*\n\n`;
-          mensagem += `Olá ${responsavel.nome?.split(" ")[0] || ""}!\n`;
-          mensagem += `Você recebeu uma nova tarefa:\n\n`;
-          mensagem += `📌 *${values.titulo}*\n`;
-          mensagem += `📁 Tipo: ${values.tipo_tarefa}\n`;
-          mensagem += `📆 Prazo: ${dataFormatada}\n`;
-          mensagem += `⚡ Prioridade: ${prioridadeLabel}\n`;
-          if (values.descricao) {
-            mensagem += `\n📝 *Descrição:*\n${values.descricao}\n`;
+      // Enviar notificação (email + whatsapp) apenas para novas tarefas (não edição)
+      if (!isEditMode && tarefaId && values.responsavel_id) {
+        supabase.functions.invoke("notificar-tarefa-criada", {
+          body: {
+            tarefa_id: tarefaId,
+            titulo: values.titulo,
+            descricao: values.descricao,
+            data_vencimento: values.data_vencimento,
+            prioridade: values.prioridade,
+            processo_id: values.processo_id,
+            responsavel_id: values.responsavel_id,
+          },
+        }).then(({ data, error: notifyError }) => {
+          if (notifyError) {
+            console.error("Erro ao notificar tarefa:", notifyError);
+          } else if (data?.enviados > 0) {
+            toast({
+              title: "Notificação enviada",
+              description: `Email e/ou WhatsApp enviado para o responsável`,
+            });
           }
-          if (anexos.length > 0) {
-            mensagem += `\n📎 ${anexos.length} documento(s) anexado(s)\n`;
-          }
-          mensagem += `\n_JurisControl - Sistema de Gestão Jurídica_`;
-
-          supabase.functions.invoke("enviar-whatsapp-zapi", {
-            body: {
-              telefones: [responsavel.telefone],
-              mensagem,
-              tipo: "evento",
-            },
-          }).then(({ data, error: whatsappError }) => {
-            if (whatsappError) {
-              console.error("Erro ao enviar WhatsApp:", whatsappError);
-            } else if (data?.enviados > 0) {
-              toast({
-                title: "WhatsApp enviado",
-                description: `Notificação enviada para ${responsavel.nome}`,
-              });
-            }
-          });
-        }
+        }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
       }
 
       // Mostrar resultado do upload com detalhes
