@@ -209,32 +209,44 @@ export default function MinhaAgenda() {
   const updateItemAgenda = useUpdateItemAgenda();
   const deleteItemAgenda = useDeleteItemAgenda();
 
-  // Auto-detect user's coordination
+  // Auto-detect user's coordination (primeira coordenação cadastrada)
   const { data: userCoordenacao } = useQuery({
-    queryKey: ["user-coordenacao", user?.id],
+    queryKey: ["user-coordenacao-agenda", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from("membros_coordenacao")
-        .select("coordenacao_id")
-        .eq("usuario_id", user.id)
+      
+      // Primeiro verificar se é coordenador de alguma coordenação
+      const { data: coordenador } = await supabase
+        .from("coordenacoes")
+        .select("id")
+        .eq("coordenador_id", user.id)
+        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
-      if (error) return null;
-      return data?.coordenacao_id || null;
+      
+      if (coordenador) return coordenador.id;
+      
+      // Senão, buscar a primeira coordenação onde é membro (ordenada por created_at)
+      const { data: membro } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id, created_at")
+        .eq("usuario_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      
+      return membro?.coordenacao_id || null;
     },
     enabled: !!user?.id,
   });
 
-  // Auto-set coordination when detected
+  // Auto-set coordination when detected - pré-selecionar coordenação do usuário
   useEffect(() => {
-    // IMPORTANTE: nesta tela, NÃO auto-aplicamos filtro de coordenação.
-    // (Admin/coordenador deve iniciar em "Todas"; e para não-admin, a agenda não deve esconder
-    // itens por coordenação automaticamente.)
-    if (userCoordenacao && !coordenacaoAutoDetected) {
+    if (userCoordenacao && !coordenacaoAutoDetected && coordenacaoFiltro === "todas") {
+      setCoordenacaoFiltro(userCoordenacao);
       setCoordenacaoAutoDetected(true);
     }
-  }, [userCoordenacao, coordenacaoAutoDetected]);
+  }, [userCoordenacao, coordenacaoAutoDetected, coordenacaoFiltro]);
 
   // Auto-filter by logged user when not admin
   useEffect(() => {
