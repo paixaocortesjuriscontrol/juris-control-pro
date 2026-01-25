@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
+  Activity,
   Building2,
   Newspaper,
   Scale,
@@ -53,6 +54,7 @@ interface CoordenacaoStats {
   distribuicoes: number;
   alertas360: number;
   redistribuicoes: number;
+  andamentos: number;
   prazos: number;
   tarefas: number;
   audiencias: number;
@@ -240,6 +242,31 @@ export function DashboardCoordenacoes({
     },
   });
 
+  // Buscar andamentos (movimentações) do dia
+  const { data: andamentosData = [] } = useQuery({
+    queryKey: ["andamentos-coordenacao", periodoInicio, periodoFim],
+    queryFn: async () => {
+      let query = supabase
+        .from("movimentacoes")
+        .select(`
+          id,
+          descricao,
+          data_movimentacao,
+          created_at,
+          processo:processos!movimentacoes_processo_id_fkey(
+            id,
+            coordenacao_id
+          )
+        `)
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
   const toggleCardExpanded = (coordId: string) => {
@@ -315,6 +342,13 @@ export function DashboardCoordenacoes({
       return true;
     });
 
+    // Filtrar andamentos por período (usando created_at = data da captura)
+    const andamentosFiltrados = andamentosData.filter(a => {
+      if (!matchesPeriodo((a as any).created_at)) return false;
+      if (!matchesSearch((a as any).descricao)) return false;
+      return true;
+    });
+
     return coordenacoesFiltradas.map(coord => {
       // Membros da coordenação
       const membrosCoord = membrosCoordenacao.filter(m => m.coordenacao_id === coord.id);
@@ -361,6 +395,11 @@ export function DashboardCoordenacoes({
         i => (i.processo as any)?.coordenacao_id === coord.id
       ).length;
 
+      // Andamentos (movimentações) da coordenação
+      const andamentos = andamentosFiltrados.filter(
+        a => (a.processo as any)?.coordenacao_id === coord.id
+      ).length;
+
       // Config de alertas
       const config = configs.find(c => c.coordenacao_id === coord.id);
 
@@ -391,17 +430,18 @@ export function DashboardCoordenacoes({
         distribuicoes,
         alertas360,
         redistribuicoes,
+        andamentos,
         prazos,
         tarefas,
         audiencias,
         intimacoes,
-        total: djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas + audiencias + intimacoes,
+        total: djen + distribuicoes + alertas360 + redistribuicoes + andamentos + prazos + tarefas + audiencias + intimacoes,
         emailHabilitado: config?.email_habilitado || false,
         whatsappHabilitado: config?.whatsapp_habilitado || false,
         membros,
       };
     }).sort((a, b) => b.total - a.total);
-  }, [coordenacoesFiltradas, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, prazosUrgentes, tarefasPendentes, audienciasPendentes, intimacoesPendentes, configs, matchesPeriodo, matchesSearch, statusFilter, membrosCoordenacao]);
+  }, [coordenacoesFiltradas, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, andamentosData, prazosUrgentes, tarefasPendentes, audienciasPendentes, intimacoesPendentes, configs, matchesPeriodo, matchesSearch, statusFilter, membrosCoordenacao]);
 
   const handleOpenConfig = (coord: { id: string; nome: string }) => {
     setSelectedCoordConfig(coord);
@@ -513,6 +553,12 @@ export function DashboardCoordenacoes({
                           <div className="flex flex-col items-center p-1.5 rounded-md bg-cyan-600/15" title="Redistribuições">
                             <RefreshCw className="h-4 w-4 text-cyan-600" />
                             <span className="text-xs font-semibold text-cyan-600">{coord.redistribuicoes}</span>
+                          </div>
+                        )}
+                        {coord.andamentos > 0 && (
+                          <div className="flex flex-col items-center p-1.5 rounded-md bg-violet-600/15" title="Andamentos">
+                            <Activity className="h-4 w-4 text-violet-600" />
+                            <span className="text-xs font-semibold text-violet-600">{coord.andamentos}</span>
                           </div>
                         )}
                         {coord.prazos > 0 && (
