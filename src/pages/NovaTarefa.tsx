@@ -203,6 +203,34 @@ export default function NovaTarefa() {
     },
   });
 
+  // Buscar coordenação do usuário logado
+  const { data: userCoordenacao } = useQuery({
+    queryKey: ["user-coordenacao", userData?.id],
+    queryFn: async () => {
+      if (!userData?.id) return null;
+      // Primeiro verificar se é coordenador de alguma coordenação
+      const { data: coordenador } = await supabase
+        .from("coordenacoes")
+        .select("id")
+        .eq("coordenador_id", userData.id)
+        .limit(1)
+        .maybeSingle();
+      
+      if (coordenador) return coordenador.id;
+      
+      // Senão, buscar a primeira coordenação onde é membro
+      const { data: membro } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", userData.id)
+        .limit(1)
+        .maybeSingle();
+      
+      return membro?.coordenacao_id || null;
+    },
+    enabled: !!userData?.id && !coordenacaoIdParam && !isEditMode,
+  });
+
   // Data de hoje para pré-preenchimento
   const hoje = format(new Date(), "yyyy-MM-dd");
 
@@ -225,6 +253,16 @@ export default function NovaTarefa() {
       local: "",
     },
   });
+
+  // Pré-selecionar coordenação do usuário logado
+  useEffect(() => {
+    if (userCoordenacao && !coordenacaoIdParam && !isEditMode) {
+      const currentValue = form.getValues("coordenacao_id");
+      if (!currentValue) {
+        form.setValue("coordenacao_id", userCoordenacao);
+      }
+    }
+  }, [userCoordenacao, coordenacaoIdParam, isEditMode, form]);
 
   // Preencher form quando carregar tarefa para edição
   useEffect(() => {
