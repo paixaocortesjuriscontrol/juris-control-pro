@@ -178,7 +178,7 @@ export default function Notificacoes() {
     },
   });
 
-  // Buscar andamentos (movimentações) recentes - usando created_at (data da captura)
+  // Buscar andamentos (movimentações) recentes - excluindo redistribuições
   const { data: andamentosData = [] } = useQuery({
     queryKey: ["andamentos-notificacoes", periodoInicio, periodoFim],
     queryFn: async () => {
@@ -197,6 +197,7 @@ export default function Notificacoes() {
             coordenacao_id
           )
         `)
+        .neq("tipo", "Redistribuição")
         .order("created_at", { ascending: false })
         .limit(500);
       
