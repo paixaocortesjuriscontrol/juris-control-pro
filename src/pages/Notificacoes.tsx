@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { 
@@ -185,6 +184,7 @@ export default function Notificacoes() {
   const { data: andamentosData = [] } = useQuery({
     queryKey: ["andamentos-notificacoes", periodoInicio, periodoFim],
     queryFn: async () => {
+      console.log("🔍 [Andamentos] Buscando andamentos (sem redistribuições)...");
       let query = supabase
         .from("movimentacoes")
         .select(`
@@ -216,6 +216,12 @@ export default function Notificacoes() {
       
       const { data, error } = await query;
       if (error) throw error;
+      console.log("✅ [Andamentos] Total encontrado:", data?.length || 0);
+      console.log("📋 [Andamentos] Tipos únicos:", [...new Set(data?.map((d: any) => d.tipo) || [])]);
+      const redistCount = data?.filter((d: any) => d.tipo === "Redistribuição").length || 0;
+      if (redistCount > 0) {
+        console.error("❌ [Andamentos] ERRO: Redistribuições encontradas:", redistCount);
+      }
       return data || [];
     },
   });
@@ -1070,7 +1076,7 @@ export default function Notificacoes() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[200px]">
+                  <div className="space-y-2">
                     {publicacoesFiltradas.slice(0, 5).map((pub) => {
                       const processoDisplay = pub.processo_numero || (() => {
                         const match = pub.conteudo?.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
@@ -1086,7 +1092,7 @@ export default function Notificacoes() {
                         </div>
                       );
                     })}
-                  </ScrollArea>
+                  </div>
                   <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setActiveTab("djen")}>
                     Ver todas
                   </Button>
@@ -1104,7 +1110,7 @@ export default function Notificacoes() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[200px]">
+                  <div className="space-y-2">
                     {alertasFiltrados.slice(0, 5).map((alerta) => (
                       <div key={alerta.id} className="py-2 border-b last:border-0">
                         <div className="flex items-center gap-2">
@@ -1118,7 +1124,7 @@ export default function Notificacoes() {
                         </p>
                       </div>
                     ))}
-                  </ScrollArea>
+                  </div>
                   <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setActiveTab("alertas360")}>
                     Ver todos
                   </Button>
@@ -1136,7 +1142,7 @@ export default function Notificacoes() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[200px]">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {prazosFiltrados.slice(0, 5).map((prazo) => (
                       <div key={prazo.id} className="py-2 border-b last:border-0">
                         <div className="flex items-center justify-between">
@@ -1156,7 +1162,7 @@ export default function Notificacoes() {
                         </p>
                       </div>
                     ))}
-                  </ScrollArea>
+                  </div>
                   <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => navigate('/prazos')}>
                     Ver todos
                   </Button>
@@ -1174,7 +1180,7 @@ export default function Notificacoes() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[200px]">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {distribuicoesFiltradas.slice(0, 5).map((dist) => (
                       <div key={dist.id} className="py-2 border-b last:border-0">
                         <p className="text-sm font-medium truncate">{dist.numero_processo}</p>
@@ -1184,7 +1190,7 @@ export default function Notificacoes() {
                         </p>
                       </div>
                     ))}
-                  </ScrollArea>
+                  </div>
                   <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setActiveTab("distribuicoes")}>
                     Ver todas
                   </Button>
@@ -1202,7 +1208,7 @@ export default function Notificacoes() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[200px]">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {redistribuicoesFiltradas.slice(0, 5).map((red) => (
                       <div key={red.id} className="py-2 border-b last:border-0">
                         <p className="text-sm font-medium truncate">{red.processo_numero}</p>
@@ -1212,7 +1218,7 @@ export default function Notificacoes() {
                         </p>
                       </div>
                     ))}
-                  </ScrollArea>
+                  </div>
                   <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setActiveTab("redistribuicoes")}>
                     Ver todas
                   </Button>
@@ -1230,7 +1236,7 @@ export default function Notificacoes() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[200px]">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {notificacoesFiltradas.slice(0, 5).map((notif) => (
                       <div 
                         key={notif.id} 
@@ -1254,7 +1260,7 @@ export default function Notificacoes() {
                         <Eye className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
                       </div>
                     ))}
-                  </ScrollArea>
+                  </div>
                   <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => marcarTodasComoLidas.mutate()}>
                     Marcar todas como lidas
                   </Button>
@@ -1289,7 +1295,6 @@ export default function Notificacoes() {
                   Nenhuma publicação pendente
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
                     {publicacoesFiltradas.map((pub) => {
                       const monitoramento = monitoramentosDjen.find(m => m.id === pub.monitoramento_id);
@@ -1337,7 +1342,6 @@ export default function Notificacoes() {
                       );
                     })}
                   </div>
-                </ScrollArea>
               )}
             </CardContent>
           </Card>
@@ -1358,7 +1362,6 @@ export default function Notificacoes() {
                   Nenhuma distribuição pendente
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
                     {distribuicoesFiltradas.map((dist) => (
                       <Card key={dist.id} className="bg-muted/30">
@@ -1393,7 +1396,6 @@ export default function Notificacoes() {
                       </Card>
                     ))}
                   </div>
-                </ScrollArea>
               )}
             </CardContent>
           </Card>
@@ -1414,7 +1416,6 @@ export default function Notificacoes() {
                   Nenhum alerta pendente
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
                     {alertasFiltrados.map((alerta) => (
                       <Card key={alerta.id} className="bg-muted/30">
@@ -1451,7 +1452,6 @@ export default function Notificacoes() {
                       </Card>
                     ))}
                   </div>
-                </ScrollArea>
               )}
             </CardContent>
           </Card>
@@ -1472,7 +1472,6 @@ export default function Notificacoes() {
                   Nenhuma redistribuição recente
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
                     {redistribuicoesFiltradas.map((red) => (
                       <Card key={red.id} className="bg-muted/30">
@@ -1499,7 +1498,6 @@ export default function Notificacoes() {
                       </Card>
                     ))}
                   </div>
-                </ScrollArea>
               )}
             </CardContent>
           </Card>
@@ -1520,7 +1518,6 @@ export default function Notificacoes() {
                   Nenhum prazo urgente
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
                     {prazosFiltrados.map((prazo) => (
                       <Card key={prazo.id} className="bg-muted/30">
@@ -1555,7 +1552,6 @@ export default function Notificacoes() {
                       </Card>
                     ))}
                   </div>
-                </ScrollArea>
               )}
             </CardContent>
           </Card>
@@ -1576,7 +1572,6 @@ export default function Notificacoes() {
                   Nenhuma tarefa pendente
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
                     {tarefasFiltradas.map((tarefa) => (
                       <Card key={tarefa.id} className="bg-muted/30">
@@ -1608,7 +1603,6 @@ export default function Notificacoes() {
                       </Card>
                     ))}
                   </div>
-                </ScrollArea>
               )}
             </CardContent>
           </Card>
@@ -1629,7 +1623,6 @@ export default function Notificacoes() {
                   Nenhuma audiência pendente
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
                     {audienciasFiltradas.map((audiencia) => (
                       <Card key={audiencia.id} className="bg-muted/30">
@@ -1659,7 +1652,6 @@ export default function Notificacoes() {
                       </Card>
                     ))}
                   </div>
-                </ScrollArea>
               )}
             </CardContent>
           </Card>
@@ -1680,7 +1672,6 @@ export default function Notificacoes() {
                   Nenhuma intimação pendente
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
                     {intimacoesFiltradas.map((intimacao) => (
                       <Card key={intimacao.id} className="bg-muted/30">
@@ -1709,7 +1700,6 @@ export default function Notificacoes() {
                       </Card>
                     ))}
                   </div>
-                </ScrollArea>
               )}
             </CardContent>
           </Card>
@@ -1730,7 +1720,6 @@ export default function Notificacoes() {
                   Nenhum andamento encontrado no período
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
                     {andamentosFiltrados.map((andamento) => {
                       const coordId = (andamento.processo as any)?.coordenacao_id;
@@ -1779,7 +1768,6 @@ export default function Notificacoes() {
                       );
                     })}
                   </div>
-                </ScrollArea>
               )}
             </CardContent>
           </Card>

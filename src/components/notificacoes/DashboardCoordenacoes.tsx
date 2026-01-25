@@ -623,7 +623,7 @@ export function DashboardCoordenacoes({
                             <ChevronRight className="h-3 w-3" />
                           )}
                         </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-2 pt-1">
+                        <CollapsibleContent className="space-y-2 pt-1 animate-collapsible-down">
                           {coord.membros.map((membro) => (
                             <div 
                               key={membro.id} 
