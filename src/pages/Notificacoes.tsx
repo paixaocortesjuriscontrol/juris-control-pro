@@ -974,16 +974,16 @@ export default function Notificacoes() {
         <Card 
           className={cn(
             "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
-            activeTab === "andamentos" && "ring-2 ring-emerald-500"
+            activeTab === "andamentos" && "ring-2 ring-violet-600"
           )}
           onClick={() => setActiveTab("andamentos")}
         >
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <div className="p-1.5 rounded-lg bg-emerald-500/10">
-                <FileText className="w-4 h-4 text-emerald-500" />
+              <div className="p-1.5 rounded-lg bg-violet-600/10">
+                <FileText className="w-4 h-4 text-violet-600" />
               </div>
-              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500 text-xs px-1.5">
+              <Badge variant="secondary" className="bg-violet-600/10 text-violet-600 text-xs px-1.5">
                 {stats.andamentos}
               </Badge>
             </div>
