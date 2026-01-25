@@ -41,11 +41,12 @@ export function useRedistribuicoes(filters?: {
         .eq('tipo', 'Redistribuição')
         .order('data_movimentacao', { ascending: false });
 
+      // Filtrar por created_at (data da captura) ao invés de data_movimentacao
       if (filters?.dataInicio) {
-        query = query.gte('data_movimentacao', filters.dataInicio);
+        query = query.gte('created_at', filters.dataInicio);
       }
       if (filters?.dataFim) {
-        query = query.lte('data_movimentacao', filters.dataFim + 'T23:59:59');
+        query = query.lte('created_at', filters.dataFim + 'T23:59:59');
       }
 
       const { data, error } = await query;

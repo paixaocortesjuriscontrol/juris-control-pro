@@ -242,7 +242,7 @@ export function DashboardCoordenacoes({
     },
   });
 
-  // Buscar andamentos (movimentações) do dia
+  // Buscar andamentos (movimentações) do dia - excluindo redistribuições
   const { data: andamentosData = [] } = useQuery({
     queryKey: ["andamentos-coordenacao", periodoInicio, periodoFim],
     queryFn: async () => {
@@ -253,11 +253,13 @@ export function DashboardCoordenacoes({
           descricao,
           data_movimentacao,
           created_at,
+          tipo,
           processo:processos!movimentacoes_processo_id_fkey(
             id,
             coordenacao_id
           )
         `)
+        .neq("tipo", "Redistribuição")
         .order("created_at", { ascending: false })
         .limit(1000);
       
