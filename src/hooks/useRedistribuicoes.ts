@@ -41,12 +41,15 @@ export function useRedistribuicoes(filters?: {
         .eq('tipo', 'Redistribuição')
         .order('data_movimentacao', { ascending: false });
 
-      // Filtrar por created_at (data da captura) ao invés de data_movimentacao
+      // CRÍTICO: Filtrar por created_at (data da captura) ao invés de data_movimentacao
       if (filters?.dataInicio) {
         query = query.gte('created_at', filters.dataInicio);
       }
       if (filters?.dataFim) {
-        query = query.lte('created_at', filters.dataFim + 'T23:59:59');
+        // Adicionar 1 dia ao fim para incluir todo o dia
+        const fimDate = new Date(filters.dataFim);
+        fimDate.setDate(fimDate.getDate() + 1);
+        query = query.lt('created_at', fimDate.toISOString().split('T')[0]);
       }
 
       const { data, error } = await query;
