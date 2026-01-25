@@ -178,7 +178,7 @@ export default function Notificacoes() {
     },
   });
 
-  // Buscar andamentos (movimentações) recentes
+  // Buscar andamentos (movimentações) recentes - usando created_at (data da captura)
   const { data: andamentosData = [] } = useQuery({
     queryKey: ["andamentos-notificacoes", periodoInicio, periodoFim],
     queryFn: async () => {
@@ -188,6 +188,7 @@ export default function Notificacoes() {
           id,
           descricao,
           data_movimentacao,
+          created_at,
           tipo,
           fonte,
           processo:processos!movimentacoes_processo_id_fkey(
@@ -196,16 +197,18 @@ export default function Notificacoes() {
             coordenacao_id
           )
         `)
-        .order("data_movimentacao", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(500);
       
-      // Filtrar por período
+      // Filtrar por período usando created_at (data da captura), não data_movimentacao
       if (periodoInicio) {
-        query = query.gte("data_movimentacao", format(periodoInicio, "yyyy-MM-dd"));
+        query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
       }
       if (periodoFim) {
-        query = query.lte("data_movimentacao", format(periodoFim, "yyyy-MM-dd"));
+        // Adiciona 1 dia para incluir todo o dia final
+        const fimMaisUmDia = new Date(periodoFim);
+        fimMaisUmDia.setDate(fimMaisUmDia.getDate() + 1);
+        query = query.lt("created_at", format(fimMaisUmDia, "yyyy-MM-dd"));
       }
       
       const { data, error } = await query;
@@ -1728,42 +1731,52 @@ export default function Notificacoes() {
               ) : (
                 <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
-                    {andamentosFiltrados.map((andamento) => (
-                      <Card key={andamento.id} className="bg-muted/30">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500">
-                                  {andamento.tipo || 'Movimentação'}
-                                </Badge>
-                                {andamento.fonte && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    {andamento.fonte}
+                    {andamentosFiltrados.map((andamento) => {
+                      const coordId = (andamento.processo as any)?.coordenacao_id;
+                      const coord = coordenacoes.find(c => c.id === coordId);
+                      return (
+                        <Card key={andamento.id} className="bg-muted/30">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap mb-2">
+                                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500">
+                                    {andamento.tipo || 'Movimentação'}
                                   </Badge>
-                                )}
+                                  {andamento.fonte && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {andamento.fonte}
+                                    </Badge>
+                                  )}
+                                  {coord && (
+                                    <Badge variant="outline" className="bg-primary/10 text-primary text-xs">
+                                      <Building2 className="w-3 h-3 mr-1" />
+                                      {coord.nome}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="font-medium line-clamp-2">{andamento.descricao}</p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  Processo: {(andamento.processo as any)?.numero || '-'}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  Capturado: {(andamento as any).created_at && format(new Date((andamento as any).created_at), "dd/MM/yyyy HH:mm")}
+                                </p>
                               </div>
-                              <p className="font-medium line-clamp-2">{andamento.descricao}</p>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                Processo: {(andamento.processo as any)?.numero || '-'}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-2">
-                                {andamento.data_movimentacao && format(new Date(andamento.data_movimentacao), "dd/MM/yyyy")}
-                              </p>
+                              {(andamento.processo as any)?.id && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => navigate(`/processos/${(andamento.processo as any).id}`)}
+                                >
+                                  Ver processo
+                                </Button>
+                              )}
                             </div>
-                            {(andamento.processo as any)?.id && (
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => navigate(`/processos/${(andamento.processo as any).id}`)}
-                              >
-                                Ver processo
-                              </Button>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               )}
