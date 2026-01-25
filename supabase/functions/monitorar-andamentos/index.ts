@@ -1371,6 +1371,32 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
             }
           }
 
+          // Disparar alerta para coordenação (Email + WhatsApp)
+          if (processo.coordenacao_id) {
+            try {
+              const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+              await fetch(`${supabaseUrl}/functions/v1/enviar-alerta-coordenacao`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({
+                  tipo_alerta: "andamentos",
+                  coordenacao_id: processo.coordenacao_id,
+                  titulo: `📋 Novos Andamentos: ${processo.numero}`,
+                  mensagem: `${insertedCount} novo(s) andamento(s) detectado(s) no processo ${processo.numero}.\n\nDetalhes:\n${newMovementDetails.slice(0, 3).join('\n')}${newMovementDetails.length > 3 ? `\n... e mais ${newMovementDetails.length - 3}` : ''}`,
+                  prioridade: "media",
+                  referencia_id: processo.id,
+                  processo_numero: processo.numero,
+                }),
+              });
+              console.log(`Alerta de andamentos enviado para coordenação ${processo.coordenacao_id}`);
+            } catch (alertError) {
+              console.error("Erro ao enviar alerta de andamentos:", alertError);
+            }
+          }
+
           results.details.push({
             processo: processo.numero,
             novosAndamentos: insertedCount,
