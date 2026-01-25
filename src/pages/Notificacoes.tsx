@@ -1711,7 +1711,7 @@ export default function Notificacoes() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-emerald-500" />
+                <Activity className="w-5 h-5 text-violet-600" />
                 Andamentos Recentes ({stats.andamentos})
               </CardTitle>
             </CardHeader>
@@ -1731,7 +1731,7 @@ export default function Notificacoes() {
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 flex-wrap mb-2">
-                                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500">
+                                  <Badge variant="outline" className="bg-violet-600/10 text-violet-600">
                                     {andamento.tipo || 'Movimentação'}
                                   </Badge>
                                   {andamento.fonte && (
