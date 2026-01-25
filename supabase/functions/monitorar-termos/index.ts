@@ -446,6 +446,49 @@ Deno.serve(async (req) => {
       return tarefaIds;
     }
 
+    // Helper para enviar alerta de coordenação (audiências e intimações)
+    async function enviarAlertaCoordenacao(
+      processoId: string | null | undefined,
+      tipoAlerta: 'audiencias' | 'intimacoes',
+      titulo: string,
+      mensagem: string,
+      processoNumero: string | null | undefined,
+      prioridade: string = 'alta'
+    ) {
+      if (!processoId) return;
+      
+      // Buscar coordenacao_id do processo
+      const { data: processo } = await supabase
+        .from('processos')
+        .select('coordenacao_id')
+        .eq('id', processoId)
+        .single();
+      
+      if (!processo?.coordenacao_id) return;
+      
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/enviar-alerta-coordenacao`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            tipo_alerta: tipoAlerta,
+            coordenacao_id: processo.coordenacao_id,
+            titulo,
+            mensagem,
+            prioridade,
+            referencia_id: processoId,
+            processo_numero: processoNumero || '',
+          }),
+        });
+        console.log(`Alerta de ${tipoAlerta} enviado para coordenação ${processo.coordenacao_id}`);
+      } catch (err) {
+        console.error(`Erro ao enviar alerta de ${tipoAlerta}:`, err);
+      }
+    }
+
     // Inserir audiências e criar tarefas APENAS para termos URGENTES
     let tarefasCriadas = 0;
     if (novasAudiencias.length > 0) {
@@ -465,6 +508,16 @@ Deno.serve(async (req) => {
           console.error('Error inserting audiencia:', error);
           continue;
         }
+
+        // Disparar alerta de coordenação para audiência detectada
+        await enviarAlertaCoordenacao(
+          audiencia.processo_id,
+          'audiencias',
+          `📅 Audiência Detectada: ${audiencia.processo_numero || 'Processo'}`,
+          `Audiência ${audiencia.tipo_audiencia || ''} detectada pelo Monitoração 360.\n\nData: ${audiencia.data_audiencia || 'A definir'}\nHora: ${audiencia.hora || 'A definir'}\n\nContexto:\n${audiencia.contexto?.substring(0, 200) || ''}`,
+          audiencia.processo_numero,
+          prioridadeTermo === 'urgente' ? 'urgente' : 'alta'
+        );
 
         // REGRA: só cria tarefa se o termo for URGENTE
         if (prioridadeTermo === 'urgente') {
@@ -521,6 +574,16 @@ Deno.serve(async (req) => {
           console.error('Error inserting intimacao:', error);
           continue;
         }
+
+        // Disparar alerta de coordenação para intimação detectada
+        await enviarAlertaCoordenacao(
+          intimacao.processo_id,
+          'intimacoes',
+          `📩 Intimação Detectada: ${intimacao.processo_numero || 'Processo'}`,
+          `${intimacao.tipo_intimacao || 'Intimação'} detectada pelo Monitoração 360.\n\nPrazo: ${intimacao.prazo_dias ? intimacao.prazo_dias + ' dias' : 'Verificar'}\nData Limite: ${intimacao.data_limite || 'A calcular'}\n\nContexto:\n${intimacao.contexto?.substring(0, 200) || intimacao.descricao?.substring(0, 200) || ''}`,
+          intimacao.processo_numero,
+          prioridadeTermo === 'urgente' ? 'urgente' : 'alta'
+        );
 
         // REGRA: só cria tarefa se o termo for URGENTE
         if (prioridadeTermo === 'urgente') {
