@@ -35,7 +35,7 @@ import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao";
 import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
-import { startOfDay, parseISO, isBefore, isAfter } from "date-fns";
+import { startOfDay, parseISO, isBefore, isAfter, format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -246,6 +246,9 @@ export function DashboardCoordenacoes({
   const { data: andamentosData = [] } = useQuery({
     queryKey: ["andamentos-coordenacao", periodoInicio, periodoFim],
     queryFn: async () => {
+      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
+      const fimDiaMaisUm = periodoFim ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd") : undefined;
+      
       let query = supabase
         .from("movimentacoes")
         .select(`
@@ -262,6 +265,14 @@ export function DashboardCoordenacoes({
         .neq("tipo", "Redistribuição")
         .order("created_at", { ascending: false })
         .limit(1000);
+      
+      // CRÍTICO: Aplicar filtros de período usando created_at (data da captura)
+      if (inicioDia) {
+        query = query.gte("created_at", inicioDia);
+      }
+      if (fimDiaMaisUm) {
+        query = query.lt("created_at", fimDiaMaisUm);
+      }
       
       const { data, error } = await query;
       if (error) throw error;
@@ -610,7 +621,7 @@ export function DashboardCoordenacoes({
                             <ChevronRight className="h-3 w-3" />
                           )}
                         </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-2 pt-1">
+                        <CollapsibleContent className="space-y-2 pt-1 max-h-[300px] overflow-y-auto pr-2">
                           {coord.membros.map((membro) => (
                             <div 
                               key={membro.id} 
