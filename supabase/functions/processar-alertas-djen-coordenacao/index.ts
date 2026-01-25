@@ -18,6 +18,7 @@ serve(async (req) => {
   const ZAPI_INSTANCE_ID = Deno.env.get('ZAPI_INSTANCE_ID');
   const ZAPI_TOKEN = Deno.env.get('ZAPI_TOKEN');
   const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN');
+  const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 
   // Permitir forceRun para testes manuais
   let forceRun = false;
@@ -33,6 +34,7 @@ serve(async (req) => {
   const nowBrt = new Date(nowUtc.getTime() - 3 * 60 * 60 * 1000);
   const horaBrt = nowBrt.toISOString().slice(11, 16); // "HH:MM"
   const dataBrt = nowBrt.toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const dataFormatada = dataBrt.split('-').reverse().join('/');
 
   console.log(`[processar-alertas-djen-coordenacao] Início: ${nowUtc.toISOString()} (BRT: ${nowBrt.toISOString()}) | Hora BRT: ${horaBrt} | forceRun: ${forceRun}`);
 
@@ -126,9 +128,25 @@ serve(async (req) => {
         continue;
       }
 
-      // Prosseguimos com o envio - o updated_at será atualizado após o envio
+      // Buscar configuração de alerta para saber se email/whatsapp estão habilitados
+      const { data: configAlerta } = await supabase
+        .from('config_alertas_coordenacao')
+        .select('email_habilitado, whatsapp_habilitado, tipos_alerta')
+        .eq('coordenacao_id', alerta.coordenacao_id)
+        .maybeSingle();
 
-      // Buscar telefones dos membros
+      const emailHabilitado = configAlerta?.email_habilitado ?? true;
+      const whatsappHabilitado = configAlerta?.whatsapp_habilitado ?? true;
+      const tiposAlerta = configAlerta?.tipos_alerta || [];
+      const djenHabilitado = tiposAlerta.length === 0 || tiposAlerta.includes('djen');
+
+      if (!djenHabilitado) {
+        console.log(`[processar-alertas-djen-coordenacao] Tipo DJEN não habilitado para coordenação ${alerta.coordenacao_id}`);
+        resultados.push({ alertaId: alerta.id, status: 'tipo_nao_habilitado' });
+        continue;
+      }
+
+      // Buscar dados dos membros (telefone E email)
       if (!alerta.membros_ids?.length) {
         console.log(`[processar-alertas-djen-coordenacao] Sem membros configurados para alerta ${alerta.id}`);
         resultados.push({ alertaId: alerta.id, status: 'sem_membros' });
@@ -137,7 +155,7 @@ serve(async (req) => {
 
       const { data: membros, error: membrosError } = await supabase
         .from('profiles')
-        .select('id, nome, telefone')
+        .select('id, nome, telefone, email')
         .in('id', alerta.membros_ids);
 
       if (membrosError || !membros?.length) {
@@ -148,64 +166,107 @@ serve(async (req) => {
 
       const coordenacaoNome = (alerta.coordenacoes as any)?.nome || 'Coordenação';
 
-      // Preparar mensagem
-      const mensagem = `📋 *Resumo DJEN - ${coordenacaoNome}*\n\n` +
-        `📅 Data: ${dataBrt.split('-').reverse().join('/')}\n` +
+      // Preparar mensagem WhatsApp
+      const mensagemWhatsapp = `📋 *Resumo DJEN - ${coordenacaoNome}*\n\n` +
+        `📅 Data: ${dataFormatada}\n` +
         `📰 Total de publicações: ${publicacoes.length}\n\n` +
         `📝 *Processos encontrados:*\n` +
         publicacoes.slice(0, 10).map(p => `• ${p.processo_numero || 'N/A'}`).join('\n') +
         (publicacoes.length > 10 ? `\n... e mais ${publicacoes.length - 10} publicações` : '') +
         `\n\n🔗 Acesse o sistema para ver os detalhes completos.`;
 
+      // Preparar HTML do Email
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+            <h2 style="margin: 0;">📋 Resumo DJEN - ${coordenacaoNome}</h2>
+            <p style="margin: 8px 0 0 0; opacity: 0.9;">Data: ${dataFormatada}</p>
+          </div>
+          <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+            <div style="background-color: #EFF6FF; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+              <p style="margin: 0; font-size: 18px;"><strong>${publicacoes.length}</strong> publicações encontradas hoje</p>
+            </div>
+            <h3 style="margin: 16px 0 8px 0;">Processos:</h3>
+            <ul style="margin: 0; padding-left: 20px;">
+              ${publicacoes.slice(0, 15).map(p => `<li style="margin-bottom: 4px;">${p.processo_numero || 'N/A'}</li>`).join('')}
+              ${publicacoes.length > 15 ? `<li style="margin-top: 8px; color: #6b7280;">... e mais ${publicacoes.length - 15} publicações</li>` : ''}
+            </ul>
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />
+            <p style="margin: 0; font-size: 12px; color: #9ca3af;">Este email foi enviado automaticamente pelo Juris Control Pro.</p>
+          </div>
+        </div>
+      `;
+
       // Enviar para cada membro
-      let enviados = 0;
+      let whatsappEnviados = 0;
+      let emailsEnviados = 0;
+
       for (const membro of membros) {
-        if (!membro.telefone) {
-          console.log(`[processar-alertas-djen-coordenacao] Membro ${membro.nome} sem telefone`);
-          continue;
-        }
-
-        // Formatar telefone
-        let telefone = membro.telefone.replace(/\D/g, '');
-        if (!telefone.startsWith('55')) {
-          telefone = '55' + telefone;
-        }
-        // Garantir 9 dígitos após DDD
-        if (telefone.length === 12 && telefone.startsWith('55')) {
-          const ddd = telefone.slice(2, 4);
-          const numero = telefone.slice(4);
-          telefone = `55${ddd}9${numero}`;
-        }
-
-        if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
-          console.error('Credenciais Z-API não configuradas');
-          continue;
-        }
-
-        const zapiUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`;
-
-        try {
-          const zapiRes = await fetch(zapiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Client-Token': ZAPI_CLIENT_TOKEN,
-            },
-            body: JSON.stringify({
-              phone: telefone,
-              message: mensagem,
-            }),
-          });
-
-          if (zapiRes.ok) {
-            console.log(`[processar-alertas-djen-coordenacao] Mensagem enviada para ${membro.nome} (${telefone})`);
-            enviados++;
-          } else {
-            const errText = await zapiRes.text();
-            console.error(`[processar-alertas-djen-coordenacao] Erro Z-API para ${telefone}:`, errText);
+        // Enviar WhatsApp
+        if (whatsappHabilitado && membro.telefone && ZAPI_INSTANCE_ID && ZAPI_TOKEN) {
+          let telefone = membro.telefone.replace(/\D/g, '');
+          if (!telefone.startsWith('55')) {
+            telefone = '55' + telefone;
           }
-        } catch (zapiErr) {
-          console.error(`[processar-alertas-djen-coordenacao] Erro ao enviar para ${telefone}:`, zapiErr);
+          if (telefone.length === 12 && telefone.startsWith('55')) {
+            const ddd = telefone.slice(2, 4);
+            const numero = telefone.slice(4);
+            telefone = `55${ddd}9${numero}`;
+          }
+
+          try {
+            const zapiUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`;
+            const zapiRes = await fetch(zapiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Client-Token': ZAPI_CLIENT_TOKEN || '',
+              },
+              body: JSON.stringify({
+                phone: telefone,
+                message: mensagemWhatsapp,
+              }),
+            });
+
+            if (zapiRes.ok) {
+              console.log(`[processar-alertas-djen-coordenacao] WhatsApp enviado para ${membro.nome}`);
+              whatsappEnviados++;
+            } else {
+              const errText = await zapiRes.text();
+              console.error(`[processar-alertas-djen-coordenacao] Erro Z-API para ${telefone}:`, errText);
+            }
+          } catch (zapiErr) {
+            console.error(`[processar-alertas-djen-coordenacao] Erro ao enviar WhatsApp:`, zapiErr);
+          }
+        }
+
+        // Enviar Email
+        if (emailHabilitado && membro.email && RESEND_API_KEY) {
+          try {
+            const emailRes = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${RESEND_API_KEY}`,
+              },
+              body: JSON.stringify({
+                from: 'Juris Control <alerta@juriscontrol.adv.br>',
+                to: [membro.email],
+                subject: `📋 Resumo DJEN - ${coordenacaoNome} - ${dataFormatada}`,
+                html: emailHtml,
+              }),
+            });
+
+            if (emailRes.ok) {
+              console.log(`[processar-alertas-djen-coordenacao] Email enviado para ${membro.email}`);
+              emailsEnviados++;
+            } else {
+              const errText = await emailRes.text();
+              console.error(`[processar-alertas-djen-coordenacao] Erro Resend para ${membro.email}:`, errText);
+            }
+          } catch (emailErr) {
+            console.error(`[processar-alertas-djen-coordenacao] Erro ao enviar email:`, emailErr);
+          }
         }
       }
 
@@ -220,7 +281,8 @@ serve(async (req) => {
         coordenacao: coordenacaoNome,
         status: 'enviado',
         publicacoes: publicacoes.length,
-        membrosNotificados: enviados,
+        whatsappEnviados,
+        emailsEnviados,
       });
     }
 
