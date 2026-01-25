@@ -179,10 +179,11 @@ export function useMonitoringDashboard() {
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
 
-      // Movimentações (andamentos) hoje
+      // Movimentações (andamentos) hoje - EXCLUIR redistribuições
       const { count: andamentosNovos } = await supabase
         .from('movimentacoes')
         .select('*', { count: 'exact', head: true })
+        .neq('tipo', 'Redistribuição')
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
 
