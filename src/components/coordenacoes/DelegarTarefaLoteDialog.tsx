@@ -108,15 +108,31 @@ export function DelegarTarefaLoteDialog({
         status: "pendente" as const,
       }));
 
-      const { error } = await supabase
+      const { data: createdTasks, error } = await supabase
         .from("tarefas")
-        .insert(tasks);
+        .insert(tasks)
+        .select("id, titulo, data_vencimento, prioridade, processo_id, responsavel_id");
 
       if (error) throw error;
 
+      // Disparar notificação para cada tarefa criada (fire and forget)
+      createdTasks?.forEach((tarefa) => {
+        supabase.functions.invoke("notificar-tarefa-criada", {
+          body: {
+            tarefa_id: tarefa.id,
+            titulo: tarefa.titulo,
+            descricao: values.descricao,
+            data_vencimento: tarefa.data_vencimento,
+            prioridade: tarefa.prioridade,
+            processo_id: tarefa.processo_id,
+            responsavel_id: tarefa.responsavel_id,
+          },
+        }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
+      });
+
       toast({ 
         title: "Tarefas delegadas!", 
-        description: `${values.processos_ids.length} tarefa(s) criada(s) com sucesso.` 
+        description: `${values.processos_ids.length} tarefa(s) criada(s) com sucesso.`
       });
       
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
