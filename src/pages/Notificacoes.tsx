@@ -32,6 +32,7 @@ import {
   Search,
   X,
   CalendarDays,
+  FileText,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
@@ -65,6 +66,7 @@ export default function Notificacoes() {
   const [showTarefas, setShowTarefas] = useState(true);
   const [showAudiencias, setShowAudiencias] = useState(true);
   const [showIntimacoes, setShowIntimacoes] = useState(true);
+  const [showAndamentos, setShowAndamentos] = useState(true);
   
   const navigate = useNavigate();
 
@@ -168,6 +170,42 @@ export default function Notificacoes() {
       
       if (statusFilter !== "todas") {
         query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar andamentos (movimentações) recentes
+  const { data: andamentosData = [] } = useQuery({
+    queryKey: ["andamentos-notificacoes", periodoInicio, periodoFim],
+    queryFn: async () => {
+      let query = supabase
+        .from("movimentacoes")
+        .select(`
+          id,
+          descricao,
+          data_movimentacao,
+          tipo,
+          fonte,
+          processo:processos!movimentacoes_processo_id_fkey(
+            id,
+            numero,
+            coordenacao_id
+          )
+        `)
+        .order("data_movimentacao", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(500);
+      
+      // Filtrar por período
+      if (periodoInicio) {
+        query = query.gte("data_movimentacao", format(periodoInicio, "yyyy-MM-dd"));
+      }
+      if (periodoFim) {
+        query = query.lte("data_movimentacao", format(periodoFim, "yyyy-MM-dd"));
       }
       
       const { data, error } = await query;
@@ -324,6 +362,15 @@ export default function Notificacoes() {
     });
   }, [intimacoesPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim]);
 
+  // Filter andamentos by coordination
+  const andamentosFiltrados = useMemo(() => {
+    return andamentosData.filter(a => {
+      if (coordenacaoId !== "todas" && (a.processo as any)?.coordenacao_id !== coordenacaoId) return false;
+      if (!matchesSearch(a.descricao) && !matchesSearch((a.processo as any)?.numero) && !matchesSearch(a.tipo)) return false;
+      return true;
+    });
+  }, [andamentosData, coordenacaoId, searchQuery]);
+
   // Stats - recalculated based on toggle filters
   const stats = useMemo(() => {
     const djen = showDjen ? publicacoesFiltradas.length : 0;
@@ -335,6 +382,7 @@ export default function Notificacoes() {
     const tarefas = showTarefas ? tarefasFiltradas.length : 0;
     const audiencias = showAudiencias ? audienciasFiltradas.length : 0;
     const intimacoes = showIntimacoes ? intimacoesFiltradas.length : 0;
+    const andamentos = showAndamentos ? andamentosFiltrados.length : 0;
     
     return {
       djen: publicacoesFiltradas.length,
@@ -346,13 +394,14 @@ export default function Notificacoes() {
       tarefas: tarefasFiltradas.length,
       audiencias: audienciasFiltradas.length,
       intimacoes: intimacoesFiltradas.length,
-      total: djen + distribuicoes + alertas360 + redistribuicoes + prazos + notifs + tarefas + audiencias + intimacoes,
-      filteredTotal: djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas + audiencias + intimacoes
+      andamentos: andamentosFiltrados.length,
+      total: djen + distribuicoes + alertas360 + redistribuicoes + prazos + notifs + tarefas + audiencias + intimacoes + andamentos,
+      filteredTotal: djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas + audiencias + intimacoes + andamentos
     };
   }, [
     publicacoesFiltradas, distribuicoesFiltradas, alertasFiltrados, redistribuicoesFiltradas,
-    prazosFiltrados, notificacoesFiltradas, tarefasFiltradas, audienciasFiltradas, intimacoesFiltradas,
-    showDjen, showDistribuicoes, showAlertas360, showRedistribuicoes, showPrazos, showTarefas, showAudiencias, showIntimacoes
+    prazosFiltrados, notificacoesFiltradas, tarefasFiltradas, audienciasFiltradas, intimacoesFiltradas, andamentosFiltrados,
+    showDjen, showDistribuicoes, showAlertas360, showRedistribuicoes, showPrazos, showTarefas, showAudiencias, showIntimacoes, showAndamentos
   ]);
 
   const hoje = startOfDay(new Date());
@@ -361,7 +410,7 @@ export default function Notificacoes() {
     (periodoFim && periodoFim.getTime() !== hoje.getTime()) || 
     coordenacaoId !== "todas" ||
     !showDjen || !showDistribuicoes || !showAlertas360 || !showRedistribuicoes || 
-    !showPrazos || !showTarefas || !showAudiencias || !showIntimacoes;
+    !showPrazos || !showTarefas || !showAudiencias || !showIntimacoes || !showAndamentos;
 
   const clearAllFilters = () => {
     setSearchQuery("");
@@ -378,6 +427,7 @@ export default function Notificacoes() {
     setShowTarefas(true);
     setShowAudiencias(true);
     setShowIntimacoes(true);
+    setShowAndamentos(true);
   };
 
   const getIconByType = (tipo: string) => {
@@ -710,13 +760,30 @@ export default function Notificacoes() {
                 {stats.intimacoes}
               </Badge>
             </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                showAndamentos && "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
+              )}
+              onClick={() => setShowAndamentos(prev => !prev)}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Andamentos
+              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAndamentos && "bg-emerald-500 text-white")}>
+                {stats.andamentos}
+              </Badge>
+            </Button>
           </div>
         </div>
       </div>
 
 
       {/* Cards de resumo por tipo */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-12 gap-3 mb-6">
         <Card 
           className={cn(
             "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
@@ -897,6 +964,26 @@ export default function Notificacoes() {
         <Card 
           className={cn(
             "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
+            activeTab === "andamentos" && "ring-2 ring-emerald-500"
+          )}
+          onClick={() => setActiveTab("andamentos")}
+        >
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="p-1.5 rounded-lg bg-emerald-500/10">
+                <FileText className="w-4 h-4 text-emerald-500" />
+              </div>
+              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500 text-xs px-1.5">
+                {stats.andamentos}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs font-medium">Andamentos</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
             activeTab === "todos" && "ring-2 ring-primary"
           )}
           onClick={() => setActiveTab("todos")}
@@ -948,6 +1035,9 @@ export default function Notificacoes() {
           </TabsTrigger>
           <TabsTrigger value="intimacoes" className="data-[state=active]:bg-background">
             Intimações
+          </TabsTrigger>
+          <TabsTrigger value="andamentos" className="data-[state=active]:bg-background">
+            Andamentos
           </TabsTrigger>
         </TabsList>
 
@@ -1610,6 +1700,66 @@ export default function Notificacoes() {
                             >
                               Ver detalhes
                             </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Andamentos */}
+        <TabsContent value="andamentos">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-emerald-500" />
+                Andamentos Recentes ({stats.andamentos})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {andamentosFiltrados.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum andamento encontrado no período
+                </div>
+              ) : (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3">
+                    {andamentosFiltrados.map((andamento) => (
+                      <Card key={andamento.id} className="bg-muted/30">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500">
+                                  {andamento.tipo || 'Movimentação'}
+                                </Badge>
+                                {andamento.fonte && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {andamento.fonte}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="font-medium line-clamp-2">{andamento.descricao}</p>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Processo: {(andamento.processo as any)?.numero || '-'}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {andamento.data_movimentacao && format(new Date(andamento.data_movimentacao), "dd/MM/yyyy")}
+                              </p>
+                            </div>
+                            {(andamento.processo as any)?.id && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => navigate(`/processos/${(andamento.processo as any).id}`)}
+                              >
+                                Ver processo
+                              </Button>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
