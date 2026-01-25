@@ -313,6 +313,26 @@ export function useCreateTarefa() {
         .single();
 
       if (error) throw error;
+
+      // Disparar notificação para o responsável via edge function (fire and forget)
+      if (data && tarefa.responsavel_id) {
+        try {
+          supabase.functions.invoke("notificar-tarefa-criada", {
+            body: {
+              tarefa_id: data.id,
+              titulo: tarefa.titulo,
+              descricao: tarefa.descricao,
+              data_vencimento: tarefa.data_vencimento,
+              prioridade: tarefa.prioridade,
+              processo_id: tarefa.processo_id,
+              responsavel_id: tarefa.responsavel_id,
+            },
+          }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
+        } catch {
+          // Ignora erro de notificação, não impede a criação
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
