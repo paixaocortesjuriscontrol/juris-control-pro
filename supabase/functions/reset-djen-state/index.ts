@@ -74,24 +74,27 @@
         console.log(`[Reset DJEN] ${execAtivas?.length || 0} execuções canceladas`)
      }
  
-     // 4. RESETAR BRUTALMENTE a configuração do DJEN (força idle total)
+      // 4. RESETAR BRUTALMENTE - ZERAR TUDO NO METADATA
      const { error: configError } = await supabase
        .from('configuracoes_monitoramento')
        .update({
          metadata: {
            status: 'idle',
-           next_offset: 0,
-           current: 0,
-            total: 0,
-           percentage: 0,
-           continuingRun: false,
            cancelado: false,
-           has_more: false,
-           processados: 0,
-           novas: 0,
-           duplicatas: 0,
-           descartadas: 0,
-           erros: 0,
+            paused_globally: false,
+            continuingRun: false,
+            // ZERAR TODOS os contadores
+            next_offset: 0,
+            current: 0,
+            total: 0,
+            percentage: 0,
+            processados: 0,
+            novas: 0,
+            duplicatas: 0,
+            descartadas: 0,
+            erros: 0,
+            has_more: false,
+            // Limpar run IDs
             djen_run: null,
             last_run: null,
             last_complete_run: null
