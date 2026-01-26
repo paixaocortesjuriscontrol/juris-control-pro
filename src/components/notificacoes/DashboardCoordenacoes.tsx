@@ -589,7 +589,7 @@ export function DashboardCoordenacoes({
           {/* Tarefas - vai para agenda */}
           <Button
             variant="outline"
-            onClick={() => navigate("/agenda")}
+            onClick={() => navigate("/minha-agenda")}
             className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
           >
             <ListTodo className="h-5 w-5 text-green-600" />
@@ -604,7 +604,7 @@ export function DashboardCoordenacoes({
           {/* Prazos - vai para agenda */}
           <Button
             variant="outline"
-            onClick={() => navigate("/agenda")}
+            onClick={() => navigate("/minha-agenda")}
             className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
           >
             <Clock className="h-5 w-5 text-red-600" />
