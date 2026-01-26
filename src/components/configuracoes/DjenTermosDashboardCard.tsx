@@ -148,25 +148,38 @@ export function DjenTermosDashboardCard({
 
   const [limpando, setLimpando] = useState(false);
 
-  const percent = useMemo(() => {
-    if (progresso.totalMonitoramentos <= 0) return 0;
-    return Math.round((progresso.monitoramentoAtual / progresso.totalMonitoramentos) * 100);
-  }, [progresso.monitoramentoAtual, progresso.totalMonitoramentos]);
-
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
 
-  // Determinar status real baseado na busca direta
-  const currentStatus: MonitoringStatus = executando 
+  // Verificar se há execução ativa no backend (edge function)
+  const backendRunning = md.status === 'em_andamento' && !md.cancelado;
+  const backendTotal = md.total ?? 0;
+  const backendCurrent = md.current ?? 0;
+  
+  // Usar dados do backend quando a execução é server-side, senão usar client-side
+  const effectiveTotal = backendRunning && backendTotal > 0 
+    ? backendTotal 
+    : progresso.totalMonitoramentos;
+  const effectiveCurrent = backendRunning 
+    ? backendCurrent 
+    : progresso.monitoramentoAtual;
+  
+  const percent = useMemo(() => {
+    if (effectiveTotal <= 0) return 0;
+    return Math.round((effectiveCurrent / effectiveTotal) * 100);
+  }, [effectiveCurrent, effectiveTotal]);
+
+  // Determinar status real - priorizar backend sobre client-side
+  const isRunning = executando || backendRunning;
+  const currentStatus: MonitoringStatus = isRunning
     ? 'running' 
-    : progresso.status === 'concluido' 
+    : progresso.status === 'concluido' || md.status === 'concluido'
       ? 'completed' 
-      : progresso.status === 'erro' 
+      : progresso.status === 'erro' || md.status === 'falhou'
         ? 'failed' 
         : stats.status;
 
   const statusConfig = STATUS_CONFIG[currentStatus];
-  const isRunning = executando;
 
   const handleExecutar = async () => {
     if (executando || isExecuting) return;
@@ -217,17 +230,20 @@ export function DjenTermosDashboardCard({
     }
   };
 
-  const canExecute = !executando && !isExecuting && currentStatus !== 'timeout';
-  const canCancel = executando;
+  const canExecute = !isRunning && !isExecuting && currentStatus !== 'timeout';
+  const canCancel = isRunning;
 
-  // Métricas reais
-  const processados = progresso.monitoramentoAtual;
-  const total = progresso.totalMonitoramentos;
-  const encontrados = stats.todayStats.found ?? 0;
-  const descartadas = stats.todayStats.descartadas ?? 0;
+  // Métricas reais - usar dados do backend quando disponíveis
+  const processados = effectiveCurrent;
+  const total = effectiveTotal;
+  const encontrados = md.djen_run?.totals?.novas ?? stats.todayStats.found ?? 0;
+  const descartadas = md.djen_run?.totals?.descartadas ?? stats.todayStats.descartadas ?? 0;
 
-  // Tempo - usar tempoDecorrido do progresso (que agora é persistido)
-  const tempoSegundos = progresso.tempoDecorrido ?? 0;
+  // Tempo - usar do backend quando running server-side
+  const backendDuration = md.djen_run?.totals?.duracao_s ?? 0;
+  const tempoSegundos = backendRunning && backendDuration > 0
+    ? backendDuration
+    : (progresso.tempoDecorrido ?? 0);
   const tempoFormatado = tempoSegundos > 0 
     ? formatDuration(tempoSegundos) 
     : formatDuration(stats.elapsedSeconds);
