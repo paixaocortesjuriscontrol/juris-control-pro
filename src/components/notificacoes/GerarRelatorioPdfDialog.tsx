@@ -79,6 +79,13 @@ export function GerarRelatorioPdfDialog({
   const [progress, setProgress] = useState(0);
   const printRef = useRef<HTMLDivElement>(null);
 
+  // Filtros de tipo de notificação
+  const [tiposDjen, setTiposDjen] = useState(true);
+  const [tiposRedistribuicoes, setTiposRedistribuicoes] = useState(true);
+  const [tiposAndamentos, setTiposAndamentos] = useState(true);
+  const [tiposAudiencias, setTiposAudiencias] = useState(true);
+  const [tiposIntimacoes, setTiposIntimacoes] = useState(true);
+
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
   const { data: redistribuicoesData = [] } = useRedistribuicoes({
@@ -326,34 +333,39 @@ export function GerarRelatorioPdfDialog({
         (i.processo as any)?.coordenacao_id === coord.id
       );
 
-      // Total: IGUAL AO DASHBOARD - soma tudo
-      // Dashboard usa: djen + distribuicoes + alertas360 + redistribuicoes + andamentos + prazos + tarefas + audiencias + intimacoes
-      // PDF simplificado: djen + redistribuicoes + andamentos + audiencias + intimacoes
-      const totalAlertas = djenItems.length + redistItems.length + andItems.length + audItems.length + intItems.length;
+      // Aplicar filtro de tipos selecionados
+      const djenCount = tiposDjen ? djenItems.length : 0;
+      const redistCount = tiposRedistribuicoes ? redistItems.length : 0;
+      const andCount = tiposAndamentos ? andItems.length : 0;
+      const audCount = tiposAudiencias ? audItems.length : 0;
+      const intCount = tiposIntimacoes ? intItems.length : 0;
+
+      const totalAlertas = djenCount + redistCount + andCount + audCount + intCount;
 
       return {
         id: coord.id,
         nome: coord.nome,
-        djen: djenItems.length,
-        redistribuicoes: redistItems.length,
-        andamentos: andItems.length,
-        audiencias: audItems.length,
-        intimacoes: intItems.length,
+        djen: djenCount,
+        redistribuicoes: redistCount,
+        andamentos: andCount,
+        audiencias: audCount,
+        intimacoes: intCount,
         total: totalAlertas,
         detalhes: {
-          djen: djenItems.slice(0, 50),
-          redistribuicoes: redistItems.slice(0, 50),
-          andamentos: andItems.slice(0, 100),
-          audiencias: audItems.slice(0, 50),
-          intimacoes: intItems.slice(0, 50),
+          djen: tiposDjen ? djenItems.slice(0, 50) : [],
+          redistribuicoes: tiposRedistribuicoes ? redistItems.slice(0, 50) : [],
+          andamentos: tiposAndamentos ? andItems.slice(0, 100) : [],
+          audiencias: tiposAudiencias ? audItems.slice(0, 50) : [],
+          intimacoes: tiposIntimacoes ? intItems.slice(0, 50) : [],
         },
       };
     }).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
-  }, [
-    coordenacoes, selectedCoordenacoes, selectAll, publicacoes, monitoramentosDjen,
-    redistribuicoesData, andamentosData, audienciasPendentes, intimacoesPendentes, 
-    statusFilter, matchesPeriodo, matchesSearch
-  ]);
+    }, [
+      coordenacoes, selectedCoordenacoes, selectAll, publicacoes, monitoramentosDjen,
+      redistribuicoesData, andamentosData, audienciasPendentes, intimacoesPendentes, 
+      statusFilter, matchesPeriodo, matchesSearch,
+      tiposDjen, tiposRedistribuicoes, tiposAndamentos, tiposAudiencias, tiposIntimacoes
+    ]);
 
   const totalGeral = useMemo(() => {
     return reportData.reduce((acc, c) => ({
@@ -582,6 +594,48 @@ export function GerarRelatorioPdfDialog({
             </ScrollArea>
           </div>
 
+          {/* Seleção de Tipos de Notificação */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Tipos de Notificação</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 border rounded-md">
+              <div
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                onClick={() => setTiposDjen(!tiposDjen)}
+              >
+                <Checkbox checked={tiposDjen} />
+                <span className="text-sm">Publicações DJEN</span>
+              </div>
+              <div
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                onClick={() => setTiposRedistribuicoes(!tiposRedistribuicoes)}
+              >
+                <Checkbox checked={tiposRedistribuicoes} />
+                <span className="text-sm">Redistribuições</span>
+              </div>
+              <div
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                onClick={() => setTiposAndamentos(!tiposAndamentos)}
+              >
+                <Checkbox checked={tiposAndamentos} />
+                <span className="text-sm">Andamentos</span>
+              </div>
+              <div
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                onClick={() => setTiposAudiencias(!tiposAudiencias)}
+              >
+                <Checkbox checked={tiposAudiencias} />
+                <span className="text-sm">Audiências</span>
+              </div>
+              <div
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                onClick={() => setTiposIntimacoes(!tiposIntimacoes)}
+              >
+                <Checkbox checked={tiposIntimacoes} />
+                <span className="text-sm">Intimações</span>
+              </div>
+            </div>
+          </div>
+
           {/* Resumo */}
           <div className="bg-muted/30 rounded-lg p-4">
             <h4 className="text-sm font-medium mb-3">Resumo do Relatório</h4>
@@ -591,7 +645,7 @@ export function GerarRelatorioPdfDialog({
                 <div className="text-xs text-muted-foreground">Coordenações</div>
               </div>
               <div className="text-center p-2 bg-background rounded-md">
-                <div className="text-2xl font-bold text-amber-600">{totalGeral.total}</div>
+                <div className="text-2xl font-bold text-primary">{totalGeral.total}</div>
                 <div className="text-xs text-muted-foreground">Total Alertas</div>
               </div>
               <div className="text-center p-2 bg-background rounded-md">
