@@ -1324,64 +1324,6 @@ serve(async (req) => {
     console.log(`  Body: ${JSON.stringify(body).slice(0, 200)}`);
     const startTime = Date.now();
 
-    // =========================================================================
-    // EARLY CANCELLATION/INACTIVE CHECK - Verificar ANTES de qualquer processamento
-    // =========================================================================
-    const { data: configData } = await supabase
-      .from('configuracoes_monitoramento')
-      .select('id, ativo, metadata')
-      .eq('tipo', 'djen')
-      .is('coordenacao_id', null)
-      .maybeSingle();
-
-    const configMeta = (configData?.metadata as Record<string, any>) || {};
-    const isInactive = configData?.ativo === false;
-    const isCancelled = configMeta?.cancelado === true;
-    const isPausedGlobally = configMeta?.paused_globally === true;
-
-    if (isInactive || isCancelled || isPausedGlobally) {
-      const reason = isInactive ? 'DESATIVADO' : isCancelled ? 'CANCELADO' : 'PAUSADO';
-      console.log(`[DJEN] Monitoramento ${reason}, abortando execução imediatamente`);
-      
-      // Limpar flags e marcar como idle
-      if (configData?.id) {
-        await supabase
-          .from('configuracoes_monitoramento')
-          .update({
-            metadata: {
-              ...configMeta,
-              cancelado: false,
-              continuingRun: false,
-              status: 'idle',
-              has_more: false,
-            },
-          })
-          .eq('id', configData.id);
-      }
-
-      // Cancelar execução se houver
-      if (execucaoId) {
-        await supabase
-          .from('execucoes_agendadas')
-          .update({
-            status: 'cancelado',
-            finalizado_em: new Date().toISOString(),
-          })
-          .eq('id', execucaoId);
-      }
-
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          paused: isPausedGlobally,
-          inactive: isInactive,
-          cancelled: isCancelled,
-          message: `Monitoramento DJEN está ${reason.toLowerCase()}. Reative para executar.` 
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     console.log(`Counting active monitoramentos...`);
     const { count: totalActive, error: countError } = await supabase
       .from('monitoramentos_djen')
@@ -1931,60 +1873,35 @@ serve(async (req) => {
 
     // Auto-continuation
     if (completeRun && hasMore && typeof nextOffset === 'number') {
-      // CANCELAMENTO PERSISTENTE: verificar flag E ativo antes de disparar próximo lote
+      // CANCELAMENTO PERSISTENTE: verificar flag antes de disparar próximo lote
       const { data: freshConfig } = await supabase
         .from('configuracoes_monitoramento')
-        .select('ativo, metadata')
+        .select('metadata')
         .eq('tipo', 'djen')
-        .is('coordenacao_id', null)
         .maybeSingle();
 
-      const freshMeta = (freshConfig?.metadata as Record<string, any>) || {};
-      const wasCancelled = freshMeta?.cancelado === true;
-      const isNowInactive = freshConfig?.ativo === false;
-      const isPausedNow = freshMeta?.paused_globally === true;
-      const shouldStop = wasCancelled || isNowInactive || isPausedNow;
+      const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
 
-      if (shouldStop) {
-        const reason = wasCancelled ? 'Cancelado manualmente' : isNowInactive ? 'Monitoramento desativado' : 'Pausado globalmente';
-        console.log(`[DJEN] ${reason}, parando auto-continuação`);
+      if (wasCancelled) {
+        console.log('[DJEN] Cancelamento detectado, parando auto-continuação');
+        const currentFreshMeta = (freshConfig?.metadata as Record<string, any>) || {};
         
         // Limpa flag e atualiza status
         await supabase
           .from('configuracoes_monitoramento')
           .update({
-            metadata: { 
-              ...freshMeta, 
-              cancelado: false, 
-              continuingRun: false,
-              status: 'cancelado', 
-              next_offset: null, 
-              has_more: false, 
-              djen_run: null 
-            },
+            metadata: { ...currentFreshMeta, cancelado: false, status: 'cancelado', next_offset: null, has_more: false, djen_run: null },
           })
-          .eq('tipo', 'djen')
-          .is('coordenacao_id', null);
+          .eq('tipo', 'djen');
 
         // Atualiza o run para cancelado
         await supabase.from('djen_runs')
           .update({
             status: 'cancelado',
             finalizado_em: nowIso,
-            motivo_erro: reason,
+            motivo_erro: 'Cancelado manualmente pelo usuário',
           })
           .eq('run_id', runId);
-
-        // Cancelar execução agendada se existir
-        if (execucaoId) {
-          await supabase
-            .from('execucoes_agendadas')
-            .update({
-              status: 'cancelado',
-              finalizado_em: nowIso,
-            })
-            .eq('id', execucaoId);
-        }
       } else {
         const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen?offset=${nextOffset}`;
         const nextBody = {
