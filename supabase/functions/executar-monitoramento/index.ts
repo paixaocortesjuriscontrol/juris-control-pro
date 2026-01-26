@@ -295,7 +295,7 @@ Deno.serve(async (req) => {
             metadata: {
               ...(metaCfg || {}),
               status: 'idle',
-              continuingRun: true,
+            continuingRun: false,
               last_stop_reason: 'falhou',
               last_stop_at: new Date().toISOString(),
               last_error: lastError,
