@@ -4,10 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Activity,
   ArrowLeft,
   Building2,
+  CalendarDays,
   Clock,
   FileWarning,
   Gavel,
@@ -30,7 +33,7 @@ import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao";
 import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
-import { startOfDay, parseISO, isBefore, isAfter, format, formatDistanceToNow } from "date-fns";
+import { startOfDay, parseISO, isBefore, isAfter, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 
@@ -48,12 +51,17 @@ export function CoordenacaoDetalhesView({
   coordenacaoId,
   coordenacaoNome,
   onBack,
-  periodoInicio,
-  periodoFim,
+  periodoInicio: periodoInicioExterno,
+  periodoFim: periodoFimExterno,
   statusFilter = "pendente",
   searchQuery = "",
 }: Props) {
   const navigate = useNavigate();
+  
+  // Estado local para filtros de data (inicializa com valores externos)
+  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(periodoInicioExterno);
+  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(periodoFimExterno);
+  
   const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
   const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
   const { alertas } = useMonitoramento360();
@@ -88,7 +96,7 @@ export function CoordenacaoDetalhesView({
   }, [searchQuery]);
 
   const { data: tarefasPendentes = [] } = useQuery({
-    queryKey: ["tarefas-coordenacao-detalhes", coordenacaoId, statusFilter],
+    queryKey: ["tarefas-coordenacao-detalhes", coordenacaoId, statusFilter, periodoInicio, periodoFim],
     queryFn: async () => {
       let query = supabase
         .from("tarefas")
@@ -106,12 +114,16 @@ export function CoordenacaoDetalhesView({
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []).filter((t: any) => t.processo?.coordenacao_id === coordenacaoId);
+      return (data || []).filter((t: any) => {
+        if (t.processo?.coordenacao_id !== coordenacaoId) return false;
+        if (!matchesPeriodo(t.data_vencimento)) return false;
+        return true;
+      });
     },
   });
 
   const { data: audienciasPendentes = [] } = useQuery({
-    queryKey: ["audiencias-coordenacao-detalhes", coordenacaoId, statusFilter],
+    queryKey: ["audiencias-coordenacao-detalhes", coordenacaoId, statusFilter, periodoInicio, periodoFim],
     queryFn: async () => {
       let query = supabase
         .from("audiencias_detectadas")
@@ -127,12 +139,16 @@ export function CoordenacaoDetalhesView({
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []).filter((a: any) => a.processo?.coordenacao_id === coordenacaoId);
+      return (data || []).filter((a: any) => {
+        if (a.processo?.coordenacao_id !== coordenacaoId) return false;
+        if (!matchesPeriodo(a.data_audiencia)) return false;
+        return true;
+      });
     },
   });
 
   const { data: intimacoesPendentes = [] } = useQuery({
-    queryKey: ["intimacoes-coordenacao-detalhes", coordenacaoId, statusFilter],
+    queryKey: ["intimacoes-coordenacao-detalhes", coordenacaoId, statusFilter, periodoInicio, periodoFim],
     queryFn: async () => {
       let query = supabase
         .from("intimacoes_detectadas")
@@ -148,7 +164,11 @@ export function CoordenacaoDetalhesView({
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []).filter((i: any) => i.processo?.coordenacao_id === coordenacaoId);
+      return (data || []).filter((i: any) => {
+        if (i.processo?.coordenacao_id !== coordenacaoId) return false;
+        if (!matchesPeriodo(i.data_intimacao)) return false;
+        return true;
+      });
     },
   });
 
@@ -211,7 +231,7 @@ export function CoordenacaoDetalhesView({
     alertas360: alertasFiltrados.length,
     redistribuicoes: redistribuicoesFiltradas.length,
     andamentos: andamentosData.length,
-    prazos: prazosUrgentes.filter(p => p.processo?.coordenacao_id === coordenacaoId).length,
+    prazos: prazosUrgentes.filter(p => p.processo?.coordenacao_id === coordenacaoId && matchesPeriodo(p.data_vencimento)).length,
     tarefas: tarefasPendentes.length,
     audiencias: audienciasPendentes.length,
     intimacoes: intimacoesPendentes.length,
@@ -228,137 +248,181 @@ export function CoordenacaoDetalhesView({
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft className="h-5 w-5" />
+    <div className="space-y-3 animate-fade-in">
+      {/* Header compacto */}
+      <div className="flex items-center justify-between gap-3 flex-wrap bg-card rounded-lg border p-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-muted-foreground" />
-            <h2 className="text-xl font-semibold">{coordenacaoNome}</h2>
-          </div>
-          <Badge variant={total === 0 ? "secondary" : "destructive"} className="ml-2">
+          <Building2 className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">{coordenacaoNome}</h2>
+          <Badge variant={total === 0 ? "secondary" : "destructive"} className="text-xs">
             {total} pendências
           </Badge>
         </div>
-        <div className="flex items-center gap-2">
+        
+        {/* Filtros de data inline */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("h-8 gap-1.5 text-xs", periodoInicio && "bg-primary/10")}>
+                <CalendarDays className="w-3.5 h-3.5" />
+                De: {periodoInicio ? format(periodoInicio, "dd/MM/yy") : "Início"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={periodoInicio}
+                onSelect={setPeriodoInicio}
+                locale={ptBR}
+                className="p-2 pointer-events-auto"
+              />
+              <div className="p-2 border-t flex justify-between">
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setPeriodoInicio(startOfDay(new Date()))}>Hoje</Button>
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setPeriodoInicio(undefined)}>Limpar</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("h-8 gap-1.5 text-xs", periodoFim && "bg-primary/10")}>
+                <CalendarDays className="w-3.5 h-3.5" />
+                Até: {periodoFim ? format(periodoFim, "dd/MM/yy") : "Fim"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={periodoFim}
+                onSelect={setPeriodoFim}
+                locale={ptBR}
+                className="p-2 pointer-events-auto"
+              />
+              <div className="p-2 border-t flex justify-between">
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setPeriodoFim(startOfDay(new Date()))}>Hoje</Button>
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setPeriodoFim(undefined)}>Limpar</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
           {config?.email_habilitado && (
-            <Badge variant="outline" className="gap-1">
+            <Badge variant="outline" className="gap-1 h-8 text-xs">
               <Mail className="h-3 w-3 text-blue-500" /> Email
             </Badge>
           )}
           {config?.whatsapp_habilitado && (
-            <Badge variant="outline" className="gap-1">
+            <Badge variant="outline" className="gap-1 h-8 text-xs">
               <MessageCircle className="h-3 w-3 text-green-500" /> WhatsApp
             </Badge>
           )}
-          <Button variant="outline" size="sm" onClick={() => setConfigDialogOpen(true)}>
-            <Settings className="h-4 w-4 mr-1" />
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setConfigDialogOpen(true)}>
+            <Settings className="h-3.5 w-3.5 mr-1" />
             Configurar
           </Button>
         </div>
       </div>
 
-      {/* Stats Summary */}
-      <div className="flex flex-wrap gap-2">
-        {stats.djen > 0 && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-600/10 border border-blue-600/20">
-            <Newspaper className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-semibold text-blue-600">{stats.djen} DJEN</span>
-          </div>
-        )}
-        {stats.distribuicoes > 0 && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-purple-600/10 border border-purple-600/20">
-            <Scale className="h-4 w-4 text-purple-600" />
-            <span className="text-sm font-semibold text-purple-600">{stats.distribuicoes} Distrib.</span>
-          </div>
-        )}
-        {stats.alertas360 > 0 && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-600/10 border border-amber-600/20">
-            <Radar className="h-4 w-4 text-amber-600" />
-            <span className="text-sm font-semibold text-amber-600">{stats.alertas360} Alertas 360°</span>
-          </div>
-        )}
+      {/* Stats Summary - mais compacto */}
+      <div className="flex flex-wrap gap-1.5">
         {stats.redistribuicoes > 0 && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-cyan-600/10 border border-cyan-600/20">
-            <RefreshCw className="h-4 w-4 text-cyan-600" />
-            <span className="text-sm font-semibold text-cyan-600">{stats.redistribuicoes} Redist.</span>
-          </div>
-        )}
-        {stats.andamentos > 0 && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-violet-600/10 border border-violet-600/20">
-            <Activity className="h-4 w-4 text-violet-600" />
-            <span className="text-sm font-semibold text-violet-600">{stats.andamentos} Andamentos</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-cyan-600/10 border border-cyan-600/20">
+            <RefreshCw className="h-3.5 w-3.5 text-cyan-600" />
+            <span className="text-xs font-semibold text-cyan-600">{stats.redistribuicoes} Redist.</span>
           </div>
         )}
         {stats.prazos > 0 && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-red-600/10 border border-red-600/20">
-            <Clock className="h-4 w-4 text-red-600" />
-            <span className="text-sm font-semibold text-red-600">{stats.prazos} Prazos</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-red-600/10 border border-red-600/20">
+            <Clock className="h-3.5 w-3.5 text-red-600" />
+            <span className="text-xs font-semibold text-red-600">{stats.prazos} Prazos</span>
           </div>
         )}
         {stats.tarefas > 0 && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-green-600/10 border border-green-600/20">
-            <ListTodo className="h-4 w-4 text-green-600" />
-            <span className="text-sm font-semibold text-green-600">{stats.tarefas} Tarefas</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-green-600/10 border border-green-600/20">
+            <ListTodo className="h-3.5 w-3.5 text-green-600" />
+            <span className="text-xs font-semibold text-green-600">{stats.tarefas} Tarefas</span>
           </div>
         )}
         {stats.audiencias > 0 && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-indigo-600/10 border border-indigo-600/20">
-            <Gavel className="h-4 w-4 text-indigo-600" />
-            <span className="text-sm font-semibold text-indigo-600">{stats.audiencias} Audiências</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-indigo-600/10 border border-indigo-600/20">
+            <Gavel className="h-3.5 w-3.5 text-indigo-600" />
+            <span className="text-xs font-semibold text-indigo-600">{stats.audiencias} Audiências</span>
           </div>
         )}
         {stats.intimacoes > 0 && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-orange-600/10 border border-orange-600/20">
-            <FileWarning className="h-4 w-4 text-orange-600" />
-            <span className="text-sm font-semibold text-orange-600">{stats.intimacoes} Intimações</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-orange-600/10 border border-orange-600/20">
+            <FileWarning className="h-3.5 w-3.5 text-orange-600" />
+            <span className="text-xs font-semibold text-orange-600">{stats.intimacoes} Intimações</span>
+          </div>
+        )}
+        {stats.djen > 0 && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-blue-600/10 border border-blue-600/20">
+            <Newspaper className="h-3.5 w-3.5 text-blue-600" />
+            <span className="text-xs font-semibold text-blue-600">{stats.djen} DJEN</span>
+          </div>
+        )}
+        {stats.distribuicoes > 0 && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-purple-600/10 border border-purple-600/20">
+            <Scale className="h-3.5 w-3.5 text-purple-600" />
+            <span className="text-xs font-semibold text-purple-600">{stats.distribuicoes} Distrib.</span>
+          </div>
+        )}
+        {stats.alertas360 > 0 && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-amber-600/10 border border-amber-600/20">
+            <Radar className="h-3.5 w-3.5 text-amber-600" />
+            <span className="text-xs font-semibold text-amber-600">{stats.alertas360} Alertas 360°</span>
+          </div>
+        )}
+        {stats.andamentos > 0 && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-violet-600/10 border border-violet-600/20">
+            <Activity className="h-3.5 w-3.5 text-violet-600" />
+            <span className="text-xs font-semibold text-violet-600">{stats.andamentos} Andamentos</span>
           </div>
         )}
       </div>
 
-      {/* Content Grid - Full Width */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      {/* Content Grid - Full Width, mais compacto */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
         {/* Tarefas */}
         {stats.tarefas > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
+          <Card className="overflow-hidden">
+            <CardHeader className="py-2 px-3 bg-green-600/5 border-b">
+              <CardTitle className="text-sm flex items-center gap-2">
                 <ListTodo className="h-4 w-4 text-green-600" />
                 Tarefas Pendentes ({stats.tarefas})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-64">
-                <div className="p-4 space-y-2">
+              <ScrollArea className="h-56">
+                <div className="divide-y">
                   {tarefasPendentes.map((tarefa: any) => (
                     <div
                       key={tarefa.id}
-                      className="p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+                      className="px-3 py-2 hover:bg-accent/50 cursor-pointer transition-colors"
                       onClick={() => navigate(`/processo/${tarefa.processo?.id}`)}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{tarefa.titulo}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Processo: {tarefa.processo?.numero || "N/A"}
+                          <p className="font-medium text-xs truncate">{tarefa.titulo}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {tarefa.processo?.numero || "N/A"}
                           </p>
                           {tarefa.responsavel && (
-                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                              <User className="h-3 w-3" />
+                            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                              <User className="h-2.5 w-2.5" />
                               {tarefa.responsavel.nome}
                             </p>
                           )}
                         </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <Badge className={cn("text-xs", getPrioridadeColor(tarefa.prioridade))}>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <Badge className={cn("text-[10px] px-1.5 py-0", getPrioridadeColor(tarefa.prioridade))}>
                             {tarefa.prioridade || "normal"}
                           </Badge>
                           {tarefa.data_vencimento && (
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(tarefa.data_vencimento), "dd/MM/yyyy")}
+                            <span className="text-[10px] text-muted-foreground">
+                              {format(new Date(tarefa.data_vencimento), "dd/MM/yy")}
                             </span>
                           )}
                         </div>
@@ -373,41 +437,36 @@ export function CoordenacaoDetalhesView({
 
         {/* Audiências */}
         {stats.audiencias > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
+          <Card className="overflow-hidden">
+            <CardHeader className="py-2 px-3 bg-indigo-600/5 border-b">
+              <CardTitle className="text-sm flex items-center gap-2">
                 <Gavel className="h-4 w-4 text-indigo-600" />
                 Audiências ({stats.audiencias})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-64">
-                <div className="p-4 space-y-2">
+              <ScrollArea className="h-56">
+                <div className="divide-y">
                   {audienciasPendentes.map((aud: any) => (
                     <div
                       key={aud.id}
-                      className="p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+                      className="px-3 py-2 hover:bg-accent/50 cursor-pointer transition-colors"
                       onClick={() => aud.processo?.id && navigate(`/processo/${aud.processo.id}`)}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{aud.tipo_audiencia || "Audiência"}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="font-medium text-xs">{aud.tipo_audiencia || "Audiência"}</p>
+                          <p className="text-[11px] text-muted-foreground">
                             {aud.processo_numero || aud.processo?.numero}
                           </p>
-                          {aud.local_audiencia && (
-                            <p className="text-xs text-muted-foreground mt-1">{aud.local_audiencia}</p>
-                          )}
                         </div>
-                        <div className="flex flex-col items-end gap-1">
+                        <div className="flex flex-col items-end gap-0.5">
                           {aud.data_audiencia && (
-                            <Badge variant="outline" className="text-xs">
-                              {format(new Date(aud.data_audiencia), "dd/MM/yyyy")}
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              {format(new Date(aud.data_audiencia), "dd/MM/yy")}
                             </Badge>
                           )}
-                          {aud.hora && (
-                            <span className="text-xs text-muted-foreground">{aud.hora}</span>
-                          )}
+                          {aud.hora && <span className="text-[10px] text-muted-foreground">{aud.hora}</span>}
                         </div>
                       </div>
                     </div>
@@ -420,41 +479,37 @@ export function CoordenacaoDetalhesView({
 
         {/* Intimações */}
         {stats.intimacoes > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
+          <Card className="overflow-hidden">
+            <CardHeader className="py-2 px-3 bg-orange-600/5 border-b">
+              <CardTitle className="text-sm flex items-center gap-2">
                 <FileWarning className="h-4 w-4 text-orange-600" />
                 Intimações ({stats.intimacoes})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-64">
-                <div className="p-4 space-y-2">
+              <ScrollArea className="h-56">
+                <div className="divide-y">
                   {intimacoesPendentes.map((intim: any) => (
                     <div
                       key={intim.id}
-                      className="p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+                      className="px-3 py-2 hover:bg-accent/50 cursor-pointer transition-colors"
                       onClick={() => intim.processo?.id && navigate(`/processo/${intim.processo.id}`)}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{intim.tipo_intimacao || "Intimação"}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="font-medium text-xs">{intim.tipo_intimacao || "Intimação"}</p>
+                          <p className="text-[11px] text-muted-foreground">
                             {intim.processo_numero || intim.processo?.numero}
                           </p>
                           {intim.prazo_dias && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Prazo: {intim.prazo_dias} dias
-                            </p>
+                            <p className="text-[11px] text-muted-foreground">Prazo: {intim.prazo_dias} dias</p>
                           )}
                         </div>
-                        <div className="flex flex-col items-end gap-1">
-                          {intim.data_limite && (
-                            <Badge variant="outline" className="text-xs">
-                              Limite: {format(new Date(intim.data_limite), "dd/MM/yyyy")}
-                            </Badge>
-                          )}
-                        </div>
+                        {intim.data_limite && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 whitespace-nowrap">
+                            Limite: {format(new Date(intim.data_limite), "dd/MM/yy")}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -466,33 +521,65 @@ export function CoordenacaoDetalhesView({
 
         {/* DJEN */}
         {stats.djen > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
+          <Card className="overflow-hidden">
+            <CardHeader className="py-2 px-3 bg-blue-600/5 border-b">
+              <CardTitle className="text-sm flex items-center gap-2">
                 <Newspaper className="h-4 w-4 text-blue-600" />
                 Publicações DJEN ({stats.djen})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-64">
-                <div className="p-4 space-y-2">
-                  {publicacoesFiltradas.slice(0, 20).map((pub) => (
+              <ScrollArea className="h-56">
+                <div className="divide-y">
+                  {publicacoesFiltradas.slice(0, 50).map((pub: any) => (
                     <div
                       key={pub.id}
-                      className="p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
-                      onClick={() => navigate("/analise-djen")}
+                      className="px-3 py-2 hover:bg-accent/50 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/analise-djen`)}
                     >
-                      <p className="font-medium text-sm truncate">
-                        {pub.processo_numero || "Publicação DJEN"}
-                      </p>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                        {pub.conteudo?.substring(0, 150)}...
-                      </p>
-                      {pub.data_publicacao && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatDistanceToNow(new Date(pub.data_publicacao), { addSuffix: true, locale: ptBR })}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs truncate">{pub.processo_numero || "Sem número"}</p>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2">
+                          {pub.conteudo?.substring(0, 120)}...
                         </p>
-                      )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Redistribuições */}
+        {stats.redistribuicoes > 0 && (
+          <Card className="overflow-hidden">
+            <CardHeader className="py-2 px-3 bg-cyan-600/5 border-b">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-cyan-600" />
+                Redistribuições ({stats.redistribuicoes})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="h-56">
+                <div className="divide-y">
+                  {redistribuicoesFiltradas.slice(0, 50).map((redist: any) => (
+                    <div
+                      key={redist.id}
+                      className="px-3 py-2 hover:bg-accent/50 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/redistribuicoes`)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-xs">{redist.processo_numero}</p>
+                          <p className="text-[11px] text-muted-foreground">{redist.vara_destino}</p>
+                        </div>
+                        {redist.data_redistribuicao && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {format(new Date(redist.data_redistribuicao), "dd/MM/yy")}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -503,37 +590,27 @@ export function CoordenacaoDetalhesView({
 
         {/* Alertas 360 */}
         {stats.alertas360 > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
+          <Card className="overflow-hidden">
+            <CardHeader className="py-2 px-3 bg-amber-600/5 border-b">
+              <CardTitle className="text-sm flex items-center gap-2">
                 <Radar className="h-4 w-4 text-amber-600" />
                 Alertas 360° ({stats.alertas360})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-64">
-                <div className="p-4 space-y-2">
-                  {alertasFiltrados.slice(0, 20).map((alerta) => (
+              <ScrollArea className="h-56">
+                <div className="divide-y">
+                  {alertasFiltrados.slice(0, 50).map((alerta: any) => (
                     <div
                       key={alerta.id}
-                      className="p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
-                      onClick={() => alerta.processo_id && navigate(`/processo/${alerta.processo_id}`)}
+                      className="px-3 py-2 hover:bg-accent/50 cursor-pointer transition-colors"
+                      onClick={() => alerta.processo?.id && navigate(`/processo/${alerta.processo.id}`)}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{alerta.termo_encontrado}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {alerta.processo?.numero}
-                          </p>
-                          {alerta.contexto && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                              {alerta.contexto.substring(0, 100)}...
-                            </p>
-                          )}
-                        </div>
-                        <Badge className={cn("text-xs", getPrioridadeColor(alerta.prioridade))}>
-                          {alerta.prioridade}
-                        </Badge>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs">{alerta.termo_encontrado}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {alerta.processo?.numero || "N/A"}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -545,33 +622,32 @@ export function CoordenacaoDetalhesView({
 
         {/* Andamentos */}
         {stats.andamentos > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
+          <Card className="overflow-hidden">
+            <CardHeader className="py-2 px-3 bg-violet-600/5 border-b">
+              <CardTitle className="text-sm flex items-center gap-2">
                 <Activity className="h-4 w-4 text-violet-600" />
                 Andamentos ({stats.andamentos})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-64">
-                <div className="p-4 space-y-2">
-                  {andamentosData.slice(0, 20).map((mov: any) => (
+              <ScrollArea className="h-56">
+                <div className="divide-y">
+                  {andamentosData.slice(0, 50).map((and: any) => (
                     <div
-                      key={mov.id}
-                      className="p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
-                      onClick={() => mov.processo?.id && navigate(`/processo/${mov.processo.id}`)}
+                      key={and.id}
+                      className="px-3 py-2 hover:bg-accent/50 cursor-pointer transition-colors"
+                      onClick={() => and.processo?.id && navigate(`/processo/${and.processo.id}`)}
                     >
-                      <p className="font-medium text-sm truncate">{mov.processo?.numero}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                        {mov.descricao?.substring(0, 150)}
-                      </p>
-                      <div className="flex items-center justify-between mt-1">
-                        {mov.tipo && (
-                          <Badge variant="outline" className="text-xs">{mov.tipo}</Badge>
-                        )}
-                        {mov.created_at && (
-                          <span className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(mov.created_at), { addSuffix: true, locale: ptBR })}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-xs line-clamp-1">{and.descricao}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {and.processo?.numero || "N/A"}
+                          </p>
+                        </div>
+                        {and.data_movimentacao && (
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                            {format(new Date(and.data_movimentacao), "dd/MM/yy")}
                           </span>
                         )}
                       </div>
@@ -583,18 +659,6 @@ export function CoordenacaoDetalhesView({
           </Card>
         )}
       </div>
-
-      {total === 0 && (
-        <div className="text-center py-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 mb-4">
-            <Building2 className="h-8 w-8 text-emerald-500" />
-          </div>
-          <h3 className="text-lg font-medium">Tudo em dia!</h3>
-          <p className="text-muted-foreground">
-            Não há pendências para esta coordenação no período selecionado.
-          </p>
-        </div>
-      )}
 
       <ConfigAlertasCoordenacaoDialog
         open={configDialogOpen}
