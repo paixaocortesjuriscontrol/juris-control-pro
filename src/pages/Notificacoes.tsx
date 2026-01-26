@@ -33,6 +33,7 @@ import {
   CalendarDays,
   FileText,
   Activity,
+  Download,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
@@ -47,6 +48,7 @@ import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { DashboardCoordenacoes } from "@/components/notificacoes/DashboardCoordenacoes";
 import { CoordenacaoDetalhesView } from "@/components/notificacoes/CoordenacaoDetalhesView";
+import { GerarRelatorioPdfDialog } from "@/components/notificacoes/GerarRelatorioPdfDialog";
 
 export default function Notificacoes() {
   // Central de Notificações
@@ -58,6 +60,7 @@ export default function Notificacoes() {
   const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() => startOfDay(new Date()));
   const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() => startOfDay(new Date()));
   const [filterCategory, setFilterCategory] = useState<string | undefined>(undefined);
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
   
   
   const navigate = useNavigate();
@@ -620,6 +623,16 @@ export default function Notificacoes() {
             <Button variant="outline" size="sm" onClick={clearAllFilters} className="h-8 text-xs gap-1">
               <X className="w-3 h-3" />
               Limpar filtros
+            </Button>
+
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={() => setPdfDialogOpen(true)} 
+              className="h-8 text-xs gap-1 bg-gold hover:bg-gold/90 text-navy-deep"
+            >
+              <Download className="w-3 h-3" />
+              Relatório PDF
             </Button>
           </div>
 
@@ -1588,6 +1601,15 @@ export default function Notificacoes() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog para gerar PDF */}
+      <GerarRelatorioPdfDialog
+        open={pdfDialogOpen}
+        onOpenChange={setPdfDialogOpen}
+        periodoInicio={periodoInicio}
+        periodoFim={periodoFim}
+        statusFilter={statusFilter}
+      />
     </MainLayout>
   );
 }
