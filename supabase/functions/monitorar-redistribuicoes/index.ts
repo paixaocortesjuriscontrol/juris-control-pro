@@ -713,9 +713,126 @@ serve(async (req) => {
       }
     }
 
-    if (isComplete && completeRun) {
-      console.log('Complete run finished');
+    // ========== ENVIO DE RESUMO CONSOLIDADO ==========
+    if (isComplete && completeRun && !results?.cancelled) {
+      console.log('Complete run finished - Preparing summary dispatch');
+      
+      try {
+        // Buscar redistribuições detectadas hoje
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+        const hojeISO = hoje.toISOString();
+        
+        const { data: redistribuicoesHoje, error: redistError } = await supabase
+          .from('movimentacoes')
+          .select(`
+            id,
+            processo_id,
+            descricao,
+            data_movimentacao,
+            created_at,
+            processos!inner (
+              id,
+              numero,
+              coordenacao_id,
+              coordenacoes (
+                id,
+                nome
+              )
+            )
+          `)
+          .eq('tipo', 'Redistribuição')
+          .gte('created_at', hojeISO)
+          .order('created_at', { ascending: false });
+
+        if (redistError) {
+          console.error('[RESUMO] Erro ao buscar redistribuições:', redistError);
+        } else if (redistribuicoesHoje && redistribuicoesHoje.length > 0) {
+          console.log(`[RESUMO] Total de redistribuições hoje: ${redistribuicoesHoje.length}`);
+          
+          // Agrupar por coordenação
+          const porCoordenacao = new Map<string, {
+            coordenacao_id: string;
+            coordenacao_nome: string;
+            redistribuicoes: Array<{
+              processo_numero: string;
+              descricao: string;
+            }>;
+          }>();
+          
+          for (const mov of redistribuicoesHoje) {
+            const processo = (mov as any).processos;
+            if (!processo?.coordenacao_id) continue;
+            
+            const coordId = processo.coordenacao_id;
+            const coordNome = processo.coordenacoes?.nome || 'Sem nome';
+            
+            if (!porCoordenacao.has(coordId)) {
+              porCoordenacao.set(coordId, {
+                coordenacao_id: coordId,
+                coordenacao_nome: coordNome,
+                redistribuicoes: []
+              });
+            }
+            
+            // Parse da descrição para extrair varas
+            const match = mov.descricao?.match(/Redistribuição detectada: (.+) -> (.+)/);
+            const descricaoFormatada = match 
+              ? `${match[1]} → ${match[2]}`
+              : mov.descricao || 'Redistribuição detectada';
+            
+            porCoordenacao.get(coordId)!.redistribuicoes.push({
+              processo_numero: processo.numero || 'N/A',
+              descricao: descricaoFormatada
+            });
+          }
+          
+          if (porCoordenacao.size > 0) {
+            // Montar payload para enviar resumo
+            const resumosPorCoordenacao = Array.from(porCoordenacao.values()).map(coord => ({
+              coordenacao_id: coord.coordenacao_id,
+              coordenacao_nome: coord.coordenacao_nome,
+              total_verificados: results?.totalProcesses || 0,
+              total_encontrados: coord.redistribuicoes.length,
+              exemplos: coord.redistribuicoes.map(r => ({
+                processo_numero: r.processo_numero,
+                descricao: r.descricao
+              }))
+            }));
+            
+            console.log(`[RESUMO] Enviando resumo para ${resumosPorCoordenacao.length} coordenações`);
+            
+            // Chamar edge function de envio de resumo
+            const resumoResponse = await fetch(`${supabaseUrl}/functions/v1/enviar-resumo-monitoramento`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({
+                tipo_monitoramento: 'redistribuicoes',
+                resumos_por_coordenacao: resumosPorCoordenacao
+              })
+            });
+            
+            if (resumoResponse.ok) {
+              const resumoResult = await resumoResponse.json();
+              console.log(`[RESUMO] Resumos enviados com sucesso:`, resumoResult);
+            } else {
+              const errorText = await resumoResponse.text();
+              console.error(`[RESUMO] Erro ao enviar resumos:`, errorText);
+            }
+          } else {
+            console.log('[RESUMO] Nenhuma coordenação com redistribuições para notificar');
+          }
+        } else {
+          console.log('[RESUMO] Nenhuma redistribuição encontrada hoje');
+        }
+      } catch (resumoError) {
+        console.error('[RESUMO] Erro ao processar envio de resumo:', resumoError);
+      }
     }
+    // ========== FIM DO ENVIO DE RESUMO ==========
 
     return new Response(
       JSON.stringify({
