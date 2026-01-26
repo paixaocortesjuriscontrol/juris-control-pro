@@ -1421,6 +1421,121 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
         erros: results.errors,
         detalhes: { results }
       });
+
+    // ========== ENVIO DE RESUMO CONSOLIDADO POR COORDENAÇÃO ==========
+    // Buscar andamentos criados hoje agrupados por coordenação
+    try {
+      console.log('[RESUMO] Iniciando envio de resumo consolidado por coordenação...');
+      
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const hojeISO = hoje.toISOString();
+      
+      // Buscar todos os andamentos criados hoje com dados do processo
+      const { data: andamentosHoje, error: andamentosError } = await supabase
+        .from('movimentacoes')
+        .select(`
+          id,
+          descricao,
+          data_movimentacao,
+          tipo,
+          processo_id,
+          processos!inner (
+            id,
+            numero,
+            coordenacao_id,
+            coordenacoes (
+              id,
+              nome
+            )
+          )
+        `)
+        .gte('created_at', hojeISO)
+        .eq('fonte', 'DataJud/CNJ')
+        .order('created_at', { ascending: false });
+
+      if (andamentosError) {
+        console.error('[RESUMO] Erro ao buscar andamentos:', andamentosError);
+      } else if (andamentosHoje && andamentosHoje.length > 0) {
+        console.log(`[RESUMO] ${andamentosHoje.length} andamentos encontrados hoje`);
+        
+        // Agrupar por coordenação
+        const porCoordenacao = new Map<string, {
+          coordenacao_id: string;
+          coordenacao_nome: string;
+          andamentos: Array<{ processo_numero: string; descricao: string }>;
+        }>();
+
+        for (const mov of andamentosHoje) {
+          const processo = mov.processos as any;
+          if (!processo?.coordenacao_id) continue;
+          
+          const coordId = processo.coordenacao_id;
+          const coordNome = processo.coordenacoes?.nome || 'Coordenação';
+          
+          if (!porCoordenacao.has(coordId)) {
+            porCoordenacao.set(coordId, {
+              coordenacao_id: coordId,
+              coordenacao_nome: coordNome,
+              andamentos: []
+            });
+          }
+          
+          porCoordenacao.get(coordId)!.andamentos.push({
+            processo_numero: processo.numero || 'N/A',
+            descricao: mov.descricao?.substring(0, 200) || 'Sem descrição'
+          });
+        }
+
+        if (porCoordenacao.size > 0) {
+          // Montar payload para enviar resumo
+          const resumosPorCoordenacao = Array.from(porCoordenacao.values()).map(coord => ({
+            coordenacao_id: coord.coordenacao_id,
+            coordenacao_nome: coord.coordenacao_nome,
+            total_verificados: totalCount || 0,
+            total_encontrados: coord.andamentos.length,
+            // Enviar TODOS os andamentos, sem limite
+            exemplos: coord.andamentos.map(a => ({
+              processo_numero: a.processo_numero,
+              descricao: a.descricao
+            }))
+          }));
+
+          console.log(`[RESUMO] Enviando resumo para ${resumosPorCoordenacao.length} coordenações`);
+
+          // Chamar edge function de envio de resumo
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          
+          const resumoResponse = await fetch(`${supabaseUrl}/functions/v1/enviar-resumo-monitoramento`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              tipo_monitoramento: 'andamentos',
+              resumos_por_coordenacao: resumosPorCoordenacao
+            })
+          });
+
+          if (resumoResponse.ok) {
+            const resumoResult = await resumoResponse.json();
+            console.log(`[RESUMO] Resumos enviados com sucesso:`, resumoResult);
+          } else {
+            const errorText = await resumoResponse.text();
+            console.error(`[RESUMO] Erro ao enviar resumos:`, errorText);
+          }
+        } else {
+          console.log('[RESUMO] Nenhuma coordenação com andamentos para notificar');
+        }
+      } else {
+        console.log('[RESUMO] Nenhum andamento novo encontrado hoje');
+      }
+    } catch (resumoError) {
+      console.error('[RESUMO] Erro ao processar envio de resumo:', resumoError);
+    }
+    // ========== FIM DO ENVIO DE RESUMO ==========
   }
 
   console.log("Batch monitoring completed:", {
