@@ -339,6 +339,371 @@ export function CoordenacaoDetalhesView({
     redistribuicoesFiltradas.length + prazosFiltrados.length + tarefasFiltradas.length +
     audienciasFiltradas.length + intimacoesFiltradas.length + andamentosFiltrados.length;
 
+  // Componentes de cards para renderização condicional
+  const renderDjenCard = () => publicacoesFiltradas.length > 0 && (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Newspaper className="w-4 h-4 text-blue-500" />
+          Publicações DJEN ({publicacoesFiltradas.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+          {publicacoesFiltradas.map((pub) => {
+            const processoDisplay = pub.processo_numero || (() => {
+              const match = pub.conteudo?.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
+              return match ? match[1] : null;
+            })();
+            return (
+              <div
+                key={pub.id}
+                className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso(processoDisplay, "publicacoes")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{processoDisplay || 'Publicação DJEN'}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{pub.conteudo?.substring(0, 200)}...</p>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                      <span>{pub.data_publicacao && format(new Date(pub.data_publicacao), 'dd/MM/yyyy')}</span>
+                    </div>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderDistribuicoesCard = () => distribuicoesFiltradas.length > 0 && (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Scale className="w-4 h-4 text-purple-500" />
+          Distribuições ({distribuicoesFiltradas.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+          {distribuicoesFiltradas.map((dist) => (
+            <div
+              key={dist.id}
+              className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              onClick={() => handleNavigateProcesso(dist.processo_id, "andamentos")}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">{dist.numero_processo}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {dist.polo_ativo} x {dist.polo_passivo}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                    <span>{dist.classe || 'Sem classe'}</span>
+                    <span>•</span>
+                    <span>{dist.vara || 'Vara não informada'}</span>
+                    <span>•</span>
+                    <span>{dist.tribunal}</span>
+                  </div>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderAlertasCard = () => alertasFiltrados.length > 0 && (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Radar className="w-4 h-4 text-amber-500" />
+          Alertas 360° ({alertasFiltrados.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+          {alertasFiltrados.map((alerta) => (
+            <div
+              key={alerta.id}
+              className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              onClick={() => handleNavigateProcesso(alerta.processo_id, "andamentos")}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge className={getPrioridadeColor(alerta.prioridade)} variant="outline">
+                      {alerta.prioridade}
+                    </Badge>
+                    <span className="font-medium text-sm">{alerta.termo_encontrado}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Processo: {alerta.processo?.numero}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{alerta.contexto}</p>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderPrazosCard = () => prazosFiltrados.length > 0 && (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Clock className="w-4 h-4 text-red-500" />
+          Prazos Urgentes ({prazosFiltrados.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+          {prazosFiltrados.map((prazo) => (
+            <div
+              key={prazo.id}
+              className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              onClick={() => handleNavigateProcesso(prazo.processo?.id, "tarefas")}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-sm truncate">{prazo.titulo}</p>
+                    <Badge 
+                      variant={prazo.is_atrasado ? "destructive" : "outline"}
+                      className={prazo.is_atrasado ? "" : "bg-amber-500/10 text-amber-500"}
+                    >
+                      {prazo.is_atrasado ? 'Atrasado' : `${prazo.dias_restantes}d`}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Processo: {prazo.processo?.numero}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Vencimento: {format(new Date(prazo.data_vencimento), 'dd/MM/yyyy HH:mm')}
+                  </p>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderTarefasCard = () => tarefasFiltradas.length > 0 && (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ListTodo className="w-4 h-4 text-green-500" />
+          Tarefas ({tarefasFiltradas.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+          {tarefasFiltradas.map((tarefa) => (
+            <div
+              key={tarefa.id}
+              className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              onClick={() => handleNavigateProcesso((tarefa.processo as any)?.id, "tarefas")}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-sm truncate">{tarefa.titulo}</p>
+                    <Badge className={getPrioridadeColor(tarefa.prioridade)} variant="outline">
+                      {tarefa.prioridade}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Processo: {(tarefa.processo as any)?.numero}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Responsável: {(tarefa.responsavel as any)?.nome || 'Não atribuído'}
+                  </p>
+                  {tarefa.data_vencimento && (
+                    <p className="text-xs text-muted-foreground">
+                      Vencimento: {format(new Date(tarefa.data_vencimento), 'dd/MM/yyyy')}
+                    </p>
+                  )}
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderAudienciasCard = () => audienciasFiltradas.length > 0 && (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Gavel className="w-4 h-4 text-indigo-500" />
+          Audiências ({audienciasFiltradas.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+          {audienciasFiltradas.map((aud) => (
+            <div
+              key={aud.id}
+              className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              onClick={() => handleNavigateProcesso((aud.processo as any)?.id, "audiencias")}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-sm">{aud.processo_numero}</p>
+                    <Badge variant="outline">{aud.tipo_audiencia || 'Audiência'}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Parte: {aud.polo_ativo || 'Não informado'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {aud.data_audiencia && format(new Date(aud.data_audiencia), 'dd/MM/yyyy')}
+                    {aud.hora_brasilia && ` às ${aud.hora_brasilia}`}
+                  </p>
+                  {aud.local_audiencia && (
+                    <p className="text-xs text-muted-foreground">Local: {aud.local_audiencia}</p>
+                  )}
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderIntimacoesCard = () => intimacoesFiltradas.length > 0 && (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FileWarning className="w-4 h-4 text-orange-500" />
+          Intimações ({intimacoesFiltradas.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+          {intimacoesFiltradas.map((int) => (
+            <div
+              key={int.id}
+              className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              onClick={() => handleNavigateProcesso((int.processo as any)?.id, "intimacoes")}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-sm">{int.processo_numero}</p>
+                    <Badge variant="outline">{int.tipo_intimacao || 'Intimação'}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{int.descricao}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {int.data_intimacao && format(new Date(int.data_intimacao), 'dd/MM/yyyy')}
+                  </p>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderAndamentosCard = () => andamentosFiltrados.length > 0 && (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Activity className="w-4 h-4 text-violet-500" />
+          Andamentos ({andamentosFiltrados.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+          {andamentosFiltrados.map((and) => (
+            <div
+              key={and.id}
+              className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              onClick={() => handleNavigateProcesso((and.processo as any)?.id, "andamentos")}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">{(and.processo as any)?.numero}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{and.descricao}</p>
+                  <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                    <Badge variant="outline">{and.tipo || 'Movimentação'}</Badge>
+                    <span>•</span>
+                    <span>{and.fonte}</span>
+                    <span>•</span>
+                    <span>{formatDistanceToNow(new Date(and.created_at), { addSuffix: true, locale: ptBR })}</span>
+                  </div>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderRedistribuicoesCard = () => redistribuicoesFiltradas.length > 0 && (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <RefreshCw className="w-4 h-4 text-cyan-500" />
+          Redistribuições ({redistribuicoesFiltradas.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+          {redistribuicoesFiltradas.map((red) => (
+            <div
+              key={red.id}
+              className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              onClick={() => handleNavigateProcesso(red.processo_id, "andamentos")}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">{red.processo_numero}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <span className="text-red-500">{red.vara_antiga}</span>
+                    {" → "}
+                    <span className="text-green-500">{red.vara_nova}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Advogado: {red.advogado_nome || 'Não informado'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatDistanceToNow(new Date(red.data_redistribuicao), { addSuffix: true, locale: ptBR })}
+                  </p>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // Montar array de cards na ordem: todos menos redistribuições, depois redistribuições por último
+  const cardsComDados = [
+    { key: 'djen', render: renderDjenCard, hasData: publicacoesFiltradas.length > 0 },
+    { key: 'distribuicoes', render: renderDistribuicoesCard, hasData: distribuicoesFiltradas.length > 0 },
+    { key: 'alertas', render: renderAlertasCard, hasData: alertasFiltrados.length > 0 },
+    { key: 'prazos', render: renderPrazosCard, hasData: prazosFiltrados.length > 0 },
+    { key: 'tarefas', render: renderTarefasCard, hasData: tarefasFiltradas.length > 0 },
+    { key: 'audiencias', render: renderAudienciasCard, hasData: audienciasFiltradas.length > 0 },
+    { key: 'intimacoes', render: renderIntimacoesCard, hasData: intimacoesFiltradas.length > 0 },
+    { key: 'andamentos', render: renderAndamentosCard, hasData: andamentosFiltrados.length > 0 },
+    { key: 'redistribuicoes', render: renderRedistribuicoesCard, hasData: redistribuicoesFiltradas.length > 0 },
+  ].filter(card => card.hasData);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -353,365 +718,12 @@ export function CoordenacaoDetalhesView({
         <Badge variant="secondary">{total} pendências</Badge>
       </div>
 
-      {/* Publicações DJEN */}
-      {publicacoesFiltradas.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Newspaper className="w-4 h-4 text-blue-500" />
-              Publicações DJEN ({publicacoesFiltradas.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {publicacoesFiltradas.map((pub) => {
-                const processoDisplay = pub.processo_numero || (() => {
-                  const match = pub.conteudo?.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
-                  return match ? match[1] : null;
-                })();
-                return (
-                  <div
-                    key={pub.id}
-                    className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => handleNavigateProcesso(processoDisplay, "publicacoes")}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{processoDisplay || 'Publicação DJEN'}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{pub.conteudo?.substring(0, 200)}...</p>
-                        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                          <span>{pub.data_publicacao && format(new Date(pub.data_publicacao), 'dd/MM/yyyy')}</span>
-                        </div>
-                      </div>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Distribuições */}
-      {distribuicoesFiltradas.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Scale className="w-4 h-4 text-purple-500" />
-              Distribuições ({distribuicoesFiltradas.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {distribuicoesFiltradas.map((dist) => (
-                <div
-                  key={dist.id}
-                  className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => handleNavigateProcesso(dist.processo_id, "andamentos")}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{dist.numero_processo}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {dist.polo_ativo} x {dist.polo_passivo}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                        <span>{dist.classe || 'Sem classe'}</span>
-                        <span>•</span>
-                        <span>{dist.vara || 'Vara não informada'}</span>
-                        <span>•</span>
-                        <span>{dist.tribunal}</span>
-                      </div>
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Alertas 360 */}
-      {alertasFiltrados.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Radar className="w-4 h-4 text-amber-500" />
-              Alertas 360° ({alertasFiltrados.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {alertasFiltrados.map((alerta) => (
-                <div
-                  key={alerta.id}
-                  className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => handleNavigateProcesso(alerta.processo_id, "andamentos")}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge className={getPrioridadeColor(alerta.prioridade)} variant="outline">
-                          {alerta.prioridade}
-                        </Badge>
-                        <span className="font-medium text-sm">{alerta.termo_encontrado}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Processo: {alerta.processo?.numero}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{alerta.contexto}</p>
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Redistribuições */}
-      {redistribuicoesFiltradas.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <RefreshCw className="w-4 h-4 text-cyan-500" />
-              Redistribuições ({redistribuicoesFiltradas.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {redistribuicoesFiltradas.map((red) => (
-                <div
-                  key={red.id}
-                  className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => handleNavigateProcesso(red.processo_id, "andamentos")}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{red.processo_numero}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        <span className="text-red-500">{red.vara_antiga}</span>
-                        {" → "}
-                        <span className="text-green-500">{red.vara_nova}</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Advogado: {red.advogado_nome || 'Não informado'}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatDistanceToNow(new Date(red.data_redistribuicao), { addSuffix: true, locale: ptBR })}
-                      </p>
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Prazos */}
-      {prazosFiltrados.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Clock className="w-4 h-4 text-red-500" />
-              Prazos Urgentes ({prazosFiltrados.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {prazosFiltrados.map((prazo) => (
-                <div
-                  key={prazo.id}
-                  className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => handleNavigateProcesso(prazo.processo?.id, "tarefas")}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium text-sm truncate">{prazo.titulo}</p>
-                        <Badge 
-                          variant={prazo.is_atrasado ? "destructive" : "outline"}
-                          className={prazo.is_atrasado ? "" : "bg-amber-500/10 text-amber-500"}
-                        >
-                          {prazo.is_atrasado ? 'Atrasado' : `${prazo.dias_restantes}d`}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Processo: {prazo.processo?.numero}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Vencimento: {format(new Date(prazo.data_vencimento), 'dd/MM/yyyy HH:mm')}
-                      </p>
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Tarefas */}
-      {tarefasFiltradas.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ListTodo className="w-4 h-4 text-green-500" />
-              Tarefas ({tarefasFiltradas.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {tarefasFiltradas.map((tarefa) => (
-                <div
-                  key={tarefa.id}
-                  className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => handleNavigateProcesso((tarefa.processo as any)?.id, "tarefas")}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium text-sm truncate">{tarefa.titulo}</p>
-                        <Badge className={getPrioridadeColor(tarefa.prioridade)} variant="outline">
-                          {tarefa.prioridade}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Processo: {(tarefa.processo as any)?.numero}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Responsável: {(tarefa.responsavel as any)?.nome || 'Não atribuído'}
-                      </p>
-                      {tarefa.data_vencimento && (
-                        <p className="text-xs text-muted-foreground">
-                          Vencimento: {format(new Date(tarefa.data_vencimento), 'dd/MM/yyyy')}
-                        </p>
-                      )}
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Audiências */}
-      {audienciasFiltradas.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Gavel className="w-4 h-4 text-indigo-500" />
-              Audiências ({audienciasFiltradas.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {audienciasFiltradas.map((aud) => (
-                <div
-                  key={aud.id}
-                  className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => handleNavigateProcesso((aud.processo as any)?.id, "audiencias")}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium text-sm">{aud.processo_numero}</p>
-                        <Badge variant="outline">{aud.tipo_audiencia || 'Audiência'}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Parte: {aud.polo_ativo || 'Não informado'}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {aud.data_audiencia && format(new Date(aud.data_audiencia), 'dd/MM/yyyy')}
-                        {aud.hora_brasilia && ` às ${aud.hora_brasilia}`}
-                      </p>
-                      {aud.local_audiencia && (
-                        <p className="text-xs text-muted-foreground">Local: {aud.local_audiencia}</p>
-                      )}
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Intimações */}
-      {intimacoesFiltradas.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileWarning className="w-4 h-4 text-orange-500" />
-              Intimações ({intimacoesFiltradas.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {intimacoesFiltradas.map((int) => (
-                <div
-                  key={int.id}
-                  className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => handleNavigateProcesso((int.processo as any)?.id, "intimacoes")}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium text-sm">{int.processo_numero}</p>
-                        <Badge variant="outline">{int.tipo_intimacao || 'Intimação'}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{int.descricao}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {int.data_intimacao && format(new Date(int.data_intimacao), 'dd/MM/yyyy')}
-                      </p>
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Andamentos */}
-      {andamentosFiltrados.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="w-4 h-4 text-violet-500" />
-              Andamentos ({andamentosFiltrados.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {andamentosFiltrados.map((and) => (
-                <div
-                  key={and.id}
-                  className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => handleNavigateProcesso((and.processo as any)?.id, "andamentos")}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{(and.processo as any)?.numero}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{and.descricao}</p>
-                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                        <Badge variant="outline">{and.tipo || 'Movimentação'}</Badge>
-                        <span>•</span>
-                        <span>{and.fonte}</span>
-                        <span>•</span>
-                        <span>{formatDistanceToNow(new Date(and.created_at), { addSuffix: true, locale: ptBR })}</span>
-                      </div>
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Grid de 2 colunas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {cardsComDados.map((card) => (
+          <div key={card.key}>{card.render()}</div>
+        ))}
+      </div>
 
       {/* Mensagem quando não há pendências */}
       {total === 0 && (
