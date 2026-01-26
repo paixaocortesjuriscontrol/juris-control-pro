@@ -445,34 +445,9 @@ async function processBatch(supabase: any): Promise<{
                 });
               }
 
-              // Enviar alertas externos via Email/WhatsApp para coordenações que monitoram distribuições
-              try {
-                const { data: coordenacoesMonitorando } = await supabase
-                  .from('coordenacoes')
-                  .select('id')
-                  .eq('monitorar_distribuicoes', true);
-
-                const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-                for (const coord of coordenacoesMonitorando || []) {
-                  await fetch(`${supabaseUrl}/functions/v1/enviar-alerta-coordenacao`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                    },
-                    body: JSON.stringify({
-                      tipo_alerta: "distribuicoes",
-                      coordenacao_id: coord.id,
-                      titulo: `⚖️ Nova Distribuição: ${numeroProcesso}`,
-                      mensagem: `Processo ${numeroProcesso} encontrado no ${tribunal.nome} - Termo: ${monitoramento.termo_busca}`,
-                      prioridade: "alta",
-                      processo_numero: numeroProcesso,
-                    }),
-                  });
-                }
-              } catch (alertError) {
-                console.error("Erro ao enviar alertas de distribuição:", alertError);
-              }
+              // NOTA: O envio de alertas externos agora é consolidado em um resumo único ao finalizar
+              // a execução completa do monitoramento (ver enviar-resumo-monitoramento)
+              // Isso evita bombardeio de mensagens individuais para cada distribuição
             }
           }
           
