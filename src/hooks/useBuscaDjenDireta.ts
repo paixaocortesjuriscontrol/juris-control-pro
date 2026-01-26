@@ -94,9 +94,23 @@ export function useBuscaDjenDireta() {
   const queryClient = useQueryClient();
   
   // Carregar estado inicial do localStorage
+  // CORREÇÃO: Se já estava concluído, não restaurar como executando
   const [progresso, setProgresso] = useState<ProgressoExecucao>(() => {
     const saved = carregarEstado();
-    return saved || {
+    if (saved) {
+      // Se estava em 100% ou concluído, forçar status concluído e parar timer
+      const isComplete = saved.status === 'concluido' || 
+        (saved.totalMonitoramentos > 0 && saved.monitoramentoAtual >= saved.totalMonitoramentos);
+      if (isComplete) {
+        return {
+          ...saved,
+          status: 'concluido',
+          tempoInicio: undefined, // Remove tempoInicio para parar timer
+        };
+      }
+      return saved;
+    }
+    return {
       monitoramentoAtual: 0,
       totalMonitoramentos: 0,
       publicacoesNovas: 0,
@@ -109,7 +123,11 @@ export function useBuscaDjenDireta() {
   
   const [executando, setExecutando] = useState(() => {
     const saved = carregarEstado();
-    return saved?.status === 'executando';
+    // CORREÇÃO: Não marcar como executando se já está em 100% ou concluído
+    if (!saved) return false;
+    const isComplete = saved.status === 'concluido' || 
+      (saved.totalMonitoramentos > 0 && saved.monitoramentoAtual >= saved.totalMonitoramentos);
+    return saved.status === 'executando' && !isComplete;
   });
   
   const cancelarRef = useRef(false);
@@ -117,10 +135,20 @@ export function useBuscaDjenDireta() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Timer para atualizar tempo decorrido
+  // CORREÇÃO: Parar quando status é 'concluido' OU progresso atingiu 100%
   useEffect(() => {
-    if (executando && progresso.tempoInicio) {
+    const isComplete = progresso.status === 'concluido' || 
+      (progresso.totalMonitoramentos > 0 && progresso.monitoramentoAtual >= progresso.totalMonitoramentos);
+    
+    if (executando && progresso.tempoInicio && !isComplete) {
       timerRef.current = setInterval(() => {
         setProgresso(prev => {
+          // Verificar novamente se completou
+          const nowComplete = prev.status === 'concluido' || 
+            (prev.totalMonitoramentos > 0 && prev.monitoramentoAtual >= prev.totalMonitoramentos);
+          if (nowComplete) {
+            return prev; // Não atualizar mais
+          }
           const tempo = Math.floor((Date.now() - (prev.tempoInicio || Date.now())) / 1000);
           const updated = { ...prev, tempoDecorrido: tempo };
           salvarEstado(updated);
@@ -137,7 +165,7 @@ export function useBuscaDjenDireta() {
         clearInterval(timerRef.current);
       }
     };
-  }, [executando, progresso.tempoInicio]);
+  }, [executando, progresso.tempoInicio, progresso.status, progresso.monitoramentoAtual, progresso.totalMonitoramentos]);
 
   // Persistir mudanças de progresso
   useEffect(() => {
