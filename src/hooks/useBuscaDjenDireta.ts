@@ -461,8 +461,8 @@ export function useBuscaDjenDireta() {
         }
       }
 
-      // Enviar resumos por coordenação ao finalizar
-      if (Object.keys(resumosPorCoordenacao).length > 0) {
+      // Enviar resumos por coordenação ao finalizar (só se encontrou publicações)
+      if (totalNovas > 0 && Object.keys(resumosPorCoordenacao).length > 0) {
         try {
           const coordIds = Object.keys(resumosPorCoordenacao);
           const { data: coordenacoes } = await supabase
@@ -470,18 +470,24 @@ export function useBuscaDjenDireta() {
             .select('id, nome')
             .in('id', coordIds);
 
-          const resumosFormatados = coordIds.map(id => ({
-            coordenacao_id: id,
-            coordenacao_nome: coordenacoes?.find(c => c.id === id)?.nome || 'Coordenação',
-            ...resumosPorCoordenacao[id],
-          }));
+          // Filtrar apenas coordenações que tiveram achados
+          const resumosFormatados = coordIds
+            .filter(id => resumosPorCoordenacao[id].total_encontrados > 0)
+            .map(id => ({
+              coordenacao_id: id,
+              coordenacao_nome: coordenacoes?.find(c => c.id === id)?.nome || 'Coordenação',
+              ...resumosPorCoordenacao[id],
+            }));
 
-          await supabase.functions.invoke('enviar-resumo-monitoramento', {
-            body: {
-              tipo_monitoramento: 'djen',
-              resumos_por_coordenacao: resumosFormatados,
-            },
-          });
+          if (resumosFormatados.length > 0) {
+            console.log('[DJEN Direta] Enviando resumos para', resumosFormatados.length, 'coordenações');
+            await supabase.functions.invoke('enviar-resumo-monitoramento', {
+              body: {
+                tipo_monitoramento: 'djen',
+                resumos_por_coordenacao: resumosFormatados,
+              },
+            });
+          }
         } catch (resumoError) {
           console.error('Erro ao enviar resumos:', resumoError);
         }
