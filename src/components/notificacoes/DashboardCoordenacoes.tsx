@@ -65,7 +65,7 @@ interface CoordenacaoStats {
 }
 
 interface Props {
-  onSelectCoordenacao: (id: string) => void;
+  onSelectCoordenacao: (id: string, category?: string) => void;
   selectedCoordenacaoId: string;
   periodoInicio?: Date;
   periodoFim?: Date;
@@ -564,55 +564,118 @@ export function DashboardCoordenacoes({
                     {coord.total > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-2">
                         {coord.djen > 0 && (
-                          <div className="flex flex-col items-center p-1.5 rounded-md bg-blue-600/15" title="DJEN">
+                          <div 
+                            className="flex flex-col items-center p-1.5 rounded-md bg-blue-600/15 cursor-pointer hover:bg-blue-600/25 transition-colors" 
+                            title="DJEN"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectCoordenacao(coord.id, "djen");
+                            }}
+                          >
                             <Newspaper className="h-4 w-4 text-blue-600" />
                             <span className="text-xs font-semibold text-blue-600">{coord.djen}</span>
                           </div>
                         )}
                         {coord.distribuicoes > 0 && (
-                          <div className="flex flex-col items-center p-1.5 rounded-md bg-purple-600/15" title="Distribuições">
+                          <div 
+                            className="flex flex-col items-center p-1.5 rounded-md bg-purple-600/15 cursor-pointer hover:bg-purple-600/25 transition-colors" 
+                            title="Distribuições"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectCoordenacao(coord.id, "distribuicoes");
+                            }}
+                          >
                             <Scale className="h-4 w-4 text-purple-600" />
                             <span className="text-xs font-semibold text-purple-600">{coord.distribuicoes}</span>
                           </div>
                         )}
                         {coord.alertas360 > 0 && (
-                          <div className="flex flex-col items-center p-1.5 rounded-md bg-amber-600/15" title="Alertas 360°">
+                          <div 
+                            className="flex flex-col items-center p-1.5 rounded-md bg-amber-600/15 cursor-pointer hover:bg-amber-600/25 transition-colors" 
+                            title="Alertas 360°"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectCoordenacao(coord.id, "alertas");
+                            }}
+                          >
                             <Radar className="h-4 w-4 text-amber-600" />
                             <span className="text-xs font-semibold text-amber-600">{coord.alertas360}</span>
                           </div>
                         )}
                         {coord.redistribuicoes > 0 && (
-                          <div className="flex flex-col items-center p-1.5 rounded-md bg-cyan-600/15" title="Redistribuições">
+                          <div 
+                            className="flex flex-col items-center p-1.5 rounded-md bg-cyan-600/15 cursor-pointer hover:bg-cyan-600/25 transition-colors" 
+                            title="Redistribuições"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectCoordenacao(coord.id, "redistribuicoes");
+                            }}
+                          >
                             <RefreshCw className="h-4 w-4 text-cyan-600" />
                             <span className="text-xs font-semibold text-cyan-600">{coord.redistribuicoes}</span>
                           </div>
                         )}
                         {coord.andamentos > 0 && (
-                          <div className="flex flex-col items-center p-1.5 rounded-md bg-violet-600/15" title="Andamentos">
+                          <div 
+                            className="flex flex-col items-center p-1.5 rounded-md bg-violet-600/15 cursor-pointer hover:bg-violet-600/25 transition-colors" 
+                            title="Andamentos"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectCoordenacao(coord.id, "andamentos");
+                            }}
+                          >
                             <Activity className="h-4 w-4 text-violet-600" />
                             <span className="text-xs font-semibold text-violet-600">{coord.andamentos}</span>
                           </div>
                         )}
                         {coord.prazos > 0 && (
-                          <div className="flex flex-col items-center p-1.5 rounded-md bg-red-600/15" title="Prazos">
+                          <div 
+                            className="flex flex-col items-center p-1.5 rounded-md bg-red-600/15 cursor-pointer hover:bg-red-600/25 transition-colors" 
+                            title="Prazos"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectCoordenacao(coord.id, "prazos");
+                            }}
+                          >
                             <Clock className="h-4 w-4 text-red-600" />
                             <span className="text-xs font-semibold text-red-600">{coord.prazos}</span>
                           </div>
                         )}
                         {coord.tarefas > 0 && (
-                          <div className="flex flex-col items-center p-1.5 rounded-md bg-green-600/15" title="Tarefas">
+                          <div 
+                            className="flex flex-col items-center p-1.5 rounded-md bg-green-600/15 cursor-pointer hover:bg-green-600/25 transition-colors" 
+                            title="Tarefas"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectCoordenacao(coord.id, "tarefas");
+                            }}
+                          >
                             <ListTodo className="h-4 w-4 text-green-600" />
                             <span className="text-xs font-semibold text-green-600">{coord.tarefas}</span>
                           </div>
                         )}
                         {coord.audiencias > 0 && (
-                          <div className="flex flex-col items-center p-1.5 rounded-md bg-indigo-600/15" title="Audiências">
+                          <div 
+                            className="flex flex-col items-center p-1.5 rounded-md bg-indigo-600/15 cursor-pointer hover:bg-indigo-600/25 transition-colors" 
+                            title="Audiências"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectCoordenacao(coord.id, "audiencias");
+                            }}
+                          >
                             <Gavel className="h-4 w-4 text-indigo-600" />
                             <span className="text-xs font-semibold text-indigo-600">{coord.audiencias}</span>
                           </div>
                         )}
                         {coord.intimacoes > 0 && (
-                          <div className="flex flex-col items-center p-1.5 rounded-md bg-orange-600/15" title="Intimações">
+                          <div 
+                            className="flex flex-col items-center p-1.5 rounded-md bg-orange-600/15 cursor-pointer hover:bg-orange-600/25 transition-colors" 
+                            title="Intimações"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectCoordenacao(coord.id, "intimacoes");
+                            }}
+                          >
                             <FileWarning className="h-4 w-4 text-orange-600" />
                             <span className="text-xs font-semibold text-orange-600">{coord.intimacoes}</span>
                           </div>
