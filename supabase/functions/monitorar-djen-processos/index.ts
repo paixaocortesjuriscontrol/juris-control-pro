@@ -1119,6 +1119,109 @@ serve(async (req) => {
       }
     }
 
+    // ========== ENVIO DE RESUMO CONSOLIDADO AO FINAL ==========
+    if (completeRun && !hasMore) {
+      console.log('[DJEN Processos] Execução completa! Enviando resumo consolidado...');
+      
+      try {
+        // Buscar publicações DJEN criadas hoje agrupadas por coordenação
+        const hojeISO = new Date().toISOString().split('T')[0];
+        
+        const { data: publicacoesHoje } = await supabase
+          .from('publicacoes_djen_processos')
+          .select(`
+            id,
+            numero_processo,
+            data_disponibilizacao,
+            conteudo,
+            processo_id,
+            processos!inner(
+              id,
+              numero,
+              coordenacao_id,
+              coordenacoes(id, nome)
+            )
+          `)
+          .gte('created_at', hojeISO)
+          .order('created_at', { ascending: false });
+
+        if (publicacoesHoje && publicacoesHoje.length > 0) {
+          console.log(`[DJEN Processos] ${publicacoesHoje.length} publicações encontradas hoje para resumo`);
+          
+          // Agrupar por coordenação
+          const porCoordenacao = new Map<string, {
+            coordenacao_nome: string;
+            publicacoes: Array<{
+              processo_numero: string;
+              conteudo: string;
+              data: string;
+            }>;
+          }>();
+
+          for (const pub of publicacoesHoje) {
+            const processo = pub.processos as any;
+            const coordId = processo?.coordenacao_id;
+            const coordNome = processo?.coordenacoes?.nome || 'Sem Coordenação';
+            
+            if (!coordId) continue;
+            
+            if (!porCoordenacao.has(coordId)) {
+              porCoordenacao.set(coordId, {
+                coordenacao_nome: coordNome,
+                publicacoes: []
+              });
+            }
+            
+            porCoordenacao.get(coordId)!.publicacoes.push({
+              processo_numero: processo?.numero || pub.numero_processo || 'N/A',
+              conteudo: (pub.conteudo || '').substring(0, 200) + ((pub.conteudo || '').length > 200 ? '...' : ''),
+              data: pub.data_disponibilizacao || hojeISO
+            });
+          }
+
+          // Enviar resumo para cada coordenação
+          if (porCoordenacao.size > 0) {
+            const resumosPorCoordenacao: Record<string, any> = {};
+            
+            for (const [coordId, dados] of porCoordenacao) {
+              resumosPorCoordenacao[coordId] = {
+                coordenacao_nome: dados.coordenacao_nome,
+                total: dados.publicacoes.length,
+                exemplos: dados.publicacoes.map(p => ({
+                  processo_numero: p.processo_numero,
+                  descricao: `Publicação DJEN: ${p.conteudo}`
+                }))
+              };
+            }
+
+            const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+            
+            const resumoPromise = fetch(`${supabaseUrl}/functions/v1/enviar-resumo-monitoramento`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseAnonKey}`,
+              },
+              body: JSON.stringify({
+                tipo_monitoramento: 'djen_processos',
+                resumos_por_coordenacao: resumosPorCoordenacao
+              })
+            })
+              .then(r => r.json())
+              .then(data => console.log('[DJEN Processos] Resumo enviado:', JSON.stringify(data).slice(0, 300)))
+              .catch(err => console.error('[DJEN Processos] Erro ao enviar resumo:', err));
+
+            const er = (globalThis as any).EdgeRuntime;
+            if (er?.waitUntil) er.waitUntil(resumoPromise);
+          }
+        } else {
+          console.log('[DJEN Processos] Nenhuma publicação encontrada hoje para resumo');
+        }
+      } catch (resumoError) {
+        console.error('[DJEN Processos] Erro ao preparar resumo:', resumoError);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
