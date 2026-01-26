@@ -42,7 +42,7 @@ import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
 import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useRedistribuicoes } from "@/hooks/useRedistribuicoes";
-import { formatDistanceToNow, format, isAfter, isBefore, startOfDay, parseISO } from "date-fns";
+import { formatDistanceToNow, format, isAfter, isBefore, startOfDay, parseISO, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -53,6 +53,7 @@ import { GerarRelatorioPdfDialog } from "@/components/notificacoes/GerarRelatori
 export default function Notificacoes() {
   // Central de Notificações
   const PAGE_SIZE = 1000;
+  const DEFAULT_PERIOD_DAYS = 90;
 
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -66,6 +67,13 @@ export default function Notificacoes() {
   
   
   const navigate = useNavigate();
+
+  const setPeriodoUltimosDias = (dias: number) => {
+    const hoje = startOfDay(new Date());
+    const inicio = startOfDay(subDays(hoje, Math.max(dias - 1, 0)));
+    setPeriodoInicio(inicio);
+    setPeriodoFim(hoje);
+  };
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const { 
@@ -710,8 +718,24 @@ export default function Notificacoes() {
           <div className="flex flex-wrap items-center gap-3">
             {/* Quick Period Filters */}
             <div className="flex gap-1">
+              {(() => {
+                const hoje = startOfDay(new Date());
+                const inicio90 = startOfDay(subDays(hoje, DEFAULT_PERIOD_DAYS - 1));
+                const isHoje =
+                  !!periodoInicio &&
+                  !!periodoFim &&
+                  startOfDay(periodoInicio).getTime() === hoje.getTime() &&
+                  startOfDay(periodoFim).getTime() === hoje.getTime();
+                const is90dias =
+                  !!periodoInicio &&
+                  !!periodoFim &&
+                  startOfDay(periodoInicio).getTime() === inicio90.getTime() &&
+                  startOfDay(periodoFim).getTime() === hoje.getTime();
+
+                return (
+                  <>
               <Button
-                variant={periodoInicio?.getTime() === startOfDay(new Date()).getTime() && periodoFim?.getTime() === startOfDay(new Date()).getTime() ? "default" : "outline"}
+                variant={isHoje ? "default" : "outline"}
                 size="sm"
                 className="h-9"
                 onClick={() => {
@@ -722,16 +746,18 @@ export default function Notificacoes() {
                 Hoje
               </Button>
               <Button
-                variant={!periodoInicio && !periodoFim ? "default" : "outline"}
+                variant={is90dias ? "default" : "outline"}
                 size="sm"
                 className="h-9"
                 onClick={() => {
-                  setPeriodoInicio(undefined);
-                  setPeriodoFim(undefined);
+                  setPeriodoUltimosDias(DEFAULT_PERIOD_DAYS);
                 }}
               >
-                Tudo
+                90 dias
               </Button>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Period Filters - Data Início */}
@@ -766,7 +792,7 @@ export default function Notificacoes() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => setPeriodoInicio(undefined)}
+                    onClick={() => setPeriodoUltimosDias(DEFAULT_PERIOD_DAYS)}
                   >
                     Limpar
                   </Button>
@@ -806,7 +832,7 @@ export default function Notificacoes() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => setPeriodoFim(undefined)}
+                    onClick={() => setPeriodoUltimosDias(DEFAULT_PERIOD_DAYS)}
                   >
                     Limpar
                   </Button>

@@ -33,7 +33,7 @@ import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao";
 import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
-import { startOfDay, parseISO, isBefore, isAfter, format } from "date-fns";
+import { startOfDay, parseISO, isBefore, isAfter, format, subDays } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -80,6 +80,7 @@ export function DashboardCoordenacoes({
   statusFilter = "pendente",
   searchQuery = ""
 }: Props) {
+  const DEFAULT_PERIOD_DAYS = 90;
   const { user } = useAuth();
   const { isAdmin, loading: loadingRole } = useUserRole();
   
@@ -93,10 +94,11 @@ export function DashboardCoordenacoes({
     queryFn: async () => {
       const pageSize = 1000;
 
-      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
-      const fimDiaMaisUm = periodoFim
-        ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd")
-        : undefined;
+      // Quando o usuário não define período, usar últimos 90 dias (evita varredura do histórico inteiro)
+      const effectiveFim = startOfDay(periodoFim ?? new Date());
+      const effectiveInicio = startOfDay(periodoInicio ?? subDays(effectiveFim, DEFAULT_PERIOD_DAYS - 1));
+      const inicioDia = format(effectiveInicio, "yyyy-MM-dd");
+      const fimDiaMaisUm = format(new Date(effectiveFim.getTime() + 86400000), "yyyy-MM-dd");
 
       const buildQuery = () => {
         let q = supabase
@@ -121,9 +123,9 @@ export function DashboardCoordenacoes({
           .eq("tipo", "Redistribuição")
           .order("created_at", { ascending: false });
 
-        // CRÍTICO: filtrar por created_at (data da captura), igual useRedistribuicoes
-        if (inicioDia) q = q.gte("created_at", inicioDia);
-        if (fimDiaMaisUm) q = q.lt("created_at", fimDiaMaisUm);
+        // CRÍTICO: filtrar por created_at (data da captura)
+        q = q.gte("created_at", inicioDia);
+        q = q.lt("created_at", fimDiaMaisUm);
 
         return q;
       };
@@ -366,13 +368,16 @@ export function DashboardCoordenacoes({
     queryKey: ["andamentos-coordenacao", periodoInicio, periodoFim],
     queryFn: async () => {
       console.log("🔍 [DashboardCoordenacoes] Buscando andamentos...");
-      console.log("📅 Período:", { 
-        inicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : "sem filtro",
-        fim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : "sem filtro"
+      // Quando o usuário não define período, usar últimos 90 dias (evita varredura do histórico inteiro)
+      const effectiveFim = startOfDay(periodoFim ?? new Date());
+      const effectiveInicio = startOfDay(periodoInicio ?? subDays(effectiveFim, DEFAULT_PERIOD_DAYS - 1));
+      const inicioDia = format(effectiveInicio, "yyyy-MM-dd");
+      const fimDiaMaisUm = format(new Date(effectiveFim.getTime() + 86400000), "yyyy-MM-dd");
+
+      console.log("📅 Período:", {
+        inicio: inicioDia,
+        fim: format(effectiveFim, "yyyy-MM-dd"),
       });
-      
-      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
-      const fimDiaMaisUm = periodoFim ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd") : undefined;
       
       const pageSize = 1000;
 
@@ -397,8 +402,8 @@ export function DashboardCoordenacoes({
           .order("created_at", { ascending: false });
 
         // CRÍTICO: Aplicar filtros de período usando created_at (data da captura)
-        if (inicioDia) q = q.gte("created_at", inicioDia);
-        if (fimDiaMaisUm) q = q.lt("created_at", fimDiaMaisUm);
+        q = q.gte("created_at", inicioDia);
+        q = q.lt("created_at", fimDiaMaisUm);
 
         return q;
       };
