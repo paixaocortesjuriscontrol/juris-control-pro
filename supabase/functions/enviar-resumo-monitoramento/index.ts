@@ -50,10 +50,13 @@ serve(async (req) => {
       'distribuicoes': 'distribuicoes',
       'djen': 'djen',
       'djen_processos': 'djen',
-      'termos': 'alertas_360',
+      // no banco hoje está como "alertas360" (sem underscore)
+      'termos': 'alertas360',
     };
 
     const tipoAlerta = tipoAlertaMap[tipo_monitoramento] || tipo_monitoramento;
+
+    const normalizeTipoAlerta = (s: string) => String(s || '').toLowerCase().replace(/_/g, '');
 
     // Mapeamento de ícones e títulos
     const iconMap: Record<string, string> = {
@@ -98,7 +101,8 @@ serve(async (req) => {
       }
 
       // Verificar se o tipo de alerta está habilitado
-      if (!config.tipos_alerta?.includes(tipoAlerta)) {
+      const tiposAlertasNorm = (config.tipos_alerta || []).map((t: any) => normalizeTipoAlerta(t));
+      if (!tiposAlertasNorm.includes(normalizeTipoAlerta(tipoAlerta))) {
         console.log(`${TAG} Tipo de alerta "${tipoAlerta}" não habilitado para coordenação ${coordenacao_id}`);
         continue;
       }
@@ -200,7 +204,7 @@ serve(async (req) => {
             ${listaHtml}
             <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />
             <p style="margin: 0; font-size: 11px; color: #9ca3af; text-align: center;">
-              Resumo automático do Juris Control Pro • ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              Resumo automático do Juris Control Pro • ${brasiliaTime.toLocaleDateString('pt-BR')} às ${brasiliaTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
         </div>

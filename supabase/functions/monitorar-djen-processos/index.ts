@@ -6,6 +6,31 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function getBrazilISODate(date: Date = new Date()): string {
+  // en-CA => YYYY-MM-DD
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function getBrazilDayUtcRange(iso: string): { startUtc: string; endUtc: string } {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) {
+    const start = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    return { startUtc: start.toISOString(), endUtc: end.toISOString() };
+  }
+
+  const [, y, mo, d] = m;
+  // 00:00 BRT == 03:00 UTC
+  const start = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), 3, 0, 0));
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { startUtc: start.toISOString(), endUtc: end.toISOString() };
+}
+
 // Single optimized endpoint
 const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 const BATCH_SIZE = 50; // Batch size for processing
@@ -684,7 +709,7 @@ async function processProcessosBatch(
         // Fallback: usar data atual APENAS se realmente não há data na API
         // Este fallback é problemático pois pode gravar data errada
         if (!dataDisponibilizacao && !dataPublicacao) {
-          const hoje = new Date().toISOString().split('T')[0];
+          const hoje = getBrazilISODate();
           dataDisponibilizacao = hoje;
           const amanha = new Date();
           amanha.setDate(amanha.getDate() + 1);
@@ -922,7 +947,7 @@ serve(async (req) => {
 
     // Default to today
     if (!dataInicio && !dataFim) {
-      const hoje = new Date().toISOString().split('T')[0];
+      const hoje = getBrazilISODate();
       dataInicio = hoje;
       dataFim = hoje;
     }
@@ -1125,7 +1150,8 @@ serve(async (req) => {
       
       try {
         // Buscar publicações DJEN criadas hoje agrupadas por coordenação
-        const hojeISO = new Date().toISOString().split('T')[0];
+        const hojeISO = getBrazilISODate();
+        const { startUtc, endUtc } = getBrazilDayUtcRange(hojeISO);
         
         const { data: publicacoesHoje } = await supabase
           .from('publicacoes_djen_processos')
@@ -1142,7 +1168,8 @@ serve(async (req) => {
               coordenacoes(id, nome)
             )
           `)
-          .gte('created_at', hojeISO)
+          .gte('created_at', startUtc)
+          .lt('created_at', endUtc)
           .order('created_at', { ascending: false });
 
         if (publicacoesHoje && publicacoesHoje.length > 0) {
