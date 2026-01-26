@@ -145,44 +145,59 @@ serve(async (req) => {
       const icon = iconMap[tipo_monitoramento] || '📊';
       const titulo = `${icon} ${tituloMap[tipo_monitoramento] || 'Resumo de Monitoramento'}`;
       
-      // Montar exemplos formatados
-      const exemplosTexto = exemplos.slice(0, 5).map((ex, i) => 
+      // Montar lista COMPLETA de exemplos formatados (sem limite)
+      const exemplosTexto = exemplos.map((ex, i) => 
         `${i + 1}. ${ex.processo_numero}: ${ex.descricao}`
       ).join('\n');
-      
-      const maisExemplos = exemplos.length > 5 ? `\n... e mais ${exemplos.length - 5} itens` : '';
 
       const mensagemTexto = `📊 *${coordenacao_nome || 'Coordenação'}*\n\n` +
         `✅ Verificados: ${total_verificados}\n` +
         `🆕 Encontrados: ${total_encontrados}\n\n` +
-        `📋 *Exemplos:*\n${exemplosTexto}${maisExemplos}\n\n` +
+        `📋 *Detalhes:*\n${exemplosTexto}\n\n` +
         `_Resumo automático - Juris Control Pro_`;
 
+      // Agrupar por processo para melhor organização no email
+      const porProcesso = new Map<string, string[]>();
+      for (const ex of exemplos) {
+        if (!porProcesso.has(ex.processo_numero)) {
+          porProcesso.set(ex.processo_numero, []);
+        }
+        porProcesso.get(ex.processo_numero)!.push(ex.descricao);
+      }
+
+      const listaHtml = Array.from(porProcesso.entries()).map(([numero, descricoes]) => `
+        <div style="margin-bottom: 16px; padding: 12px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #6366f1;">
+          <div style="font-weight: 600; color: #1f2937; margin-bottom: 8px;">📄 ${numero}</div>
+          <ul style="margin: 0; padding-left: 20px; color: #4b5563; font-size: 13px;">
+            ${descricoes.map(d => `<li style="margin-bottom: 4px;">${d}</li>`).join('')}
+          </ul>
+        </div>
+      `).join('');
+
       const mensagemHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: #1a1a2e; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-            <h2 style="margin: 0;">${icon} ${tituloMap[tipo_monitoramento] || 'Resumo'}</h2>
-            <p style="margin: 8px 0 0 0; opacity: 0.9;">${coordenacao_nome || 'Coordenação'}</p>
+        <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 24px; border-radius: 12px 12px 0 0;">
+            <h2 style="margin: 0; font-size: 20px;">${icon} ${tituloMap[tipo_monitoramento] || 'Resumo'}</h2>
+            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 14px;">${coordenacao_nome || 'Coordenação'}</p>
           </div>
-          <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none;">
-            <div style="display: flex; gap: 20px; margin-bottom: 16px;">
-              <div style="flex: 1; background: #f3f4f6; padding: 12px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 24px; font-weight: bold; color: #6b7280;">${total_verificados}</div>
-                <div style="font-size: 12px; color: #9ca3af;">Verificados</div>
+          <div style="padding: 24px; border: 1px solid #e5e7eb; border-top: none; background: white;">
+            <div style="display: flex; gap: 16px; margin-bottom: 20px;">
+              <div style="flex: 1; background: #f3f4f6; padding: 16px; border-radius: 12px; text-align: center;">
+                <div style="font-size: 28px; font-weight: bold; color: #6b7280;">${total_verificados}</div>
+                <div style="font-size: 12px; color: #9ca3af; text-transform: uppercase;">Processos Verificados</div>
               </div>
-              <div style="flex: 1; background: #ecfdf5; padding: 12px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 24px; font-weight: bold; color: #10b981;">${total_encontrados}</div>
-                <div style="font-size: 12px; color: #059669;">Encontrados</div>
+              <div style="flex: 1; background: #ecfdf5; padding: 16px; border-radius: 12px; text-align: center;">
+                <div style="font-size: 28px; font-weight: bold; color: #10b981;">${total_encontrados}</div>
+                <div style="font-size: 12px; color: #059669; text-transform: uppercase;">Novos Andamentos</div>
               </div>
             </div>
-            <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">📋 Exemplos:</h3>
-            <ul style="margin: 0; padding-left: 20px; color: #4b5563;">
-              ${exemplos.slice(0, 5).map(ex => `<li style="margin-bottom: 8px;"><strong>${ex.processo_numero}</strong>: ${ex.descricao}</li>`).join('')}
-              ${exemplos.length > 5 ? `<li style="color: #9ca3af;">... e mais ${exemplos.length - 5} itens</li>` : ''}
-            </ul>
-            <hr style="margin: 16px 0; border: none; border-top: 1px solid #e5e7eb;" />
-            <p style="margin: 0; font-size: 12px; color: #9ca3af;">
-              Resumo automático do Juris Control Pro
+            <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #374151; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">
+              📋 Lista Completa de Andamentos
+            </h3>
+            ${listaHtml}
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />
+            <p style="margin: 0; font-size: 11px; color: #9ca3af; text-align: center;">
+              Resumo automático do Juris Control Pro • ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
         </div>
