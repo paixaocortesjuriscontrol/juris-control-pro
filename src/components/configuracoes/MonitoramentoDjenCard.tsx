@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
+import { withTimeout } from "@/utils/withTimeout";
 
 interface Props {
   coordenacaoId: string;
@@ -48,21 +49,7 @@ interface ExecutionResult {
   executadoEm?: string;
 }
 
-// Helper para timeout de promises (fora do componente para não violar regras de hooks)
-const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
-  return new Promise<T>((resolve, reject) => {
-    const t = window.setTimeout(() => reject(new Error(timeoutMessage)), ms);
-    promise
-      .then((v) => {
-        window.clearTimeout(t);
-        resolve(v);
-      })
-      .catch((e) => {
-        window.clearTimeout(t);
-        reject(e);
-      });
-  });
-};
+// (withTimeout movido para src/utils/withTimeout.ts)
 
 export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
@@ -342,8 +329,8 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
       const { data, error } = await withTimeout(
         supabase.functions.invoke('limpar-djen-hoje'),
-        60_000,
-        'A limpeza demorou mais que 60s. Verifique o log da função e tente novamente.'
+        180_000,
+        'A limpeza demorou mais que 180s. Verifique o log da função e tente novamente.'
       );
       if (error) throw error;
 
