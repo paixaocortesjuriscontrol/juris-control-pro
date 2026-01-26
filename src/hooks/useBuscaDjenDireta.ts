@@ -139,6 +139,38 @@ export function useBuscaDjenDireta() {
   useEffect(() => {
     const isComplete = progresso.status === 'concluido' || 
       (progresso.totalMonitoramentos > 0 && progresso.monitoramentoAtual >= progresso.totalMonitoramentos);
+
+    // Se completou (mesmo com executando ainda true), finalizar execução local
+    if (isComplete) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+
+      if (executando) {
+        setExecutando(false);
+      }
+
+      // Congelar tempo e limpar tempoInicio para evitar contador continuar
+      setProgresso(prev => {
+        const alreadyFinal = prev.status === 'concluido' && !prev.tempoInicio;
+        if (alreadyFinal) return prev;
+
+        const tempoFinal = prev.tempoInicio
+          ? Math.floor((Date.now() - prev.tempoInicio) / 1000)
+          : (prev.tempoDecorrido ?? 0);
+
+        const updated = {
+          ...prev,
+          status: 'concluido' as const,
+          tempoInicio: undefined,
+          tempoDecorrido: tempoFinal,
+        };
+        salvarEstado(updated);
+        return updated;
+      });
+      return;
+    }
     
     if (executando && progresso.tempoInicio && !isComplete) {
       timerRef.current = setInterval(() => {
