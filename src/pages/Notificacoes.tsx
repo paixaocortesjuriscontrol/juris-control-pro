@@ -302,10 +302,23 @@ export default function Notificacoes() {
     queryKey: ["andamentos-notificacoes-paged", periodoInicio, periodoFim],
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
-      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
-      const fimDiaMaisUm = periodoFim
-        ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd")
-        : undefined;
+      // Se não houver filtro de período, usar últimos N dias para evitar timeout
+      const ANDAMENTOS_DEFAULT_PERIOD_DAYS = 90;
+      let inicioDia: string;
+      let fimDiaMaisUm: string | undefined;
+
+      if (periodoInicio) {
+        inicioDia = format(periodoInicio, "yyyy-MM-dd");
+      } else {
+        // Sem período definido = últimos N dias para performance
+        const dataLimite = new Date();
+        dataLimite.setDate(dataLimite.getDate() - ANDAMENTOS_DEFAULT_PERIOD_DAYS);
+        inicioDia = format(dataLimite, "yyyy-MM-dd");
+      }
+
+      if (periodoFim) {
+        fimDiaMaisUm = format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd");
+      }
 
       let query = supabase
         .from("movimentacoes")
@@ -326,8 +339,8 @@ export default function Notificacoes() {
         .order("created_at", { ascending: false })
         .order("id", { ascending: false });
 
-      // Filtrar por período usando created_at (data da captura), não data_movimentacao
-      if (inicioDia) query = query.gte("created_at", inicioDia);
+      // Filtrar por período (sempre com data início para evitar timeout)
+      query = query.gte("created_at", inicioDia);
       if (fimDiaMaisUm) query = query.lt("created_at", fimDiaMaisUm);
 
       const from = Number(pageParam) || 0;
@@ -347,6 +360,7 @@ export default function Notificacoes() {
   }, [andamentosPaged.data]);
 
   // Total de andamentos (para totalizadores) via COUNT no banco
+  // IMPORTANTE: Usa o mesmo limite de período que a query paginada para consistência
   const { data: andamentosTotal = 0 } = useQuery({
     queryKey: [
       "andamentos-total-notificacoes",
@@ -355,10 +369,22 @@ export default function Notificacoes() {
       searchQuery,
     ],
     queryFn: async () => {
-      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
-      const fimDiaMaisUm = periodoFim
-        ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd")
-        : undefined;
+      const ANDAMENTOS_DEFAULT_PERIOD_DAYS = 90;
+      let inicioDia: string;
+      let fimDiaMaisUm: string | undefined;
+
+      if (periodoInicio) {
+        inicioDia = format(periodoInicio, "yyyy-MM-dd");
+      } else {
+        // Sem período = últimos N dias (igual à query paginada)
+        const dataLimite = new Date();
+        dataLimite.setDate(dataLimite.getDate() - ANDAMENTOS_DEFAULT_PERIOD_DAYS);
+        inicioDia = format(dataLimite, "yyyy-MM-dd");
+      }
+
+      if (periodoFim) {
+        fimDiaMaisUm = format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd");
+      }
 
       const q = searchQuery.trim();
 
@@ -367,8 +393,8 @@ export default function Notificacoes() {
         let base = supabase
           .from("movimentacoes")
           .select("id", { count: "exact", head: true })
-          .neq("tipo", "Redistribuição");
-        if (inicioDia) base = base.gte("created_at", inicioDia);
+          .neq("tipo", "Redistribuição")
+          .gte("created_at", inicioDia);
         if (fimDiaMaisUm) base = base.lt("created_at", fimDiaMaisUm);
         const { count, error } = await base;
         if (error) throw error;
@@ -381,8 +407,8 @@ export default function Notificacoes() {
         .from("movimentacoes")
         .select("id, processos!inner(id, numero)", { count: "exact", head: true })
         .neq("tipo", "Redistribuição")
-        .or(`descricao.ilike.${like},tipo.ilike.${like},processos.numero.ilike.${like}`);
-      if (inicioDia) base = base.gte("created_at", inicioDia);
+        .or(`descricao.ilike.${like},tipo.ilike.${like},processos.numero.ilike.${like}`)
+        .gte("created_at", inicioDia);
       if (fimDiaMaisUm) base = base.lt("created_at", fimDiaMaisUm);
 
       const { count, error } = await base;
@@ -537,14 +563,18 @@ export default function Notificacoes() {
     });
   }, [intimacoesPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim]);
 
-  // Filter andamentos by coordination
+  // Filter andamentos by coordination and period (client-side backup for period matching)
   const andamentosFiltrados = useMemo(() => {
     return andamentosData.filter(a => {
       if (coordenacaoId !== "todas" && (a.processo as any)?.coordenacao_id !== coordenacaoId) return false;
       if (!matchesSearch(a.descricao) && !matchesSearch((a.processo as any)?.numero) && !matchesSearch(a.tipo)) return false;
+      // Período já é filtrado no banco; manter filtro local como backup apenas se período foi definido
+      if (periodoInicio || periodoFim) {
+        if (!matchesPeriodo((a as any).created_at)) return false;
+      }
       return true;
     });
-  }, [andamentosData, coordenacaoId, searchQuery]);
+  }, [andamentosData, coordenacaoId, searchQuery, periodoInicio, periodoFim, matchesPeriodo]);
 
   // Stats - valores reais para os cards
   const stats = useMemo(() => {
@@ -1738,7 +1768,9 @@ export default function Notificacoes() {
             <CardContent>
               {andamentosFiltrados.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  Nenhum andamento encontrado no período
+                  {periodoInicio || periodoFim 
+                    ? "Nenhum andamento encontrado no período selecionado"
+                    : "Nenhum andamento nos últimos 90 dias. Use o filtro de período para buscar datas específicas."}
                 </div>
               ) : (
                   <div className="space-y-3">
