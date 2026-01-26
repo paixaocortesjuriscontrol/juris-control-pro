@@ -151,17 +151,17 @@ export function DjenTermosDashboardCard({
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
 
-  // Verificar se há execução ativa no backend (edge function)
-  // CORREÇÃO: Só considera "running" se AMBOS: status='em_andamento' E percentage < 100
+  // Para BUSCA DIRETA, a fonte de verdade do status/progresso é o hook local.
+  // O backend (metadata) representa a execução orquestrada/cron e pode estar “concluído”
+  // enquanto a busca direta ainda roda (ou vice-versa). Não misturar.
+  const localRunActive = executando || progresso.status === 'executando';
+
+  // Progresso exibido: local quando busca direta está ativa; senão, usa metadata do dashboard
   const backendTotal = md.total ?? 0;
   const backendCurrent = md.current ?? 0;
-  const backendPercentage = backendTotal > 0 ? Math.round((backendCurrent / backendTotal) * 100) : 0;
-  const backendCompleted = md.status === 'concluido' || backendPercentage >= 100;
-  const backendRunning = md.status === 'em_andamento' && !md.cancelado && !backendCompleted;
-  
-  // Usar maior valor entre backend e local para evitar regressão visual
-  const effectiveTotal = Math.max(backendTotal, progresso.totalMonitoramentos);
-  const effectiveCurrent = Math.max(backendCurrent, progresso.monitoramentoAtual);
+
+  const effectiveTotal = localRunActive ? (progresso.totalMonitoramentos ?? 0) : backendTotal;
+  const effectiveCurrent = localRunActive ? (progresso.monitoramentoAtual ?? 0) : backendCurrent;
   
   const percent = useMemo(() => {
     if (effectiveTotal <= 0) return 0;
@@ -170,20 +170,21 @@ export function DjenTermosDashboardCard({
     return Math.min(100, calc);
   }, [effectiveCurrent, effectiveTotal]);
 
-  // Determinar status real - CORRIGIDO: 100% = completed, não running
-  const localCompleted = progresso.status === 'concluido' || (effectiveCurrent >= effectiveTotal && effectiveTotal > 0);
-  const isRunning = (executando || backendRunning) && !localCompleted && !backendCompleted;
-  
-  const currentStatus: MonitoringStatus = 
-    isRunning ? 'running' 
-    : localCompleted || backendCompleted || md.status === 'concluido' ? 'completed' 
-    : progresso.status === 'erro' || md.status === 'falhou' ? 'failed' 
+  // Status exibido: se busca direta está ativa, reflete o hook; senão, reflete o dashboard.
+  const localCompleted =
+    progresso.status === 'concluido' ||
+    (progresso.totalMonitoramentos > 0 && progresso.monitoramentoAtual >= progresso.totalMonitoramentos);
+
+  const currentStatus: MonitoringStatus = localRunActive
+    ? (localCompleted ? 'completed' : (progresso.status === 'erro' ? 'failed' : 'running'))
     : stats.status;
+
+  const isRunning = currentStatus === 'running';
 
   const statusConfig = STATUS_CONFIG[currentStatus];
 
   const handleExecutar = async () => {
-    if (executando || isExecuting) return;
+    if (isRunning || isExecuting) return;
 
     try {
       if (isPaused) {
@@ -232,7 +233,8 @@ export function DjenTermosDashboardCard({
   };
 
   const canExecute = !isRunning && !isExecuting && currentStatus !== 'timeout';
-  const canCancel = isRunning;
+  // Cancelar só faz sentido para a busca direta (local)
+  const canCancel = localRunActive && isRunning;
 
   // Métricas reais - USAR APENAS todayStats (banco consolidado, fonte única de verdade)
   // Evita inconsistência entre Dashboard e Análise DJEN
@@ -244,9 +246,9 @@ export function DjenTermosDashboardCard({
 
   // Tempo - usar do backend se disponível
   const backendDuration = md.djen_run?.totals?.duracao_s ?? 0;
-  const tempoSegundos = backendDuration > 0
-    ? backendDuration
-    : (progresso.tempoDecorrido ?? 0);
+  const tempoSegundos = localRunActive
+    ? (progresso.tempoDecorrido ?? 0)
+    : (backendDuration > 0 ? backendDuration : stats.elapsedSeconds);
   const tempoFormatado = tempoSegundos > 0 
     ? formatDuration(tempoSegundos) 
     : formatDuration(stats.elapsedSeconds);
@@ -315,7 +317,7 @@ export function DjenTermosDashboardCard({
               value={percent} 
               className={cn("h-2.5", isRunning && "animate-pulse")}
             />
-            {isRunning && progresso.mensagem && (
+            {isRunning && localRunActive && progresso.mensagem && (
               <div className="text-xs text-muted-foreground truncate">
                 {progresso.mensagem}
               </div>
@@ -385,7 +387,7 @@ export function DjenTermosDashboardCard({
             onClick={handleExecutar}
             disabled={!canExecute}
           >
-            {executando || isExecuting ? (
+            {isRunning || isExecuting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Executando...
