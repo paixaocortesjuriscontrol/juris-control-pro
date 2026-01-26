@@ -134,14 +134,13 @@ function MetricBadge({
 
 export function DjenTermosDashboardCard({
   stats,
-  isExecuting,
-  isCancelling,
+  isExecuting: _isExecuting,
+  isCancelling: _isCancelling,
   onReativarConfig,
   onAfterMutation,
 }: Props) {
   const {
     progresso,
-    executando,
     executarMonitoramento,
     cancelarExecucao,
   } = useBuscaDjenDireta();
@@ -154,7 +153,9 @@ export function DjenTermosDashboardCard({
   // Para BUSCA DIRETA, a fonte de verdade do status/progresso é o hook local.
   // O backend (metadata) representa a execução orquestrada/cron e pode estar “concluído”
   // enquanto a busca direta ainda roda (ou vice-versa). Não misturar.
-  const localRunActive = executando || progresso.status === 'executando';
+  // Fonte única para a UI: o status do progresso do hook.
+  // (O boolean `executando` pode ficar alguns ticks desencontrado em transições.)
+  const localRunActive = progresso.status === 'executando';
 
   // Progresso exibido: local quando busca direta está ativa; senão, usa metadata do dashboard
   const backendTotal = md.total ?? 0;
@@ -171,9 +172,7 @@ export function DjenTermosDashboardCard({
   }, [effectiveCurrent, effectiveTotal]);
 
   // Status exibido: se busca direta está ativa, reflete o hook; senão, reflete o dashboard.
-  const localCompleted =
-    progresso.status === 'concluido' ||
-    (progresso.totalMonitoramentos > 0 && progresso.monitoramentoAtual >= progresso.totalMonitoramentos);
+  const localCompleted = progresso.status === 'concluido';
 
   const currentStatus: MonitoringStatus = localRunActive
     ? (localCompleted ? 'completed' : (progresso.status === 'erro' ? 'failed' : 'running'))
@@ -184,7 +183,8 @@ export function DjenTermosDashboardCard({
   const statusConfig = STATUS_CONFIG[currentStatus];
 
   const handleExecutar = async () => {
-    if (isRunning || isExecuting) return;
+    // DJEN Termos (busca direta) não usa o estado "executing" do MonitoringDashboard.
+    if (isRunning) return;
 
     try {
       if (isPaused) {
@@ -211,7 +211,7 @@ export function DjenTermosDashboardCard({
 
     setLimpando(true);
     try {
-      if (executando) {
+      if (localRunActive) {
         handleCancelar();
         await new Promise((r) => setTimeout(r, 600));
       }
@@ -232,7 +232,7 @@ export function DjenTermosDashboardCard({
     }
   };
 
-  const canExecute = !isRunning && !isExecuting && currentStatus !== 'timeout';
+  const canExecute = !isRunning && currentStatus !== 'timeout';
   // Cancelar só faz sentido para a busca direta (local)
   const canCancel = localRunActive && isRunning;
 
@@ -387,7 +387,7 @@ export function DjenTermosDashboardCard({
             onClick={handleExecutar}
             disabled={!canExecute}
           >
-            {isRunning || isExecuting ? (
+            {isRunning ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Executando...
@@ -404,13 +404,9 @@ export function DjenTermosDashboardCard({
             size="sm"
             variant="destructive"
             onClick={handleCancelar}
-            disabled={isCancelling || !canCancel}
+            disabled={!canCancel}
           >
-            {isCancelling ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <StopCircle className="h-4 w-4" />
-            )}
+            <StopCircle className="h-4 w-4" />
           </Button>
 
           <Button
