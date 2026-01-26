@@ -487,7 +487,14 @@ serve(async (req) => {
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #f8fafc;">
           <!-- Header -->
           <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 32px; border-radius: 12px 12px 0 0;">
-            <h1 style="margin: 0; font-size: 24px; font-weight: 600;">${icon} ${tituloMap[tipo_monitoramento] || 'Resumo de Monitoramento'}</h1>
+            <div style="display: flex; align-items: center; margin-bottom: 16px;">
+              <span style="display: inline-block; width: 48px; height: 48px; background: linear-gradient(135deg, #d4a015 0%, #eab308 100%); border-radius: 10px; line-height: 48px; text-align: center; font-size: 24px; margin-right: 16px;">⚖️</span>
+              <div>
+                <h1 style="margin: 0; font-size: 22px; font-weight: 600;">Juris Control</h1>
+                <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.7;">Paixão Cortes Advogados</p>
+              </div>
+            </div>
+            <h2 style="margin: 0; font-size: 20px; font-weight: 500;">${icon} ${tituloMap[tipo_monitoramento] || 'Resumo de Monitoramento'}</h2>
             <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 15px;">${coordenacao_nome || 'Coordenação'}</p>
             <p style="margin: 4px 0 0 0; opacity: 0.7; font-size: 13px;">📅 ${dataHoje} às ${horaFormatada}</p>
           </div>
