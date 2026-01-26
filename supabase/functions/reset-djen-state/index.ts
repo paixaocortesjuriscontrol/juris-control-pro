@@ -34,13 +34,16 @@
        console.log(`[Reset DJEN] ${execAtivas?.length || 0} execuções canceladas`)
      }
  
-     // 2. Marcar execuções fantasma como timeout
-     const { data: execFantasma, error: fantasmaError } = await supabase
+      // 2. Limpar execuções fantasma (executando mas já finalizadas)
+      const { data: execFantasma, error: fantasmaError } = await supabase
        .from('execucoes_agendadas')
-       .update({ status: 'timeout' })
+        .update({ 
+          status: 'timeout',
+          finalizado_em: new Date().toISOString()
+        })
        .eq('tipo', 'djen')
        .eq('status', 'executando')
-       .not('finalizado_em', 'is', null)
+        .not('finalizado_em', 'is', null)
        .select()
  
      if (fantasmaError) {
