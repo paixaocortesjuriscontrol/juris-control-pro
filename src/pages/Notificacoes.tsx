@@ -639,6 +639,15 @@ export default function Notificacoes() {
         </div>
       </div>
 
+      <GerarRelatorioPdfDialog
+        open={pdfDialogOpen}
+        onOpenChange={setPdfDialogOpen}
+        periodoInicio={periodoInicio}
+        periodoFim={periodoFim}
+        statusFilter={statusFilter}
+        searchQuery={searchQuery}
+      />
+
 
       {/* Cards de resumo por tipo */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-12 gap-3 mb-6">
