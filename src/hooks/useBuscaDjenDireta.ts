@@ -420,10 +420,18 @@ export function useBuscaDjenDireta() {
         coordenacao_id: mon.coordenacao_id,
         total_verificados: publicacoes.length,
         total_encontrados: novas.length,
-        exemplos: novas.slice(0, 3).map(p => ({
-          processo_numero: p.processo_numero || 'Processo não identificado',
-          descricao: (p.conteudo || '').slice(0, 100) + '...',
-        })),
+        exemplos: novas.slice(0, 3).map(p => {
+          // Tentar extrair número do processo do conteúdo se não existir no campo
+          let numeroProcesso = p.processo_numero;
+          if (!numeroProcesso && p.conteudo) {
+            const match = p.conteudo.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
+            if (match) numeroProcesso = match[1];
+          }
+          return {
+            processo_numero: numeroProcesso || 'Processo não identificado',
+            descricao: (p.conteudo || '').slice(0, 100) + '...',
+          };
+        }),
       };
     }
 
