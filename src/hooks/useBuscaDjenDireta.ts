@@ -135,69 +135,35 @@ export function useBuscaDjenDireta() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Timer para atualizar tempo decorrido
-  // CORREÇÃO: Parar quando status é 'concluido' OU progresso atingiu 100%
   useEffect(() => {
-    const isComplete = progresso.status === 'concluido' || 
-      (progresso.totalMonitoramentos > 0 && progresso.monitoramentoAtual >= progresso.totalMonitoramentos);
+    // Sempre limpar o timer anterior ao reavaliar
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
 
-    // Se completou (mesmo com executando ainda true), finalizar execução local
-    if (isComplete) {
+    // Só conta tempo enquanto a execução está efetivamente em andamento
+    if (!executando || !progresso.tempoInicio || progresso.status !== 'executando') {
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      setProgresso((prev) => {
+        if (!prev.tempoInicio || prev.status !== 'executando') return prev;
+        const tempo = Math.floor((Date.now() - prev.tempoInicio) / 1000);
+        const updated = { ...prev, tempoDecorrido: tempo };
+        salvarEstado(updated);
+        return updated;
+      });
+    }, 1000);
+
+    return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
-
-      if (executando) {
-        setExecutando(false);
-      }
-
-      // Congelar tempo e limpar tempoInicio para evitar contador continuar
-      setProgresso(prev => {
-        const alreadyFinal = prev.status === 'concluido' && !prev.tempoInicio;
-        if (alreadyFinal) return prev;
-
-        const tempoFinal = prev.tempoInicio
-          ? Math.floor((Date.now() - prev.tempoInicio) / 1000)
-          : (prev.tempoDecorrido ?? 0);
-
-        const updated = {
-          ...prev,
-          status: 'concluido' as const,
-          tempoInicio: undefined,
-          tempoDecorrido: tempoFinal,
-        };
-        salvarEstado(updated);
-        return updated;
-      });
-      return;
-    }
-    
-    if (executando && progresso.tempoInicio && !isComplete) {
-      timerRef.current = setInterval(() => {
-        setProgresso(prev => {
-          // Verificar novamente se completou
-          const nowComplete = prev.status === 'concluido' || 
-            (prev.totalMonitoramentos > 0 && prev.monitoramentoAtual >= prev.totalMonitoramentos);
-          if (nowComplete) {
-            return prev; // Não atualizar mais
-          }
-          const tempo = Math.floor((Date.now() - (prev.tempoInicio || Date.now())) / 1000);
-          const updated = { ...prev, tempoDecorrido: tempo };
-          salvarEstado(updated);
-          return updated;
-        });
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
     };
-  }, [executando, progresso.tempoInicio, progresso.status, progresso.monitoramentoAtual, progresso.totalMonitoramentos]);
+  }, [executando, progresso.tempoInicio, progresso.status]);
 
   // Persistir mudanças de progresso
   useEffect(() => {
