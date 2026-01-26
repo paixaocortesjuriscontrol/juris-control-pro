@@ -88,30 +88,44 @@ export default function Notificacoes() {
   const { data: tarefasPendentesData = [] } = useQuery({
     queryKey: ["tarefas-pendentes-notificacoes", statusFilter],
     queryFn: async () => {
-      let query = supabase
-        .from("tarefas")
-        .select(`
-          id,
-          titulo,
-          status,
-          data_vencimento,
-          prioridade,
-          processo:processos!tarefas_processo_id_fkey(
+      const pageSize = 1000;
+
+      const buildQuery = () => {
+        let query = supabase
+          .from("tarefas")
+          .select(`
             id,
-            numero,
-            coordenacao_id
-          )
-        `)
-        .order("data_vencimento", { ascending: true });
-      
-      if (statusFilter !== "todas") {
-        const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
-        query = query.eq("status", status as "pendente" | "cumprido" | "atrasado");
+            titulo,
+            status,
+            data_vencimento,
+            prioridade,
+            processo:processos!tarefas_processo_id_fkey(
+              id,
+              numero,
+              coordenacao_id
+            )
+          `)
+          .order("data_vencimento", { ascending: true, nullsFirst: false });
+
+        if (statusFilter !== "todas") {
+          const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
+          query = query.eq("status", status as "pendente" | "cumprido" | "atrasado");
+        }
+
+        return query;
+      };
+
+      const all: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (error) throw error;
+        const chunk = data || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+
+      return all;
     },
   });
 
@@ -119,30 +133,44 @@ export default function Notificacoes() {
   const { data: audienciasPendentesData = [] } = useQuery({
     queryKey: ["audiencias-pendentes-notificacoes", statusFilter],
     queryFn: async () => {
-      let query = supabase
-        .from("audiencias_detectadas")
-        .select(`
-          id,
-          processo_numero,
-          data_audiencia,
-          hora,
-          tipo_audiencia,
-          status,
-          processo:processos!audiencias_detectadas_processo_id_fkey(
+      const pageSize = 1000;
+
+      const buildQuery = () => {
+        let query = supabase
+          .from("audiencias_detectadas")
+          .select(`
             id,
-            numero,
-            coordenacao_id
-          )
-        `)
-        .order("data_audiencia", { ascending: true });
-      
-      if (statusFilter !== "todas") {
-        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+            processo_numero,
+            data_audiencia,
+            hora,
+            tipo_audiencia,
+            status,
+            processo:processos!audiencias_detectadas_processo_id_fkey(
+              id,
+              numero,
+              coordenacao_id
+            )
+          `)
+          .order("data_audiencia", { ascending: true, nullsFirst: false });
+
+        if (statusFilter !== "todas") {
+          query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+        }
+
+        return query;
+      };
+
+      const all: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (error) throw error;
+        const chunk = data || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+
+      return all;
     },
   });
 
@@ -150,29 +178,43 @@ export default function Notificacoes() {
   const { data: intimacoesPendentesData = [] } = useQuery({
     queryKey: ["intimacoes-pendentes-notificacoes", statusFilter],
     queryFn: async () => {
-      let query = supabase
-        .from("intimacoes_detectadas")
-        .select(`
-          id,
-          processo_numero,
-          data_intimacao,
-          tipo_intimacao,
-          status,
-          processo:processos!intimacoes_detectadas_processo_id_fkey(
+      const pageSize = 1000;
+
+      const buildQuery = () => {
+        let query = supabase
+          .from("intimacoes_detectadas")
+          .select(`
             id,
-            numero,
-            coordenacao_id
-          )
-        `)
-        .order("data_intimacao", { ascending: true });
-      
-      if (statusFilter !== "todas") {
-        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+            processo_numero,
+            data_intimacao,
+            tipo_intimacao,
+            status,
+            processo:processos!intimacoes_detectadas_processo_id_fkey(
+              id,
+              numero,
+              coordenacao_id
+            )
+          `)
+          .order("data_intimacao", { ascending: true, nullsFirst: false });
+
+        if (statusFilter !== "todas") {
+          query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+        }
+
+        return query;
+      };
+
+      const all: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (error) throw error;
+        const chunk = data || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+
+      return all;
     },
   });
 
@@ -181,44 +223,56 @@ export default function Notificacoes() {
     queryKey: ["andamentos-notificacoes", periodoInicio, periodoFim],
     queryFn: async () => {
       console.log("🔍 [Andamentos] Buscando andamentos (sem redistribuições)...");
-      let query = supabase
-        .from("movimentacoes")
-        .select(`
-          id,
-          descricao,
-          data_movimentacao,
-          created_at,
-          tipo,
-          fonte,
-          processo:processos!movimentacoes_processo_id_fkey(
+      const pageSize = 1000;
+
+      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
+      const fimDiaMaisUm = periodoFim
+        ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd")
+        : undefined;
+
+      const buildQuery = () => {
+        let query = supabase
+          .from("movimentacoes")
+          .select(`
             id,
-            numero,
-            coordenacao_id
-          )
-        `)
-        .neq("tipo", "Redistribuição")
-        .order("created_at", { ascending: false });
-      
-      // Filtrar por período usando created_at (data da captura), não data_movimentacao
-      if (periodoInicio) {
-        query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
+            descricao,
+            data_movimentacao,
+            created_at,
+            tipo,
+            fonte,
+            processo:processos!movimentacoes_processo_id_fkey(
+              id,
+              numero,
+              coordenacao_id
+            )
+          `)
+          .neq("tipo", "Redistribuição")
+          .order("created_at", { ascending: false });
+
+        // Filtrar por período usando created_at (data da captura), não data_movimentacao
+        if (inicioDia) query = query.gte("created_at", inicioDia);
+        if (fimDiaMaisUm) query = query.lt("created_at", fimDiaMaisUm);
+
+        return query;
+      };
+
+      const all: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (error) throw error;
+        const chunk = data || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
       }
-      if (periodoFim) {
-        // Adiciona 1 dia para incluir todo o dia final
-        const fimMaisUmDia = new Date(periodoFim);
-        fimMaisUmDia.setDate(fimMaisUmDia.getDate() + 1);
-        query = query.lt("created_at", format(fimMaisUmDia, "yyyy-MM-dd"));
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      console.log("✅ [Andamentos] Total encontrado:", data?.length || 0);
-      console.log("📋 [Andamentos] Tipos únicos:", [...new Set(data?.map((d: any) => d.tipo) || [])]);
-      const redistCount = data?.filter((d: any) => d.tipo === "Redistribuição").length || 0;
+
+      console.log("✅ [Andamentos] Total encontrado:", all.length);
+      console.log("📋 [Andamentos] Tipos únicos:", [...new Set(all.map((d: any) => d.tipo) || [])]);
+      const redistCount = all.filter((d: any) => d.tipo === "Redistribuição").length || 0;
       if (redistCount > 0) {
         console.error("❌ [Andamentos] ERRO: Redistribuições encontradas:", redistCount);
       }
-      return data || [];
+      return all;
     },
   });
 
