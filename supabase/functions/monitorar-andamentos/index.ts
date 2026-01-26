@@ -1319,39 +1319,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
               });
           }
 
-          // Send email to users who have email notifications enabled
-          const { data: usersWithEmail } = await supabase
-            .from('profiles')
-            .select('id, email, nome')
-            .in('id', usersToNotify)
-            .eq('notificacoes_email', true);
-
-          for (const user of usersWithEmail || []) {
-            try {
-              if (await isCancelled()) throw new CancelledError();
-              await resend.emails.send({
-                from: 'Juris Control <noreply@juriscontrol.adv.br>',
-                to: user.email,
-                subject: `Novos andamentos - Processo ${processo.numero}`,
-                html: `
-                  <h2>Novos Andamentos Detectados</h2>
-                  <p>Olá ${user.nome},</p>
-                  <p>Foram encontrados <strong>${insertedCount}</strong> novo(s) andamento(s) no processo <strong>${processo.numero}</strong>.</p>
-                  <h3>Detalhes:</h3>
-                  <ul>
-                    ${newMovementDetails.map(d => `<li>${d}</li>`).join('')}
-                  </ul>
-                  <p><a href="https://juriscontrol.adv.br/processos/${processo.id}">Visualizar processo</a></p>
-                `
-              });
-            } catch (emailError) {
-              console.error(`Error sending email to ${user.email}:`, emailError);
-            }
-          }
-
-          // NOTA: O envio de alertas externos agora é consolidado em um resumo único ao finalizar
-          // a execução completa do monitoramento (ver código ao final)
-          // Isso evita bombardeio de mensagens individuais para cada andamento
+          // NOTA: Emails/WhatsApp são enviados APENAS no resumo consolidado ao final
+          // da execução completa (ver enviar-resumo-monitoramento)
 
           results.details.push({
             processo: processo.numero,
