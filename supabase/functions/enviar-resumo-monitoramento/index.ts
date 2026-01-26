@@ -331,49 +331,208 @@ serve(async (req) => {
       };
 
       const mensagemTexto = formatarMensagemWhatsApp();
+      const dataHoje = brasiliaTime.toLocaleDateString('pt-BR');
+      const horaFormatada = brasiliaTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-      // Agrupar por processo para melhor organização no email
-      const porProcesso = new Map<string, string[]>();
-      for (const ex of exemplos) {
-        if (!porProcesso.has(ex.processo_numero)) {
-          porProcesso.set(ex.processo_numero, []);
+      // Gerar resumo de IA baseado nos dados
+      const gerarResumoIA = (): string => {
+        const qtd = total_encontrados;
+        const coord = coordenacao_nome || 'sua coordenação';
+        
+        switch (tipo_monitoramento) {
+          case 'djen':
+            return `Foram identificadas <strong>${qtd} publicação(ões)</strong> no Diário de Justiça Eletrônico Nacional contendo os termos monitorados para ${coord}. Recomenda-se a análise prioritária para identificar possíveis intimações ou prazos processuais.`;
+          case 'djen_processos':
+            return `O sistema detectou <strong>${qtd} processo(s)</strong> com novas publicações no DJEN. Essas movimentações podem indicar decisões, despachos ou intimações que requerem atenção da equipe jurídica de ${coord}.`;
+          case 'termos':
+            return `A Monitoração 360° identificou <strong>${qtd} alerta(s)</strong> relevantes para ${coord}. Esses alertas foram gerados com base nos termos críticos configurados e podem indicar situações que exigem ação imediata.`;
+          case 'redistribuicoes':
+            return `Foram detectadas <strong>${qtd} redistribuição(ões)</strong> de processos sob responsabilidade de ${coord}. Alterações na distribuição processual podem impactar prazos e estratégias em andamento.`;
+          case 'andamentos':
+            return `O monitoramento identificou <strong>${qtd} nova(s) movimentação(ões)</strong> nos processos de ${coord}. A análise dessas movimentações permite acompanhamento proativo do andamento processual.`;
+          case 'distribuicoes':
+            return `O sistema detectou <strong>${qtd} nova(s) distribuição(ões)</strong> para ${coord}. Novos processos distribuídos requerem análise inicial e definição de estratégia de atuação.`;
+          case 'prazos':
+            return `Foram identificados <strong>${qtd} prazo(s)</strong> processual(is) para ${coord}. A gestão eficiente de prazos é essencial para evitar preclusões e garantir o cumprimento das obrigações processuais.`;
+          case 'audiencias':
+            return `O sistema detectou <strong>${qtd} audiência(s)</strong> agendada(s) para processos de ${coord}. A preparação antecipada para audiências é fundamental para o sucesso da atuação judicial.`;
+          case 'intimacoes':
+            return `Foram capturadas <strong>${qtd} intimação(ões)</strong> para processos de ${coord}. As intimações devem ser analisadas para identificação de prazos e providências necessárias.`;
+          default:
+            return `O monitoramento automático identificou <strong>${qtd} item(ns)</strong> relevantes para ${coord}. Recomenda-se a análise detalhada de cada item listado abaixo.`;
         }
-        porProcesso.get(ex.processo_numero)!.push(ex.descricao);
-      }
+      };
 
-      const listaHtml = Array.from(porProcesso.entries()).map(([numero, descricoes]) => `
-        <div style="margin-bottom: 16px; padding: 12px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #6366f1;">
-          <div style="font-weight: 600; color: #1f2937; margin-bottom: 8px;">📄 ${numero}</div>
-          <ul style="margin: 0; padding-left: 20px; color: #4b5563; font-size: 13px;">
-            ${descricoes.map(d => `<li style="margin-bottom: 4px;">${d}</li>`).join('')}
-          </ul>
-        </div>
-      `).join('');
+      // Gerar lista HTML específica por tipo de monitoramento
+      const gerarListaHtmlEspecifica = (): string => {
+        const items = exemplos.map(ex => {
+          const descLimpa = limparHtml(ex.descricao);
+          
+          switch (tipo_monitoramento) {
+            case 'djen':
+              return `
+                <div style="margin-bottom: 16px; padding: 16px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                  <div style="font-weight: 600; color: #92400e; margin-bottom: 8px; font-size: 15px;">📰 ${ex.processo_numero}</div>
+                  <div style="color: #78350f; font-size: 13px; line-height: 1.5;">
+                    <strong>Termo encontrado:</strong><br/>
+                    ${descLimpa}
+                  </div>
+                </div>`;
+            
+            case 'djen_processos':
+              return `
+                <div style="margin-bottom: 16px; padding: 16px; background: #dbeafe; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                  <div style="font-weight: 600; color: #1e40af; margin-bottom: 8px; font-size: 15px;">📄 ${ex.processo_numero}</div>
+                  ${descLimpa ? `<div style="color: #1e3a8a; font-size: 13px; line-height: 1.5;">${descLimpa}</div>` : ''}
+                </div>`;
+            
+            case 'termos':
+              return `
+                <div style="margin-bottom: 16px; padding: 16px; background: #fce7f3; border-radius: 8px; border-left: 4px solid #ec4899;">
+                  <div style="font-weight: 600; color: #9d174d; margin-bottom: 8px; font-size: 15px;">🔍 ${ex.processo_numero}</div>
+                  ${ex.titulo ? `<div style="color: #831843; font-size: 14px; font-weight: 500; margin-bottom: 4px;">📌 ${ex.titulo}</div>` : ''}
+                  <div style="color: #831843; font-size: 13px; line-height: 1.5;">${descLimpa}</div>
+                </div>`;
+            
+            case 'redistribuicoes':
+              return `
+                <div style="margin-bottom: 16px; padding: 16px; background: #fef9c3; border-radius: 8px; border-left: 4px solid #eab308;">
+                  <div style="font-weight: 600; color: #713f12; margin-bottom: 8px; font-size: 15px;">🔄 ${ex.processo_numero}</div>
+                  <div style="color: #854d0e; font-size: 13px; line-height: 1.5;">
+                    <strong>Detalhes da redistribuição:</strong><br/>
+                    ${descLimpa}
+                  </div>
+                </div>`;
+            
+            case 'andamentos':
+              return `
+                <div style="margin-bottom: 16px; padding: 16px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #22c55e;">
+                  <div style="font-weight: 600; color: #166534; margin-bottom: 8px; font-size: 15px;">📋 ${ex.processo_numero}</div>
+                  <div style="color: #15803d; font-size: 13px; line-height: 1.5;">
+                    <strong>Movimentação:</strong><br/>
+                    ${descLimpa}
+                  </div>
+                </div>`;
+            
+            case 'distribuicoes':
+              return `
+                <div style="margin-bottom: 16px; padding: 16px; background: #ede9fe; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+                  <div style="font-weight: 600; color: #5b21b6; margin-bottom: 8px; font-size: 15px;">⚖️ ${ex.processo_numero}</div>
+                  <div style="color: #6b21a8; font-size: 13px; line-height: 1.5;">
+                    <strong>Detalhes da distribuição:</strong><br/>
+                    ${descLimpa}
+                  </div>
+                </div>`;
+            
+            case 'prazos':
+              return `
+                <div style="margin-bottom: 16px; padding: 16px; background: #fef2f2; border-radius: 8px; border-left: 4px solid #ef4444;">
+                  <div style="font-weight: 600; color: #991b1b; margin-bottom: 8px; font-size: 15px;">⏰ ${ex.processo_numero}</div>
+                  ${ex.data ? `<div style="color: #b91c1c; font-size: 14px; font-weight: 500; margin-bottom: 4px;">📆 Vencimento: ${ex.data}</div>` : ''}
+                  <div style="color: #b91c1c; font-size: 13px; line-height: 1.5;">${descLimpa}</div>
+                </div>`;
+            
+            case 'audiencias':
+              return `
+                <div style="margin-bottom: 16px; padding: 16px; background: #e0f2fe; border-radius: 8px; border-left: 4px solid #0ea5e9;">
+                  <div style="font-weight: 600; color: #0c4a6e; margin-bottom: 8px; font-size: 15px;">📅 ${ex.processo_numero}</div>
+                  ${ex.titulo ? `<div style="color: #075985; font-size: 14px; font-weight: 500; margin-bottom: 4px;">📌 ${ex.titulo}</div>` : ''}
+                  ${ex.data ? `<div style="color: #075985; font-size: 14px; font-weight: 500; margin-bottom: 4px;">📆 Data: ${ex.data}</div>` : ''}
+                  ${descLimpa && descLimpa !== ex.titulo ? `<div style="color: #0369a1; font-size: 13px; line-height: 1.5;">${descLimpa}</div>` : ''}
+                </div>`;
+            
+            case 'intimacoes':
+              return `
+                <div style="margin-bottom: 16px; padding: 16px; background: #f5f3ff; border-radius: 8px; border-left: 4px solid #7c3aed;">
+                  <div style="font-weight: 600; color: #5b21b6; margin-bottom: 8px; font-size: 15px;">📬 ${ex.processo_numero}</div>
+                  <div style="color: #6b21a8; font-size: 13px; line-height: 1.5;">
+                    <strong>Resumo da intimação:</strong><br/>
+                    ${descLimpa}
+                  </div>
+                </div>`;
+            
+            default:
+              return `
+                <div style="margin-bottom: 16px; padding: 16px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #6366f1;">
+                  <div style="font-weight: 600; color: #1f2937; margin-bottom: 8px; font-size: 15px;">📄 ${ex.processo_numero}</div>
+                  <div style="color: #4b5563; font-size: 13px; line-height: 1.5;">${descLimpa}</div>
+                </div>`;
+          }
+        });
+        
+        return items.join('');
+      };
+
+      // Obter label dinâmico para o contador
+      const getLabelEncontrados = (): string => {
+        switch (tipo_monitoramento) {
+          case 'djen': return 'Publicações Encontradas';
+          case 'djen_processos': return 'Processos com Publicações';
+          case 'termos': return 'Alertas Detectados';
+          case 'redistribuicoes': return 'Redistribuições';
+          case 'andamentos': return 'Movimentações';
+          case 'distribuicoes': return 'Novas Distribuições';
+          case 'prazos': return 'Prazos Detectados';
+          case 'audiencias': return 'Audiências Agendadas';
+          case 'intimacoes': return 'Intimações Capturadas';
+          default: return 'Itens Encontrados';
+        }
+      };
+
+      const resumoIA = gerarResumoIA();
+      const listaHtml = gerarListaHtmlEspecifica();
+      const labelEncontrados = getLabelEncontrados();
 
       const mensagemHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
-          <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 24px; border-radius: 12px 12px 0 0;">
-            <h2 style="margin: 0; font-size: 20px;">${icon} ${tituloMap[tipo_monitoramento] || 'Resumo'}</h2>
-            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 14px;">${coordenacao_nome || 'Coordenação'}</p>
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #f8fafc;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 32px; border-radius: 12px 12px 0 0;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: 600;">${icon} ${tituloMap[tipo_monitoramento] || 'Resumo de Monitoramento'}</h1>
+            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 15px;">${coordenacao_nome || 'Coordenação'}</p>
+            <p style="margin: 4px 0 0 0; opacity: 0.7; font-size: 13px;">📅 ${dataHoje} às ${horaFormatada}</p>
           </div>
-          <div style="padding: 24px; border: 1px solid #e5e7eb; border-top: none; background: white;">
-            <div style="display: flex; gap: 16px; margin-bottom: 20px;">
-              <div style="flex: 1; background: #f3f4f6; padding: 16px; border-radius: 12px; text-align: center;">
-                <div style="font-size: 28px; font-weight: bold; color: #6b7280;">${total_verificados}</div>
-                <div style="font-size: 12px; color: #9ca3af; text-transform: uppercase;">Processos Verificados</div>
+          
+          <!-- Stats Cards -->
+          <div style="padding: 24px; background: white; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+              <tr>
+                <td width="48%" style="padding: 20px; background: #f3f4f6; border-radius: 12px; text-align: center;">
+                  <div style="font-size: 36px; font-weight: bold; color: #6b7280;">${total_verificados}</div>
+                  <div style="font-size: 12px; color: #9ca3af; text-transform: uppercase; margin-top: 4px;">Processos Verificados</div>
+                </td>
+                <td width="4%"></td>
+                <td width="48%" style="padding: 20px; background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 12px; text-align: center;">
+                  <div style="font-size: 36px; font-weight: bold; color: #059669;">${total_encontrados}</div>
+                  <div style="font-size: 12px; color: #047857; text-transform: uppercase; margin-top: 4px;">${labelEncontrados}</div>
+                </td>
+              </tr>
+            </table>
+            
+            <!-- AI Summary -->
+            <div style="background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); padding: 20px; border-radius: 12px; margin-bottom: 24px; border-left: 4px solid #6366f1;">
+              <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                <span style="font-size: 18px; margin-right: 8px;">🤖</span>
+                <span style="font-weight: 600; color: #4338ca; font-size: 14px; text-transform: uppercase;">Análise Inteligente</span>
               </div>
-              <div style="flex: 1; background: #ecfdf5; padding: 16px; border-radius: 12px; text-align: center;">
-                <div style="font-size: 28px; font-weight: bold; color: #10b981;">${total_encontrados}</div>
-                <div style="font-size: 12px; color: #059669; text-transform: uppercase;">Novos Andamentos</div>
-              </div>
+              <p style="margin: 0; color: #3730a3; font-size: 14px; line-height: 1.6;">${resumoIA}</p>
             </div>
-            <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #374151; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">
-              📋 Lista Completa de Andamentos
-            </h3>
+            
+            <!-- List Header -->
+            <h2 style="margin: 0 0 20px 0; font-size: 18px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px;">
+              📋 Detalhamento Completo
+            </h2>
+            
+            <!-- Items List -->
             ${listaHtml}
-            <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />
-            <p style="margin: 0; font-size: 11px; color: #9ca3af; text-align: center;">
-              Resumo automático do Juris Control Pro • ${brasiliaTime.toLocaleDateString('pt-BR')} às ${brasiliaTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #f1f5f9; padding: 20px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none; text-align: center;">
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: #64748b;">
+              Este é um resumo automático gerado pelo <strong>Juris Control Pro</strong>
+            </p>
+            <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+              Para mais detalhes, acesse o sistema em <a href="https://juris-control-pro.lovable.app" style="color: #6366f1; text-decoration: none;">juris-control-pro.lovable.app</a>
             </p>
           </div>
         </div>
