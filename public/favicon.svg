@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#d4a015"/>
+      <stop offset="100%" style="stop-color:#eab308"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="6" fill="#1a1a2e"/>
+  <g fill="url(#gold)">
+    <!-- Base -->
+    <rect x="8" y="26" width="16" height="2" rx="1"/>
+    <!-- Pillar -->
+    <rect x="15" y="10" width="2" height="16"/>
+    <!-- Top bar -->
+    <rect x="6" y="8" width="20" height="2" rx="1"/>
+    <!-- Left scale -->
+    <path d="M6 10 L10 10 L8 16 Q8 18 6 18 L10 18 Q8 18 8 16 Z"/>
+    <!-- Right scale -->
+    <path d="M22 10 L26 10 L24 16 Q24 18 22 18 L26 18 Q24 18 24 16 Z"/>
+    <!-- Top circle -->
+    <circle cx="16" cy="7" r="3"/>
+    <circle cx="16" cy="7" r="1.5" fill="#1a1a2e"/>
+  </g>
+</svg>
