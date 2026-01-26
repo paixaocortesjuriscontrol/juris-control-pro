@@ -29,7 +29,6 @@ import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
 import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
-import { useRedistribuicoes } from "@/hooks/useRedistribuicoes";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao";
 import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
@@ -88,9 +87,76 @@ export function DashboardCoordenacoes({
   const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
   const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
   const { alertas } = useMonitoramento360();
-  const { data: redistribuicoesData = [] } = useRedistribuicoes({
-    dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
-    dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
+  // Redistribuições SEM cap de 1000 (busca paginada)
+  const { data: redistribuicoesData = [] } = useQuery({
+    queryKey: ["redistribuicoes-coordenacao-paginado", periodoInicio, periodoFim],
+    queryFn: async () => {
+      const pageSize = 1000;
+
+      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
+      const fimDiaMaisUm = periodoFim
+        ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd")
+        : undefined;
+
+      const buildQuery = () => {
+        let q = supabase
+          .from("movimentacoes")
+          .select(
+            `
+            id,
+            processo_id,
+            descricao,
+            data_movimentacao,
+            created_at,
+            processos (
+              numero,
+              area,
+              vara,
+              coordenacao_id,
+              coordenacoes (nome),
+              advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey (nome)
+            )
+          `
+          )
+          .eq("tipo", "Redistribuição")
+          .order("created_at", { ascending: false });
+
+        // CRÍTICO: filtrar por created_at (data da captura), igual useRedistribuicoes
+        if (inicioDia) q = q.gte("created_at", inicioDia);
+        if (fimDiaMaisUm) q = q.lt("created_at", fimDiaMaisUm);
+
+        return q;
+      };
+
+      const all: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (error) throw error;
+        const chunk = data || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
+      }
+
+      // Transformar para o formato já usado no dashboard
+      return all.map((mov: any) => {
+        const match = mov.descricao?.match(/Redistribuição detectada: (.+) -> (.+)/);
+        const varaAntiga = match?.[1] || "N/A";
+        const varaNova = match?.[2] || mov.processos?.vara || "N/A";
+
+        return {
+          id: mov.id,
+          processo_id: mov.processo_id,
+          processo_numero: mov.processos?.numero || "N/A",
+          processo_area: mov.processos?.area || "civil",
+          coordenacao_nome: mov.processos?.coordenacoes?.nome || null,
+          advogado_nome: mov.processos?.advogado_responsavel?.nome || null,
+          vara_antiga: varaAntiga,
+          vara_nova: varaNova,
+          data_redistribuicao: mov.data_movimentacao,
+        };
+      });
+    },
   });
   const { prazosUrgentes } = useNotificacoes();
   const { configs } = useConfigAlertasCoordenacao();
@@ -165,28 +231,45 @@ export function DashboardCoordenacoes({
   const { data: tarefasPendentes = [] } = useQuery({
     queryKey: ["tarefas-pendentes-coordenacao", statusFilter],
     queryFn: async () => {
-      let query = supabase
-        .from("tarefas")
-        .select(`
-          id,
-          titulo,
-          status,
-          data_vencimento,
-          responsavel_id,
-          processo:processos!tarefas_processo_id_fkey(
+      const pageSize = 1000;
+
+      const buildQuery = () => {
+        let q = supabase
+          .from("tarefas")
+          .select(
+            `
             id,
-            coordenacao_id
+            titulo,
+            status,
+            data_vencimento,
+            responsavel_id,
+            processo:processos!tarefas_processo_id_fkey(
+              id,
+              coordenacao_id
+            )
+          `
           )
-        `);
-      
-      if (statusFilter !== "todas") {
-        const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
-        query = query.eq("status", status as "pendente" | "cumprido" | "atrasado");
+          .order("created_at", { ascending: false });
+
+        if (statusFilter !== "todas") {
+          const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
+          q = q.eq("status", status as "pendente" | "cumprido" | "atrasado");
+        }
+
+        return q;
+      };
+
+      const all: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (error) throw error;
+        const chunk = data || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+
+      return all;
     },
   });
 
@@ -194,26 +277,43 @@ export function DashboardCoordenacoes({
   const { data: audienciasPendentes = [] } = useQuery({
     queryKey: ["audiencias-pendentes-coordenacao", statusFilter],
     queryFn: async () => {
-      let query = supabase
-        .from("audiencias_detectadas")
-        .select(`
-          id,
-          processo_numero,
-          status,
-          data_audiencia,
-          processo:processos!audiencias_detectadas_processo_id_fkey(
+      const pageSize = 1000;
+
+      const buildQuery = () => {
+        let q = supabase
+          .from("audiencias_detectadas")
+          .select(
+            `
             id,
-            coordenacao_id
+            processo_numero,
+            status,
+            data_audiencia,
+            processo:processos!audiencias_detectadas_processo_id_fkey(
+              id,
+              coordenacao_id
+            )
+          `
           )
-        `);
-      
-      if (statusFilter !== "todas") {
-        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+          .order("created_at", { ascending: false });
+
+        if (statusFilter !== "todas") {
+          q = q.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+        }
+
+        return q;
+      };
+
+      const all: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (error) throw error;
+        const chunk = data || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+
+      return all;
     },
   });
 
@@ -221,26 +321,43 @@ export function DashboardCoordenacoes({
   const { data: intimacoesPendentes = [] } = useQuery({
     queryKey: ["intimacoes-pendentes-coordenacao", statusFilter],
     queryFn: async () => {
-      let query = supabase
-        .from("intimacoes_detectadas")
-        .select(`
-          id,
-          processo_numero,
-          status,
-          data_intimacao,
-          processo:processos!intimacoes_detectadas_processo_id_fkey(
+      const pageSize = 1000;
+
+      const buildQuery = () => {
+        let q = supabase
+          .from("intimacoes_detectadas")
+          .select(
+            `
             id,
-            coordenacao_id
+            processo_numero,
+            status,
+            data_intimacao,
+            processo:processos!intimacoes_detectadas_processo_id_fkey(
+              id,
+              coordenacao_id
+            )
+          `
           )
-        `);
-      
-      if (statusFilter !== "todas") {
-        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+          .order("created_at", { ascending: false });
+
+        if (statusFilter !== "todas") {
+          q = q.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+        }
+
+        return q;
+      };
+
+      const all: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (error) throw error;
+        const chunk = data || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+
+      return all;
     },
   });
 
@@ -257,46 +374,56 @@ export function DashboardCoordenacoes({
       const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
       const fimDiaMaisUm = periodoFim ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd") : undefined;
       
-      let query = supabase
-        .from("movimentacoes")
-        .select(`
-          id,
-          descricao,
-          data_movimentacao,
-          created_at,
-          tipo,
-          processo:processos!movimentacoes_processo_id_fkey(
+      const pageSize = 1000;
+
+      const buildQuery = () => {
+        let q = supabase
+          .from("movimentacoes")
+          .select(
+            `
             id,
-            numero,
-            coordenacao_id
+            descricao,
+            data_movimentacao,
+            created_at,
+            tipo,
+            processo:processos!movimentacoes_processo_id_fkey(
+              id,
+              numero,
+              coordenacao_id
+            )
+          `
           )
-        `)
-        .neq("tipo", "Redistribuição")
-        .order("created_at", { ascending: false })
-      
-      // CRÍTICO: Aplicar filtros de período usando created_at (data da captura)
-      if (inicioDia) {
-        query = query.gte("created_at", inicioDia);
+          .neq("tipo", "Redistribuição")
+          .order("created_at", { ascending: false });
+
+        // CRÍTICO: Aplicar filtros de período usando created_at (data da captura)
+        if (inicioDia) q = q.gte("created_at", inicioDia);
+        if (fimDiaMaisUm) q = q.lt("created_at", fimDiaMaisUm);
+
+        return q;
+      };
+
+      const all: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (error) throw error;
+        const chunk = data || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
       }
-      if (fimDiaMaisUm) {
-        query = query.lt("created_at", fimDiaMaisUm);
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      
-      console.log("✅ [DashboardCoordenacoes] Total andamentos encontrados:", data?.length || 0);
-      console.log("📊 [DashboardCoordenacoes] Tipos únicos:", [...new Set(data?.map((d: any) => d.tipo) || [])]);
-      
-      // Agrupar por coordenação para debug
-      const porCoord = data?.reduce((acc: any, mov: any) => {
-        const coordId = (mov.processo as any)?.coordenacao_id || 'sem-coord';
+
+      console.log("✅ [DashboardCoordenacoes] Total andamentos encontrados:", all.length);
+      console.log("📊 [DashboardCoordenacoes] Tipos únicos:", [...new Set(all.map((d: any) => d.tipo) || [])]);
+
+      const porCoord = all.reduce((acc: any, mov: any) => {
+        const coordId = (mov.processo as any)?.coordenacao_id || "sem-coord";
         acc[coordId] = (acc[coordId] || 0) + 1;
         return acc;
       }, {});
       console.log("📋 [DashboardCoordenacoes] Andamentos por coordenação:", porCoord);
-      
-      return data || [];
+
+      return all;
     },
   });
 
