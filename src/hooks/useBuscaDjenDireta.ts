@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,6 +33,8 @@ interface ProgressoExecucao {
   publicacoesDuplicadas: number;
   status: 'idle' | 'executando' | 'concluido' | 'erro';
   mensagem: string;
+  tempoInicio?: number; // timestamp de início
+  tempoDecorrido: number; // segundos
 }
 
 // Configuração de paralelismo - AGRESSIVO usando Jina como proxy distribuído
@@ -41,25 +43,105 @@ const CONCURRENT_LIMIT = 5; // 5 simultâneos com Jina proxy
 const DELAY_BETWEEN_BATCHES = 300; // 300ms entre lotes (mais rápido com Jina)
 const DELAY_BETWEEN_REQUESTS = 0; // Sem delay - Jina distribui automaticamente
 
+// Chave para persistir estado no localStorage
+const STORAGE_KEY = 'djen-direta-progresso';
+
+// Salvar estado no localStorage
+const salvarEstado = (progresso: ProgressoExecucao) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...progresso,
+      savedAt: Date.now(),
+    }));
+  } catch (e) {
+    console.warn('Erro ao salvar estado DJEN:', e);
+  }
+};
+
+// Carregar estado do localStorage
+const carregarEstado = (): ProgressoExecucao | null => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return null;
+    
+    const parsed = JSON.parse(saved);
+    // Limpar estados muito antigos (mais de 1 hora)
+    if (Date.now() - parsed.savedAt > 3600000) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    
+    // Se estava executando quando salvou, atualizar tempo decorrido
+    if (parsed.status === 'executando' && parsed.tempoInicio) {
+      parsed.tempoDecorrido = Math.floor((Date.now() - parsed.tempoInicio) / 1000);
+    }
+    
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+};
+
 /**
  * Hook com busca DJEN paralela para máxima performance
  * - Processa múltiplos monitoramentos em paralelo
  * - Usa a Edge Function `buscar-djen` apenas como proxy leve
  * - Grava resultados diretamente via Supabase Client
+ * - PERSISTE estado no localStorage para não perder ao navegar
  */
 export function useBuscaDjenDireta() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [progresso, setProgresso] = useState<ProgressoExecucao>({
-    monitoramentoAtual: 0,
-    totalMonitoramentos: 0,
-    publicacoesNovas: 0,
-    publicacoesDuplicadas: 0,
-    status: 'idle',
-    mensagem: '',
+  
+  // Carregar estado inicial do localStorage
+  const [progresso, setProgresso] = useState<ProgressoExecucao>(() => {
+    const saved = carregarEstado();
+    return saved || {
+      monitoramentoAtual: 0,
+      totalMonitoramentos: 0,
+      publicacoesNovas: 0,
+      publicacoesDuplicadas: 0,
+      status: 'idle',
+      mensagem: '',
+      tempoDecorrido: 0,
+    };
   });
-  const [executando, setExecutando] = useState(false);
+  
+  const [executando, setExecutando] = useState(() => {
+    const saved = carregarEstado();
+    return saved?.status === 'executando';
+  });
+  
   const cancelarRef = useRef(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Timer para atualizar tempo decorrido
+  useEffect(() => {
+    if (executando && progresso.tempoInicio) {
+      timerRef.current = setInterval(() => {
+        setProgresso(prev => {
+          const tempo = Math.floor((Date.now() - (prev.tempoInicio || Date.now())) / 1000);
+          const updated = { ...prev, tempoDecorrido: tempo };
+          salvarEstado(updated);
+          return updated;
+        });
+      }, 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [executando, progresso.tempoInicio]);
+
+  // Persistir mudanças de progresso
+  useEffect(() => {
+    salvarEstado(progresso);
+  }, [progresso]);
 
   // Gera hash simples para deduplicação
   const gerarHash = (conteudo: string, data: string): string => {
@@ -220,6 +302,7 @@ export function useBuscaDjenDireta() {
       return;
     }
 
+    const tempoInicio = Date.now();
     setExecutando(true);
     cancelarRef.current = false;
     setProgresso({
@@ -229,6 +312,8 @@ export function useBuscaDjenDireta() {
       publicacoesDuplicadas: 0,
       status: 'executando',
       mensagem: 'Carregando monitoramentos...',
+      tempoInicio,
+      tempoDecorrido: 0,
     });
 
     try {
@@ -360,6 +445,7 @@ export function useBuscaDjenDireta() {
         }
       }
 
+      const tempoFinal = Math.floor((Date.now() - tempoInicio) / 1000);
       setProgresso({
         monitoramentoAtual: total,
         totalMonitoramentos: total,
@@ -367,6 +453,8 @@ export function useBuscaDjenDireta() {
         publicacoesDuplicadas: totalDuplicadas,
         status: 'concluido',
         mensagem: `Concluído! ${totalNovas} novas, ${totalDuplicadas} duplicadas.`,
+        tempoInicio: undefined,
+        tempoDecorrido: tempoFinal,
       });
 
       // Invalidar queries relacionadas
