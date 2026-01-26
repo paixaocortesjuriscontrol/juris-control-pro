@@ -16,8 +16,11 @@ import {
 import { 
   RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar,
   CheckCircle2, XCircle, Clock, AlertTriangle, Loader2, PlayCircle,
-  StopCircle, TrendingUp, Hash, Timer, Zap, BarChart3, MinusCircle
+  StopCircle, TrendingUp, Hash, Timer, Zap, BarChart3, MinusCircle, RotateCcw
 } from "lucide-react";
+import {
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { 
   useMonitoringDashboard, 
@@ -265,14 +268,18 @@ function MonitoringCard({
   stats, 
   onExecute, 
   onCancel, 
+  onReset,
   isExecuting, 
-  isCancelling 
+  isCancelling,
+  isResetting
 }: { 
   stats: MonitoringStats;
   onExecute: () => void;
   onCancel: () => void;
+  onReset?: () => void;
   isExecuting: boolean;
   isCancelling: boolean;
+  isResetting?: boolean;
 }) {
   const Icon = ICONS[stats.icon] || Activity;
   const statusConfig = STATUS_CONFIG[stats.status];
@@ -368,6 +375,32 @@ function MonitoringCard({
               <StopCircle className="h-4 w-4" />
             )}
           </Button>
+
+          {/* Botão Reset para DJEN */}
+          {onReset && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    onClick={onReset}
+                    disabled={isResetting}
+                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                  >
+                    {isResetting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Reset Completo (destravar)</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -385,8 +418,28 @@ export function MonitoringDashboard() {
   
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
   const [cancelling, setCancelling] = useState<Record<string, boolean>>({});
+  const [resetting, setResetting] = useState<Record<string, boolean>>({});
   const [confirmReativarOpen, setConfirmReativarOpen] = useState(false);
   const [confirmTipo, setConfirmTipo] = useState<string | null>(null);
+
+  // Reset completo do estado DJEN
+  const handleResetDjen = async () => {
+    setResetting(prev => ({ ...prev, djen: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke('reset-djen-state');
+      if (error) throw error;
+
+      toast.success((data as any)?.message ?? 'Estado do DJEN resetado com sucesso!');
+      refetch();
+      // Recarregar página para garantir estado limpo
+      setTimeout(() => window.location.reload(), 500);
+    } catch (error: any) {
+      console.error('Erro ao resetar DJEN:', error);
+      toast.error(`Erro: ${error.message}`);
+    } finally {
+      setResetting(prev => ({ ...prev, djen: false }));
+    }
+  };
 
   const reativarConfig = async (tipo: string) => {
     const { data: config, error } = await supabase
@@ -619,8 +672,10 @@ export function MonitoringDashboard() {
             stats={stats}
             onExecute={() => handleExecute(stats.tipo)}
             onCancel={() => handleCancel(stats.tipo)}
+            onReset={stats.tipo === 'djen' ? handleResetDjen : undefined}
             isExecuting={executing[stats.tipo] || false}
             isCancelling={cancelling[stats.tipo] || false}
+            isResetting={stats.tipo === 'djen' ? resetting['djen'] : false}
           />
         ))}
       </div>
