@@ -17,7 +17,7 @@
  
      console.log('[Reset DJEN] Iniciando reset completo do estado...')
  
-     // 1. Cancelar todas execuções ativas do DJEN
+      // 1. FORÇAR cancelamento de TODAS execuções do DJEN (ativas, fantasma, tudo)
      const { data: execAtivas, error: execError } = await supabase
        .from('execucoes_agendadas')
        .update({ 
@@ -25,7 +25,7 @@
          finalizado_em: new Date().toISOString()
        })
        .eq('tipo', 'djen')
-       .eq('status', 'executando')
+        .in('status', ['executando', 'pendente', 'agendado'])
        .select()
  
      if (execError) {
@@ -34,16 +34,17 @@
        console.log(`[Reset DJEN] ${execAtivas?.length || 0} execuções canceladas`)
      }
  
-      // 2. Limpar execuções fantasma (executando mas já finalizadas)
+      // 2. Limpar execuções fantasma/timeout (executando mas já finalizadas há mais de 5 min)
+      const cincoMinutosAtras = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+      
       const { data: execFantasma, error: fantasmaError } = await supabase
        .from('execucoes_agendadas')
         .update({ 
           status: 'timeout',
-          finalizado_em: new Date().toISOString()
         })
        .eq('tipo', 'djen')
        .eq('status', 'executando')
-        .not('finalizado_em', 'is', null)
+        .or(`finalizado_em.lt.${cincoMinutosAtras},finalizado_em.not.is.null`)
        .select()
  
      if (fantasmaError) {
@@ -52,7 +53,7 @@
        console.log(`[Reset DJEN] ${execFantasma?.length || 0} execuções fantasma limpas`)
      }
  
-     // 3. Resetar completamente a configuração do DJEN
+      // 3. RESETAR BRUTALMENTE a configuração do DJEN (força idle total)
      const { error: configError } = await supabase
        .from('configuracoes_monitoramento')
        .update({
@@ -60,7 +61,7 @@
            status: 'idle',
            next_offset: 0,
            current: 0,
-           total: 114,
+            total: 0,
            percentage: 0,
            continuingRun: false,
            cancelado: false,
@@ -70,7 +71,9 @@
            duplicatas: 0,
            descartadas: 0,
            erros: 0,
-           djen_run: null
+            djen_run: null,
+            last_run: null,
+            last_complete_run: null
          }
        })
        .eq('tipo', 'djen')
