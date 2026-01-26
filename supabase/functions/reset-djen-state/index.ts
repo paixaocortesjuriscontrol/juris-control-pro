@@ -17,64 +17,25 @@
  
      console.log('[Reset DJEN] Iniciando reset completo do estado...')
  
-     // 1. PARADA DE EMERGÊNCIA: marcar metadata como cancelado PRIMEIRO
-     // para que workers em execução vejam a flag antes de dispararem próximo lote
-     const { error: preConfigError } = await supabase
-       .from('configuracoes_monitoramento')
-       .update({
-         metadata: {
-           status: 'cancelando',
-           cancelado: true,
-           continuingRun: false,
-           paused_globally: true,
-         }
-       })
-       .eq('tipo', 'djen')
-
-     if (preConfigError) {
-       console.error('Erro ao marcar cancelamento preventivo:', preConfigError)
-     } else {
-       console.log('[Reset DJEN] Metadata marcado como cancelado preventivamente')
-       // Aguardar 2s para workers em trânsito verem a flag
-       await new Promise(resolve => setTimeout(resolve, 2000))
-     }
-
-      // 2. Limpar execuções fantasma PRIMEIRO (antes de mudar o status)
-      const { data: execFantasma, error: fantasmaError } = await supabase
+      // 1. LIMPAR TUDO: execuções fantasma E ativas
+      // Fantasmas = status 'executando' MAS já tem finalizado_em preenchido
+      const { data: todasExecucoes, error: execError } = await supabase
        .from('execucoes_agendadas')
-       .update({ 
-          status: 'timeout',
+       .update({
+         status: 'cancelado',
          finalizado_em: new Date().toISOString()
        })
        .eq('tipo', 'djen')
-        .eq('status', 'executando')
-        .not('finalizado_em', 'is', null)
-       .select()
- 
-      if (fantasmaError) {
-        console.error('Erro ao limpar fantasmas:', fantasmaError)
-     } else {
-        console.log(`[Reset DJEN] ${execFantasma?.length || 0} execuções fantasma limpas`)
-     }
- 
-      // 3. FORÇAR cancelamento de TODAS execuções do DJEN (ativas, fantasma, tudo)
-      const { data: execAtivas, error: execError } = await supabase
-       .from('execucoes_agendadas')
-        .update({ 
-          status: 'cancelado',
-          finalizado_em: new Date().toISOString()
-        })
-       .eq('tipo', 'djen')
-        .in('status', ['executando', 'pendente', 'agendado'])
+       .or('status.eq.executando,status.eq.pendente,status.eq.agendado')
        .select()
  
       if (execError) {
         console.error('Erro ao cancelar execuções:', execError)
      } else {
-        console.log(`[Reset DJEN] ${execAtivas?.length || 0} execuções canceladas`)
+        console.log(`[Reset DJEN] ${todasExecucoes?.length || 0} execuções canceladas/limpas`)
      }
  
-      // 4. RESETAR BRUTALMENTE - ZERAR TUDO NO METADATA
+      // 2. ZERAR METADATA COMPLETAMENTE
      const { error: configError } = await supabase
        .from('configuracoes_monitoramento')
        .update({
@@ -112,8 +73,7 @@
        JSON.stringify({ 
          success: true,
          message: 'Estado do DJEN resetado completamente',
-         execucoes_canceladas: execAtivas?.length || 0,
-         fantasmas_limpas: execFantasma?.length || 0
+         execucoes_limpas: todasExecucoes?.length || 0
        }),
        { 
          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
