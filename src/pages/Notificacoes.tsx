@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { 
@@ -57,16 +57,6 @@ export default function Notificacoes() {
   const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() => startOfDay(new Date()));
   const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() => startOfDay(new Date()));
   
-  // Toggle filters for each type
-  const [showDjen, setShowDjen] = useState(true);
-  const [showDistribuicoes, setShowDistribuicoes] = useState(true);
-  const [showAlertas360, setShowAlertas360] = useState(true);
-  const [showRedistribuicoes, setShowRedistribuicoes] = useState(true);
-  const [showPrazos, setShowPrazos] = useState(true);
-  const [showTarefas, setShowTarefas] = useState(true);
-  const [showAudiencias, setShowAudiencias] = useState(true);
-  const [showIntimacoes, setShowIntimacoes] = useState(true);
-  const [showAndamentos, setShowAndamentos] = useState(true);
   
   const navigate = useNavigate();
 
@@ -382,9 +372,8 @@ export default function Notificacoes() {
     });
   }, [andamentosData, coordenacaoId, searchQuery]);
 
-  // Stats - valores reais (sem toggle) para os cards e total bruto (com toggle) para o filteredTotal
+  // Stats - valores reais para os cards
   const stats = useMemo(() => {
-    // Valores reais sem considerar toggle (para exibir nos badges)
     const djenReal = publicacoesFiltradas.length;
     const distribuicoesReal = distribuicoesFiltradas.length;
     const alertas360Real = alertasFiltrados.length;
@@ -396,23 +385,8 @@ export default function Notificacoes() {
     const intimacoesReal = intimacoesFiltradas.length;
     const andamentosReal = andamentosFiltrados.length;
     
-    // Total geral (soma de todos os tipos, sem toggle - para o card "Total")
     const totalReal = djenReal + distribuicoesReal + alertas360Real + redistribuicoesReal + 
                       prazosReal + tarefasReal + audienciasReal + intimacoesReal + andamentosReal;
-    
-    // Valores filtrados pelo toggle (para filteredTotal - usado no subtitle)
-    const djenToggle = showDjen ? djenReal : 0;
-    const distribuicoesToggle = showDistribuicoes ? distribuicoesReal : 0;
-    const alertas360Toggle = showAlertas360 ? alertas360Real : 0;
-    const redistribuicoesToggle = showRedistribuicoes ? redistribuicoesReal : 0;
-    const prazosToggle = showPrazos ? prazosReal : 0;
-    const tarefasToggle = showTarefas ? tarefasReal : 0;
-    const audienciasToggle = showAudiencias ? audienciasReal : 0;
-    const intimacoesToggle = showIntimacoes ? intimacoesReal : 0;
-    const andamentosToggle = showAndamentos ? andamentosReal : 0;
-    
-    const filteredTotal = djenToggle + distribuicoesToggle + alertas360Toggle + redistribuicoesToggle + 
-                          prazosToggle + tarefasToggle + audienciasToggle + intimacoesToggle + andamentosToggle;
     
     return {
       djen: djenReal,
@@ -426,21 +400,17 @@ export default function Notificacoes() {
       intimacoes: intimacoesReal,
       andamentos: andamentosReal,
       total: totalReal,
-      filteredTotal: filteredTotal,
     };
   }, [
     publicacoesFiltradas, distribuicoesFiltradas, alertasFiltrados, redistribuicoesFiltradas,
-    prazosFiltrados, notificacoesFiltradas, tarefasFiltradas, audienciasFiltradas, intimacoesFiltradas, andamentosFiltrados,
-    showDjen, showDistribuicoes, showAlertas360, showRedistribuicoes, showPrazos, showTarefas, showAudiencias, showIntimacoes, showAndamentos
+    prazosFiltrados, notificacoesFiltradas, tarefasFiltradas, audienciasFiltradas, intimacoesFiltradas, andamentosFiltrados
   ]);
 
   const hoje = startOfDay(new Date());
   const hasActiveFilters = searchQuery || prioridadeFilter !== "todas" || statusFilter !== "pendente" || 
     (periodoInicio && periodoInicio.getTime() !== hoje.getTime()) || 
     (periodoFim && periodoFim.getTime() !== hoje.getTime()) || 
-    coordenacaoId !== "todas" ||
-    !showDjen || !showDistribuicoes || !showAlertas360 || !showRedistribuicoes || 
-    !showPrazos || !showTarefas || !showAudiencias || !showIntimacoes || !showAndamentos;
+    coordenacaoId !== "todas";
 
   const clearAllFilters = () => {
     setSearchQuery("");
@@ -449,15 +419,6 @@ export default function Notificacoes() {
     setPeriodoInicio(startOfDay(new Date()));
     setPeriodoFim(startOfDay(new Date()));
     setCoordenacaoId("todas");
-    setShowDjen(true);
-    setShowDistribuicoes(true);
-    setShowAlertas360(true);
-    setShowRedistribuicoes(true);
-    setShowPrazos(true);
-    setShowTarefas(true);
-    setShowAudiencias(true);
-    setShowIntimacoes(true);
-    setShowAndamentos(true);
   };
 
   const getIconByType = (tipo: string) => {
@@ -493,7 +454,7 @@ export default function Notificacoes() {
   };
 
   return (
-    <MainLayout title="Central de Notificações" subtitle={`${stats.filteredTotal} alertas encontrados`}>
+    <MainLayout title="Central de Notificações" subtitle={`${stats.total} alertas encontrados`}>
       {/* Filters Bar */}
       <div className="bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in">
         <div className="flex flex-col gap-4">
@@ -644,7 +605,7 @@ export default function Notificacoes() {
 
             {/* Results counter chip */}
             <Badge variant="outline" className="h-8 px-3 text-xs font-medium bg-primary/10 border-primary/30 text-primary">
-              {stats.filteredTotal} alerta{stats.filteredTotal !== 1 ? "s" : ""} encontrado{stats.filteredTotal !== 1 ? "s" : ""}
+              {stats.total} alerta{stats.total !== 1 ? "s" : ""} encontrado{stats.total !== 1 ? "s" : ""}
             </Badge>
             
             <Button variant="outline" size="sm" onClick={clearAllFilters} className="h-8 text-xs gap-1">
@@ -653,161 +614,6 @@ export default function Notificacoes() {
             </Button>
           </div>
 
-          {/* Toggle Filters Row */}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showDjen && "bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
-              )}
-              onClick={() => setShowDjen(prev => !prev)}
-            >
-              <Newspaper className="w-3.5 h-3.5" />
-              DJEN
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showDjen && "bg-blue-500 text-white")}>
-                {stats.djen}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showDistribuicoes && "bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
-              )}
-              onClick={() => setShowDistribuicoes(prev => !prev)}
-            >
-              <Scale className="w-3.5 h-3.5" />
-              Distribuições
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showDistribuicoes && "bg-purple-500 text-white")}>
-                {stats.distribuicoes}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showAlertas360 && "bg-amber-600 hover:bg-amber-700 text-white border-amber-600"
-              )}
-              onClick={() => setShowAlertas360(prev => !prev)}
-            >
-              <Radar className="w-3.5 h-3.5" />
-              Alertas 360°
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAlertas360 && "bg-amber-500 text-white")}>
-                {stats.alertas360}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showRedistribuicoes && "bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-600"
-              )}
-              onClick={() => setShowRedistribuicoes(prev => !prev)}
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Redistrib.
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showRedistribuicoes && "bg-cyan-500 text-white")}>
-                {stats.redistribuicoes}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showPrazos && "bg-red-600 hover:bg-red-700 text-white border-red-600"
-              )}
-              onClick={() => setShowPrazos(prev => !prev)}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              Prazos
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showPrazos && "bg-red-500 text-white")}>
-                {stats.prazos}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showTarefas && "bg-green-600 hover:bg-green-700 text-white border-green-600"
-              )}
-              onClick={() => setShowTarefas(prev => !prev)}
-            >
-              <ListTodo className="w-3.5 h-3.5" />
-              Tarefas
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showTarefas && "bg-green-500 text-white")}>
-                {stats.tarefas}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showAudiencias && "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600"
-              )}
-              onClick={() => setShowAudiencias(prev => !prev)}
-            >
-              <Gavel className="w-3.5 h-3.5" />
-              Audiências
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAudiencias && "bg-indigo-500 text-white")}>
-                {stats.audiencias}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showIntimacoes && "bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
-              )}
-              onClick={() => setShowIntimacoes(prev => !prev)}
-            >
-              <FileWarning className="w-3.5 h-3.5" />
-              Intimações
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showIntimacoes && "bg-orange-500 text-white")}>
-                {stats.intimacoes}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showAndamentos && "bg-violet-600 hover:bg-violet-700 text-white border-violet-600"
-              )}
-              onClick={() => setShowAndamentos(prev => !prev)}
-            >
-              <Activity className="w-3.5 h-3.5" />
-              Andamentos
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAndamentos && "bg-violet-500 text-white")}>
-                {stats.andamentos}
-              </Badge>
-            </Button>
-          </div>
         </div>
       </div>
 
@@ -1034,42 +840,6 @@ export default function Notificacoes() {
 
       {/* Área de conteúdo */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted/50 p-1 flex-wrap h-auto gap-1">
-          <TabsTrigger value="dashboard" className="data-[state=active]:bg-background gap-1">
-            <LayoutDashboard className="h-4 w-4" />
-            Dashboard
-          </TabsTrigger>
-          <TabsTrigger value="todos" className="data-[state=active]:bg-background">
-            Todos
-          </TabsTrigger>
-          <TabsTrigger value="djen" className="data-[state=active]:bg-background">
-            DJEN
-          </TabsTrigger>
-          <TabsTrigger value="distribuicoes" className="data-[state=active]:bg-background">
-            Distribuições
-          </TabsTrigger>
-          <TabsTrigger value="alertas360" className="data-[state=active]:bg-background">
-            Alertas 360°
-          </TabsTrigger>
-          <TabsTrigger value="redistribuicoes" className="data-[state=active]:bg-background">
-            Redistribuições
-          </TabsTrigger>
-          <TabsTrigger value="prazos" className="data-[state=active]:bg-background">
-            Prazos
-          </TabsTrigger>
-          <TabsTrigger value="tarefas" className="data-[state=active]:bg-background">
-            Tarefas
-          </TabsTrigger>
-          <TabsTrigger value="audiencias" className="data-[state=active]:bg-background">
-            Audiências
-          </TabsTrigger>
-          <TabsTrigger value="intimacoes" className="data-[state=active]:bg-background">
-            Intimações
-          </TabsTrigger>
-          <TabsTrigger value="andamentos" className="data-[state=active]:bg-background">
-            Andamentos
-          </TabsTrigger>
-        </TabsList>
 
         {/* Dashboard por Coordenação */}
         <TabsContent value="dashboard" className="space-y-4">
