@@ -57,9 +57,23 @@ const TRIBUNAIS: Record<string, TribunalConfig> = {
   },
 };
 
-// Persistência no banco (YYYY-MM-DD)
+// Obtém data atual no Brasil (UTC-3)
+function getDataBrasil(): Date {
+  const now = new Date();
+  // Ajusta para UTC-3 (horário de Brasília)
+  const brasilOffset = -3 * 60; // -3 horas em minutos
+  const utcOffset = now.getTimezoneOffset(); // offset local em minutos
+  const brasilTime = new Date(now.getTime() + (utcOffset + brasilOffset) * 60 * 1000);
+  return brasilTime;
+}
+
+// Persistência no banco (YYYY-MM-DD) - sempre no horário do Brasil
 function formatDateISO(date: Date): string {
-  return date.toISOString().split("T")[0];
+  const d = date instanceof Date ? date : new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 // DEJT (dd/MM/yyyy)
@@ -100,7 +114,9 @@ function normalizeDataPublicacao(raw?: unknown): { iso: string; dejt: string } {
       return { iso, dejt: isoToDejtDate(iso) };
     }
   }
-  const iso = formatDateISO(new Date());
+  // Usa data atual do Brasil como fallback
+  const dataBrasil = getDataBrasil();
+  const iso = formatDateISO(dataBrasil);
   return { iso, dejt: isoToDejtDate(iso) };
 }
 
