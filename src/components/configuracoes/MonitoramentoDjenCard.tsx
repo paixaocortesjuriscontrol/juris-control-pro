@@ -439,9 +439,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
       queryClient.invalidateQueries({ queryKey: ['djen-stats-hoje'] });
-      
-      // Recarregar página para garantir estado limpo
-      setTimeout(() => window.location.reload(), 500);
     } catch (error) {
       console.error('Erro ao resetar DJEN:', error);
       toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
