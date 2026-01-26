@@ -57,7 +57,7 @@ import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly } fr
 
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -69,6 +69,7 @@ type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'processo' | 'descartada'
 const AnaliseDjen = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [importingProcessoId, setImportingProcessoId] = useState<string | null>(null);
   const [savingProcessoId, setSavingProcessoId] = useState<string | null>(null);
@@ -157,6 +158,23 @@ const AnaliseDjen = () => {
   });
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
   const isLoading = loadingUserCoord || coordenacaoId === null || isLoadingPublicacoes;
+
+  // Verificar se tem publicacaoId na URL para selecionar automaticamente
+  useEffect(() => {
+    const publicacaoId = searchParams.get("publicacaoId");
+    if (publicacaoId && publicacoes && publicacoes.length > 0) {
+      const publicacaoEncontrada = publicacoes.find(p => p.id === publicacaoId);
+      if (publicacaoEncontrada) {
+        setSelectedPublicacao(publicacaoEncontrada);
+        setViewDialogOpen(true);
+        // Remover o parâmetro da URL após selecionar
+        searchParams.delete("publicacaoId");
+        setSearchParams(searchParams, { replace: true });
+        // Expandir a publicação
+        setExpandedPublicacoes(new Set([publicacaoId]));
+      }
+    }
+  }, [publicacoes, searchParams, setSearchParams]);
 
   const { data: coordenacoes } = useCoordenacoes();
 
