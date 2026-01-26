@@ -11,12 +11,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle, Trash2, CalendarIcon, XCircle } from "lucide-react";
+import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, StopCircle, Trash2, CalendarIcon, XCircle } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
-// NOTA: useExecutarMonitoramento removido - DJEN agora usa useBuscaDjenDireta
 import { useBuscaDjenDireta } from "@/hooks/useBuscaDjenDireta";
-import { BotaoRetomarLote } from "./BotaoRetomarLote";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
@@ -24,7 +22,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
-import { getExecutionProgress } from "@/utils/executionProgress";
 
 interface Props {
   coordenacaoId: string;
@@ -117,7 +114,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     refetchInterval: 60000,
   });
 
-  // FONTE ÚNICA: execucoes_agendadas para progresso em tempo real
+  // FONTE ÚNICA: execucoes_agendadas para progresso em tempo real (fallback legado)
   const { data: execucaoAtiva } = useQuery({
     queryKey: ['execucao-ativa-djen'],
     queryFn: async () => {
@@ -126,7 +123,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         .select('*')
         .eq('tipo', 'djen')
         .eq('status', 'executando')
-        // Evitar execução "fantasma" com finalizado_em preenchido
         .is('finalizado_em', null)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -134,16 +130,12 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
       if (error) throw error;
       
-      // Verificar se a execução está realmente ativa (não mais de 30 min sem progresso)
       if (data) {
         const iniciadoEm = new Date(data.iniciado_em).getTime();
         const agora = Date.now();
         const tempoDecorridoMs = agora - iniciadoEm;
         
-        // Se passou mais de 30 minutos sem finalizar, considerar como ghost
-        // (execuções DJEN normalmente levam 12-15 minutos com 114 monitoramentos)
         if (tempoDecorridoMs > 30 * 60 * 1000) {
-          // Atualizar para timeout automaticamente
           await supabase
             .from('execucoes_agendadas')
             .update({ 
@@ -158,14 +150,13 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       
       return data;
     },
-    refetchInterval: 2000, // Atualiza a cada 2s enquanto executa
+    refetchInterval: 2000,
   });
 
   // Buscar última execução com erro/falha para exibir alerta
   const { data: ultimaExecucaoErro } = useQuery({
     queryKey: ['ultima-execucao-erro-djen'],
     queryFn: async () => {
-      // Buscar última execução (qualquer status)
       const { data: ultimaConcluida } = await supabase
         .from('execucoes_agendadas')
         .select('id, finalizado_em')
@@ -188,20 +179,17 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       
       if (!data) return null;
       
-      // Se existe uma execução concluída com sucesso MAIS RECENTE, ocultar erro
       if (ultimaConcluida?.finalizado_em && data.finalizado_em) {
         const concluidaEm = new Date(ultimaConcluida.finalizado_em).getTime();
         const erroEm = new Date(data.finalizado_em).getTime();
         if (concluidaEm > erroEm) return null;
       }
       
-      // Só mostrar se foi nos últimos 30 minutos
       const finalizadoEm = data.finalizado_em ? new Date(data.finalizado_em).getTime() : 0;
       if (Date.now() - finalizadoEm > 30 * 60 * 1000) {
         return null;
       }
       
-      // Ocultar mensagens técnicas de signal/aborted
       const erroTecnico = data.ultimo_erro?.toLowerCase().includes('signal') ||
                           data.ultimo_erro?.toLowerCase().includes('aborted');
       if (erroTecnico) return null;
@@ -215,8 +203,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const latestRun = runs && runs.length > 0 ? runs[0] : null;
 
   // CONTADORES REAIS DO BANCO (publicações persistidas hoje)
-  // Nota: usa contagem bruta do banco. A página Análise DJEN pode ter números diferentes
-  // por aplicar deduplicação e filtros de coordenação.
   const { data: statsHoje } = useQuery({
     queryKey: ['djen-stats-hoje'],
     queryFn: async () => {
@@ -224,21 +210,18 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0).toISOString();
       const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59).toISOString();
 
-      // Publicações novas hoje (contagem bruta)
       const { count: novas, error: e1 } = await supabase
         .from('publicacoes_djen')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
 
-      // Descartadas hoje
       const { count: descartadas, error: e2 } = await supabase
         .from('publicacoes_djen_descartadas')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
 
-      // Total de monitoramentos ativos
       const { count: monitoramentos, error: e3 } = await supabase
         .from('monitoramentos_djen')
         .select('*', { count: 'exact', head: true })
@@ -252,11 +235,10 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         monitoramentos: monitoramentos ?? 0,
       };
     },
-    refetchInterval: 10000, // Atualiza a cada 10s
+    refetchInterval: 10000,
   });
 
-  // Fetch configured tribunals (from active DJEN terms) so the report can show
-  // tribunals even when the last execution batch didn't reach those terms yet.
+  // Fetch configured tribunals
   const { data: monitoramentosTribunais } = useQuery({
     queryKey: ['djen-tribunais-configurados'],
     queryFn: async () => {
@@ -271,7 +253,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Real-time subscription para execucoes_agendadas (FONTE ÚNICA DE VERDADE)
+  // Real-time subscription para execucoes_agendadas
   useEffect(() => {
     const channel = supabase
       .channel('execucao-djen-realtime')
@@ -295,34 +277,31 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     setOcultarErroAnterior(false);
   }, [ultimaExecucaoErro?.id]);
 
-  // Progresso ao vivo (monótono): evita percentual “voltar” quando detalhes.progress é sobrescrito por lote
-  const { current: execProcessados, total: execTotal, percentage: execPercentRaw } = getExecutionProgress({
-    detalhes: execucaoAtiva?.detalhes,
-    registros_processados: execucaoAtiva?.registros_processados,
-    total_lotes: execucaoAtiva?.total_lotes,
-    lotes_processados: execucaoAtiva?.lotes_processados,
-  });
-  // Só mostra percentual se tiver um total válido (>0) e a execução iniciou há mais de 5s
-  const execucaoIniciouHa = execucaoAtiva?.iniciado_em 
-    ? Date.now() - new Date(execucaoAtiva.iniciado_em).getTime() 
+  // FONTE DE PROGRESSO: hook de busca direta (executando no navegador)
+  // Quando executandoDireta está true, usamos progressoDireta; caso contrário, fallback para execucaoAtiva (legado)
+  const execProcessados = executandoDireta 
+    ? progressoDireta.monitoramentoAtual 
+    : (execucaoAtiva?.registros_processados ?? 0);
+  const execTotal = executandoDireta 
+    ? progressoDireta.totalMonitoramentos 
+    : (execucaoAtiva?.total_lotes ?? 0);
+  const execNovas = executandoDireta 
+    ? progressoDireta.publicacoesNovas 
+    : (execucaoAtiva?.registros_encontrados ?? 0);
+  const execPercent = execTotal > 0 
+    ? Math.round((execProcessados / execTotal) * 100) 
     : 0;
-  const hasValidProgress = execTotal > 0 && execPercentRaw !== null && execucaoIniciouHa > 5000;
-  const execPercent = hasValidProgress ? execPercentRaw : 0;
-  const execNovas = execucaoAtiva?.registros_encontrados ?? 0;
-  const isExecuting = !!execucaoAtiva;
+  
+  // Está executando se o hook direto está ativo OU se há execução no banco (legado)
+  const isExecuting = executandoDireta || !!execucaoAtiva;
 
-  // Salvar datas no metadata antes de executar
   const handleExecutarManual = async (retomar = false) => {
-    // Agora usa busca direta no frontend - não há mais orquestrador para DJEN
     if (executandoDireta || isExecuting) {
       toast.warning('Já existe uma execução DJEN em andamento. Aguarde ou cancele.');
       return;
     }
     
-    // Ocultar mensagens de erro da execução anterior ao iniciar nova
     setOcultarErroAnterior(true);
-
-    // Executar via hook de busca direta (frontend-based)
     await executarDireta();
   };
 
@@ -339,14 +318,12 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   };
 
   const handleCancelarExecucao = async () => {
-    // Cancelar via hook de busca direta
     cancelarDireta();
     toast.success('Execução cancelada');
     queryClient.invalidateQueries({ queryKey: ['execucao-ativa-djen'] });
     queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
   };
 
-  // Função separada: apenas limpa (cancela execução se houver, mas NÃO executa depois)
   const handleLimparApenas = async () => {
     if (!confirm('Isso vai limpar TODAS as publicações DJEN capturadas hoje. Deseja continuar?')) {
       return;
@@ -354,7 +331,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
     setLimpando(true);
     try {
-      // Se houver execução ativa, cancelar primeiro
       if (isExecuting) {
         try {
           await handleCancelarExecucao();
@@ -364,7 +340,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         await new Promise((r) => setTimeout(r, 500));
       }
 
-      // Limpeza via SDK. Timeout para não "travar" a UI indefinidamente.
       const { data, error } = await withTimeout(
         supabase.functions.invoke('limpar-djen-hoje'),
         60_000,
@@ -374,7 +349,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
       toast.success((data as any)?.message ?? 'Limpeza concluída! Agora você pode executar novamente.');
       
-      // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
@@ -404,7 +378,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     };
   })() : null;
 
-  // Calcular progresso do metadata (para BotaoRetomarLote)
+  // Calcular progresso do metadata
   const metadata = configuracaoDjen?.metadata as Record<string, any> | null;
   const nextOffset = metadata?.next_offset || 0;
   const totalMonitoramentos = execTotal || metadata?.djen_run?.totals?.total_monitoramentos || 114;
@@ -597,40 +571,46 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           </div>
         </div>
 
-        {/* Progresso ao vivo (fonte única: execucoes_agendadas) */}
+        {/* Progresso ao vivo - fonte primária: busca direta (frontend) */}
         {isExecuting && (
           <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
-                <Radio className="h-4 w-4 text-primary animate-pulse" />
+                <RefreshCw className="h-4 w-4 animate-spin text-primary" />
                 <span className="font-medium">
-                  {hasValidProgress 
-                    ? `Processando: ${execProcessados.toLocaleString('pt-BR')}/${execTotal.toLocaleString('pt-BR')}`
-                    : 'Iniciando monitoramento...'}
+                  {executandoDireta 
+                    ? progressoDireta.mensagem 
+                    : execTotal > 0 
+                      ? `Processando: ${execProcessados.toLocaleString('pt-BR')}/${execTotal.toLocaleString('pt-BR')}`
+                      : 'Iniciando monitoramento...'}
                 </span>
               </div>
-              {hasValidProgress && (
+              {(executandoDireta ? progressoDireta.totalMonitoramentos > 0 : execTotal > 0) && (
                 <Badge variant="secondary" className="text-xs">
-                  {execPercent}%
+                  {executandoDireta 
+                    ? `${progressoDireta.monitoramentoAtual}/${progressoDireta.totalMonitoramentos}`
+                    : `${execPercent}%`}
                 </Badge>
               )}
             </div>
-            {hasValidProgress ? (
-              <Progress value={execPercent} className="h-2" />
-            ) : (
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div className="absolute inset-y-0 left-0 w-1/3 animate-[indeterminate_1.4s_ease-in-out_infinite] rounded-full bg-primary/50" />
-                <style>{`
-                  @keyframes indeterminate {
-                    0% { transform: translateX(-100%); }
-                    50% { transform: translateX(200%); }
-                    100% { transform: translateX(300%); }
-                  }
-                `}</style>
-              </div>
-            )}
+            <Progress 
+              value={executandoDireta 
+                ? (progressoDireta.totalMonitoramentos > 0 
+                    ? (progressoDireta.monitoramentoAtual / progressoDireta.totalMonitoramentos) * 100 
+                    : 0)
+                : execPercent
+              } 
+              className="h-2" 
+            />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>+{execNovas} novas encontradas</span>
+              {executandoDireta ? (
+                <div className="flex gap-4">
+                  <span className="text-emerald-600">✓ {progressoDireta.publicacoesNovas} novas</span>
+                  <span className="text-amber-600">↔ {progressoDireta.publicacoesDuplicadas} duplicadas</span>
+                </div>
+              ) : (
+                <span>+{execNovas} novas encontradas</span>
+              )}
             </div>
             <Button
               variant="destructive"
@@ -641,41 +621,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             >
               <StopCircle className="h-4 w-4 mr-2" />
               {cancelando ? 'Cancelando...' : 'Cancelar Execução'}
-            </Button>
-          </div>
-        )}
-
-        {/* Progresso durante busca direta (via hook frontend) */}
-        {executandoDireta && progressoDireta.status === 'executando' && (
-          <div className="space-y-2 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />
-                <span>{progressoDireta.mensagem}</span>
-              </div>
-              <Badge variant="outline">
-                {progressoDireta.monitoramentoAtual}/{progressoDireta.totalMonitoramentos}
-              </Badge>
-            </div>
-            <Progress 
-              value={progressoDireta.totalMonitoramentos > 0 
-                ? (progressoDireta.monitoramentoAtual / progressoDireta.totalMonitoramentos) * 100 
-                : 0
-              } 
-              className="h-2" 
-            />
-            <div className="flex gap-4 text-xs text-muted-foreground">
-              <span className="text-green-600">✓ {progressoDireta.publicacoesNovas} novas</span>
-              <span className="text-yellow-600">↔ {progressoDireta.publicacoesDuplicadas} duplicadas</span>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleCancelarExecucao}
-              className="w-full mt-2"
-            >
-              <StopCircle className="h-4 w-4 mr-2" />
-              Cancelar
             </Button>
           </div>
         )}
@@ -795,15 +740,10 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
             disabled={executandoDireta || limpando || isExecuting}
             className="flex-1"
           >
-            {executandoDireta ? (
+            {executandoDireta || isExecuting ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 Executando...
-              </>
-            ) : isExecuting ? (
-              <>
-                <Activity className="h-4 w-4 mr-2 animate-pulse" />
-                Em Andamento...
               </>
             ) : (
               <>
@@ -812,8 +752,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
               </>
             )}
           </Button>
-
-          {/* Botão Retomar removido - busca direta não usa offsets */}
           
           <Button 
             variant="outline"
