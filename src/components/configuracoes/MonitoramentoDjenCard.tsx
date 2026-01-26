@@ -11,7 +11,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle, Trash2, CalendarIcon, XCircle } from "lucide-react";
+import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, Layers, CheckCircle2, Activity, History, Radio, StopCircle, Trash2, CalendarIcon, XCircle, RotateCcw } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
 import { useExecutarMonitoramento } from "@/hooks/useExecutarMonitoramento";
@@ -94,6 +95,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const [cancelando, setCancelando] = useState(false);
   const [limpando, setLimpando] = useState(false);
   const [ocultarErroAnterior, setOcultarErroAnterior] = useState(false);
+  const [resetando, setResetando] = useState(false);
   const { runDetails } = useDjenRunDetails(selectedRunId);
   
   // Estados para período de consulta
@@ -419,6 +421,32 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setLimpando(false);
+    }
+  };
+
+  // Reset completo do estado DJEN
+  const handleResetCompleto = async () => {
+    setResetando(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('reset-djen-state');
+      if (error) throw error;
+
+      toast.success((data as any)?.message ?? 'Estado do DJEN resetado com sucesso!');
+      
+      // Invalidar todas as queries relacionadas
+      queryClient.invalidateQueries({ queryKey: ['execucao-ativa-djen'] });
+      queryClient.invalidateQueries({ queryKey: ['ultima-execucao-erro-djen'] });
+      queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
+      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+      queryClient.invalidateQueries({ queryKey: ['djen-stats-hoje'] });
+      
+      // Recarregar página para garantir estado limpo
+      setTimeout(() => window.location.reload(), 500);
+    } catch (error) {
+      console.error('Erro ao resetar DJEN:', error);
+      toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
+      setResetando(false);
     }
   };
 
@@ -849,6 +877,45 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
               </>
             )}
           </Button>
+
+          {/* Botão Reset Completo */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="destructive"
+                disabled={resetando}
+                className="sm:w-auto"
+              >
+                {resetando ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Resetando...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Reset Completo
+                  </>
+                )}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset Completo do DJEN</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Isso vai cancelar todas as execuções ativas, limpar execuções fantasma e resetar completamente o estado do monitoramento DJEN para resolver travamentos.
+                  <br /><br />
+                  <strong>Use quando o monitoramento estiver travado em um percentual fixo.</strong>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleResetCompleto}>
+                  Confirmar Reset
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </CardContent>
     </Card>
