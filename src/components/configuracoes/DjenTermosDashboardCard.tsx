@@ -152,32 +152,33 @@ export function DjenTermosDashboardCard({
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
 
   // Verificar se há execução ativa no backend (edge function)
-  const backendRunning = md.status === 'em_andamento' && !md.cancelado;
+  // CORREÇÃO: Só considera "running" se AMBOS: status='em_andamento' E percentage < 100
   const backendTotal = md.total ?? 0;
   const backendCurrent = md.current ?? 0;
-  const backendHasProgress = backendTotal > 0 && backendCurrent > 0;
+  const backendPercentage = backendTotal > 0 ? Math.round((backendCurrent / backendTotal) * 100) : 0;
+  const backendCompleted = md.status === 'concluido' || backendPercentage >= 100;
+  const backendRunning = md.status === 'em_andamento' && !md.cancelado && !backendCompleted;
   
-  // Evitar regressão visual: se o backend já tem números, preferir (mesmo após concluir/falhar)
-  // e nunca voltar para um valor menor que o já mostrado localmente.
-  const effectiveTotal = backendHasProgress ? backendTotal : progresso.totalMonitoramentos;
-  const effectiveCurrent = backendHasProgress
-    ? Math.max(backendCurrent, progresso.monitoramentoAtual)
-    : progresso.monitoramentoAtual;
+  // Usar maior valor entre backend e local para evitar regressão visual
+  const effectiveTotal = Math.max(backendTotal, progresso.totalMonitoramentos);
+  const effectiveCurrent = Math.max(backendCurrent, progresso.monitoramentoAtual);
   
   const percent = useMemo(() => {
     if (effectiveTotal <= 0) return 0;
-    return Math.round((effectiveCurrent / effectiveTotal) * 100);
+    const calc = Math.round((effectiveCurrent / effectiveTotal) * 100);
+    // Se atingiu 100%, manter 100%
+    return Math.min(100, calc);
   }, [effectiveCurrent, effectiveTotal]);
 
-  // Determinar status real - priorizar backend sobre client-side
-  const isRunning = executando || backendRunning;
-  const currentStatus: MonitoringStatus = isRunning
-    ? 'running' 
-    : progresso.status === 'concluido' || md.status === 'concluido'
-      ? 'completed' 
-      : progresso.status === 'erro' || md.status === 'falhou'
-        ? 'failed' 
-        : stats.status;
+  // Determinar status real - CORRIGIDO: 100% = completed, não running
+  const localCompleted = progresso.status === 'concluido' || (effectiveCurrent >= effectiveTotal && effectiveTotal > 0);
+  const isRunning = (executando || backendRunning) && !localCompleted && !backendCompleted;
+  
+  const currentStatus: MonitoringStatus = 
+    isRunning ? 'running' 
+    : localCompleted || backendCompleted || md.status === 'concluido' ? 'completed' 
+    : progresso.status === 'erro' || md.status === 'falhou' ? 'failed' 
+    : stats.status;
 
   const statusConfig = STATUS_CONFIG[currentStatus];
 
@@ -233,23 +234,15 @@ export function DjenTermosDashboardCard({
   const canExecute = !isRunning && !isExecuting && currentStatus !== 'timeout';
   const canCancel = isRunning;
 
-  // Métricas reais - priorizar todayStats (vem do banco consolidado)
+  // Métricas reais - USAR APENAS todayStats (banco consolidado, fonte única de verdade)
+  // Evita inconsistência entre Dashboard e Análise DJEN
   const processados = effectiveCurrent;
   const total = effectiveTotal;
-  // todayStats.found/descartadas vem de queries diretas ao banco - mais confiável
-  // mas se o polling ainda não refletiu no contador, não zerar (usar o maior valor disponível)
-  const encontrados = Math.max(
-    stats.todayStats.found ?? 0,
-    md.djen_run?.totals?.novas ?? 0,
-    md.novas ?? 0
-  );
-  const descartadas = Math.max(
-    stats.todayStats.descartadas ?? 0,
-    md.djen_run?.totals?.descartadas ?? 0,
-    md.descartadas ?? 0
-  );
+  // todayStats vem de COUNT(*) direto na tabela publicacoes_djen - é a fonte confiável
+  const encontrados = stats.todayStats.found ?? 0;
+  const descartadas = stats.todayStats.descartadas ?? 0;
 
-  // Tempo - usar do backend quando running server-side
+  // Tempo - usar do backend se disponível
   const backendDuration = md.djen_run?.totals?.duracao_s ?? 0;
   const tempoSegundos = backendDuration > 0
     ? backendDuration
