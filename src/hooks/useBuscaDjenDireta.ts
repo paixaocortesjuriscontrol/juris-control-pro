@@ -113,6 +113,7 @@ export function useBuscaDjenDireta() {
   });
   
   const cancelarRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Timer para atualizar tempo decorrido
@@ -180,13 +181,14 @@ export function useBuscaDjenDireta() {
 
   // Buscar um monitoramento via Edge Function leve
   const buscarMonitoramento = async (monitoramento: MonitoramentoDjen): Promise<PublicacaoResultado[]> => {
+    // Checar cancelamento antes de iniciar
+    if (cancelarRef.current) return [];
+
     const hoje = new Date();
     const dataInicio = new Date(hoje);
     dataInicio.setDate(dataInicio.getDate() - 1);
 
     // Mapear tipos do banco para tipos aceitos pela API
-    // A API aceita: 'advogado', 'palavra-chave', 'processo'
-    // O banco pode ter: 'advogado', 'palavra-chave', 'processo', 'parte'
     const tipoMapeado = monitoramento.tipo === 'parte' ? 'palavra-chave' : monitoramento.tipo;
 
     const params: Record<string, any> = {
@@ -201,16 +203,21 @@ export function useBuscaDjenDireta() {
       params.oab = monitoramento.oab;
       params.uf = monitoramento.uf;
     } else if (tipoMapeado === 'palavra-chave' || monitoramento.tipo === 'parte') {
-      // Tanto 'palavra-chave' quanto 'parte' usam termo_busca como palavraChave
       params.palavraChave = monitoramento.termo_busca;
     } else if (tipoMapeado === 'processo') {
       params.numeroProcesso = monitoramento.termo_busca.replace(/\D/g, '');
     }
 
     try {
+      // Checar cancelamento novamente antes da requisição
+      if (cancelarRef.current) return [];
+
       const { data, error } = await supabase.functions.invoke('buscar-djen', {
         body: params,
       });
+
+      // Checar cancelamento após a requisição
+      if (cancelarRef.current) return [];
 
       if (error) {
         console.error(`Erro ao buscar DJEN para ${monitoramento.termo_busca}:`, error);
@@ -227,7 +234,9 @@ export function useBuscaDjenDireta() {
         fonte: pub.tribunal || pub.orgao || 'DJEN',
         hash_conteudo: '',
       }));
-    } catch (err) {
+    } catch (err: any) {
+      // Ignorar erros de abort
+      if (err?.name === 'AbortError' || cancelarRef.current) return [];
       console.error(`Erro na busca DJEN:`, err);
       return [];
     }
@@ -311,6 +320,7 @@ export function useBuscaDjenDireta() {
     const tempoInicio = Date.now();
     setExecutando(true);
     cancelarRef.current = false;
+    abortControllerRef.current = new AbortController();
     setProgresso({
       monitoramentoAtual: 0,
       totalMonitoramentos: 0,
@@ -488,6 +498,19 @@ export function useBuscaDjenDireta() {
 
   const cancelarExecucao = useCallback(() => {
     cancelarRef.current = true;
+    // Abortar requisições em andamento
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    // Atualizar estado imediatamente para feedback visual
+    setExecutando(false);
+    setProgresso(prev => ({
+      ...prev,
+      status: 'concluido',
+      mensagem: 'Cancelado pelo usuário.',
+    }));
+    // Limpar localStorage para não restaurar estado cancelado
+    localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   return {
