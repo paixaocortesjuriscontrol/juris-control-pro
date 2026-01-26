@@ -501,16 +501,19 @@ export function useBuscaDjenDireta() {
     // Abortar requisições em andamento
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
-    // Atualizar estado imediatamente para feedback visual
-    setExecutando(false);
-    setProgresso(prev => ({
-      ...prev,
-      status: 'concluido',
-      mensagem: 'Cancelado pelo usuário.',
-    }));
     // Limpar localStorage para não restaurar estado cancelado
     localStorage.removeItem(STORAGE_KEY);
+    // Agendar atualizações de estado para o próximo tick para evitar conflitos com React
+    queueMicrotask(() => {
+      setExecutando(false);
+      setProgresso(prev => ({
+        ...prev,
+        status: 'concluido',
+        mensagem: 'Cancelado pelo usuário.',
+      }));
+    });
   }, []);
 
   return {
