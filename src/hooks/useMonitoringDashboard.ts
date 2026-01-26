@@ -61,11 +61,12 @@ export interface MonitoringStats {
   elapsedSeconds: number;
 }
 
-// NOTA: 'djen' foi removido - agora usa busca direta no frontend (useBuscaDjenDireta/BuscaDjenDiretaCard)
+// DJEN Termos: mantido no grid para visualização unificada (usa busca direta no frontend)
 const MONITORING_TYPES = [
   { tipo: 'redistribuicoes', nome: 'Redistribuições', icon: 'RefreshCw', funcao: 'monitorar-redistribuicoes' },
   { tipo: 'andamentos', nome: 'Andamentos', icon: 'Activity', funcao: 'monitorar-andamentos' },
   { tipo: 'distribuicoes', nome: 'Distribuições', icon: 'Globe', funcao: 'monitorar-distribuicoes' },
+  { tipo: 'djen', nome: 'DJEN Termos', icon: 'Newspaper', funcao: 'buscar-djen' },
   { tipo: 'djen_processos', nome: 'DJEN Processos', icon: 'FileSearch', funcao: 'monitorar-djen-processos' },
   { tipo: 'termos', nome: 'Monitoração 360', icon: 'Radar', funcao: 'monitorar-termos' },
 ] as const;
@@ -456,6 +457,16 @@ export function useMonitoringDashboard() {
   const executeMonitoring = useCallback(async (tipo: string): Promise<ExecuteMonitoringResult> => {
     const monitoringType = MONITORING_TYPES.find(t => t.tipo === tipo);
     if (!monitoringType) throw new Error('Tipo inválido');
+
+    // DJEN Termos usa busca direta - redirecionar para aba DJEN
+    if (tipo === 'djen') {
+      return {
+        execucaoId: null,
+        success: false,
+        useDireta: true,
+        message: 'DJEN Termos usa busca direta. Acesse a aba "DJEN" para executar.',
+      };
+    }
 
     // Use orchestrator to prevent WORKER_LIMIT
     const { data, error } = await supabase.functions.invoke('executar-monitoramento', {

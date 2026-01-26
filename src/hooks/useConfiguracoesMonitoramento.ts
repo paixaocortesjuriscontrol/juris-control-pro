@@ -91,9 +91,9 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
         if (error) throw error;
         return data;
       }
-      // NOTA: 'djen' foi removido - agora usa busca direta no frontend (useBuscaDjenDireta)
+      // DJEN Termos usa busca direta no frontend
       if (tipo === 'djen') {
-        throw new Error("DJEN agora usa busca direta no frontend. Use o componente BuscaDjenDiretaCard.");
+        return { useDireta: true, message: 'Use a aba DJEN para busca direta' };
       }
       if (tipo === 'termos') {
         const { data, error } = await supabase.functions.invoke('monitorar-termos');
