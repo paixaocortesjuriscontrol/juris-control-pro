@@ -233,11 +233,12 @@ export function DjenTermosDashboardCard({
   const canExecute = !isRunning && !isExecuting && currentStatus !== 'timeout';
   const canCancel = isRunning;
 
-  // Métricas reais - usar dados do backend quando disponíveis
+  // Métricas reais - priorizar todayStats (vem do banco consolidado)
   const processados = effectiveCurrent;
   const total = effectiveTotal;
-  const encontrados = md.djen_run?.totals?.novas ?? stats.todayStats.found ?? 0;
-  const descartadas = md.djen_run?.totals?.descartadas ?? stats.todayStats.descartadas ?? 0;
+  // todayStats.found/descartadas vem de queries diretas ao banco - mais confiável
+  const encontrados = stats.todayStats.found ?? md.djen_run?.totals?.novas ?? 0;
+  const descartadas = stats.todayStats.descartadas ?? md.djen_run?.totals?.descartadas ?? 0;
 
   // Tempo - usar do backend quando running server-side
   const backendDuration = md.djen_run?.totals?.duracao_s ?? 0;
