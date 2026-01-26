@@ -22,42 +22,55 @@ export function useRedistribuicoes(filters?: {
   return useQuery({
     queryKey: ['redistribuicoes', filters],
     queryFn: async () => {
-      let query = supabase
-        .from('movimentacoes')
-        .select(`
-          id,
-          processo_id,
-          descricao,
-          data_movimentacao,
-          processos (
-            numero,
-            area,
-            vara,
-            coordenacao_id,
-            coordenacoes (nome),
-            advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey (nome)
-          )
-        `)
-        .eq('tipo', 'Redistribuição')
-        .order('data_movimentacao', { ascending: false });
+      const pageSize = 1000;
 
-      // CRÍTICO: Filtrar por created_at (data da captura) ao invés de data_movimentacao
-      if (filters?.dataInicio) {
-        query = query.gte('created_at', filters.dataInicio);
+      const buildQuery = () => {
+        let query = supabase
+          .from('movimentacoes')
+          .select(`
+            id,
+            processo_id,
+            descricao,
+            data_movimentacao,
+            created_at,
+            processos (
+              numero,
+              area,
+              vara,
+              coordenacao_id,
+              coordenacoes (nome),
+              advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey (nome)
+            )
+          `)
+          .eq('tipo', 'Redistribuição')
+          .order('data_movimentacao', { ascending: false });
+
+        // CRÍTICO: Filtrar por created_at (data da captura) ao invés de data_movimentacao
+        if (filters?.dataInicio) {
+          query = query.gte('created_at', filters.dataInicio);
+        }
+        if (filters?.dataFim) {
+          // Adicionar 1 dia ao fim para incluir todo o dia
+          const fimDate = new Date(filters.dataFim);
+          fimDate.setDate(fimDate.getDate() + 1);
+          query = query.lt('created_at', fimDate.toISOString().split('T')[0]);
+        }
+
+        return query;
+      };
+
+      const all: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (error) throw error;
+        const chunk = data || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
       }
-      if (filters?.dataFim) {
-        // Adicionar 1 dia ao fim para incluir todo o dia
-        const fimDate = new Date(filters.dataFim);
-        fimDate.setDate(fimDate.getDate() + 1);
-        query = query.lt('created_at', fimDate.toISOString().split('T')[0]);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
 
       // Parse e formatar os dados
-      const redistribuicoes: Redistribuicao[] = (data || [])
+      const redistribuicoes: Redistribuicao[] = all
         .filter((mov: any) => {
           // Filtrar por número do processo se especificado
           if (filters?.processoNumero) {
