@@ -1258,6 +1258,137 @@ export type Database = {
           },
         ]
       }
+      dje_conteudo_indexado: {
+        Row: {
+          conteudo_texto: string
+          created_at: string
+          id: string
+          pagina: number
+          pdf_id: string
+          processos_detectados: string[] | null
+        }
+        Insert: {
+          conteudo_texto: string
+          created_at?: string
+          id?: string
+          pagina: number
+          pdf_id: string
+          processos_detectados?: string[] | null
+        }
+        Update: {
+          conteudo_texto?: string
+          created_at?: string
+          id?: string
+          pagina?: number
+          pdf_id?: string
+          processos_detectados?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dje_conteudo_indexado_pdf_id_fkey"
+            columns: ["pdf_id"]
+            isOneToOne: false
+            referencedRelation: "dje_pdfs_diarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dje_pdfs_diarios: {
+        Row: {
+          caderno: string | null
+          created_at: string
+          data_publicacao: string
+          erro_mensagem: string | null
+          id: string
+          processado_em: string | null
+          status: string
+          storage_path: string | null
+          tamanho_bytes: number | null
+          total_paginas: number | null
+          tribunal: string
+          url_origem: string | null
+        }
+        Insert: {
+          caderno?: string | null
+          created_at?: string
+          data_publicacao: string
+          erro_mensagem?: string | null
+          id?: string
+          processado_em?: string | null
+          status?: string
+          storage_path?: string | null
+          tamanho_bytes?: number | null
+          total_paginas?: number | null
+          tribunal: string
+          url_origem?: string | null
+        }
+        Update: {
+          caderno?: string | null
+          created_at?: string
+          data_publicacao?: string
+          erro_mensagem?: string | null
+          id?: string
+          processado_em?: string | null
+          status?: string
+          storage_path?: string | null
+          tamanho_bytes?: number | null
+          total_paginas?: number | null
+          tribunal?: string
+          url_origem?: string | null
+        }
+        Relationships: []
+      }
+      dje_resultados_busca: {
+        Row: {
+          conteudo_id: string
+          contexto: string | null
+          created_at: string
+          id: string
+          monitoramento_id: string | null
+          origem: string
+          pagina: number | null
+          processo_numero: string | null
+          termo_encontrado: string
+        }
+        Insert: {
+          conteudo_id: string
+          contexto?: string | null
+          created_at?: string
+          id?: string
+          monitoramento_id?: string | null
+          origem?: string
+          pagina?: number | null
+          processo_numero?: string | null
+          termo_encontrado: string
+        }
+        Update: {
+          conteudo_id?: string
+          contexto?: string | null
+          created_at?: string
+          id?: string
+          monitoramento_id?: string | null
+          origem?: string
+          pagina?: number | null
+          processo_numero?: string | null
+          termo_encontrado?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dje_resultados_busca_conteudo_id_fkey"
+            columns: ["conteudo_id"]
+            isOneToOne: false
+            referencedRelation: "dje_conteudo_indexado"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dje_resultados_busca_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       djen_lotes: {
         Row: {
           created_at: string

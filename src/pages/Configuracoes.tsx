@@ -1,7 +1,7 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal } from "lucide-react";
+import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -15,6 +15,7 @@ import { MonitoramentosAtivosPanel } from "@/components/configuracoes/Monitorame
 import { FilaExecucoesPanel } from "@/components/configuracoes/FilaExecucoesPanel";
 import CofreSenhasPage from "@/pages/CofreSenhas";
 import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
+import ComparacaoDjenDje from "@/components/configuracoes/ComparacaoDjenDje";
 
 export default function Configuracoes() {
   return (
@@ -68,6 +69,10 @@ export default function Configuracoes() {
           <TabsTrigger value="parametros-djen" className="flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4" />
             <span className="hidden sm:inline">Parâmetros DJEN</span>
+          </TabsTrigger>
+          <TabsTrigger value="dje-pdf" className="flex items-center gap-2">
+            <FlaskConical className="h-4 w-4" />
+            <span className="hidden sm:inline">DJE-PDF (Experimental)</span>
           </TabsTrigger>
         </TabsList>
 
@@ -224,6 +229,11 @@ export default function Configuracoes() {
             </p>
           </div>
           <ParametrosDjenCard />
+        </TabsContent>
+
+        {/* Aba DJE-PDF Experimental */}
+        <TabsContent value="dje-pdf" className="space-y-4">
+          <ComparacaoDjenDje />
         </TabsContent>
       </Tabs>
     </MainLayout>
