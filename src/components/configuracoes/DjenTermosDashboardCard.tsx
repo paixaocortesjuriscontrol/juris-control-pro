@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
-  Loader2, Newspaper, PlayCircle, StopCircle, Trash2,
+  Loader2, Newspaper, PlayCircle, StopCircle, Trash2, Mail,
   CheckCircle2, XCircle, Clock, TrendingUp, Zap, MinusCircle
 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useBuscaDjenDireta } from "@/hooks/useBuscaDjenDireta";
 import { withTimeout } from "@/utils/withTimeout";
 import { useState } from "react";
+import { useEnviarResumoManual } from "@/hooks/useEnviarResumoManual";
 
 type Props = {
   stats: MonitoringStats;
@@ -145,6 +146,7 @@ export function DjenTermosDashboardCard({
     cancelarExecucao,
   } = useBuscaDjenDireta();
 
+  const { enviando, enviarResumo } = useEnviarResumoManual();
   const [limpando, setLimpando] = useState(false);
 
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
@@ -408,6 +410,29 @@ export function DjenTermosDashboardCard({
           >
             <StopCircle className="h-4 w-4" />
           </Button>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={() => enviarResumo('djen')}
+                  disabled={enviando['djen']}
+                  title="Enviar resumo de hoje"
+                >
+                  {enviando['djen'] ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Enviar resumo de hoje (Email/WhatsApp)</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           <Button
             size="sm"

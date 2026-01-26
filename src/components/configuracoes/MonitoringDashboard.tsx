@@ -16,8 +16,9 @@ import {
 import { 
   RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar,
   CheckCircle2, XCircle, Clock, AlertTriangle, Loader2, PlayCircle,
-  StopCircle, TrendingUp, Hash, Timer, Zap, BarChart3, MinusCircle
+  StopCircle, TrendingUp, Hash, Timer, Zap, BarChart3, MinusCircle, Mail
 } from "lucide-react";
+import { useEnviarResumoManual } from "@/hooks/useEnviarResumoManual";
 import { useState } from "react";
 import { 
   useMonitoringDashboard, 
@@ -266,14 +267,18 @@ function MonitoringCard({
   stats, 
   onExecute, 
   onCancel, 
+  onSendSummary,
   isExecuting, 
-  isCancelling 
+  isCancelling,
+  isSendingSummary
 }: { 
   stats: MonitoringStats;
   onExecute: () => void;
   onCancel: () => void;
+  onSendSummary: () => void;
   isExecuting: boolean;
   isCancelling: boolean;
+  isSendingSummary: boolean;
 }) {
   const Icon = ICONS[stats.icon] || Activity;
   const statusConfig = STATUS_CONFIG[stats.status];
@@ -369,6 +374,29 @@ function MonitoringCard({
               <StopCircle className="h-4 w-4" />
             )}
           </Button>
+          
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={onSendSummary}
+                  disabled={isSendingSummary}
+                  title="Enviar resumo de hoje"
+                >
+                  {isSendingSummary ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Enviar resumo de hoje (Email/WhatsApp)</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </CardContent>
     </Card>
@@ -383,6 +411,8 @@ export function MonitoringDashboard() {
     cancelMonitoring,
     refetch 
   } = useMonitoringDashboard();
+  
+  const { enviando, enviarResumo } = useEnviarResumoManual();
   
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
   const [cancelling, setCancelling] = useState<Record<string, boolean>>({});
@@ -639,8 +669,10 @@ export function MonitoringDashboard() {
               stats={stats}
               onExecute={() => handleExecute(stats.tipo)}
               onCancel={() => handleCancel(stats.tipo)}
+              onSendSummary={() => enviarResumo(stats.tipo as any)}
               isExecuting={executing[stats.tipo] || false}
               isCancelling={cancelling[stats.tipo] || false}
+              isSendingSummary={enviando[stats.tipo] || false}
             />
           );
         })}
