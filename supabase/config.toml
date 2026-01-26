@@ -95,3 +95,12 @@ verify_jwt = false
 
 [functions.enviar-resumo-monitoramento]
 verify_jwt = false
+
+[functions.baixar-dje-pdf]
+verify_jwt = false
+
+[functions.processar-dje-pdf]
+verify_jwt = false
+
+[functions.buscar-dje-interno]
+verify_jwt = false
