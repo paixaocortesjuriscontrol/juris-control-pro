@@ -273,6 +273,26 @@ export function CoordenacaoDetalhesView({
     navigate(url);
   };
 
+  // Handler específico para DJEN que precisa buscar processo_id pelo número
+  const handleNavigateDjen = async (processoNumero: string | null | undefined) => {
+    if (!processoNumero) {
+      console.warn("Número do processo não disponível");
+      return;
+    }
+    // Buscar o processo pelo número
+    const { data: processo } = await supabase
+      .from("processos")
+      .select("id")
+      .eq("numero", processoNumero)
+      .maybeSingle();
+    
+    if (processo?.id) {
+      navigate(`/processos/${processo.id}?tab=publicacoes`);
+    } else {
+      console.warn("Processo não encontrado:", processoNumero);
+    }
+  };
+
   // Unified list rendering
   const renderFullList = () => {
     const sectionConfig: Record<string, { title: string; icon: any; color: string; items: any[]; renderItem: (item: any) => React.ReactNode }> = {
@@ -419,11 +439,11 @@ export function CoordenacaoDetalhesView({
         color: "blue",
         items: publicacoesFiltradas,
         renderItem: (p: any) => (
-          // DJEN navega para o processo com aba publicacoes
+          // DJEN navega para o processo com aba publicacoes (usa processo_numero pois não tem processo_id)
           <div 
             key={p.id} 
             className="p-2 border-b hover:bg-accent/50 cursor-pointer" 
-            onClick={() => handleNavigateProcesso(p.processo_id, "publicacoes")}
+            onClick={() => handleNavigateDjen(p.processo_numero)}
           >
             <p className="font-medium text-sm">{p.processo_numero || "Sem número"}</p>
             <p className="text-xs text-muted-foreground line-clamp-2">{p.conteudo}</p>
