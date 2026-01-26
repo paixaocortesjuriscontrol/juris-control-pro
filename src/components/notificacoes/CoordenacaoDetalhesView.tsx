@@ -314,8 +314,8 @@ export function CoordenacaoDetalhesView({
         color: "indigo",
         items: audienciasPendentes,
         renderItem: (a: any) => (
-          // Audiências navegam para o painel de audiências
-          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate("/painel-audiencias")}>
+          // Audiências navegam para o painel de audiências com ID para seleção
+          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/painel-audiencias?audienciaId=${a.id}`)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -351,8 +351,8 @@ export function CoordenacaoDetalhesView({
         color: "orange",
         items: intimacoesPendentes,
         renderItem: (i: any) => (
-          // Intimações navegam para o painel de intimações
-          <div key={i.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate("/painel-intimacoes")}>
+          // Intimações navegam para o painel de intimações com ID para seleção
+          <div key={i.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/painel-intimacoes?intimacaoId=${i.id}`)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -378,8 +378,8 @@ export function CoordenacaoDetalhesView({
         color: "green",
         items: tarefasPendentes,
         renderItem: (t: any) => (
-          // Tarefas navegam para a agenda
-          <div key={t.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate("/minha-agenda")}>
+          // Tarefas navegam para a agenda com ID para seleção
+          <div key={t.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/minha-agenda?tarefaId=${t.id}`)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -406,8 +406,8 @@ export function CoordenacaoDetalhesView({
         color: "blue",
         items: publicacoesFiltradas,
         renderItem: (p: any) => (
-          // DJEN navega para análise DJEN
-          <div key={p.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate("/analise-djen")}>
+          // DJEN navega para análise DJEN com ID para seleção
+          <div key={p.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/analise-djen?publicacaoId=${p.id}`)}>
             <p className="font-medium text-sm">{p.processo_numero || "Sem número"}</p>
             <p className="text-xs text-muted-foreground line-clamp-2">{p.conteudo}</p>
             <span className="text-[10px] text-muted-foreground">{format(new Date(p.created_at), "dd/MM HH:mm")}</span>
@@ -420,8 +420,8 @@ export function CoordenacaoDetalhesView({
         color: "violet",
         items: andamentosData,
         renderItem: (a: any) => (
-          // Andamentos navegam para processos internos
-          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate("/processos")}>
+          // Andamentos navegam para o processo específico
+          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => a.processo_id ? navigate(`/processo/${a.processo_id}`) : null}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm line-clamp-2">{a.descricao}</p>

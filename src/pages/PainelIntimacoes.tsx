@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/form
 export default function PainelIntimacoes() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("pendente");
   const [statCardFilter, setStatCardFilter] = useState<string | null>("pendente"); // tracks which stat card is active
@@ -143,6 +144,22 @@ export default function PainelIntimacoes() {
     search,
     coordenacaoId: coordenacaoFilter || "todas",
   });
+
+  // Verificar se tem intimacaoId na URL para selecionar automaticamente
+  useEffect(() => {
+    const intimacaoId = searchParams.get("intimacaoId");
+    if (intimacaoId && intimacoes && intimacoes.length > 0) {
+      const intimacaoEncontrada = intimacoes.find(i => i.id === intimacaoId);
+      if (intimacaoEncontrada) {
+        setSelectedIntimacao(intimacaoEncontrada);
+        // Remover o parâmetro da URL após selecionar
+        searchParams.delete("intimacaoId");
+        setSearchParams(searchParams, { replace: true });
+        // Também expandir a intimação
+        setExpandedIntimacoes(new Set([intimacaoId]));
+      }
+    }
+  }, [intimacoes, searchParams, setSearchParams]);
 
   const handleMarcarTratado = async (id: string) => {
     await atualizarIntimacao.mutateAsync({ 

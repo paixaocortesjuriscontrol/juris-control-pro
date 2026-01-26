@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -149,6 +149,7 @@ export default function MinhaAgenda() {
   const { isAdminOrCoordinator, loading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>("lista");
@@ -451,6 +452,20 @@ export default function MinhaAgenda() {
 
     return { total, pendentes, atrasadas, concluidas };
   }, [itensAgenda]);
+
+  // Verificar se tem tarefaId na URL para selecionar automaticamente
+  useEffect(() => {
+    const tarefaId = searchParams.get("tarefaId");
+    if (tarefaId && itensAgenda && itensAgenda.length > 0) {
+      const itemEncontrado = itensAgenda.find(i => i.id === tarefaId);
+      if (itemEncontrado) {
+        setSelectedItem(itemEncontrado);
+        // Remover o parâmetro da URL após selecionar
+        searchParams.delete("tarefaId");
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [itensAgenda, searchParams, setSearchParams]);
 
   // Loading state para skeleton (enquanto itensAgenda ainda está carregando)
   const statsLoading = isLoading;
