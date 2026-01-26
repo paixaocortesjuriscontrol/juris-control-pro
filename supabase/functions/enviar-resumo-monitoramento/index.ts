@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface ResumoPayload {
-  tipo_monitoramento: 'andamentos' | 'redistribuicoes' | 'distribuicoes' | 'djen' | 'djen_processos' | 'termos';
+  tipo_monitoramento: 'andamentos' | 'redistribuicoes' | 'distribuicoes' | 'djen' | 'djen_processos' | 'termos' | 'prazos' | 'audiencias' | 'intimacoes';
   resumos_por_coordenacao: {
     coordenacao_id: string;
     coordenacao_nome?: string;
@@ -16,6 +16,8 @@ interface ResumoPayload {
     exemplos: Array<{
       processo_numero: string;
       descricao: string;
+      data?: string;
+      titulo?: string;
     }>;
   }[];
 }
@@ -50,8 +52,10 @@ serve(async (req) => {
       'distribuicoes': 'distribuicoes',
       'djen': 'djen',
       'djen_processos': 'djen',
-      // no banco hoje está como "alertas360" (sem underscore)
       'termos': 'alertas360',
+      'prazos': 'prazos',
+      'audiencias': 'audiencias',
+      'intimacoes': 'intimacoes',
     };
 
     const tipoAlerta = tipoAlertaMap[tipo_monitoramento] || tipo_monitoramento;
@@ -66,6 +70,9 @@ serve(async (req) => {
       'djen': '📰',
       'djen_processos': '📰',
       'termos': '🔍',
+      'prazos': '⏰',
+      'audiencias': '📅',
+      'intimacoes': '📬',
     };
 
     const tituloMap: Record<string, string> = {
@@ -75,6 +82,9 @@ serve(async (req) => {
       'djen': 'Resumo DJEN Termos',
       'djen_processos': 'Resumo DJEN Processos',
       'termos': 'Resumo Monitoração 360°',
+      'prazos': 'Resumo de Prazos',
+      'audiencias': 'Resumo de Audiências',
+      'intimacoes': 'Resumo de Intimações',
     };
 
     const resultados = { emails: 0, whatsapp: 0, erros: [] as string[] };
@@ -152,16 +162,175 @@ serve(async (req) => {
       const icon = iconMap[tipo_monitoramento] || '📊';
       const titulo = `${icon} ${tituloMap[tipo_monitoramento] || 'Resumo de Monitoramento'}`;
       
-      // Montar lista COMPLETA de exemplos formatados (sem limite)
-      const exemplosTexto = exemplos.map((ex, i) => 
-        `${i + 1}. ${ex.processo_numero}: ${ex.descricao}`
-      ).join('\n');
+      // Função para limpar HTML e formatar texto
+      const limparHtml = (texto: string): string => {
+        if (!texto) return '';
+        return texto
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/p>/gi, '\n')
+          .replace(/<\/li>/gi, '\n')
+          .replace(/<\/div>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+      };
 
-      const mensagemTexto = `📊 *${coordenacao_nome || 'Coordenação'}*\n\n` +
-        `✅ Verificados: ${total_verificados}\n` +
-        `🆕 Encontrados: ${total_encontrados}\n\n` +
-        `📋 *Detalhes:*\n${exemplosTexto}\n\n` +
-        `_Resumo automático - Juris Control Pro_`;
+      // Formatar mensagem WhatsApp específica por tipo de monitoramento
+      const formatarMensagemWhatsApp = (): string => {
+        const dataHoje = brasiliaTime.toLocaleDateString('pt-BR');
+        let mensagem = '';
+
+        switch (tipo_monitoramento) {
+          case 'djen':
+            // DJEN Termos: Número do processo e termos encontrados
+            mensagem = `📰 *RESUMO DJEN TERMOS*\n`;
+            mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
+            mensagem += `📊 ${total_encontrados} publicação(ões) encontrada(s)\n\n`;
+            mensagem += `📋 *Lista de Publicações:*\n`;
+            for (const ex of exemplos) {
+              const termoLimpo = limparHtml(ex.descricao);
+              mensagem += `\n• *${ex.processo_numero}*\n`;
+              mensagem += `  Termo: ${termoLimpo.substring(0, 150)}${termoLimpo.length > 150 ? '...' : ''}\n`;
+            }
+            break;
+
+          case 'djen_processos':
+            // DJEN Processos: Números dos processos com novas publicações
+            mensagem = `📰 *RESUMO DJEN PROCESSOS*\n`;
+            mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
+            mensagem += `📊 ${total_encontrados} processo(s) com nova(s) publicação(ões)\n\n`;
+            mensagem += `📋 *Processos Monitorados:*\n`;
+            for (const ex of exemplos) {
+              const descLimpa = limparHtml(ex.descricao);
+              mensagem += `\n• *${ex.processo_numero}*\n`;
+              if (descLimpa) {
+                mensagem += `  ${descLimpa.substring(0, 100)}${descLimpa.length > 100 ? '...' : ''}\n`;
+              }
+            }
+            break;
+
+          case 'termos':
+            // Alertas 360: Número do processo, termo e resumo
+            mensagem = `🔍 *RESUMO MONITORAÇÃO 360°*\n`;
+            mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
+            mensagem += `📊 ${total_encontrados} alerta(s) encontrado(s)\n\n`;
+            mensagem += `📋 *Alertas Detectados:*\n`;
+            for (const ex of exemplos) {
+              const descLimpa = limparHtml(ex.descricao);
+              mensagem += `\n• *${ex.processo_numero}*\n`;
+              mensagem += `  ${descLimpa.substring(0, 150)}${descLimpa.length > 150 ? '...' : ''}\n`;
+            }
+            break;
+
+          case 'redistribuicoes':
+            // Redistribuições: Processo e detalhes da redistribuição
+            mensagem = `🔄 *RESUMO DE REDISTRIBUIÇÕES*\n`;
+            mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
+            mensagem += `📊 ${total_encontrados} redistribuição(ões) detectada(s)\n\n`;
+            mensagem += `📋 *Processos Redistribuídos:*\n`;
+            for (const ex of exemplos) {
+              const descLimpa = limparHtml(ex.descricao);
+              mensagem += `\n• *${ex.processo_numero}*\n`;
+              mensagem += `  ${descLimpa}\n`;
+            }
+            break;
+
+          case 'andamentos':
+            // Andamentos: Número do processo e detalhe do andamento
+            mensagem = `📋 *RESUMO DE ANDAMENTOS*\n`;
+            mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
+            mensagem += `📊 ${total_encontrados} andamento(s) encontrado(s)\n\n`;
+            mensagem += `📋 *Movimentações:*\n`;
+            for (const ex of exemplos) {
+              const descLimpa = limparHtml(ex.descricao);
+              mensagem += `\n• *${ex.processo_numero}*\n`;
+              mensagem += `  ${descLimpa.substring(0, 150)}${descLimpa.length > 150 ? '...' : ''}\n`;
+            }
+            break;
+
+          case 'distribuicoes':
+            // Distribuições: Número do processo e detalhes
+            mensagem = `⚖️ *RESUMO DE NOVAS DISTRIBUIÇÕES*\n`;
+            mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
+            mensagem += `📊 ${total_encontrados} nova(s) distribuição(ões)\n\n`;
+            mensagem += `📋 *Processos Distribuídos:*\n`;
+            for (const ex of exemplos) {
+              const descLimpa = limparHtml(ex.descricao);
+              mensagem += `\n• *${ex.processo_numero}*\n`;
+              mensagem += `  ${descLimpa.substring(0, 150)}${descLimpa.length > 150 ? '...' : ''}\n`;
+            }
+            break;
+
+          case 'prazos':
+            // Prazos: Número do processo e prazo encontrado
+            mensagem = `⏰ *RESUMO DE PRAZOS*\n`;
+            mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
+            mensagem += `📊 ${total_encontrados} prazo(s) detectado(s)\n\n`;
+            mensagem += `📋 *Prazos:*\n`;
+            for (const ex of exemplos) {
+              const descLimpa = limparHtml(ex.descricao);
+              mensagem += `\n• *${ex.processo_numero}*\n`;
+              if (ex.data) mensagem += `  📆 Vencimento: ${ex.data}\n`;
+              mensagem += `  ${descLimpa.substring(0, 120)}${descLimpa.length > 120 ? '...' : ''}\n`;
+            }
+            break;
+
+          case 'audiencias':
+            // Audiências: Número do processo, título e data
+            mensagem = `📅 *RESUMO DE AUDIÊNCIAS*\n`;
+            mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
+            mensagem += `📊 ${total_encontrados} audiência(s) detectada(s)\n\n`;
+            mensagem += `📋 *Audiências Agendadas:*\n`;
+            for (const ex of exemplos) {
+              mensagem += `\n• *${ex.processo_numero}*\n`;
+              if (ex.titulo) mensagem += `  📌 ${ex.titulo}\n`;
+              if (ex.data) mensagem += `  📆 Data: ${ex.data}\n`;
+              if (ex.descricao) {
+                const descLimpa = limparHtml(ex.descricao);
+                if (descLimpa && descLimpa !== ex.titulo) {
+                  mensagem += `  ${descLimpa.substring(0, 80)}${descLimpa.length > 80 ? '...' : ''}\n`;
+                }
+              }
+            }
+            break;
+
+          case 'intimacoes':
+            // Intimações: Número do processo e resumo
+            mensagem = `📬 *RESUMO DE INTIMAÇÕES*\n`;
+            mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
+            mensagem += `📊 ${total_encontrados} intimação(ões) detectada(s)\n\n`;
+            mensagem += `📋 *Intimações:*\n`;
+            for (const ex of exemplos) {
+              const descLimpa = limparHtml(ex.descricao);
+              mensagem += `\n• *${ex.processo_numero}*\n`;
+              mensagem += `  ${descLimpa.substring(0, 150)}${descLimpa.length > 150 ? '...' : ''}\n`;
+            }
+            break;
+
+          default:
+            // Formato genérico
+            mensagem = `📊 *RESUMO DE MONITORAMENTO*\n`;
+            mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
+            mensagem += `📊 ${total_encontrados} item(ns) encontrado(s)\n\n`;
+            mensagem += `📋 *Detalhes:*\n`;
+            for (const ex of exemplos) {
+              const descLimpa = limparHtml(ex.descricao);
+              mensagem += `\n• *${ex.processo_numero}*\n`;
+              mensagem += `  ${descLimpa.substring(0, 150)}${descLimpa.length > 150 ? '...' : ''}\n`;
+            }
+        }
+
+        mensagem += `\n_Juris Control Pro_`;
+        return mensagem;
+      };
+
+      const mensagemTexto = formatarMensagemWhatsApp();
 
       // Agrupar por processo para melhor organização no email
       const porProcesso = new Map<string, string[]>();
