@@ -17,13 +17,21 @@
  
       console.log('[Force Reset] Limpeza total do estado DJEN...')
  
-      // 1. Cancelar execuções pendentes
+      // 1. Desativar cron jobs DJEN usando service role
+      console.log('[Force Reset] Desativando cron jobs...')
+      const { error: cronError1 } = await supabase.rpc('cron_unschedule', { job_id: 86 }) // monitorar-djen-processos-manha
+      const { error: cronError2 } = await supabase.rpc('cron_unschedule', { job_id: 43 }) // processar-alertas-djen-coordenacao
+      
+      if (cronError1) console.log('[Force Reset] Aviso cron 86:', cronError1.message)
+      if (cronError2) console.log('[Force Reset] Aviso cron 43:', cronError2.message)
+      
+      // 2. Cancelar execuções pendentes
       await supabase
         .from('execucoes_agendadas')
         .delete()
         .eq('tipo', 'djen')
 
-      // 2. Zerar metadata e desativar
+      // 3. Zerar metadata e desativar
      const { error } = await supabase
        .from('configuracoes_monitoramento')
        .update({
