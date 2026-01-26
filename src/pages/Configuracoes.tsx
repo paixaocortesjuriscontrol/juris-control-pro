@@ -74,6 +74,11 @@ export default function Configuracoes() {
         {/* Aba Dashboard - Profissional */}
         <TabsContent value="dashboard" className="space-y-4">
           <MonitoringDashboard />
+          {/* Card DJEN separado - usa busca direta no frontend */}
+          <div className="mt-4">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">DJEN Termos (Busca Direta)</h3>
+            <MonitoramentoDjenCard coordenacaoId="" />
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
             <MonitoramentosAtivosPanel />
             <FilaExecucoesPanel />
