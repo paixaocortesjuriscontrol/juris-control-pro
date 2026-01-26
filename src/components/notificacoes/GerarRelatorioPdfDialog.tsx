@@ -37,6 +37,7 @@ interface Props {
   periodoInicio?: Date;
   periodoFim?: Date;
   statusFilter?: string;
+  searchQuery?: string;
 }
 
 interface CoordenacaoReportData {
@@ -70,6 +71,7 @@ export function GerarRelatorioPdfDialog({
   periodoInicio,
   periodoFim,
   statusFilter = "pendente",
+  searchQuery = "",
 }: Props) {
   const [selectedCoordenacoes, setSelectedCoordenacoes] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(true);
@@ -83,6 +85,34 @@ export function GerarRelatorioPdfDialog({
     dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
     dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
   });
+
+  // Helper para filtrar por busca (igual tela)
+  const matchesSearch = useMemo(() => {
+    return (text: string | null | undefined) => {
+      if (!searchQuery) return true;
+      return text?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+    };
+  }, [searchQuery]);
+
+  const fetchProcessosByNumero = async (numeros: string[]) => {
+    const unique = Array.from(new Set(numeros.filter(Boolean)));
+    if (unique.length === 0) return new Map<string, any>();
+
+    const map = new Map<string, any>();
+    const CHUNK = 200;
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const chunk = unique.slice(i, i + CHUNK);
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, numero, coordenacao_id")
+        .in("numero", chunk);
+      if (error) throw error;
+      for (const p of data || []) {
+        map.set((p as any).numero, p);
+      }
+    }
+    return map;
+  };
 
   // Helper para filtrar por período - IGUAL ao Dashboard
   const matchesPeriodo = useMemo(() => {
@@ -115,8 +145,55 @@ export function GerarRelatorioPdfDialog({
       if (statusFilter !== "todas") {
         query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
       }
-      const { data } = await query;
-      return data || [];
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const rows: any[] = data || [];
+      // Corrigir casos onde processo_id é nulo (processo embed vem null), mas processo_numero existe
+      const missingNums = rows
+        .filter(r => !(r as any).processo && (r as any).processo_numero)
+        .map(r => (r as any).processo_numero as string);
+
+      if (missingNums.length === 0) return rows;
+
+      const processosMap = await fetchProcessosByNumero(missingNums);
+      return rows.map(r => {
+        if ((r as any).processo || !(r as any).processo_numero) return r;
+        const proc = processosMap.get((r as any).processo_numero);
+        return proc ? { ...r, processo: proc } : r;
+      });
+    },
+    enabled: open,
+  });
+
+  // Buscar advogados vinculados (tabela de junção) para não perder detalhes no PDF
+  const { data: advogadosPorAudiencia = {} as Record<string, string[]> } = useQuery({
+    queryKey: ["audiencias-advogados-pdf", audienciasPendentes.map((a: any) => a.id)],
+    queryFn: async () => {
+      if (!audienciasPendentes.length) return {} as Record<string, string[]>;
+
+      const { data, error } = await supabase
+        .from("audiencias_advogados")
+        .select(`
+          audiencia_id,
+          profiles:advogado_id(nome)
+        `)
+        .in(
+          "audiencia_id",
+          audienciasPendentes.map((a: any) => a.id)
+        );
+
+      if (error) throw error;
+
+      const map: Record<string, string[]> = {};
+      for (const row of (data || []) as any[]) {
+        const audId = row.audiencia_id as string;
+        const nome = row.profiles?.nome as string | undefined;
+        if (!nome) continue;
+        map[audId] = map[audId] || [];
+        map[audId].push(nome);
+      }
+      return map;
     },
     enabled: open,
   });
@@ -134,8 +211,22 @@ export function GerarRelatorioPdfDialog({
       if (statusFilter !== "todas") {
         query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
       }
-      const { data } = await query;
-      return data || [];
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const rows: any[] = data || [];
+      const missingNums = rows
+        .filter(r => !(r as any).processo && (r as any).processo_numero)
+        .map(r => (r as any).processo_numero as string);
+
+      if (missingNums.length === 0) return rows;
+
+      const processosMap = await fetchProcessosByNumero(missingNums);
+      return rows.map(r => {
+        if ((r as any).processo || !(r as any).processo_numero) return r;
+        const proc = processosMap.get((r as any).processo_numero);
+        return proc ? { ...r, processo: proc } : r;
+      });
     },
     enabled: open,
   });
@@ -178,30 +269,35 @@ export function GerarRelatorioPdfDialog({
     const publicacoesFiltradas = publicacoes.filter(p => {
       if (statusFilter !== "todas" && p.lida) return false;
       if (!matchesPeriodo(p.created_at)) return false;
+      if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero)) return false;
       return true;
     });
 
     // Redistribuições - já vem filtrado do hook, mas aplicar período também
     const redistribuicoesFiltradas = redistribuicoesData.filter(r => {
       if (!matchesPeriodo(r.data_redistribuicao)) return false;
+      if (!matchesSearch((r as any).processo_numero)) return false;
       return true;
     });
 
     // Audiências - aplicar filtro de período
     const audienciasFiltradas = audienciasPendentes.filter(a => {
       if (!matchesPeriodo((a as any).data_audiencia)) return false;
+      if (!matchesSearch((a as any).processo_numero) && !matchesSearch((a as any).processo?.numero) && !matchesSearch((a as any).tipo_audiencia)) return false;
       return true;
     });
 
     // Intimações - aplicar filtro de período
     const intimacoesFiltradas = intimacoesPendentes.filter(i => {
       if (!matchesPeriodo((i as any).data_intimacao)) return false;
+      if (!matchesSearch((i as any).processo_numero) && !matchesSearch((i as any).processo?.numero) && !matchesSearch((i as any).tipo_intimacao)) return false;
       return true;
     });
 
     // Andamentos - aplicar filtro de período (usando created_at)
     const andamentosFiltrados = andamentosData.filter(a => {
       if (!matchesPeriodo((a as any).created_at)) return false;
+      if (!matchesSearch((a as any).descricao) && !matchesSearch((a as any).processo?.numero) && !matchesSearch((a as any).tipo)) return false;
       return true;
     });
 
@@ -256,7 +352,7 @@ export function GerarRelatorioPdfDialog({
   }, [
     coordenacoes, selectedCoordenacoes, selectAll, publicacoes, monitoramentosDjen,
     redistribuicoesData, andamentosData, audienciasPendentes, intimacoesPendentes, 
-    statusFilter, matchesPeriodo
+    statusFilter, matchesPeriodo, matchesSearch
   ]);
 
   const totalGeral = useMemo(() => {
@@ -774,6 +870,8 @@ export function GerarRelatorioPdfDialog({
                       const hora = a.hora_brasilia || a.hora || "";
                       const local = [a.local_audiencia, a.vara_camara, a.comarca].filter(Boolean).join(" - ") || "-";
                       const parte = a.cliente || a.polo_ativo || "-";
+                      const advogadosVinculados = advogadosPorAudiencia[a.id]?.join(", ") || "";
+                      const advogadoExibicao = a.advogado || advogadosVinculados || "-";
                       return (
                         <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
                           <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>{a.processo_numero}</td>
@@ -783,7 +881,7 @@ export function GerarRelatorioPdfDialog({
                           </td>
                           <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{local}</td>
                           <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{parte}</td>
-                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{a.advogado || "-"}</td>
+                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{advogadoExibicao}</td>
                         </tr>
                       );
                     })}
