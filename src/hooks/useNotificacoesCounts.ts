@@ -2,10 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfDay, addDays } from "date-fns";
 
-// Evita erro TS2589 (instantiation excessively deep) ao usar PostgrestFilterBuilder fortemente tipado.
-// Mantemos a tipagem só no retorno público do hook.
-const sb = supabase as any;
-
 export interface NotificacoesCounts {
   djen: number;
   distribuicoes: number;
@@ -20,11 +16,11 @@ export interface NotificacoesCounts {
 }
 
 export interface UseNotificacoesCountsParams {
-  coordenacaoId?: string; // "todas" | uuid
+  coordenacaoId?: string;
   periodoInicio?: Date;
   periodoFim?: Date;
-  statusFilter?: string; // "todas" | "pendente" | "concluido" | "atrasado" ...
-  prioridadeFilter?: string; // "todas" | "baixa" | "media" | "alta" | "urgente"
+  statusFilter?: string;
+  prioridadeFilter?: string;
   searchQuery?: string;
 }
 
@@ -73,117 +69,9 @@ function mapStatusForTratado(statusFilter?: string) {
   return statusFilter === "concluido" ? "tratado" : statusFilter;
 }
 
-async function fetchMonitoramentoIdsForCoord(
-  table: "monitoramentos_djen" | "monitoramentos_distribuicao",
-  coordenacaoId?: string
-) {
-  if (!coordenacaoId) return [] as string[];
-  const { data, error } = await sb
-    .from(table)
-    .select("id")
-    .eq("coordenacao_id", coordenacaoId);
-  if (error) throw error;
-  return (data || []).map((r: any) => r.id as string);
-}
+// ========== COUNT FUNCTIONS ==========
 
-async function countMovimentacoesByCoord(params: {
-  coordenacaoId?: string;
-  periodoInicio?: Date;
-  periodoFim?: Date;
-  searchQuery?: string;
-  onlyRedistribuicoes: boolean;
-}) {
-  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
-  const inicio = toDateStr(params.periodoInicio);
-  const fimMaisUm = toFimMaisUmStr(params.periodoFim);
-  const q = (params.searchQuery || "").trim();
-
-  // Com coordenação: precisa INNER para filtrar processos.coordenacao_id
-  let base = sb
-    .from("movimentacoes")
-    .select("id, processos!inner(id, numero, coordenacao_id)", { count: "exact", head: true });
-
-  base = params.onlyRedistribuicoes ? base.eq("tipo", "Redistribuição") : base.neq("tipo", "Redistribuição");
-
-  if (coordId) base = base.eq("processos.coordenacao_id", coordId);
-  if (inicio) base = base.gte("created_at", inicio);
-  if (fimMaisUm) base = base.lt("created_at", fimMaisUm);
-
-  if (q) {
-    const like = `%${q}%`;
-    base = base.or(`descricao.ilike.${like},tipo.ilike.${like},processos.numero.ilike.${like}`);
-  }
-
-  const { count, error } = await base;
-  if (error) throw error;
-  return Number(count || 0);
-}
-
-async function countAudienciasByCoord(params: {
-  coordenacaoId?: string;
-  periodoInicio?: Date;
-  periodoFim?: Date;
-  statusFilter?: string;
-  searchQuery?: string;
-}) {
-  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
-  const inicio = toDateStr(params.periodoInicio);
-  const fim = toDateStr(params.periodoFim);
-  const status = mapStatusForTratado(params.statusFilter);
-  const q = (params.searchQuery || "").trim();
-
-  let base = sb
-    .from("audiencias_detectadas")
-    .select("id, processos!inner(id, coordenacao_id)", { count: "exact", head: true });
-
-  if (coordId) base = base.eq("processos.coordenacao_id", coordId);
-  if (status) base = base.eq("status", status);
-  if (inicio) base = base.gte("data_audiencia", inicio);
-  if (fim) base = base.lte("data_audiencia", fim);
-
-  if (q) {
-    const like = `%${q}%`;
-    base = base.or(`processo_numero.ilike.${like}`);
-  }
-
-  const { count, error } = await base;
-  if (error) throw error;
-  return Number(count || 0);
-}
-
-async function countIntimacoesByCoord(params: {
-  coordenacaoId?: string;
-  periodoInicio?: Date;
-  periodoFim?: Date;
-  statusFilter?: string;
-  searchQuery?: string;
-}) {
-  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
-  const inicio = toDateStr(params.periodoInicio);
-  const fim = toDateStr(params.periodoFim);
-  const status = mapStatusForTratado(params.statusFilter);
-  const q = (params.searchQuery || "").trim();
-
-  let base = sb
-    .from("intimacoes_detectadas")
-    .select("id, processos!inner(id, coordenacao_id)", { count: "exact", head: true });
-
-  if (coordId) base = base.eq("processos.coordenacao_id", coordId);
-  if (status) base = base.eq("status", status);
-  if (inicio) base = base.gte("data_intimacao", inicio);
-  if (fim) base = base.lte("data_intimacao", fim);
-
-  if (q) {
-    const like = `%${q}%`;
-    base = base.or(`processo_numero.ilike.${like},tipo_intimacao.ilike.${like}`);
-  }
-
-  const { count, error } = await base;
-  if (error) throw error;
-  return Number(count || 0);
-}
-
-async function countAlertas360ByCoord(params: {
+async function countDjen(params: {
   coordenacaoId?: string;
   periodoInicio?: Date;
   periodoFim?: Date;
@@ -194,108 +82,181 @@ async function countAlertas360ByCoord(params: {
   const inicio = toDateStr(params.periodoInicio);
   const fimMaisUm = toFimMaisUmStr(params.periodoFim);
   const q = (params.searchQuery || "").trim();
-
-  // Mantém compatível com o comportamento atual: se não for "todas", considera pendente.
-  const status = params.statusFilter && params.statusFilter !== "todas" ? mapStatusForTratado(params.statusFilter) : undefined;
-
-  let base = sb
-    .from("alertas_monitoramento")
-    .select("id, processos!inner(id, coordenacao_id, numero)", { count: "exact", head: true });
-
-  if (coordId) base = base.eq("processos.coordenacao_id", coordId);
-  if (status) base = base.eq("status", status);
-  if (inicio) base = base.gte("created_at", inicio);
-  if (fimMaisUm) base = base.lt("created_at", fimMaisUm);
-
-  if (q) {
-    const like = `%${q}%`;
-    base = base.or(`termo_encontrado.ilike.${like},processos.numero.ilike.${like}`);
-  }
-
-  const { count, error } = await base;
-  if (error) throw error;
-  return Number(count || 0);
-}
-
-async function countDistribuicoesByCoord(params: {
-  coordenacaoId?: string;
-  periodoInicio?: Date;
-  periodoFim?: Date;
-  statusFilter?: string;
-  searchQuery?: string;
-}) {
-  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
-  const inicio = toDateStr(params.periodoInicio);
-  const fim = toDateStr(params.periodoFim);
-  const q = (params.searchQuery || "").trim();
-
-  const status = params.statusFilter && params.statusFilter !== "todas" ? "pendente" : undefined;
-
-  let monitoramentoIds: string[] | undefined;
-  if (coordId) {
-    monitoramentoIds = await fetchMonitoramentoIdsForCoord("monitoramentos_distribuicao", coordId);
-    if (!monitoramentoIds.length) return 0;
-  }
-
-  let base = sb
-    .from("distribuicoes_encontradas")
-    .select("id", { count: "exact", head: true });
-
-  if (monitoramentoIds) base = base.in("monitoramento_id", monitoramentoIds);
-  if (status) base = base.eq("status", status);
-  if (inicio) base = base.gte("data_distribuicao", inicio);
-  if (fim) base = base.lte("data_distribuicao", fim);
-
-  if (q) {
-    const like = `%${q}%`;
-    base = base.or(`numero_processo.ilike.${like},polo_ativo.ilike.${like},polo_passivo.ilike.${like}`);
-  }
-
-  const { count, error } = await base;
-  if (error) throw error;
-  return Number(count || 0);
-}
-
-async function countDjenByCoord(params: {
-  coordenacaoId?: string;
-  periodoInicio?: Date;
-  periodoFim?: Date;
-  statusFilter?: string;
-  searchQuery?: string;
-}) {
-  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
-  const inicio = toDateStr(params.periodoInicio);
-  const fimMaisUm = toFimMaisUmStr(params.periodoFim);
-  const q = (params.searchQuery || "").trim();
-
   const onlyNaoLidas = params.statusFilter && params.statusFilter !== "todas";
 
-  let monitoramentoIds: string[] | undefined;
-  if (coordId) {
-    monitoramentoIds = await fetchMonitoramentoIdsForCoord("monitoramentos_djen", coordId);
-    if (!monitoramentoIds.length) return 0;
+  try {
+    // monitoramentos_djen TEM coordenacao_id
+    let base = supabase
+      .from("publicacoes_djen")
+      .select("id, monitoramentos_djen!inner(id, coordenacao_id)", { count: "exact", head: true });
+
+    if (coordId) base = base.eq("monitoramentos_djen.coordenacao_id", coordId);
+    if (onlyNaoLidas) base = base.eq("lida", false);
+    if (inicio) base = base.gte("created_at", inicio);
+    if (fimMaisUm) base = base.lt("created_at", fimMaisUm);
+
+    if (q) {
+      const like = `%${q}%`;
+      base = base.or(`conteudo.ilike.${like},processo_numero.ilike.${like}`);
+    }
+
+    const { count, error } = await base;
+    if (error) throw error;
+    return Number(count || 0);
+  } catch (e) {
+    console.error("countDjen error:", e);
+    return 0;
   }
-
-  let base = sb
-    .from("publicacoes_djen")
-    .select("id", { count: "exact", head: true });
-
-  if (monitoramentoIds) base = base.in("monitoramento_id", monitoramentoIds);
-  if (onlyNaoLidas) base = base.eq("lida", false);
-  if (inicio) base = base.gte("created_at", inicio);
-  if (fimMaisUm) base = base.lt("created_at", fimMaisUm);
-
-  if (q) {
-    const like = `%${q}%`;
-    base = base.or(`conteudo.ilike.${like},processo_numero.ilike.${like}`);
-  }
-
-  const { count, error } = await base;
-  if (error) throw error;
-  return Number(count || 0);
 }
 
-async function countTarefasByCoord(params: {
+async function countDistribuicoes(params: {
+  coordenacaoId?: string;
+  periodoInicio?: Date;
+  periodoFim?: Date;
+  statusFilter?: string;
+  searchQuery?: string;
+}) {
+  // monitoramentos_distribuicao NÃO tem coordenacao_id - retornamos total global
+  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
+  const inicio = toDateStr(params.periodoInicio);
+  const fim = toDateStr(params.periodoFim);
+  const q = (params.searchQuery || "").trim();
+  const status = params.statusFilter && params.statusFilter !== "todas" ? "pendente" : undefined;
+
+  // Se coordenação foi selecionada, não temos como filtrar por coordenação
+  if (coordId) return 0;
+
+  try {
+    let base = supabase
+      .from("distribuicoes_encontradas")
+      .select("id", { count: "exact", head: true });
+
+    if (status) base = base.eq("status", status);
+    if (inicio) base = base.gte("data_distribuicao", inicio);
+    if (fim) base = base.lte("data_distribuicao", fim);
+
+    if (q) {
+      const like = `%${q}%`;
+      base = base.or(`numero_processo.ilike.${like},polo_ativo.ilike.${like},polo_passivo.ilike.${like}`);
+    }
+
+    const { count, error } = await base;
+    if (error) throw error;
+    return Number(count || 0);
+  } catch (e) {
+    console.error("countDistribuicoes error:", e);
+    return 0;
+  }
+}
+
+async function countAlertas360(params: {
+  coordenacaoId?: string;
+  periodoInicio?: Date;
+  periodoFim?: Date;
+  statusFilter?: string;
+  searchQuery?: string;
+}) {
+  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
+  const inicio = toDateStr(params.periodoInicio);
+  const fimMaisUm = toFimMaisUmStr(params.periodoFim);
+  const q = (params.searchQuery || "").trim();
+  const status = mapStatusForTratado(params.statusFilter);
+
+  try {
+    let base = supabase
+      .from("alertas_monitoramento")
+      .select("id, processos!inner(id, coordenacao_id, numero)", { count: "exact", head: true });
+
+    if (coordId) base = base.eq("processos.coordenacao_id", coordId);
+    if (status) base = base.eq("status", status);
+    if (inicio) base = base.gte("created_at", inicio);
+    if (fimMaisUm) base = base.lt("created_at", fimMaisUm);
+
+    if (q) {
+      const like = `%${q}%`;
+      base = base.or(`termo_encontrado.ilike.${like},processos.numero.ilike.${like}`);
+    }
+
+    const { count, error } = await base;
+    if (error) throw error;
+    return Number(count || 0);
+  } catch (e) {
+    console.error("countAlertas360 error:", e);
+    return 0;
+  }
+}
+
+async function countRedistribuicoes(params: {
+  coordenacaoId?: string;
+  periodoInicio?: Date;
+  periodoFim?: Date;
+  searchQuery?: string;
+}) {
+  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
+  const inicio = toDateStr(params.periodoInicio);
+  const fimMaisUm = toFimMaisUmStr(params.periodoFim);
+  const q = (params.searchQuery || "").trim();
+
+  try {
+    let base = supabase
+      .from("movimentacoes")
+      .select("id, processos!inner(id, numero, coordenacao_id)", { count: "exact", head: true })
+      .eq("tipo", "Redistribuição");
+
+    if (coordId) base = base.eq("processos.coordenacao_id", coordId);
+    if (inicio) base = base.gte("created_at", inicio);
+    if (fimMaisUm) base = base.lt("created_at", fimMaisUm);
+
+    if (q) {
+      const like = `%${q}%`;
+      base = base.or(`descricao.ilike.${like},tipo.ilike.${like},processos.numero.ilike.${like}`);
+    }
+
+    const { count, error } = await base;
+    if (error) throw error;
+    return Number(count || 0);
+  } catch (e) {
+    console.error("countRedistribuicoes error:", e);
+    return 0;
+  }
+}
+
+async function countAndamentos(params: {
+  coordenacaoId?: string;
+  periodoInicio?: Date;
+  periodoFim?: Date;
+  searchQuery?: string;
+}) {
+  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
+  const inicio = toDateStr(params.periodoInicio);
+  const fimMaisUm = toFimMaisUmStr(params.periodoFim);
+  const q = (params.searchQuery || "").trim();
+
+  try {
+    let base = supabase
+      .from("movimentacoes")
+      .select("id, processos!inner(id, numero, coordenacao_id)", { count: "exact", head: true })
+      .neq("tipo", "Redistribuição");
+
+    if (coordId) base = base.eq("processos.coordenacao_id", coordId);
+    if (inicio) base = base.gte("created_at", inicio);
+    if (fimMaisUm) base = base.lt("created_at", fimMaisUm);
+
+    if (q) {
+      const like = `%${q}%`;
+      base = base.or(`descricao.ilike.${like},tipo.ilike.${like},processos.numero.ilike.${like}`);
+    }
+
+    const { count, error } = await base;
+    if (error) throw error;
+    return Number(count || 0);
+  } catch (e) {
+    console.error("countAndamentos error:", e);
+    return 0;
+  }
+}
+
+async function countTarefas(params: {
   coordenacaoId?: string;
   periodoInicio?: Date;
   periodoFim?: Date;
@@ -310,107 +271,235 @@ async function countTarefasByCoord(params: {
   const inicio = toDateStr(params.periodoInicio);
   const fim = toDateStr(params.periodoFim);
 
-  const applyCommon = (query: any) => {
-    if (coordId) query = query.eq("processos.coordenacao_id", coordId);
-    if (status) query = query.eq("status", status);
-    if (prioridade) query = query.eq("prioridade", prioridade);
+  try {
+    // Se coordenação específica: usar INNER join para filtrar
+    // Se "todas": contar tudo (incluindo sem processo)
+    if (coordId) {
+      let base = supabase
+        .from("tarefas")
+        .select("id, processos!inner(id, coordenacao_id)", { count: "exact", head: true })
+        .eq("processos.coordenacao_id", coordId);
 
-    // Periodo em data_vencimento com NULL passando (mesmo comportamento do front)
-    if (inicio && fim) {
-      query = query.or(`data_vencimento.is.null,and(data_vencimento.gte.${inicio},data_vencimento.lte.${fim})`);
-    } else if (inicio) {
-      query = query.or(`data_vencimento.is.null,data_vencimento.gte.${inicio}`);
-    } else if (fim) {
-      query = query.or(`data_vencimento.is.null,data_vencimento.lte.${fim}`);
+      if (status) base = base.eq("status", status as "pendente" | "cumprido" | "atrasado");
+      if (prioridade) base = base.eq("prioridade", prioridade as "baixa" | "media" | "alta" | "urgente");
+
+      // Período em data_vencimento (NULL passa)
+      if (inicio && fim) {
+        base = base.or(`data_vencimento.is.null,and(data_vencimento.gte.${inicio},data_vencimento.lte.${fim})`);
+      } else if (inicio) {
+        base = base.or(`data_vencimento.is.null,data_vencimento.gte.${inicio}`);
+      } else if (fim) {
+        base = base.or(`data_vencimento.is.null,data_vencimento.lte.${fim}`);
+      }
+
+      if (q) {
+        const like = `%${q}%`;
+        base = base.or(`titulo.ilike.${like}`);
+      }
+
+      const { count, error } = await base;
+      if (error) throw error;
+      return Number(count || 0);
+    } else {
+      // Sem coordenação: contar TODAS as tarefas (inclui sem processo)
+      let base = supabase
+        .from("tarefas")
+        .select("id", { count: "exact", head: true });
+
+      if (status) base = base.eq("status", status as "pendente" | "cumprido" | "atrasado");
+      if (prioridade) base = base.eq("prioridade", prioridade as "baixa" | "media" | "alta" | "urgente");
+
+      if (inicio && fim) {
+        base = base.or(`data_vencimento.is.null,and(data_vencimento.gte.${inicio},data_vencimento.lte.${fim})`);
+      } else if (inicio) {
+        base = base.or(`data_vencimento.is.null,data_vencimento.gte.${inicio}`);
+      } else if (fim) {
+        base = base.or(`data_vencimento.is.null,data_vencimento.lte.${fim}`);
+      }
+
+      if (q) {
+        const like = `%${q}%`;
+        base = base.ilike("titulo", like);
+      }
+
+      const { count, error } = await base;
+      if (error) throw error;
+      return Number(count || 0);
     }
-    return query;
-  };
-
-  if (!q) {
-    let base = sb
-      .from("tarefas")
-      .select("id, processos!inner(id, coordenacao_id)", { count: "exact", head: true });
-    base = applyCommon(base);
-    const { count, error } = await base;
-    if (error) throw error;
-    return Number(count || 0);
+  } catch (e) {
+    console.error("countTarefas error:", e);
+    return 0;
   }
-
-  const like = `%${q}%`;
-
-  // A) titulo
-  let byTitle = sb
-    .from("tarefas")
-    .select("id, processos!inner(id, coordenacao_id)", { count: "exact", head: true })
-    .ilike("titulo", like);
-  byTitle = applyCommon(byTitle);
-
-  // B) processo.numero (inner)
-  let byProc = sb
-    .from("tarefas")
-    .select("id, processos!inner(id, coordenacao_id, numero)", { count: "exact", head: true })
-    .ilike("processos.numero", like);
-  byProc = applyCommon(byProc);
-
-  // AB) ambos (para não duplicar)
-  let byBoth = sb
-    .from("tarefas")
-    .select("id, processos!inner(id, coordenacao_id, numero)", { count: "exact", head: true })
-    .ilike("titulo", like)
-    .ilike("processos.numero", like);
-  byBoth = applyCommon(byBoth);
-
-  const [a, b, ab] = await Promise.all([byTitle, byProc, byBoth]);
-  if (a.error) throw a.error;
-  if (b.error) throw b.error;
-  if (ab.error) throw ab.error;
-
-  const total = Number(a.count || 0) + Number(b.count || 0) - Number(ab.count || 0);
-  return Math.max(total, 0);
 }
 
-async function countPrazosByCoord(params: {
+async function countPrazos(params: {
   coordenacaoId?: string;
   periodoInicio?: Date;
   periodoFim?: Date;
 }) {
-  // Prazos = tarefas pendentes com data_vencimento até hoje+3 (inclui vencidas)
   const coordId = normalizeCoordenacaoId(params.coordenacaoId);
-
-  const hoje = startOfDay(new Date());
-  const limite = addDays(hoje, 3);
-  const hojeStr = format(hoje, "yyyy-MM-dd");
-  const limiteStr = format(limite, "yyyy-MM-dd");
-
   const inicio = toDateStr(params.periodoInicio);
   const fim = toDateStr(params.periodoFim);
 
-  let base = sb
-    .from("tarefas")
-    .select("id, processos!inner(id, coordenacao_id)", { count: "exact", head: true })
-    .eq("status", "pendente")
-    .not("data_vencimento", "is", null)
-    .lte("data_vencimento", limiteStr);
+  const hoje = startOfDay(new Date());
+  const limite = addDays(hoje, 3);
+  const limiteStr = format(limite, "yyyy-MM-dd");
 
-  // Se usuário definiu período, respeitar também
-  if (inicio) base = base.gte("data_vencimento", inicio);
-  if (fim) base = base.lte("data_vencimento", fim);
-  // Se não definiu período, ainda assim garante que pega vencidas/até 3 dias
-  if (!inicio) base = base.gte("data_vencimento", "1900-01-01");
-  // coord
-  if (coordId) base = base.eq("processos.coordenacao_id", coordId);
+  try {
+    if (coordId) {
+      let base = supabase
+        .from("tarefas")
+        .select("id, processos!inner(id, coordenacao_id)", { count: "exact", head: true })
+        .eq("status", "pendente")
+        .not("data_vencimento", "is", null)
+        .lte("data_vencimento", limiteStr)
+        .eq("processos.coordenacao_id", coordId);
 
-  // Mantém coerência com "inclui vencidas": não precisamos filtrar >=hoje
-  void hojeStr; // apenas para clareza
+      if (inicio) base = base.gte("data_vencimento", inicio);
+      if (fim) base = base.lte("data_vencimento", fim);
 
-  const { count, error } = await base;
-  if (error) throw error;
-  return Number(count || 0);
+      const { count, error } = await base;
+      if (error) throw error;
+      return Number(count || 0);
+    } else {
+      // Todas: inclui tarefas sem processo
+      let base = supabase
+        .from("tarefas")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pendente")
+        .not("data_vencimento", "is", null)
+        .lte("data_vencimento", limiteStr);
+
+      if (inicio) base = base.gte("data_vencimento", inicio);
+      if (fim) base = base.lte("data_vencimento", fim);
+
+      const { count, error } = await base;
+      if (error) throw error;
+      return Number(count || 0);
+    }
+  } catch (e) {
+    console.error("countPrazos error:", e);
+    return 0;
+  }
 }
 
-async function fetchCounts(params: UseNotificacoesCountsParams): Promise<NotificacoesCounts> {
-  const coordenacaoId = params.coordenacaoId;
+async function countAudiencias(params: {
+  coordenacaoId?: string;
+  periodoInicio?: Date;
+  periodoFim?: Date;
+  statusFilter?: string;
+  searchQuery?: string;
+}) {
+  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
+  const inicio = toDateStr(params.periodoInicio);
+  const fim = toDateStr(params.periodoFim);
+  const status = mapStatusForTratado(params.statusFilter);
+  const q = (params.searchQuery || "").trim();
 
+  try {
+    if (coordId) {
+      // Com coordenação: usar INNER join
+      let base = supabase
+        .from("audiencias_detectadas")
+        .select("id, processos!inner(id, coordenacao_id)", { count: "exact", head: true })
+        .eq("processos.coordenacao_id", coordId);
+
+      if (status) base = base.eq("status", status);
+      if (inicio) base = base.gte("data_audiencia", inicio);
+      if (fim) base = base.lte("data_audiencia", fim);
+
+      if (q) {
+        const like = `%${q}%`;
+        base = base.or(`processo_numero.ilike.${like}`);
+      }
+
+      const { count, error } = await base;
+      if (error) throw error;
+      return Number(count || 0);
+    } else {
+      // Todas: contar tudo (inclui sem processo_id)
+      let base = supabase
+        .from("audiencias_detectadas")
+        .select("id", { count: "exact", head: true });
+
+      if (status) base = base.eq("status", status);
+      if (inicio) base = base.gte("data_audiencia", inicio);
+      if (fim) base = base.lte("data_audiencia", fim);
+
+      if (q) {
+        const like = `%${q}%`;
+        base = base.ilike("processo_numero", like);
+      }
+
+      const { count, error } = await base;
+      if (error) throw error;
+      return Number(count || 0);
+    }
+  } catch (e) {
+    console.error("countAudiencias error:", e);
+    return 0;
+  }
+}
+
+async function countIntimacoes(params: {
+  coordenacaoId?: string;
+  periodoInicio?: Date;
+  periodoFim?: Date;
+  statusFilter?: string;
+  searchQuery?: string;
+}) {
+  const coordId = normalizeCoordenacaoId(params.coordenacaoId);
+  const inicio = toDateStr(params.periodoInicio);
+  const fim = toDateStr(params.periodoFim);
+  const status = mapStatusForTratado(params.statusFilter);
+  const q = (params.searchQuery || "").trim();
+
+  try {
+    if (coordId) {
+      let base = supabase
+        .from("intimacoes_detectadas")
+        .select("id, processos!inner(id, coordenacao_id)", { count: "exact", head: true })
+        .eq("processos.coordenacao_id", coordId);
+
+      if (status) base = base.eq("status", status);
+      if (inicio) base = base.gte("data_intimacao", inicio);
+      if (fim) base = base.lte("data_intimacao", fim);
+
+      if (q) {
+        const like = `%${q}%`;
+        base = base.or(`processo_numero.ilike.${like},tipo_intimacao.ilike.${like}`);
+      }
+
+      const { count, error } = await base;
+      if (error) throw error;
+      return Number(count || 0);
+    } else {
+      let base = supabase
+        .from("intimacoes_detectadas")
+        .select("id", { count: "exact", head: true });
+
+      if (status) base = base.eq("status", status);
+      if (inicio) base = base.gte("data_intimacao", inicio);
+      if (fim) base = base.lte("data_intimacao", fim);
+
+      if (q) {
+        const like = `%${q}%`;
+        base = base.or(`processo_numero.ilike.${like},tipo_intimacao.ilike.${like}`);
+      }
+
+      const { count, error } = await base;
+      if (error) throw error;
+      return Number(count || 0);
+    }
+  } catch (e) {
+    console.error("countIntimacoes error:", e);
+    return 0;
+  }
+}
+
+// ========== FETCH COUNTS ==========
+
+async function fetchCounts(params: UseNotificacoesCountsParams): Promise<NotificacoesCounts> {
   const [
     djen,
     distribuicoes,
@@ -422,68 +511,15 @@ async function fetchCounts(params: UseNotificacoesCountsParams): Promise<Notific
     intimacoes,
     prazos,
   ] = await Promise.all([
-    countDjenByCoord({
-      coordenacaoId,
-      periodoInicio: params.periodoInicio,
-      periodoFim: params.periodoFim,
-      statusFilter: params.statusFilter,
-      searchQuery: params.searchQuery,
-    }),
-    countDistribuicoesByCoord({
-      coordenacaoId,
-      periodoInicio: params.periodoInicio,
-      periodoFim: params.periodoFim,
-      statusFilter: params.statusFilter,
-      searchQuery: params.searchQuery,
-    }),
-    countAlertas360ByCoord({
-      coordenacaoId,
-      periodoInicio: params.periodoInicio,
-      periodoFim: params.periodoFim,
-      statusFilter: params.statusFilter,
-      searchQuery: params.searchQuery,
-    }),
-    countMovimentacoesByCoord({
-      coordenacaoId,
-      periodoInicio: params.periodoInicio,
-      periodoFim: params.periodoFim,
-      searchQuery: params.searchQuery,
-      onlyRedistribuicoes: true,
-    }),
-    countMovimentacoesByCoord({
-      coordenacaoId,
-      periodoInicio: params.periodoInicio,
-      periodoFim: params.periodoFim,
-      searchQuery: params.searchQuery,
-      onlyRedistribuicoes: false,
-    }),
-    countTarefasByCoord({
-      coordenacaoId,
-      periodoInicio: params.periodoInicio,
-      periodoFim: params.periodoFim,
-      statusFilter: params.statusFilter,
-      prioridadeFilter: params.prioridadeFilter,
-      searchQuery: params.searchQuery,
-    }),
-    countAudienciasByCoord({
-      coordenacaoId,
-      periodoInicio: params.periodoInicio,
-      periodoFim: params.periodoFim,
-      statusFilter: params.statusFilter,
-      searchQuery: params.searchQuery,
-    }),
-    countIntimacoesByCoord({
-      coordenacaoId,
-      periodoInicio: params.periodoInicio,
-      periodoFim: params.periodoFim,
-      statusFilter: params.statusFilter,
-      searchQuery: params.searchQuery,
-    }),
-    countPrazosByCoord({
-      coordenacaoId,
-      periodoInicio: params.periodoInicio,
-      periodoFim: params.periodoFim,
-    }),
+    countDjen(params),
+    countDistribuicoes(params),
+    countAlertas360(params),
+    countRedistribuicoes(params),
+    countAndamentos(params),
+    countTarefas(params),
+    countAudiencias(params),
+    countIntimacoes(params),
+    countPrazos(params),
   ]);
 
   const total =
@@ -511,6 +547,8 @@ async function fetchCounts(params: UseNotificacoesCountsParams): Promise<Notific
   };
 }
 
+// ========== HOOKS ==========
+
 export function useNotificacoesCounts(params: UseNotificacoesCountsParams) {
   const inicio = toDateStr(params.periodoInicio);
   const fim = toDateStr(params.periodoFim);
@@ -520,8 +558,10 @@ export function useNotificacoesCounts(params: UseNotificacoesCountsParams) {
   const q = (params.searchQuery || "").trim();
 
   return useQuery({
-    queryKey: ["notificacoes-counts", coord, inicio ?? null, fim ?? null, status, prioridade, q],
+    queryKey: ["notificacoes-counts", coord, inicio ?? "all", fim ?? "all", status, prioridade, q],
     queryFn: () => fetchCounts(params),
+    staleTime: 30_000,
+    placeholderData: ZERO,
   });
 }
 
@@ -533,8 +573,9 @@ export function useNotificacoesCountsByCoordenacao(params: UseNotificacoesCounts
   const idsKey = params.coordenacaoIds.slice().sort().join(",");
 
   return useQuery({
-    queryKey: ["notificacoes-counts-by-coordenacao", idsKey, inicio ?? null, fim ?? null, status, q],
+    queryKey: ["notificacoes-counts-by-coordenacao", idsKey, inicio ?? "all", fim ?? "all", status, q],
     enabled: params.coordenacaoIds.length > 0,
+    staleTime: 30_000,
     queryFn: async () => {
       const out: Record<string, NotificacoesCounts> = {};
       await Promise.all(
