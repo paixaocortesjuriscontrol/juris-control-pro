@@ -94,6 +94,15 @@ export default function Notificacoes() {
     enabled: !!user?.id,
   });
 
+  // Helper para verificar se uma coordenação pertence ao usuário
+  const pertenceAoUsuario = useMemo(() => {
+    return (coordId: string | null | undefined) => {
+      if (!coordId) return false;
+      if (isAdmin) return true; // Admin vê tudo
+      return minhasCoordenacoes.includes(coordId);
+    };
+  }, [isAdmin, minhasCoordenacoes]);
+
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const { 
     notificacoes, 
@@ -286,8 +295,10 @@ export default function Notificacoes() {
   const publicacoesNaoLidas = publicacoes.filter(p => statusFilter === "todas" || !p.lida);
   const publicacoesFiltradas = useMemo(() => {
     return publicacoesNaoLidas.filter(p => {
+      const mon = monitoramentosDjen.find(m => m.id === p.monitoramento_id);
+      // Filtrar por coordenações do usuário
+      if (!pertenceAoUsuario(mon?.coordenacao_id)) return false;
       if (coordenacaoId !== "todas") {
-        const mon = monitoramentosDjen.find(m => m.id === p.monitoramento_id);
         if (mon?.coordenacao_id !== coordenacaoId) return false;
       }
       if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero)) return false;
@@ -295,7 +306,7 @@ export default function Notificacoes() {
       if (!matchesPeriodo(p.created_at)) return false;
       return true;
     });
-  }, [publicacoesNaoLidas, coordenacaoId, monitoramentosDjen, matchesSearch, matchesPeriodo]);
+  }, [publicacoesNaoLidas, coordenacaoId, monitoramentosDjen, matchesSearch, matchesPeriodo, pertenceAoUsuario]);
 
   // Filter distributions by coordination
   const distribuicoesPendentes = distribuicoesEncontradas.filter(d => 
@@ -303,14 +314,17 @@ export default function Notificacoes() {
   );
   const distribuicoesFiltradas = useMemo(() => {
     return distribuicoesPendentes.filter(d => {
+      const coordId = (d as any).monitoramento?.coordenacao_id;
+      // Filtrar por coordenações do usuário
+      if (!pertenceAoUsuario(coordId)) return false;
       if (coordenacaoId !== "todas") {
-        if ((d as any).monitoramento?.coordenacao_id !== coordenacaoId) return false;
+        if (coordId !== coordenacaoId) return false;
       }
       if (!matchesSearch(d.numero_processo) && !matchesSearch(d.polo_ativo) && !matchesSearch(d.polo_passivo)) return false;
       if (!matchesPeriodo(d.data_distribuicao)) return false;
       return true;
     });
-  }, [distribuicoesPendentes, coordenacaoId, searchQuery, periodoInicio, periodoFim]);
+  }, [distribuicoesPendentes, coordenacaoId, searchQuery, periodoInicio, periodoFim, pertenceAoUsuario]);
 
   // Filter alerts by coordination
   const alertasPendentes = alertas.filter(a => 
@@ -318,89 +332,109 @@ export default function Notificacoes() {
   );
   const alertasFiltrados = useMemo(() => {
     return alertasPendentes.filter(a => {
+      // Filtrar por coordenações do usuário
+      if (!pertenceAoUsuario(a.processo?.coordenacao_id)) return false;
       if (coordenacaoId !== "todas" && a.processo?.coordenacao_id !== coordenacaoId) return false;
       if (!matchesSearch(a.termo_encontrado) && !matchesSearch(a.processo?.numero)) return false;
       if (!matchesPeriodo(a.created_at)) return false;
       if (!matchesPrioridade(a.prioridade)) return false;
       return true;
     });
-  }, [alertasPendentes, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter]);
+  }, [alertasPendentes, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter, pertenceAoUsuario]);
 
   // Redistribuições filtradas por período
   const redistribuicoesFiltradas = useMemo(() => {
     return redistribuicoesData.filter(r => {
+      // Filtrar por coordenações do usuário (via nome)
+      const coord = coordenacoes.find(c => c.nome === r.coordenacao_nome);
+      if (!pertenceAoUsuario(coord?.id)) return false;
       if (coordenacaoId !== "todas") {
-        const coord = coordenacoes.find(c => c.id === coordenacaoId);
-        if (!coord || r.coordenacao_nome !== coord.nome) return false;
+        if (!coord || coord.id !== coordenacaoId) return false;
       }
       if (!matchesSearch(r.processo_numero)) return false;
       return true;
     });
-  }, [redistribuicoesData, coordenacaoId, coordenacoes, searchQuery]);
+  }, [redistribuicoesData, coordenacaoId, coordenacoes, searchQuery, pertenceAoUsuario]);
 
   // Filter prazos by coordination
   const prazosFiltrados = useMemo(() => {
     const basePrazos = statusFilter === "todas" ? prazosPendentes : prazosUrgentes;
     return basePrazos.filter(p => {
+      // Filtrar por coordenações do usuário
+      if (!pertenceAoUsuario(p.processo?.coordenacao_id)) return false;
       if (coordenacaoId !== "todas" && p.processo?.coordenacao_id !== coordenacaoId) return false;
       if (!matchesSearch(p.titulo) && !matchesSearch(p.processo?.numero)) return false;
       if (!matchesPeriodo(p.data_vencimento)) return false;
       if (!matchesPrioridade(p.prioridade)) return false;
       return true;
     });
-  }, [prazosPendentes, prazosUrgentes, statusFilter, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter]);
+  }, [prazosPendentes, prazosUrgentes, statusFilter, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter, pertenceAoUsuario]);
 
   // Filter notificacoes by coordination
   const notificacoesFiltradas = useMemo(() => {
     const baseNotifs = statusFilter === "todas" ? notificacoes : naoLidas;
     return baseNotifs.filter(n => {
+      const processoId = n.dados?.processo_id;
+      const alertaRelacionado = alertas.find(a => a.processo_id === processoId);
+      // Filtrar por coordenações do usuário
+      if (alertaRelacionado && !pertenceAoUsuario(alertaRelacionado?.processo?.coordenacao_id)) return false;
       if (coordenacaoId !== "todas") {
-        const processoId = n.dados?.processo_id;
         if (!processoId) return false;
-        const alertaRelacionado = alertas.find(a => a.processo_id === processoId);
         if (alertaRelacionado?.processo?.coordenacao_id !== coordenacaoId) return false;
       }
       if (!matchesSearch(n.titulo) && !matchesSearch(n.mensagem)) return false;
       if (!matchesPeriodo(n.created_at)) return false;
       return true;
     });
-  }, [notificacoes, naoLidas, statusFilter, coordenacaoId, alertas, searchQuery, periodoInicio, periodoFim]);
+  }, [notificacoes, naoLidas, statusFilter, coordenacaoId, alertas, searchQuery, periodoInicio, periodoFim, pertenceAoUsuario]);
 
   // Filter tarefas by coordination
   const tarefasFiltradas = useMemo(() => {
     return tarefasPendentesData.filter(t => {
-      if (coordenacaoId !== "todas" && (t.processo as any)?.coordenacao_id !== coordenacaoId) return false;
+      const coordId = (t.processo as any)?.coordenacao_id;
+      // Filtrar por coordenações do usuário
+      if (!pertenceAoUsuario(coordId)) return false;
+      if (coordenacaoId !== "todas" && coordId !== coordenacaoId) return false;
       if (!matchesSearch(t.titulo) && !matchesSearch((t.processo as any)?.numero)) return false;
       if (!matchesPeriodo(t.data_vencimento)) return false;
       if (!matchesPrioridade(t.prioridade)) return false;
       return true;
     });
-  }, [tarefasPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter]);
+  }, [tarefasPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter, pertenceAoUsuario]);
 
   // Filter audiencias by coordination
   const audienciasFiltradas = useMemo(() => {
     return audienciasPendentesData.filter(a => {
-      if (coordenacaoId !== "todas" && (a.processo as any)?.coordenacao_id !== coordenacaoId) return false;
+      const coordId = (a.processo as any)?.coordenacao_id;
+      // Filtrar por coordenações do usuário
+      if (!pertenceAoUsuario(coordId)) return false;
+      if (coordenacaoId !== "todas" && coordId !== coordenacaoId) return false;
       if (!matchesSearch(a.processo_numero) && !matchesSearch((a.processo as any)?.numero) && !matchesSearch(a.tipo_audiencia)) return false;
       if (!matchesPeriodo(a.data_audiencia)) return false;
       return true;
     });
-  }, [audienciasPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim]);
+  }, [audienciasPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim, pertenceAoUsuario]);
 
   // Filter intimacoes by coordination
   const intimacoesFiltradas = useMemo(() => {
     return intimacoesPendentesData.filter(i => {
-      if (coordenacaoId !== "todas" && (i.processo as any)?.coordenacao_id !== coordenacaoId) return false;
+      const coordId = (i.processo as any)?.coordenacao_id;
+      // Filtrar por coordenações do usuário
+      if (!pertenceAoUsuario(coordId)) return false;
+      if (coordenacaoId !== "todas" && coordId !== coordenacaoId) return false;
       if (!matchesSearch(i.processo_numero) && !matchesSearch((i.processo as any)?.numero) && !matchesSearch(i.tipo_intimacao)) return false;
       if (!matchesPeriodo(i.data_intimacao)) return false;
       return true;
     });
-  }, [intimacoesPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim]);
+  }, [intimacoesPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim, pertenceAoUsuario]);
 
   // Filter andamentos by coordination
   const andamentosFiltrados = useMemo(() => {
     return andamentosData.filter(a => {
-      if (coordenacaoId !== "todas" && (a.processo as any)?.coordenacao_id !== coordenacaoId) return false;
+      const coordId = (a.processo as any)?.coordenacao_id;
+      // Filtrar por coordenações do usuário
+      if (!pertenceAoUsuario(coordId)) return false;
+      if (coordenacaoId !== "todas" && coordId !== coordenacaoId) return false;
       if (!matchesSearch(a.descricao) && !matchesSearch((a.processo as any)?.numero) && !matchesSearch(a.tipo)) return false;
       return true;
     });
@@ -487,6 +521,27 @@ export default function Notificacoes() {
     setCoordenacaoId(id);
     setActiveTab("todos");
   };
+
+  const handleOpenDetalhes = (coord: { id: string; nome: string }) => {
+    setSelectedCoordDetalhes(coord);
+  };
+
+  // Se tem uma coordenação selecionada para detalhes, mostrar view expandida
+  if (selectedCoordDetalhes) {
+    return (
+      <MainLayout title="Central de Notificações" subtitle={`Detalhes de ${selectedCoordDetalhes.nome}`}>
+        <CoordenacaoDetalhesView
+          coordenacaoId={selectedCoordDetalhes.id}
+          coordenacaoNome={selectedCoordDetalhes.nome}
+          onBack={() => setSelectedCoordDetalhes(null)}
+          periodoInicio={periodoInicio}
+          periodoFim={periodoFim}
+          statusFilter={statusFilter}
+          searchQuery={searchQuery}
+        />
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout title="Central de Notificações" subtitle={`${stats.filteredTotal} alertas encontrados`}>
@@ -915,6 +970,7 @@ export default function Notificacoes() {
         <TabsContent value="dashboard" className="space-y-4">
           <DashboardCoordenacoes 
             onSelectCoordenacao={handleSelectCoordenacao}
+            onOpenDetalhes={handleOpenDetalhes}
             selectedCoordenacaoId={coordenacaoId}
             periodoInicio={periodoInicio}
             periodoFim={periodoFim}

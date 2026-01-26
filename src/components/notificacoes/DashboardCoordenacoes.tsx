@@ -66,6 +66,7 @@ interface CoordenacaoStats {
 
 interface Props {
   onSelectCoordenacao: (id: string) => void;
+  onOpenDetalhes: (coord: { id: string; nome: string }) => void;
   selectedCoordenacaoId: string;
   periodoInicio?: Date;
   periodoFim?: Date;
@@ -75,6 +76,7 @@ interface Props {
 
 export function DashboardCoordenacoes({ 
   onSelectCoordenacao, 
+  onOpenDetalhes,
   selectedCoordenacaoId,
   periodoInicio,
   periodoFim,
@@ -509,12 +511,12 @@ export function DashboardCoordenacoes({
               <Card
                 key={coord.id}
                 className={cn(
-                  "cursor-pointer transition-all hover:shadow-md",
+                  "cursor-pointer transition-all hover:shadow-md hover:scale-[1.01]",
                   selectedCoordenacaoId === coord.id && "ring-2 ring-primary",
                   coord.total > 0 && coord.total <= 5 && "border-amber-500/50",
                   coord.total > 5 && "border-red-500/50"
                 )}
-                onClick={() => onSelectCoordenacao(coord.id)}
+                onClick={() => onOpenDetalhes({ id: coord.id, nome: coord.nome })}
               >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
