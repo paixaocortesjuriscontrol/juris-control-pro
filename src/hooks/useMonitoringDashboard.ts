@@ -61,11 +61,11 @@ export interface MonitoringStats {
   elapsedSeconds: number;
 }
 
+// NOTA: 'djen' foi removido - agora usa busca direta no frontend (useBuscaDjenDireta/BuscaDjenDiretaCard)
 const MONITORING_TYPES = [
   { tipo: 'redistribuicoes', nome: 'Redistribuições', icon: 'RefreshCw', funcao: 'monitorar-redistribuicoes' },
   { tipo: 'andamentos', nome: 'Andamentos', icon: 'Activity', funcao: 'monitorar-andamentos' },
   { tipo: 'distribuicoes', nome: 'Distribuições', icon: 'Globe', funcao: 'monitorar-distribuicoes' },
-  { tipo: 'djen', nome: 'DJEN (Termos)', icon: 'Newspaper', funcao: 'monitorar-djen' },
   { tipo: 'djen_processos', nome: 'DJEN Processos', icon: 'FileSearch', funcao: 'monitorar-djen-processos' },
   { tipo: 'termos', nome: 'Monitoração 360', icon: 'Radar', funcao: 'monitorar-termos' },
 ] as const;

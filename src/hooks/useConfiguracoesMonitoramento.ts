@@ -91,10 +91,9 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
         if (error) throw error;
         return data;
       }
+      // NOTA: 'djen' foi removido - agora usa busca direta no frontend (useBuscaDjenDireta)
       if (tipo === 'djen') {
-        const { data, error } = await supabase.functions.invoke('monitorar-djen');
-        if (error) throw error;
-        return data;
+        throw new Error("DJEN agora usa busca direta no frontend. Use o componente BuscaDjenDiretaCard.");
       }
       if (tipo === 'termos') {
         const { data, error } = await supabase.functions.invoke('monitorar-termos');
