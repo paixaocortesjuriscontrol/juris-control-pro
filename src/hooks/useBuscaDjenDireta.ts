@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,11 +35,15 @@ interface ProgressoExecucao {
   mensagem: string;
 }
 
+// Configuração de paralelismo
+const CONCURRENT_LIMIT = 5; // Processar 5 monitoramentos em paralelo
+const DELAY_BETWEEN_BATCHES = 500; // 500ms entre lotes
+
 /**
- * Hook simplificado para busca DJEN que funciona 100% no frontend
- * - Usa a Edge Function `buscar-djen` apenas como proxy leve (sem estado)
+ * Hook com busca DJEN paralela para máxima performance
+ * - Processa múltiplos monitoramentos em paralelo
+ * - Usa a Edge Function `buscar-djen` apenas como proxy leve
  * - Grava resultados diretamente via Supabase Client
- * - Evita timeouts/travamentos de Edge Functions longas
  */
 export function useBuscaDjenDireta() {
   const { user } = useAuth();
@@ -53,7 +57,7 @@ export function useBuscaDjenDireta() {
     mensagem: '',
   });
   const [executando, setExecutando] = useState(false);
-  const [cancelar, setCancelar] = useState(false);
+  const cancelarRef = useRef(false);
 
   // Gera hash simples para deduplicação
   const gerarHash = (conteudo: string, data: string): string => {
@@ -67,43 +71,41 @@ export function useBuscaDjenDireta() {
     return Math.abs(hash).toString(16);
   };
 
-  // Verifica se a publicação já existe
-  const verificarDuplicata = async (hash: string, monitoramentoId: string): Promise<boolean> => {
+  // Verifica se a publicação já existe (batch)
+  const verificarDuplicatasBatch = async (
+    hashes: string[], 
+    monitoramentoId: string
+  ): Promise<Set<string>> => {
+    if (hashes.length === 0) return new Set();
+    
     const { data } = await supabase
       .from('publicacoes_djen')
-      .select('id')
-      .eq('hash_conteudo', hash)
+      .select('hash_conteudo')
       .eq('monitoramento_id', monitoramentoId)
-      .limit(1)
-      .maybeSingle();
+      .in('hash_conteudo', hashes);
     
-    return !!data;
+    return new Set((data || []).map(d => d.hash_conteudo));
   };
 
   // Verifica se deve excluir com base nas exclusões configuradas
-  const deveExcluir = (conteudo: string, exclusoes?: string[]): string | null => {
-    if (!exclusoes || exclusoes.length === 0) return null;
+  const deveExcluir = (conteudo: string, exclusoes?: string[]): boolean => {
+    if (!exclusoes || exclusoes.length === 0) return false;
     const conteudoUpper = conteudo.toUpperCase();
-    for (const termo of exclusoes) {
-      if (conteudoUpper.includes(termo.toUpperCase())) {
-        return termo;
-      }
-    }
-    return null;
+    return exclusoes.some(termo => conteudoUpper.includes(termo.toUpperCase()));
   };
 
   // Buscar um monitoramento via Edge Function leve
   const buscarMonitoramento = async (monitoramento: MonitoramentoDjen): Promise<PublicacaoResultado[]> => {
     const hoje = new Date();
     const dataInicio = new Date(hoje);
-    dataInicio.setDate(dataInicio.getDate() - 1); // Últimas 24h
+    dataInicio.setDate(dataInicio.getDate() - 1);
 
     const params: Record<string, any> = {
       tipo: monitoramento.tipo,
       dataInicio: dataInicio.toISOString().split('T')[0],
       dataFim: hoje.toISOString().split('T')[0],
       pageSize: 50,
-      fetchAll: false, // Busca simples, sem paginação complexa
+      fetchAll: false,
     };
 
     if (monitoramento.tipo === 'advogado' && monitoramento.oab && monitoramento.uf) {
@@ -141,7 +143,75 @@ export function useBuscaDjenDireta() {
     }
   };
 
-  // Executar monitoramento completo
+  // Processar um único monitoramento e retornar estatísticas
+  const processarMonitoramento = async (
+    mon: MonitoramentoDjen
+  ): Promise<{ novas: number; duplicadas: number; coordenacaoStats?: any }> => {
+    const publicacoes = await buscarMonitoramento(mon);
+    
+    if (publicacoes.length === 0) {
+      return { novas: 0, duplicadas: 0 };
+    }
+
+    // Filtrar exclusões primeiro
+    const pubsFiltradas = publicacoes.filter(pub => 
+      !pub.conteudo || !deveExcluir(pub.conteudo, mon.exclusoes)
+    );
+
+    // Gerar hashes para todas as publicações
+    const pubsComHash = pubsFiltradas.map(pub => ({
+      ...pub,
+      hash_conteudo: gerarHash(
+        pub.conteudo || '',
+        pub.data_publicacao || new Date().toISOString()
+      ),
+    }));
+
+    // Verificar duplicatas em batch (mais eficiente)
+    const hashes = pubsComHash.map(p => p.hash_conteudo);
+    const existentes = await verificarDuplicatasBatch(hashes, mon.id);
+
+    const novas = pubsComHash.filter(p => !existentes.has(p.hash_conteudo));
+    const duplicadas = pubsComHash.length - novas.length;
+
+    // Inserir novas em batch
+    if (novas.length > 0) {
+      const { error: insertError } = await supabase
+        .from('publicacoes_djen')
+        .insert(novas.map(pub => ({
+          monitoramento_id: mon.id,
+          hash_conteudo: pub.hash_conteudo,
+          processo_numero: pub.processo_numero,
+          conteudo: pub.conteudo,
+          data_publicacao: pub.data_publicacao,
+          fonte: pub.fonte,
+          lida: false,
+        })));
+
+      if (insertError) {
+        console.error('Erro ao inserir publicações:', insertError);
+        return { novas: 0, duplicadas };
+      }
+    }
+
+    // Estatísticas para resumo por coordenação
+    let coordenacaoStats;
+    if (mon.coordenacao_id && novas.length > 0) {
+      coordenacaoStats = {
+        coordenacao_id: mon.coordenacao_id,
+        total_verificados: publicacoes.length,
+        total_encontrados: novas.length,
+        exemplos: novas.slice(0, 3).map(p => ({
+          processo_numero: p.processo_numero || 'S/N',
+          descricao: (p.conteudo || '').slice(0, 100) + '...',
+        })),
+      };
+    }
+
+    return { novas: novas.length, duplicadas, coordenacaoStats };
+  };
+
+  // Executar monitoramento com paralelismo
   const executarMonitoramento = useCallback(async (monitoramentosIds?: string[]) => {
     if (!user?.id) {
       toast.error("Usuário não autenticado");
@@ -149,7 +219,7 @@ export function useBuscaDjenDireta() {
     }
 
     setExecutando(true);
-    setCancelar(false);
+    cancelarRef.current = false;
     setProgresso({
       monitoramentoAtual: 0,
       totalMonitoramentos: 0,
@@ -182,116 +252,89 @@ export function useBuscaDjenDireta() {
         return;
       }
 
+      const total = monitoramentos.length;
       setProgresso(prev => ({
         ...prev,
-        totalMonitoramentos: monitoramentos.length,
-        mensagem: `Processando ${monitoramentos.length} monitoramentos...`,
+        totalMonitoramentos: total,
+        mensagem: `Processando ${total} monitoramentos em paralelo (${CONCURRENT_LIMIT} simultâneos)...`,
       }));
 
       let totalNovas = 0;
       let totalDuplicadas = 0;
+      let processados = 0;
       const resumosPorCoordenacao: Record<string, {
         total_verificados: number;
         total_encontrados: number;
         exemplos: Array<{ processo_numero: string; descricao: string }>;
       }> = {};
 
-      for (let i = 0; i < monitoramentos.length; i++) {
-        if (cancelar) {
+      // Processar em lotes paralelos
+      for (let i = 0; i < monitoramentos.length; i += CONCURRENT_LIMIT) {
+        if (cancelarRef.current) {
           setProgresso(prev => ({
             ...prev,
             status: 'concluido',
-            mensagem: 'Execução cancelada pelo usuário',
+            mensagem: `Cancelado. ${totalNovas} novas, ${totalDuplicadas} duplicadas.`,
           }));
           break;
         }
 
-        const mon = monitoramentos[i] as MonitoramentoDjen;
+        const lote = monitoramentos.slice(i, i + CONCURRENT_LIMIT) as MonitoramentoDjen[];
         
+        // Mostrar quais termos estão sendo buscados
+        const termos = lote.map(m => m.termo_busca).join(', ');
         setProgresso(prev => ({
           ...prev,
-          monitoramentoAtual: i + 1,
-          mensagem: `Buscando: ${mon.termo_busca}...`,
+          mensagem: `Buscando: ${termos.slice(0, 50)}${termos.length > 50 ? '...' : ''}`,
         }));
 
-        // Delay entre monitoramentos para evitar rate limit
-        if (i > 0) {
-          await new Promise(r => setTimeout(r, 1500));
-        }
+        // Processar lote em paralelo
+        const resultados = await Promise.allSettled(
+          lote.map(mon => processarMonitoramento(mon))
+        );
 
-        const publicacoes = await buscarMonitoramento(mon);
-
-        for (const pub of publicacoes) {
-          // Verificar exclusões
-          if (pub.conteudo && deveExcluir(pub.conteudo, mon.exclusoes)) {
-            continue;
-          }
-
-          // Gerar hash e verificar duplicata
-          const hash = gerarHash(
-            pub.conteudo || '',
-            pub.data_publicacao || new Date().toISOString()
-          );
-
-          const isDuplicata = await verificarDuplicata(hash, mon.id);
-
-          if (isDuplicata) {
-            totalDuplicadas++;
-            continue;
-          }
-
-          // Inserir nova publicação
-          const { error: insertError } = await supabase
-            .from('publicacoes_djen')
-            .insert({
-              monitoramento_id: mon.id,
-              hash_conteudo: hash,
-              processo_numero: pub.processo_numero,
-              conteudo: pub.conteudo,
-              data_publicacao: pub.data_publicacao,
-              fonte: pub.fonte,
-              lida: false,
-            });
-
-          if (!insertError) {
-            totalNovas++;
-
-            // Acumular para resumo por coordenação
-            if (mon.coordenacao_id) {
-              if (!resumosPorCoordenacao[mon.coordenacao_id]) {
-                resumosPorCoordenacao[mon.coordenacao_id] = {
+        // Contabilizar resultados
+        for (const resultado of resultados) {
+          if (resultado.status === 'fulfilled') {
+            totalNovas += resultado.value.novas;
+            totalDuplicadas += resultado.value.duplicadas;
+            
+            // Acumular stats de coordenação
+            if (resultado.value.coordenacaoStats) {
+              const stats = resultado.value.coordenacaoStats;
+              if (!resumosPorCoordenacao[stats.coordenacao_id]) {
+                resumosPorCoordenacao[stats.coordenacao_id] = {
                   total_verificados: 0,
                   total_encontrados: 0,
                   exemplos: [],
                 };
               }
-              resumosPorCoordenacao[mon.coordenacao_id].total_encontrados++;
-              if (resumosPorCoordenacao[mon.coordenacao_id].exemplos.length < 5) {
-                resumosPorCoordenacao[mon.coordenacao_id].exemplos.push({
-                  processo_numero: pub.processo_numero || 'S/N',
-                  descricao: (pub.conteudo || '').slice(0, 100) + '...',
-                });
+              resumosPorCoordenacao[stats.coordenacao_id].total_verificados += stats.total_verificados;
+              resumosPorCoordenacao[stats.coordenacao_id].total_encontrados += stats.total_encontrados;
+              if (resumosPorCoordenacao[stats.coordenacao_id].exemplos.length < 5) {
+                resumosPorCoordenacao[stats.coordenacao_id].exemplos.push(...stats.exemplos);
               }
             }
           }
         }
 
-        // Contabilizar verificados por coordenação
-        if (mon.coordenacao_id && resumosPorCoordenacao[mon.coordenacao_id]) {
-          resumosPorCoordenacao[mon.coordenacao_id].total_verificados += publicacoes.length;
-        }
-
+        processados += lote.length;
         setProgresso(prev => ({
           ...prev,
+          monitoramentoAtual: processados,
           publicacoesNovas: totalNovas,
           publicacoesDuplicadas: totalDuplicadas,
         }));
+
+        // Pequeno delay entre lotes para não sobrecarregar
+        if (i + CONCURRENT_LIMIT < monitoramentos.length) {
+          await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES));
+        }
       }
 
       // Enviar resumos por coordenação ao finalizar
       if (Object.keys(resumosPorCoordenacao).length > 0) {
         try {
-          // Buscar nomes das coordenações
           const coordIds = Object.keys(resumosPorCoordenacao);
           const { data: coordenacoes } = await supabase
             .from('coordenacoes')
@@ -316,12 +359,12 @@ export function useBuscaDjenDireta() {
       }
 
       setProgresso({
-        monitoramentoAtual: monitoramentos.length,
-        totalMonitoramentos: monitoramentos.length,
+        monitoramentoAtual: total,
+        totalMonitoramentos: total,
         publicacoesNovas: totalNovas,
         publicacoesDuplicadas: totalDuplicadas,
         status: 'concluido',
-        mensagem: `Concluído! ${totalNovas} novas publicações, ${totalDuplicadas} duplicadas.`,
+        mensagem: `Concluído! ${totalNovas} novas, ${totalDuplicadas} duplicadas.`,
       });
 
       // Invalidar queries relacionadas
@@ -345,10 +388,10 @@ export function useBuscaDjenDireta() {
     } finally {
       setExecutando(false);
     }
-  }, [user?.id, cancelar, queryClient]);
+  }, [user?.id, queryClient]);
 
   const cancelarExecucao = useCallback(() => {
-    setCancelar(true);
+    cancelarRef.current = true;
   }, []);
 
   return {
