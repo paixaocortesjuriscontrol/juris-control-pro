@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,8 +46,14 @@ import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { DashboardCoordenacoes } from "@/components/notificacoes/DashboardCoordenacoes";
+import { CoordenacaoDetalhesView } from "@/components/notificacoes/CoordenacaoDetalhesView";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 
 export default function Notificacoes() {
+  const { user } = useAuth();
+  const { isAdmin } = useUserRole();
+  
   // Central de Notificações
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -57,18 +63,36 @@ export default function Notificacoes() {
   const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() => startOfDay(new Date()));
   const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() => startOfDay(new Date()));
   
-  // Toggle filters for each type
-  const [showDjen, setShowDjen] = useState(true);
-  const [showDistribuicoes, setShowDistribuicoes] = useState(true);
-  const [showAlertas360, setShowAlertas360] = useState(true);
-  const [showRedistribuicoes, setShowRedistribuicoes] = useState(true);
-  const [showPrazos, setShowPrazos] = useState(true);
-  const [showTarefas, setShowTarefas] = useState(true);
-  const [showAudiencias, setShowAudiencias] = useState(true);
-  const [showIntimacoes, setShowIntimacoes] = useState(true);
-  const [showAndamentos, setShowAndamentos] = useState(true);
+  // View expandida de coordenação
+  const [selectedCoordDetalhes, setSelectedCoordDetalhes] = useState<{ id: string; nome: string } | null>(null);
+  
+  // Toggle filters for each type - mantidos internos mas não exibidos como botões
+  const [showDjen] = useState(true);
+  const [showDistribuicoes] = useState(true);
+  const [showAlertas360] = useState(true);
+  const [showRedistribuicoes] = useState(true);
+  const [showPrazos] = useState(true);
+  const [showTarefas] = useState(true);
+  const [showAudiencias] = useState(true);
+  const [showIntimacoes] = useState(true);
+  const [showAndamentos] = useState(true);
   
   const navigate = useNavigate();
+
+  // Buscar coordenações onde o usuário é membro
+  const { data: minhasCoordenacoes = [] } = useQuery({
+    queryKey: ["minhas-coordenacoes-notif", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id);
+      if (error) throw error;
+      return data?.map(m => m.coordenacao_id) || [];
+    },
+    enabled: !!user?.id,
+  });
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const { 
@@ -430,15 +454,6 @@ export default function Notificacoes() {
     setPeriodoInicio(startOfDay(new Date()));
     setPeriodoFim(startOfDay(new Date()));
     setCoordenacaoId("todas");
-    setShowDjen(true);
-    setShowDistribuicoes(true);
-    setShowAlertas360(true);
-    setShowRedistribuicoes(true);
-    setShowPrazos(true);
-    setShowTarefas(true);
-    setShowAudiencias(true);
-    setShowIntimacoes(true);
-    setShowAndamentos(true);
   };
 
   const getIconByType = (tipo: string) => {
@@ -631,162 +646,6 @@ export default function Notificacoes() {
             <Button variant="outline" size="sm" onClick={clearAllFilters} className="h-8 text-xs gap-1">
               <X className="w-3 h-3" />
               Limpar filtros
-            </Button>
-          </div>
-
-          {/* Toggle Filters Row */}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showDjen && "bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
-              )}
-              onClick={() => setShowDjen(prev => !prev)}
-            >
-              <Newspaper className="w-3.5 h-3.5" />
-              DJEN
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showDjen && "bg-blue-500 text-white")}>
-                {stats.djen}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showDistribuicoes && "bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
-              )}
-              onClick={() => setShowDistribuicoes(prev => !prev)}
-            >
-              <Scale className="w-3.5 h-3.5" />
-              Distribuições
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showDistribuicoes && "bg-purple-500 text-white")}>
-                {stats.distribuicoes}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showAlertas360 && "bg-amber-600 hover:bg-amber-700 text-white border-amber-600"
-              )}
-              onClick={() => setShowAlertas360(prev => !prev)}
-            >
-              <Radar className="w-3.5 h-3.5" />
-              Alertas 360°
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAlertas360 && "bg-amber-500 text-white")}>
-                {stats.alertas360}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showRedistribuicoes && "bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-600"
-              )}
-              onClick={() => setShowRedistribuicoes(prev => !prev)}
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Redistrib.
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showRedistribuicoes && "bg-cyan-500 text-white")}>
-                {stats.redistribuicoes}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showPrazos && "bg-red-600 hover:bg-red-700 text-white border-red-600"
-              )}
-              onClick={() => setShowPrazos(prev => !prev)}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              Prazos
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showPrazos && "bg-red-500 text-white")}>
-                {stats.prazos}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showTarefas && "bg-green-600 hover:bg-green-700 text-white border-green-600"
-              )}
-              onClick={() => setShowTarefas(prev => !prev)}
-            >
-              <ListTodo className="w-3.5 h-3.5" />
-              Tarefas
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showTarefas && "bg-green-500 text-white")}>
-                {stats.tarefas}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showAudiencias && "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600"
-              )}
-              onClick={() => setShowAudiencias(prev => !prev)}
-            >
-              <Gavel className="w-3.5 h-3.5" />
-              Audiências
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAudiencias && "bg-indigo-500 text-white")}>
-                {stats.audiencias}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showIntimacoes && "bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
-              )}
-              onClick={() => setShowIntimacoes(prev => !prev)}
-            >
-              <FileWarning className="w-3.5 h-3.5" />
-              Intimações
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showIntimacoes && "bg-orange-500 text-white")}>
-                {stats.intimacoes}
-              </Badge>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 gap-1.5 text-xs",
-                showAndamentos && "bg-violet-600 hover:bg-violet-700 text-white border-violet-600"
-              )}
-              onClick={() => setShowAndamentos(prev => !prev)}
-            >
-              <Activity className="w-3.5 h-3.5" />
-              Andamentos
-              <Badge variant="secondary" className={cn("ml-1 px-1.5 text-[10px]", showAndamentos && "bg-violet-500 text-white")}>
-                {stats.andamentos}
-              </Badge>
             </Button>
           </div>
         </div>
