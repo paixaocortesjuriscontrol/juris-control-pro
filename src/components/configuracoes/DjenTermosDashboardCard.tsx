@@ -226,9 +226,10 @@ export function DjenTermosDashboardCard({
   const encontrados = stats.todayStats.found ?? 0;
   const descartadas = stats.todayStats.descartadas ?? 0;
 
-  // Tempo - usar elapsed do progresso ou calcular
-  const tempoFormatado = executando 
-    ? formatDuration(stats.elapsedSeconds) 
+  // Tempo - usar tempoDecorrido do progresso (que agora é persistido)
+  const tempoSegundos = progresso.tempoDecorrido ?? 0;
+  const tempoFormatado = tempoSegundos > 0 
+    ? formatDuration(tempoSegundos) 
     : formatDuration(stats.elapsedSeconds);
 
   return (
