@@ -422,6 +422,11 @@ export function MonitoringDashboard() {
     const result = await executeMonitoring(tipo);
     const stats = monitoringStats.find(s => s.tipo === tipo);
 
+    // DJEN Termos usa busca direta - mostrar info ao invés de executar
+    if (result?.useDireta) {
+      toast.info(result.message || 'Use a aba DJEN para executar a busca direta.');
+      return;
+    }
     if (result?.blocked) {
       toast.warning(result.message || 'Aguarde outra execução finalizar');
       return;
