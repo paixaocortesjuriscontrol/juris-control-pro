@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.executar-monitoramento]
 verify_jwt = false
+
+[functions.enviar-resumo-monitoramento]
+verify_jwt = false

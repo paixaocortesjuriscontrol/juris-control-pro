@@ -422,31 +422,9 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
               });
           }
 
-          // Enviar alerta externo via Email/WhatsApp se a coordenação tiver configuração
-          if (processo.coordenacao_id) {
-            try {
-              const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-              await fetch(`${supabaseUrl}/functions/v1/enviar-alerta-coordenacao`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                },
-                body: JSON.stringify({
-                  tipo_alerta: "redistribuicoes",
-                  coordenacao_id: processo.coordenacao_id,
-                  titulo: "🔄 Redistribuição de Processo",
-                  mensagem: `O processo ${processo.numero} foi redistribuído de "${storedVara}" para "${currentVara}"`,
-                  prioridade: "alta",
-                  referencia_id: processo.id,
-                  processo_numero: processo.numero,
-                }),
-              });
-              console.log(`Alerta de redistribuição enviado para coordenação ${processo.coordenacao_id}`);
-            } catch (alertError) {
-              console.error("Erro ao enviar alerta de redistribuição:", alertError);
-            }
-          }
+          // NOTA: O envio de alertas externos agora é consolidado em um resumo único ao finalizar
+          // a execução completa do monitoramento (ver enviar-resumo-monitoramento)
+          // Isso evita bombardeio de mensagens individuais para cada redistribuição
 
           results.details.push({
             processo: processo.numero,

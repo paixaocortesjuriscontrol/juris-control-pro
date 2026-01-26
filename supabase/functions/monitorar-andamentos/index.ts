@@ -882,31 +882,9 @@ async function notifyAudienciaDetectada(
 
     console.log(`Notified ${usersToNotify.length} users about new audiência`);
 
-    // Enviar alerta externo via Email/WhatsApp se a coordenação tiver configuração
-    if (processo.coordenacao_id) {
-      try {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        await fetch(`${supabaseUrl}/functions/v1/enviar-alerta-coordenacao`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({
-            tipo_alerta: "audiencias",
-            coordenacao_id: processo.coordenacao_id,
-            titulo: `📅 Audiência Detectada: ${tipoAudiencia || 'Audiência'}`,
-            mensagem: `Audiência identificada no processo ${processoNumero}. Data: ${dataFormatada}`,
-            prioridade: "alta",
-            referencia_id: processoId,
-            processo_numero: processoNumero,
-          }),
-        });
-        console.log(`Alerta de audiência enviado para coordenação ${processo.coordenacao_id}`);
-      } catch (alertError) {
-        console.error("Erro ao enviar alerta de audiência:", alertError);
-      }
-    }
+    // NOTA: O envio de alertas externos agora é consolidado em um resumo único ao finalizar
+    // a execução completa do monitoramento (ver código ao final do processBatch)
+    // Isso evita bombardeio de mensagens individuais para cada audiência detectada
   } catch (error) {
     console.error('Error notifying about audiência:', error);
   }
@@ -1371,31 +1349,9 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
             }
           }
 
-          // Disparar alerta para coordenação (Email + WhatsApp)
-          if (processo.coordenacao_id) {
-            try {
-              const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-              await fetch(`${supabaseUrl}/functions/v1/enviar-alerta-coordenacao`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                },
-                body: JSON.stringify({
-                  tipo_alerta: "andamentos",
-                  coordenacao_id: processo.coordenacao_id,
-                  titulo: `📋 Novos Andamentos: ${processo.numero}`,
-                  mensagem: `${insertedCount} novo(s) andamento(s) detectado(s) no processo ${processo.numero}.\n\nDetalhes:\n${newMovementDetails.slice(0, 3).join('\n')}${newMovementDetails.length > 3 ? `\n... e mais ${newMovementDetails.length - 3}` : ''}`,
-                  prioridade: "media",
-                  referencia_id: processo.id,
-                  processo_numero: processo.numero,
-                }),
-              });
-              console.log(`Alerta de andamentos enviado para coordenação ${processo.coordenacao_id}`);
-            } catch (alertError) {
-              console.error("Erro ao enviar alerta de andamentos:", alertError);
-            }
-          }
+          // NOTA: O envio de alertas externos agora é consolidado em um resumo único ao finalizar
+          // a execução completa do monitoramento (ver código ao final)
+          // Isso evita bombardeio de mensagens individuais para cada andamento
 
           results.details.push({
             processo: processo.numero,
