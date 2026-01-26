@@ -154,17 +154,23 @@ export default function ProcessoDetalhes() {
   const [publicacaoParaTarefa, setPublicacaoParaTarefa] = useState<PublicacaoUnificada | null>(null);
   const abrirTarefaPublicacaoAtRef = useRef<number>(0);
 
-  // Tab toggle state
-  const [activeTab, setActiveTab] = useState<string>("");
+  // Tab toggle state - inicializa com "resumo" por padrão, mas lê do URL se existir
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const tabParam = searchParams.get("tab");
+    const validTabs = ["resumo", "audiencias", "intimacoes", "tarefas", "documentos", "publicacoes", "andamentos", "redistribuicoes", "monitoramento360", "agenda", "portal"];
+    return tabParam && validTabs.includes(tabParam) ? tabParam : "resumo";
+  });
 
-  // Detect tab from URL and auto-open
+  // Detect tab from URL and auto-open (para navegação após mount)
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["audiencias", "intimacoes", "tarefas", "documentos", "publicacoes", "andamentos", "redistribuicoes", "monitoramento360", "agenda", "portal"].includes(tabParam)) {
+    const validTabs = ["resumo", "audiencias", "intimacoes", "tarefas", "documentos", "publicacoes", "andamentos", "redistribuicoes", "monitoramento360", "agenda", "portal"];
+    if (tabParam && validTabs.includes(tabParam)) {
       setActiveTab(tabParam);
       // Clean URL after opening tab
-      searchParams.delete("tab");
-      setSearchParams(searchParams, { replace: true });
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("tab");
+      setSearchParams(newParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
   
