@@ -22,47 +22,106 @@ const TRIBUNAIS: Record<string, TribunalConfig> = {
   TRT1: {
     nome: "TRT1 - Rio de Janeiro",
     buildUrl: (data, caderno = "judiciario") =>
-      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TRT1&data=${data}&caderno=${caderno}`,
+      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TRT1&data=${encodeURIComponent(data)}&caderno=${encodeURIComponent(caderno)}`,
     cadernos: ["judiciario", "administrativo"],
   },
   TRT2: {
     nome: "TRT2 - São Paulo",
     buildUrl: (data, caderno = "judiciario") =>
-      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TRT2&data=${data}&caderno=${caderno}`,
+      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TRT2&data=${encodeURIComponent(data)}&caderno=${encodeURIComponent(caderno)}`,
     cadernos: ["judiciario", "administrativo"],
   },
   TRT10: {
     nome: "TRT10 - Brasília/Tocantins",
     buildUrl: (data, caderno = "judiciario") =>
-      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TRT10&data=${data}&caderno=${caderno}`,
+      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TRT10&data=${encodeURIComponent(data)}&caderno=${encodeURIComponent(caderno)}`,
     cadernos: ["judiciario", "administrativo"],
   },
   TRT23: {
     nome: "TRT23 - Mato Grosso",
     buildUrl: (data, caderno = "judiciario") =>
-      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TRT23&data=${data}&caderno=${caderno}`,
+      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TRT23&data=${encodeURIComponent(data)}&caderno=${encodeURIComponent(caderno)}`,
     cadernos: ["judiciario", "administrativo"],
   },
   TRT24: {
     nome: "TRT24 - Mato Grosso do Sul",
     buildUrl: (data, caderno = "judiciario") =>
-      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TRT24&data=${data}&caderno=${caderno}`,
+      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TRT24&data=${encodeURIComponent(data)}&caderno=${encodeURIComponent(caderno)}`,
     cadernos: ["judiciario", "administrativo"],
   },
   TST: {
     nome: "TST - Tribunal Superior do Trabalho",
     buildUrl: (data, caderno = "judiciario") =>
-      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TST&data=${data}&caderno=${caderno}`,
+      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=TST&data=${encodeURIComponent(data)}&caderno=${encodeURIComponent(caderno)}`,
     cadernos: ["judiciario", "administrativo"],
   },
 };
 
-// Formata data para o padrão esperado pelo DEJT (dd/MM/yyyy)
+// Persistência no banco (YYYY-MM-DD)
+function formatDateISO(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+// DEJT (dd/MM/yyyy)
 function formatDateForDEJT(date: Date): string {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
+}
+
+function isoToDejtDate(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return iso;
+  const [, y, mo, d] = m;
+  return `${d}/${mo}/${y}`;
+}
+
+function dejtToIsoDate(dmy: string): string | null {
+  const m = dmy.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  return `${y}-${mo}-${d}`;
+}
+
+function normalizeDataPublicacao(raw?: unknown): { iso: string; dejt: string } {
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return { iso: trimmed, dejt: isoToDejtDate(trimmed) };
+    }
+    const isoFromDejt = dejtToIsoDate(trimmed);
+    if (isoFromDejt) {
+      return { iso: isoFromDejt, dejt: trimmed };
+    }
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      const iso = formatDateISO(parsed);
+      return { iso, dejt: isoToDejtDate(iso) };
+    }
+  }
+  const iso = formatDateISO(new Date());
+  return { iso, dejt: isoToDejtDate(iso) };
+}
+
+// Fallback: PDFs do DEJT migraram para diario.jt.jus.br (estrutura por pasta YYYY/MM/DD)
+function buildDiarioJtUrls(tribunal: string, dataIso: string, caderno: string): string[] {
+  const m = dataIso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return [];
+
+  const [, y, mo, d] = m;
+  const base = `https://diario.jt.jus.br/cadernos/${y}/${mo}/${d}`;
+  const cadCode = (caderno || "judiciario").toLowerCase() === "administrativo" ? "A" : "J";
+
+  // Tentativas comuns de nome (podem variar por período)
+  return [
+    `${base}/${tribunal}_${cadCode}.pdf`,
+    `${base}/${tribunal}_${cadCode.toLowerCase()}.pdf`,
+    `${base}/${tribunal}${cadCode}.pdf`,
+    `${base}/${tribunal}${cadCode.toLowerCase()}.pdf`,
+    `${base}/${tribunal}_${caderno}.pdf`,
+    `${base}/${tribunal}_${String(caderno).toLowerCase()}.pdf`,
+  ];
 }
 
 // Baixa PDF de um tribunal específico
@@ -116,7 +175,7 @@ async function downloadPDF(url: string): Promise<{ data: ArrayBuffer; size: numb
 async function processDownload(
   supabase: SupabaseClient,
   tribunal: string,
-  dataRef: string,
+  dataRefIso: string,
   caderno: string,
   config: TribunalConfig
 ): Promise<{ tribunal: string; caderno: string; status: string; error?: string; storage_path?: string }> {
@@ -129,14 +188,14 @@ async function processDownload(
       .from("dje_pdfs_diarios")
       .select("id, status")
       .eq("tribunal", tribunal)
-      .eq("data_publicacao", dataRef)
+      .eq("data_publicacao", dataRefIso)
       .eq("caderno", caderno)
       .maybeSingle();
 
     if (existing) {
       const existingRecord = existing as { id: string; status: string };
       if (existingRecord.status === "processado" || existingRecord.status === "baixado") {
-        console.log(`${logPrefix} Já processado para ${dataRef}`);
+        console.log(`${logPrefix} Já processado para ${dataRefIso}`);
         return { tribunal, caderno, status: "ja_existe" };
       }
       
@@ -148,11 +207,12 @@ async function processDownload(
     }
 
     // Cria ou atualiza registro como "baixando"
-    const url = config.buildUrl(dataRef, caderno);
+    const url = config.buildUrl(isoToDejtDate(dataRefIso), caderno);
+    const candidateUrls = [url, ...buildDiarioJtUrls(tribunal, dataRefIso, caderno)];
     
     const recordData = {
       tribunal,
-      data_publicacao: dataRef,
+      data_publicacao: dataRefIso,
       caderno,
       url_origem: url,
       status: "baixando",
@@ -176,7 +236,17 @@ async function processDownload(
     const recordId = (record as { id: string })?.id;
 
     // Baixa o PDF
-    const pdfResult = await downloadPDF(url);
+    let pdfResult: { data: ArrayBuffer; size: number } | null = null;
+    let usedUrl = url;
+
+    for (const candidate of candidateUrls) {
+      const res = await downloadPDF(candidate);
+      if (res) {
+        pdfResult = res;
+        usedUrl = candidate;
+        break;
+      }
+    }
 
     if (!pdfResult) {
       // PDF não disponível (pode ser final de semana ou feriado)
@@ -184,7 +254,7 @@ async function processDownload(
         .from("dje_pdfs_diarios")
         .update({ 
           status: "erro", 
-          erro_mensagem: "PDF não disponível ou não encontrado" 
+          erro_mensagem: `PDF não disponível ou não encontrado. URLs tentadas: ${candidateUrls.slice(0, 3).join(" | ")}`
         } as never)
         .eq("id", recordId);
 
@@ -192,7 +262,7 @@ async function processDownload(
     }
 
     // Salva no Storage
-    const storagePath = `${tribunal}/${dataRef}/${caderno}.pdf`;
+    const storagePath = `${tribunal}/${dataRefIso}/${caderno}.pdf`;
     
     const { error: uploadError } = await supabase.storage
       .from("dje-pdfs")
@@ -220,6 +290,7 @@ async function processDownload(
       .from("dje_pdfs_diarios")
       .update({
         status: "baixado",
+        url_origem: usedUrl,
         storage_path: storagePath,
         tamanho_bytes: pdfResult.size,
         erro_mensagem: null,
@@ -274,9 +345,12 @@ Deno.serve(async (req) => {
       tribunais_batch, // Para processar múltiplos tribunais de uma vez
     } = body;
 
+    const { iso: dataRefIso } = normalizeDataPublicacao(data_publicacao);
+
     // Se recebeu um batch de tribunais, processa todos
     if (tribunais_batch && Array.isArray(tribunais_batch)) {
-      const dataRef = data_publicacao || formatDateForDEJT(new Date());
+      // Importante: no banco, sempre ISO (YYYY-MM-DD)
+      const dataRef = dataRefIso;
       const results: { tribunal: string; status: string; error?: string }[] = [];
 
       for (const t of tribunais_batch) {
@@ -319,7 +393,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const dataRef = data_publicacao || formatDateForDEJT(new Date());
+    const dataRef = dataRefIso;
     const config = TRIBUNAIS[tribunal];
     
     const result = await processDownload(supabase, tribunal, dataRef, caderno, config);
