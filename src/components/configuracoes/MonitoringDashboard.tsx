@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getExecutionProgress } from "@/utils/executionProgress";
 import { supabase } from "@/integrations/supabase/client";
+import { DjenTermosDashboardCard } from "./DjenTermosDashboardCard";
 
 const ICONS: Record<string, React.ElementType> = {
   RefreshCw,
@@ -424,7 +425,7 @@ export function MonitoringDashboard() {
 
     // DJEN Termos usa busca direta - mostrar info ao invés de executar
     if (result?.useDireta) {
-      toast.info(result.message || 'Use a aba DJEN para executar a busca direta.');
+      toast.info('DJEN Termos usa busca direta. Use os botões do próprio card no Dashboard.');
       return;
     }
     if (result?.blocked) {
@@ -618,16 +619,31 @@ export function MonitoringDashboard() {
 
       {/* Monitoring Cards Grid */}
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {monitoringStats.map((stats) => (
-          <MonitoringCard
-            key={stats.tipo}
-            stats={stats}
-            onExecute={() => handleExecute(stats.tipo)}
-            onCancel={() => handleCancel(stats.tipo)}
-            isExecuting={executing[stats.tipo] || false}
-            isCancelling={cancelling[stats.tipo] || false}
-          />
-        ))}
+        {monitoringStats.map((stats) => {
+          if (stats.tipo === 'djen') {
+            return (
+              <DjenTermosDashboardCard
+                key={stats.tipo}
+                stats={stats}
+                isExecuting={executing[stats.tipo] || false}
+                isCancelling={cancelling[stats.tipo] || false}
+                onReativarConfig={reativarConfig}
+                onAfterMutation={refetch}
+              />
+            );
+          }
+
+          return (
+            <MonitoringCard
+              key={stats.tipo}
+              stats={stats}
+              onExecute={() => handleExecute(stats.tipo)}
+              onCancel={() => handleCancel(stats.tipo)}
+              isExecuting={executing[stats.tipo] || false}
+              isCancelling={cancelling[stats.tipo] || false}
+            />
+          );
+        })}
       </div>
 
       {/* Refresh Button */}
