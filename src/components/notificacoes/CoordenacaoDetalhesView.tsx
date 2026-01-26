@@ -264,16 +264,13 @@ export function CoordenacaoDetalhesView({
   };
 
   // Handlers para navegação segura
-  const handleNavigateProcesso = (processoId: string | null | undefined) => {
+  const handleNavigateProcesso = (processoId: string | null | undefined, tab?: string) => {
     if (!processoId) {
       console.warn("ID do processo não disponível");
       return;
     }
-    navigate(`/processo/${processoId}`);
-  };
-
-  const handleNavigateDjen = () => {
-    navigate(`/analise-djen`);
+    const url = tab ? `/processos/${processoId}?tab=${tab}` : `/processos/${processoId}`;
+    navigate(url);
   };
 
   // Unified list rendering
@@ -285,9 +282,13 @@ export function CoordenacaoDetalhesView({
         color: "cyan",
         items: redistribuicoesFiltradas,
         renderItem: (r) => {
-          // Redistribuições não navegam (só mostram)
+          // Redistribuições navegam para o processo com aba redistribuicoes
           return (
-            <div key={r.id} className="p-2 border-b hover:bg-accent/30">
+            <div 
+              key={r.id} 
+              className="p-2 border-b hover:bg-accent/50 cursor-pointer" 
+              onClick={() => handleNavigateProcesso(r.processo_id, "redistribuicoes")}
+            >
               <div className="flex justify-between items-start gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{r.processo_numero || "N/A"}</p>
@@ -314,8 +315,12 @@ export function CoordenacaoDetalhesView({
         color: "indigo",
         items: audienciasPendentes,
         renderItem: (a: any) => (
-          // Audiências navegam para o painel de audiências com ID para seleção
-          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/painel-audiencias?audienciaId=${a.id}`)}>
+          // Audiências navegam para o processo com aba audiencias
+          <div 
+            key={a.id} 
+            className="p-2 border-b hover:bg-accent/50 cursor-pointer" 
+            onClick={() => handleNavigateProcesso(a.processo?.id || a.processo_id, "audiencias")}
+          >
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -351,8 +356,12 @@ export function CoordenacaoDetalhesView({
         color: "orange",
         items: intimacoesPendentes,
         renderItem: (i: any) => (
-          // Intimações navegam para o painel de intimações com ID para seleção
-          <div key={i.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/painel-intimacoes?intimacaoId=${i.id}`)}>
+          // Intimações navegam para o processo com aba intimacoes
+          <div 
+            key={i.id} 
+            className="p-2 border-b hover:bg-accent/50 cursor-pointer" 
+            onClick={() => handleNavigateProcesso(i.processo?.id || i.processo_id, "intimacoes")}
+          >
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -378,8 +387,12 @@ export function CoordenacaoDetalhesView({
         color: "green",
         items: tarefasPendentes,
         renderItem: (t: any) => (
-          // Tarefas navegam para a agenda com ID para seleção
-          <div key={t.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/minha-agenda?tarefaId=${t.id}`)}>
+          // Tarefas navegam para o processo com aba tarefas
+          <div 
+            key={t.id} 
+            className="p-2 border-b hover:bg-accent/50 cursor-pointer" 
+            onClick={() => handleNavigateProcesso(t.processo?.id, "tarefas")}
+          >
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -406,8 +419,12 @@ export function CoordenacaoDetalhesView({
         color: "blue",
         items: publicacoesFiltradas,
         renderItem: (p: any) => (
-          // DJEN navega para análise DJEN com ID para seleção
-          <div key={p.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/analise-djen?publicacaoId=${p.id}`)}>
+          // DJEN navega para o processo com aba publicacoes
+          <div 
+            key={p.id} 
+            className="p-2 border-b hover:bg-accent/50 cursor-pointer" 
+            onClick={() => handleNavigateProcesso(p.processo_id, "publicacoes")}
+          >
             <p className="font-medium text-sm">{p.processo_numero || "Sem número"}</p>
             <p className="text-xs text-muted-foreground line-clamp-2">{p.conteudo}</p>
             <span className="text-[10px] text-muted-foreground">{format(new Date(p.created_at), "dd/MM HH:mm")}</span>
@@ -420,8 +437,12 @@ export function CoordenacaoDetalhesView({
         color: "violet",
         items: andamentosData,
         renderItem: (a: any) => (
-          // Andamentos navegam para o processo específico
-          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => a.processo_id ? navigate(`/processo/${a.processo_id}`) : null}>
+          // Andamentos navegam para o processo com aba andamentos
+          <div 
+            key={a.id} 
+            className="p-2 border-b hover:bg-accent/50 cursor-pointer" 
+            onClick={() => handleNavigateProcesso(a.processo?.id || a.processo_id, "andamentos")}
+          >
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm line-clamp-2">{a.descricao}</p>

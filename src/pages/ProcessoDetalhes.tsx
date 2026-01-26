@@ -98,6 +98,7 @@ import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Database } from "@/integrations/supabase/types";
 
 type StatusProcesso = Database["public"]["Enums"]["status_processo"];
@@ -125,6 +126,7 @@ const areaOptions: AreaAtuacao[] = ["civil", "trabalhista", "empresarial"];
 export default function ProcessoDetalhes() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [atualizando, setAtualizando] = useState(false);
@@ -154,6 +156,17 @@ export default function ProcessoDetalhes() {
 
   // Tab toggle state
   const [activeTab, setActiveTab] = useState<string>("");
+
+  // Detect tab from URL and auto-open
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["audiencias", "intimacoes", "tarefas", "documentos", "publicacoes", "andamentos", "redistribuicoes", "monitoramento360", "agenda", "portal"].includes(tabParam)) {
+      setActiveTab(tabParam);
+      // Clean URL after opening tab
+      searchParams.delete("tab");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   
   // Form state for all fields
   const [formData, setFormData] = useState<Record<string, any>>({});
