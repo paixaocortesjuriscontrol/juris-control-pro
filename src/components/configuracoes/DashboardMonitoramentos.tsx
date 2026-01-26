@@ -30,11 +30,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+// NOTA: 'djen' foi removido - agora usa busca direta no frontend (BuscaDjenDiretaCard)
 const ICONS: Record<string, React.ElementType> = {
   redistribuicoes: RefreshCw,
   andamentos: Activity,
   distribuicoes: Globe,
-  djen: Newspaper,
   djen_processos: FileSearch,
   termos: Radar,
 };
@@ -43,7 +43,6 @@ const NOMES: Record<string, string> = {
   redistribuicoes: 'Redistribuições',
   andamentos: 'Andamentos',
   distribuicoes: 'Distribuições',
-  djen: 'DJEN (Termos)',
   djen_processos: 'DJEN Processos',
   termos: 'Monitoração 360',
 };
@@ -52,7 +51,6 @@ const FUNCOES: Record<string, string> = {
   redistribuicoes: 'monitorar-redistribuicoes',
   andamentos: 'monitorar-andamentos',
   distribuicoes: 'monitorar-distribuicoes',
-  djen: 'monitorar-djen',
   djen_processos: 'monitorar-djen-processos',
   termos: 'monitorar-termos',
 };
