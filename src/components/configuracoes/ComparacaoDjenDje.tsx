@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toZonedTime } from "date-fns-tz";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,10 +40,34 @@ import {
   type DjePdfDiario,
 } from "@/hooks/useDjePdfComparacao";
 
+type BatchResultItem = {
+  tribunal: string;
+  caderno?: string;
+  status: string;
+  error?: string;
+  storage_path?: string;
+};
+
+type BatchResponse =
+  | { success: true; results: BatchResultItem[] }
+  | { success?: boolean; results?: BatchResultItem[] };
+
+const BRAZIL_TZ = "America/Sao_Paulo";
+
+function normalizeBrazilDay(date: Date) {
+  // Evita que o "dia" oscile por timezone do browser/iframe.
+  return toZonedTime(date, BRAZIL_TZ);
+}
+
 export default function ComparacaoDjenDje() {
-  const [dataRef, setDataRef] = useState<Date>(new Date());
+  const [dataRef, setDataRef] = useState<Date>(() => normalizeBrazilDay(new Date()));
   const [tribunalSelecionado, setTribunalSelecionado] = useState<string>("all");
   const [baixandoTodos, setBaixandoTodos] = useState(false);
+  const [ultimoBatch, setUltimoBatch] = useState<{
+    startedAt: number;
+    data_publicacao: string;
+    results: BatchResultItem[];
+  } | null>(null);
   
   const dataFormatada = format(dataRef, "yyyy-MM-dd");
   
@@ -58,24 +83,65 @@ export default function ComparacaoDjenDje() {
   const processarPdf = useProcessarDjePdf();
   const buscarInterno = useBuscarDjeInterno();
 
+  const tribunaisAtivos = useMemo(() => TRIBUNAIS_DJE_PDF.map((t) => t.id), []);
+
   const handleBaixarTodos = async () => {
     if (baixandoTodos || baixarPdf.isPending) return;
 
     setBaixandoTodos(true);
+    const startedAt = Date.now();
+    // Status otimista: mostra imediatamente a lista por tribunal.
+    setUltimoBatch({
+      startedAt,
+      data_publicacao: dataFormatada,
+      results: tribunaisAtivos.map((tribunal) => ({ tribunal, status: "baixando" })),
+    });
+
     try {
       // Uma única chamada (batch) para reduzir invocações/créditos
-      await baixarPdf.mutateAsync({
+      const resp = (await baixarPdf.mutateAsync({
         tribunais_batch: TRIBUNAIS_DJE_PDF.map((t) => t.id),
         data_publicacao: dataFormatada,
         caderno: "judiciario",
         silent: true,
-      });
-      toast.success("Download iniciado para todos os tribunais");
+      })) as BatchResponse;
+
+      const results = Array.isArray((resp as any)?.results) ? ((resp as any).results as BatchResultItem[]) : [];
+      if (results.length) {
+        setUltimoBatch({ startedAt, data_publicacao: dataFormatada, results });
+      }
+
+      const failed = results.filter((r) => r.status !== "baixado" && r.status !== "processado" && r.status !== "ja_existe");
+      if (failed.length) {
+        toast.error(`${failed.length}/${results.length} tribunais falharam — veja o status abaixo.`);
+      } else {
+        toast.success("Download concluído para todos os tribunais");
+      }
     } finally {
       setBaixandoTodos(false);
       refetchPdfs();
     }
   };
+
+  // Após cada execução, faz polling curto para refletir status no grid.
+  useEffect(() => {
+    if (!ultimoBatch) return;
+    if (ultimoBatch.data_publicacao !== dataFormatada) return;
+
+    const maxMs = 30_000;
+    const intervalMs = 2_500;
+    const startedAt = ultimoBatch.startedAt;
+
+    const id = window.setInterval(() => {
+      if (Date.now() - startedAt > maxMs) {
+        window.clearInterval(id);
+        return;
+      }
+      refetchPdfs();
+    }, intervalMs);
+
+    return () => window.clearInterval(id);
+  }, [ultimoBatch, dataFormatada, refetchPdfs]);
 
   const handleProcessarPendentes = () => {
     processarPdf.mutate({ limit: 10 });
@@ -88,14 +154,33 @@ export default function ComparacaoDjenDje() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "processado":
-        return <Badge className="bg-emerald-600 hover:bg-emerald-700"><CheckCircle2 className="h-3 w-3 mr-1" />Processado</Badge>;
+        return (
+          <Badge className="bg-primary text-primary-foreground">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Processado
+          </Badge>
+        );
       case "baixado":
-        return <Badge className="bg-sky-600 hover:bg-sky-700"><FileText className="h-3 w-3 mr-1" />Baixado</Badge>;
+        return (
+          <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
+            <FileText className="h-3 w-3 mr-1" />
+            Baixado
+          </Badge>
+        );
       case "baixando":
       case "processando":
-        return <Badge className="bg-amber-600 hover:bg-amber-700"><Clock className="h-3 w-3 mr-1" />Em andamento</Badge>;
+        return (
+          <Badge variant="secondary" className="bg-muted text-foreground">
+            <Clock className="h-3 w-3 mr-1" />
+            Em andamento
+          </Badge>
+        );
       case "erro":
         return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Erro</Badge>;
+      case "indisponivel":
+        return <Badge variant="outline"><XCircle className="h-3 w-3 mr-1" />Indisponível</Badge>;
+      case "ja_existe":
+        return <Badge variant="outline"><CheckCircle2 className="h-3 w-3 mr-1" />Já existe</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -135,7 +220,7 @@ export default function ComparacaoDjenDje() {
                   <Calendar
                     mode="single"
                     selected={dataRef}
-                    onSelect={(date) => date && setDataRef(date)}
+                    onSelect={(date) => date && setDataRef(normalizeBrazilDay(date))}
                     locale={ptBR}
                   />
                 </PopoverContent>
@@ -187,6 +272,38 @@ export default function ComparacaoDjenDje() {
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
+
+          {ultimoBatch?.data_publicacao === dataFormatada && (
+            <div className="mt-4 rounded-lg border bg-card p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-medium">Status do download (por tribunal)</div>
+                <Button variant="ghost" size="sm" onClick={() => refetchPdfs()}>
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {ultimoBatch.results.map((r) => (
+                  <div key={`${r.tribunal}-${r.caderno || ""}`} className="rounded-md border bg-background p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-medium">{r.tribunal}</div>
+                      {getStatusBadge(r.status)}
+                    </div>
+                    <div className="mt-2 h-1 w-full rounded bg-muted">
+                      <div
+                        className={cn(
+                          "h-1 rounded",
+                          r.status === "baixando" || r.status === "processando" ? "w-2/3 animate-pulse bg-primary" : "w-full bg-primary"
+                        )}
+                      />
+                    </div>
+                    {r.error && (
+                      <div className="mt-2 text-xs text-muted-foreground break-words">{r.error}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
