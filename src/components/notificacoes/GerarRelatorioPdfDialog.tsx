@@ -28,10 +28,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
-import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
-import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useRedistribuicoes } from "@/hooks/useRedistribuicoes";
-import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { toast } from "sonner";
 
 interface Props {
@@ -46,19 +43,13 @@ interface CoordenacaoReportData {
   id: string;
   nome: string;
   djen: number;
-  distribuicoes: number;
-  alertas360: number;
   redistribuicoes: number;
   andamentos: number;
-  prazos: number;
-  tarefas: number;
   audiencias: number;
   intimacoes: number;
-  total: number;
+  total: number; // Apenas DJEN + Audiências + Intimações + Redistribuições
   detalhes: {
     djen: any[];
-    distribuicoes: any[];
-    alertas360: any[];
     redistribuicoes: any[];
     andamentos: any[];
     audiencias: any[];
@@ -88,33 +79,9 @@ export function GerarRelatorioPdfDialog({
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
-  const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
-  const { alertas } = useMonitoramento360();
   const { data: redistribuicoesData = [] } = useRedistribuicoes({
     dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
     dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
-  });
-  const { prazosUrgentes } = useNotificacoes();
-
-  // Buscar tarefas
-  const { data: tarefasPendentes = [] } = useQuery({
-    queryKey: ["tarefas-pdf-report", statusFilter],
-    queryFn: async () => {
-      let query = supabase
-        .from("tarefas")
-        .select(`
-          id, titulo, status, data_vencimento, prioridade,
-          processo:processos!tarefas_processo_id_fkey(id, numero, coordenacao_id)
-        `);
-      if (statusFilter !== "todas" && statusFilter !== "concluido") {
-        query = query.eq("status", statusFilter as "pendente" | "cumprido" | "atrasado");
-      } else if (statusFilter === "concluido") {
-        query = query.eq("status", "cumprido");
-      }
-      const { data } = await query;
-      return data || [];
-    },
-    enabled: open,
   });
 
   // Buscar audiências COM TODOS OS CAMPOS NECESSÁRIOS
@@ -199,18 +166,6 @@ export function GerarRelatorioPdfDialog({
         monIds.includes(p.monitoramento_id) && (statusFilter === "todas" || !p.lida)
       );
 
-      // Distribuições
-      const distItems = distribuicoesEncontradas.filter(d => 
-        (d as any).monitoramento?.coordenacao_id === coord.id &&
-        (statusFilter === "todas" || d.status === 'pendente')
-      );
-
-      // Alertas 360
-      const alertasItems = alertas.filter(a => 
-        a.processo?.coordenacao_id === coord.id &&
-        (statusFilter === "todas" || a.status === 'pendente')
-      );
-
       // Redistribuições
       const redistItems = redistribuicoesData.filter(r => r.coordenacao_nome === coord.nome);
 
@@ -229,61 +184,42 @@ export function GerarRelatorioPdfDialog({
         (i.processo as any)?.coordenacao_id === coord.id
       );
 
-      // Prazos
-      const prazosItems = prazosUrgentes.filter(p => p.processo?.coordenacao_id === coord.id);
-
-      // Tarefas
-      const tarefasItems = tarefasPendentes.filter(t => 
-        (t.processo as any)?.coordenacao_id === coord.id
-      );
+      // Total: Apenas alertas principais (DJEN, Audiências, Intimações, Redistribuições)
+      const totalAlertas = djenItems.length + audItems.length + intItems.length + redistItems.length;
 
       return {
         id: coord.id,
         nome: coord.nome,
         djen: djenItems.length,
-        distribuicoes: distItems.length,
-        alertas360: alertasItems.length,
         redistribuicoes: redistItems.length,
         andamentos: andItems.length,
-        prazos: prazosItems.length,
-        tarefas: tarefasItems.length,
         audiencias: audItems.length,
         intimacoes: intItems.length,
-        total: djenItems.length + distItems.length + alertasItems.length + 
-               redistItems.length + andItems.length + prazosItems.length + 
-               tarefasItems.length + audItems.length + intItems.length,
+        total: totalAlertas,
         detalhes: {
-          djen: djenItems.slice(0, 10),
-          distribuicoes: distItems.slice(0, 10),
-          alertas360: alertasItems.slice(0, 10),
-          redistribuicoes: redistItems.slice(0, 10),
-          andamentos: andItems.slice(0, 15),
-          audiencias: audItems.slice(0, 10),
-          intimacoes: intItems.slice(0, 10),
+          djen: djenItems.slice(0, 20),
+          redistribuicoes: redistItems.slice(0, 20),
+          andamentos: andItems.slice(0, 30),
+          audiencias: audItems.slice(0, 20),
+          intimacoes: intItems.slice(0, 20),
         },
       };
-    }).filter(c => c.total > 0);
+    }).filter(c => c.total > 0 || c.andamentos > 0);
   }, [
     coordenacoes, selectedCoordenacoes, selectAll, publicacoes, monitoramentosDjen,
-    distribuicoesEncontradas, alertas, redistribuicoesData, andamentosData,
-    audienciasPendentes, intimacoesPendentes, prazosUrgentes, tarefasPendentes, statusFilter
+    redistribuicoesData, andamentosData, audienciasPendentes, intimacoesPendentes, statusFilter
   ]);
 
   const totalGeral = useMemo(() => {
     return reportData.reduce((acc, c) => ({
       djen: acc.djen + c.djen,
-      distribuicoes: acc.distribuicoes + c.distribuicoes,
-      alertas360: acc.alertas360 + c.alertas360,
       redistribuicoes: acc.redistribuicoes + c.redistribuicoes,
       andamentos: acc.andamentos + c.andamentos,
-      prazos: acc.prazos + c.prazos,
-      tarefas: acc.tarefas + c.tarefas,
       audiencias: acc.audiencias + c.audiencias,
       intimacoes: acc.intimacoes + c.intimacoes,
       total: acc.total + c.total,
     }), {
-      djen: 0, distribuicoes: 0, alertas360: 0, redistribuicoes: 0,
-      andamentos: 0, prazos: 0, tarefas: 0, audiencias: 0, intimacoes: 0, total: 0
+      djen: 0, redistribuicoes: 0, andamentos: 0, audiencias: 0, intimacoes: 0, total: 0
     });
   }, [reportData]);
 
@@ -628,31 +564,29 @@ export function GerarRelatorioPdfDialog({
             </h2>
           </div>
 
-          {/* Totais Gerais */}
+          {/* Totais Gerais - Layout simples */}
           <div style={{ 
             display: "grid", 
             gridTemplateColumns: "repeat(5, 1fr)", 
-            gap: "12px",
-            marginBottom: "32px",
+            gap: "8px",
+            marginBottom: "24px",
           }}>
             {[
-              { label: "DJEN", value: totalGeral.djen, color: "#eab308" },
-              { label: "Andamentos", value: totalGeral.andamentos, color: "#8b5cf6" },
-              { label: "Audiências", value: totalGeral.audiencias, color: "#0ea5e9" },
-              { label: "Redistribuições", value: totalGeral.redistribuicoes, color: "#f97316" },
-              { label: "Intimações", value: totalGeral.intimacoes, color: "#7c3aed" },
+              { label: "DJEN", value: totalGeral.djen },
+              { label: "Andamentos", value: totalGeral.andamentos },
+              { label: "Audiências", value: totalGeral.audiencias },
+              { label: "Redistribuições", value: totalGeral.redistribuicoes },
+              { label: "Intimações", value: totalGeral.intimacoes },
             ].map(item => (
               <div key={item.label} style={{
-                background: "#f8fafc",
-                border: `2px solid ${item.color}`,
-                borderRadius: "8px",
-                padding: "16px",
+                border: "1px solid #e5e7eb",
+                padding: "12px",
                 textAlign: "center",
               }}>
-                <div style={{ fontSize: "28px", fontWeight: "bold", color: item.color }}>
+                <div style={{ fontSize: "24px", fontWeight: "bold", color: "#1a1a2e" }}>
                   {item.value}
                 </div>
-                <div style={{ fontSize: "10px", color: "#64748b", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "9px", color: "#64748b", textTransform: "uppercase" }}>
                   {item.label}
                 </div>
               </div>
@@ -660,31 +594,31 @@ export function GerarRelatorioPdfDialog({
           </div>
 
           {/* Tabela de Coordenações */}
-          <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "16px" }}>
+          <h3 style={{ fontSize: "14px", fontWeight: "600", marginBottom: "12px" }}>
             Visão por Coordenação
           </h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
             <thead>
               <tr style={{ background: "#1a1a2e", color: "white" }}>
-                <th style={{ padding: "10px", textAlign: "left" }}>Coordenação</th>
-                <th style={{ padding: "10px", textAlign: "center" }}>DJEN</th>
-                <th style={{ padding: "10px", textAlign: "center" }}>Andamentos</th>
-                <th style={{ padding: "10px", textAlign: "center" }}>Audiências</th>
-                <th style={{ padding: "10px", textAlign: "center" }}>Redistribuições</th>
-                <th style={{ padding: "10px", textAlign: "center" }}>Intimações</th>
-                <th style={{ padding: "10px", textAlign: "center", background: "#eab308", color: "#1a1a2e" }}>Total</th>
+                <th style={{ padding: "8px", textAlign: "left", border: "1px solid #1a1a2e" }}>Coordenação</th>
+                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>DJEN</th>
+                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Andamentos</th>
+                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Audiências</th>
+                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Redistribuições</th>
+                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Intimações</th>
+                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e", fontWeight: "bold" }}>Total Alertas</th>
               </tr>
             </thead>
             <tbody>
               {reportData.map((coord, idx) => (
                 <tr key={coord.id} style={{ background: idx % 2 === 0 ? "#f8fafc" : "white" }}>
-                  <td style={{ padding: "10px", fontWeight: "500" }}>{coord.nome}</td>
-                  <td style={{ padding: "10px", textAlign: "center" }}>{coord.djen}</td>
-                  <td style={{ padding: "10px", textAlign: "center" }}>{coord.andamentos}</td>
-                  <td style={{ padding: "10px", textAlign: "center" }}>{coord.audiencias}</td>
-                  <td style={{ padding: "10px", textAlign: "center" }}>{coord.redistribuicoes}</td>
-                  <td style={{ padding: "10px", textAlign: "center" }}>{coord.intimacoes}</td>
-                  <td style={{ padding: "10px", textAlign: "center", fontWeight: "bold", color: "#eab308" }}>
+                  <td style={{ padding: "8px", fontWeight: "500", border: "1px solid #e5e7eb" }}>{coord.nome}</td>
+                  <td style={{ padding: "8px", textAlign: "center", border: "1px solid #e5e7eb" }}>{coord.djen}</td>
+                  <td style={{ padding: "8px", textAlign: "center", border: "1px solid #e5e7eb" }}>{coord.andamentos}</td>
+                  <td style={{ padding: "8px", textAlign: "center", border: "1px solid #e5e7eb" }}>{coord.audiencias}</td>
+                  <td style={{ padding: "8px", textAlign: "center", border: "1px solid #e5e7eb" }}>{coord.redistribuicoes}</td>
+                  <td style={{ padding: "8px", textAlign: "center", border: "1px solid #e5e7eb" }}>{coord.intimacoes}</td>
+                  <td style={{ padding: "8px", textAlign: "center", fontWeight: "bold", border: "1px solid #e5e7eb" }}>
                     {coord.total}
                   </td>
                 </tr>
@@ -692,13 +626,13 @@ export function GerarRelatorioPdfDialog({
             </tbody>
             <tfoot>
               <tr style={{ background: "#1a1a2e", color: "white", fontWeight: "bold" }}>
-                <td style={{ padding: "10px" }}>TOTAL GERAL</td>
-                <td style={{ padding: "10px", textAlign: "center" }}>{totalGeral.djen}</td>
-                <td style={{ padding: "10px", textAlign: "center" }}>{totalGeral.andamentos}</td>
-                <td style={{ padding: "10px", textAlign: "center" }}>{totalGeral.audiencias}</td>
-                <td style={{ padding: "10px", textAlign: "center" }}>{totalGeral.redistribuicoes}</td>
-                <td style={{ padding: "10px", textAlign: "center" }}>{totalGeral.intimacoes}</td>
-                <td style={{ padding: "10px", textAlign: "center", background: "#eab308", color: "#1a1a2e" }}>
+                <td style={{ padding: "8px", border: "1px solid #1a1a2e" }}>TOTAL GERAL</td>
+                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.djen}</td>
+                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.andamentos}</td>
+                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.audiencias}</td>
+                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.redistribuicoes}</td>
+                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.intimacoes}</td>
+                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>
                   {totalGeral.total}
                 </td>
               </tr>
@@ -709,306 +643,209 @@ export function GerarRelatorioPdfDialog({
         {/* Detalhamento por Coordenação */}
         {reportData.map(coord => (
           <div key={coord.id} data-pdf-page={`coord-${coord.id}`} style={{ 
-            padding: "30px", 
+            padding: "24px", 
             fontFamily: "Arial, sans-serif",
             background: "white",
             pageBreakBefore: "always",
           }}>
             <div style={{ 
-              borderBottom: "3px solid #eab308", 
-              paddingBottom: "12px", 
-              marginBottom: "20px",
+              borderBottom: "2px solid #1a1a2e", 
+              paddingBottom: "8px", 
+              marginBottom: "16px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
             }}>
-              <h2 style={{ fontSize: "20px", fontWeight: "bold", color: "#1a1a2e", margin: 0 }}>
+              <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#1a1a2e", margin: 0 }}>
                 {coord.nome}
               </h2>
-              <div style={{ 
-                background: "#eab308", 
-                color: "#1a1a2e", 
-                padding: "6px 16px", 
-                borderRadius: "20px",
-                fontSize: "14px",
-                fontWeight: "bold",
-              }}>
-                {coord.total} alertas
-              </div>
+              <span style={{ fontSize: "12px", color: "#64748b" }}>
+                {coord.total} alertas | {coord.andamentos} andamentos
+              </span>
             </div>
 
-            {/* Cards de estatísticas */}
-            <div style={{ 
-              display: "grid", 
-              gridTemplateColumns: "repeat(4, 1fr)", 
-              gap: "10px",
-              marginBottom: "24px",
-            }}>
-              {[
-                { label: "DJEN", value: coord.djen, color: "#eab308" },
-                { label: "Andamentos", value: coord.andamentos, color: "#8b5cf6" },
-                { label: "Audiências", value: coord.audiencias, color: "#0ea5e9" },
-                { label: "Redistribuições", value: coord.redistribuicoes, color: "#f97316" },
-              ].filter(i => i.value > 0).map(item => (
-                <div key={item.label} style={{
-                  background: "#f8fafc",
-                  borderLeft: `4px solid ${item.color}`,
-                  padding: "12px",
-                }}>
-                  <div style={{ fontSize: "24px", fontWeight: "bold", color: item.color }}>
-                    {item.value}
-                  </div>
-                  <div style={{ fontSize: "10px", color: "#64748b" }}>{item.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* ============ DJEN - Com número do processo extraído ============ */}
+            {/* ============ DJEN ============ */}
             {coord.detalhes.djen.length > 0 && (
-              <div style={{ marginBottom: "20px" }}>
-                <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#eab308", marginBottom: "8px" }}>
-                  📰 Publicações DJEN ({coord.djen})
+              <div style={{ marginBottom: "16px" }}>
+                <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
+                  Publicações DJEN ({coord.djen})
                 </h4>
-                <div style={{ fontSize: "10px", color: "#333" }}>
-                  {coord.detalhes.djen.map((p: any, i: number) => {
-                    // Priorizar processo_numero, senão extrair do conteúdo
-                    const processoNumero = p.processo_numero || extractProcessoNumero(p.conteudo) || "Número não identificado";
-                    return (
-                      <div key={i} style={{ 
-                        padding: "8px", 
-                        borderBottom: "1px solid #e5e7eb",
-                        background: i % 2 === 0 ? "#fafafa" : "white",
-                      }}>
-                        <div style={{ fontWeight: "600", color: "#1a1a2e", marginBottom: "4px" }}>
-                          {processoNumero}
-                        </div>
-                        <div style={{ color: "#64748b", lineHeight: "1.4" }}>
-                          {(p.conteudo || "Sem conteúdo").substring(0, 200)}...
-                        </div>
-                        {p.data_publicacao && (
-                          <div style={{ marginTop: "4px", color: "#94a3b8", fontSize: "9px" }}>
-                            Publicado em: {formatDate(p.data_publicacao)} | Fonte: {p.fonte || "-"}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {coord.djen > 10 && (
-                    <div style={{ fontStyle: "italic", marginTop: "8px", color: "#64748b" }}>
-                      ... e mais {coord.djen - 10} publicações
-                    </div>
-                  )}
-                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9" }}>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Conteúdo</th>
+                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb", width: "80px" }}>Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coord.detalhes.djen.map((p: any, i: number) => {
+                      const processoNumero = p.processo_numero || extractProcessoNumero(p.conteudo) || "Não identificado";
+                      return (
+                        <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
+                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>{processoNumero}</td>
+                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b", lineHeight: "1.4" }}>
+                            {(p.conteudo || "Sem conteúdo").substring(0, 300)}...
+                          </td>
+                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", color: "#64748b" }}>
+                            {formatDate(p.data_publicacao)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {coord.djen > 20 && (
+                  <div style={{ fontStyle: "italic", marginTop: "4px", color: "#64748b", fontSize: "9px" }}>
+                    ... e mais {coord.djen - 20} publicações
+                  </div>
+                )}
               </div>
             )}
 
-            {/* ============ ANDAMENTOS - Descrição COMPLETA ============ */}
-            {coord.detalhes.andamentos.length > 0 && (
-              <div style={{ marginBottom: "20px" }}>
-                <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#8b5cf6", marginBottom: "8px" }}>
-                  📋 Andamentos ({coord.andamentos})
-                </h4>
-                <div style={{ fontSize: "10px", color: "#333" }}>
-                  {coord.detalhes.andamentos.map((a: any, i: number) => (
-                    <div key={i} style={{ 
-                      padding: "8px", 
-                      borderBottom: "1px solid #e5e7eb",
-                      background: i % 2 === 0 ? "#fafafa" : "white",
-                    }}>
-                      <div style={{ fontWeight: "600", color: "#1a1a2e", marginBottom: "4px" }}>
-                        {(a.processo as any)?.numero || "Processo não identificado"}
-                      </div>
-                      {/* DESCRIÇÃO COMPLETA - Sem corte */}
-                      <div style={{ color: "#374151", lineHeight: "1.5", whiteSpace: "pre-wrap" }}>
-                        {a.descricao || "Sem descrição"}
-                      </div>
-                      <div style={{ marginTop: "4px", color: "#94a3b8", fontSize: "9px" }}>
-                        Data: {formatDate(a.data_movimentacao)} | Tipo: {a.tipo || "-"}
-                      </div>
-                    </div>
-                  ))}
-                  {coord.andamentos > 15 && (
-                    <div style={{ fontStyle: "italic", marginTop: "8px", color: "#64748b" }}>
-                      ... e mais {coord.andamentos - 15} andamentos
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ============ AUDIÊNCIAS - Com TODOS os detalhes ============ */}
+            {/* ============ AUDIÊNCIAS ============ */}
             {coord.detalhes.audiencias.length > 0 && (
-              <div style={{ marginBottom: "20px" }}>
-                <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#0ea5e9", marginBottom: "8px" }}>
-                  📅 Audiências ({coord.audiencias})
+              <div style={{ marginBottom: "16px" }}>
+                <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
+                  Audiências ({coord.audiencias})
                 </h4>
-                <div style={{ fontSize: "10px", color: "#333" }}>
-                  {coord.detalhes.audiencias.map((a: any, i: number) => {
-                    const hora = a.hora_brasilia || a.hora;
-                    const local = [a.local_audiencia, a.vara_camara, a.comarca].filter(Boolean).join(" - ");
-                    const parte = a.cliente || a.polo_ativo;
-                    return (
-                      <div key={i} style={{ 
-                        padding: "10px", 
-                        borderBottom: "1px solid #e5e7eb",
-                        background: i % 2 === 0 ? "#f0f9ff" : "white",
-                      }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                          <span style={{ fontWeight: "600", color: "#1a1a2e" }}>
-                            {a.processo_numero}
-                          </span>
-                          <span style={{ 
-                            background: a.tipo_audiencia ? "#0ea5e9" : "#94a3b8", 
-                            color: "white", 
-                            padding: "2px 8px", 
-                            borderRadius: "10px",
-                            fontSize: "9px",
-                          }}>
-                            {a.tipo_audiencia || "Audiência"}
-                          </span>
-                        </div>
-                        
-                        {/* Data e Hora */}
-                        <div style={{ color: "#0369a1", fontWeight: "500", marginBottom: "4px" }}>
-                          🗓️ {formatDate(a.data_audiencia)} {hora ? `às ${hora}` : ""}
-                        </div>
-                        
-                        {/* Local */}
-                        {local && (
-                          <div style={{ color: "#64748b", marginBottom: "2px" }}>
-                            📍 {local}
-                          </div>
-                        )}
-                        
-                        {/* Cliente/Parte */}
-                        {parte && (
-                          <div style={{ color: "#64748b", marginBottom: "2px" }}>
-                            👤 Parte: {parte}
-                          </div>
-                        )}
-                        
-                        {/* Advogado */}
-                        {a.advogado && (
-                          <div style={{ color: "#64748b" }}>
-                            ⚖️ Advogado: {a.advogado}
-                          </div>
-                        )}
-                        
-                        {/* Status */}
-                        <div style={{ marginTop: "4px" }}>
-                          <span style={{
-                            background: a.status === "pendente" ? "#fef3c7" : "#d1fae5",
-                            color: a.status === "pendente" ? "#92400e" : "#065f46",
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                            fontSize: "9px",
-                          }}>
-                            {a.status === "pendente" ? "Pendente" : a.status === "tratado" ? "Tratado" : a.status}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9" }}>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Tipo</th>
+                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data/Hora</th>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Local</th>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Parte</th>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Advogado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coord.detalhes.audiencias.map((a: any, i: number) => {
+                      const hora = a.hora_brasilia || a.hora || "";
+                      const local = [a.local_audiencia, a.vara_camara, a.comarca].filter(Boolean).join(" - ") || "-";
+                      const parte = a.cliente || a.polo_ativo || "-";
+                      return (
+                        <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
+                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>{a.processo_numero}</td>
+                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center" }}>{a.tipo_audiencia || "-"}</td>
+                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", whiteSpace: "nowrap" }}>
+                            {formatDate(a.data_audiencia)} {hora ? `${hora}` : ""}
+                          </td>
+                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{local}</td>
+                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{parte}</td>
+                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{a.advogado || "-"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
 
-            {/* ============ REDISTRIBUIÇÕES - Com LOCAL (Vara origem → destino) ============ */}
-            {coord.detalhes.redistribuicoes.length > 0 && (
-              <div style={{ marginBottom: "20px" }}>
-                <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#f97316", marginBottom: "8px" }}>
-                  🔄 Redistribuições ({coord.redistribuicoes})
-                </h4>
-                <div style={{ fontSize: "10px", color: "#333" }}>
-                  {coord.detalhes.redistribuicoes.map((r: any, i: number) => (
-                    <div key={i} style={{ 
-                      padding: "10px", 
-                      borderBottom: "1px solid #e5e7eb",
-                      background: i % 2 === 0 ? "#fff7ed" : "white",
-                    }}>
-                      <div style={{ fontWeight: "600", color: "#1a1a2e", marginBottom: "6px" }}>
-                        {r.processo_numero}
-                      </div>
-                      
-                      {/* Vara origem → destino */}
-                      <div style={{ 
-                        display: "flex", 
-                        alignItems: "center", 
-                        gap: "8px",
-                        background: "#fef3c7",
-                        padding: "8px 12px",
-                        borderRadius: "6px",
-                        marginBottom: "6px",
-                      }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: "9px", color: "#92400e", marginBottom: "2px" }}>ORIGEM</div>
-                          <div style={{ fontWeight: "500", color: "#78350f" }}>{r.vara_antiga || "Não informada"}</div>
-                        </div>
-                        <div style={{ fontSize: "16px", color: "#f97316" }}>→</div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: "9px", color: "#065f46", marginBottom: "2px" }}>DESTINO</div>
-                          <div style={{ fontWeight: "500", color: "#064e3b" }}>{r.vara_nova || "Não informada"}</div>
-                        </div>
-                      </div>
-                      
-                      {/* Advogado responsável */}
-                      {r.advogado_nome && (
-                        <div style={{ color: "#64748b", fontSize: "9px" }}>
-                          ⚖️ Responsável: {r.advogado_nome}
-                        </div>
-                      )}
-                      
-                      {/* Data */}
-                      <div style={{ color: "#94a3b8", fontSize: "9px", marginTop: "4px" }}>
-                        Data: {formatDate(r.data_redistribuicao)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Intimações */}
+            {/* ============ INTIMAÇÕES ============ */}
             {coord.detalhes.intimacoes.length > 0 && (
-              <div style={{ marginBottom: "20px" }}>
-                <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#7c3aed", marginBottom: "8px" }}>
-                  ⚠️ Intimações ({coord.intimacoes})
+              <div style={{ marginBottom: "16px" }}>
+                <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
+                  Intimações ({coord.intimacoes})
                 </h4>
-                <div style={{ fontSize: "10px", color: "#333" }}>
-                  {coord.detalhes.intimacoes.map((int: any, i: number) => (
-                    <div key={i} style={{ 
-                      padding: "8px", 
-                      borderBottom: "1px solid #e5e7eb",
-                      background: i % 2 === 0 ? "#faf5ff" : "white",
-                    }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                        <span style={{ fontWeight: "600", color: "#1a1a2e" }}>
-                          {int.processo_numero}
-                        </span>
-                        {int.tipo_intimacao && (
-                          <span style={{ 
-                            background: "#7c3aed", 
-                            color: "white", 
-                            padding: "2px 8px", 
-                            borderRadius: "10px",
-                            fontSize: "9px",
-                          }}>
-                            {int.tipo_intimacao}
-                          </span>
-                        )}
-                      </div>
-                      {int.descricao && (
-                        <div style={{ color: "#64748b", marginBottom: "4px", lineHeight: "1.4" }}>
-                          {int.descricao}
-                        </div>
-                      )}
-                      <div style={{ color: "#94a3b8", fontSize: "9px" }}>
-                        Data: {formatDate(int.data_intimacao)}
-                        {int.data_limite && ` | Prazo: ${formatDate(int.data_limite)}`}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9" }}>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Tipo</th>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Descrição</th>
+                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data</th>
+                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Prazo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coord.detalhes.intimacoes.map((int: any, i: number) => (
+                      <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>{int.processo_numero}</td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center" }}>{int.tipo_intimacao || "-"}</td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b", lineHeight: "1.4" }}>
+                          {int.descricao || "-"}
+                        </td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center" }}>{formatDate(int.data_intimacao)}</td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", fontWeight: "500" }}>
+                          {int.data_limite ? formatDate(int.data_limite) : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* ============ REDISTRIBUIÇÕES ============ */}
+            {coord.detalhes.redistribuicoes.length > 0 && (
+              <div style={{ marginBottom: "16px" }}>
+                <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
+                  Redistribuições ({coord.redistribuicoes})
+                </h4>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9" }}>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Vara Origem</th>
+                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb", width: "30px" }}></th>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Vara Destino</th>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Responsável</th>
+                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coord.detalhes.redistribuicoes.map((r: any, i: number) => (
+                      <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>{r.processo_numero}</td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{r.vara_antiga || "-"}</td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", fontWeight: "bold" }}>→</td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{r.vara_nova || "-"}</td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{r.advogado_nome || "-"}</td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center" }}>{formatDate(r.data_redistribuicao)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* ============ ANDAMENTOS ============ */}
+            {coord.detalhes.andamentos.length > 0 && (
+              <div style={{ marginBottom: "16px" }}>
+                <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
+                  Andamentos ({coord.andamentos})
+                </h4>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9" }}>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb", width: "140px" }}>Processo</th>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Descrição</th>
+                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb", width: "80px" }}>Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coord.detalhes.andamentos.map((a: any, i: number) => (
+                      <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>
+                          {(a.processo as any)?.numero || "-"}
+                        </td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#374151", lineHeight: "1.4" }}>
+                          {a.descricao || "Sem descrição"}
+                        </td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", color: "#64748b" }}>
+                          {formatDate(a.data_movimentacao)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {coord.andamentos > 30 && (
+                  <div style={{ fontStyle: "italic", marginTop: "4px", color: "#64748b", fontSize: "9px" }}>
+                    ... e mais {coord.andamentos - 30} andamentos
+                  </div>
+                )}
               </div>
             )}
           </div>
