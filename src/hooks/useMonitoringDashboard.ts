@@ -299,8 +299,15 @@ export function useMonitoringDashboard() {
     const metaStatus = metadata?.status as string | undefined;
     const metaCancelado = metadata?.cancelado === true;
     const metaPausedGlobally = metadata?.paused_globally === true;
+    
+    // CORREÇÃO CRÍTICA: Para DJEN, verificar se a última execução já foi finalizada
+    // O metadata pode ficar com status='em_andamento' mesmo após finalizar
+    const lastExec = typeExecutions[0]; // Execução mais recente
+    const execJaFinalizada = lastExec?.finalizado_em !== null && lastExec?.finalizado_em !== undefined;
+    
     // Só considera running se status for EXATAMENTE 'em_andamento' e não cancelado/pausado
-    const metaIsRunning = metaStatus === 'em_andamento' && !metaCancelado && !metaPausedGlobally;
+    // E se a execução correspondente ainda não foi finalizada
+    const metaIsRunning = metaStatus === 'em_andamento' && !metaCancelado && !metaPausedGlobally && !execJaFinalizada;
 
     // Determine status
     let status: MonitoringStatus = 'idle';
