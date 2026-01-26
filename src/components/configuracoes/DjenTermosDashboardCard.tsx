@@ -155,13 +155,13 @@ export function DjenTermosDashboardCard({
   const backendRunning = md.status === 'em_andamento' && !md.cancelado;
   const backendTotal = md.total ?? 0;
   const backendCurrent = md.current ?? 0;
+  const backendHasProgress = backendTotal > 0 && backendCurrent > 0;
   
-  // Usar dados do backend quando a execução é server-side, senão usar client-side
-  const effectiveTotal = backendRunning && backendTotal > 0 
-    ? backendTotal 
-    : progresso.totalMonitoramentos;
-  const effectiveCurrent = backendRunning 
-    ? backendCurrent 
+  // Evitar regressão visual: se o backend já tem números, preferir (mesmo após concluir/falhar)
+  // e nunca voltar para um valor menor que o já mostrado localmente.
+  const effectiveTotal = backendHasProgress ? backendTotal : progresso.totalMonitoramentos;
+  const effectiveCurrent = backendHasProgress
+    ? Math.max(backendCurrent, progresso.monitoramentoAtual)
     : progresso.monitoramentoAtual;
   
   const percent = useMemo(() => {
@@ -237,12 +237,21 @@ export function DjenTermosDashboardCard({
   const processados = effectiveCurrent;
   const total = effectiveTotal;
   // todayStats.found/descartadas vem de queries diretas ao banco - mais confiável
-  const encontrados = stats.todayStats.found ?? md.djen_run?.totals?.novas ?? 0;
-  const descartadas = stats.todayStats.descartadas ?? md.djen_run?.totals?.descartadas ?? 0;
+  // mas se o polling ainda não refletiu no contador, não zerar (usar o maior valor disponível)
+  const encontrados = Math.max(
+    stats.todayStats.found ?? 0,
+    md.djen_run?.totals?.novas ?? 0,
+    md.novas ?? 0
+  );
+  const descartadas = Math.max(
+    stats.todayStats.descartadas ?? 0,
+    md.djen_run?.totals?.descartadas ?? 0,
+    md.descartadas ?? 0
+  );
 
   // Tempo - usar do backend quando running server-side
   const backendDuration = md.djen_run?.totals?.duracao_s ?? 0;
-  const tempoSegundos = backendRunning && backendDuration > 0
+  const tempoSegundos = backendDuration > 0
     ? backendDuration
     : (progresso.tempoDecorrido ?? 0);
   const tempoFormatado = tempoSegundos > 0 
