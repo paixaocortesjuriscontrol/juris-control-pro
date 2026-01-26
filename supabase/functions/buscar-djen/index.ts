@@ -229,7 +229,6 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     teor: typeof item.teor === "string" ? item.teor : undefined,
   });
 
-  // Prefer the endpoints that actually return JSON fast.
   const endpoints = [`${PJE_COMUNICA_API}/comunicacao`, `${PJE_COMUNICA_API}/comunicacoes`];
 
   console.log(
@@ -240,11 +239,14 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     "pageSize:",
     pageSize,
     "fetchAll:",
-    !!params.fetchAll
+    !!params.fetchAll,
+    "useJina:",
+    !!jinaApiKey
   );
 
   let lastError: any = null;
 
+  // ESTRATÉGIA: Jina primeiro (distribui IPs), API direta como fallback
   const fetchPage = async (endpoint: string, pageNumber: number) => {
     const qp = new URLSearchParams(baseParams);
     qp.set("pagina", String(pageNumber));
@@ -255,6 +257,18 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     const fullUrl = `${endpoint}?${qp.toString()}`;
     console.log(`Trying endpoint (page ${pageNumber}):`, fullUrl);
 
+    // PRIORIDADE 1: Usar Jina como proxy (evita rate limit do IP do Supabase)
+    if (jinaApiKey) {
+      console.log("Using Jina proxy for distributed requests...");
+      const jinaData = await fetchJsonViaJina(fullUrl, jinaApiKey);
+      if (jinaData) {
+        console.log("Jina proxy success!");
+        return { data: jinaData, ok: true };
+      }
+      console.log("Jina proxy failed, falling back to direct API...");
+    }
+
+    // FALLBACK: Requisição direta (pode sofrer rate limit)
     const response = await fetchWithRetry(fullUrl, {
       method: "GET",
       headers: browserHeaders,
@@ -265,14 +279,9 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
 
     let data: any | null = null;
 
-    // If blocked (HTML), try proxy via Jina to fetch the same API URL
-    if (contentType.includes("text/html") && jinaApiKey) {
-      console.log("Got HTML response (blocked). Trying Jina proxy...");
-      data = await fetchJsonViaJina(fullUrl, jinaApiKey);
-      if (!data) {
-        console.log("Jina proxy did not return JSON");
-        throw new Error("Blocked (HTML)");
-      }
+    if (contentType.includes("text/html")) {
+      console.log("Got HTML response (blocked)");
+      throw new Error("Blocked (HTML)");
     } else if (response.ok) {
       data = await response.json();
     } else if (response.status === 422) {
