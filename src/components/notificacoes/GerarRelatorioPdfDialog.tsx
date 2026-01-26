@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, parseISO, startOfDay, isBefore, isAfter } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -47,7 +47,7 @@ interface CoordenacaoReportData {
   andamentos: number;
   audiencias: number;
   intimacoes: number;
-  total: number; // Apenas DJEN + Audiências + Intimações + Redistribuições
+  total: number; // DJEN + Redistribuições + Andamentos + Audiências + Intimações (igual Dashboard)
   detalhes: {
     djen: any[];
     redistribuicoes: any[];
@@ -84,9 +84,26 @@ export function GerarRelatorioPdfDialog({
     dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
   });
 
+  // Helper para filtrar por período - IGUAL ao Dashboard
+  const matchesPeriodo = useMemo(() => {
+    return (dateStr: string | null | undefined) => {
+      if (!dateStr) return true;
+      if (!periodoInicio && !periodoFim) return true;
+      
+      try {
+        const date = startOfDay(parseISO(dateStr));
+        if (periodoInicio && isBefore(date, startOfDay(periodoInicio))) return false;
+        if (periodoFim && isAfter(date, startOfDay(periodoFim))) return false;
+        return true;
+      } catch {
+        return true;
+      }
+    };
+  }, [periodoInicio, periodoFim]);
+
   // Buscar audiências COM TODOS OS CAMPOS NECESSÁRIOS
   const { data: audienciasPendentes = [] } = useQuery({
-    queryKey: ["audiencias-pdf-report", statusFilter],
+    queryKey: ["audiencias-pdf-report", statusFilter, periodoInicio, periodoFim],
     queryFn: async () => {
       let query = supabase
         .from("audiencias_detectadas")
@@ -106,7 +123,7 @@ export function GerarRelatorioPdfDialog({
 
   // Buscar intimações
   const { data: intimacoesPendentes = [] } = useQuery({
-    queryKey: ["intimacoes-pdf-report", statusFilter],
+    queryKey: ["intimacoes-pdf-report", statusFilter, periodoInicio, periodoFim],
     queryFn: async () => {
       let query = supabase
         .from("intimacoes_detectadas")
@@ -123,7 +140,7 @@ export function GerarRelatorioPdfDialog({
     enabled: open,
   });
 
-  // Buscar andamentos COM DESCRIÇÃO COMPLETA
+  // Buscar andamentos COM DESCRIÇÃO COMPLETA - aplicando filtro de período
   const { data: andamentosData = [] } = useQuery({
     queryKey: ["andamentos-pdf-report", periodoInicio, periodoFim],
     queryFn: async () => {
@@ -151,41 +168,72 @@ export function GerarRelatorioPdfDialog({
     enabled: open,
   });
 
-  // Calcular dados do relatório
+  // Calcular dados do relatório - USANDO MESMA LÓGICA DO DASHBOARD
   const reportData = useMemo<CoordenacaoReportData[]>(() => {
     const coordsToInclude = selectAll 
       ? coordenacoes 
       : coordenacoes.filter(c => selectedCoordenacoes.includes(c.id));
 
+    // DJEN - Aplicar filtro de status E período (usando created_at como no Dashboard)
+    const publicacoesFiltradas = publicacoes.filter(p => {
+      if (statusFilter !== "todas" && p.lida) return false;
+      if (!matchesPeriodo(p.created_at)) return false;
+      return true;
+    });
+
+    // Redistribuições - já vem filtrado do hook, mas aplicar período também
+    const redistribuicoesFiltradas = redistribuicoesData.filter(r => {
+      if (!matchesPeriodo(r.data_redistribuicao)) return false;
+      return true;
+    });
+
+    // Audiências - aplicar filtro de período
+    const audienciasFiltradas = audienciasPendentes.filter(a => {
+      if (!matchesPeriodo((a as any).data_audiencia)) return false;
+      return true;
+    });
+
+    // Intimações - aplicar filtro de período
+    const intimacoesFiltradas = intimacoesPendentes.filter(i => {
+      if (!matchesPeriodo((i as any).data_intimacao)) return false;
+      return true;
+    });
+
+    // Andamentos - aplicar filtro de período (usando created_at)
+    const andamentosFiltrados = andamentosData.filter(a => {
+      if (!matchesPeriodo((a as any).created_at)) return false;
+      return true;
+    });
+
     return coordsToInclude.map(coord => {
-      // DJEN
+      // DJEN: via monitoramento (igual Dashboard)
       const monIds = monitoramentosDjen
         .filter(m => m.coordenacao_id === coord.id)
         .map(m => m.id);
-      const djenItems = publicacoes.filter(p => 
-        monIds.includes(p.monitoramento_id) && (statusFilter === "todas" || !p.lida)
-      );
+      const djenItems = publicacoesFiltradas.filter(p => monIds.includes(p.monitoramento_id));
 
-      // Redistribuições
-      const redistItems = redistribuicoesData.filter(r => r.coordenacao_nome === coord.nome);
+      // Redistribuições: por nome da coordenação (igual Dashboard)
+      const redistItems = redistribuicoesFiltradas.filter(r => r.coordenacao_nome === coord.nome);
 
-      // Andamentos
-      const andItems = andamentosData.filter(a => 
+      // Andamentos: por coordenacao_id do processo
+      const andItems = andamentosFiltrados.filter(a => 
         (a.processo as any)?.coordenacao_id === coord.id
       );
 
-      // Audiências
-      const audItems = audienciasPendentes.filter(a => 
+      // Audiências: por coordenacao_id do processo
+      const audItems = audienciasFiltradas.filter(a => 
         (a.processo as any)?.coordenacao_id === coord.id
       );
 
-      // Intimações
-      const intItems = intimacoesPendentes.filter(i => 
+      // Intimações: por coordenacao_id do processo
+      const intItems = intimacoesFiltradas.filter(i => 
         (i.processo as any)?.coordenacao_id === coord.id
       );
 
-      // Total: Apenas alertas principais (DJEN, Audiências, Intimações, Redistribuições)
-      const totalAlertas = djenItems.length + audItems.length + intItems.length + redistItems.length;
+      // Total: IGUAL AO DASHBOARD - soma tudo
+      // Dashboard usa: djen + distribuicoes + alertas360 + redistribuicoes + andamentos + prazos + tarefas + audiencias + intimacoes
+      // PDF simplificado: djen + redistribuicoes + andamentos + audiencias + intimacoes
+      const totalAlertas = djenItems.length + redistItems.length + andItems.length + audItems.length + intItems.length;
 
       return {
         id: coord.id,
@@ -197,17 +245,18 @@ export function GerarRelatorioPdfDialog({
         intimacoes: intItems.length,
         total: totalAlertas,
         detalhes: {
-          djen: djenItems.slice(0, 20),
-          redistribuicoes: redistItems.slice(0, 20),
-          andamentos: andItems.slice(0, 30),
-          audiencias: audItems.slice(0, 20),
-          intimacoes: intItems.slice(0, 20),
+          djen: djenItems.slice(0, 50),
+          redistribuicoes: redistItems.slice(0, 50),
+          andamentos: andItems.slice(0, 100),
+          audiencias: audItems.slice(0, 50),
+          intimacoes: intItems.slice(0, 50),
         },
       };
-    }).filter(c => c.total > 0 || c.andamentos > 0);
+    }).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
   }, [
     coordenacoes, selectedCoordenacoes, selectAll, publicacoes, monitoramentosDjen,
-    redistribuicoesData, andamentosData, audienciasPendentes, intimacoesPendentes, statusFilter
+    redistribuicoesData, andamentosData, audienciasPendentes, intimacoesPendentes, 
+    statusFilter, matchesPeriodo
   ]);
 
   const totalGeral = useMemo(() => {
@@ -606,7 +655,7 @@ export function GerarRelatorioPdfDialog({
                 <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Audiências</th>
                 <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Redistribuições</th>
                 <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Intimações</th>
-                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e", fontWeight: "bold" }}>Total Alertas</th>
+                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e", fontWeight: "bold" }}>Total</th>
               </tr>
             </thead>
             <tbody>
@@ -660,7 +709,7 @@ export function GerarRelatorioPdfDialog({
                 {coord.nome}
               </h2>
               <span style={{ fontSize: "12px", color: "#64748b" }}>
-                {coord.total} alertas | {coord.andamentos} andamentos
+                Total: {coord.total} alertas
               </span>
             </div>
 
@@ -688,16 +737,16 @@ export function GerarRelatorioPdfDialog({
                             {(p.conteudo || "Sem conteúdo").substring(0, 300)}...
                           </td>
                           <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", color: "#64748b" }}>
-                            {formatDate(p.data_publicacao)}
+                            {formatDate(p.data_publicacao || p.created_at)}
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
-                {coord.djen > 20 && (
+                {coord.djen > coord.detalhes.djen.length && (
                   <div style={{ fontStyle: "italic", marginTop: "4px", color: "#64748b", fontSize: "9px" }}>
-                    ... e mais {coord.djen - 20} publicações
+                    ... e mais {coord.djen - coord.detalhes.djen.length} publicações
                   </div>
                 )}
               </div>
@@ -820,7 +869,7 @@ export function GerarRelatorioPdfDialog({
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
                   <thead>
                     <tr style={{ background: "#f1f5f9" }}>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb", width: "140px" }}>Processo</th>
+                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb", width: "160px" }}>Processo</th>
                       <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Descrição</th>
                       <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb", width: "80px" }}>Data</th>
                     </tr>
@@ -828,10 +877,8 @@ export function GerarRelatorioPdfDialog({
                   <tbody>
                     {coord.detalhes.andamentos.map((a: any, i: number) => (
                       <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>
-                          {(a.processo as any)?.numero || "-"}
-                        </td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#374151", lineHeight: "1.4" }}>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500" }}>{(a.processo as any)?.numero || "-"}</td>
+                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#374151", lineHeight: "1.5", whiteSpace: "pre-wrap" }}>
                           {a.descricao || "Sem descrição"}
                         </td>
                         <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", color: "#64748b" }}>
@@ -841,9 +888,9 @@ export function GerarRelatorioPdfDialog({
                     ))}
                   </tbody>
                 </table>
-                {coord.andamentos > 30 && (
+                {coord.andamentos > coord.detalhes.andamentos.length && (
                   <div style={{ fontStyle: "italic", marginTop: "4px", color: "#64748b", fontSize: "9px" }}>
-                    ... e mais {coord.andamentos - 30} andamentos
+                    ... e mais {coord.andamentos - coord.detalhes.andamentos.length} andamentos
                   </div>
                 )}
               </div>
@@ -852,22 +899,25 @@ export function GerarRelatorioPdfDialog({
         ))}
 
         {/* Rodapé */}
-        <div data-pdf-page="footer" style={{ 
-          padding: "30px", 
+        <div data-pdf-page="footer" style={{
+          padding: "24px",
           fontFamily: "Arial, sans-serif",
           background: "#1a1a2e",
           color: "white",
           textAlign: "center",
-          minHeight: "100px",
+          minHeight: "60mm",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
         }}>
-          <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "4px" }}>
+          <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "8px" }}>
             Juris Control | Paixão Cortes Advogados
           </div>
           <div style={{ fontSize: "11px", opacity: 0.7 }}>
             Relatório gerado automaticamente em {dataAtual}
           </div>
-          <div style={{ fontSize: "10px", opacity: 0.5, marginTop: "8px" }}>
-            juriscontrol.adv.br
+          <div style={{ fontSize: "10px", opacity: 0.5, marginTop: "16px" }}>
+            Este documento é confidencial e de uso exclusivo da diretoria.
           </div>
         </div>
       </div>
