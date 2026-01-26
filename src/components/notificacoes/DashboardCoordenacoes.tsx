@@ -24,6 +24,7 @@ import {
   FileWarning,
   User,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
@@ -483,6 +484,35 @@ export function DashboardCoordenacoes({
     setConfigDialogOpen(true);
   };
 
+  const navigate = useNavigate();
+  
+  // Totais globais
+  const totaisGlobais = useMemo(() => {
+    return coordenacoesStats.reduce((acc, coord) => ({
+      total: acc.total + coord.total,
+      redistribuicoes: acc.redistribuicoes + coord.redistribuicoes,
+      audiencias: acc.audiencias + coord.audiencias,
+      intimacoes: acc.intimacoes + coord.intimacoes,
+      tarefas: acc.tarefas + coord.tarefas,
+      prazos: acc.prazos + coord.prazos,
+      djen: acc.djen + coord.djen,
+      distribuicoes: acc.distribuicoes + coord.distribuicoes,
+      alertas360: acc.alertas360 + coord.alertas360,
+      andamentos: acc.andamentos + coord.andamentos,
+    }), {
+      total: 0,
+      redistribuicoes: 0,
+      audiencias: 0,
+      intimacoes: 0,
+      tarefas: 0,
+      prazos: 0,
+      djen: 0,
+      distribuicoes: 0,
+      alertas360: 0,
+      andamentos: 0,
+    });
+  }, [coordenacoesStats]);
+
   if (loadingCoord || loadingRole) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -496,6 +526,157 @@ export function DashboardCoordenacoes({
   return (
     <>
       <div className="space-y-4">
+        {/* Botões Totalizadores Globais */}
+        <div className="grid grid-cols-5 md:grid-cols-10 gap-2">
+          {/* Total */}
+          <Button
+            variant="secondary"
+            className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5 bg-primary/10"
+            disabled
+          >
+            <TrendingUp className="h-5 w-5 text-primary" />
+            <span className="text-[9px] font-medium text-center leading-tight">Total</span>
+            <Badge className="absolute -top-1 -right-1 bg-primary text-primary-foreground h-5 min-w-5 flex items-center justify-center text-xs px-1">
+              {totaisGlobais.total}
+            </Badge>
+          </Button>
+
+          {/* Redistribuições - não navega */}
+          <Button
+            variant="outline"
+            className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
+            disabled
+          >
+            <RefreshCw className="h-5 w-5 text-cyan-600" />
+            <span className="text-[9px] font-medium text-center leading-tight">Redistrib.</span>
+            {totaisGlobais.redistribuicoes > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-cyan-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+                {totaisGlobais.redistribuicoes}
+              </Badge>
+            )}
+          </Button>
+
+          {/* Audiências - vai para painel audiências */}
+          <Button
+            variant="outline"
+            onClick={() => navigate("/painel-audiencias")}
+            className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
+          >
+            <Gavel className="h-5 w-5 text-indigo-600" />
+            <span className="text-[9px] font-medium text-center leading-tight">Audiências</span>
+            {totaisGlobais.audiencias > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-indigo-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+                {totaisGlobais.audiencias}
+              </Badge>
+            )}
+          </Button>
+
+          {/* Intimações - vai para painel intimações */}
+          <Button
+            variant="outline"
+            onClick={() => navigate("/painel-intimacoes")}
+            className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
+          >
+            <FileWarning className="h-5 w-5 text-orange-600" />
+            <span className="text-[9px] font-medium text-center leading-tight">Intimações</span>
+            {totaisGlobais.intimacoes > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-orange-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+                {totaisGlobais.intimacoes}
+              </Badge>
+            )}
+          </Button>
+
+          {/* Tarefas - vai para agenda */}
+          <Button
+            variant="outline"
+            onClick={() => navigate("/agenda")}
+            className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
+          >
+            <ListTodo className="h-5 w-5 text-green-600" />
+            <span className="text-[9px] font-medium text-center leading-tight">Tarefas</span>
+            {totaisGlobais.tarefas > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-green-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+                {totaisGlobais.tarefas}
+              </Badge>
+            )}
+          </Button>
+
+          {/* Prazos - vai para agenda */}
+          <Button
+            variant="outline"
+            onClick={() => navigate("/agenda")}
+            className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
+          >
+            <Clock className="h-5 w-5 text-red-600" />
+            <span className="text-[9px] font-medium text-center leading-tight">Prazos</span>
+            {totaisGlobais.prazos > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-red-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+                {totaisGlobais.prazos}
+              </Badge>
+            )}
+          </Button>
+
+          {/* DJEN - vai para análise DJEN */}
+          <Button
+            variant="outline"
+            onClick={() => navigate("/analise-djen")}
+            className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
+          >
+            <Newspaper className="h-5 w-5 text-blue-600" />
+            <span className="text-[9px] font-medium text-center leading-tight">DJEN</span>
+            {totaisGlobais.djen > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-blue-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+                {totaisGlobais.djen}
+              </Badge>
+            )}
+          </Button>
+
+          {/* Distribuições */}
+          <Button
+            variant="outline"
+            onClick={() => navigate("/monitoramento-distribuicao")}
+            className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
+          >
+            <Scale className="h-5 w-5 text-purple-600" />
+            <span className="text-[9px] font-medium text-center leading-tight">Distribuições</span>
+            {totaisGlobais.distribuicoes > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-purple-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+                {totaisGlobais.distribuicoes}
+              </Badge>
+            )}
+          </Button>
+
+          {/* Alertas 360° */}
+          <Button
+            variant="outline"
+            onClick={() => navigate("/monitoramento-360")}
+            className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
+          >
+            <Radar className="h-5 w-5 text-amber-600" />
+            <span className="text-[9px] font-medium text-center leading-tight">360°</span>
+            {totaisGlobais.alertas360 > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-amber-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+                {totaisGlobais.alertas360}
+              </Badge>
+            )}
+          </Button>
+
+          {/* Andamentos - vai para processos */}
+          <Button
+            variant="outline"
+            onClick={() => navigate("/processos")}
+            className="flex flex-col items-center justify-center h-16 p-2 relative gap-0.5"
+          >
+            <Activity className="h-5 w-5 text-violet-600" />
+            <span className="text-[9px] font-medium text-center leading-tight">Andamentos</span>
+            {totaisGlobais.andamentos > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-violet-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+                {totaisGlobais.andamentos}
+              </Badge>
+            )}
+          </Button>
+        </div>
+
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
