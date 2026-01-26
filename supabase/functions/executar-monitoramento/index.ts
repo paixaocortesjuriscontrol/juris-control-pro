@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
                 metadata: {
                   ...(metaCfg || {}),
                   status: 'idle',
-                continuingRun: false,
+                  continuingRun: true,
                   last_stop_reason: 'stale',
                   last_stop_at: agora.toISOString(),
                   last_error: 'Execução travada (sem progresso/heartbeat).',
@@ -295,7 +295,7 @@ Deno.serve(async (req) => {
             metadata: {
               ...(metaCfg || {}),
               status: 'idle',
-            continuingRun: false,
+              continuingRun: true,
               last_stop_reason: 'falhou',
               last_stop_at: new Date().toISOString(),
               last_error: lastError,

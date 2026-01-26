@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,6 @@ import { cn } from "@/lib/utils";
 export default function PainelAudiencias() {
   const isMobile = useIsMobile();
   const { user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("pendente");
@@ -105,22 +103,6 @@ export default function PainelAudiencias() {
     search,
     coordenacaoId: coordenacaoFilter || "todas",
   });
-
-  // Verificar se tem audienciaId na URL para selecionar automaticamente
-  useEffect(() => {
-    const audienciaId = searchParams.get("audienciaId");
-    if (audienciaId && audiencias && audiencias.length > 0) {
-      const audienciaEncontrada = audiencias.find(a => a.id === audienciaId);
-      if (audienciaEncontrada) {
-        setSelectedAudiencia(audienciaEncontrada);
-        // Remover o parâmetro da URL após selecionar
-        searchParams.delete("audienciaId");
-        setSearchParams(searchParams, { replace: true });
-        // Também expandir a audiência
-        setExpandedAudiencias(new Set([audienciaId]));
-      }
-    }
-  }, [audiencias, searchParams, setSearchParams]);
 
   const handleMarcarTratado = async (id: string) => {
     await atualizarAudiencia.mutateAsync({ 

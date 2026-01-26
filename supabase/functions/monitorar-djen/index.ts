@@ -14,26 +14,26 @@ const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 // Estes valores serão carregados dinamicamente da tabela parametros_monitoramento_djen
 let CONFIG = {
   modo_processamento: 'semi_paralelo' as 'sequencial' | 'semi_paralelo' | 'paralelo_total',
-  max_paralelo: 1,
-  max_por_invocacao: 5,
-  delay_entre_monitoramentos: 4000,
-  delay_entre_paginas: 3000,
-  delay_entre_tribunais: 3000,
-  delay_jina_api: 6000,
-  soft_timeout_ms: 110000,
-  finalization_buffer_ms: 15000,
-  max_retries: 2,
-  retry_base_delay_ms: 10000,
+  max_paralelo: 5,
+  max_por_invocacao: 10,
+  delay_entre_monitoramentos: 500,
+  delay_entre_paginas: 300,
+  delay_entre_tribunais: 200,
+  delay_jina_api: 2000,
+  soft_timeout_ms: 50000,
+  finalization_buffer_ms: 10000,
+  max_retries: 3,
+  retry_base_delay_ms: 2000,
 };
 
 // Legacy constants - will be replaced by CONFIG values
-let MAX_PER_INVOCATION = 5;
-let SOFT_TIMEOUT_MS = 110_000;
-let FINALIZATION_BUFFER_MS = 15_000;
-let INTER_MONITORAMENTO_DELAY_MS = 4000;
-let INTER_TRIBUNAL_DELAY_MS = 3000;
-let INTER_PAGE_DELAY_MS = 3000;
-let JINA_MIN_INTERVAL_MS = 6000;
+let MAX_PER_INVOCATION = 10;
+let SOFT_TIMEOUT_MS = 50_000;
+let FINALIZATION_BUFFER_MS = 10_000;
+let INTER_MONITORAMENTO_DELAY_MS = 500;
+let INTER_TRIBUNAL_DELAY_MS = 200;
+let INTER_PAGE_DELAY_MS = 300;
+let JINA_MIN_INTERVAL_MS = 2000;
 
 // Retry config: if first batch at 09:00 is empty, retry after this delay
 const RETRY_DELAY_MINUTES = 15;

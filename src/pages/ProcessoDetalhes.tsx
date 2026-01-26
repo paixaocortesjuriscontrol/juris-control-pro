@@ -98,7 +98,6 @@ import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
 import { Database } from "@/integrations/supabase/types";
 
 type StatusProcesso = Database["public"]["Enums"]["status_processo"];
@@ -126,7 +125,6 @@ const areaOptions: AreaAtuacao[] = ["civil", "trabalhista", "empresarial"];
 export default function ProcessoDetalhes() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [atualizando, setAtualizando] = useState(false);
@@ -154,22 +152,8 @@ export default function ProcessoDetalhes() {
   const [publicacaoParaTarefa, setPublicacaoParaTarefa] = useState<PublicacaoUnificada | null>(null);
   const abrirTarefaPublicacaoAtRef = useRef<number>(0);
 
-  // Tab toggle state - inicializa com valor do URL ou "resumo" vazio para mostrar só resumo
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    const tabParam = searchParams.get("tab");
-    const validTabs = ["audiencias", "intimacoes", "tarefas", "documentos", "publicacoes", "andamentos", "redistribuicoes", "monitoramento360", "agenda", "portal"];
-    return tabParam && validTabs.includes(tabParam) ? tabParam : "";
-  });
-
-  // Limpa o parâmetro tab da URL após o primeiro render (para não poluir a URL)
-  useEffect(() => {
-    const tabParam = searchParams.get("tab");
-    if (tabParam) {
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete("tab");
-      setSearchParams(newParams, { replace: true });
-    }
-  }, []); // Apenas no mount
+  // Tab toggle state
+  const [activeTab, setActiveTab] = useState<string>("");
   
   // Form state for all fields
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -1246,79 +1230,144 @@ export default function ProcessoDetalhes() {
     nome: r.usuario?.nome || "Desconhecido"
   }));
 
-  // Componente de tabs reutilizável - usa onValueChange para toggle
-  const handleTabChange = (value: string) => {
-    // Toggle: se clicar na mesma tab, fecha (volta para "")
-    setActiveTab(prev => prev === value ? "" : value);
-  };
-
+  // Componente de tabs reutilizável
   const renderTabs = () => (
-    <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+    <Tabs value={activeTab} className="w-full">
       <TabsList className="grid w-full grid-cols-5 sm:w-auto sm:inline-flex gap-1 h-auto flex-wrap">
-        <TabsTrigger value="audiencias" className="gap-1.5">
+        <TabsTrigger 
+          value="audiencias" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "audiencias" ? "" : "audiencias");
+          }}
+        >
           <Gavel className="w-4 h-4" />
           <span className="hidden sm:inline">Audiências</span>
           {audiencias.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="intimacoes" className="gap-1.5">
+        <TabsTrigger 
+          value="intimacoes" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "intimacoes" ? "" : "intimacoes");
+          }}
+        >
           <AlertCircle className="w-4 h-4" />
           <span className="hidden sm:inline">Intimações</span>
           {intimacoes.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{intimacoes.length}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="tarefas" className="gap-1.5">
+        <TabsTrigger 
+          value="tarefas" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "tarefas" ? "" : "tarefas");
+          }}
+        >
           <ListTodo className="w-4 h-4" />
           <span className="hidden sm:inline">Tarefas</span>
           {tarefas.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.length}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="documentos" className="gap-1.5">
+        <TabsTrigger 
+          value="documentos" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "documentos" ? "" : "documentos");
+          }}
+        >
           <FileBox className="w-4 h-4" />
           <span className="hidden sm:inline">Pasta</span>
           {documentosProcesso.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{documentosProcesso.length}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="publicacoes" className="gap-1.5">
+        <TabsTrigger 
+          value="publicacoes" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "publicacoes" ? "" : "publicacoes");
+          }}
+        >
           <Newspaper className="w-4 h-4" />
           <span className="hidden sm:inline">Pub. DJEN</span>
           {publicacoesDjen.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{publicacoesDjen.length}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="andamentos" className="gap-1.5">
+        <TabsTrigger 
+          value="andamentos" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "andamentos" ? "" : "andamentos");
+          }}
+        >
           <FileText className="w-4 h-4" />
           <span className="hidden sm:inline">Andamentos</span>
           {movimentacoes && movimentacoes.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{movimentacoes.length}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="redistribuicoes" className="gap-1.5">
+        <TabsTrigger 
+          value="redistribuicoes" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "redistribuicoes" ? "" : "redistribuicoes");
+          }}
+        >
           <Shuffle className="w-4 h-4" />
           <span className="hidden sm:inline">Redistrib.</span>
           {redistribuicoes.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{redistribuicoes.length}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="monitoramento360" className="gap-1.5">
+        <TabsTrigger 
+          value="monitoramento360" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "monitoramento360" ? "" : "monitoramento360");
+          }}
+        >
           <Radar className="w-4 h-4" />
           <span className="hidden sm:inline">360º</span>
           {alertas360.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{alertas360.length}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="agenda" className="gap-1.5">
+        <TabsTrigger 
+          value="agenda" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "agenda" ? "" : "agenda");
+          }}
+        >
           <CalendarDays className="w-4 h-4" />
           <span className="hidden sm:inline">Agenda</span>
           {eventosAgenda.length > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{eventosAgenda.length}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="portal" className="gap-1.5">
+        <TabsTrigger 
+          value="portal" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "portal" ? "" : "portal");
+          }}
+        >
           <Globe className="w-4 h-4" />
           <span className="hidden sm:inline">Portal</span>
         </TabsTrigger>
