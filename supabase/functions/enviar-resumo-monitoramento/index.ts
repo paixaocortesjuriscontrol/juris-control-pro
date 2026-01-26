@@ -543,8 +543,12 @@ serve(async (req) => {
         const resendApiKey = Deno.env.get("RESEND_API_KEY");
         
         if (resendApiKey) {
+          console.log(`${TAG} Enviando emails para ${emailsDestino.length} destinatários: ${emailsDestino.join(', ')}`);
+          
           for (const email of emailsDestino) {
             try {
+              console.log(`${TAG} Enviando email para ${email}...`);
+              
               const response = await fetch("https://api.resend.com/emails", {
                 method: "POST",
                 headers: {
@@ -560,6 +564,8 @@ serve(async (req) => {
               });
 
               if (response.ok) {
+                const responseData = await response.json();
+                console.log(`${TAG} ✅ Email enviado para ${email}: ${JSON.stringify(responseData)}`);
                 resultados.emails++;
                 await supabase.from('historico_alertas_enviados').insert({
                   coordenacao_id,
@@ -571,13 +577,31 @@ serve(async (req) => {
                 });
               } else {
                 const errorText = await response.text();
+                console.error(`${TAG} ❌ Erro ao enviar email para ${email}: ${response.status} - ${errorText}`);
                 resultados.erros.push(`Email para ${email}: ${errorText}`);
+                
+                // Registrar erro no histórico
+                await supabase.from('historico_alertas_enviados').insert({
+                  coordenacao_id,
+                  tipo_alerta: tipoAlerta,
+                  canal: 'email',
+                  destinatario: email,
+                  conteudo: `Resumo: ${total_encontrados} itens encontrados`,
+                  status: 'erro',
+                  erro: errorText.substring(0, 500),
+                });
               }
+              
+              // Pequeno delay entre envios para evitar rate limiting
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
             } catch (error: any) {
-              console.error(`${TAG} Erro ao enviar email para ${email}:`, error);
+              console.error(`${TAG} ❌ Exceção ao enviar email para ${email}:`, error);
               resultados.erros.push(`Email para ${email}: ${error?.message || 'Erro'}`);
             }
           }
+        } else {
+          console.warn(`${TAG} RESEND_API_KEY não configurada`);
         }
       }
 
