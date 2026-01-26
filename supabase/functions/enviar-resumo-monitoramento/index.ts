@@ -527,12 +527,18 @@ serve(async (req) => {
           </div>
           
           <!-- Footer -->
-          <div style="background: #f1f5f9; padding: 20px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none; text-align: center;">
-            <p style="margin: 0 0 8px 0; font-size: 13px; color: #64748b;">
-              Este é um resumo automático gerado pelo <strong>Juris Control Pro</strong>
+          <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 0 0 12px 12px; text-align: center;">
+            <div style="margin-bottom: 12px;">
+              <span style="display: inline-block; width: 40px; height: 40px; background: linear-gradient(135deg, #d4a015 0%, #eab308 100%); border-radius: 8px; line-height: 40px; font-size: 20px;">⚖️</span>
+            </div>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #e2e8f0; font-weight: 500;">
+              Juris Control | Paixão Cortes Advogados
             </p>
-            <p style="margin: 0; font-size: 11px; color: #94a3b8;">
-              Para mais detalhes, acesse o sistema em <a href="https://juris-control-pro.lovable.app" style="color: #6366f1; text-decoration: none;">juris-control-pro.lovable.app</a>
+            <p style="margin: 0 0 12px 0; font-size: 12px; color: #94a3b8;">
+              Este é um resumo automático gerado pelo sistema
+            </p>
+            <p style="margin: 0; font-size: 11px; color: #64748b;">
+              Para mais detalhes, acesse <a href="https://juriscontrol.adv.br" style="color: #eab308; text-decoration: none; font-weight: 500;">juriscontrol.adv.br</a>
             </p>
           </div>
         </div>
