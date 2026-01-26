@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 interface MonitoramentoDjen {
   id: string;
-  tipo: 'palavra-chave' | 'advogado' | 'processo';
+  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte'; // 'parte' é mapeado para 'palavra-chave'
   termo_busca: string;
   oab?: string;
   uf?: string;
@@ -184,20 +184,26 @@ export function useBuscaDjenDireta() {
     const dataInicio = new Date(hoje);
     dataInicio.setDate(dataInicio.getDate() - 1);
 
+    // Mapear tipos do banco para tipos aceitos pela API
+    // A API aceita: 'advogado', 'palavra-chave', 'processo'
+    // O banco pode ter: 'advogado', 'palavra-chave', 'processo', 'parte'
+    const tipoMapeado = monitoramento.tipo === 'parte' ? 'palavra-chave' : monitoramento.tipo;
+
     const params: Record<string, any> = {
-      tipo: monitoramento.tipo,
+      tipo: tipoMapeado,
       dataInicio: dataInicio.toISOString().split('T')[0],
       dataFim: hoje.toISOString().split('T')[0],
       pageSize: 50,
       fetchAll: false,
     };
 
-    if (monitoramento.tipo === 'advogado' && monitoramento.oab && monitoramento.uf) {
+    if (tipoMapeado === 'advogado' && monitoramento.oab && monitoramento.uf) {
       params.oab = monitoramento.oab;
       params.uf = monitoramento.uf;
-    } else if (monitoramento.tipo === 'palavra-chave') {
+    } else if (tipoMapeado === 'palavra-chave' || monitoramento.tipo === 'parte') {
+      // Tanto 'palavra-chave' quanto 'parte' usam termo_busca como palavraChave
       params.palavraChave = monitoramento.termo_busca;
-    } else if (monitoramento.tipo === 'processo') {
+    } else if (tipoMapeado === 'processo') {
       params.numeroProcesso = monitoramento.termo_busca.replace(/\D/g, '');
     }
 
