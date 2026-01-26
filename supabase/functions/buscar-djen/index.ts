@@ -558,6 +558,11 @@ serve(async (req) => {
       fetchAll,
     } = body;
 
+    // Compat: alguns registros/flows antigos usam `tipo: "parte"`.
+    // A API interna trabalha com os 3 tipos oficiais (advogado, palavra-chave, processo),
+    // então normalizamos cedo para não cair na validação de tipo.
+    const tipoNormalizado = (tipo === "parte" ? "palavra-chave" : tipo);
+
     console.log("DJEN Search request:", JSON.stringify(body));
 
     // Input validation
@@ -565,7 +570,7 @@ serve(async (req) => {
 
     // Validate tipo
     const validTipos = ["advogado", "palavra-chave", "processo"];
-    if (!validTipos.includes(tipo)) {
+    if (!validTipos.includes(tipoNormalizado)) {
       validationErrors.push(`Tipo de busca inválido. Use: ${validTipos.join(", ")}`);
     }
 
@@ -614,14 +619,14 @@ serve(async (req) => {
     }
 
     // Validate type-specific requirements
-    if (tipo === "advogado") {
+    if (tipoNormalizado === "advogado") {
       if (!oab) {
         return new Response(JSON.stringify({ error: "OAB é obrigatório para busca por advogado", success: false }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-    } else if (tipo === "palavra-chave") {
+    } else if (tipoNormalizado === "palavra-chave") {
       if (!palavraChave || palavraChave.length < 3) {
         return new Response(
           JSON.stringify({ error: "Palavra-chave deve ter pelo menos 3 caracteres", success: false }),
@@ -631,7 +636,7 @@ serve(async (req) => {
           }
         );
       }
-    } else if (tipo === "processo") {
+    } else if (tipoNormalizado === "processo") {
       if (!numeroProcesso) {
         return new Response(JSON.stringify({ error: "Número do processo é obrigatório", success: false }), {
           status: 400,
@@ -641,7 +646,7 @@ serve(async (req) => {
     }
 
     const searchParams: SearchParams = {
-      tipo,
+      tipo: tipoNormalizado as SearchType,
       oab,
       uf,
       palavraChave,
