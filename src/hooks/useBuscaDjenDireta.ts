@@ -421,7 +421,7 @@ export function useBuscaDjenDireta() {
         total_verificados: publicacoes.length,
         total_encontrados: novas.length,
         exemplos: novas.slice(0, 3).map(p => ({
-          processo_numero: p.processo_numero || 'S/N',
+          processo_numero: p.processo_numero || 'Processo não identificado',
           descricao: (p.conteudo || '').slice(0, 100) + '...',
         })),
       };

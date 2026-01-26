@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface ResumoPayload {
-  tipo_monitoramento: 'andamentos' | 'redistribuicoes' | 'distribuicoes' | 'djen' | 'termos';
+  tipo_monitoramento: 'andamentos' | 'redistribuicoes' | 'distribuicoes' | 'djen' | 'djen_processos' | 'termos';
   resumos_por_coordenacao: {
     coordenacao_id: string;
     coordenacao_nome?: string;
@@ -49,6 +49,7 @@ serve(async (req) => {
       'redistribuicoes': 'redistribuicoes',
       'distribuicoes': 'distribuicoes',
       'djen': 'djen',
+      'djen_processos': 'djen',
       'termos': 'alertas_360',
     };
 
@@ -60,6 +61,7 @@ serve(async (req) => {
       'redistribuicoes': '🔄',
       'distribuicoes': '⚖️',
       'djen': '📰',
+      'djen_processos': '📰',
       'termos': '🔍',
     };
 
@@ -67,7 +69,8 @@ serve(async (req) => {
       'andamentos': 'Resumo de Andamentos',
       'redistribuicoes': 'Resumo de Redistribuições',
       'distribuicoes': 'Resumo de Novas Distribuições',
-      'djen': 'Resumo DJEN',
+      'djen': 'Resumo DJEN Termos',
+      'djen_processos': 'Resumo DJEN Processos',
       'termos': 'Resumo Monitoração 360°',
     };
 
