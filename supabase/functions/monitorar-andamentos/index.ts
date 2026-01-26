@@ -1155,6 +1155,17 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
     cancelled: false,
   };
 
+  // Mapa para consolidar alertas por coordenação (enviar 1 mensagem por coordenação no final)
+  const alertasPorCoordenacao = new Map<string, {
+    coordenacao_id: string;
+    processos: Array<{
+      numero: string;
+      id: string;
+      andamentos: string[];
+      count: number;
+    }>;
+  }>();
+
   // Process in parallel batches (increased from 5 to 12 for faster processing)
   const PARALLEL_BATCH_SIZE = 12;
 
@@ -1371,30 +1382,21 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
             }
           }
 
-          // Disparar alerta para coordenação (Email + WhatsApp)
+          // Coletar para alerta consolidado por coordenação (ao invés de enviar individual)
           if (processo.coordenacao_id) {
-            try {
-              const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-              await fetch(`${supabaseUrl}/functions/v1/enviar-alerta-coordenacao`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                },
-                body: JSON.stringify({
-                  tipo_alerta: "andamentos",
-                  coordenacao_id: processo.coordenacao_id,
-                  titulo: `📋 Novos Andamentos: ${processo.numero}`,
-                  mensagem: `${insertedCount} novo(s) andamento(s) detectado(s) no processo ${processo.numero}.\n\nDetalhes:\n${newMovementDetails.slice(0, 3).join('\n')}${newMovementDetails.length > 3 ? `\n... e mais ${newMovementDetails.length - 3}` : ''}`,
-                  prioridade: "media",
-                  referencia_id: processo.id,
-                  processo_numero: processo.numero,
-                }),
+            const coordId = processo.coordenacao_id;
+            if (!alertasPorCoordenacao.has(coordId)) {
+              alertasPorCoordenacao.set(coordId, {
+                coordenacao_id: coordId,
+                processos: [],
               });
-              console.log(`Alerta de andamentos enviado para coordenação ${processo.coordenacao_id}`);
-            } catch (alertError) {
-              console.error("Erro ao enviar alerta de andamentos:", alertError);
             }
+            alertasPorCoordenacao.get(coordId)!.processos.push({
+              numero: processo.numero,
+              id: processo.id,
+              andamentos: newMovementDetails,
+              count: insertedCount,
+            });
           }
 
           results.details.push({
@@ -1451,6 +1453,45 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
 
   if (updateError) {
     console.error("Error updating config:", updateError);
+  }
+
+  // Enviar alertas CONSOLIDADOS por coordenação (1 mensagem por coordenação)
+  if (!results.cancelled && alertasPorCoordenacao.size > 0) {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    for (const [coordId, dados] of alertasPorCoordenacao) {
+      try {
+        const totalAndamentos = dados.processos.reduce((acc, p) => acc + p.count, 0);
+        const listaProcessos = dados.processos
+          .slice(0, 10)
+          .map(p => `• ${p.numero}: ${p.count} andamento(s)`)
+          .join('\n');
+        
+        const mensagemConsolidada = `📋 **Resumo de Andamentos do Dia**\n\n` +
+          `**Total:** ${totalAndamentos} novo(s) andamento(s) em ${dados.processos.length} processo(s)\n\n` +
+          `**Processos:**\n${listaProcessos}` +
+          (dados.processos.length > 10 ? `\n... e mais ${dados.processos.length - 10} processos` : '');
+
+        await fetch(`${supabaseUrl}/functions/v1/enviar-alerta-coordenacao`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({
+            tipo_alerta: "andamentos",
+            coordenacao_id: coordId,
+            titulo: `📋 Novos Andamentos: ${totalAndamentos} em ${dados.processos.length} processos`,
+            mensagem: mensagemConsolidada,
+            prioridade: totalAndamentos > 10 ? "alta" : "media",
+          }),
+        });
+        console.log(`Alerta consolidado enviado para coordenação ${coordId}: ${totalAndamentos} andamentos em ${dados.processos.length} processos`);
+      } catch (alertError) {
+        console.error(`Erro ao enviar alerta consolidado para ${coordId}:`, alertError);
+      }
+    }
   }
 
   // Save to history if complete
