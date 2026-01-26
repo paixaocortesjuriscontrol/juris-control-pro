@@ -21,9 +21,66 @@ interface PublicacaoResultado {
   id: string;
   processo_numero: string | null;
   conteudo: string | null;
+  data_disponibilizacao: string | null;
   data_publicacao: string | null;
   fonte: string | null;
   hash_conteudo: string;
+}
+
+/**
+ * Calcula o próximo dia útil considerando fins de semana e recesso forense (20/dez a 6/jan)
+ */
+function calcularProximoDiaUtil(dataBase: Date): Date {
+  const resultado = new Date(dataBase);
+  
+  // Função para verificar se está no recesso forense
+  const estaNoRecesso = (d: Date): boolean => {
+    const mes = d.getMonth(); // 0-11
+    const dia = d.getDate();
+    return (mes === 11 && dia >= 20) || (mes === 0 && dia <= 6);
+  };
+  
+  // Função para avançar para próximo dia útil
+  const proximoDiaUtil = (d: Date): void => {
+    // Primeiro, sair de fim de semana
+    while (d.getDay() === 0 || d.getDay() === 6) {
+      d.setDate(d.getDate() + 1);
+    }
+    // Se estiver no recesso, pular para 7 de janeiro
+    if (estaNoRecesso(d)) {
+      // Se estamos em dezembro, vai para janeiro do próximo ano
+      if (d.getMonth() === 11) {
+        d.setFullYear(d.getFullYear() + 1);
+      }
+      d.setMonth(0); // Janeiro
+      d.setDate(7);
+      // Se 7 de janeiro cair em fim de semana, avança
+      while (d.getDay() === 0 || d.getDay() === 6) {
+        d.setDate(d.getDate() + 1);
+      }
+    }
+  };
+  
+  proximoDiaUtil(resultado);
+  return resultado;
+}
+
+/**
+ * Extrai data no formato YYYY-MM-DD de strings de data ISO ou outros formatos
+ */
+function extrairDataYMD(dataStr: string | null | undefined): string | null {
+  if (!dataStr) return null;
+  // Se já está em formato YYYY-MM-DD, retorna
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) return dataStr;
+  // Tentar extrair de ISO ou outros formatos
+  const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return match[0];
+  // Tentar parse como Date
+  const d = new Date(dataStr);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().split('T')[0];
+  }
+  return null;
 }
 
 interface ProgressoExecucao {
@@ -252,14 +309,50 @@ export function useBuscaDjenDireta() {
 
       const comunicacoes = data?.comunicacoes || data?.items || [];
       
-      return comunicacoes.map((pub: any) => ({
-        id: pub.id || crypto.randomUUID(),
-        processo_numero: pub.numeroProcesso || pub.processo || null,
-        conteudo: pub.conteudo || pub.teor || pub.texto || null,
-        data_publicacao: pub.dataPublicacao || pub.dataDisponibilizacao || null,
-        fonte: pub.tribunal || pub.orgao || 'DJEN',
-        hash_conteudo: '',
-      }));
+      return comunicacoes.map((pub: any) => {
+        // Extrair data de disponibilização (a data que vem do DJEN)
+        const rawDataDisp = pub.dataDisponibilizacao || pub.dataDJe || pub.dtDisponibilizacao || null;
+        const rawDataPub = pub.dataPublicacao || pub.dataJornal || pub.dtPublicacao || null;
+        
+        let dataDisponibilizacao = extrairDataYMD(rawDataDisp);
+        let dataPublicacao: string | null = null;
+        
+        // Se temos data de disponibilização, calcular publicação como próximo dia útil
+        if (dataDisponibilizacao) {
+          const dispDate = new Date(dataDisponibilizacao + 'T12:00:00'); // Meio-dia para evitar timezone issues
+          dispDate.setDate(dispDate.getDate() + 1); // Avança 1 dia
+          const proximoDiaUtil = calcularProximoDiaUtil(dispDate);
+          dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+        } else if (rawDataPub) {
+          // Se só temos dataPublicacao da API, usar ela e inferir disponibilização
+          dataPublicacao = extrairDataYMD(rawDataPub);
+          if (dataPublicacao) {
+            // Disponibilização é tipicamente 1 dia antes da publicação
+            const pubDate = new Date(dataPublicacao + 'T12:00:00');
+            pubDate.setDate(pubDate.getDate() - 1);
+            dataDisponibilizacao = pubDate.toISOString().split('T')[0];
+          }
+        }
+        
+        // Fallback: usar data atual se nenhuma data disponível
+        if (!dataDisponibilizacao && !dataPublicacao) {
+          const hoje = new Date();
+          dataDisponibilizacao = hoje.toISOString().split('T')[0];
+          hoje.setDate(hoje.getDate() + 1);
+          const proximoDiaUtil = calcularProximoDiaUtil(hoje);
+          dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+        }
+        
+        return {
+          id: pub.id || crypto.randomUUID(),
+          processo_numero: pub.numeroProcesso || pub.processo || null,
+          conteudo: pub.conteudo || pub.teor || pub.texto || null,
+          data_disponibilizacao: dataDisponibilizacao,
+          data_publicacao: dataPublicacao,
+          fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
+          hash_conteudo: '',
+        };
+      });
     } catch (err: any) {
       // Ignorar erros de abort
       if (err?.name === 'AbortError' || cancelarRef.current) return [];
@@ -308,6 +401,7 @@ export function useBuscaDjenDireta() {
           hash_conteudo: pub.hash_conteudo,
           processo_numero: pub.processo_numero,
           conteudo: pub.conteudo,
+          data_disponibilizacao: pub.data_disponibilizacao,
           data_publicacao: pub.data_publicacao,
           fonte: pub.fonte,
           lida: false,
