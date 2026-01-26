@@ -22,6 +22,7 @@ import {
   MapPin,
   User,
   Timer,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
@@ -42,7 +43,9 @@ interface Props {
   periodoFim?: Date;
   statusFilter?: string;
   searchQuery?: string;
+  filterCategory?: string;
   onBack: () => void;
+  onClearCategory?: () => void;
 }
 
 export function CoordenacaoDetalhesView({
@@ -51,7 +54,9 @@ export function CoordenacaoDetalhesView({
   periodoFim,
   statusFilter = "pendente",
   searchQuery = "",
+  filterCategory,
   onBack,
+  onClearCategory,
 }: Props) {
   const navigate = useNavigate();
   const { data: coordenacoes = [] } = useCoordenacoesFull();
@@ -933,7 +938,7 @@ export function CoordenacaoDetalhesView({
   );
 
   // Montar array de cards na ordem: todos menos redistribuições, depois redistribuições por último
-  const cardsComDados = [
+  const allCards = [
     { key: 'djen', render: renderDjenCard, hasData: publicacoesFiltradas.length > 0 },
     { key: 'distribuicoes', render: renderDistribuicoesCard, hasData: distribuicoesFiltradas.length > 0 },
     { key: 'alertas', render: renderAlertasCard, hasData: alertasFiltrados.length > 0 },
@@ -943,12 +948,29 @@ export function CoordenacaoDetalhesView({
     { key: 'intimacoes', render: renderIntimacoesCard, hasData: intimacoesFiltradas.length > 0 },
     { key: 'andamentos', render: renderAndamentosCard, hasData: andamentosFiltrados.length > 0 },
     { key: 'redistribuicoes', render: renderRedistribuicoesCard, hasData: redistribuicoesFiltradas.length > 0 },
-  ].filter(card => card.hasData);
+  ];
+
+  // Filtrar por categoria se especificada
+  const cardsComDados = filterCategory 
+    ? allCards.filter(card => card.key === filterCategory && card.hasData)
+    : allCards.filter(card => card.hasData);
+
+  const categoryLabels: Record<string, string> = {
+    djen: "Publicações DJEN",
+    distribuicoes: "Distribuições",
+    alertas: "Alertas 360°",
+    prazos: "Prazos",
+    tarefas: "Tarefas",
+    audiencias: "Audiências",
+    intimacoes: "Intimações",
+    andamentos: "Andamentos",
+    redistribuicoes: "Redistribuições",
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -957,6 +979,18 @@ export function CoordenacaoDetalhesView({
           <h2 className="text-xl font-semibold">{coordenacao?.nome}</h2>
         </div>
         <Badge variant="secondary">{total} pendências</Badge>
+        
+        {/* Badge de categoria filtrada */}
+        {filterCategory && (
+          <Badge 
+            variant="default" 
+            className="gap-1 cursor-pointer hover:bg-primary/80"
+            onClick={onClearCategory}
+          >
+            {categoryLabels[filterCategory] || filterCategory}
+            <X className="h-3 w-3" />
+          </Badge>
+        )}
       </div>
 
       {/* Grid de 2 colunas */}

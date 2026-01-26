@@ -57,6 +57,7 @@ export default function Notificacoes() {
   const [statusFilter, setStatusFilter] = useState<string>("pendente");
   const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() => startOfDay(new Date()));
   const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() => startOfDay(new Date()));
+  const [filterCategory, setFilterCategory] = useState<string | undefined>(undefined);
   
   
   const navigate = useNavigate();
@@ -449,13 +450,15 @@ export default function Notificacoes() {
     }
   };
 
-  const handleSelectCoordenacao = (id: string) => {
+  const handleSelectCoordenacao = (id: string, category?: string) => {
     setCoordenacaoId(id);
+    setFilterCategory(category);
     setActiveTab("detalhes");
   };
 
   const handleBackToDashboard = () => {
     setCoordenacaoId("todas");
+    setFilterCategory(undefined);
     setActiveTab("dashboard");
   };
 
@@ -868,7 +871,9 @@ export default function Notificacoes() {
               periodoFim={periodoFim}
               statusFilter={statusFilter}
               searchQuery={searchQuery}
+              filterCategory={filterCategory}
               onBack={handleBackToDashboard}
+              onClearCategory={() => setFilterCategory(undefined)}
             />
           )}
         </TabsContent>
