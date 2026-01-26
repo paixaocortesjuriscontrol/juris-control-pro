@@ -37,12 +37,13 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
+import { useNotificacoesCounts } from "@/hooks/useNotificacoesCounts";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
 import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useRedistribuicoes } from "@/hooks/useRedistribuicoes";
-import { formatDistanceToNow, format, isAfter, isBefore, startOfDay, parseISO, subDays } from "date-fns";
+import { formatDistanceToNow, format, isAfter, isBefore, startOfDay, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -53,25 +54,29 @@ import { GerarRelatorioPdfDialog } from "@/components/notificacoes/GerarRelatori
 export default function Notificacoes() {
   // Central de Notificações
   const PAGE_SIZE = 1000;
-  const DEFAULT_PERIOD_DAYS = 90;
 
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("todas");
   const [statusFilter, setStatusFilter] = useState<string>("pendente");
-  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() => startOfDay(new Date()));
-  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() => startOfDay(new Date()));
+  // "Tudo" (sem período) por padrão
+  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(undefined);
+  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(undefined);
   const [filterCategory, setFilterCategory] = useState<string | undefined>(undefined);
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
   
   
   const navigate = useNavigate();
 
-  const setPeriodoUltimosDias = (dias: number) => {
+  const clearPeriodo = () => {
+    setPeriodoInicio(undefined);
+    setPeriodoFim(undefined);
+  };
+
+  const setPeriodoHoje = () => {
     const hoje = startOfDay(new Date());
-    const inicio = startOfDay(subDays(hoje, Math.max(dias - 1, 0)));
-    setPeriodoInicio(inicio);
+    setPeriodoInicio(hoje);
     setPeriodoFim(hoje);
   };
 
@@ -92,6 +97,15 @@ export default function Notificacoes() {
   const { data: redistribuicoesData = [] } = useRedistribuicoes({
     dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
     dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
+  });
+
+  const { data: counts = undefined } = useNotificacoesCounts({
+    coordenacaoId,
+    periodoInicio,
+    periodoFim,
+    statusFilter,
+    prioridadeFilter,
+    searchQuery,
   });
 
   // ===== TAREFAS: paginação incremental (evita tentar carregar “todas”) =====
@@ -311,22 +325,8 @@ export default function Notificacoes() {
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       // Se não houver filtro de período, usar últimos N dias para evitar timeout
-      const ANDAMENTOS_DEFAULT_PERIOD_DAYS = 90;
-      let inicioDia: string;
-      let fimDiaMaisUm: string | undefined;
-
-      if (periodoInicio) {
-        inicioDia = format(periodoInicio, "yyyy-MM-dd");
-      } else {
-        // Sem período definido = últimos N dias para performance
-        const dataLimite = new Date();
-        dataLimite.setDate(dataLimite.getDate() - ANDAMENTOS_DEFAULT_PERIOD_DAYS);
-        inicioDia = format(dataLimite, "yyyy-MM-dd");
-      }
-
-      if (periodoFim) {
-        fimDiaMaisUm = format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd");
-      }
+      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
+      const fimDiaMaisUm = periodoFim ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd") : undefined;
 
       let query = supabase
         .from("movimentacoes")
@@ -347,8 +347,8 @@ export default function Notificacoes() {
         .order("created_at", { ascending: false })
         .order("id", { ascending: false });
 
-      // Filtrar por período (sempre com data início para evitar timeout)
-      query = query.gte("created_at", inicioDia);
+      // Filtrar por período apenas quando usuário define
+      if (inicioDia) query = query.gte("created_at", inicioDia);
       if (fimDiaMaisUm) query = query.lt("created_at", fimDiaMaisUm);
 
       const from = Number(pageParam) || 0;
@@ -377,22 +377,8 @@ export default function Notificacoes() {
       searchQuery,
     ],
     queryFn: async () => {
-      const ANDAMENTOS_DEFAULT_PERIOD_DAYS = 90;
-      let inicioDia: string;
-      let fimDiaMaisUm: string | undefined;
-
-      if (periodoInicio) {
-        inicioDia = format(periodoInicio, "yyyy-MM-dd");
-      } else {
-        // Sem período = últimos N dias (igual à query paginada)
-        const dataLimite = new Date();
-        dataLimite.setDate(dataLimite.getDate() - ANDAMENTOS_DEFAULT_PERIOD_DAYS);
-        inicioDia = format(dataLimite, "yyyy-MM-dd");
-      }
-
-      if (periodoFim) {
-        fimDiaMaisUm = format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd");
-      }
+      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
+      const fimDiaMaisUm = periodoFim ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd") : undefined;
 
       const q = searchQuery.trim();
 
@@ -402,7 +388,7 @@ export default function Notificacoes() {
           .from("movimentacoes")
           .select("id", { count: "exact", head: true })
           .neq("tipo", "Redistribuição")
-          .gte("created_at", inicioDia);
+        if (inicioDia) base = base.gte("created_at", inicioDia);
         if (fimDiaMaisUm) base = base.lt("created_at", fimDiaMaisUm);
         const { count, error } = await base;
         if (error) throw error;
@@ -416,7 +402,7 @@ export default function Notificacoes() {
         .select("id, processos!inner(id, numero)", { count: "exact", head: true })
         .neq("tipo", "Redistribuição")
         .or(`descricao.ilike.${like},tipo.ilike.${like},processos.numero.ilike.${like}`)
-        .gte("created_at", inicioDia);
+      if (inicioDia) base = base.gte("created_at", inicioDia);
       if (fimDiaMaisUm) base = base.lt("created_at", fimDiaMaisUm);
 
       const { count, error } = await base;
@@ -586,50 +572,37 @@ export default function Notificacoes() {
 
   // Stats - valores reais para os cards
   const stats = useMemo(() => {
-    const djenReal = publicacoesFiltradas.length;
-    const distribuicoesReal = distribuicoesFiltradas.length;
-    const alertas360Real = alertasFiltrados.length;
-    const redistribuicoesReal = redistribuicoesFiltradas.length;
-    const prazosReal = prazosFiltrados.length;
-    const notifsReal = notificacoesFiltradas.length;
-    const tarefasReal = tarefasTotal;
-    const audienciasReal = audienciasFiltradas.length;
-    const intimacoesReal = intimacoesFiltradas.length;
-    const andamentosReal = andamentosTotal;
-    
-    const totalReal = djenReal + distribuicoesReal + alertas360Real + redistribuicoesReal + 
-                      prazosReal + tarefasReal + audienciasReal + intimacoesReal + andamentosReal;
-    
-    return {
-      djen: djenReal,
-      distribuicoes: distribuicoesReal,
-      alertas360: alertas360Real,
-      redistribuicoes: redistribuicoesReal,
-      prazos: prazosReal,
-      notificacoes: notifsReal,
-      tarefas: tarefasReal,
-      audiencias: audienciasReal,
-      intimacoes: intimacoesReal,
-      andamentos: andamentosReal,
-      total: totalReal,
+    const base = counts ?? {
+      djen: 0,
+      distribuicoes: 0,
+      alertas360: 0,
+      redistribuicoes: 0,
+      andamentos: 0,
+      prazos: 0,
+      tarefas: 0,
+      audiencias: 0,
+      intimacoes: 0,
+      total: 0,
     };
-  }, [
-    publicacoesFiltradas, distribuicoesFiltradas, alertasFiltrados, redistribuicoesFiltradas,
-    prazosFiltrados, notificacoesFiltradas, tarefasTotal, audienciasFiltradas, intimacoesFiltradas, andamentosTotal
-  ]);
+    return {
+      ...base,
+      notificacoes: notificacoesFiltradas.length,
+    };
+  }, [counts, notificacoesFiltradas.length]);
 
-  const hoje = startOfDay(new Date());
-  const hasActiveFilters = searchQuery || prioridadeFilter !== "todas" || statusFilter !== "pendente" || 
-    (periodoInicio && periodoInicio.getTime() !== hoje.getTime()) || 
-    (periodoFim && periodoFim.getTime() !== hoje.getTime()) || 
+  const hasActiveFilters =
+    searchQuery ||
+    prioridadeFilter !== "todas" ||
+    statusFilter !== "pendente" ||
+    !!periodoInicio ||
+    !!periodoFim ||
     coordenacaoId !== "todas";
 
   const clearAllFilters = () => {
     setSearchQuery("");
     setPrioridadeFilter("todas");
     setStatusFilter("pendente");
-    setPeriodoInicio(startOfDay(new Date()));
-    setPeriodoFim(startOfDay(new Date()));
+    clearPeriodo();
     setCoordenacaoId("todas");
   };
 
@@ -718,46 +691,22 @@ export default function Notificacoes() {
           <div className="flex flex-wrap items-center gap-3">
             {/* Quick Period Filters */}
             <div className="flex gap-1">
-              {(() => {
-                const hoje = startOfDay(new Date());
-                const inicio90 = startOfDay(subDays(hoje, DEFAULT_PERIOD_DAYS - 1));
-                const isHoje =
-                  !!periodoInicio &&
-                  !!periodoFim &&
-                  startOfDay(periodoInicio).getTime() === hoje.getTime() &&
-                  startOfDay(periodoFim).getTime() === hoje.getTime();
-                const is90dias =
-                  !!periodoInicio &&
-                  !!periodoFim &&
-                  startOfDay(periodoInicio).getTime() === inicio90.getTime() &&
-                  startOfDay(periodoFim).getTime() === hoje.getTime();
-
-                return (
-                  <>
               <Button
-                variant={isHoje ? "default" : "outline"}
+                variant={!periodoInicio && !periodoFim ? "default" : "outline"}
                 size="sm"
                 className="h-9"
-                onClick={() => {
-                  setPeriodoInicio(startOfDay(new Date()));
-                  setPeriodoFim(startOfDay(new Date()));
-                }}
+                onClick={clearPeriodo}
+              >
+                Tudo
+              </Button>
+              <Button
+                variant={periodoInicio && periodoFim ? "default" : "outline"}
+                size="sm"
+                className="h-9"
+                onClick={setPeriodoHoje}
               >
                 Hoje
               </Button>
-              <Button
-                variant={is90dias ? "default" : "outline"}
-                size="sm"
-                className="h-9"
-                onClick={() => {
-                  setPeriodoUltimosDias(DEFAULT_PERIOD_DAYS);
-                }}
-              >
-                90 dias
-              </Button>
-                  </>
-                );
-              })()}
             </div>
 
             {/* Period Filters - Data Início */}
@@ -792,7 +741,7 @@ export default function Notificacoes() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => setPeriodoUltimosDias(DEFAULT_PERIOD_DAYS)}
+                    onClick={() => setPeriodoInicio(undefined)}
                   >
                     Limpar
                   </Button>
@@ -832,7 +781,7 @@ export default function Notificacoes() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => setPeriodoUltimosDias(DEFAULT_PERIOD_DAYS)}
+                    onClick={() => setPeriodoFim(undefined)}
                   >
                     Limpar
                   </Button>
