@@ -81,10 +81,14 @@ export function GerarRelatorioPdfDialog({
 
   // Filtros de tipo de notificação
   const [tiposDjen, setTiposDjen] = useState(true);
+  const [tiposDistribuicoes, setTiposDistribuicoes] = useState(true);
+  const [tiposAlertas360, setTiposAlertas360] = useState(true);
   const [tiposRedistribuicoes, setTiposRedistribuicoes] = useState(true);
-  const [tiposAndamentos, setTiposAndamentos] = useState(true);
+  const [tiposPrazos, setTiposPrazos] = useState(true);
+  const [tiposTarefas, setTiposTarefas] = useState(true);
   const [tiposAudiencias, setTiposAudiencias] = useState(true);
   const [tiposIntimacoes, setTiposIntimacoes] = useState(true);
+  const [tiposAndamentos, setTiposAndamentos] = useState(true);
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
@@ -602,27 +606,45 @@ export function GerarRelatorioPdfDialog({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  const allSelected = tiposDjen && tiposRedistribuicoes && tiposAndamentos && tiposAudiencias && tiposIntimacoes;
+                  const allSelected = tiposDjen && tiposDistribuicoes && tiposAlertas360 && tiposRedistribuicoes && tiposPrazos && tiposTarefas && tiposAudiencias && tiposIntimacoes && tiposAndamentos;
                   const newValue = !allSelected;
                   setTiposDjen(newValue);
+                  setTiposDistribuicoes(newValue);
+                  setTiposAlertas360(newValue);
                   setTiposRedistribuicoes(newValue);
-                  setTiposAndamentos(newValue);
+                  setTiposPrazos(newValue);
+                  setTiposTarefas(newValue);
                   setTiposAudiencias(newValue);
                   setTiposIntimacoes(newValue);
+                  setTiposAndamentos(newValue);
                 }}
-                className={(tiposDjen && tiposRedistribuicoes && tiposAndamentos && tiposAudiencias && tiposIntimacoes) ? "text-primary" : ""}
+                className={(tiposDjen && tiposDistribuicoes && tiposAlertas360 && tiposRedistribuicoes && tiposPrazos && tiposTarefas && tiposAudiencias && tiposIntimacoes && tiposAndamentos) ? "text-primary" : ""}
               >
                 <CheckCircle2 className="h-4 w-4 mr-1" />
-                {(tiposDjen && tiposRedistribuicoes && tiposAndamentos && tiposAudiencias && tiposIntimacoes) ? "Todos selecionados" : "Selecionar todos"}
+                {(tiposDjen && tiposDistribuicoes && tiposAlertas360 && tiposRedistribuicoes && tiposPrazos && tiposTarefas && tiposAudiencias && tiposIntimacoes && tiposAndamentos) ? "Todos selecionados" : "Selecionar todos"}
               </Button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 border rounded-md">
+            <div className="grid grid-cols-3 gap-2 p-3 border rounded-md">
               <div
                 className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
                 onClick={() => setTiposDjen(!tiposDjen)}
               >
                 <Checkbox checked={tiposDjen} />
-                <span className="text-sm">Publicações DJEN</span>
+                <span className="text-sm">DJEN</span>
+              </div>
+              <div
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                onClick={() => setTiposDistribuicoes(!tiposDistribuicoes)}
+              >
+                <Checkbox checked={tiposDistribuicoes} />
+                <span className="text-sm">Distribuições</span>
+              </div>
+              <div
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                onClick={() => setTiposAlertas360(!tiposAlertas360)}
+              >
+                <Checkbox checked={tiposAlertas360} />
+                <span className="text-sm">Alertas 360°</span>
               </div>
               <div
                 className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
@@ -633,10 +655,17 @@ export function GerarRelatorioPdfDialog({
               </div>
               <div
                 className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                onClick={() => setTiposAndamentos(!tiposAndamentos)}
+                onClick={() => setTiposPrazos(!tiposPrazos)}
               >
-                <Checkbox checked={tiposAndamentos} />
-                <span className="text-sm">Andamentos</span>
+                <Checkbox checked={tiposPrazos} />
+                <span className="text-sm">Prazos</span>
+              </div>
+              <div
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                onClick={() => setTiposTarefas(!tiposTarefas)}
+              >
+                <Checkbox checked={tiposTarefas} />
+                <span className="text-sm">Tarefas</span>
               </div>
               <div
                 className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
@@ -651,6 +680,13 @@ export function GerarRelatorioPdfDialog({
               >
                 <Checkbox checked={tiposIntimacoes} />
                 <span className="text-sm">Intimações</span>
+              </div>
+              <div
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                onClick={() => setTiposAndamentos(!tiposAndamentos)}
+              >
+                <Checkbox checked={tiposAndamentos} />
+                <span className="text-sm">Andamentos</span>
               </div>
             </div>
           </div>
