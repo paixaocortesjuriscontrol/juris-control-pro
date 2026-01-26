@@ -15,9 +15,15 @@
      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
      const supabase = createClient(supabaseUrl, supabaseKey)
  
-     console.log('[Force Reset] Zerando metadata DJEN...')
+      console.log('[Force Reset] Limpeza total do estado DJEN...')
  
-     // SOMENTE zerar metadata, nada mais
+      // 1. Cancelar execuções pendentes
+      await supabase
+        .from('execucoes_agendadas')
+        .delete()
+        .eq('tipo', 'djen')
+
+      // 2. Zerar metadata e desativar
      const { error } = await supabase
        .from('configuracoes_monitoramento')
        .update({
@@ -39,6 +45,12 @@
            has_more: false,
            djen_run: null,
            last_run: null,
+            last_complete_run: null,
+            tribunais_stats: [],
+            total_paginas: 0,
+            total_resultados: 0,
+            duracao_s: 0,
+            offset_processado: 0
          }
        })
        .eq('tipo', 'djen')
