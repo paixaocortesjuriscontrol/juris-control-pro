@@ -26,6 +26,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDateOnlyFull } from "@/utils/formatConteudo";
+import { toast } from "sonner";
 import {
   useDjePdfs,
   useDjeResultados,
@@ -40,6 +42,7 @@ import {
 export default function ComparacaoDjenDje() {
   const [dataRef, setDataRef] = useState<Date>(new Date());
   const [tribunalSelecionado, setTribunalSelecionado] = useState<string>("all");
+  const [baixandoTodos, setBaixandoTodos] = useState(false);
   
   const dataFormatada = format(dataRef, "yyyy-MM-dd");
   
@@ -56,13 +59,22 @@ export default function ComparacaoDjenDje() {
   const buscarInterno = useBuscarDjeInterno();
 
   const handleBaixarTodos = async () => {
-    for (const tribunal of TRIBUNAIS_DJE_PDF) {
-      await baixarPdf.mutateAsync({ 
-        tribunal: tribunal.id, 
-        data_publicacao: dataFormatada 
+    if (baixandoTodos || baixarPdf.isPending) return;
+
+    setBaixandoTodos(true);
+    try {
+      // Uma única chamada (batch) para reduzir invocações/créditos
+      await baixarPdf.mutateAsync({
+        tribunais_batch: TRIBUNAIS_DJE_PDF.map((t) => t.id),
+        data_publicacao: dataFormatada,
+        caderno: "judiciario",
+        silent: true,
       });
+      toast.success("Download iniciado para todos os tribunais");
+    } finally {
+      setBaixandoTodos(false);
+      refetchPdfs();
     }
-    refetchPdfs();
   };
 
   const handleProcessarPendentes = () => {
@@ -135,9 +147,9 @@ export default function ComparacaoDjenDje() {
           <div className="flex flex-wrap gap-2">
             <Button 
               onClick={handleBaixarTodos}
-              disabled={baixarPdf.isPending}
+              disabled={baixandoTodos || baixarPdf.isPending}
             >
-              {baixarPdf.isPending ? (
+              {(baixandoTodos || baixarPdf.isPending) ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Download className="h-4 w-4 mr-2" />
@@ -285,7 +297,7 @@ export default function ComparacaoDjenDje() {
                         <TableRow key={pdf.id}>
                           <TableCell className="font-medium">{pdf.tribunal}</TableCell>
                           <TableCell>
-                            {format(new Date(pdf.data_publicacao), "dd/MM/yyyy")}
+                            {formatDateOnlyFull(pdf.data_publicacao)}
                           </TableCell>
                           <TableCell>{pdf.caderno}</TableCell>
                           <TableCell>{getStatusBadge(pdf.status)}</TableCell>

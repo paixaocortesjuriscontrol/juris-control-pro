@@ -49,6 +49,15 @@ export interface ComparacaoStats {
   };
 }
 
+type BaixarDjePdfParams = {
+  tribunal?: string;
+  tribunais_batch?: string[];
+  data_publicacao?: string;
+  caderno?: string;
+  cadernos_batch?: string[];
+  silent?: boolean;
+};
+
 // Lista PDFs baixados
 export function useDjePdfs(dataInicio?: string, dataFim?: string) {
   const inicio = dataInicio || format(subDays(new Date(), 7), "yyyy-MM-dd");
@@ -181,7 +190,7 @@ export function useBaixarDjePdf() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: { tribunal: string; data_publicacao?: string; caderno?: string }) => {
+    mutationFn: async ({ silent: _silent, ...params }: BaixarDjePdfParams) => {
       const { data, error } = await supabase.functions.invoke("baixar-dje-pdf", {
         body: params,
       });
@@ -189,9 +198,13 @@ export function useBaixarDjePdf() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["dje-pdfs"] });
-      toast.success("Download iniciado");
+
+      // Evita spam de toast quando disparado em lote
+      if (!variables?.silent) {
+        toast.success("Download iniciado");
+      }
     },
     onError: (error) => {
       toast.error(`Erro: ${error.message}`);

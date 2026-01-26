@@ -144,12 +144,22 @@ function buildDiarioJtUrls(tribunal: string, dataIso: string, caderno: string): 
 async function downloadPDF(url: string): Promise<{ data: ArrayBuffer; size: number } | null> {
   try {
     console.log(`[DJE-PDF] Baixando: ${url}`);
+
+    let referer = undefined as string | undefined;
+    try {
+      const u = new URL(url);
+      referer = `${u.origin}/`;
+    } catch {
+      // ignore
+    }
     
     const response = await fetch(url, {
       method: "GET",
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "application/pdf,*/*",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        ...(referer ? { Referer: referer } : {}),
       },
     });
 
@@ -353,13 +363,15 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Parse request body
-    const body = await req.json().catch(() => ({}));
-    const {
-      tribunal,
-      data_publicacao,
-      caderno = "judiciario",
-      tribunais_batch, // Para processar múltiplos tribunais de uma vez
-    } = body;
+    const body = await req.json().catch(() => ({} as any));
+
+    const tribunal = body?.tribunal as string | undefined;
+    const data_publicacao = body?.data_publicacao as string | undefined;
+    const tribunais_batch = body?.tribunais_batch as string[] | undefined; // Para processar múltiplos tribunais de uma vez
+    const cadernos_batch = body?.cadernos_batch as string[] | undefined;
+    const hasCadernoInBody = Object.prototype.hasOwnProperty.call(body, "caderno");
+    const cadernoFromBody = body?.caderno as string | undefined;
+    const cadernoDefault = typeof cadernoFromBody === "string" && cadernoFromBody.trim() ? cadernoFromBody.trim() : "judiciario";
 
     const { iso: dataRefIso } = normalizeDataPublicacao(data_publicacao);
 
@@ -376,7 +388,16 @@ Deno.serve(async (req) => {
         }
 
         const config = TRIBUNAIS[t];
-        for (const cad of config.cadernos) {
+
+        // Por padrão (sem caderno/cadernos_batch), mantém o comportamento antigo: baixa todos os cadernos suportados.
+        // Se o request enviar caderno explícito ou cadernos_batch, baixa somente o(s) solicitado(s).
+        const cadernosToProcess = Array.isArray(cadernos_batch)
+          ? cadernos_batch
+          : hasCadernoInBody
+            ? [cadernoDefault]
+            : config.cadernos;
+
+        for (const cad of cadernosToProcess) {
           const result = await processDownload(supabase, t, dataRef, cad, config);
           results.push(result);
         }
@@ -411,8 +432,8 @@ Deno.serve(async (req) => {
 
     const dataRef = dataRefIso;
     const config = TRIBUNAIS[tribunal];
-    
-    const result = await processDownload(supabase, tribunal, dataRef, caderno, config);
+
+    const result = await processDownload(supabase, tribunal, dataRef, cadernoDefault, config);
 
     return new Response(
       JSON.stringify(result),
