@@ -596,7 +596,26 @@ export function GerarRelatorioPdfDialog({
 
           {/* Seleção de Tipos de Notificação */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Tipos de Notificação</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Tipos de Notificação</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const allSelected = tiposDjen && tiposRedistribuicoes && tiposAndamentos && tiposAudiencias && tiposIntimacoes;
+                  const newValue = !allSelected;
+                  setTiposDjen(newValue);
+                  setTiposRedistribuicoes(newValue);
+                  setTiposAndamentos(newValue);
+                  setTiposAudiencias(newValue);
+                  setTiposIntimacoes(newValue);
+                }}
+                className={(tiposDjen && tiposRedistribuicoes && tiposAndamentos && tiposAudiencias && tiposIntimacoes) ? "text-primary" : ""}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                {(tiposDjen && tiposRedistribuicoes && tiposAndamentos && tiposAudiencias && tiposIntimacoes) ? "Todos selecionados" : "Selecionar todos"}
+              </Button>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 border rounded-md">
               <div
                 className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
