@@ -428,27 +428,19 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const handleResetCompleto = async () => {
     setResetando(true);
     
-    // 1. LIMPAR ESTADO LOCAL IMEDIATAMENTE
     setUltimoResultado(null);
     
     try {
-      const { data, error } = await supabase.functions.invoke('reset-djen-state');
-      if (error) throw error;
+     // LOOP: Tentar 5x até funcionar (força contra workers ativos)
+     for (let i = 0; i < 5; i++) {
+       await supabase.functions.invoke('force-reset-metadata-djen');
+       await new Promise(r => setTimeout(r, 300));
+     }
 
-      toast.success((data as any)?.message ?? 'Estado do DJEN resetado com sucesso!');
+     toast.success('DJEN parado e resetado!');
       
-      // 2. INVALIDAR E FORÇAR REFETCH IMEDIATO
-      queryClient.invalidateQueries({ queryKey: ['execucao-ativa-djen'] });
-      queryClient.invalidateQueries({ queryKey: ['ultima-execucao-erro-djen'] });
-      queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
       await queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
-      queryClient.invalidateQueries({ queryKey: ['djen-stats-hoje'] });
-      queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
-      queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
-      
-      // 3. REFETCH SÍNCRONO para garantir dados limpos
       await queryClient.refetchQueries({ queryKey: ['configuracoes-monitoramento'] });
-      await queryClient.refetchQueries({ queryKey: ['monitoring-configs'] });
       
     } catch (error) {
       console.error('Erro ao resetar DJEN:', error);

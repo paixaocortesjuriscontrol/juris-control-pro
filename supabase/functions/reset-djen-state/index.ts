@@ -16,26 +16,34 @@
      const supabase = createClient(supabaseUrl, supabaseKey)
  
      console.log('[Reset DJEN] Iniciando reset completo do estado...')
- 
-      // 1. LIMPAR TUDO: execuções fantasma E ativas
-      // Fantasmas = status 'executando' MAS já tem finalizado_em preenchido
-      const { data: todasExecucoes, error: execError } = await supabase
-       .from('execucoes_agendadas')
-       .update({
-         status: 'cancelado',
-         finalizado_em: new Date().toISOString()
-       })
-       .eq('tipo', 'djen')
-       .or('status.eq.executando,status.eq.pendente,status.eq.agendado')
-       .select()
- 
-      if (execError) {
-        console.error('Erro ao cancelar execuções:', execError)
-     } else {
-        console.log(`[Reset DJEN] ${todasExecucoes?.length || 0} execuções canceladas/limpas`)
+     
+     // LOOP: Repetir 3x para garantir que workers ativos param
+     for (let attempt = 1; attempt <= 3; attempt++) {
+       console.log(`[Reset DJEN] Tentativa ${attempt}/3...`)
+       
+       // 1. Desativar PRIMEIRO para parar cron jobs
+       await supabase
+         .from('configuracoes_monitoramento')
+         .update({ ativo: false })
+         .eq('tipo', 'djen')
+       
+       // 2. Aguardar 500ms para workers verem a flag
+       await new Promise(r => setTimeout(r, 500))
+       
+       // 3. Deletar execuções
+       await supabase
+         .from('execucoes_agendadas')
+         .delete()
+         .eq('tipo', 'djen')
      }
  
-      // 2. ZERAR METADATA COMPLETAMENTE
+     // 4. Contagem final de execuções deletadas
+      const { data: deletadas, error: deleteError } = await supabase
+       .from('execucoes_agendadas')
+       .select('id')
+       .eq('tipo', 'djen')
+ 
+      // 5. ZERAR METADATA
      const { error: configError } = await supabase
        .from('configuracoes_monitoramento')
        .update({
@@ -73,7 +81,7 @@
        JSON.stringify({ 
          success: true,
          message: 'Estado do DJEN resetado completamente',
-         execucoes_limpas: todasExecucoes?.length || 0
+         execucoes_deletadas: deletadas?.length || 0
        }),
        { 
          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
