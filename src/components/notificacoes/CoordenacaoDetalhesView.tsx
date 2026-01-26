@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -30,6 +30,7 @@ import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
 import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
+import { useRedistribuicoes } from "@/hooks/useRedistribuicoes";
 import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao";
 import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
@@ -67,8 +68,17 @@ export function CoordenacaoDetalhesView({
   const { alertas } = useMonitoramento360();
   const { prazosUrgentes } = useNotificacoes();
   const { configs } = useConfigAlertasCoordenacao();
+  
+  // Usar mesmo hook que o dashboard para consistência nos números
+  const { data: redistribuicoesData = [] } = useRedistribuicoes({
+    dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
+    dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
+    coordenacaoId: coordenacaoId,
+  });
+  
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  // activeSection agora pode ser 'all' para mostrar todas, ou uma seção específica, ou null
+  const [activeSection, setActiveSection] = useState<string>("all");
 
   const matchesPeriodo = useMemo(() => {
     return (dateStr: string | null | undefined) => {
@@ -91,45 +101,6 @@ export function CoordenacaoDetalhesView({
       return text?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
     };
   }, [searchQuery]);
-
-  // Buscar redistribuições diretamente com filtro de coordenação
-  const { data: redistribuicoesData = [] } = useQuery({
-    queryKey: ["redistribuicoes-coordenacao-detalhes", coordenacaoId, periodoInicio, periodoFim],
-    queryFn: async () => {
-      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
-      const fimDiaMaisUm = periodoFim ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd") : undefined;
-
-      let query = supabase
-        .from("movimentacoes")
-        .select(`
-          id,
-          processo_id,
-          descricao,
-          data_movimentacao,
-          created_at,
-          processo:processos!movimentacoes_processo_id_fkey(
-            id, 
-            numero, 
-            coordenacao_id,
-            vara,
-            polo_ativo,
-            polo_passivo,
-            advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(nome)
-          )
-        `)
-        .eq("tipo", "Redistribuição")
-        .order("created_at", { ascending: false });
-
-      if (inicioDia) query = query.gte("created_at", inicioDia);
-      if (fimDiaMaisUm) query = query.lt("created_at", fimDiaMaisUm);
-
-      const { data, error } = await query;
-      if (error) throw error;
-      
-      // Filtrar por coordenação
-      return (data || []).filter((r: any) => r.processo?.coordenacao_id === coordenacaoId);
-    },
-  });
 
   const { data: tarefasPendentes = [] } = useQuery({
     queryKey: ["tarefas-coordenacao-detalhes", coordenacaoId, statusFilter, periodoInicio, periodoFim],
@@ -260,7 +231,8 @@ export function CoordenacaoDetalhesView({
     return true;
   });
 
-  const redistribuicoesFiltradas = redistribuicoesData.filter((r: any) => matchesSearch(r.processo?.numero));
+  // Redistribuições já vêm filtradas pelo hook, só aplica filtro de busca
+  const redistribuicoesFiltradas = redistribuicoesData.filter((r) => matchesSearch(r.processo_numero));
 
   const config = configs.find(c => c.coordenacao_id === coordenacaoId);
 
@@ -286,53 +258,37 @@ export function CoordenacaoDetalhesView({
     }
   };
 
-  // Parse redistribuição descrição
-  const parseRedistribuicao = (descricao: string | null) => {
-    if (!descricao) return { varaAntiga: "N/A", varaNova: "N/A" };
-    const match = descricao.match(/Redistribuição detectada: (.+) -> (.+)/);
-    return {
-      varaAntiga: match?.[1] || "N/A",
-      varaNova: match?.[2] || "N/A",
-    };
-  };
-
   // Toggle section or set active
   const toggleSection = (section: string) => {
-    setActiveSection(activeSection === section ? null : section);
+    setActiveSection(activeSection === section ? "all" : section);
   };
 
   // Unified list rendering
   const renderFullList = () => {
-    if (!activeSection) return null;
-
     const sectionConfig: Record<string, { title: string; icon: any; color: string; items: any[]; renderItem: (item: any) => React.ReactNode }> = {
       redistribuicoes: {
         title: "Redistribuições",
         icon: RefreshCw,
         color: "cyan",
         items: redistribuicoesFiltradas,
-        renderItem: (r: any) => {
-          const { varaAntiga, varaNova } = parseRedistribuicao(r.descricao);
+        renderItem: (r) => {
           return (
-            <div key={r.id} className="p-3 border-b hover:bg-accent/50 cursor-pointer" onClick={() => r.processo?.id && navigate(`/processo/${r.processo.id}`)}>
+            <div key={r.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => r.processo_id && navigate(`/processo/${r.processo_id}`)}>
               <div className="flex justify-between items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm">{r.processo?.numero || "N/A"}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{r.processo?.polo_ativo || "Parte não informada"}</p>
-                  <div className="flex items-center gap-2 mt-1 text-xs">
-                    <span className="text-muted-foreground line-through">{varaAntiga}</span>
+                  <p className="font-medium text-sm">{r.processo_numero || "N/A"}</p>
+                  <div className="flex items-center gap-2 mt-0.5 text-xs">
+                    <span className="text-muted-foreground line-through">{r.vara_antiga}</span>
                     <span>→</span>
-                    <span className="font-medium text-cyan-600">{varaNova}</span>
+                    <span className="font-medium text-cyan-600">{r.vara_nova}</span>
                   </div>
-                  {r.processo?.advogado_responsavel?.nome && (
-                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                      <User className="h-3 w-3" /> {r.processo.advogado_responsavel.nome}
+                  {r.advogado_nome && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <User className="h-3 w-3" /> {r.advogado_nome}
                     </p>
                   )}
                 </div>
-                <div className="text-right">
-                  <span className="text-xs text-muted-foreground">{format(new Date(r.created_at), "dd/MM/yy HH:mm")}</span>
-                </div>
+                <span className="text-[10px] text-muted-foreground">{format(new Date(r.data_redistribuicao), "dd/MM HH:mm")}</span>
               </div>
             </div>
           );
@@ -344,17 +300,17 @@ export function CoordenacaoDetalhesView({
         color: "indigo",
         items: audienciasPendentes,
         renderItem: (a: any) => (
-          <div key={a.id} className="p-3 border-b hover:bg-accent/50 cursor-pointer" onClick={() => a.processo?.id && navigate(`/processo/${a.processo.id}`)}>
+          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => a.processo?.id && navigate(`/processo/${a.processo.id}`)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-sm">{a.tipo_audiencia || "Audiência"}</p>
-                  <Badge variant="outline" className="text-[10px]">{a.status}</Badge>
+                  <Badge variant="outline" className="text-[10px] h-4">{a.status}</Badge>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">{a.processo_numero || a.processo?.numero}</p>
+                <p className="text-xs text-muted-foreground">{a.processo_numero || a.processo?.numero}</p>
                 <p className="text-xs text-muted-foreground">{a.polo_ativo || a.processo?.polo_ativo}</p>
                 {a.local_audiencia && (
-                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <MapPin className="h-3 w-3" /> {a.local_audiencia}
                   </p>
                 )}
@@ -363,11 +319,10 @@ export function CoordenacaoDetalhesView({
                     <User className="h-3 w-3" /> {a.advogado}
                   </p>
                 )}
-                {a.observacoes && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.observacoes}</p>}
               </div>
-              <div className="text-right space-y-1">
+              <div className="text-right space-y-0.5">
                 {a.data_audiencia && (
-                  <Badge className="bg-indigo-600 text-white text-xs">{format(new Date(a.data_audiencia), "dd/MM/yy")}</Badge>
+                  <Badge className="bg-indigo-600 text-white text-[10px] h-4">{format(new Date(a.data_audiencia), "dd/MM/yy")}</Badge>
                 )}
                 {(a.hora || a.hora_brasilia) && <p className="text-xs font-medium">{a.hora || a.hora_brasilia}</p>}
               </div>
@@ -381,20 +336,20 @@ export function CoordenacaoDetalhesView({
         color: "orange",
         items: intimacoesPendentes,
         renderItem: (i: any) => (
-          <div key={i.id} className="p-3 border-b hover:bg-accent/50 cursor-pointer" onClick={() => i.processo?.id && navigate(`/processo/${i.processo.id}`)}>
+          <div key={i.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => i.processo?.id && navigate(`/processo/${i.processo.id}`)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-sm">{i.tipo_intimacao || "Intimação"}</p>
-                  {i.prazo_dias && <Badge variant="outline" className="text-[10px]">{i.prazo_dias} dias</Badge>}
+                  {i.prazo_dias && <Badge variant="outline" className="text-[10px] h-4">{i.prazo_dias} dias</Badge>}
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">{i.processo_numero || i.processo?.numero}</p>
+                <p className="text-xs text-muted-foreground">{i.processo_numero || i.processo?.numero}</p>
                 <p className="text-xs text-muted-foreground">{i.processo?.polo_ativo}</p>
-                {i.descricao && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{i.descricao}</p>}
+                {i.descricao && <p className="text-xs text-muted-foreground line-clamp-2">{i.descricao}</p>}
               </div>
               <div className="text-right">
                 {i.data_limite && (
-                  <Badge className="bg-orange-600 text-white text-xs">Limite: {format(new Date(i.data_limite), "dd/MM/yy")}</Badge>
+                  <Badge className="bg-orange-600 text-white text-[10px] h-4">Limite: {format(new Date(i.data_limite), "dd/MM/yy")}</Badge>
                 )}
               </div>
             </div>
@@ -407,20 +362,19 @@ export function CoordenacaoDetalhesView({
         color: "green",
         items: tarefasPendentes,
         renderItem: (t: any) => (
-          <div key={t.id} className="p-3 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/processo/${t.processo?.id}`)}>
+          <div key={t.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/processo/${t.processo?.id}`)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-sm">{t.titulo}</p>
-                  <Badge className={cn("text-[10px]", getPrioridadeColor(t.prioridade))}>{t.prioridade}</Badge>
+                  <Badge className={cn("text-[10px] h-4", getPrioridadeColor(t.prioridade))}>{t.prioridade}</Badge>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">{t.processo?.numero}</p>
+                <p className="text-xs text-muted-foreground">{t.processo?.numero}</p>
                 {t.responsavel?.nome && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <User className="h-3 w-3" /> {t.responsavel.nome}
                   </p>
                 )}
-                {t.descricao && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.descricao}</p>}
               </div>
               <div className="text-right">
                 {t.data_vencimento && <span className="text-xs text-muted-foreground">{format(new Date(t.data_vencimento), "dd/MM/yy")}</span>}
@@ -435,10 +389,10 @@ export function CoordenacaoDetalhesView({
         color: "blue",
         items: publicacoesFiltradas,
         renderItem: (p: any) => (
-          <div key={p.id} className="p-3 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/analise-djen`)}>
+          <div key={p.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/analise-djen`)}>
             <p className="font-medium text-sm">{p.processo_numero || "Sem número"}</p>
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-3">{p.conteudo}</p>
-            <span className="text-[10px] text-muted-foreground">{format(new Date(p.created_at), "dd/MM/yy HH:mm")}</span>
+            <p className="text-xs text-muted-foreground line-clamp-2">{p.conteudo}</p>
+            <span className="text-[10px] text-muted-foreground">{format(new Date(p.created_at), "dd/MM HH:mm")}</span>
           </div>
         ),
       },
@@ -448,42 +402,70 @@ export function CoordenacaoDetalhesView({
         color: "violet",
         items: andamentosData,
         renderItem: (a: any) => (
-          <div key={a.id} className="p-3 border-b hover:bg-accent/50 cursor-pointer" onClick={() => a.processo?.id && navigate(`/processo/${a.processo.id}`)}>
+          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => a.processo?.id && navigate(`/processo/${a.processo.id}`)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm line-clamp-2">{a.descricao}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{a.processo?.numero}</p>
-                {a.tipo && <Badge variant="outline" className="text-[10px] mt-1">{a.tipo}</Badge>}
+                <p className="text-xs text-muted-foreground">{a.processo?.numero}</p>
               </div>
-              <span className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(a.data_movimentacao), "dd/MM/yy")}</span>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(a.data_movimentacao), "dd/MM")}</span>
             </div>
           </div>
         ),
       },
     };
 
-    const cfg = sectionConfig[activeSection];
-    if (!cfg || cfg.items.length === 0) return null;
+    // Seções a renderizar
+    const sectionsToRender = activeSection === "all" 
+      ? Object.keys(sectionConfig).filter(key => sectionConfig[key].items.length > 0)
+      : activeSection && sectionConfig[activeSection]?.items.length > 0 
+        ? [activeSection] 
+        : [];
 
-    const Icon = cfg.icon;
+    if (sectionsToRender.length === 0) {
+      return (
+        <div className="text-center text-muted-foreground py-8">
+          Nenhum registro encontrado para o período selecionado.
+        </div>
+      );
+    }
 
     return (
-      <Card className="mt-3">
-        <CardHeader className={cn("py-2 px-3 border-b", `bg-${cfg.color}-600/5`)}>
-          <CardTitle className="text-sm flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <Icon className={cn("h-4 w-4", `text-${cfg.color}-600`)} />
-              {cfg.title} ({cfg.items.length})
-            </span>
-            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setActiveSection(null)}>
-              Fechar
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <ScrollArea className="h-[60vh]">
-          {cfg.items.map(cfg.renderItem)}
-        </ScrollArea>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mt-2">
+        {sectionsToRender.map(sectionKey => {
+          const cfg = sectionConfig[sectionKey];
+          const Icon = cfg.icon;
+          const colorClasses: Record<string, string> = {
+            cyan: "bg-cyan-600/10 border-cyan-600/30 text-cyan-700",
+            indigo: "bg-indigo-600/10 border-indigo-600/30 text-indigo-700",
+            orange: "bg-orange-600/10 border-orange-600/30 text-orange-700",
+            green: "bg-green-600/10 border-green-600/30 text-green-700",
+            blue: "bg-blue-600/10 border-blue-600/30 text-blue-700",
+            violet: "bg-violet-600/10 border-violet-600/30 text-violet-700",
+          };
+
+          return (
+            <Card key={sectionKey} className="overflow-hidden">
+              <CardHeader className={cn("py-1.5 px-3 border-b", colorClasses[cfg.color])}>
+                <CardTitle className="text-sm flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Icon className="h-4 w-4" />
+                    {cfg.title} ({cfg.items.length})
+                  </span>
+                  {activeSection !== "all" && (
+                    <Button variant="ghost" size="sm" className="h-5 text-xs px-2" onClick={() => setActiveSection("all")}>
+                      Ver todos
+                    </Button>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <ScrollArea className="h-[250px]">
+                {cfg.items.map(cfg.renderItem)}
+              </ScrollArea>
+            </Card>
+          );
+        })}
+      </div>
     );
   };
 
