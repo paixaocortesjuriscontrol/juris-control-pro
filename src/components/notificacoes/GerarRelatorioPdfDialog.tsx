@@ -27,8 +27,6 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
-import { useRedistribuicoes } from "@/hooks/useRedistribuicoes";
 import { toast } from "sonner";
 
 interface Props {
@@ -91,10 +89,102 @@ export function GerarRelatorioPdfDialog({
   const [tiposAndamentos, setTiposAndamentos] = useState(true);
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
-  const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
-  const { data: redistribuicoesData = [] } = useRedistribuicoes({
-    dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
-    dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
+  
+  // Buscar publicações DJEN SEM LIMITE para o relatório
+  const { data: publicacoes = [] } = useQuery({
+    queryKey: ["publicacoes-djen-pdf-report-unlimited", periodoInicio, periodoFim],
+    queryFn: async () => {
+      let query = supabase
+        .from('publicacoes_djen')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (periodoInicio) {
+        query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
+      }
+      if (periodoFim) {
+        const fimMaisUm = new Date(periodoFim);
+        fimMaisUm.setDate(fimMaisUm.getDate() + 1);
+        query = query.lt("created_at", format(fimMaisUm, "yyyy-MM-dd"));
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open,
+  });
+
+  // Buscar monitoramentos DJEN
+  const { data: monitoramentosDjen = [] } = useQuery({
+    queryKey: ["monitoramentos-djen-pdf-report"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('monitoramentos_djen')
+        .select('id, coordenacao_id, termo_busca, ativo');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open,
+  });
+
+  // Buscar redistribuições SEM LIMITE (via movimentacoes com tipo 'Redistribuição')
+  const { data: redistribuicoesData = [] } = useQuery({
+    queryKey: ["redistribuicoes-pdf-report-unlimited", periodoInicio, periodoFim],
+    queryFn: async () => {
+      let query = supabase
+        .from('movimentacoes')
+        .select(`
+          id,
+          processo_id,
+          descricao,
+          data_movimentacao,
+          created_at,
+          processos (
+            numero,
+            area,
+            vara,
+            coordenacao_id,
+            coordenacoes (nome),
+            advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey (nome)
+          )
+        `)
+        .eq('tipo', 'Redistribuição')
+        .order('data_movimentacao', { ascending: false });
+      
+      if (periodoInicio) {
+        query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
+      }
+      if (periodoFim) {
+        const fimMaisUm = new Date(periodoFim);
+        fimMaisUm.setDate(fimMaisUm.getDate() + 1);
+        query = query.lt("created_at", format(fimMaisUm, "yyyy-MM-dd"));
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      // Transformar para formato esperado
+      return (data || []).map((mov: any) => {
+        // Parse da descrição para extrair vara antiga e nova
+        const match = mov.descricao?.match(/Redistribuição detectada: (.+) -> (.+)/);
+        const varaAntiga = match?.[1] || 'N/A';
+        const varaNova = match?.[2] || mov.processos?.vara || 'N/A';
+        
+        return {
+          id: mov.id,
+          processo_id: mov.processo_id,
+          processo_numero: mov.processos?.numero,
+          processo_area: mov.processos?.area,
+          coordenacao_nome: mov.processos?.coordenacoes?.nome,
+          advogado_nome: mov.processos?.advogado_responsavel?.nome,
+          vara_antiga: varaAntiga,
+          vara_nova: varaNova,
+          data_redistribuicao: mov.data_movimentacao,
+        };
+      });
+    },
+    enabled: open,
   });
 
   // Helper para filtrar por busca (igual tela)
