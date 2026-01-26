@@ -441,17 +441,20 @@ export default function Notificacoes() {
   }, [andamentosData, coordenacaoId, searchQuery]);
 
   // Stats - recalculated based on toggle filters
+  // IMPORTANTE: Não incluir 'notificacoes' no total pois duplica contagem de alertas
   const stats = useMemo(() => {
     const djen = showDjen ? publicacoesFiltradas.length : 0;
     const distribuicoes = showDistribuicoes ? distribuicoesFiltradas.length : 0;
     const alertas360 = showAlertas360 ? alertasFiltrados.length : 0;
     const redistribuicoes = showRedistribuicoes ? redistribuicoesFiltradas.length : 0;
     const prazos = showPrazos ? prazosFiltrados.length : 0;
-    const notifs = notificacoesFiltradas.length;
     const tarefas = showTarefas ? tarefasFiltradas.length : 0;
     const audiencias = showAudiencias ? audienciasFiltradas.length : 0;
     const intimacoes = showIntimacoes ? intimacoesFiltradas.length : 0;
     const andamentos = showAndamentos ? andamentosFiltrados.length : 0;
+    
+    // Total sem duplicar notificações (que são reflexo dos demais alertas)
+    const total = djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas + audiencias + intimacoes + andamentos;
     
     return {
       djen: publicacoesFiltradas.length,
@@ -464,8 +467,8 @@ export default function Notificacoes() {
       audiencias: audienciasFiltradas.length,
       intimacoes: intimacoesFiltradas.length,
       andamentos: andamentosFiltrados.length,
-      total: djen + distribuicoes + alertas360 + redistribuicoes + prazos + notifs + tarefas + audiencias + intimacoes + andamentos,
-      filteredTotal: djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas + audiencias + intimacoes + andamentos
+      total,
+      filteredTotal: total
     };
   }, [
     publicacoesFiltradas, distribuicoesFiltradas, alertasFiltrados, redistribuicoesFiltradas,
