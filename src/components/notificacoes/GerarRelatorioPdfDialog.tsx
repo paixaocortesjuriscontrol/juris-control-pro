@@ -744,86 +744,66 @@ export function GerarRelatorioPdfDialog({
 
       {/* Conteúdo para impressão (hidden) */}
       <div ref={printRef} style={{ display: "none" }}>
-        {/* Capa */}
-        <div data-pdf-page="cover" style={{ 
-          padding: "40px", 
-          fontFamily: "Arial, sans-serif",
-          background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
-          color: "white",
-          minHeight: "297mm",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-        }}>
-          <div style={{
-            width: "80px",
-            height: "80px",
-            background: "linear-gradient(135deg, #d4a015 0%, #eab308 100%)",
-            borderRadius: "16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: "32px",
-            fontSize: "40px",
-          }}>
-            ⚖️
-          </div>
-          <h1 style={{ 
-            fontSize: "32px", 
-            fontWeight: "bold", 
-            marginBottom: "8px",
-            textAlign: "center",
-          }}>
-            RELATÓRIO EXECUTIVO
-          </h1>
-          <h2 style={{ 
-            fontSize: "20px", 
-            opacity: 0.9, 
-            marginBottom: "32px",
-            textAlign: "center",
-          }}>
-            Central de Notificações
-          </h2>
-          <div style={{ 
-            background: "rgba(255,255,255,0.1)", 
-            padding: "24px 48px", 
-            borderRadius: "12px",
-            textAlign: "center",
-          }}>
-            <div style={{ fontSize: "14px", opacity: 0.7, marginBottom: "4px" }}>Período</div>
-            <div style={{ fontSize: "18px", fontWeight: "500" }}>{periodoLabel}</div>
-          </div>
-          <div style={{ marginTop: "48px", textAlign: "center" }}>
-            <div style={{ fontSize: "16px", fontWeight: "600" }}>Juris Control</div>
-            <div style={{ fontSize: "12px", opacity: 0.7 }}>Paixão Cortes Advogados</div>
-            <div style={{ fontSize: "12px", opacity: 0.5, marginTop: "8px" }}>{dataAtual}</div>
-          </div>
-        </div>
-
-        {/* Sumário Executivo */}
-        <div data-pdf-page="summary" style={{ 
-          padding: "30px", 
+        {/* Capa + Sumário Executivo - Página única */}
+        <div data-pdf-page="cover-summary" style={{ 
+          padding: "24px", 
           fontFamily: "Arial, sans-serif",
           background: "white",
           color: "#1a1a2e",
         }}>
-          <div style={{ 
-            borderBottom: "3px solid #eab308", 
-            paddingBottom: "16px", 
-            marginBottom: "24px" 
+          {/* Header com identidade visual */}
+          <div style={{
+            background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+            color: "white",
+            padding: "20px 24px",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}>
-            <h2 style={{ fontSize: "24px", fontWeight: "bold", color: "#1a1a2e", margin: 0 }}>
-              Sumário Executivo
-            </h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div style={{
+                width: "48px",
+                height: "48px",
+                background: "linear-gradient(135deg, #d4a015 0%, #eab308 100%)",
+                borderRadius: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "24px",
+              }}>
+                ⚖️
+              </div>
+              <div>
+                <h1 style={{ 
+                  fontSize: "22px", 
+                  fontWeight: "bold", 
+                  margin: 0,
+                }}>
+                  RELATÓRIO EXECUTIVO
+                </h1>
+                <div style={{ fontSize: "12px", opacity: 0.8 }}>
+                  Central de Notificações
+                </div>
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: "11px", opacity: 0.7 }}>Período</div>
+              <div style={{ fontSize: "14px", fontWeight: "500" }}>{periodoLabel}</div>
+              <div style={{ fontSize: "10px", opacity: 0.6, marginTop: "4px" }}>{dataAtual}</div>
+            </div>
           </div>
 
-          {/* Totais Gerais - Layout simples */}
+          {/* Totais Gerais */}
+          <h3 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "10px", color: "#1a1a2e" }}>
+            Resumo Geral
+          </h3>
           <div style={{ 
             display: "grid", 
             gridTemplateColumns: "repeat(5, 1fr)", 
             gap: "8px",
-            marginBottom: "24px",
+            marginBottom: "20px",
           }}>
             {[
               { label: "DJEN", value: totalGeral.djen },
@@ -834,13 +814,15 @@ export function GerarRelatorioPdfDialog({
             ].map(item => (
               <div key={item.label} style={{
                 border: "1px solid #e5e7eb",
-                padding: "12px",
+                padding: "10px",
                 textAlign: "center",
+                borderRadius: "6px",
+                background: "#f8fafc",
               }}>
-                <div style={{ fontSize: "24px", fontWeight: "bold", color: "#1a1a2e" }}>
+                <div style={{ fontSize: "22px", fontWeight: "bold", color: "#1a1a2e" }}>
                   {item.value}
                 </div>
-                <div style={{ fontSize: "9px", color: "#64748b", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "8px", color: "#64748b", textTransform: "uppercase" }}>
                   {item.label}
                 </div>
               </div>
@@ -848,7 +830,7 @@ export function GerarRelatorioPdfDialog({
           </div>
 
           {/* Tabela de Coordenações */}
-          <h3 style={{ fontSize: "14px", fontWeight: "600", marginBottom: "12px" }}>
+          <h3 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "10px", color: "#1a1a2e" }}>
             Visão por Coordenação
           </h3>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
@@ -892,6 +874,20 @@ export function GerarRelatorioPdfDialog({
               </tr>
             </tfoot>
           </table>
+
+          {/* Rodapé da página */}
+          <div style={{ 
+            marginTop: "20px", 
+            paddingTop: "12px", 
+            borderTop: "1px solid #e5e7eb",
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "9px",
+            color: "#64748b",
+          }}>
+            <span>Juris Control • Paixão Cortes Advogados</span>
+            <span>juris-control-pro.lovable.app</span>
+          </div>
         </div>
 
         {/* Detalhamento por Coordenação */}
