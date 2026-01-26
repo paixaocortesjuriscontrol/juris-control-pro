@@ -24,7 +24,6 @@ import {
   Loader2,
   Building2,
   CheckCircle2,
-  Scale,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
@@ -66,6 +65,13 @@ interface CoordenacaoReportData {
     intimacoes: any[];
   };
 }
+
+// Helper para extrair número do processo do conteúdo
+const extractProcessoNumero = (conteudo: string | null | undefined): string | null => {
+  if (!conteudo) return null;
+  const match = conteudo.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
+  return match ? match[1] : null;
+};
 
 export function GerarRelatorioPdfDialog({
   open,
@@ -111,14 +117,15 @@ export function GerarRelatorioPdfDialog({
     enabled: open,
   });
 
-  // Buscar audiências
+  // Buscar audiências COM TODOS OS CAMPOS NECESSÁRIOS
   const { data: audienciasPendentes = [] } = useQuery({
     queryKey: ["audiencias-pdf-report", statusFilter],
     queryFn: async () => {
       let query = supabase
         .from("audiencias_detectadas")
         .select(`
-          id, processo_numero, data_audiencia, hora, tipo_audiencia, status, local_audiencia,
+          id, processo_numero, data_audiencia, hora, hora_brasilia, tipo_audiencia, status, 
+          local_audiencia, polo_ativo, cliente, vara_camara, comarca, advogado,
           processo:processos!audiencias_detectadas_processo_id_fkey(id, numero, coordenacao_id)
         `);
       if (statusFilter !== "todas") {
@@ -137,7 +144,7 @@ export function GerarRelatorioPdfDialog({
       let query = supabase
         .from("intimacoes_detectadas")
         .select(`
-          id, processo_numero, data_intimacao, tipo_intimacao, status,
+          id, processo_numero, data_intimacao, tipo_intimacao, status, data_limite, descricao,
           processo:processos!intimacoes_detectadas_processo_id_fkey(id, numero, coordenacao_id)
         `);
       if (statusFilter !== "todas") {
@@ -149,7 +156,7 @@ export function GerarRelatorioPdfDialog({
     enabled: open,
   });
 
-  // Buscar andamentos
+  // Buscar andamentos COM DESCRIÇÃO COMPLETA
   const { data: andamentosData = [] } = useQuery({
     queryKey: ["andamentos-pdf-report", periodoInicio, periodoFim],
     queryFn: async () => {
@@ -157,7 +164,7 @@ export function GerarRelatorioPdfDialog({
         .from("movimentacoes")
         .select(`
           id, descricao, data_movimentacao, created_at, tipo,
-          processo:processos!movimentacoes_processo_id_fkey(id, numero, coordenacao_id)
+          processo:processos!movimentacoes_processo_id_fkey(id, numero, coordenacao_id, polo_ativo)
         `)
         .neq("tipo", "Redistribuição")
         .order("created_at", { ascending: false });
@@ -278,6 +285,14 @@ export function GerarRelatorioPdfDialog({
       djen: 0, distribuicoes: 0, alertas360: 0, redistribuicoes: 0,
       andamentos: 0, prazos: 0, tarefas: 0, audiencias: 0, intimacoes: 0, total: 0
     });
+  }, [reportData]);
+
+  // Calcular contagem de alertas por coordenação para exibir no dialog
+  const getCoordenacaoAlertCount = useMemo(() => {
+    return (coordId: string) => {
+      const found = reportData.find(r => r.id === coordId);
+      return found?.total || 0;
+    };
   }, [reportData]);
 
   const handleSelectAll = () => {
@@ -419,6 +434,15 @@ export function GerarRelatorioPdfDialog({
     ? `${format(periodoInicio, "dd/MM/yyyy")} a ${format(periodoFim, "dd/MM/yyyy")}`
     : "Período atual";
 
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "-";
+    try {
+      return format(new Date(dateStr), "dd/MM/yyyy", { locale: ptBR });
+    } catch {
+      return dateStr;
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
@@ -452,7 +476,7 @@ export function GerarRelatorioPdfDialog({
               <div className="space-y-2">
                 {coordenacoes.map(coord => {
                   const isSelected = selectAll || selectedCoordenacoes.includes(coord.id);
-                  const stats = reportData.find(r => r.id === coord.id);
+                  const alertCount = getCoordenacaoAlertCount(coord.id);
                   
                   return (
                     <div
@@ -465,9 +489,9 @@ export function GerarRelatorioPdfDialog({
                         <Building2 className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">{coord.nome}</span>
                       </div>
-                      {stats && (
+                      {alertCount > 0 && (
                         <Badge variant="secondary" className="text-xs">
-                          {stats.total} alertas
+                          {alertCount} alertas
                         </Badge>
                       )}
                     </div>
@@ -739,25 +763,38 @@ export function GerarRelatorioPdfDialog({
               ))}
             </div>
 
-            {/* Detalhes */}
+            {/* ============ DJEN - Com número do processo extraído ============ */}
             {coord.detalhes.djen.length > 0 && (
               <div style={{ marginBottom: "20px" }}>
                 <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#eab308", marginBottom: "8px" }}>
                   📰 Publicações DJEN ({coord.djen})
                 </h4>
-                <div style={{ fontSize: "10px", color: "#64748b" }}>
-                  {coord.detalhes.djen.map((p: any, i: number) => (
-                    <div key={i} style={{ 
-                      padding: "6px 0", 
-                      borderBottom: "1px solid #e5e7eb" 
-                    }}>
-                      <strong>{p.processo_numero || "S/N"}</strong>
-                      {" - "}
-                      {(p.conteudo || "").substring(0, 120)}...
-                    </div>
-                  ))}
+                <div style={{ fontSize: "10px", color: "#333" }}>
+                  {coord.detalhes.djen.map((p: any, i: number) => {
+                    // Priorizar processo_numero, senão extrair do conteúdo
+                    const processoNumero = p.processo_numero || extractProcessoNumero(p.conteudo) || "Número não identificado";
+                    return (
+                      <div key={i} style={{ 
+                        padding: "8px", 
+                        borderBottom: "1px solid #e5e7eb",
+                        background: i % 2 === 0 ? "#fafafa" : "white",
+                      }}>
+                        <div style={{ fontWeight: "600", color: "#1a1a2e", marginBottom: "4px" }}>
+                          {processoNumero}
+                        </div>
+                        <div style={{ color: "#64748b", lineHeight: "1.4" }}>
+                          {(p.conteudo || "Sem conteúdo").substring(0, 200)}...
+                        </div>
+                        {p.data_publicacao && (
+                          <div style={{ marginTop: "4px", color: "#94a3b8", fontSize: "9px" }}>
+                            Publicado em: {formatDate(p.data_publicacao)} | Fonte: {p.fonte || "-"}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {coord.djen > 10 && (
-                    <div style={{ fontStyle: "italic", marginTop: "8px" }}>
+                    <div style={{ fontStyle: "italic", marginTop: "8px", color: "#64748b" }}>
                       ... e mais {coord.djen - 10} publicações
                     </div>
                   )}
@@ -765,24 +802,33 @@ export function GerarRelatorioPdfDialog({
               </div>
             )}
 
+            {/* ============ ANDAMENTOS - Descrição COMPLETA ============ */}
             {coord.detalhes.andamentos.length > 0 && (
               <div style={{ marginBottom: "20px" }}>
                 <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#8b5cf6", marginBottom: "8px" }}>
                   📋 Andamentos ({coord.andamentos})
                 </h4>
-                <div style={{ fontSize: "10px", color: "#64748b" }}>
+                <div style={{ fontSize: "10px", color: "#333" }}>
                   {coord.detalhes.andamentos.map((a: any, i: number) => (
                     <div key={i} style={{ 
-                      padding: "6px 0", 
-                      borderBottom: "1px solid #e5e7eb" 
+                      padding: "8px", 
+                      borderBottom: "1px solid #e5e7eb",
+                      background: i % 2 === 0 ? "#fafafa" : "white",
                     }}>
-                      <strong>{(a.processo as any)?.numero || "S/N"}</strong>
-                      {" - "}
-                      {(a.descricao || "").substring(0, 100)}...
+                      <div style={{ fontWeight: "600", color: "#1a1a2e", marginBottom: "4px" }}>
+                        {(a.processo as any)?.numero || "Processo não identificado"}
+                      </div>
+                      {/* DESCRIÇÃO COMPLETA - Sem corte */}
+                      <div style={{ color: "#374151", lineHeight: "1.5", whiteSpace: "pre-wrap" }}>
+                        {a.descricao || "Sem descrição"}
+                      </div>
+                      <div style={{ marginTop: "4px", color: "#94a3b8", fontSize: "9px" }}>
+                        Data: {formatDate(a.data_movimentacao)} | Tipo: {a.tipo || "-"}
+                      </div>
                     </div>
                   ))}
                   {coord.andamentos > 15 && (
-                    <div style={{ fontStyle: "italic", marginTop: "8px" }}>
+                    <div style={{ fontStyle: "italic", marginTop: "8px", color: "#64748b" }}>
                       ... e mais {coord.andamentos - 15} andamentos
                     </div>
                   )}
@@ -790,42 +836,176 @@ export function GerarRelatorioPdfDialog({
               </div>
             )}
 
+            {/* ============ AUDIÊNCIAS - Com TODOS os detalhes ============ */}
             {coord.detalhes.audiencias.length > 0 && (
               <div style={{ marginBottom: "20px" }}>
                 <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#0ea5e9", marginBottom: "8px" }}>
                   📅 Audiências ({coord.audiencias})
                 </h4>
-                <div style={{ fontSize: "10px", color: "#64748b" }}>
-                  {coord.detalhes.audiencias.map((a: any, i: number) => (
+                <div style={{ fontSize: "10px", color: "#333" }}>
+                  {coord.detalhes.audiencias.map((a: any, i: number) => {
+                    const hora = a.hora_brasilia || a.hora;
+                    const local = [a.local_audiencia, a.vara_camara, a.comarca].filter(Boolean).join(" - ");
+                    const parte = a.cliente || a.polo_ativo;
+                    return (
+                      <div key={i} style={{ 
+                        padding: "10px", 
+                        borderBottom: "1px solid #e5e7eb",
+                        background: i % 2 === 0 ? "#f0f9ff" : "white",
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                          <span style={{ fontWeight: "600", color: "#1a1a2e" }}>
+                            {a.processo_numero}
+                          </span>
+                          <span style={{ 
+                            background: a.tipo_audiencia ? "#0ea5e9" : "#94a3b8", 
+                            color: "white", 
+                            padding: "2px 8px", 
+                            borderRadius: "10px",
+                            fontSize: "9px",
+                          }}>
+                            {a.tipo_audiencia || "Audiência"}
+                          </span>
+                        </div>
+                        
+                        {/* Data e Hora */}
+                        <div style={{ color: "#0369a1", fontWeight: "500", marginBottom: "4px" }}>
+                          🗓️ {formatDate(a.data_audiencia)} {hora ? `às ${hora}` : ""}
+                        </div>
+                        
+                        {/* Local */}
+                        {local && (
+                          <div style={{ color: "#64748b", marginBottom: "2px" }}>
+                            📍 {local}
+                          </div>
+                        )}
+                        
+                        {/* Cliente/Parte */}
+                        {parte && (
+                          <div style={{ color: "#64748b", marginBottom: "2px" }}>
+                            👤 Parte: {parte}
+                          </div>
+                        )}
+                        
+                        {/* Advogado */}
+                        {a.advogado && (
+                          <div style={{ color: "#64748b" }}>
+                            ⚖️ Advogado: {a.advogado}
+                          </div>
+                        )}
+                        
+                        {/* Status */}
+                        <div style={{ marginTop: "4px" }}>
+                          <span style={{
+                            background: a.status === "pendente" ? "#fef3c7" : "#d1fae5",
+                            color: a.status === "pendente" ? "#92400e" : "#065f46",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontSize: "9px",
+                          }}>
+                            {a.status === "pendente" ? "Pendente" : a.status === "tratado" ? "Tratado" : a.status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ============ REDISTRIBUIÇÕES - Com LOCAL (Vara origem → destino) ============ */}
+            {coord.detalhes.redistribuicoes.length > 0 && (
+              <div style={{ marginBottom: "20px" }}>
+                <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#f97316", marginBottom: "8px" }}>
+                  🔄 Redistribuições ({coord.redistribuicoes})
+                </h4>
+                <div style={{ fontSize: "10px", color: "#333" }}>
+                  {coord.detalhes.redistribuicoes.map((r: any, i: number) => (
                     <div key={i} style={{ 
-                      padding: "6px 0", 
-                      borderBottom: "1px solid #e5e7eb" 
+                      padding: "10px", 
+                      borderBottom: "1px solid #e5e7eb",
+                      background: i % 2 === 0 ? "#fff7ed" : "white",
                     }}>
-                      <strong>{a.processo_numero}</strong>
-                      {" - "}
-                      {a.data_audiencia ? format(new Date(a.data_audiencia), "dd/MM/yyyy") : ""}
-                      {a.hora ? ` às ${a.hora}` : ""}
-                      {a.tipo_audiencia ? ` (${a.tipo_audiencia})` : ""}
+                      <div style={{ fontWeight: "600", color: "#1a1a2e", marginBottom: "6px" }}>
+                        {r.processo_numero}
+                      </div>
+                      
+                      {/* Vara origem → destino */}
+                      <div style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        gap: "8px",
+                        background: "#fef3c7",
+                        padding: "8px 12px",
+                        borderRadius: "6px",
+                        marginBottom: "6px",
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: "9px", color: "#92400e", marginBottom: "2px" }}>ORIGEM</div>
+                          <div style={{ fontWeight: "500", color: "#78350f" }}>{r.vara_antiga || "Não informada"}</div>
+                        </div>
+                        <div style={{ fontSize: "16px", color: "#f97316" }}>→</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: "9px", color: "#065f46", marginBottom: "2px" }}>DESTINO</div>
+                          <div style={{ fontWeight: "500", color: "#064e3b" }}>{r.vara_nova || "Não informada"}</div>
+                        </div>
+                      </div>
+                      
+                      {/* Advogado responsável */}
+                      {r.advogado_nome && (
+                        <div style={{ color: "#64748b", fontSize: "9px" }}>
+                          ⚖️ Responsável: {r.advogado_nome}
+                        </div>
+                      )}
+                      
+                      {/* Data */}
+                      <div style={{ color: "#94a3b8", fontSize: "9px", marginTop: "4px" }}>
+                        Data: {formatDate(r.data_redistribuicao)}
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {coord.detalhes.redistribuicoes.length > 0 && (
+            {/* Intimações */}
+            {coord.detalhes.intimacoes.length > 0 && (
               <div style={{ marginBottom: "20px" }}>
-                <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#f97316", marginBottom: "8px" }}>
-                  🔄 Redistribuições ({coord.redistribuicoes})
+                <h4 style={{ fontSize: "12px", fontWeight: "600", color: "#7c3aed", marginBottom: "8px" }}>
+                  ⚠️ Intimações ({coord.intimacoes})
                 </h4>
-                <div style={{ fontSize: "10px", color: "#64748b" }}>
-                  {coord.detalhes.redistribuicoes.map((r: any, i: number) => (
+                <div style={{ fontSize: "10px", color: "#333" }}>
+                  {coord.detalhes.intimacoes.map((int: any, i: number) => (
                     <div key={i} style={{ 
-                      padding: "6px 0", 
-                      borderBottom: "1px solid #e5e7eb" 
+                      padding: "8px", 
+                      borderBottom: "1px solid #e5e7eb",
+                      background: i % 2 === 0 ? "#faf5ff" : "white",
                     }}>
-                      <strong>{r.processo_numero}</strong>
-                      {" - "}
-                      {r.vara_origem} → {r.vara_destino}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                        <span style={{ fontWeight: "600", color: "#1a1a2e" }}>
+                          {int.processo_numero}
+                        </span>
+                        {int.tipo_intimacao && (
+                          <span style={{ 
+                            background: "#7c3aed", 
+                            color: "white", 
+                            padding: "2px 8px", 
+                            borderRadius: "10px",
+                            fontSize: "9px",
+                          }}>
+                            {int.tipo_intimacao}
+                          </span>
+                        )}
+                      </div>
+                      {int.descricao && (
+                        <div style={{ color: "#64748b", marginBottom: "4px", lineHeight: "1.4" }}>
+                          {int.descricao}
+                        </div>
+                      )}
+                      <div style={{ color: "#94a3b8", fontSize: "9px" }}>
+                        Data: {formatDate(int.data_intimacao)}
+                        {int.data_limite && ` | Prazo: ${formatDate(int.data_limite)}`}
+                      </div>
                     </div>
                   ))}
                 </div>
