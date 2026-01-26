@@ -6,11 +6,11 @@ const corsHeaders = {
 };
 
 // Mapeamento de tipos para funções
+// NOTA: 'djen' foi removido - agora usa busca direta no frontend (useBuscaDjenDireta)
 const FUNCOES_MAP: Record<string, string> = {
   redistribuicoes: 'monitorar-redistribuicoes',
   andamentos: 'monitorar-andamentos',
   distribuicoes: 'monitorar-distribuicoes',
-  djen: 'monitorar-djen',
   djen_processos: 'monitorar-djen-processos',
   termos: 'monitorar-termos',
 };
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
     }
 
     // Tipos pesados que consomem muitos workers
-    const tiposPesados = ['andamentos', 'redistribuicoes', 'djen_processos', 'termos', 'djen'];
+    const tiposPesados = ['andamentos', 'redistribuicoes', 'djen_processos', 'termos'];
 
     if (todasExecucoesEmAndamento && todasExecucoesEmAndamento.length > 0) {
       const agora = new Date();
