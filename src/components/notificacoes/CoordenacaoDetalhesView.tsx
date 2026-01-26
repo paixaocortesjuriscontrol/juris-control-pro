@@ -379,7 +379,7 @@ export function CoordenacaoDetalhesView({
         items: tarefasPendentes,
         renderItem: (t: any) => (
           // Tarefas navegam para a agenda
-          <div key={t.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate("/agenda")}>
+          <div key={t.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate("/minha-agenda")}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
