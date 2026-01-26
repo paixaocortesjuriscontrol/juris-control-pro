@@ -382,32 +382,51 @@ export default function Notificacoes() {
     });
   }, [andamentosData, coordenacaoId, searchQuery]);
 
-  // Stats - recalculated based on toggle filters
+  // Stats - valores reais (sem toggle) para os cards e total bruto (com toggle) para o filteredTotal
   const stats = useMemo(() => {
-    const djen = showDjen ? publicacoesFiltradas.length : 0;
-    const distribuicoes = showDistribuicoes ? distribuicoesFiltradas.length : 0;
-    const alertas360 = showAlertas360 ? alertasFiltrados.length : 0;
-    const redistribuicoes = showRedistribuicoes ? redistribuicoesFiltradas.length : 0;
-    const prazos = showPrazos ? prazosFiltrados.length : 0;
-    const notifs = notificacoesFiltradas.length;
-    const tarefas = showTarefas ? tarefasFiltradas.length : 0;
-    const audiencias = showAudiencias ? audienciasFiltradas.length : 0;
-    const intimacoes = showIntimacoes ? intimacoesFiltradas.length : 0;
-    const andamentos = showAndamentos ? andamentosFiltrados.length : 0;
+    // Valores reais sem considerar toggle (para exibir nos badges)
+    const djenReal = publicacoesFiltradas.length;
+    const distribuicoesReal = distribuicoesFiltradas.length;
+    const alertas360Real = alertasFiltrados.length;
+    const redistribuicoesReal = redistribuicoesFiltradas.length;
+    const prazosReal = prazosFiltrados.length;
+    const notifsReal = notificacoesFiltradas.length;
+    const tarefasReal = tarefasFiltradas.length;
+    const audienciasReal = audienciasFiltradas.length;
+    const intimacoesReal = intimacoesFiltradas.length;
+    const andamentosReal = andamentosFiltrados.length;
+    
+    // Total geral (soma de todos os tipos, sem toggle - para o card "Total")
+    const totalReal = djenReal + distribuicoesReal + alertas360Real + redistribuicoesReal + 
+                      prazosReal + tarefasReal + audienciasReal + intimacoesReal + andamentosReal;
+    
+    // Valores filtrados pelo toggle (para filteredTotal - usado no subtitle)
+    const djenToggle = showDjen ? djenReal : 0;
+    const distribuicoesToggle = showDistribuicoes ? distribuicoesReal : 0;
+    const alertas360Toggle = showAlertas360 ? alertas360Real : 0;
+    const redistribuicoesToggle = showRedistribuicoes ? redistribuicoesReal : 0;
+    const prazosToggle = showPrazos ? prazosReal : 0;
+    const tarefasToggle = showTarefas ? tarefasReal : 0;
+    const audienciasToggle = showAudiencias ? audienciasReal : 0;
+    const intimacoesToggle = showIntimacoes ? intimacoesReal : 0;
+    const andamentosToggle = showAndamentos ? andamentosReal : 0;
+    
+    const filteredTotal = djenToggle + distribuicoesToggle + alertas360Toggle + redistribuicoesToggle + 
+                          prazosToggle + tarefasToggle + audienciasToggle + intimacoesToggle + andamentosToggle;
     
     return {
-      djen: publicacoesFiltradas.length,
-      distribuicoes: distribuicoesFiltradas.length,
-      alertas360: alertasFiltrados.length,
-      redistribuicoes: redistribuicoesFiltradas.length,
-      prazos: prazosFiltrados.length,
-      notificacoes: notificacoesFiltradas.length,
-      tarefas: tarefasFiltradas.length,
-      audiencias: audienciasFiltradas.length,
-      intimacoes: intimacoesFiltradas.length,
-      andamentos: andamentosFiltrados.length,
-      total: djen + distribuicoes + alertas360 + redistribuicoes + prazos + notifs + tarefas + audiencias + intimacoes + andamentos,
-      filteredTotal: djen + distribuicoes + alertas360 + redistribuicoes + prazos + tarefas + audiencias + intimacoes + andamentos
+      djen: djenReal,
+      distribuicoes: distribuicoesReal,
+      alertas360: alertas360Real,
+      redistribuicoes: redistribuicoesReal,
+      prazos: prazosReal,
+      notificacoes: notifsReal,
+      tarefas: tarefasReal,
+      audiencias: audienciasReal,
+      intimacoes: intimacoesReal,
+      andamentos: andamentosReal,
+      total: totalReal,
+      filteredTotal: filteredTotal,
     };
   }, [
     publicacoesFiltradas, distribuicoesFiltradas, alertasFiltrados, redistribuicoesFiltradas,
