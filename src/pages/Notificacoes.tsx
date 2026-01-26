@@ -46,6 +46,7 @@ import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { DashboardCoordenacoes } from "@/components/notificacoes/DashboardCoordenacoes";
+import { CoordenacaoDetalhesView } from "@/components/notificacoes/CoordenacaoDetalhesView";
 
 export default function Notificacoes() {
   // Central de Notificações
@@ -450,7 +451,12 @@ export default function Notificacoes() {
 
   const handleSelectCoordenacao = (id: string) => {
     setCoordenacaoId(id);
-    setActiveTab("todos");
+    setActiveTab("detalhes");
+  };
+
+  const handleBackToDashboard = () => {
+    setCoordenacaoId("todas");
+    setActiveTab("dashboard");
   };
 
   return (
@@ -851,6 +857,20 @@ export default function Notificacoes() {
             statusFilter={statusFilter}
             searchQuery={searchQuery}
           />
+        </TabsContent>
+
+        {/* Detalhes da Coordenação */}
+        <TabsContent value="detalhes" className="space-y-4">
+          {coordenacaoId !== "todas" && (
+            <CoordenacaoDetalhesView
+              coordenacaoId={coordenacaoId}
+              periodoInicio={periodoInicio}
+              periodoFim={periodoFim}
+              statusFilter={statusFilter}
+              searchQuery={searchQuery}
+              onBack={handleBackToDashboard}
+            />
+          )}
         </TabsContent>
 
         {/* Todos */}
