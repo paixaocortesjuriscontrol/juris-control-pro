@@ -141,6 +141,64 @@ async function fetchWithRetry(
 }
 
 async function fetchJsonViaJina(url: string, jinaApiKey: string): Promise<any | null> {
+  const tryParseJson = (rawText: string): any | null => {
+    const text = rawText.trim();
+    if (!text) return null;
+
+    // 1) Standard JSON
+    try {
+      return JSON.parse(text);
+    } catch {
+      // continue
+    }
+
+    // 2) Strip markdown fences (```json ... ```)
+    const fenced = text
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
+    if (fenced !== text) {
+      try {
+        return JSON.parse(fenced);
+      } catch {
+        // continue
+      }
+    }
+
+    // 3) Some proxies prepend junk; try extracting the first JSON object/array.
+    const firstObj = fenced.indexOf("{");
+    const firstArr = fenced.indexOf("[");
+    const start =
+      firstObj === -1
+        ? firstArr
+        : firstArr === -1
+          ? firstObj
+          : Math.min(firstObj, firstArr);
+
+    if (start >= 0) {
+      const tail = fenced.slice(start);
+      const lastObj = tail.lastIndexOf("}");
+      const lastArr = tail.lastIndexOf("]");
+      const end =
+        lastObj === -1
+          ? lastArr
+          : lastArr === -1
+            ? lastObj
+            : Math.max(lastObj, lastArr);
+
+      if (end >= 0) {
+        const candidate = tail.slice(0, end + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch {
+          return null;
+        }
+      }
+    }
+
+    return null;
+  };
+
   // Important: keep a short timeout so the caller doesn't hang
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6_000);
@@ -164,12 +222,11 @@ async function fetchJsonViaJina(url: string, jinaApiKey: string): Promise<any | 
     }
 
     const text = await resp.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      console.log("Jina proxy returned non-JSON");
-      return null;
-    }
+    const parsed = tryParseJson(text);
+    if (parsed) return parsed;
+
+    console.log("Jina proxy returned non-JSON (sample):", text.trim().slice(0, 200));
+    return null;
   } catch (e) {
     console.log("Jina proxy fetch failed:", e);
     return null;
