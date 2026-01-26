@@ -17,42 +17,52 @@
  
      console.log('[Reset DJEN] Iniciando reset completo do estado...')
      
-     // LOOP: Repetir 3x para garantir que workers ativos param
-     for (let attempt = 1; attempt <= 3; attempt++) {
-       console.log(`[Reset DJEN] Tentativa ${attempt}/3...`)
-       
-       // 1. Desativar PRIMEIRO para parar cron jobs
-       await supabase
-         .from('configuracoes_monitoramento')
-         .update({ ativo: false })
-         .eq('tipo', 'djen')
-       
-       // 2. Aguardar 500ms para workers verem a flag
-       await new Promise(r => setTimeout(r, 500))
-       
-       // 3. Deletar execuções
-       await supabase
-         .from('execucoes_agendadas')
-         .delete()
-         .eq('tipo', 'djen')
-     }
+      // 1. DESATIVAR monitoramento PRIMEIRO (cancela cron jobs)
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({ 
+          ativo: false,
+          metadata: {
+            status: 'idle',
+            cancelado: true,
+            paused_globally: true,
+            continuingRun: false
+          }
+        })
+        .eq('tipo', 'djen')
+      
+      console.log('[Reset DJEN] Aguardando workers pararem...')
+      await new Promise(r => setTimeout(r, 2000))
  
-     // 4. Contagem final de execuções deletadas
-      const { data: deletadas, error: deleteError } = await supabase
+      // 2. Deletar execuções
+      await supabase
        .from('execucoes_agendadas')
-       .select('id')
+        .delete()
        .eq('tipo', 'djen')
  
-      // 5. ZERAR METADATA
-     const { error: configError } = await supabase
+      // 3. Marcar execuções ghost como canceladas
+      await supabase
+        .from('execucoes_agendadas')
+        .update({ 
+          status: 'cancelado', 
+          finalizado_em: new Date().toISOString() 
+        })
+        .eq('tipo', 'djen')
+        .eq('status', 'executando')
+
+      console.log('[Reset DJEN] Zerando metadata...')
+      await new Promise(r => setTimeout(r, 1000))
+
+      // 4. ZERAR METADATA COMPLETO (sobrescreve qualquer atualização tardia)
+      const { error: resetError } = await supabase
        .from('configuracoes_monitoramento')
        .update({
+          ativo: false,
          metadata: {
            status: 'idle',
            cancelado: false,
             paused_globally: false,
             continuingRun: false,
-            // ZERAR TODOS os contadores
             next_offset: 0,
             current: 0,
             total: 0,
@@ -63,25 +73,26 @@
             descartadas: 0,
             erros: 0,
             has_more: false,
-            // Limpar run IDs
             djen_run: null,
             last_run: null,
-            last_complete_run: null
+            last_complete_run: null,
+            tribunais_stats: [],
+            total_paginas: 0,
+            total_resultados: 0,
+            duracao_s: 0,
+            offset_processado: 0
          }
        })
        .eq('tipo', 'djen')
  
-     if (configError) {
-       throw configError
-     }
+      if (resetError) throw resetError
  
-     console.log('[Reset DJEN] Configuração resetada com sucesso')
+      console.log('[Reset DJEN] Reset completo!')
  
      return new Response(
        JSON.stringify({ 
          success: true,
-         message: 'Estado do DJEN resetado completamente',
-         execucoes_deletadas: deletadas?.length || 0
+          message: 'Estado do DJEN resetado completamente'
        }),
        { 
          headers: { ...corsHeaders, 'Content-Type': 'application/json' },

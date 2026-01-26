@@ -431,16 +431,15 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     setUltimoResultado(null);
     
     try {
-     // LOOP: Tentar 5x até funcionar (força contra workers ativos)
-     for (let i = 0; i < 5; i++) {
-       await supabase.functions.invoke('force-reset-metadata-djen');
-       await new Promise(r => setTimeout(r, 300));
-     }
+      // Reset via Edge Function (1 invocação apenas)
+      await supabase.functions.invoke('reset-djen-state');
 
-     toast.success('DJEN parado e resetado!');
+      toast.success('Estado do DJEN resetado completamente');
       
-      await queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
-      await queryClient.refetchQueries({ queryKey: ['configuracoes-monitoramento'] });
+      // Invalidar e aguardar atualização
+      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+      queryClient.invalidateQueries({ queryKey: ['execucao-ativa-djen'] });
+      queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
       
     } catch (error) {
       console.error('Erro ao resetar DJEN:', error);
