@@ -8,10 +8,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Activity,
   Building2,
-  Newspaper,
-  Scale,
-  Radar,
-  RefreshCw,
   Clock,
   Settings,
   Mail,
@@ -23,19 +19,21 @@ import {
   Gavel,
   FileWarning,
   User,
+  Newspaper,
+  Scale,
+  Radar,
+  RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
-import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
-import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao";
 import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
-import { startOfDay, parseISO, isBefore, isAfter, format, subDays } from "date-fns";
+import { startOfDay, parseISO, isBefore, isAfter } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useNotificacoesCountsByCoordenacao } from "@/hooks/useNotificacoesCounts";
 
 interface MembroStats {
   id: string;
@@ -80,86 +78,10 @@ export function DashboardCoordenacoes({
   statusFilter = "pendente",
   searchQuery = ""
 }: Props) {
-  const DEFAULT_PERIOD_DAYS = 90;
   const { user } = useAuth();
   const { isAdmin, loading: loadingRole } = useUserRole();
   
   const { data: coordenacoes = [], isLoading: loadingCoord } = useCoordenacoesFull();
-  const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
-  const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
-  const { alertas } = useMonitoramento360();
-  // Redistribuições SEM cap de 1000 (busca paginada)
-  const { data: redistribuicoesData = [] } = useQuery({
-    queryKey: ["redistribuicoes-coordenacao-paginado", periodoInicio, periodoFim],
-    queryFn: async () => {
-      const pageSize = 1000;
-
-      // Quando o usuário não define período, usar últimos 90 dias (evita varredura do histórico inteiro)
-      const effectiveFim = startOfDay(periodoFim ?? new Date());
-      const effectiveInicio = startOfDay(periodoInicio ?? subDays(effectiveFim, DEFAULT_PERIOD_DAYS - 1));
-      const inicioDia = format(effectiveInicio, "yyyy-MM-dd");
-      const fimDiaMaisUm = format(new Date(effectiveFim.getTime() + 86400000), "yyyy-MM-dd");
-
-      const buildQuery = () => {
-        let q = supabase
-          .from("movimentacoes")
-          .select(
-            `
-            id,
-            processo_id,
-            descricao,
-            data_movimentacao,
-            created_at,
-            processos (
-              numero,
-              area,
-              vara,
-              coordenacao_id,
-              coordenacoes (nome),
-              advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey (nome)
-            )
-          `
-          )
-          .eq("tipo", "Redistribuição")
-          .order("created_at", { ascending: false });
-
-        // CRÍTICO: filtrar por created_at (data da captura)
-        q = q.gte("created_at", inicioDia);
-        q = q.lt("created_at", fimDiaMaisUm);
-
-        return q;
-      };
-
-      const all: any[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const to = from + pageSize - 1;
-        const { data, error } = await buildQuery().range(from, to);
-        if (error) throw error;
-        const chunk = data || [];
-        all.push(...chunk);
-        if (chunk.length < pageSize) break;
-      }
-
-      // Transformar para o formato já usado no dashboard
-      return all.map((mov: any) => {
-        const match = mov.descricao?.match(/Redistribuição detectada: (.+) -> (.+)/);
-        const varaAntiga = match?.[1] || "N/A";
-        const varaNova = match?.[2] || mov.processos?.vara || "N/A";
-
-        return {
-          id: mov.id,
-          processo_id: mov.processo_id,
-          processo_numero: mov.processos?.numero || "N/A",
-          processo_area: mov.processos?.area || "civil",
-          coordenacao_nome: mov.processos?.coordenacoes?.nome || null,
-          advogado_nome: mov.processos?.advogado_responsavel?.nome || null,
-          vara_antiga: varaAntiga,
-          vara_nova: varaNova,
-          data_redistribuicao: mov.data_movimentacao,
-        };
-      });
-    },
-  });
   const { prazosUrgentes } = useNotificacoes();
   const { configs } = useConfigAlertasCoordenacao();
 
@@ -188,7 +110,20 @@ export function DashboardCoordenacoes({
     return coordenacoes.filter(c => minhasCoordenacoes.includes(c.id));
   }, [coordenacoes, minhasCoordenacoes, isAdmin]);
 
-  // Helper para filtrar por período
+  // Counts por coordenação (server-side) — usado nos cards e garante consistência com os totalizadores
+  const coordenacaoIdsKey = useMemo(
+    () => coordenacoesFiltradas.map((c) => c.id),
+    [coordenacoesFiltradas]
+  );
+  const { data: countsByCoord = undefined, isLoading: loadingCounts } = useNotificacoesCountsByCoordenacao({
+    coordenacaoIds: coordenacaoIdsKey,
+    periodoInicio,
+    periodoFim,
+    statusFilter,
+    searchQuery,
+  });
+
+  // Helper para filtrar por período (usado nos breakdowns de membro)
   const matchesPeriodo = useMemo(() => {
     return (dateStr: string | null | undefined) => {
       if (!dateStr) return true;
@@ -205,7 +140,7 @@ export function DashboardCoordenacoes({
     };
   }, [periodoInicio, periodoFim]);
 
-  // Helper para filtrar por busca
+  // Helper para filtrar por busca (usado nos breakdowns de membro)
   const matchesSearch = useMemo(() => {
     return (text: string | null | undefined) => {
       if (!searchQuery) return true;
@@ -229,7 +164,7 @@ export function DashboardCoordenacoes({
     },
   });
 
-  // Buscar tarefas pendentes com coordenação via processo e responsável
+  // Buscar tarefas pendentes com coordenação via processo e responsável (para breakdown por membro)
   const { data: tarefasPendentes = [] } = useQuery({
     queryKey: ["tarefas-pendentes-coordenacao", statusFilter],
     queryFn: async () => {
@@ -275,162 +210,6 @@ export function DashboardCoordenacoes({
     },
   });
 
-  // Buscar audiências pendentes
-  const { data: audienciasPendentes = [] } = useQuery({
-    queryKey: ["audiencias-pendentes-coordenacao", statusFilter],
-    queryFn: async () => {
-      const pageSize = 1000;
-
-      const buildQuery = () => {
-        let q = supabase
-          .from("audiencias_detectadas")
-          .select(
-            `
-            id,
-            processo_numero,
-            status,
-            data_audiencia,
-            processo:processos!audiencias_detectadas_processo_id_fkey(
-              id,
-              coordenacao_id
-            )
-          `
-          )
-          .order("created_at", { ascending: false });
-
-        if (statusFilter !== "todas") {
-          q = q.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
-        }
-
-        return q;
-      };
-
-      const all: any[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const to = from + pageSize - 1;
-        const { data, error } = await buildQuery().range(from, to);
-        if (error) throw error;
-        const chunk = data || [];
-        all.push(...chunk);
-        if (chunk.length < pageSize) break;
-      }
-
-      return all;
-    },
-  });
-
-  // Buscar intimações pendentes
-  const { data: intimacoesPendentes = [] } = useQuery({
-    queryKey: ["intimacoes-pendentes-coordenacao", statusFilter],
-    queryFn: async () => {
-      const pageSize = 1000;
-
-      const buildQuery = () => {
-        let q = supabase
-          .from("intimacoes_detectadas")
-          .select(
-            `
-            id,
-            processo_numero,
-            status,
-            data_intimacao,
-            processo:processos!intimacoes_detectadas_processo_id_fkey(
-              id,
-              coordenacao_id
-            )
-          `
-          )
-          .order("created_at", { ascending: false });
-
-        if (statusFilter !== "todas") {
-          q = q.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
-        }
-
-        return q;
-      };
-
-      const all: any[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const to = from + pageSize - 1;
-        const { data, error } = await buildQuery().range(from, to);
-        if (error) throw error;
-        const chunk = data || [];
-        all.push(...chunk);
-        if (chunk.length < pageSize) break;
-      }
-
-      return all;
-    },
-  });
-
-  // Buscar andamentos (movimentações) do dia - excluindo redistribuições
-  const { data: andamentosData = [] } = useQuery({
-    queryKey: ["andamentos-coordenacao", periodoInicio, periodoFim],
-    queryFn: async () => {
-      console.log("🔍 [DashboardCoordenacoes] Buscando andamentos...");
-      // Quando o usuário não define período, usar últimos 90 dias (evita varredura do histórico inteiro)
-      const effectiveFim = startOfDay(periodoFim ?? new Date());
-      const effectiveInicio = startOfDay(periodoInicio ?? subDays(effectiveFim, DEFAULT_PERIOD_DAYS - 1));
-      const inicioDia = format(effectiveInicio, "yyyy-MM-dd");
-      const fimDiaMaisUm = format(new Date(effectiveFim.getTime() + 86400000), "yyyy-MM-dd");
-
-      console.log("📅 Período:", {
-        inicio: inicioDia,
-        fim: format(effectiveFim, "yyyy-MM-dd"),
-      });
-      
-      const pageSize = 1000;
-
-      const buildQuery = () => {
-        let q = supabase
-          .from("movimentacoes")
-          .select(
-            `
-            id,
-            descricao,
-            data_movimentacao,
-            created_at,
-            tipo,
-            processo:processos!movimentacoes_processo_id_fkey(
-              id,
-              numero,
-              coordenacao_id
-            )
-          `
-          )
-          .neq("tipo", "Redistribuição")
-          .order("created_at", { ascending: false });
-
-        // CRÍTICO: Aplicar filtros de período usando created_at (data da captura)
-        q = q.gte("created_at", inicioDia);
-        q = q.lt("created_at", fimDiaMaisUm);
-
-        return q;
-      };
-
-      const all: any[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const to = from + pageSize - 1;
-        const { data, error } = await buildQuery().range(from, to);
-        if (error) throw error;
-        const chunk = data || [];
-        all.push(...chunk);
-        if (chunk.length < pageSize) break;
-      }
-
-      console.log("✅ [DashboardCoordenacoes] Total andamentos encontrados:", all.length);
-      console.log("📊 [DashboardCoordenacoes] Tipos únicos:", [...new Set(all.map((d: any) => d.tipo) || [])]);
-
-      const porCoord = all.reduce((acc: any, mov: any) => {
-        const coordId = (mov.processo as any)?.coordenacao_id || "sem-coord";
-        acc[coordId] = (acc[coordId] || 0) + 1;
-        return acc;
-      }, {});
-      console.log("📋 [DashboardCoordenacoes] Andamentos por coordenação:", porCoord);
-
-      return all;
-    },
-  });
 
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
@@ -444,126 +223,42 @@ export function DashboardCoordenacoes({
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedCoordConfig, setSelectedCoordConfig] = useState<{ id: string; nome: string } | null>(null);
 
-  // Calcular estatísticas por coordenação - aplicando filtros
+  // Calcular estatísticas por coordenação - usando counts no banco (consistente e sem cap/timeout)
   const coordenacoesStats = useMemo<CoordenacaoStats[]>(() => {
     if (!coordenacoesFiltradas.length) return [];
 
-    // Filtrar publicações DJEN por status e período - usando created_at (data da captura)
-    const publicacoesFiltradas = publicacoes.filter(p => {
-      if (statusFilter !== "todas" && p.lida) return false;
-      if (!matchesPeriodo(p.created_at)) return false;
-      if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero)) return false;
-      return true;
-    });
-
-    // Filtrar distribuições por status e período
-    const distribuicoesFiltradas = distribuicoesEncontradas.filter(d => {
-      if (statusFilter !== "todas" && d.status !== 'pendente') return false;
-      if (!matchesPeriodo(d.data_distribuicao)) return false;
-      if (!matchesSearch(d.numero_processo)) return false;
-      return true;
-    });
-
-    // Filtrar alertas por status e período
-    const alertasFiltrados = alertas.filter(a => {
-      if (statusFilter !== "todas" && a.status !== 'pendente') return false;
-      if (!matchesPeriodo(a.created_at)) return false;
-      if (!matchesSearch(a.termo_encontrado)) return false;
-      return true;
-    });
-
-    // Filtrar redistribuições por período
-    const redistribuicoesFiltradas = redistribuicoesData.filter(r => {
-      if (!matchesPeriodo(r.data_redistribuicao)) return false;
-      if (!matchesSearch(r.processo_numero)) return false;
-      return true;
-    });
-
-    // Filtrar prazos por período
+    // Filtrar prazos por período (breakdown membro)
     const prazosFiltrados = prazosUrgentes.filter(p => {
       if (!matchesPeriodo(p.data_vencimento)) return false;
       if (!matchesSearch(p.titulo) && !matchesSearch(p.processo?.numero)) return false;
       return true;
     });
 
-    // Filtrar tarefas por período
+    // Filtrar tarefas por período (breakdown membro)
     const tarefasFiltradas = tarefasPendentes.filter(t => {
       if (!matchesPeriodo((t as any).data_vencimento)) return false;
       if (!matchesSearch((t as any).titulo)) return false;
       return true;
     });
 
-    // Filtrar audiências por período
-    const audienciasFiltradas = audienciasPendentes.filter(a => {
-      if (!matchesPeriodo((a as any).data_audiencia)) return false;
-      if (!matchesSearch((a as any).processo_numero)) return false;
-      return true;
-    });
-
-    // Filtrar intimações por período
-    const intimacoesFiltradas = intimacoesPendentes.filter(i => {
-      if (!matchesPeriodo((i as any).data_intimacao)) return false;
-      if (!matchesSearch((i as any).processo_numero)) return false;
-      return true;
-    });
-
-    // Filtrar andamentos por período (usando created_at = data da captura)
-    const andamentosFiltrados = andamentosData.filter(a => {
-      if (!matchesPeriodo((a as any).created_at)) return false;
-      if (!matchesSearch((a as any).descricao)) return false;
-      return true;
-    });
-
     return coordenacoesFiltradas.map(coord => {
       // Membros da coordenação
       const membrosCoord = membrosCoordenacao.filter(m => m.coordenacao_id === coord.id);
-      
-      // DJEN: via monitoramento
-      const monIds = monitoramentosDjen
-        .filter(m => m.coordenacao_id === coord.id)
-        .map(m => m.id);
-      const djen = publicacoesFiltradas.filter(p => monIds.includes(p.monitoramento_id)).length;
 
-      // Distribuições
-      const distribuicoes = distribuicoesFiltradas.filter(
-        d => (d as any).monitoramento?.coordenacao_id === coord.id
-      ).length;
+      const c = countsByCoord?.[coord.id];
+      const djen = c?.djen ?? 0;
+      const distribuicoes = c?.distribuicoes ?? 0;
+      const alertas360 = c?.alertas360 ?? 0;
+      const redistribuicoes = c?.redistribuicoes ?? 0;
+      const andamentos = c?.andamentos ?? 0;
+      const prazos = c?.prazos ?? 0;
+      const tarefas = c?.tarefas ?? 0;
+      const audiencias = c?.audiencias ?? 0;
+      const intimacoes = c?.intimacoes ?? 0;
+      const total = c?.total ?? (djen + distribuicoes + alertas360 + redistribuicoes + andamentos + prazos + tarefas + audiencias + intimacoes);
 
-      // Alertas 360
-      const alertas360 = alertasFiltrados.filter(
-        a => a.processo?.coordenacao_id === coord.id
-      ).length;
-
-      // Redistribuições
-      const redistribuicoes = redistribuicoesFiltradas.filter(
-        r => r.coordenacao_nome === coord.nome
-      ).length;
-
-      // Prazos
-      const prazos = prazosFiltrados.filter(
-        p => p.processo?.coordenacao_id === coord.id
-      ).length;
-
-      // Tarefas pendentes da coordenação
-      const tarefasCoord = tarefasFiltradas.filter(
-        t => (t.processo as any)?.coordenacao_id === coord.id
-      );
-      const tarefas = tarefasCoord.length;
-
-      // Audiências pendentes
-      const audiencias = audienciasFiltradas.filter(
-        a => (a.processo as any)?.coordenacao_id === coord.id
-      ).length;
-
-      // Intimações pendentes
-      const intimacoes = intimacoesFiltradas.filter(
-        i => (i.processo as any)?.coordenacao_id === coord.id
-      ).length;
-
-      // Andamentos (movimentações) da coordenação
-      const andamentos = andamentosFiltrados.filter(
-        a => (a.processo as any)?.coordenacao_id === coord.id
-      ).length;
+      // Para breakdown de membros, usamos os datasets locais (tarefas/prazos)
+      const tarefasCoord = tarefasFiltradas.filter(t => (t.processo as any)?.coordenacao_id === coord.id);
 
       // Config de alertas
       const config = configs.find(c => c.coordenacao_id === coord.id);
@@ -600,20 +295,20 @@ export function DashboardCoordenacoes({
         tarefas,
         audiencias,
         intimacoes,
-        total: djen + distribuicoes + alertas360 + redistribuicoes + andamentos + prazos + tarefas + audiencias + intimacoes,
+        total,
         emailHabilitado: config?.email_habilitado || false,
         whatsappHabilitado: config?.whatsapp_habilitado || false,
         membros,
       };
     }).sort((a, b) => b.total - a.total);
-  }, [coordenacoesFiltradas, publicacoes, monitoramentosDjen, distribuicoesEncontradas, alertas, redistribuicoesData, andamentosData, prazosUrgentes, tarefasPendentes, audienciasPendentes, intimacoesPendentes, configs, matchesPeriodo, matchesSearch, statusFilter, membrosCoordenacao]);
+  }, [coordenacoesFiltradas, countsByCoord, prazosUrgentes, tarefasPendentes, configs, matchesPeriodo, matchesSearch, membrosCoordenacao]);
 
   const handleOpenConfig = (coord: { id: string; nome: string }) => {
     setSelectedCoordConfig(coord);
     setConfigDialogOpen(true);
   };
 
-  if (loadingCoord || loadingRole) {
+  if (loadingCoord || loadingRole || loadingCounts) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {[1, 2, 3, 4, 5, 6].map(i => (

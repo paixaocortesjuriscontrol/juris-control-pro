@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
-import { useNotificacoesCounts } from "@/hooks/useNotificacoesCounts";
+import { useNotificacoesCounts, useNotificacoesCountsByCoordenacao, type NotificacoesCounts } from "@/hooks/useNotificacoesCounts";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
@@ -50,6 +50,8 @@ import { cn } from "@/lib/utils";
 import { DashboardCoordenacoes } from "@/components/notificacoes/DashboardCoordenacoes";
 import { CoordenacaoDetalhesView } from "@/components/notificacoes/CoordenacaoDetalhesView";
 import { GerarRelatorioPdfDialog } from "@/components/notificacoes/GerarRelatorioPdfDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 
 export default function Notificacoes() {
   // Central de Notificações
@@ -60,9 +62,9 @@ export default function Notificacoes() {
   const [searchQuery, setSearchQuery] = useState("");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("todas");
   const [statusFilter, setStatusFilter] = useState<string>("pendente");
-  // "Tudo" (sem período) por padrão
-  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(undefined);
-  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(undefined);
+  // Padrão: Hoje (comportamento original)
+  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() => startOfDay(new Date()));
+  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() => startOfDay(new Date()));
   const [filterCategory, setFilterCategory] = useState<string | undefined>(undefined);
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
   
@@ -81,6 +83,28 @@ export default function Notificacoes() {
   };
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const { user } = useAuth();
+  const { isAdmin, loading: loadingRole } = useUserRole();
+
+  // Coordenações visíveis (RBAC): admin vê tudo; demais veem apenas onde são membros
+  const { data: minhasCoordenacoes = [] } = useQuery({
+    queryKey: ["minhas-coordenacoes-notificacoes", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [] as string[];
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id);
+      if (error) throw error;
+      return (data || []).map((m: any) => m.coordenacao_id as string);
+    },
+    enabled: !!user?.id && !isAdmin,
+  });
+
+  const visibleCoordIds = useMemo(() => {
+    if (isAdmin) return coordenacoes.map((c) => c.id);
+    return minhasCoordenacoes;
+  }, [isAdmin, coordenacoes, minhasCoordenacoes]);
   const { 
     notificacoes, 
     naoLidas, 
@@ -99,7 +123,8 @@ export default function Notificacoes() {
     dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
   });
 
-  const { data: counts = undefined } = useNotificacoesCounts({
+  // Counts quando usuário seleciona uma coordenação específica
+  const { data: countsSingle = undefined } = useNotificacoesCounts({
     coordenacaoId,
     periodoInicio,
     periodoFim,
@@ -107,6 +132,63 @@ export default function Notificacoes() {
     prioridadeFilter,
     searchQuery,
   });
+
+  // Counts por coordenação (para somar e garantir que os totalizadores batam com os cards)
+  const { data: countsByCoord = undefined } = useNotificacoesCountsByCoordenacao({
+    coordenacaoIds: visibleCoordIds,
+    periodoInicio,
+    periodoFim,
+    statusFilter,
+    searchQuery,
+  });
+
+  const counts: NotificacoesCounts | undefined = useMemo(() => {
+    // Se uma coordenação foi selecionada, usar o count específico
+    if (coordenacaoId !== "todas") return countsSingle;
+
+    const zero: NotificacoesCounts = {
+      djen: 0,
+      distribuicoes: 0,
+      alertas360: 0,
+      redistribuicoes: 0,
+      andamentos: 0,
+      prazos: 0,
+      tarefas: 0,
+      audiencias: 0,
+      intimacoes: 0,
+      total: 0,
+    };
+
+    if (!countsByCoord) return zero;
+
+    const out = { ...zero };
+    for (const id of visibleCoordIds) {
+      const c = countsByCoord[id];
+      if (!c) continue;
+      out.djen += c.djen;
+      out.distribuicoes += c.distribuicoes;
+      out.alertas360 += c.alertas360;
+      out.redistribuicoes += c.redistribuicoes;
+      out.andamentos += c.andamentos;
+      out.prazos += c.prazos;
+      out.tarefas += c.tarefas;
+      out.audiencias += c.audiencias;
+      out.intimacoes += c.intimacoes;
+    }
+
+    out.total =
+      out.djen +
+      out.distribuicoes +
+      out.alertas360 +
+      out.redistribuicoes +
+      out.andamentos +
+      out.prazos +
+      out.tarefas +
+      out.audiencias +
+      out.intimacoes;
+
+    return out;
+  }, [coordenacaoId, countsSingle, countsByCoord, visibleCoordIds]);
 
   // ===== TAREFAS: paginação incremental (evita tentar carregar “todas”) =====
   const tarefasPaged = useInfiniteQuery({
