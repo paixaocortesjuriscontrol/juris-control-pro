@@ -110,8 +110,8 @@ function delay(ms: number): Promise<void> {
 async function fetchWithRetry(
   url: string,
   options: RequestInit,
-  maxRetries = 3,
-  baseDelay = 1500
+  maxRetries = 2, // Reduzido para 2 retries (menos agressivo)
+  baseDelay = 2000 // Aumentado para 2s base delay
 ): Promise<Response> {
   let lastError: Error | null = null;
 

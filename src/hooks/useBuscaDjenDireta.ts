@@ -35,9 +35,11 @@ interface ProgressoExecucao {
   mensagem: string;
 }
 
-// Configuração de paralelismo
-const CONCURRENT_LIMIT = 5; // Processar 5 monitoramentos em paralelo
-const DELAY_BETWEEN_BATCHES = 500; // 500ms entre lotes
+// Configuração de paralelismo - CONSERVADOR para evitar rate limit da API PJE Comunica
+// A API externa é sensível a muitas requisições simultâneas (429 Too Many Requests)
+const CONCURRENT_LIMIT = 2; // Máximo 2 simultâneos para evitar rate limit
+const DELAY_BETWEEN_BATCHES = 2000; // 2s entre lotes para a API respirar
+const DELAY_BETWEEN_REQUESTS = 800; // 800ms entre requisições individuais
 
 /**
  * Hook com busca DJEN paralela para máxima performance
@@ -288,10 +290,23 @@ export function useBuscaDjenDireta() {
           mensagem: `Buscando: ${termos.slice(0, 50)}${termos.length > 50 ? '...' : ''}`,
         }));
 
-        // Processar lote em paralelo
-        const resultados = await Promise.allSettled(
-          lote.map(mon => processarMonitoramento(mon))
-        );
+        // Processar lote com delay entre requisições para evitar rate limit
+        const resultados: PromiseSettledResult<{ novas: number; duplicadas: number; coordenacaoStats?: any }>[] = [];
+        for (let j = 0; j < lote.length; j++) {
+          if (cancelarRef.current) break;
+          
+          // Delay entre requisições individuais (exceto a primeira do lote)
+          if (j > 0) {
+            await new Promise(r => setTimeout(r, DELAY_BETWEEN_REQUESTS));
+          }
+          
+          try {
+            const resultado = await processarMonitoramento(lote[j]);
+            resultados.push({ status: 'fulfilled', value: resultado });
+          } catch (err) {
+            resultados.push({ status: 'rejected', reason: err });
+          }
+        }
 
         // Contabilizar resultados
         for (const resultado of resultados) {
