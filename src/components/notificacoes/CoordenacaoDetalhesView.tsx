@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Newspaper,
   Scale,
@@ -33,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { startOfDay, parseISO, isBefore, isAfter, format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 interface Props {
   coordenacaoId: string;
@@ -318,7 +320,10 @@ export function CoordenacaoDetalhesView({
 
   // Navegação para processo com aba específica
   const handleNavigateProcesso = async (processoIdOrNumero: string | null | undefined, tab: string) => {
-    if (!processoIdOrNumero) return;
+    if (!processoIdOrNumero) {
+      toast.error("Processo não encontrado");
+      return;
+    }
     
     // Se for um UUID, navega direto
     if (processoIdOrNumero.includes("-") && processoIdOrNumero.length === 36) {
@@ -335,6 +340,8 @@ export function CoordenacaoDetalhesView({
     
     if (data?.id) {
       navigate(`/processos/${data.id}?tab=${tab}`);
+    } else {
+      toast.error("Processo não encontrado na base de dados");
     }
   };
 
@@ -384,57 +391,58 @@ export function CoordenacaoDetalhesView({
           Publicações DJEN ({publicacoesFiltradas.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {publicacoesFiltradas.slice(0, 10).map((pub) => {
-          const processoDisplay = pub.processo_numero || (() => {
-            const match = pub.conteudo?.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
-            return match ? match[1] : null;
-          })();
-          return (
-            <div
-              key={pub.id}
-              className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-              onClick={() => handleNavigateProcesso(processoDisplay, "publicacoes")}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0 space-y-2">
-                  {/* Header com número e badges */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-sm font-medium">{processoDisplay || 'Publicação DJEN'}</span>
-                    {!pub.lida && (
-                      <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs">Nova</Badge>
-                    )}
-                  </div>
-                  
-                  {/* Conteúdo resumido */}
-                  <p className="text-xs text-muted-foreground line-clamp-2">
-                    {pub.conteudo?.substring(0, 250)}...
-                  </p>
-                  
-                  {/* Data e fonte */}
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      <span>{pub.data_publicacao && formatDate(pub.data_publicacao)}</span>
-                    </div>
-                    {pub.fonte && (
-                      <div className="flex items-center gap-1">
-                        <FileText className="h-3 w-3" />
-                        <span>{pub.fonte}</span>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {publicacoesFiltradas.map((pub) => {
+              // Priorizar processo_id se existir, senão usar número
+              const processoId = (pub as any).processo_id;
+              const processoDisplay = pub.processo_numero || (() => {
+                const match = pub.conteudo?.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
+                return match ? match[1] : null;
+              })();
+              return (
+                <div
+                  key={pub.id}
+                  className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                  onClick={() => handleNavigateProcesso(processoId || processoDisplay, "publicacoes")}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0 space-y-2">
+                      {/* Header com número e badges */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-sm font-medium">{processoDisplay || 'Publicação DJEN'}</span>
+                        {!pub.lida && (
+                          <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs">Nova</Badge>
+                        )}
                       </div>
-                    )}
+                      
+                      {/* Conteúdo resumido */}
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {pub.conteudo?.substring(0, 250)}...
+                      </p>
+                      
+                      {/* Data e fonte */}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          <span>{pub.data_publicacao && formatDate(pub.data_publicacao)}</span>
+                        </div>
+                        {pub.fonte && (
+                          <div className="flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            <span>{pub.fonte}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   </div>
                 </div>
-                <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              </div>
-            </div>
-          );
-        })}
-        {publicacoesFiltradas.length > 10 && (
-          <p className="text-xs text-muted-foreground text-center">
-            + {publicacoesFiltradas.length - 10} publicações
-          </p>
-        )}
+              );
+            })}
+          </div>
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -447,64 +455,63 @@ export function CoordenacaoDetalhesView({
           Distribuições ({distribuicoesFiltradas.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {distribuicoesFiltradas.slice(0, 10).map((dist) => (
-          <div
-            key={dist.id}
-            className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-            onClick={() => handleNavigateProcesso(dist.processo_id, "andamentos")}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0 space-y-2">
-                {/* Número do processo e status */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-medium">{dist.numero_processo}</span>
-                  {getStatusBadge(dist.status)}
-                </div>
-                
-                {/* Partes */}
-                {(dist.polo_ativo || dist.polo_passivo) && (
-                  <div className="flex items-start gap-1 text-xs text-muted-foreground">
-                    <User className="h-3 w-3 mt-0.5 shrink-0" />
-                    <span className="line-clamp-1">
-                      {dist.polo_ativo} × {dist.polo_passivo}
-                    </span>
-                  </div>
-                )}
-                
-                {/* Detalhes */}
-                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                  {dist.classe && (
-                    <Badge variant="secondary" className="text-xs">{dist.classe}</Badge>
-                  )}
-                  {dist.vara && (
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      <span>{dist.vara}</span>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {distribuicoesFiltradas.map((dist) => (
+              <div
+                key={dist.id}
+                className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso(dist.processo_id, "andamentos")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    {/* Número do processo e status */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-medium">{dist.numero_processo}</span>
+                      {getStatusBadge(dist.status)}
                     </div>
-                  )}
-                  {dist.tribunal && (
-                    <span className="font-medium">{dist.tribunal}</span>
-                  )}
-                </div>
-                
-                {/* Data */}
-                {dist.data_distribuicao && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    <span>{formatDate(dist.data_distribuicao)}</span>
+                    
+                    {/* Partes */}
+                    {(dist.polo_ativo || dist.polo_passivo) && (
+                      <div className="flex items-start gap-1 text-xs text-muted-foreground">
+                        <User className="h-3 w-3 mt-0.5 shrink-0" />
+                        <span className="line-clamp-1">
+                          {dist.polo_ativo} × {dist.polo_passivo}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Detalhes */}
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                      {dist.classe && (
+                        <Badge variant="secondary" className="text-xs">{dist.classe}</Badge>
+                      )}
+                      {dist.vara && (
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          <span>{dist.vara}</span>
+                        </div>
+                      )}
+                      {dist.tribunal && (
+                        <span className="font-medium">{dist.tribunal}</span>
+                      )}
+                    </div>
+                    
+                    {/* Data */}
+                    {dist.data_distribuicao && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>{formatDate(dist.data_distribuicao)}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                </div>
               </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            </div>
+            ))}
           </div>
-        ))}
-        {distribuicoesFiltradas.length > 10 && (
-          <p className="text-xs text-muted-foreground text-center">
-            + {distribuicoesFiltradas.length - 10} distribuições
-          </p>
-        )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -517,51 +524,50 @@ export function CoordenacaoDetalhesView({
           Alertas 360° ({alertasFiltrados.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {alertasFiltrados.slice(0, 10).map((alerta) => (
-          <div
-            key={alerta.id}
-            className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-            onClick={() => handleNavigateProcesso(alerta.processo_id, "andamentos")}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0 space-y-2">
-                {/* Termo e prioridade */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge className={cn(getPrioridadeColor(alerta.prioridade), "text-xs")} variant="outline">
-                    {alerta.prioridade}
-                  </Badge>
-                  <span className="font-medium text-sm">{alerta.termo_encontrado}</span>
-                </div>
-                
-                {/* Processo */}
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <FileText className="h-3 w-3" />
-                  <span className="font-mono">{alerta.processo?.numero}</span>
-                </div>
-                
-                {/* Contexto */}
-                {alerta.contexto && (
-                  <p className="text-xs text-muted-foreground line-clamp-2 bg-muted/50 p-2 rounded">
-                    {alerta.contexto}
-                  </p>
-                )}
-                
-                {/* Data */}
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  <span>{formatDistanceToNow(new Date(alerta.created_at), { addSuffix: true, locale: ptBR })}</span>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {alertasFiltrados.map((alerta) => (
+              <div
+                key={alerta.id}
+                className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso(alerta.processo_id, "andamentos")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    {/* Termo e prioridade */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge className={cn(getPrioridadeColor(alerta.prioridade), "text-xs")} variant="outline">
+                        {alerta.prioridade}
+                      </Badge>
+                      <span className="font-medium text-sm">{alerta.termo_encontrado}</span>
+                    </div>
+                    
+                    {/* Processo */}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <FileText className="h-3 w-3" />
+                      <span className="font-mono">{alerta.processo?.numero}</span>
+                    </div>
+                    
+                    {/* Contexto */}
+                    {alerta.contexto && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 bg-muted/50 p-2 rounded">
+                        {alerta.contexto}
+                      </p>
+                    )}
+                    
+                    {/* Data */}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span>{formatDistanceToNow(new Date(alerta.created_at), { addSuffix: true, locale: ptBR })}</span>
+                    </div>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </div>
               </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            </div>
+            ))}
           </div>
-        ))}
-        {alertasFiltrados.length > 10 && (
-          <p className="text-xs text-muted-foreground text-center">
-            + {alertasFiltrados.length - 10} alertas
-          </p>
-        )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -574,52 +580,51 @@ export function CoordenacaoDetalhesView({
           Prazos Urgentes ({prazosFiltrados.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {prazosFiltrados.slice(0, 10).map((prazo) => (
-          <div
-            key={prazo.id}
-            className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-            onClick={() => handleNavigateProcesso(prazo.processo?.id, "tarefas")}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0 space-y-2">
-                {/* Título e badges */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm truncate">{prazo.titulo}</span>
-                  <Badge 
-                    variant={prazo.is_atrasado ? "destructive" : "outline"}
-                    className={cn(
-                      "text-xs",
-                      !prazo.is_atrasado && "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                    )}
-                  >
-                    {prazo.is_atrasado ? 'Atrasado' : `${prazo.dias_restantes}d`}
-                  </Badge>
-                </div>
-                
-                {/* Processo */}
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <FileText className="h-3 w-3" />
-                  <span className="font-mono">{prazo.processo?.numero}</span>
-                </div>
-                
-                {/* Vencimento */}
-                <div className="flex items-center gap-1 text-xs text-primary">
-                  <Timer className="h-3 w-3" />
-                  <span className="font-medium">
-                    Vencimento: {format(new Date(prazo.data_vencimento), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                  </span>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {prazosFiltrados.map((prazo) => (
+              <div
+                key={prazo.id}
+                className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso(prazo.processo?.id, "tarefas")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    {/* Título e badges */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm truncate">{prazo.titulo}</span>
+                      <Badge 
+                        variant={prazo.is_atrasado ? "destructive" : "outline"}
+                        className={cn(
+                          "text-xs",
+                          !prazo.is_atrasado && "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                        )}
+                      >
+                        {prazo.is_atrasado ? 'Atrasado' : `${prazo.dias_restantes}d`}
+                      </Badge>
+                    </div>
+                    
+                    {/* Processo */}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <FileText className="h-3 w-3" />
+                      <span className="font-mono">{prazo.processo?.numero}</span>
+                    </div>
+                    
+                    {/* Vencimento */}
+                    <div className="flex items-center gap-1 text-xs text-primary">
+                      <Timer className="h-3 w-3" />
+                      <span className="font-medium">
+                        Vencimento: {format(new Date(prazo.data_vencimento), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                      </span>
+                    </div>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </div>
               </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            </div>
+            ))}
           </div>
-        ))}
-        {prazosFiltrados.length > 10 && (
-          <p className="text-xs text-muted-foreground text-center">
-            + {prazosFiltrados.length - 10} prazos
-          </p>
-        )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -632,55 +637,54 @@ export function CoordenacaoDetalhesView({
           Tarefas ({tarefasFiltradas.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {tarefasFiltradas.slice(0, 10).map((tarefa) => (
-          <div
-            key={tarefa.id}
-            className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-            onClick={() => handleNavigateProcesso((tarefa.processo as any)?.id, "tarefas")}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0 space-y-2">
-                {/* Título e badges */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {tarefa.tipo_tarefa && (
-                    <Badge variant="secondary" className="text-xs">{tarefa.tipo_tarefa}</Badge>
-                  )}
-                  <span className="font-medium text-sm truncate">{tarefa.titulo}</span>
-                  <Badge className={cn(getPrioridadeColor(tarefa.prioridade), "text-xs")} variant="outline">
-                    {tarefa.prioridade}
-                  </Badge>
-                </div>
-                
-                {/* Processo */}
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <FileText className="h-3 w-3" />
-                  <span className="font-mono">{(tarefa.processo as any)?.numero}</span>
-                </div>
-                
-                {/* Responsável */}
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <User className="h-3 w-3" />
-                  <span>{(tarefa.responsavel as any)?.nome || 'Não atribuído'}</span>
-                </div>
-                
-                {/* Vencimento */}
-                {tarefa.data_vencimento && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    <span>Vencimento: {formatDate(tarefa.data_vencimento)}</span>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {tarefasFiltradas.map((tarefa) => (
+              <div
+                key={tarefa.id}
+                className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso((tarefa.processo as any)?.id, "tarefas")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    {/* Título e badges */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {tarefa.tipo_tarefa && (
+                        <Badge variant="secondary" className="text-xs">{tarefa.tipo_tarefa}</Badge>
+                      )}
+                      <span className="font-medium text-sm truncate">{tarefa.titulo}</span>
+                      <Badge className={cn(getPrioridadeColor(tarefa.prioridade), "text-xs")} variant="outline">
+                        {tarefa.prioridade}
+                      </Badge>
+                    </div>
+                    
+                    {/* Processo */}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <FileText className="h-3 w-3" />
+                      <span className="font-mono">{(tarefa.processo as any)?.numero}</span>
+                    </div>
+                    
+                    {/* Responsável */}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <User className="h-3 w-3" />
+                      <span>{(tarefa.responsavel as any)?.nome || 'Não atribuído'}</span>
+                    </div>
+                    
+                    {/* Vencimento */}
+                    {tarefa.data_vencimento && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>Vencimento: {formatDate(tarefa.data_vencimento)}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                </div>
               </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            </div>
+            ))}
           </div>
-        ))}
-        {tarefasFiltradas.length > 10 && (
-          <p className="text-xs text-muted-foreground text-center">
-            + {tarefasFiltradas.length - 10} tarefas
-          </p>
-        )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -693,66 +697,65 @@ export function CoordenacaoDetalhesView({
           Audiências ({audienciasFiltradas.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {audienciasFiltradas.slice(0, 10).map((aud) => (
-          <div
-            key={aud.id}
-            className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-            onClick={() => handleNavigateProcesso((aud.processo as any)?.id, "audiencias")}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0 space-y-2">
-                {/* Processo e tipo */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-medium">{aud.processo_numero}</span>
-                  {aud.tipo_audiencia && (
-                    <Badge variant="secondary" className="text-xs">{aud.tipo_audiencia}</Badge>
-                  )}
-                  {getStatusBadge(aud.status)}
-                </div>
-                
-                {/* Data e hora */}
-                <div className="flex items-center gap-1 text-xs text-primary font-medium">
-                  <Calendar className="h-3 w-3" />
-                  <span>
-                    {formatDate(aud.data_audiencia)}
-                    {aud.hora_brasilia && ` às ${aud.hora_brasilia}`}
-                    {!aud.hora_brasilia && aud.hora && ` às ${aud.hora}`}
-                  </span>
-                </div>
-                
-                {/* Local */}
-                {(aud.vara_camara || aud.comarca || aud.local_audiencia) && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="h-3 w-3" />
-                    <span>{[aud.local_audiencia, aud.vara_camara, aud.comarca].filter(Boolean).join(' - ')}</span>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {audienciasFiltradas.map((aud) => (
+              <div
+                key={aud.id}
+                className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso((aud.processo as any)?.id, "audiencias")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    {/* Processo e tipo */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-medium">{aud.processo_numero}</span>
+                      {aud.tipo_audiencia && (
+                        <Badge variant="secondary" className="text-xs">{aud.tipo_audiencia}</Badge>
+                      )}
+                      {getStatusBadge(aud.status)}
+                    </div>
+                    
+                    {/* Data e hora */}
+                    <div className="flex items-center gap-1 text-xs text-primary font-medium">
+                      <Calendar className="h-3 w-3" />
+                      <span>
+                        {formatDate(aud.data_audiencia)}
+                        {aud.hora_brasilia && ` às ${aud.hora_brasilia}`}
+                        {!aud.hora_brasilia && aud.hora && ` às ${aud.hora}`}
+                      </span>
+                    </div>
+                    
+                    {/* Local */}
+                    {(aud.vara_camara || aud.comarca || aud.local_audiencia) && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3" />
+                        <span>{[aud.local_audiencia, aud.vara_camara, aud.comarca].filter(Boolean).join(' - ')}</span>
+                      </div>
+                    )}
+                    
+                    {/* Parte/Cliente */}
+                    {(aud.polo_ativo || aud.cliente) && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <User className="h-3 w-3" />
+                        <span className="truncate">{aud.cliente || aud.polo_ativo}</span>
+                      </div>
+                    )}
+                    
+                    {/* Advogado */}
+                    {aud.advogado && (
+                      <p className="text-xs text-muted-foreground">
+                        Advogado: <span className="font-medium">{aud.advogado}</span>
+                      </p>
+                    )}
                   </div>
-                )}
-                
-                {/* Parte/Cliente */}
-                {(aud.polo_ativo || aud.cliente) && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <User className="h-3 w-3" />
-                    <span className="truncate">{aud.cliente || aud.polo_ativo}</span>
-                  </div>
-                )}
-                
-                {/* Advogado */}
-                {aud.advogado && (
-                  <p className="text-xs text-muted-foreground">
-                    Advogado: <span className="font-medium">{aud.advogado}</span>
-                  </p>
-                )}
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                </div>
               </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            </div>
+            ))}
           </div>
-        ))}
-        {audienciasFiltradas.length > 10 && (
-          <p className="text-xs text-muted-foreground text-center">
-            + {audienciasFiltradas.length - 10} audiências
-          </p>
-        )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -765,53 +768,52 @@ export function CoordenacaoDetalhesView({
           Intimações ({intimacoesFiltradas.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {intimacoesFiltradas.slice(0, 10).map((int) => (
-          <div
-            key={int.id}
-            className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-            onClick={() => handleNavigateProcesso((int.processo as any)?.id, "intimacoes")}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0 space-y-2">
-                {/* Processo e tipo */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-medium">{int.processo_numero}</span>
-                  {int.tipo_intimacao && (
-                    <Badge variant="secondary" className="text-xs">{int.tipo_intimacao}</Badge>
-                  )}
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {intimacoesFiltradas.map((int) => (
+              <div
+                key={int.id}
+                className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso((int.processo as any)?.id, "intimacoes")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    {/* Processo e tipo */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-medium">{int.processo_numero}</span>
+                      {int.tipo_intimacao && (
+                        <Badge variant="secondary" className="text-xs">{int.tipo_intimacao}</Badge>
+                      )}
+                    </div>
+                    
+                    {/* Prazo/Data limite */}
+                    {int.data_limite && (
+                      <div className="flex items-center gap-1 text-xs text-primary font-medium">
+                        <Timer className="h-3 w-3" />
+                        <span>Prazo: {formatDate(int.data_limite)}</span>
+                      </div>
+                    )}
+                    
+                    {/* Descrição */}
+                    {int.descricao && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{int.descricao}</p>
+                    )}
+                    
+                    {/* Data intimação */}
+                    {int.data_intimacao && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>{formatDate(int.data_intimacao)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </div>
-                
-                {/* Prazo/Data limite */}
-                {int.data_limite && (
-                  <div className="flex items-center gap-1 text-xs text-primary font-medium">
-                    <Timer className="h-3 w-3" />
-                    <span>Prazo: {formatDate(int.data_limite)}</span>
-                  </div>
-                )}
-                
-                {/* Descrição */}
-                {int.descricao && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">{int.descricao}</p>
-                )}
-                
-                {/* Data intimação */}
-                {int.data_intimacao && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    <span>{formatDate(int.data_intimacao)}</span>
-                  </div>
-                )}
               </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            </div>
+            ))}
           </div>
-        ))}
-        {intimacoesFiltradas.length > 10 && (
-          <p className="text-xs text-muted-foreground text-center">
-            + {intimacoesFiltradas.length - 10} intimações
-          </p>
-        )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -824,54 +826,53 @@ export function CoordenacaoDetalhesView({
           Andamentos ({andamentosFiltrados.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {andamentosFiltrados.slice(0, 10).map((and) => (
-          <div
-            key={and.id}
-            className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-            onClick={() => handleNavigateProcesso((and.processo as any)?.id, "andamentos")}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0 space-y-2">
-                {/* Processo e tipo */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-medium">{(and.processo as any)?.numero}</span>
-                  {and.tipo && (
-                    <Badge variant="secondary" className="text-xs">{and.tipo}</Badge>
-                  )}
-                </div>
-                
-                {/* Descrição */}
-                <p className="text-xs text-muted-foreground line-clamp-2">{and.descricao}</p>
-                
-                {/* Parte ativa */}
-                {(and.processo as any)?.polo_ativo && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <User className="h-3 w-3" />
-                    <span className="truncate">{(and.processo as any)?.polo_ativo}</span>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {andamentosFiltrados.map((and) => (
+              <div
+                key={and.id}
+                className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso((and.processo as any)?.id, "andamentos")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    {/* Processo e tipo */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-medium">{(and.processo as any)?.numero}</span>
+                      {and.tipo && (
+                        <Badge variant="secondary" className="text-xs">{and.tipo}</Badge>
+                      )}
+                    </div>
+                    
+                    {/* Descrição */}
+                    <p className="text-xs text-muted-foreground line-clamp-2">{and.descricao}</p>
+                    
+                    {/* Parte ativa */}
+                    {(and.processo as any)?.polo_ativo && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <User className="h-3 w-3" />
+                        <span className="truncate">{(and.processo as any)?.polo_ativo}</span>
+                      </div>
+                    )}
+                    
+                    {/* Metadados */}
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                      {and.fonte && (
+                        <span className="font-medium">{and.fonte}</span>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{formatDistanceToNow(new Date(and.created_at), { addSuffix: true, locale: ptBR })}</span>
+                      </div>
+                    </div>
                   </div>
-                )}
-                
-                {/* Metadados */}
-                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                  {and.fonte && (
-                    <span className="font-medium">{and.fonte}</span>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    <span>{formatDistanceToNow(new Date(and.created_at), { addSuffix: true, locale: ptBR })}</span>
-                  </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </div>
               </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            </div>
+            ))}
           </div>
-        ))}
-        {andamentosFiltrados.length > 10 && (
-          <p className="text-xs text-muted-foreground text-center">
-            + {andamentosFiltrados.length - 10} andamentos
-          </p>
-        )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -884,51 +885,49 @@ export function CoordenacaoDetalhesView({
           Redistribuições ({redistribuicoesFiltradas.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {redistribuicoesFiltradas.slice(0, 10).map((red) => (
-          <div
-            key={red.id}
-            className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-            onClick={() => handleNavigateProcesso(red.processo_id, "andamentos")}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0 space-y-2">
-                {/* Processo */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-medium">{red.processo_numero}</span>
-                </div>
-                
-                {/* Mudança de vara */}
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-red-500 font-medium">{red.vara_antiga}</span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="text-green-500 font-medium">{red.vara_nova}</span>
-                </div>
-                
-                {/* Advogado */}
-                {red.advogado_nome && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <User className="h-3 w-3" />
-                    <span>{red.advogado_nome}</span>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {redistribuicoesFiltradas.map((red) => (
+              <div
+                key={red.id}
+                className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso(red.processo_id, "andamentos")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    {/* Processo */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-medium">{red.processo_numero}</span>
+                    </div>
+                    
+                    {/* Mudança de vara */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-red-500 font-medium">{red.vara_antiga}</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className="text-green-500 font-medium">{red.vara_nova}</span>
+                    </div>
+                    
+                    {/* Advogado */}
+                    {red.advogado_nome && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <User className="h-3 w-3" />
+                        <span>{red.advogado_nome}</span>
+                      </div>
+                    )}
+                    
+                    {/* Data */}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span>{formatDistanceToNow(new Date(red.data_redistribuicao), { addSuffix: true, locale: ptBR })}</span>
+                    </div>
                   </div>
-                )}
-                
-                
-                {/* Data */}
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  <span>{formatDistanceToNow(new Date(red.data_redistribuicao), { addSuffix: true, locale: ptBR })}</span>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </div>
               </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            </div>
+            ))}
           </div>
-        ))}
-        {redistribuicoesFiltradas.length > 10 && (
-          <p className="text-xs text-muted-foreground text-center">
-            + {redistribuicoesFiltradas.length - 10} redistribuições
-          </p>
-        )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
