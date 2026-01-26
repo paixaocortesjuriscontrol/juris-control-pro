@@ -263,6 +263,19 @@ export function CoordenacaoDetalhesView({
     setActiveSection(activeSection === section ? "all" : section);
   };
 
+  // Handlers para navegação segura
+  const handleNavigateProcesso = (processoId: string | null | undefined) => {
+    if (!processoId) {
+      console.warn("ID do processo não disponível");
+      return;
+    }
+    navigate(`/processo/${processoId}`);
+  };
+
+  const handleNavigateDjen = () => {
+    navigate(`/analise-djen`);
+  };
+
   // Unified list rendering
   const renderFullList = () => {
     const sectionConfig: Record<string, { title: string; icon: any; color: string; items: any[]; renderItem: (item: any) => React.ReactNode }> = {
@@ -273,7 +286,7 @@ export function CoordenacaoDetalhesView({
         items: redistribuicoesFiltradas,
         renderItem: (r) => {
           return (
-            <div key={r.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => r.processo_id && navigate(`/processo/${r.processo_id}`)}>
+            <div key={r.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => handleNavigateProcesso(r.processo_id)}>
               <div className="flex justify-between items-start gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{r.processo_numero || "N/A"}</p>
@@ -300,7 +313,7 @@ export function CoordenacaoDetalhesView({
         color: "indigo",
         items: audienciasPendentes,
         renderItem: (a: any) => (
-          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => a.processo?.id && navigate(`/processo/${a.processo.id}`)}>
+          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => handleNavigateProcesso(a.processo?.id)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -336,7 +349,7 @@ export function CoordenacaoDetalhesView({
         color: "orange",
         items: intimacoesPendentes,
         renderItem: (i: any) => (
-          <div key={i.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => i.processo?.id && navigate(`/processo/${i.processo.id}`)}>
+          <div key={i.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => handleNavigateProcesso(i.processo?.id)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -362,7 +375,7 @@ export function CoordenacaoDetalhesView({
         color: "green",
         items: tarefasPendentes,
         renderItem: (t: any) => (
-          <div key={t.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/processo/${t.processo?.id}`)}>
+          <div key={t.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => handleNavigateProcesso(t.processo?.id)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -389,7 +402,7 @@ export function CoordenacaoDetalhesView({
         color: "blue",
         items: publicacoesFiltradas,
         renderItem: (p: any) => (
-          <div key={p.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/analise-djen`)}>
+          <div key={p.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => handleNavigateDjen()}>
             <p className="font-medium text-sm">{p.processo_numero || "Sem número"}</p>
             <p className="text-xs text-muted-foreground line-clamp-2">{p.conteudo}</p>
             <span className="text-[10px] text-muted-foreground">{format(new Date(p.created_at), "dd/MM HH:mm")}</span>
@@ -402,7 +415,7 @@ export function CoordenacaoDetalhesView({
         color: "violet",
         items: andamentosData,
         renderItem: (a: any) => (
-          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => a.processo?.id && navigate(`/processo/${a.processo.id}`)}>
+          <div key={a.id} className="p-2 border-b hover:bg-accent/50 cursor-pointer" onClick={() => handleNavigateProcesso(a.processo?.id)}>
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm line-clamp-2">{a.descricao}</p>
@@ -535,63 +548,147 @@ export function CoordenacaoDetalhesView({
         </div>
       </div>
 
-      {/* Stats Summary - clicáveis */}
-      <div className="flex flex-wrap gap-1">
-        {stats.redistribuicoes > 0 && (
-          <button onClick={() => toggleSection("redistribuicoes")} className={cn("flex items-center gap-1 px-2 py-1 rounded-md bg-cyan-600/10 border border-cyan-600/20 hover:bg-cyan-600/20 transition-colors", activeSection === "redistribuicoes" && "ring-2 ring-cyan-600")}>
-            <RefreshCw className="h-3 w-3 text-cyan-600" />
-            <span className="text-xs font-semibold text-cyan-600">{stats.redistribuicoes} Redist.</span>
-          </button>
-        )}
-        {stats.audiencias > 0 && (
-          <button onClick={() => toggleSection("audiencias")} className={cn("flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-600/10 border border-indigo-600/20 hover:bg-indigo-600/20 transition-colors", activeSection === "audiencias" && "ring-2 ring-indigo-600")}>
-            <Gavel className="h-3 w-3 text-indigo-600" />
-            <span className="text-xs font-semibold text-indigo-600">{stats.audiencias} Audiências</span>
-          </button>
-        )}
-        {stats.intimacoes > 0 && (
-          <button onClick={() => toggleSection("intimacoes")} className={cn("flex items-center gap-1 px-2 py-1 rounded-md bg-orange-600/10 border border-orange-600/20 hover:bg-orange-600/20 transition-colors", activeSection === "intimacoes" && "ring-2 ring-orange-600")}>
-            <FileWarning className="h-3 w-3 text-orange-600" />
-            <span className="text-xs font-semibold text-orange-600">{stats.intimacoes} Intimações</span>
-          </button>
-        )}
-        {stats.tarefas > 0 && (
-          <button onClick={() => toggleSection("tarefas")} className={cn("flex items-center gap-1 px-2 py-1 rounded-md bg-green-600/10 border border-green-600/20 hover:bg-green-600/20 transition-colors", activeSection === "tarefas" && "ring-2 ring-green-600")}>
-            <ListTodo className="h-3 w-3 text-green-600" />
-            <span className="text-xs font-semibold text-green-600">{stats.tarefas} Tarefas</span>
-          </button>
-        )}
-        {stats.prazos > 0 && (
-          <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-600/10 border border-red-600/20">
-            <Clock className="h-3 w-3 text-red-600" />
-            <span className="text-xs font-semibold text-red-600">{stats.prazos} Prazos</span>
-          </button>
-        )}
-        {stats.djen > 0 && (
-          <button onClick={() => toggleSection("djen")} className={cn("flex items-center gap-1 px-2 py-1 rounded-md bg-blue-600/10 border border-blue-600/20 hover:bg-blue-600/20 transition-colors", activeSection === "djen" && "ring-2 ring-blue-600")}>
-            <Newspaper className="h-3 w-3 text-blue-600" />
-            <span className="text-xs font-semibold text-blue-600">{stats.djen} DJEN</span>
-          </button>
-        )}
-        {stats.distribuicoes > 0 && (
-          <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-purple-600/10 border border-purple-600/20">
-            <Scale className="h-3 w-3 text-purple-600" />
-            <span className="text-xs font-semibold text-purple-600">{stats.distribuicoes} Distrib.</span>
-          </button>
-        )}
-        {stats.alertas360 > 0 && (
-          <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-600/10 border border-amber-600/20">
-            <Radar className="h-3 w-3 text-amber-600" />
-            <span className="text-xs font-semibold text-amber-600">{stats.alertas360} Alertas 360°</span>
-          </button>
-        )}
-        {stats.andamentos > 0 && (
-          <button onClick={() => toggleSection("andamentos")} className={cn("flex items-center gap-1 px-2 py-1 rounded-md bg-violet-600/10 border border-violet-600/20 hover:bg-violet-600/20 transition-colors", activeSection === "andamentos" && "ring-2 ring-violet-600")}>
-            <Activity className="h-3 w-3 text-violet-600" />
-            <span className="text-xs font-semibold text-violet-600">{stats.andamentos} Andamentos</span>
-          </button>
-        )}
+      {/* Botões Quadrados com Totalizadores */}
+      <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+        <Button
+          variant={activeSection === "redistribuicoes" ? "default" : "outline"}
+          onClick={() => toggleSection("redistribuicoes")}
+          className="flex flex-col items-center justify-center h-20 p-2 relative gap-1"
+        >
+          <RefreshCw className="h-6 w-6 text-cyan-600" />
+          <span className="text-[10px] font-medium text-center leading-tight">Redistrib.</span>
+          {stats.redistribuicoes > 0 && (
+            <Badge className="absolute -top-1 -right-1 bg-cyan-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+              {stats.redistribuicoes}
+            </Badge>
+          )}
+        </Button>
+
+        <Button
+          variant={activeSection === "audiencias" ? "default" : "outline"}
+          onClick={() => toggleSection("audiencias")}
+          className="flex flex-col items-center justify-center h-20 p-2 relative gap-1"
+        >
+          <Gavel className="h-6 w-6 text-indigo-600" />
+          <span className="text-[10px] font-medium text-center leading-tight">Audiências</span>
+          {stats.audiencias > 0 && (
+            <Badge className="absolute -top-1 -right-1 bg-indigo-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+              {stats.audiencias}
+            </Badge>
+          )}
+        </Button>
+
+        <Button
+          variant={activeSection === "intimacoes" ? "default" : "outline"}
+          onClick={() => toggleSection("intimacoes")}
+          className="flex flex-col items-center justify-center h-20 p-2 relative gap-1"
+        >
+          <FileWarning className="h-6 w-6 text-orange-600" />
+          <span className="text-[10px] font-medium text-center leading-tight">Intimações</span>
+          {stats.intimacoes > 0 && (
+            <Badge className="absolute -top-1 -right-1 bg-orange-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+              {stats.intimacoes}
+            </Badge>
+          )}
+        </Button>
+
+        <Button
+          variant={activeSection === "tarefas" ? "default" : "outline"}
+          onClick={() => toggleSection("tarefas")}
+          className="flex flex-col items-center justify-center h-20 p-2 relative gap-1"
+        >
+          <ListTodo className="h-6 w-6 text-green-600" />
+          <span className="text-[10px] font-medium text-center leading-tight">Tarefas</span>
+          {stats.tarefas > 0 && (
+            <Badge className="absolute -top-1 -right-1 bg-green-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+              {stats.tarefas}
+            </Badge>
+          )}
+        </Button>
+
+        <Button
+          variant={activeSection === "prazos" ? "default" : "outline"}
+          onClick={() => toggleSection("prazos")}
+          className="flex flex-col items-center justify-center h-20 p-2 relative gap-1"
+        >
+          <Clock className="h-6 w-6 text-red-600" />
+          <span className="text-[10px] font-medium text-center leading-tight">Prazos</span>
+          {stats.prazos > 0 && (
+            <Badge className="absolute -top-1 -right-1 bg-red-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+              {stats.prazos}
+            </Badge>
+          )}
+        </Button>
+
+        <Button
+          variant={activeSection === "djen" ? "default" : "outline"}
+          onClick={() => toggleSection("djen")}
+          className="flex flex-col items-center justify-center h-20 p-2 relative gap-1"
+        >
+          <Newspaper className="h-6 w-6 text-blue-600" />
+          <span className="text-[10px] font-medium text-center leading-tight">DJEN</span>
+          {stats.djen > 0 && (
+            <Badge className="absolute -top-1 -right-1 bg-blue-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+              {stats.djen}
+            </Badge>
+          )}
+        </Button>
+
+        <Button
+          variant={activeSection === "distribuicoes" ? "default" : "outline"}
+          onClick={() => toggleSection("distribuicoes")}
+          className="flex flex-col items-center justify-center h-20 p-2 relative gap-1"
+        >
+          <Scale className="h-6 w-6 text-purple-600" />
+          <span className="text-[10px] font-medium text-center leading-tight">Distribuições</span>
+          {stats.distribuicoes > 0 && (
+            <Badge className="absolute -top-1 -right-1 bg-purple-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+              {stats.distribuicoes}
+            </Badge>
+          )}
+        </Button>
+
+        <Button
+          variant={activeSection === "alertas360" ? "default" : "outline"}
+          onClick={() => toggleSection("alertas360")}
+          className="flex flex-col items-center justify-center h-20 p-2 relative gap-1"
+        >
+          <Radar className="h-6 w-6 text-amber-600" />
+          <span className="text-[10px] font-medium text-center leading-tight">360°</span>
+          {stats.alertas360 > 0 && (
+            <Badge className="absolute -top-1 -right-1 bg-amber-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+              {stats.alertas360}
+            </Badge>
+          )}
+        </Button>
+
+        <Button
+          variant={activeSection === "andamentos" ? "default" : "outline"}
+          onClick={() => toggleSection("andamentos")}
+          className="flex flex-col items-center justify-center h-20 p-2 relative gap-1"
+        >
+          <Activity className="h-6 w-6 text-violet-600" />
+          <span className="text-[10px] font-medium text-center leading-tight">Andamentos</span>
+          {stats.andamentos > 0 && (
+            <Badge className="absolute -top-1 -right-1 bg-violet-600 text-white h-5 min-w-5 flex items-center justify-center text-xs px-1">
+              {stats.andamentos}
+            </Badge>
+          )}
+        </Button>
       </div>
+
+      {/* Botão "Ver Tudo" */}
+      {activeSection !== "all" && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => setActiveSection("all")}
+            className="w-full max-w-md"
+          >
+            Ver Tudo ({total} alertas)
+          </Button>
+        </div>
+      )}
 
       {/* Lista completa da seção selecionada */}
       {renderFullList()}
