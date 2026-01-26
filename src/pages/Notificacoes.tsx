@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,8 @@ import { GerarRelatorioPdfDialog } from "@/components/notificacoes/GerarRelatori
 
 export default function Notificacoes() {
   // Central de Notificações
+  const PAGE_SIZE = 1000;
+
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,48 +86,125 @@ export default function Notificacoes() {
     dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
   });
 
-  // Buscar tarefas pendentes
-  const { data: tarefasPendentesData = [] } = useQuery({
-    queryKey: ["tarefas-pendentes-notificacoes", statusFilter],
-    queryFn: async () => {
-      const pageSize = 1000;
-
-      const buildQuery = () => {
-        let query = supabase
-          .from("tarefas")
-          .select(`
+  // ===== TAREFAS: paginação incremental (evita tentar carregar “todas”) =====
+  const tarefasPaged = useInfiniteQuery({
+    queryKey: ["tarefas-pendentes-notificacoes-paged", statusFilter],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      let query = supabase
+        .from("tarefas")
+        .select(`
+          id,
+          titulo,
+          status,
+          data_vencimento,
+          prioridade,
+          processo:processos!tarefas_processo_id_fkey(
             id,
-            titulo,
-            status,
-            data_vencimento,
-            prioridade,
-            processo:processos!tarefas_processo_id_fkey(
-              id,
-              numero,
-              coordenacao_id
-            )
-          `)
-          .order("data_vencimento", { ascending: true, nullsFirst: false });
+            numero,
+            coordenacao_id
+          )
+        `)
+        .order("data_vencimento", { ascending: true, nullsFirst: false })
+        .order("id", { ascending: true });
 
+      if (statusFilter !== "todas") {
+        const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
+        query = query.eq("status", status as "pendente" | "cumprido" | "atrasado");
+      }
+
+      const from = Number(pageParam) || 0;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error } = await query.range(from, to);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage) return undefined;
+      return lastPage.length >= PAGE_SIZE ? allPages.length * PAGE_SIZE : undefined;
+    },
+  });
+
+  const tarefasPendentesData = useMemo(() => {
+    return tarefasPaged.data?.pages?.flat() ?? [];
+  }, [tarefasPaged.data]);
+
+  // Total de tarefas (para totalizadores) via COUNT no banco
+  const { data: tarefasTotal = 0 } = useQuery({
+    queryKey: [
+      "tarefas-total-notificacoes",
+      statusFilter,
+      prioridadeFilter,
+      periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : null,
+      periodoFim ? format(periodoFim, "yyyy-MM-dd") : null,
+      searchQuery,
+    ],
+    queryFn: async () => {
+      const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
+      const q = searchQuery.trim();
+      const inicio = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
+      const fim = periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined;
+
+      const applyCommon = (query: any) => {
         if (statusFilter !== "todas") {
-          const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
           query = query.eq("status", status as "pendente" | "cumprido" | "atrasado");
         }
-
+        if (prioridadeFilter !== "todas") {
+          query = query.eq("prioridade", prioridadeFilter);
+        }
+        // matchesPeriodo: mantém NULL como "passa" (igual ao front)
+        if (inicio && fim) {
+          query = query.or(`data_vencimento.is.null,and(data_vencimento.gte.${inicio},data_vencimento.lte.${fim})`);
+        } else if (inicio) {
+          query = query.or(`data_vencimento.is.null,data_vencimento.gte.${inicio}`);
+        } else if (fim) {
+          query = query.or(`data_vencimento.is.null,data_vencimento.lte.${fim}`);
+        }
         return query;
       };
 
-      const all: any[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const to = from + pageSize - 1;
-        const { data, error } = await buildQuery().range(from, to);
+      // Sem busca: 1 query
+      if (!q) {
+        let base = supabase.from("tarefas").select("id", { count: "exact", head: true });
+        base = applyCommon(base);
+        const { count, error } = await base;
         if (error) throw error;
-        const chunk = data || [];
-        all.push(...chunk);
-        if (chunk.length < pageSize) break;
+        return Number(count || 0);
       }
 
-      return all;
+      // Com busca: inclusão-exclusão para não “perder” tarefas sem processo
+      const like = `%${q}%`;
+
+      // A) titulo ilike
+      let byTitle = supabase
+        .from("tarefas")
+        .select("id", { count: "exact", head: true })
+        .ilike("titulo", like);
+      byTitle = applyCommon(byTitle);
+
+      // B) processo.numero ilike (precisa INNER)
+      let byProc = supabase
+        .from("tarefas")
+        .select("id, processos!inner(id, numero)", { count: "exact", head: true })
+        .ilike("processos.numero", like);
+      byProc = applyCommon(byProc);
+
+      // AB) ambos (para não duplicar)
+      let byBoth = supabase
+        .from("tarefas")
+        .select("id, processos!inner(id, numero)", { count: "exact", head: true })
+        .ilike("titulo", like)
+        .ilike("processos.numero", like);
+      byBoth = applyCommon(byBoth);
+
+      const [a, b, ab] = await Promise.all([byTitle, byProc, byBoth]);
+      if (a.error) throw a.error;
+      if (b.error) throw b.error;
+      if (ab.error) throw ab.error;
+
+      const total = Number(a.count || 0) + Number(b.count || 0) - Number(ab.count || 0);
+      return Math.max(total, 0);
     },
   });
 
@@ -218,61 +297,97 @@ export default function Notificacoes() {
     },
   });
 
-  // Buscar andamentos (movimentações) recentes - excluindo redistribuições
-  const { data: andamentosData = [] } = useQuery({
-    queryKey: ["andamentos-notificacoes", periodoInicio, periodoFim],
-    queryFn: async () => {
-      console.log("🔍 [Andamentos] Buscando andamentos (sem redistribuições)...");
-      const pageSize = 1000;
-
+  // ===== ANDAMENTOS: paginação incremental (evita tentar carregar “tudo”) =====
+  const andamentosPaged = useInfiniteQuery({
+    queryKey: ["andamentos-notificacoes-paged", periodoInicio, periodoFim],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
       const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
       const fimDiaMaisUm = periodoFim
         ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd")
         : undefined;
 
-      const buildQuery = () => {
-        let query = supabase
-          .from("movimentacoes")
-          .select(`
+      let query = supabase
+        .from("movimentacoes")
+        .select(`
+          id,
+          descricao,
+          data_movimentacao,
+          created_at,
+          tipo,
+          fonte,
+          processo:processos!movimentacoes_processo_id_fkey(
             id,
-            descricao,
-            data_movimentacao,
-            created_at,
-            tipo,
-            fonte,
-            processo:processos!movimentacoes_processo_id_fkey(
-              id,
-              numero,
-              coordenacao_id
-            )
-          `)
-          .neq("tipo", "Redistribuição")
-          .order("created_at", { ascending: false });
+            numero,
+            coordenacao_id
+          )
+        `)
+        .neq("tipo", "Redistribuição")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
 
-        // Filtrar por período usando created_at (data da captura), não data_movimentacao
-        if (inicioDia) query = query.gte("created_at", inicioDia);
-        if (fimDiaMaisUm) query = query.lt("created_at", fimDiaMaisUm);
+      // Filtrar por período usando created_at (data da captura), não data_movimentacao
+      if (inicioDia) query = query.gte("created_at", inicioDia);
+      if (fimDiaMaisUm) query = query.lt("created_at", fimDiaMaisUm);
 
-        return query;
-      };
+      const from = Number(pageParam) || 0;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error } = await query.range(from, to);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage) return undefined;
+      return lastPage.length >= PAGE_SIZE ? allPages.length * PAGE_SIZE : undefined;
+    },
+  });
 
-      const all: any[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const to = from + pageSize - 1;
-        const { data, error } = await buildQuery().range(from, to);
+  const andamentosData = useMemo(() => {
+    return andamentosPaged.data?.pages?.flat() ?? [];
+  }, [andamentosPaged.data]);
+
+  // Total de andamentos (para totalizadores) via COUNT no banco
+  const { data: andamentosTotal = 0 } = useQuery({
+    queryKey: [
+      "andamentos-total-notificacoes",
+      periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : null,
+      periodoFim ? format(periodoFim, "yyyy-MM-dd") : null,
+      searchQuery,
+    ],
+    queryFn: async () => {
+      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
+      const fimDiaMaisUm = periodoFim
+        ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd")
+        : undefined;
+
+      const q = searchQuery.trim();
+
+      // Sem busca: 1 query
+      if (!q) {
+        let base = supabase
+          .from("movimentacoes")
+          .select("id", { count: "exact", head: true })
+          .neq("tipo", "Redistribuição");
+        if (inicioDia) base = base.gte("created_at", inicioDia);
+        if (fimDiaMaisUm) base = base.lt("created_at", fimDiaMaisUm);
+        const { count, error } = await base;
         if (error) throw error;
-        const chunk = data || [];
-        all.push(...chunk);
-        if (chunk.length < pageSize) break;
+        return Number(count || 0);
       }
 
-      console.log("✅ [Andamentos] Total encontrado:", all.length);
-      console.log("📋 [Andamentos] Tipos únicos:", [...new Set(all.map((d: any) => d.tipo) || [])]);
-      const redistCount = all.filter((d: any) => d.tipo === "Redistribuição").length || 0;
-      if (redistCount > 0) {
-        console.error("❌ [Andamentos] ERRO: Redistribuições encontradas:", redistCount);
-      }
-      return all;
+      // Com busca: usar INNER para permitir filtro por processo.numero
+      const like = `%${q}%`;
+      let base = supabase
+        .from("movimentacoes")
+        .select("id, processos!inner(id, numero)", { count: "exact", head: true })
+        .neq("tipo", "Redistribuição")
+        .or(`descricao.ilike.${like},tipo.ilike.${like},processos.numero.ilike.${like}`);
+      if (inicioDia) base = base.gte("created_at", inicioDia);
+      if (fimDiaMaisUm) base = base.lt("created_at", fimDiaMaisUm);
+
+      const { count, error } = await base;
+      if (error) throw error;
+      return Number(count || 0);
     },
   });
 
@@ -439,10 +554,10 @@ export default function Notificacoes() {
     const redistribuicoesReal = redistribuicoesFiltradas.length;
     const prazosReal = prazosFiltrados.length;
     const notifsReal = notificacoesFiltradas.length;
-    const tarefasReal = tarefasFiltradas.length;
+    const tarefasReal = tarefasTotal;
     const audienciasReal = audienciasFiltradas.length;
     const intimacoesReal = intimacoesFiltradas.length;
-    const andamentosReal = andamentosFiltrados.length;
+    const andamentosReal = andamentosTotal;
     
     const totalReal = djenReal + distribuicoesReal + alertas360Real + redistribuicoesReal + 
                       prazosReal + tarefasReal + audienciasReal + intimacoesReal + andamentosReal;
@@ -462,7 +577,7 @@ export default function Notificacoes() {
     };
   }, [
     publicacoesFiltradas, distribuicoesFiltradas, alertasFiltrados, redistribuicoesFiltradas,
-    prazosFiltrados, notificacoesFiltradas, tarefasFiltradas, audienciasFiltradas, intimacoesFiltradas, andamentosFiltrados
+    prazosFiltrados, notificacoesFiltradas, tarefasTotal, audienciasFiltradas, intimacoesFiltradas, andamentosTotal
   ]);
 
   const hoje = startOfDay(new Date());
@@ -1454,7 +1569,7 @@ export default function Notificacoes() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ListTodo className="w-5 h-5 text-green-500" />
-                Tarefas Pendentes
+                Tarefas Pendentes ({stats.tarefas})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1464,6 +1579,21 @@ export default function Notificacoes() {
                 </div>
               ) : (
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">
+                        Exibindo {tarefasFiltradas.length} de {stats.tarefas}
+                      </p>
+                      {tarefasPaged.hasNextPage && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={tarefasPaged.isFetchingNextPage}
+                          onClick={() => tarefasPaged.fetchNextPage()}
+                        >
+                          {tarefasPaged.isFetchingNextPage ? "Carregando..." : "Carregar mais"}
+                        </Button>
+                      )}
+                    </div>
                     {tarefasFiltradas.map((tarefa) => (
                       <Card key={tarefa.id} className="bg-muted/30">
                         <CardContent className="p-4">
@@ -1612,6 +1742,21 @@ export default function Notificacoes() {
                 </div>
               ) : (
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">
+                        Exibindo {andamentosFiltrados.length} de {stats.andamentos}
+                      </p>
+                      {andamentosPaged.hasNextPage && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={andamentosPaged.isFetchingNextPage}
+                          onClick={() => andamentosPaged.fetchNextPage()}
+                        >
+                          {andamentosPaged.isFetchingNextPage ? "Carregando..." : "Carregar mais"}
+                        </Button>
+                      )}
+                    </div>
                     {andamentosFiltrados.map((andamento) => {
                       const coordId = (andamento.processo as any)?.coordenacao_id;
                       const coord = coordenacoes.find(c => c.id === coordId);
