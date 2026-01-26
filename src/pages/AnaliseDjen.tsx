@@ -800,8 +800,8 @@ const AnaliseDjen = () => {
                                     {formatDateShort(pub.data_publicacao)}
                                   </span>
                                   
-                                  {/* Badge da Coordenação - visível quando não há filtro por coordenação */}
-                                  {!coordenacaoId && pub.coordenacao_nome && (
+                                  {/* Badge da Coordenação - sempre visível quando há nome */}
+                                  {pub.coordenacao_nome && (
                                     <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 max-w-[120px] md:max-w-[180px] truncate">
                                       <Building2 className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
                                       <span className="truncate">{pub.coordenacao_nome}</span>
