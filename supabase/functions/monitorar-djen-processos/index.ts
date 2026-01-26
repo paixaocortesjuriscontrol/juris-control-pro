@@ -1179,28 +1179,28 @@ serve(async (req) => {
             });
           }
 
-          // Enviar resumo para cada coordenação
+          // Enviar resumo para cada coordenação (formato array conforme interface ResumoPayload)
           if (porCoordenacao.size > 0) {
-            const resumosPorCoordenacao: Record<string, any> = {};
-            
-            for (const [coordId, dados] of porCoordenacao) {
-              resumosPorCoordenacao[coordId] = {
-                coordenacao_nome: dados.coordenacao_nome,
-                total: dados.publicacoes.length,
-                exemplos: dados.publicacoes.map(p => ({
-                  processo_numero: p.processo_numero,
-                  descricao: `Publicação DJEN: ${p.conteudo}`
-                }))
-              };
-            }
+            const resumosPorCoordenacao = Array.from(porCoordenacao.entries()).map(([coordId, dados]) => ({
+              coordenacao_id: coordId,
+              coordenacao_nome: dados.coordenacao_nome,
+              total_verificados: dados.publicacoes.length,
+              total_encontrados: dados.publicacoes.length,
+              exemplos: dados.publicacoes.map(p => ({
+                processo_numero: p.processo_numero || 'Processo não identificado',
+                descricao: p.conteudo
+              }))
+            }));
 
-            const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+            console.log(`[DJEN Processos] Enviando resumo para ${resumosPorCoordenacao.length} coordenações`);
+            
+            const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
             
             const resumoPromise = fetch(`${supabaseUrl}/functions/v1/enviar-resumo-monitoramento`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseAnonKey}`,
+                'Authorization': `Bearer ${supabaseServiceKey}`,
               },
               body: JSON.stringify({
                 tipo_monitoramento: 'djen_processos',
