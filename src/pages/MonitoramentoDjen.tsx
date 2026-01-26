@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Eye,
   Loader2,
@@ -13,7 +14,9 @@ import {
   Filter,
   Search,
   BarChart3,
+  RotateCcw,
 } from "lucide-react";
+import { toast } from "sonner";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +40,7 @@ import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { supabase } from "@/integrations/supabase/client";
 
 const MonitoramentoDjen = () => {
+  const queryClient = useQueryClient();
   const [monitoramentoDialogOpen, setMonitoramentoDialogOpen] = useState(false);
   const [monitoramentoParaEditar, setMonitoramentoParaEditar] = useState<any>(null);
   const [backfillPanelOpen, setBackfillPanelOpen] = useState(false);
@@ -48,6 +52,7 @@ const MonitoramentoDjen = () => {
   const [tribunalFilter, setTribunalFilter] = useState("todos");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [termoSearch, setTermoSearch] = useState("");
+  const [resetando, setResetando] = useState(false);
 
   const { data: coordenacoes = [] } = useQuery({
     queryKey: ['coordenacoes-select'],
@@ -143,6 +148,60 @@ const MonitoramentoDjen = () => {
   const filtrosAtivos = coordenacaoFilter !== "todas" || tipoFilter !== "todos" || 
     tribunalFilter !== "todos" || statusFilter !== "todos" || termoSearch.trim() !== "";
 
+  const handleResetCompleto = async () => {
+    if (!confirm('Isso vai resetar completamente o estado do DJEN (cancela execuções e zera contadores). Deseja continuar?')) {
+      return;
+    }
+    
+    setResetando(true);
+    try {
+      const { error } = await supabase.functions.invoke('force-reset-metadata-djen');
+      
+      if (error) {
+        console.error('Erro no reset:', error);
+        toast.error('Erro ao resetar: ' + error.message);
+        return;
+      }
+      
+      // Limpar cache local
+      queryClient.setQueryData(['configuracoes-monitoramento'], (old: any) => {
+        if (!old) return old;
+        return old.map((config: any) => {
+          if (config.tipo === 'djen') {
+            return {
+              ...config,
+              ativo: false,
+              metadata: {
+                status: 'idle',
+                cancelado: false,
+                paused_globally: false,
+                continuingRun: false,
+                next_offset: 0,
+                current: 0,
+                total: 0,
+                percentage: 0,
+                processados: 0
+              }
+            };
+          }
+          return config;
+        });
+      });
+      
+      toast.success('Estado do DJEN resetado completamente');
+      
+      await new Promise(r => setTimeout(r, 1000));
+      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+      queryClient.invalidateQueries({ queryKey: ['monitoring-dashboard'] });
+      
+    } catch (error) {
+      console.error('Erro ao resetar:', error);
+      toast.error('Erro ao resetar estado');
+    } finally {
+      setResetando(false);
+    }
+  };
+
   return (
     <MainLayout
       title="Monitoramento DJEN"
@@ -183,6 +242,16 @@ const MonitoramentoDjen = () => {
                     >
                       <History className="w-4 h-4 mr-2" />
                       {backfillPanelOpen ? "Ocultar Backfill" : "Backfill Histórico"}
+                    </Button>
+                    <Button 
+                      onClick={handleResetCompleto}
+                      disabled={resetando}
+                      variant="destructive" 
+                      size="sm" 
+                      className="w-full sm:w-auto"
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      {resetando ? "Resetando..." : "Reset Completo"}
                     </Button>
                     <Button onClick={() => setMonitoramentoDialogOpen(true)} size="sm" className="w-full sm:w-auto">
                       <Plus className="w-4 h-4 mr-2" />

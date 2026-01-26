@@ -431,12 +431,48 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
     setUltimoResultado(null);
     
     try {
-      // Reset via Edge Function (1 invocação apenas)
-      await supabase.functions.invoke('reset-djen-state');
+      // Force reset brutal (apaga execuções e zera metadata)
+      const { error: forceError } = await supabase.functions.invoke('force-reset-metadata-djen');
+      
+      if (forceError) {
+        console.error('Erro no force reset:', forceError);
+        toast.error('Erro ao resetar: ' + forceError.message);
+        return;
+      }
+      
+      // Limpar cache local IMEDIATAMENTE
+      queryClient.setQueryData(['configuracoes-monitoramento'], (old: any) => {
+        if (!old) return old;
+        return old.map((config: any) => {
+          if (config.tipo === 'djen') {
+            return {
+              ...config,
+              ativo: false,
+              metadata: {
+                status: 'idle',
+                cancelado: false,
+                paused_globally: false,
+                continuingRun: false,
+                next_offset: 0,
+                current: 0,
+                total: 0,
+                percentage: 0,
+                processados: 0,
+                novas: 0,
+                duplicatas: 0,
+                descartadas: 0,
+                erros: 0
+              }
+            };
+          }
+          return config;
+        });
+      });
 
       toast.success('Estado do DJEN resetado completamente');
       
-      // Invalidar e aguardar atualização
+      // Aguardar e recarregar do banco
+      await new Promise(r => setTimeout(r, 1000));
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
       queryClient.invalidateQueries({ queryKey: ['execucao-ativa-djen'] });
       queryClient.invalidateQueries({ queryKey: ['djen-runs'] });
