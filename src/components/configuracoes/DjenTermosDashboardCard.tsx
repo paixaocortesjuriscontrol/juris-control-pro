@@ -1,15 +1,21 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Newspaper, PlayCircle, StopCircle, Trash2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { 
+  Loader2, Newspaper, PlayCircle, StopCircle, Trash2,
+  CheckCircle2, XCircle, Clock, TrendingUp, Zap, MinusCircle
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { MonitoringStats } from "@/hooks/useMonitoringDashboard";
+import type { MonitoringStats, MonitoringStatus } from "@/hooks/useMonitoringDashboard";
+import { formatDuration, formatDateTime } from "@/hooks/useMonitoringDashboard";
 import { cn } from "@/lib/utils";
 import { useBuscaDjenDireta } from "@/hooks/useBuscaDjenDireta";
 import { withTimeout } from "@/utils/withTimeout";
+import { useState } from "react";
 
 type Props = {
   stats: MonitoringStats;
@@ -18,6 +24,113 @@ type Props = {
   onReativarConfig: (tipo: string) => Promise<void>;
   onAfterMutation: () => void;
 };
+
+const STATUS_CONFIG: Record<MonitoringStatus, { 
+  label: string; 
+  color: string; 
+  bgColor: string;
+  borderColor: string;
+  icon: React.ElementType;
+  animate?: boolean;
+}> = {
+  idle: { 
+    label: 'Aguardando', 
+    color: 'text-muted-foreground', 
+    bgColor: 'bg-muted/50',
+    borderColor: 'border-border',
+    icon: Clock 
+  },
+  running: { 
+    label: 'Executando', 
+    color: 'text-blue-600', 
+    bgColor: 'bg-blue-500/10',
+    borderColor: 'border-blue-500/30',
+    icon: Loader2,
+    animate: true
+  },
+  completed: { 
+    label: 'Concluído', 
+    color: 'text-green-600', 
+    bgColor: 'bg-green-500/10',
+    borderColor: 'border-green-500/30',
+    icon: CheckCircle2 
+  },
+  failed: { 
+    label: 'Erro', 
+    color: 'text-red-600', 
+    bgColor: 'bg-red-500/10',
+    borderColor: 'border-red-500/30',
+    icon: XCircle 
+  },
+  cancelled: { 
+    label: 'Cancelado', 
+    color: 'text-orange-600', 
+    bgColor: 'bg-orange-500/10',
+    borderColor: 'border-orange-500/30',
+    icon: StopCircle 
+  },
+  timeout: { 
+    label: 'Timeout', 
+    color: 'text-red-600', 
+    bgColor: 'bg-red-500/10',
+    borderColor: 'border-red-500/30',
+    icon: XCircle 
+  },
+};
+
+function StatusBadge({ status }: { status: MonitoringStatus }) {
+  const config = STATUS_CONFIG[status];
+  const Icon = config.icon;
+  
+  return (
+    <Badge 
+      variant="outline" 
+      className={cn(
+        "gap-1.5 font-medium",
+        config.color,
+        config.bgColor,
+        config.borderColor
+      )}
+    >
+      <Icon className={cn("h-3.5 w-3.5", config.animate && "animate-spin")} />
+      {config.label}
+    </Badge>
+  );
+}
+
+function MetricBadge({ 
+  icon: Icon, 
+  value, 
+  label, 
+  variant = 'default' 
+}: { 
+  icon: React.ElementType; 
+  value: number | string; 
+  label: string;
+  variant?: 'default' | 'success' | 'info';
+}) {
+  const colorClass = {
+    default: 'text-muted-foreground',
+    success: 'text-green-600',
+    info: 'text-blue-600',
+  }[variant];
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className={cn("flex items-center gap-1.5 text-sm", colorClass)}>
+            <Icon className="h-3.5 w-3.5" />
+            <span className="font-mono font-medium">{value}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{label}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 export function DjenTermosDashboardCard({
   stats,
@@ -42,6 +155,18 @@ export function DjenTermosDashboardCard({
 
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
+
+  // Determinar status real baseado na busca direta
+  const currentStatus: MonitoringStatus = executando 
+    ? 'running' 
+    : progresso.status === 'concluido' 
+      ? 'completed' 
+      : progresso.status === 'erro' 
+        ? 'failed' 
+        : stats.status;
+
+  const statusConfig = STATUS_CONFIG[currentStatus];
+  const isRunning = executando;
 
   const handleExecutar = async () => {
     if (executando || isExecuting) return;
@@ -76,7 +201,6 @@ export function DjenTermosDashboardCard({
         await new Promise((r) => setTimeout(r, 600));
       }
 
-      // A limpeza pode levar >60s (alto volume). Mantemos timeout mais folgado.
       const { data, error } = await withTimeout(
         supabase.functions.invoke('limpar-djen-hoje'),
         180_000,
@@ -93,76 +217,155 @@ export function DjenTermosDashboardCard({
     }
   };
 
-  const showProgress = executando && progresso.status === 'executando';
+  const canExecute = !executando && !isExecuting && currentStatus !== 'timeout';
+  const canCancel = executando;
+
+  // Métricas reais
+  const processados = progresso.monitoramentoAtual;
+  const total = progresso.totalMonitoramentos;
+  const encontrados = stats.todayStats.found ?? 0;
+  const descartadas = stats.todayStats.descartadas ?? 0;
+
+  // Tempo - usar elapsed do progresso ou calcular
+  const tempoFormatado = executando 
+    ? formatDuration(stats.elapsedSeconds) 
+    : formatDuration(stats.elapsedSeconds);
 
   return (
     <Card className={cn(
       "overflow-hidden transition-all duration-300",
-      (executando || stats.status === 'running') && "ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10"
+      isRunning && "ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10",
+      currentStatus === 'failed' && "ring-1 ring-red-500/30",
     )}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={cn("p-2.5 rounded-xl", "bg-muted/50")}>
-              <Newspaper className="h-5 w-5 text-muted-foreground" />
+            <div className={cn(
+              "p-2.5 rounded-xl transition-colors",
+              statusConfig.bgColor,
+            )}>
+              <Newspaper className={cn(
+                "h-5 w-5",
+                statusConfig.color,
+                isRunning && "animate-pulse"
+              )} />
             </div>
             <div>
               <CardTitle className="text-base font-semibold">{stats.nome}</CardTitle>
               <div className="flex items-center gap-2 mt-1">
-                <Badge variant="outline" className="text-xs">{stats.config?.frequencia || 'diário'}</Badge>
+                <Badge variant="outline" className="text-xs">
+                  {stats.config?.frequencia || 'diário'}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  Busca direta
+                </Badge>
                 {isPaused && (
                   <Badge variant="secondary" className="text-xs">Desativado</Badge>
                 )}
-                <Badge variant="secondary" className="text-xs">Busca direta</Badge>
               </div>
             </div>
           </div>
-          {/* Status simples para busca direta */}
-          <Badge variant="outline" className={cn("gap-1.5 font-medium", executando ? "text-blue-600" : "text-muted-foreground")}>
-            {executando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Newspaper className="h-3.5 w-3.5" />}
-            {executando ? 'Executando' : 'Aguardando'}
-          </Badge>
+          <StatusBadge status={currentStatus} />
         </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Progresso real (frontend) */}
-        {showProgress && (
-          <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
+        {/* Execution Details Panel - mesmo padrão dos outros cards */}
+        <div className={cn(
+          "rounded-xl p-4 space-y-3 border-2 transition-all",
+          statusConfig.bgColor,
+          statusConfig.borderColor,
+          isRunning && "shadow-lg shadow-blue-500/10"
+        )}>
+          {/* Progress Bar */}
+          <div className="space-y-1.5">
             <div className="flex justify-between items-center text-sm">
               <span className="text-muted-foreground font-medium">
-                {progresso.totalMonitoramentos > 0
-                  ? `Processando: ${progresso.monitoramentoAtual}/${progresso.totalMonitoramentos}`
-                  : 'Processando...'}
+                {isRunning ? (
+                  total > 0 
+                    ? `Processando: ${processados.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')}`
+                    : 'Processando...'
+                ) : 'Progresso'}
               </span>
-              <span className="font-bold text-primary">{percent}%</span>
+              <span className={cn("font-bold", statusConfig.color)}>
+                {`${percent}%`}
+              </span>
             </div>
-            <Progress value={percent} className="h-2.5" />
-            {progresso.mensagem && (
-              <div className="text-xs text-muted-foreground">{progresso.mensagem}</div>
+            <Progress 
+              value={percent} 
+              className={cn("h-2.5", isRunning && "animate-pulse")}
+            />
+            {isRunning && progresso.mensagem && (
+              <div className="text-xs text-muted-foreground truncate">
+                {progresso.mensagem}
+              </div>
             )}
           </div>
-        )}
 
-        {/* Resumo ao terminar */}
-        {(progresso.status === 'concluido' || progresso.status === 'erro') && !showProgress && (
-          <div className="p-3 bg-muted/30 rounded-lg border">
-            <div className="text-sm font-medium">{progresso.mensagem || 'Execução finalizada'}</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              Novas: {progresso.publicacoesNovas} • Duplicadas: {progresso.publicacoesDuplicadas}
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-background/60 rounded-lg p-2.5 text-center border">
+              <div className="text-xs text-muted-foreground mb-0.5">Processados</div>
+              <div className="text-lg font-bold font-mono text-foreground">
+                {processados.toLocaleString('pt-BR')}
+              </div>
+            </div>
+            <div className="bg-background/60 rounded-lg p-2.5 text-center border">
+              <div className="text-xs text-muted-foreground mb-0.5">Encontrados / Descartadas (hoje)</div>
+              <div className="text-lg font-bold font-mono text-green-600">
+                {encontrados.toLocaleString('pt-BR')}
+              </div>
+              <div className="text-xs font-mono text-red-600">
+                {descartadas.toLocaleString('pt-BR')}
+              </div>
+            </div>
+            <div className="bg-background/60 rounded-lg p-2.5 text-center border">
+              <div className="text-xs text-muted-foreground mb-0.5">Total</div>
+              <div className="text-lg font-bold font-mono text-foreground">
+                {total > 0 ? total.toLocaleString('pt-BR') : '-'}
+              </div>
+            </div>
+            <div className="bg-background/60 rounded-lg p-2.5 text-center border">
+              <div className="text-xs text-muted-foreground mb-0.5">Tempo</div>
+              <div className={cn("text-lg font-bold font-mono", isRunning && "text-blue-600")}>
+                {tempoFormatado}
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Ações */}
+          {/* Running Indicator */}
+          {isRunning && (
+            <div className="flex items-center justify-center gap-2 text-blue-600 py-1">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm font-medium">Execução em andamento...</span>
+            </div>
+          )}
+        </div>
+
+        {/* Today's Stats Summary */}
+        <div className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded-lg">
+          <span className="text-xs text-muted-foreground font-medium">Hoje:</span>
+          <div className="flex items-center gap-4">
+            <MetricBadge icon={Zap} value={stats.todayStats.executions} label="Execuções hoje" />
+            <MetricBadge icon={TrendingUp} value={stats.todayStats.novas ?? 0} label="Novas" variant="success" />
+            <MetricBadge icon={MinusCircle} value={stats.todayStats.descartadas ?? 0} label="Descartadas" />
+          </div>
+        </div>
+
+        {/* Last Execution Time */}
+        <div className="text-xs text-muted-foreground text-center">
+          Última execução: {formatDateTime(stats.currentExecution?.iniciado_em || stats.lastCompletedExecution?.iniciado_em)}
+        </div>
+
+        {/* Action Buttons */}
         <div className="flex gap-2">
-          <Button
+          <Button 
             size="sm"
             className="flex-1"
             onClick={handleExecutar}
-            disabled={executando || isExecuting || stats.status === 'timeout'}
+            disabled={!canExecute}
           >
-            {(executando || isExecuting) ? (
+            {executando || isExecuting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Executando...
@@ -174,15 +377,18 @@ export function DjenTermosDashboardCard({
               </>
             )}
           </Button>
-
-          <Button
+          
+          <Button 
             size="sm"
             variant="destructive"
             onClick={handleCancelar}
-            disabled={isCancelling || (!executando && stats.status !== 'timeout')}
-            title="Cancelar"
+            disabled={isCancelling || !canCancel}
           >
-            {isCancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : <StopCircle className="h-4 w-4" />}
+            {isCancelling ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <StopCircle className="h-4 w-4" />
+            )}
           </Button>
 
           <Button
