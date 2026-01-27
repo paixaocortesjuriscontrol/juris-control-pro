@@ -972,9 +972,22 @@ serve(async (req) => {
     // - continuações sempre passam continuarDe
     const meta: any = config?.metadata || {};
 
-    const offset = (typeof continuarDe === 'number')
-      ? continuarDe
-      : (completeRun ? 0 : 0);
+    // Lógica de offset:
+    // 1. Se continuarDe foi passado explicitamente, usa ele
+    // 2. Se há next_offset salvo (pode_retomar=true ou status=erro), continua de onde parou
+    // 3. Se completeRun=true E não há checkpoint, começa do 0
+    // 4. Caso contrário, começa do 0
+    let offset: number;
+    if (typeof continuarDe === 'number') {
+      offset = continuarDe;
+      console.log(`[DJEN Processos] Usando offset explícito: ${offset}`);
+    } else if (meta.next_offset > 0 && (meta.pode_retomar || meta.status === 'erro' || meta.status === 'em_andamento')) {
+      offset = meta.next_offset;
+      console.log(`[DJEN Processos] Retomando de checkpoint salvo: ${offset} (status: ${meta.status})`);
+    } else {
+      offset = 0;
+      console.log(`[DJEN Processos] Iniciando novo ciclo do offset 0`);
+    }
 
     // Get batch - agora inclui todos os processos com monitorar_djen=true
     // Processos não-ativos com monitoramento ativo terão alerta especial
@@ -1110,7 +1123,8 @@ serve(async (req) => {
         await supabase
           .from('configuracoes_monitoramento')
           .update({
-            metadata: { ...currentMeta, cancelado: false, status: 'cancelado', next_offset: 0 },
+            // Mantém next_offset para poder retomar de onde parou
+            metadata: { ...currentMeta, cancelado: false, status: 'cancelado', pode_retomar: true },
           })
           .eq('tipo', 'djen_processos');
       } else {
