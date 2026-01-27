@@ -285,8 +285,9 @@ export default function Notificacoes() {
       // Removido periodoInicio/periodoFim - prazos sempre usam hoje + 5 dias
     ],
     initialPageParam: 0,
-    // A aba "Todos" exibe um resumo de prazos; por isso habilita também em "todos"
-    enabled: activeTab === "prazos" || activeTab === "todos",
+    // IMPORTANTE: desabilitar no dashboard inicial para evitar lentidão
+    // A RPC já retorna o count de prazos; a listagem só é necessária na aba específica
+    enabled: activeTab === "prazos",
     queryFn: async ({ pageParam }) => {
       const q = searchQuery.trim();
       
