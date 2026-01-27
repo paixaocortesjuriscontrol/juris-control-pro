@@ -55,7 +55,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 
 export default function Notificacoes() {
   // Central de Notificações
-  const PAGE_SIZE = 1000;
+  // Mantém a UI responsiva: carregamento incremental (evita payloads gigantes)
+  const PAGE_SIZE = 200;
 
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -200,7 +201,8 @@ export default function Notificacoes() {
       searchQuery,
     ],
     initialPageParam: 0,
-    enabled: true, // Sempre habilita - filtro por coordenação é feito client-side
+    // Só buscar quando a aba de Tarefas estiver aberta (evita lentidão no Dashboard)
+    enabled: activeTab === "tarefas",
     queryFn: async ({ pageParam }) => {
       const q = searchQuery.trim();
       const inicio = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
@@ -282,7 +284,8 @@ export default function Notificacoes() {
       searchQuery,
     ],
     initialPageParam: 0,
-    enabled: true, // Sempre habilita - filtro por coordenação é feito client-side
+    // A aba "Todos" exibe um resumo de prazos; por isso habilita também em "todos"
+    enabled: activeTab === "prazos" || activeTab === "todos",
     queryFn: async ({ pageParam }) => {
       const q = searchQuery.trim();
       const inicio = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
@@ -371,87 +374,10 @@ export default function Notificacoes() {
     });
   }, [prazosPendentesData]);
 
-  // Total de tarefas (para totalizadores) via COUNT no banco
-  const { data: tarefasTotal = 0 } = useQuery({
-    queryKey: [
-      "tarefas-total-notificacoes",
-      statusFilter,
-      prioridadeFilter,
-      periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : null,
-      periodoFim ? format(periodoFim, "yyyy-MM-dd") : null,
-      searchQuery,
-    ],
-    queryFn: async () => {
-      const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
-      const q = searchQuery.trim();
-      const inicio = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
-      const fim = periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined;
-
-      const applyCommon = (query: any) => {
-        if (statusFilter !== "todas") {
-          query = query.eq("status", status as "pendente" | "cumprido" | "atrasado");
-        }
-        if (prioridadeFilter !== "todas") {
-          query = query.eq("prioridade", prioridadeFilter);
-        }
-        // matchesPeriodo: mantém NULL como "passa" (igual ao front)
-        if (inicio && fim) {
-          query = query.or(`data_vencimento.is.null,and(data_vencimento.gte.${inicio},data_vencimento.lte.${fim})`);
-        } else if (inicio) {
-          query = query.or(`data_vencimento.is.null,data_vencimento.gte.${inicio}`);
-        } else if (fim) {
-          query = query.or(`data_vencimento.is.null,data_vencimento.lte.${fim}`);
-        }
-        return query;
-      };
-
-      // Sem busca: 1 query
-      if (!q) {
-        let base = supabase.from("tarefas").select("id", { count: "exact", head: true });
-        base = applyCommon(base);
-        const { count, error } = await base;
-        if (error) throw error;
-        return Number(count || 0);
-      }
-
-      // Com busca: inclusão-exclusão para não “perder” tarefas sem processo
-      const like = `%${q}%`;
-
-      // A) titulo ilike
-      let byTitle = supabase
-        .from("tarefas")
-        .select("id", { count: "exact", head: true })
-        .ilike("titulo", like);
-      byTitle = applyCommon(byTitle);
-
-      // B) processo.numero ilike (precisa INNER)
-      let byProc = supabase
-        .from("tarefas")
-        .select("id, processos!inner(id, numero)", { count: "exact", head: true })
-        .ilike("processos.numero", like);
-      byProc = applyCommon(byProc);
-
-      // AB) ambos (para não duplicar)
-      let byBoth = supabase
-        .from("tarefas")
-        .select("id, processos!inner(id, numero)", { count: "exact", head: true })
-        .ilike("titulo", like)
-        .ilike("processos.numero", like);
-      byBoth = applyCommon(byBoth);
-
-      const [a, b, ab] = await Promise.all([byTitle, byProc, byBoth]);
-      if (a.error) throw a.error;
-      if (b.error) throw b.error;
-      if (ab.error) throw ab.error;
-
-      const total = Number(a.count || 0) + Number(b.count || 0) - Number(ab.count || 0);
-      return Math.max(total, 0);
-    },
-  });
-
   // Buscar audiências pendentes
   const { data: audienciasPendentesData = [] } = useQuery({
     queryKey: ["audiencias-pendentes-notificacoes", statusFilter],
+    enabled: activeTab === "audiencias",
     queryFn: async () => {
       const pageSize = 1000;
 
@@ -497,6 +423,7 @@ export default function Notificacoes() {
   // Buscar intimações pendentes
   const { data: intimacoesPendentesData = [] } = useQuery({
     queryKey: ["intimacoes-pendentes-notificacoes", statusFilter],
+    enabled: activeTab === "intimacoes",
     queryFn: async () => {
       const pageSize = 1000;
 
@@ -542,6 +469,7 @@ export default function Notificacoes() {
   const andamentosPaged = useInfiniteQuery({
     queryKey: ["andamentos-notificacoes-paged", periodoInicio, periodoFim],
     initialPageParam: 0,
+    enabled: activeTab === "andamentos",
     queryFn: async ({ pageParam }) => {
       // Se não houver filtro de período, usar últimos N dias para evitar timeout
       const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
@@ -585,50 +513,6 @@ export default function Notificacoes() {
   const andamentosData = useMemo(() => {
     return andamentosPaged.data?.pages?.flat() ?? [];
   }, [andamentosPaged.data]);
-
-  // Total de andamentos (para totalizadores) via COUNT no banco
-  // IMPORTANTE: Usa o mesmo limite de período que a query paginada para consistência
-  const { data: andamentosTotal = 0 } = useQuery({
-    queryKey: [
-      "andamentos-total-notificacoes",
-      periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : null,
-      periodoFim ? format(periodoFim, "yyyy-MM-dd") : null,
-      searchQuery,
-    ],
-    queryFn: async () => {
-      const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
-      const fimDiaMaisUm = periodoFim ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd") : undefined;
-
-      const q = searchQuery.trim();
-
-      // Sem busca: 1 query
-      if (!q) {
-        let base = supabase
-          .from("movimentacoes")
-          .select("id", { count: "exact", head: true })
-          .neq("tipo", "Redistribuição")
-        if (inicioDia) base = base.gte("created_at", inicioDia);
-        if (fimDiaMaisUm) base = base.lt("created_at", fimDiaMaisUm);
-        const { count, error } = await base;
-        if (error) throw error;
-        return Number(count || 0);
-      }
-
-      // Com busca: usar INNER para permitir filtro por processo.numero
-      const like = `%${q}%`;
-      let base = supabase
-        .from("movimentacoes")
-        .select("id, processos!inner(id, numero)", { count: "exact", head: true })
-        .neq("tipo", "Redistribuição")
-        .or(`descricao.ilike.${like},tipo.ilike.${like},processos.numero.ilike.${like}`)
-      if (inicioDia) base = base.gte("created_at", inicioDia);
-      if (fimDiaMaisUm) base = base.lt("created_at", fimDiaMaisUm);
-
-      const { count, error } = await base;
-      if (error) throw error;
-      return Number(count || 0);
-    },
-  });
 
   // Filter helper functions - usando useMemo para garantir reatividade
   const matchesSearch = useMemo(() => {
