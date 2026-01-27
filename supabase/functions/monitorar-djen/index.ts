@@ -6,6 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function getBrazilISODate(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function getBrazilDayUtcRange(iso: string): { startUtc: string; endUtc: string } {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) {
+    const start = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    return { startUtc: start.toISOString(), endUtc: end.toISOString() };
+  }
+  const [, y, mo, d] = m;
+  const start = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), 3, 0, 0));
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { startUtc: start.toISOString(), endUtc: end.toISOString() };
+}
+
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 
 // ============================================================================
@@ -1869,6 +1891,112 @@ serve(async (req) => {
           tribunais_stats: (tribunaisFinal ?? []).slice(0, 30),
         },
       });
+
+      // ========== ENVIO DE RESUMO CONSOLIDADO AO FINAL ==========
+      if (run.totals.novas > 0) {
+        console.log('[DJEN Termos] Execução completa! Enviando resumo consolidado...');
+        
+        try {
+          // Buscar publicações DJEN criadas hoje agrupadas por coordenação
+          const hojeISO = getBrazilISODate();
+          const { startUtc, endUtc } = getBrazilDayUtcRange(hojeISO);
+          
+          const { data: publicacoesHoje } = await supabase
+            .from('publicacoes_djen')
+            .select(`
+              id,
+              processo_numero,
+              conteudo,
+              data_publicacao,
+              monitoramento:monitoramentos_djen!inner(
+                id,
+                coordenacao_id,
+                coordenacao:coordenacoes(id, nome)
+              )
+            `)
+            .gte('created_at', startUtc)
+            .lt('created_at', endUtc)
+            .eq('descartada', false)
+            .order('created_at', { ascending: false });
+
+          if (publicacoesHoje && publicacoesHoje.length > 0) {
+            console.log(`[DJEN Termos] ${publicacoesHoje.length} publicações encontradas hoje para resumo`);
+            
+            // Agrupar por coordenação
+            const porCoordenacao = new Map<string, {
+              coordenacao_nome: string;
+              publicacoes: Array<{
+                processo_numero: string;
+                conteudo: string;
+                data: string;
+              }>;
+            }>();
+
+            for (const pub of publicacoesHoje) {
+              const mon = pub.monitoramento as any;
+              const coordId = mon?.coordenacao_id;
+              const coordNome = mon?.coordenacao?.nome || 'Sem Coordenação';
+              
+              if (!coordId) continue;
+              
+              if (!porCoordenacao.has(coordId)) {
+                porCoordenacao.set(coordId, {
+                  coordenacao_nome: coordNome,
+                  publicacoes: []
+                });
+              }
+              
+              porCoordenacao.get(coordId)!.publicacoes.push({
+                processo_numero: pub.processo_numero || 'N/A',
+                conteudo: (pub.conteudo || '').substring(0, 200) + ((pub.conteudo || '').length > 200 ? '...' : ''),
+                data: pub.data_publicacao || hojeISO
+              });
+            }
+
+            // Enviar resumo para cada coordenação
+            if (porCoordenacao.size > 0) {
+              const resumosPorCoordenacao = Array.from(porCoordenacao.entries()).map(([coordId, dados]) => ({
+                coordenacao_id: coordId,
+                coordenacao_nome: dados.coordenacao_nome,
+                total_verificados: dados.publicacoes.length,
+                total_encontrados: dados.publicacoes.length,
+                exemplos: dados.publicacoes.map(p => ({
+                  processo_numero: p.processo_numero || 'Processo não identificado',
+                  descricao: p.conteudo
+                }))
+              }));
+
+              console.log(`[DJEN Termos] Enviando resumo para ${resumosPorCoordenacao.length} coordenações`);
+              
+              const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+              
+              const resumoPromise = fetch(`${supabaseUrl}/functions/v1/enviar-resumo-monitoramento`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${supabaseServiceKey}`,
+                },
+                body: JSON.stringify({
+                  tipo_monitoramento: 'djen',
+                  resumos_por_coordenacao: resumosPorCoordenacao
+                })
+              })
+                .then(r => r.json())
+                .then(data => console.log('[DJEN Termos] Resumo enviado:', JSON.stringify(data).slice(0, 300)))
+                .catch(err => console.error('[DJEN Termos] Erro ao enviar resumo:', err));
+
+              const er = (globalThis as any).EdgeRuntime;
+              if (er?.waitUntil) er.waitUntil(resumoPromise);
+            }
+          } else {
+            console.log('[DJEN Termos] Nenhuma publicação encontrada hoje para resumo');
+          }
+        } catch (resumoError) {
+          console.error('[DJEN Termos] Erro ao preparar resumo:', resumoError);
+        }
+      } else {
+        console.log('[DJEN Termos] Nenhuma publicação nova, resumo não será enviado');
+      }
     }
 
     // Auto-continuation

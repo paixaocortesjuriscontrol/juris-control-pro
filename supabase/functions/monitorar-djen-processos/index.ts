@@ -1157,7 +1157,7 @@ serve(async (req) => {
           .from('publicacoes_djen_processos')
           .select(`
             id,
-            numero_processo,
+            processo_numero,
             data_disponibilizacao,
             conteudo,
             processo_id,
@@ -1200,7 +1200,7 @@ serve(async (req) => {
             }
             
             porCoordenacao.get(coordId)!.publicacoes.push({
-              processo_numero: processo?.numero || pub.numero_processo || 'N/A',
+              processo_numero: processo?.numero || pub.processo_numero || 'N/A',
               conteudo: (pub.conteudo || '').substring(0, 200) + ((pub.conteudo || '').length > 200 ? '...' : ''),
               data: pub.data_disponibilizacao || hojeISO
             });
