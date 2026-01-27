@@ -94,11 +94,11 @@ interface ProgressoExecucao {
   tempoDecorrido: number; // segundos
 }
 
-// Configuração de paralelismo - AGRESSIVO usando Jina como proxy distribuído
-// A Jina API distribui requisições por múltiplos IPs, evitando rate limit
-const CONCURRENT_LIMIT = 5; // 5 simultâneos com Jina proxy
-const DELAY_BETWEEN_BATCHES = 300; // 300ms entre lotes (mais rápido com Jina)
-const DELAY_BETWEEN_REQUESTS = 0; // Sem delay - Jina distribui automaticamente
+// Configuração de paralelismo - CONSERVADOR para evitar WORKER_LIMIT (546)
+// Reduzido de 5 para 2 para evitar exaustão de workers do Edge Function
+const CONCURRENT_LIMIT = 2; // 2 simultâneos para evitar 546 WORKER_LIMIT
+const DELAY_BETWEEN_BATCHES = 1500; // 1.5s entre lotes para permitir liberação de workers
+const DELAY_BETWEEN_REQUESTS = 0; // Sem delay intra-lote
 
 // Chave para persistir estado no localStorage
 const STORAGE_KEY = 'djen-direta-progresso';
@@ -285,7 +285,30 @@ export function useBuscaDjenDireta() {
 
     if (tipoMapeado === 'advogado' && monitoramento.oab && monitoramento.uf) {
       params.oab = monitoramento.oab;
-      params.uf = monitoramento.uf;
+      // Tratar UF 'TODAS' ou múltiplas UFs: usar apenas a primeira UF válida (2 letras)
+      // A API DJEN exige UF com exatamente 2 letras
+      const ufValue = monitoramento.uf;
+      if (ufValue === 'TODAS' || !ufValue) {
+        // Se 'TODAS', buscar por palavra-chave usando o nome do advogado
+        params.palavraChave = monitoramento.termo_busca;
+        delete params.oab;
+      } else if (ufValue.includes(',')) {
+        // Múltiplas UFs: usar a primeira
+        const primeiraUf = ufValue.split(',')[0].trim();
+        if (primeiraUf.length === 2) {
+          params.uf = primeiraUf;
+        } else {
+          // Fallback para palavra-chave
+          params.palavraChave = monitoramento.termo_busca;
+          delete params.oab;
+        }
+      } else if (ufValue.length === 2) {
+        params.uf = ufValue;
+      } else {
+        // UF inválida, usar palavra-chave
+        params.palavraChave = monitoramento.termo_busca;
+        delete params.oab;
+      }
     } else if (tipoMapeado === 'palavra-chave' || monitoramento.tipo === 'parte') {
       params.palavraChave = monitoramento.termo_busca;
     } else if (tipoMapeado === 'processo') {
