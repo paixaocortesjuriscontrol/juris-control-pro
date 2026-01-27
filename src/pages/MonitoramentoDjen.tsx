@@ -63,6 +63,7 @@ const MonitoramentoDjen = () => {
   const { 
     monitoramentos: todosMonitoramentos, 
     publicacoes: publicacoesMonitoradas,
+    contagensPublicacoes,
     atualizarMonitoramento, 
     excluirMonitoramento,
     isLoading
@@ -316,9 +317,11 @@ const MonitoramentoDjen = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {monitoramentos.map((mon) => {
-                    const pubCount = publicacoesMonitoradas.filter(p => p.monitoramento_id === mon.id).length;
-                    const naoLidas = publicacoesMonitoradas.filter(p => p.monitoramento_id === mon.id && !p.lida).length;
+                {monitoramentos.map((mon) => {
+                    // Usar contagens agregadas ao invés de filtrar publicações limitadas
+                    const contagem = contagensPublicacoes.find(c => c.monitoramento_id === mon.id);
+                    const pubCount = contagem?.total || 0;
+                    const naoLidas = contagem?.nao_lidas || 0;
                     
                     return (
                       <TableRow key={mon.id}>
