@@ -189,10 +189,24 @@ export default function Notificacoes() {
   }, [coordenacaoId, countsSingle, countsByCoord, visibleCoordIds]);
 
   // ===== TAREFAS: paginação incremental (evita tentar carregar “todas”) =====
+  // ===== TAREFAS: paginação incremental com LEFT JOIN (igual prazos) =====
   const tarefasPaged = useInfiniteQuery({
-    queryKey: ["tarefas-pendentes-notificacoes-paged", statusFilter],
+    queryKey: [
+      "tarefas-pendentes-notificacoes-paged",
+      statusFilter,
+      prioridadeFilter,
+      periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : null,
+      periodoFim ? format(periodoFim, "yyyy-MM-dd") : null,
+      searchQuery,
+    ],
     initialPageParam: 0,
+    enabled: true, // Sempre habilita - filtro por coordenação é feito client-side
     queryFn: async ({ pageParam }) => {
+      const q = searchQuery.trim();
+      const inicio = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
+      const fim = periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined;
+
+      // LEFT JOIN para incluir tarefas sem processo
       let query = supabase
         .from("tarefas")
         .select(`
@@ -210,9 +224,20 @@ export default function Notificacoes() {
         .order("data_vencimento", { ascending: true, nullsFirst: false })
         .order("id", { ascending: true });
 
+      // Filtro por status
       if (statusFilter !== "todas") {
         const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
         query = query.eq("status", status as "pendente" | "cumprido" | "atrasado");
+      }
+
+      // Filtros adicionais
+      if (prioridadeFilter !== "todas") {
+        query = query.eq("prioridade", prioridadeFilter as "baixa" | "media" | "alta" | "urgente");
+      }
+      if (inicio) query = query.gte("data_vencimento", inicio);
+      if (fim) query = query.lte("data_vencimento", fim);
+      if (q) {
+        query = query.ilike("titulo", `%${q}%`);
       }
 
       const from = Number(pageParam) || 0;
@@ -228,9 +253,22 @@ export default function Notificacoes() {
     },
   });
 
+  // Filtrar tarefas por coordenação client-side (igual prazos)
   const tarefasPendentesData = useMemo(() => {
-    return tarefasPaged.data?.pages?.flat() ?? [];
-  }, [tarefasPaged.data]);
+    const allTarefas = tarefasPaged.data?.pages?.flat() ?? [];
+    
+    return allTarefas.filter((tarefa: any) => {
+      const coordId = tarefa.processo?.coordenacao_id;
+      
+      if (coordenacaoId === "todas") {
+        // Se "todas", mostrar tarefas sem processo + tarefas das coordenações visíveis
+        return !coordId || visibleCoordIds.includes(coordId);
+      }
+      
+      // Se coordenação específica, mostrar apenas tarefas dessa coordenação
+      return coordId === coordenacaoId;
+    });
+  }, [tarefasPaged.data, coordenacaoId, visibleCoordIds]);
 
   // ===== PRAZOS: paginação incremental (prazos = tarefas pendentes com data_vencimento) =====
   const prazosPaged = useInfiniteQuery({
@@ -708,15 +746,14 @@ export default function Notificacoes() {
   }, [notificacoes, naoLidas, statusFilter, coordenacaoId, alertas, searchQuery, periodoInicio, periodoFim]);
 
   // Filter tarefas by coordination
+  // Tarefas já filtradas por coordenação no useMemo acima; aqui apenas filtro de busca adicional
   const tarefasFiltradas = useMemo(() => {
     return tarefasPendentesData.filter(t => {
-      if (coordenacaoId !== "todas" && (t.processo as any)?.coordenacao_id !== coordenacaoId) return false;
-      if (!matchesSearch(t.titulo) && !matchesSearch((t.processo as any)?.numero)) return false;
-      if (!matchesPeriodo(t.data_vencimento)) return false;
-      if (!matchesPrioridade(t.prioridade)) return false;
+      // Busca em título ou número do processo
+      if (searchQuery.trim() && !matchesSearch(t.titulo) && !matchesSearch((t.processo as any)?.numero)) return false;
       return true;
     });
-  }, [tarefasPendentesData, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter]);
+  }, [tarefasPendentesData, searchQuery, matchesSearch]);
 
   // Filter audiencias by coordination
   const audienciasFiltradas = useMemo(() => {
