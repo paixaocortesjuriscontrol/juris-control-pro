@@ -273,7 +273,7 @@ export default function Notificacoes() {
   }, [tarefasPaged.data, coordenacaoId, visibleCoordIds]);
 
   // ===== PRAZOS: paginação incremental (prazos = tarefas pendentes com data_vencimento) =====
-  // PRAZOS: SEMPRE mostra vencimentos nos próximos 5 dias (incluindo hoje)
+  // PRAZOS: SEMPRE mostra vencimentos nos próximos 6 dias (hoje + 5)
   // Ignora filtro de período do usuário - regra de negócio fixa
   const prazosPaged = useInfiniteQuery({
     queryKey: [
@@ -282,7 +282,7 @@ export default function Notificacoes() {
       visibleCoordIds,
       prioridadeFilter,
       searchQuery,
-      // Removido periodoInicio/periodoFim - prazos sempre usam próximos 5 dias
+      // Removido periodoInicio/periodoFim - prazos sempre usam hoje + 5 dias
     ],
     initialPageParam: 0,
     // A aba "Todos" exibe um resumo de prazos; por isso habilita também em "todos"
@@ -290,11 +290,11 @@ export default function Notificacoes() {
     queryFn: async ({ pageParam }) => {
       const q = searchQuery.trim();
       
-      // REGRA FIXA: próximos 5 dias a partir de hoje (incluindo hoje)
+      // REGRA FIXA: hoje + 5 dias (6 dias total)
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
       const daquiCincoDias = new Date(hoje);
-      daquiCincoDias.setDate(daquiCincoDias.getDate() + 4); // hoje + 4 = 5 dias
+      daquiCincoDias.setDate(daquiCincoDias.getDate() + 5); // hoje + 5 dias
       
       const inicio = format(hoje, "yyyy-MM-dd");
       const fim = format(daquiCincoDias, "yyyy-MM-dd");
@@ -372,7 +372,7 @@ export default function Notificacoes() {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const daquiCincoDias = new Date(hoje);
-    daquiCincoDias.setDate(daquiCincoDias.getDate() + 4);
+    daquiCincoDias.setDate(daquiCincoDias.getDate() + 5); // hoje + 5 dias
 
     return prazosPendentesData
       .map((prazo: any) => {
