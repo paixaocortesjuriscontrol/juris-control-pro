@@ -88,18 +88,27 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
     };
   }, [periodoFilter, dataInicio, dataFim]);
 
-  // Buscar publicações no período
-  const { data: publicacoesRelatorio = [], isLoading } = useQuery({
-    queryKey: ["publicacoes-relatorio", dataInicioCalc, dataFimCalc],
+  // Buscar contagens por monitoramento no período via RPC (server-side)
+  const { data: contagensPeriodo = [], isLoading } = useQuery({
+    queryKey: ["publicacoes-relatorio-contagens", dataInicioCalc, dataFimCalc],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("publicacoes_djen")
-        .select("id, monitoramento_id, data_publicacao, created_at")
-        .gte("created_at", `${dataInicioCalc}T00:00:00`)
-        .lte("created_at", `${dataFimCalc}T23:59:59`);
+      const { data, error } = await supabase.rpc(
+        "get_publicacoes_contagens_por_monitoramento_periodo",
+        {
+          p_inicio: `${dataInicioCalc}T00:00:00+00:00`,
+          p_fim: `${dataFimCalc}T23:59:59.999+00:00`,
+        }
+      );
 
-      if (error) throw error;
-      return data || [];
+      if (error) {
+        console.error("Erro ao buscar contagens do período:", error);
+        return [];
+      }
+      return (data || []).map((item: { monitoramento_id: string; total: number; nao_lidas: number }) => ({
+        monitoramento_id: item.monitoramento_id,
+        total: Number(item.total),
+        nao_lidas: Number(item.nao_lidas),
+      }));
     },
   });
 
@@ -155,13 +164,12 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
     });
   }, [monitoramentos, coordenacaoFilter, tipoFilter, statusFilter, tribunalFilter, termoSearch]);
 
-  // Calcular contagem por monitoramento
+  // Calcular contagem por monitoramento usando dados agregados da RPC
   const dadosRelatorio = useMemo(() => {
+    // Criar Map a partir das contagens do período (RPC)
     const contagem = new Map<string, number>();
-
-    publicacoesRelatorio.forEach((pub) => {
-      const count = contagem.get(pub.monitoramento_id) || 0;
-      contagem.set(pub.monitoramento_id, count + 1);
+    contagensPeriodo.forEach((c: { monitoramento_id: string; total: number }) => {
+      contagem.set(c.monitoramento_id, c.total);
     });
 
     return monitoramentosFiltrados.map((m) => ({
@@ -169,7 +177,7 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
       totalPublicacoes: contagem.get(m.id) || 0,
       coordenacaoNome: coordenacoes.find((c) => c.id === m.coordenacao_id)?.nome || "-",
     })).sort((a, b) => b.totalPublicacoes - a.totalPublicacoes);
-  }, [monitoramentosFiltrados, publicacoesRelatorio, coordenacoes]);
+  }, [monitoramentosFiltrados, contagensPeriodo, coordenacoes]);
 
   // Totalizadores
   const totais = useMemo(() => {
