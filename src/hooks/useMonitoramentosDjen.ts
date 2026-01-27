@@ -46,6 +46,12 @@ export interface PublicacaoDescartada {
   created_at: string;
 }
 
+export interface PublicacaoContagem {
+  monitoramento_id: string;
+  total: number;
+  nao_lidas: number;
+}
+
 export function useMonitoramentosDjen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -66,6 +72,37 @@ export function useMonitoramentosDjen() {
     enabled: !!user?.id,
   });
 
+  // Buscar contagens agregadas por monitoramento (sem limite)
+  const { data: contagensPublicacoes = [], isLoading: loadingContagens } = useQuery({
+    queryKey: ['publicacoes-djen-contagens', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      // Usar RPC ou query agrupada para contar publicações por monitoramento
+      const { data, error } = await supabase
+        .from('publicacoes_djen')
+        .select('monitoramento_id, lida');
+
+      if (error) throw error;
+      
+      // Agregar contagens no cliente
+      const contagens = new Map<string, { total: number; nao_lidas: number }>();
+      (data || []).forEach((pub) => {
+        const current = contagens.get(pub.monitoramento_id) || { total: 0, nao_lidas: 0 };
+        current.total += 1;
+        if (!pub.lida) current.nao_lidas += 1;
+        contagens.set(pub.monitoramento_id, current);
+      });
+
+      return Array.from(contagens.entries()).map(([monitoramento_id, counts]) => ({
+        monitoramento_id,
+        ...counts,
+      })) as PublicacaoContagem[];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Manter busca de publicações recentes para exibição em detalhes
   const { data: publicacoes = [], isLoading: loadingPublicacoes } = useQuery({
     queryKey: ['publicacoes-djen', user?.id],
     queryFn: async () => {
@@ -75,7 +112,7 @@ export function useMonitoramentosDjen() {
         .from('publicacoes_djen')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(500);
 
       if (error) throw error;
       return data as PublicacaoDjen[];
@@ -239,9 +276,11 @@ export function useMonitoramentosDjen() {
     monitoramentos,
     publicacoes,
     descartadas,
+    contagensPublicacoes,
     isLoading,
     loadingPublicacoes,
     loadingDescartadas,
+    loadingContagens,
     criarMonitoramento,
     atualizarMonitoramento,
     excluirMonitoramento,
