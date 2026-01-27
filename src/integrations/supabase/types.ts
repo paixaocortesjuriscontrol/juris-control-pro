@@ -4239,6 +4239,16 @@ export type Database = {
         Args: { _evento_id: string; _user_id: string }
         Returns: boolean
       }
+      count_djen_publicacoes_unificadas: {
+        Args: {
+          p_apenas_nao_lidas?: boolean
+          p_coordenacao_id: string
+          p_fim: string
+          p_inicio: string
+          p_search_query?: string
+        }
+        Returns: number
+      }
       count_tarefas_urgentes_coordenacao: {
         Args: { p_coordenacao_id: string }
         Returns: number
@@ -4285,6 +4295,40 @@ export type Database = {
         }[]
       }
       get_dashboard_stats: { Args: never; Returns: Json }
+      get_djen_publicacoes_unificadas: {
+        Args: {
+          p_apenas_nao_lidas?: boolean
+          p_coordenacao_id: string
+          p_fim: string
+          p_inicio: string
+          p_limit?: number
+          p_offset?: number
+          p_search_query?: string
+        }
+        Returns: {
+          conteudo: string
+          coordenacao_id: string
+          coordenacao_nome: string
+          created_at: string
+          data_disponibilizacao: string
+          data_publicacao: string
+          fonte: string
+          id: string
+          lida: boolean
+          monitoramento_descricao: string
+          monitoramento_id: string
+          monitoramento_oab: string
+          monitoramento_termo: string
+          monitoramento_tipo: string
+          monitoramento_uf: string
+          polo_ativo: string
+          polo_passivo: string
+          processo_id: string
+          processo_numero: string
+          tipo_origem: string
+          tribunal: string
+        }[]
+      }
       get_notificacoes_counts_by_coordenacao: {
         Args: {
           p_coordenacao_ids: string[]

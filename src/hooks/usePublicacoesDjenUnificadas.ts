@@ -147,6 +147,182 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const resultados: PublicacaoUnificada[] = [];
       const numerosProcessosTermo: string[] = [];
 
+      // ===== FAST PATH (RPC) =====
+      // Problema atual: muitos duplicados podem "consumir" o .limit(500) e derrubar o total (ex: 124 -> 90)
+      // + ficar lento por 3 queries + dedup no client.
+      // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
+      const canUseRpc = !!filtros.coordenacaoId && filtros.tipoOrigem !== 'descartada';
+      if (canUseRpc) {
+        console.debug('[DJEN] usando RPC deduplicada', {
+          coordenacaoId: filtros.coordenacaoId,
+          apenasNaoLidas: !!filtros.apenasNaoLidas,
+          apenasHoje: !!filtros.apenasHoje,
+          dataInicioFiltro,
+          dataFimFiltro,
+          termoBusca: filtros.termoBusca ?? null,
+        });
+
+        const PAGE = 200;
+
+        // 1) contar (deduplicado no servidor) para saber quantas páginas buscar
+        const { data: countData, error: countError } = await (supabase as any)
+          .rpc('count_djen_publicacoes_unificadas', {
+            p_coordenacao_id: filtros.coordenacaoId,
+            p_inicio: dataInicioFiltro ?? null,
+            p_fim: dataFimFiltro ?? null,
+            p_apenas_nao_lidas: !!filtros.apenasNaoLidas,
+            p_search_query: filtros.termoBusca ?? null,
+          });
+
+        if (countError) {
+          console.warn('Erro ao contar publicações unificadas (RPC):', countError);
+        }
+
+        const expectedTotal = typeof countData === 'number' ? countData : 0;
+
+        // 2) buscar páginas até completar o total (ou esgotar)
+        const rawRows: any[] = [];
+        for (let offset = 0; offset < expectedTotal; offset += PAGE) {
+          const { data: pageRows, error: pageError } = await (supabase as any)
+            .rpc('get_djen_publicacoes_unificadas', {
+              p_coordenacao_id: filtros.coordenacaoId,
+              p_inicio: dataInicioFiltro ?? null,
+              p_fim: dataFimFiltro ?? null,
+              p_apenas_nao_lidas: !!filtros.apenasNaoLidas,
+              p_search_query: filtros.termoBusca ?? null,
+              p_limit: PAGE,
+              p_offset: offset,
+            });
+
+          if (pageError) {
+            console.warn('Erro ao buscar publicações unificadas (RPC):', pageError);
+            break;
+          }
+
+          const chunk = (pageRows || []) as any[];
+          rawRows.push(...chunk);
+
+          // se veio menos que a página, não há mais dados
+          if (chunk.length < PAGE) break;
+        }
+
+        // 3) mapear para o tipo do app
+        const mapped: PublicacaoUnificada[] = rawRows.map((r) => ({
+          id: r.id,
+          tipo_origem: r.tipo_origem,
+          processo_id: r.processo_id,
+          processo_numero: r.processo_numero,
+          conteudo: r.conteudo,
+          data_publicacao: r.data_publicacao,
+          data_disponibilizacao: r.data_disponibilizacao,
+          fonte: r.fonte,
+          lida: !!r.lida,
+          created_at: r.created_at,
+          monitoramento_id: r.monitoramento_id,
+          monitoramento_termo: r.monitoramento_termo,
+          monitoramento_descricao: r.monitoramento_descricao,
+          monitoramento_tipo: r.monitoramento_tipo,
+          monitoramento_oab: r.monitoramento_oab,
+          monitoramento_uf: r.monitoramento_uf,
+          coordenacao_id: r.coordenacao_id,
+          coordenacao_nome: r.coordenacao_nome,
+          polo_ativo: r.polo_ativo,
+          polo_passivo: r.polo_passivo,
+          tribunal: r.tribunal,
+        }));
+
+        // 4) aplicar filtro de tipo (termo/processo) quando selecionado
+        const filteredByType = filtros.tipoOrigem === 'termo'
+          ? mapped.filter((p) => p.tipo_origem === 'termo')
+          : filtros.tipoOrigem === 'processo'
+            ? mapped.filter((p) => p.tipo_origem === 'processo')
+            : mapped;
+
+        // 5) Resolver processo_id para publicações de termo (mesma lógica antiga)
+        const termoSemId = filteredByType.filter(
+          (p) => p.tipo_origem === 'termo' && !p.processo_id && !!p.processo_numero
+        );
+        if (termoSemId.length > 0) {
+          const uniqueNumeros = [...new Set(termoSemId.map((p) => p.processo_numero!).filter(Boolean))];
+          const { data: processosExistentes } = await supabase
+            .from('processos')
+            .select('id, numero')
+            .in('numero', uniqueNumeros);
+
+          const processosExistentesMap: Record<string, string> = {};
+          (processosExistentes || []).forEach((p: any) => {
+            processosExistentesMap[p.numero] = p.id;
+          });
+
+          filteredByType.forEach((p) => {
+            if (p.tipo_origem === 'termo' && !p.processo_id && p.processo_numero) {
+              p.processo_id = processosExistentesMap[p.processo_numero] || null;
+            }
+          });
+        }
+
+        // 6) incluir descartadas, se solicitado (mantém comportamento atual)
+        if (filtros.incluirDescartadas) {
+          let queryDescartadas = (supabase
+            .from('publicacoes_djen_descartadas') as any)
+            .select(`
+              id,
+              monitoramento_id,
+              processo_numero,
+              conteudo,
+              data_publicacao,
+              data_disponibilizacao,
+              tribunal,
+              motivo_descarte,
+              lida,
+              created_at,
+              monitoramento:monitoramentos_djen!inner(
+                id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
+                coordenacao:coordenacoes(id, nome)
+              )
+            `)
+            .order('created_at', { ascending: false });
+
+          if (dataInicioFiltro) queryDescartadas = queryDescartadas.gte('created_at', dataInicioFiltro);
+          if (dataFimFiltro) queryDescartadas = queryDescartadas.lte('created_at', dataFimFiltro);
+          if (filtros.apenasNaoLidas) queryDescartadas = queryDescartadas.eq('lida', false);
+          queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
+
+          const { data: descartadasData } = await queryDescartadas.limit(200);
+          (descartadasData || []).forEach((pub: any) => {
+            resultados.push({
+              id: pub.id,
+              tipo_origem: 'descartada',
+              processo_id: null,
+              processo_numero: pub.processo_numero,
+              conteudo: pub.conteudo,
+              data_publicacao: pub.data_publicacao,
+              data_disponibilizacao: pub.data_disponibilizacao,
+              fonte: null,
+              lida: pub.lida ?? false,
+              created_at: pub.created_at,
+              monitoramento_id: pub.monitoramento_id,
+              monitoramento_termo: pub.monitoramento?.termo_busca,
+              monitoramento_descricao: pub.monitoramento?.descricao,
+              monitoramento_tipo: pub.monitoramento?.tipo,
+              monitoramento_oab: pub.monitoramento?.oab,
+              monitoramento_uf: pub.monitoramento?.uf,
+              coordenacao_id: pub.monitoramento?.coordenacao_id,
+              coordenacao_nome: pub.monitoramento?.coordenacao?.nome,
+              polo_ativo: null,
+              polo_passivo: null,
+              tribunal: pub.tribunal,
+              motivo_descarte: pub.motivo_descarte,
+            });
+          });
+        }
+
+        // 7) juntar e ordenar
+        const merged = [...filteredByType, ...resultados];
+        const deduped = dedupePublicacoesDjen(merged);
+        return deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      }
+
       // Buscar publicações de TERMOS (monitoramentos_djen)
       // Obs: quando filtrando EXCLUSIVAMENTE por 'descartada', não deve trazer termos/processos.
       if (filtros.tipoOrigem !== 'processo' && filtros.tipoOrigem !== 'descartada') {
