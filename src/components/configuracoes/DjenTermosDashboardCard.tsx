@@ -246,11 +246,20 @@ export function DjenTermosDashboardCard({
   const encontrados = stats.todayStats.found ?? 0;
   const descartadas = stats.todayStats.descartadas ?? 0;
 
-  // Tempo - usar do backend se disponível
+  // Tempo - PRIORIDADE: 1) progresso local (persistido), 2) backend, 3) stats
+  // Quando a busca direta termina, o tempoDecorrido é persistido no hook
+  const tempoLocal = progresso.tempoDecorrido ?? 0;
   const backendDuration = md.djen_run?.totals?.duracao_s ?? 0;
+  
+  // Se temos tempo local significativo (busca direta concluída), usar ele
+  // Se está executando localmente, usar tempo local
+  // Caso contrário, tentar backend ou stats
   const tempoSegundos = localRunActive
-    ? (progresso.tempoDecorrido ?? 0)
-    : (backendDuration > 0 ? backendDuration : stats.elapsedSeconds);
+    ? tempoLocal
+    : (tempoLocal > 0 && localCompleted)
+      ? tempoLocal // Busca direta concluída - usar tempo persistido
+      : (backendDuration > 0 ? backendDuration : stats.elapsedSeconds);
+  
   const tempoFormatado = tempoSegundos > 0 
     ? formatDuration(tempoSegundos) 
     : formatDuration(stats.elapsedSeconds);
