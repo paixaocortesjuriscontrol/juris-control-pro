@@ -30,7 +30,7 @@ import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
 import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useRedistribuicoes } from "@/hooks/useRedistribuicoes";
-import { useNotificacoes } from "@/hooks/useNotificacoes";
+// useNotificacoes removido - agora buscamos prazos diretamente da coordenação
 import { cn } from "@/lib/utils";
 import { startOfDay, parseISO, isBefore, isAfter, format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -69,7 +69,61 @@ export function CoordenacaoDetalhesView({
     dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
     dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
   });
-  const { prazosUrgentes } = useNotificacoes();
+
+  // Buscar prazos urgentes da coordenação (alinhado com RPC)
+  const { data: prazosCoordData = [] } = useQuery({
+    queryKey: ["prazos-coord", coordenacaoId, statusFilter, periodoInicio?.toISOString(), periodoFim?.toISOString()],
+    queryFn: async () => {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const tresDias = new Date(hoje);
+      tresDias.setDate(tresDias.getDate() + 3);
+      
+      let query = supabase
+        .from("tarefas")
+        .select(`
+          id,
+          titulo,
+          data_vencimento,
+          prioridade,
+          processo:processos!tarefas_processo_id_fkey(id, numero, coordenacao_id)
+        `)
+        .eq("status", "pendente")
+        .not("data_vencimento", "is", null)
+        .lte("data_vencimento", tresDias.toISOString().split("T")[0])
+        .order("data_vencimento", { ascending: true });
+      
+      // Filtrar por período se especificado
+      if (periodoInicio) {
+        query = query.gte("data_vencimento", format(periodoInicio, "yyyy-MM-dd"));
+      }
+      if (periodoFim) {
+        query = query.lte("data_vencimento", format(periodoFim, "yyyy-MM-dd"));
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      // Filtrar apenas processos da coordenação selecionada
+      const filtrados = (data || []).filter((t: any) => 
+        t.processo?.coordenacao_id === coordenacaoId
+      );
+      
+      // Calcular dias restantes
+      return filtrados.map((prazo: any) => {
+        const vencimento = new Date(prazo.data_vencimento + 'T00:00:00');
+        const diffTime = vencimento.getTime() - hoje.getTime();
+        const dias_restantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        return {
+          ...prazo,
+          dias_restantes,
+          is_atrasado: dias_restantes < 0,
+        };
+      });
+    },
+    enabled: !!coordenacaoId,
+  });
 
   // Buscar tarefas pendentes
   const { data: tarefasPendentesData = [] } = useQuery({
@@ -280,13 +334,12 @@ export function CoordenacaoDetalhesView({
   }, [redistribuicoesData, coordenacao?.nome, matchesSearch]);
 
   const prazosFiltrados = useMemo(() => {
-    return prazosUrgentes.filter(p => {
-      if (p.processo?.coordenacao_id !== coordenacaoId) return false;
-      if (!matchesPeriodo(p.data_vencimento)) return false;
+    // prazosCoordData já vem filtrado por coordenação da query
+    return prazosCoordData.filter((p: any) => {
       if (!matchesSearch(p.titulo)) return false;
       return true;
     });
-  }, [prazosUrgentes, coordenacaoId, matchesPeriodo, matchesSearch]);
+  }, [prazosCoordData, matchesSearch]);
 
   const tarefasFiltradas = useMemo(() => {
     return tarefasPendentesData.filter(t => {
