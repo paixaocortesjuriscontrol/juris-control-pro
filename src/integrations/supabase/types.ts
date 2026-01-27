@@ -4221,22 +4221,6 @@ export type Database = {
         }
         Relationships: []
       }
-      vw_notificacoes_counts_by_coordenacao: {
-        Row: {
-          alertas360: number | null
-          andamentos: number | null
-          audiencias: number | null
-          coordenacao_id: string | null
-          distribuicoes: number | null
-          djen: number | null
-          intimacoes: number | null
-          prazos: number | null
-          redistribuicoes: number | null
-          tarefas: number | null
-          total: number | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
       calcular_primeiro_dia_util: {
