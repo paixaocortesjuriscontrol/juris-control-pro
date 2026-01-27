@@ -122,8 +122,9 @@ const carregarEstado = (): ProgressoExecucao | null => {
     if (!saved) return null;
     
     const parsed = JSON.parse(saved);
-    // Limpar estados muito antigos (mais de 1 hora)
-    if (Date.now() - parsed.savedAt > 3600000) {
+    // Limpar estados muito antigos (mais de 12 horas)
+    // (A busca direta pode demorar em bases grandes; não podemos perder o estado ao atualizar a página.)
+    if (Date.now() - parsed.savedAt > 12 * 60 * 60 * 1000) {
       localStorage.removeItem(STORAGE_KEY);
       return null;
     }
@@ -385,30 +386,49 @@ export function useBuscaDjenDireta() {
       ),
     }));
 
-    // Verificar duplicatas em batch (mais eficiente)
-    const hashes = pubsComHash.map(p => p.hash_conteudo);
+    // Deduplicar dentro do próprio lote (evita violar UNIQUE (monitoramento_id, hash_conteudo))
+    const uniqueMap = new Map<string, typeof pubsComHash[number]>();
+    let duplicadasInternas = 0;
+    for (const p of pubsComHash) {
+      if (uniqueMap.has(p.hash_conteudo)) {
+        duplicadasInternas += 1;
+        continue;
+      }
+      uniqueMap.set(p.hash_conteudo, p);
+    }
+    const pubsUnicas = Array.from(uniqueMap.values());
+
+    // Verificar duplicatas já existentes no banco (mais eficiente)
+    const hashes = pubsUnicas.map(p => p.hash_conteudo);
     const existentes = await verificarDuplicatasBatch(hashes, mon.id);
 
-    const novas = pubsComHash.filter(p => !existentes.has(p.hash_conteudo));
-    const duplicadas = pubsComHash.length - novas.length;
+    const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
+    const duplicadasBanco = pubsUnicas.length - novas.length;
+    const duplicadas = duplicadasInternas + duplicadasBanco;
 
-    // Inserir novas em batch
+    // Inserir novas em batch (ignorar duplicatas em caso de corrida)
     if (novas.length > 0) {
-      const { error: insertError } = await supabase
-        .from('publicacoes_djen')
-        .insert(novas.map(pub => ({
-          monitoramento_id: mon.id,
-          hash_conteudo: pub.hash_conteudo,
-          processo_numero: pub.processo_numero,
-          conteudo: pub.conteudo,
-          data_disponibilizacao: pub.data_disponibilizacao,
-          data_publicacao: pub.data_publicacao,
-          fonte: pub.fonte,
-          lida: false,
-        })));
+      const payload = novas.map(pub => ({
+        monitoramento_id: mon.id,
+        hash_conteudo: pub.hash_conteudo,
+        processo_numero: pub.processo_numero,
+        conteudo: pub.conteudo,
+        data_disponibilizacao: pub.data_disponibilizacao,
+        data_publicacao: pub.data_publicacao,
+        fonte: pub.fonte,
+        lida: false,
+      }));
 
-      if (insertError) {
-        console.error('Erro ao inserir publicações:', insertError);
+      const { error: upsertError } = await supabase
+        .from('publicacoes_djen')
+        .upsert(payload, {
+          onConflict: 'monitoramento_id,hash_conteudo',
+          ignoreDuplicates: true,
+        });
+
+      if (upsertError) {
+        console.error('Erro ao inserir publicações:', upsertError);
+        // Não derrubar a execução inteira por duplicata/concorrência
         return { novas: 0, duplicadas };
       }
     }
