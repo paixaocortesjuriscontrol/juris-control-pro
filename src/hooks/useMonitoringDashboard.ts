@@ -254,9 +254,13 @@ export function useMonitoringDashboard() {
   }, [queryClient, refetchConfigs]);
 
   // Tick for elapsed time updates
+  // CORREÇÃO: Continuar atualizando o tempo enquanto houver execuções não finalizadas
+  // (mesmo que o status visual seja 'timeout' após 60 minutos)
   useEffect(() => {
-    const hasRunning = executions.some(e => e.status === 'executando');
-    if (!hasRunning) return;
+    const hasActiveExecution = executions.some(e => 
+      e.status === 'executando' && e.finalizado_em === null
+    );
+    if (!hasActiveExecution) return;
 
     const interval = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(interval);
@@ -273,9 +277,13 @@ export function useMonitoringDashboard() {
       e.status === 'executando' && e.finalizado_em === null
     ) || null;
     
+    // Considera também 'timeout' como execução finalizada
     const lastCompletedExecution = typeExecutions.find(e => 
       e.status === 'concluido' || e.status === 'falhou' || e.status === 'cancelado' || e.status === 'timeout'
     ) || null;
+    
+    // Verifica se há uma execução com status 'timeout' explícito no banco
+    const timeoutExecution = typeExecutions.find(e => e.status === 'timeout') || null;
 
     const todayTypeExecs = todayExecutions.filter((e: any) => e.tipo === tipo);
     
@@ -332,10 +340,24 @@ export function useMonitoringDashboard() {
         const now = new Date();
         elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
       }
+    } else if (timeoutExecution) {
+      // Execução com timeout explícito no banco
+      status = 'timeout';
+      if (timeoutExecution.iniciado_em && timeoutExecution.finalizado_em) {
+        const started = new Date(timeoutExecution.iniciado_em);
+        const finished = new Date(timeoutExecution.finalizado_em);
+        elapsedSeconds = Math.round((finished.getTime() - started.getTime()) / 1000);
+      } else if (timeoutExecution.iniciado_em) {
+        // Se não tiver finalizado_em, calcular até agora
+        const started = new Date(timeoutExecution.iniciado_em);
+        const now = new Date();
+        elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
+      }
     } else if (lastCompletedExecution) {
       if (lastCompletedExecution.status === 'concluido') status = 'completed';
       else if (lastCompletedExecution.status === 'falhou') status = 'failed';
       else if (lastCompletedExecution.status === 'cancelado') status = 'cancelled';
+      else if (lastCompletedExecution.status === 'timeout') status = 'timeout';
       
       // Calcular tempo da última execução concluída
       if (lastCompletedExecution.iniciado_em && lastCompletedExecution.finalizado_em) {
@@ -345,6 +367,8 @@ export function useMonitoringDashboard() {
       }
     } else if (metaStatus === 'concluido') {
       status = 'completed';
+    } else if (metaStatus === 'timeout') {
+      status = 'timeout';
     }
 
     // Calculate progress - prioritize config metadata (real-time from edge function)

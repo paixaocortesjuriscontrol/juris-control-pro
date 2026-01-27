@@ -283,8 +283,17 @@ function MonitoringCard({
   const Icon = ICONS[stats.icon] || Activity;
   const statusConfig = STATUS_CONFIG[stats.status];
   const isRunning = stats.status === 'running';
-  const canExecute = !isExecuting && stats.status !== 'running' && stats.status !== 'timeout';
-  const canCancel = stats.status === 'running' || stats.status === 'timeout';
+  // CORREÇÃO: Permitir executar quando status é 'timeout' (o usuário pode retomar ou reiniciar)
+  const canExecute = !isExecuting && stats.status !== 'running';
+  const canCancel = stats.status === 'running';
+  
+  // Verificar se há checkpoint para retomar (next_offset > 0 e status timeout/erro)
+  const metadata = stats.config?.metadata;
+  const hasCheckpoint = metadata && (metadata.next_offset ?? 0) > 0 && 
+    (stats.status === 'timeout' || stats.status === 'failed');
+  const checkpointPercent = metadata && metadata.total > 0 
+    ? Math.round(((metadata.next_offset ?? 0) / metadata.total) * 100)
+    : 0;
 
   return (
     <Card className={cn(
@@ -348,11 +357,17 @@ function MonitoringCard({
             className="flex-1"
             onClick={onExecute}
             disabled={!canExecute}
+            variant={hasCheckpoint ? "outline" : "default"}
           >
             {isExecuting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Iniciando...
+              </>
+            ) : hasCheckpoint ? (
+              <>
+                <PlayCircle className="h-4 w-4 mr-2" />
+                Retomar ({checkpointPercent}%)
               </>
             ) : (
               <>
