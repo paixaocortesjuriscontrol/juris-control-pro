@@ -108,8 +108,6 @@ export default function Notificacoes() {
   const { 
     notificacoes, 
     naoLidas, 
-    prazosPendentes,
-    prazosUrgentes,
     marcarComoLida, 
     marcarTodasComoLidas,
     excluirNotificacao 
@@ -233,6 +231,102 @@ export default function Notificacoes() {
   const tarefasPendentesData = useMemo(() => {
     return tarefasPaged.data?.pages?.flat() ?? [];
   }, [tarefasPaged.data]);
+
+  // ===== PRAZOS: paginação incremental (prazos = tarefas pendentes com data_vencimento) =====
+  const prazosPaged = useInfiniteQuery({
+    queryKey: [
+      "prazos-notificacoes-paged",
+      coordenacaoId,
+      visibleCoordIds,
+      prioridadeFilter,
+      periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : null,
+      periodoFim ? format(periodoFim, "yyyy-MM-dd") : null,
+      searchQuery,
+    ],
+    initialPageParam: 0,
+    enabled:
+      coordenacaoId !== "todas"
+        ? !!coordenacaoId
+        : Array.isArray(visibleCoordIds) && visibleCoordIds.length > 0,
+    queryFn: async ({ pageParam }) => {
+      const q = searchQuery.trim();
+      const inicio = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
+      const fim = periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined;
+
+      let query = supabase
+        .from("tarefas")
+        .select(
+          `
+            id,
+            titulo,
+            data_vencimento,
+            prioridade,
+            processo:processos!inner(
+              id,
+              numero,
+              coordenacao_id
+            )
+          `
+        )
+        .eq("status", "pendente")
+        .not("data_vencimento", "is", null)
+        .order("data_vencimento", { ascending: true, nullsFirst: false })
+        .order("id", { ascending: true });
+
+      // Filtro por coordenação (server-side para não cair no limite de 1000 de outras coordenações)
+      if (coordenacaoId !== "todas") {
+        query = query.eq("processo.coordenacao_id", coordenacaoId);
+      } else {
+        query = query.in("processo.coordenacao_id", visibleCoordIds);
+      }
+
+      // Filtros
+      if (prioridadeFilter !== "todas") {
+        query = query.eq(
+          "prioridade",
+          prioridadeFilter as "baixa" | "media" | "alta" | "urgente"
+        );
+      }
+      if (inicio) query = query.gte("data_vencimento", inicio);
+      if (fim) query = query.lte("data_vencimento", fim);
+      if (q) {
+        // Mantém simples (titulo). Número do processo fica no filtro client-side.
+        query = query.ilike("titulo", `%${q}%`);
+      }
+
+      const from = Number(pageParam) || 0;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error } = await query.range(from, to);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage) return undefined;
+      return lastPage.length >= PAGE_SIZE ? allPages.length * PAGE_SIZE : undefined;
+    },
+  });
+
+  const prazosPendentesData = useMemo(() => {
+    return prazosPaged.data?.pages?.flat() ?? [];
+  }, [prazosPaged.data]);
+
+  const prazosComMeta = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    return prazosPendentesData.map((prazo: any) => {
+      const vencimento = new Date(prazo.data_vencimento + "T00:00:00");
+      const diffTime = vencimento.getTime() - hoje.getTime();
+      const dias_restantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      return {
+        ...prazo,
+        dias_restantes,
+        is_atrasado: dias_restantes < 0,
+      };
+    });
+  }, [prazosPendentesData]);
 
   // Total de tarefas (para totalizadores) via COUNT no banco
   const { data: tarefasTotal = 0 } = useQuery({
@@ -582,15 +676,15 @@ export default function Notificacoes() {
 
   // Filter prazos by coordination
   const prazosFiltrados = useMemo(() => {
-    const basePrazos = statusFilter === "todas" ? prazosPendentes : prazosUrgentes;
-    return basePrazos.filter(p => {
+    return prazosComMeta.filter((p: any) => {
+      // (coordenação/periodo/prioridade já aplicados server-side; mantém client-side como segurança)
       if (coordenacaoId !== "todas" && p.processo?.coordenacao_id !== coordenacaoId) return false;
       if (!matchesSearch(p.titulo) && !matchesSearch(p.processo?.numero)) return false;
       if (!matchesPeriodo(p.data_vencimento)) return false;
       if (!matchesPrioridade(p.prioridade)) return false;
       return true;
     });
-  }, [prazosPendentes, prazosUrgentes, statusFilter, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter]);
+  }, [prazosComMeta, coordenacaoId, matchesSearch, matchesPeriodo, matchesPrioridade]);
 
   // Filter notificacoes by coordination
   const notificacoesFiltradas = useMemo(() => {
@@ -1225,13 +1319,13 @@ export default function Notificacoes() {
               </Card>
             )}
 
-            {/* Prazos urgentes */}
-            {stats.prazos > 0 && (
+            {/* Prazos */}
+            {prazosFiltrados.length > 0 && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Clock className="w-4 h-4 text-red-500" />
-                    Prazos Urgentes ({stats.prazos})
+                    Prazos ({prazosFiltrados.length}{prazosPaged.hasNextPage ? "+" : ""})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1602,16 +1696,31 @@ export default function Notificacoes() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-red-500" />
-                Prazos Urgentes (próximos 3 dias)
+                Prazos ({prazosFiltrados.length}{prazosPaged.hasNextPage ? "+" : ""})
               </CardTitle>
             </CardHeader>
             <CardContent>
               {prazosFiltrados.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  Nenhum prazo urgente
+                  Nenhum prazo encontrado
                 </div>
               ) : (
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">
+                        Exibindo {prazosFiltrados.length}{prazosPaged.hasNextPage ? "+" : ""}
+                      </p>
+                      {prazosPaged.hasNextPage && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={prazosPaged.isFetchingNextPage}
+                          onClick={() => prazosPaged.fetchNextPage()}
+                        >
+                          {prazosPaged.isFetchingNextPage ? "Carregando..." : "Carregar mais"}
+                        </Button>
+                      )}
+                    </div>
                     {prazosFiltrados.map((prazo) => (
                       <Card key={prazo.id} className="bg-muted/30">
                         <CardContent className="p-4">
