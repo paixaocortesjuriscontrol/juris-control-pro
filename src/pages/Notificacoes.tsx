@@ -273,23 +273,31 @@ export default function Notificacoes() {
   }, [tarefasPaged.data, coordenacaoId, visibleCoordIds]);
 
   // ===== PRAZOS: paginação incremental (prazos = tarefas pendentes com data_vencimento) =====
+  // PRAZOS: SEMPRE mostra vencimentos nos próximos 5 dias (incluindo hoje)
+  // Ignora filtro de período do usuário - regra de negócio fixa
   const prazosPaged = useInfiniteQuery({
     queryKey: [
       "prazos-notificacoes-paged",
       coordenacaoId,
       visibleCoordIds,
       prioridadeFilter,
-      periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : null,
-      periodoFim ? format(periodoFim, "yyyy-MM-dd") : null,
       searchQuery,
+      // Removido periodoInicio/periodoFim - prazos sempre usam próximos 5 dias
     ],
     initialPageParam: 0,
     // A aba "Todos" exibe um resumo de prazos; por isso habilita também em "todos"
     enabled: activeTab === "prazos" || activeTab === "todos",
     queryFn: async ({ pageParam }) => {
       const q = searchQuery.trim();
-      const inicio = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
-      const fim = periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined;
+      
+      // REGRA FIXA: próximos 5 dias a partir de hoje (incluindo hoje)
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const daquiCincoDias = new Date(hoje);
+      daquiCincoDias.setDate(daquiCincoDias.getDate() + 4); // hoje + 4 = 5 dias
+      
+      const inicio = format(hoje, "yyyy-MM-dd");
+      const fim = format(daquiCincoDias, "yyyy-MM-dd");
 
       // LEFT JOIN para incluir tarefas sem processo
       let query = supabase
@@ -299,6 +307,8 @@ export default function Notificacoes() {
             id,
             titulo,
             data_vencimento,
+            data_fatal,
+            data_prevista,
             prioridade,
             processo:processos!tarefas_processo_id_fkey(
               id,
@@ -308,21 +318,22 @@ export default function Notificacoes() {
           `
         )
         .eq("status", "pendente")
-        .not("data_vencimento", "is", null)
         .order("data_vencimento", { ascending: true, nullsFirst: false })
         .order("id", { ascending: true });
 
-      // Filtros
+      // Filtro de data: usa qualquer campo de data relevante
+      // Prazos com data_vencimento, data_fatal ou data_prevista nos próximos 5 dias
+      query = query.or(`data_vencimento.gte.${inicio},data_fatal.gte.${inicio},data_prevista.gte.${inicio}`);
+      query = query.or(`data_vencimento.lte.${fim},data_fatal.lte.${fim},data_prevista.lte.${fim}`);
+
+      // Filtros adicionais
       if (prioridadeFilter !== "todas") {
         query = query.eq(
           "prioridade",
           prioridadeFilter as "baixa" | "media" | "alta" | "urgente"
         );
       }
-      if (inicio) query = query.gte("data_vencimento", inicio);
-      if (fim) query = query.lte("data_vencimento", fim);
       if (q) {
-        // Mantém simples (titulo). Número do processo fica no filtro client-side.
         query = query.ilike("titulo", `%${q}%`);
       }
 
@@ -360,18 +371,32 @@ export default function Notificacoes() {
   const prazosComMeta = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
+    const daquiCincoDias = new Date(hoje);
+    daquiCincoDias.setDate(daquiCincoDias.getDate() + 4);
 
-    return prazosPendentesData.map((prazo: any) => {
-      const vencimento = new Date(prazo.data_vencimento + "T00:00:00");
-      const diffTime = vencimento.getTime() - hoje.getTime();
-      const dias_restantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return prazosPendentesData
+      .map((prazo: any) => {
+        // Usa data_vencimento, data_fatal ou data_prevista (primeira disponível)
+        const dataStr = prazo.data_vencimento || prazo.data_fatal || prazo.data_prevista;
+        if (!dataStr) return null;
+        
+        const vencimento = new Date(dataStr + "T00:00:00");
+        const diffTime = vencimento.getTime() - hoje.getTime();
+        const dias_restantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      return {
-        ...prazo,
-        dias_restantes,
-        is_atrasado: dias_restantes < 0,
-      };
-    });
+        return {
+          ...prazo,
+          data_efetiva: dataStr, // data usada para cálculo
+          dias_restantes,
+          is_atrasado: dias_restantes < 0,
+        };
+      })
+      .filter((prazo: any) => {
+        if (!prazo) return false;
+        // Filtrar apenas prazos dentro da janela de 5 dias (hoje a hoje+4)
+        const dataEfetiva = new Date(prazo.data_efetiva + "T00:00:00");
+        return dataEfetiva >= hoje && dataEfetiva <= daquiCincoDias;
+      });
   }, [prazosPendentesData]);
 
   // Buscar audiências pendentes
