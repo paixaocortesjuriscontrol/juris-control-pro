@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
+import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useMonitoramentoDistribuicao } from "@/hooks/useMonitoramentoDistribuicao";
 import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useRedistribuicoes } from "@/hooks/useRedistribuicoes";
@@ -62,7 +62,15 @@ export function CoordenacaoDetalhesView({
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const coordenacao = coordenacoes.find(c => c.id === coordenacaoId);
   
-  const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
+  // Usar hook unificado que já aplica deduplicação idêntica à Análise DJEN
+  const { publicacoes: publicacoesDjenUnificadas } = usePublicacoesDjenUnificadas({
+    coordenacaoId,
+    dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
+    dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
+    apenasNaoLidas: statusFilter === "pendente",
+    apenasHoje: !periodoInicio && !periodoFim,
+  });
+  
   const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
   const { alertas } = useMonitoramento360();
   const { data: redistribuicoesData = [] } = useRedistribuicoes({
@@ -286,21 +294,14 @@ export function CoordenacaoDetalhesView({
     };
   }, [searchQuery]);
 
-  // Monitoramentos da coordenação
-  const monIds = monitoramentosDjen
-    .filter(m => m.coordenacao_id === coordenacaoId)
-    .map(m => m.id);
-
-  // Filtrar dados
+  // Publicações já vem filtradas e deduplicadas pelo hook unificado
+  // Aplicar apenas filtros adicionais de busca textual
   const publicacoesFiltradas = useMemo(() => {
-    return publicacoes.filter(p => {
-      if (!monIds.includes(p.monitoramento_id)) return false;
-      if (statusFilter !== "todas" && p.lida) return false;
-      if (!matchesPeriodo(p.created_at)) return false;
+    return publicacoesDjenUnificadas.filter((p: PublicacaoUnificada) => {
       if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero)) return false;
       return true;
     });
-  }, [publicacoes, monIds, statusFilter, matchesPeriodo, matchesSearch]);
+  }, [publicacoesDjenUnificadas, matchesSearch]);
 
   const distribuicoesFiltradas = useMemo(() => {
     return distribuicoesEncontradas.filter(d => {
