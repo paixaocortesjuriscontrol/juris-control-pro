@@ -172,6 +172,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (dataInicioFiltro) queryTermos = queryTermos.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) queryTermos = queryTermos.lte('created_at', dataFimFiltro);
         if (filtros.apenasNaoLidas) queryTermos = queryTermos.eq('lida', false);
+        
+        // Filtrar por coordenação NO BANCO para performance (antes era filtrado após buscar 500 globais)
+        if (filtros.coordenacaoId) {
+          queryTermos = queryTermos.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
+        }
 
         // Limitar a 500 registros para performance (contagem precisa é feita pelo RPC)
         const { data: termosData } = await queryTermos.limit(500);
@@ -267,6 +272,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (dataInicioFiltro) queryProcessos = queryProcessos.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) queryProcessos = queryProcessos.lte('created_at', dataFimFiltro);
         if (filtros.apenasNaoLidas) queryProcessos = queryProcessos.eq('lida', false);
+        
+        // Filtrar por coordenação NO BANCO para performance
+        if (filtros.coordenacaoId) {
+          queryProcessos = queryProcessos.eq('processo.coordenacao_id', filtros.coordenacaoId);
+        }
 
         // Limitar a 500 registros para performance (contagem precisa é feita pelo RPC)
         const { data: processosData } = await queryProcessos.limit(500);
