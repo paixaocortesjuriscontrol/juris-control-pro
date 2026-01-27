@@ -642,7 +642,7 @@ export function CoordenacaoDetalhesView({
               <div
                 key={prazo.id}
                 className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-                onClick={() => handleNavigateProcesso(prazo.processo?.id, "tarefas")}
+                onClick={() => navigate(`/minha-agenda?selectedId=${prazo.id}`)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0 space-y-2">
@@ -699,7 +699,7 @@ export function CoordenacaoDetalhesView({
               <div
                 key={tarefa.id}
                 className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-                onClick={() => handleNavigateProcesso((tarefa.processo as any)?.id, "tarefas")}
+                onClick={() => navigate(`/minha-agenda?selectedId=${tarefa.id}`)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0 space-y-2">
