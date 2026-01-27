@@ -296,15 +296,29 @@ export function useBuscaDjenDireta() {
       // Checar cancelamento novamente antes da requisição
       if (cancelarRef.current) return [];
 
-      const { data, error } = await supabase.functions.invoke('buscar-djen', {
+      // Timeout individual de 30 segundos por monitoramento para evitar travamento
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => timeoutController.abort(), 30000);
+
+      const invokePromise = supabase.functions.invoke('buscar-djen', {
         body: params,
       });
+
+      // Wrapper para aplicar timeout
+      const { data, error } = await Promise.race([
+        invokePromise,
+        new Promise<{ data: null; error: Error }>((_, reject) => {
+          timeoutController.signal.addEventListener('abort', () => {
+            reject({ data: null, error: new Error('Timeout ao buscar DJEN (30s)') });
+          });
+        }),
+      ]).finally(() => clearTimeout(timeoutId));
 
       // Checar cancelamento após a requisição
       if (cancelarRef.current) return [];
 
       if (error) {
-        console.error(`Erro ao buscar DJEN para ${monitoramento.termo_busca}:`, error);
+        console.warn(`[DJEN Direta] Erro ao buscar ${monitoramento.termo_busca}:`, error?.message || error);
         return [];
       }
 
@@ -355,9 +369,9 @@ export function useBuscaDjenDireta() {
         };
       });
     } catch (err: any) {
-      // Ignorar erros de abort
+      // Ignorar erros de abort ou timeout
       if (err?.name === 'AbortError' || cancelarRef.current) return [];
-      console.error(`Erro na busca DJEN:`, err);
+      console.warn(`[DJEN Direta] Erro na busca (${monitoramento.termo_busca}):`, err?.message || err);
       return [];
     }
   };
@@ -539,10 +553,18 @@ export function useBuscaDjenDireta() {
           mensagem: `Buscando: ${termos.slice(0, 50)}${termos.length > 50 ? '...' : ''}`,
         }));
 
-        // Processar lote em PARALELO - Jina distribui IPs automaticamente
-        const resultados = await Promise.allSettled(
-          lote.map(mon => processarMonitoramento(mon))
-        );
+        // Processar lote em PARALELO com timeout de lote de 60s (segurança)
+        const loteTimeoutPromise = new Promise<PromiseSettledResult<{ novas: number; duplicadas: number; coordenacaoStats?: any }>[]>((resolve) => {
+          setTimeout(() => {
+            console.warn('[DJEN Direta] Timeout de lote (60s), continuando...');
+            resolve(lote.map(() => ({ status: 'rejected' as const, reason: 'Lote timeout' })));
+          }, 60000);
+        });
+
+        const resultados = await Promise.race([
+          Promise.allSettled(lote.map(mon => processarMonitoramento(mon))),
+          loteTimeoutPromise,
+        ]);
 
         // Contabilizar resultados
         for (const resultado of resultados) {
