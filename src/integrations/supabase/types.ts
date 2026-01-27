@@ -4221,6 +4221,22 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_notificacoes_counts_by_coordenacao: {
+        Row: {
+          alertas360: number | null
+          andamentos: number | null
+          audiencias: number | null
+          coordenacao_id: string | null
+          distribuicoes: number | null
+          djen: number | null
+          intimacoes: number | null
+          prazos: number | null
+          redistribuicoes: number | null
+          tarefas: number | null
+          total: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       calcular_primeiro_dia_util: {
@@ -4285,6 +4301,29 @@ export type Database = {
         }[]
       }
       get_dashboard_stats: { Args: never; Returns: Json }
+      get_notificacoes_counts_by_coordenacao: {
+        Args: {
+          p_coordenacao_ids: string[]
+          p_periodo_fim?: string
+          p_periodo_inicio?: string
+          p_prioridade_filter?: string
+          p_search_query?: string
+          p_status_filter?: string
+        }
+        Returns: {
+          alertas360: number
+          andamentos: number
+          audiencias: number
+          coordenacao_id: string
+          distribuicoes: number
+          djen: number
+          intimacoes: number
+          prazos: number
+          redistribuicoes: number
+          tarefas: number
+          total: number
+        }[]
+      }
       get_processos_paginados: {
         Args: {
           _area?: string
