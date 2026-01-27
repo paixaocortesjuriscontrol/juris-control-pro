@@ -43,15 +43,15 @@ const makeDedupKey = (pub: PublicacaoUnificada): string => {
     dataPrimaria = extractDateKey(pub.created_at);
   }
   
-  // 300 chars para maior precisão (alinhado com backend que usa 2000)
+  // 300 chars para maior precisão (alinhado com backend)
   const head = normalizeText(pub.conteudo ?? "").slice(0, 300);
 
-  // Se tiver processo, dedup por coordenação + processo + data + conteúdo
-  if (processo) return `${coordenacao}|${processo}|${dataPrimaria}|${head}`;
-
-  // Fallback para publicações sem número de processo
-  // Inclui coordenação + monitoramento_id + tipo para evitar colisões
-  return `${coordenacao}|${pub.tipo_origem}|${pub.monitoramento_id ?? "sem_mon"}|${dataPrimaria}|${head}`;
+  // CHAVE UNIFICADA: coordenação + processo_digits + data + conteúdo
+  // NÃO usa monitoramento_id — isso garante que publicações idênticas vindas de
+  // múltiplos monitoramentos (termos duplicados) sejam corretamente deduplicadas.
+  // Exemplo: 14 monitoramentos "OSMAR MENDES PAIXAO" retornando o mesmo conteúdo
+  // agora contam como 1, não 14.
+  return `${coordenacao}|${processo}|${dataPrimaria}|${head}`;
 };
 
 /**
