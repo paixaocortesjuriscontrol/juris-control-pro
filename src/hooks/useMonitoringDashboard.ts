@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useCallback, useState } from "react";
+import { getExecutionProgress } from "@/utils/executionProgress";
 
 export type MonitoringStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout';
 
@@ -325,14 +326,21 @@ export function useMonitoringDashboard() {
       const started = new Date(currentExecution.iniciado_em);
       const now = new Date();
       elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
-      
-      // CORREÇÃO: Só marca como timeout se >60min E não estiver 100% completo
-      // Se processou tudo (100%), considera running até finalizar
-      const execProgress = currentExecution.registros_processados || 0;
-      const execTotal = currentExecution.total_lotes || toNumber(metadata?.total) || 0;
-      const isComplete = execTotal > 0 && execProgress >= execTotal;
-      
-      if (elapsedSeconds > 3600 && !isComplete) {
+
+      // CORREÇÃO: não exibir TIMEOUT se o progresso já chegou em 100%.
+      // Alguns workers podem demorar para marcar finalizado_em no banco; nesse caso,
+      // a UI deve refletir que o trabalho (processamento) já concluiu.
+      const { percentage } = getExecutionProgress({
+        detalhes: currentExecution.detalhes,
+        registros_processados: currentExecution.registros_processados,
+        total_lotes: currentExecution.total_lotes,
+        lotes_processados: currentExecution.lotes_processados,
+      });
+      const isCompletedByProgress = percentage === 100;
+
+      if (isCompletedByProgress) {
+        status = 'completed';
+      } else if (elapsedSeconds > 3600) {
         status = 'timeout';
       } else {
         status = 'running';
