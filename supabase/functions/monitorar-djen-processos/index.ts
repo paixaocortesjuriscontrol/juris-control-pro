@@ -33,12 +33,12 @@ function getBrazilDayUtcRange(iso: string): { startUtc: string; endUtc: string }
 
 // Single optimized endpoint
 const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
-const BATCH_SIZE = 50; // Batch size for processing
-const CONCURRENT_REQUESTS = 5; // Increased parallelism for speed
+const BATCH_SIZE = 150; // Increased for 20k+ processes
+const CONCURRENT_REQUESTS = 8; // More parallelism for large volumes
 const PAGE_SIZE = 100; // Max page size
 const MAX_PAGES = 2; // Limit pages per process
-const BASE_DELAY = 800; // 800ms delay between batches (reduced from 1500ms)
-const STAGGER_DELAY = 150; // 150ms between requests in same chunk (reduced from 300ms)
+const BASE_DELAY = 600; // 600ms delay between batches
+const STAGGER_DELAY = 100; // 100ms between requests in same chunk
 
 // Browser-like headers
 const browserHeaders = {
@@ -1269,8 +1269,49 @@ serve(async (req) => {
   } catch (error) {
     console.error('[DJEN Processos] Erro:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // IMPORTANTE: Salvar offset atual para permitir retomada de onde parou
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
+      const { data: config } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen_processos')
+        .maybeSingle();
+      
+      const currentMeta = (config?.metadata as Record<string, any>) || {};
+      const currentOffset = currentMeta.next_offset || 0;
+      
+      // Marcar como falhou mas preservar next_offset para retomada
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...currentMeta,
+            status: 'erro',
+            ultimo_erro: errorMessage,
+            erro_em: new Date().toISOString(),
+            // Preservar next_offset para retomada automática
+            pode_retomar: true,
+          },
+        })
+        .eq('tipo', 'djen_processos');
+      
+      console.log(`[DJEN Processos] Offset ${currentOffset} salvo para retomada`);
+    } catch (saveError) {
+      console.error('[DJEN Processos] Falha ao salvar offset para retomada:', saveError);
+    }
+    
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage, tempoMs: Date.now() - startTime }),
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage, 
+        tempoMs: Date.now() - startTime,
+        podeRetomar: true,
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
