@@ -326,7 +326,13 @@ export function useMonitoringDashboard() {
       const now = new Date();
       elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
       
-      if (elapsedSeconds > 3600) { // 60 minutes
+      // CORREÇÃO: Só marca como timeout se >60min E não estiver 100% completo
+      // Se processou tudo (100%), considera running até finalizar
+      const execProgress = currentExecution.registros_processados || 0;
+      const execTotal = currentExecution.total_lotes || toNumber(metadata?.total) || 0;
+      const isComplete = execTotal > 0 && execProgress >= execTotal;
+      
+      if (elapsedSeconds > 3600 && !isComplete) {
         status = 'timeout';
       } else {
         status = 'running';
