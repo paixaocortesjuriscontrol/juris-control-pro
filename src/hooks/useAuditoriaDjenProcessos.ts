@@ -81,7 +81,8 @@ export function useAuditoriaDjenProcessos() {
 
       const metadata = config?.metadata as Record<string, any> | null;
       const nextOffset = metadata?.next_offset || 0;
-      const podeRetomar = metadata?.pode_retomar || nextOffset > 0;
+      const status = metadata?.status;
+      const podeRetomar = metadata?.pode_retomar || status === 'erro' || status === 'em_andamento' || nextOffset > 0;
 
       if (!podeRetomar && nextOffset === 0) {
         throw new Error('Não há execução para retomar. Inicie uma nova execução.');
@@ -123,9 +124,53 @@ export function useAuditoriaDjenProcessos() {
     },
   });
 
+  // Mutation para forçar reinício do zero (ignora checkpoint)
+  const reiniciarDoZero = useMutation({
+    mutationFn: async () => {
+      // Limpar metadata e forçar offset 0
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            status: 'em_andamento',
+            next_offset: 0,
+            current: 0,
+            total: 0,
+            novas: 0,
+            percentage: 0,
+            pode_retomar: false,
+            cancelado: false,
+            ultimo_erro: null,
+            erro_em: null,
+          },
+        })
+        .eq('tipo', 'djen_processos');
+
+      // Invocar com continuarDe = 0 explícito
+      const { data, error } = await supabase.functions.invoke('monitorar-djen-processos', {
+        body: {
+          continuarDe: 0,
+          completeRun: true,
+        },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Reiniciando monitoramento do zero. Acompanhe o progresso.');
+      queryClient.invalidateQueries({ queryKey: ['auditoria-djen-processos'] });
+      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+    },
+    onError: (error) => {
+      toast.error(`Erro ao reiniciar: ${error.message}`);
+    },
+  });
+
   return {
     lotes,
     reprocessarLote,
     retomarDeOndeParou,
+    reiniciarDoZero,
   };
 }
