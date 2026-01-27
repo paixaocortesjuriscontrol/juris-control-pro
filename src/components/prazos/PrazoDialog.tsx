@@ -275,7 +275,7 @@ export function PrazoDialog({
       descricao: descricao || undefined,
       data_vencimento: format(dataVencimento, "yyyy-MM-dd"),
       prioridade: prioridade as "baixa" | "media" | "alta" | "urgente",
-      processo_id: processoId || null,
+      processo_id: (processoId === "__none__" || !processoId) ? null : processoId,
       responsavel_id: responsavelId || undefined,
       observacoes: observacoes || undefined,
     };
@@ -442,7 +442,7 @@ export function PrazoDialog({
                     <SelectValue placeholder="Sem vínculo com processo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sem vínculo com processo</SelectItem>
+                    <SelectItem value="__none__">Sem vínculo com processo</SelectItem>
                     <ScrollArea className="h-[200px]">
                       {processos?.map((processo) => (
                         <SelectItem key={processo.id} value={processo.id}>

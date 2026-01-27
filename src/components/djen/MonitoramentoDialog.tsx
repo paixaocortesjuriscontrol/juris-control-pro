@@ -213,7 +213,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
                   </SelectTrigger>
                   <SelectContent>
                     {loadingCoordenacoes ? (
-                      <SelectItem value="" disabled>Carregando...</SelectItem>
+                      <SelectItem value="__loading__" disabled>Carregando...</SelectItem>
                     ) : (
                       coordenacoes.map((coord) => (
                         <SelectItem key={coord.id} value={coord.id}>
