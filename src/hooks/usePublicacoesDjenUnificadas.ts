@@ -150,6 +150,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Buscar publicações de TERMOS (monitoramentos_djen)
       // Obs: quando filtrando EXCLUSIVAMENTE por 'descartada', não deve trazer termos/processos.
       if (filtros.tipoOrigem !== 'processo' && filtros.tipoOrigem !== 'descartada') {
+        // IMPORTANTE: usar !inner para garantir que filtros por campos do relacionamento
+        // (ex: monitoramento.coordenacao_id) sejam aplicados no banco e para evitar
+        // publicações órfãs (monitoramento_id sem registro correspondente) que quebram
+        // a deduplicação/estatísticas.
         let queryTermos = supabase
           .from('publicacoes_djen')
           .select(`
@@ -162,7 +166,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             fonte,
             lida,
             created_at,
-          monitoramento:monitoramentos_djen(
+          monitoramento:monitoramentos_djen!inner(
             id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
             coordenacao:coordenacoes(id, nome)
           )
@@ -173,7 +177,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (dataFimFiltro) queryTermos = queryTermos.lte('created_at', dataFimFiltro);
         if (filtros.apenasNaoLidas) queryTermos = queryTermos.eq('lida', false);
         
-        // Filtrar por coordenação NO BANCO para performance (antes era filtrado após buscar 500 globais)
+        // Filtrar por coordenação NO BANCO para performance
         if (filtros.coordenacaoId) {
           queryTermos = queryTermos.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
         }
@@ -202,11 +206,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           });
         }
 
-        (termosData || []).forEach((pub: any) => {
-          // Filtrar por coordenação se especificado
-          if (filtros.coordenacaoId && pub.monitoramento?.coordenacao_id !== filtros.coordenacaoId) {
-            return;
-          }
+          (termosData || []).forEach((pub: any) => {
+          // Com !inner + filtro no banco, essa checagem vira redundante; manter apenas como guarda.
+          if (filtros.coordenacaoId && pub.monitoramento?.coordenacao_id !== filtros.coordenacaoId) return;
 
           // Filtrar por termo de busca
           if (filtros.termoBusca) {
@@ -250,6 +252,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Buscar publicações de PROCESSOS (publicacoes_djen_processos)
       // Obs: quando filtrando EXCLUSIVAMENTE por 'descartada', não deve trazer termos/processos.
       if (filtros.tipoOrigem !== 'termo' && filtros.tipoOrigem !== 'descartada') {
+        // IMPORTANTE: usar !inner para garantir que filtros por campos do relacionamento
+        // (ex: processo.coordenacao_id) sejam aplicados no banco.
         let queryProcessos = supabase
           .from('publicacoes_djen_processos')
           .select(`
@@ -262,7 +266,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             fonte,
             lida,
             created_at,
-            processo:processos(
+            processo:processos!inner(
               id, numero, polo_ativo, polo_passivo, tribunal,
               coordenacao_id, coordenacao:coordenacoes(id, nome)
             )
@@ -282,10 +286,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const { data: processosData } = await queryProcessos.limit(500);
 
         (processosData || []).forEach((pub: any) => {
-          // Filtrar por coordenação se especificado
-          if (filtros.coordenacaoId && pub.processo?.coordenacao_id !== filtros.coordenacaoId) {
-            return;
-          }
+          // Com !inner + filtro no banco, essa checagem vira redundante; manter apenas como guarda.
+          if (filtros.coordenacaoId && pub.processo?.coordenacao_id !== filtros.coordenacaoId) return;
 
           // Filtrar por termo de busca
           if (filtros.termoBusca) {
@@ -339,7 +341,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             motivo_descarte,
             lida,
             created_at,
-            monitoramento:monitoramentos_djen(
+            monitoramento:monitoramentos_djen!inner(
               id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
               coordenacao:coordenacoes(id, nome)
             )
