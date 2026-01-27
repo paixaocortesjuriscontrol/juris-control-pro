@@ -4350,6 +4350,14 @@ export type Database = {
           vara: string
         }[]
       }
+      get_publicacoes_contagens_por_monitoramento: {
+        Args: never
+        Returns: {
+          monitoramento_id: string
+          nao_lidas: number
+          total: number
+        }[]
+      }
       get_relatorio_andamentos: { Args: never; Returns: Json }
       get_relatorio_atividades: { Args: never; Returns: Json }
       get_relatorio_clientes: { Args: never; Returns: Json }
