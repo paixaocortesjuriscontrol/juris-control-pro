@@ -308,7 +308,7 @@ export default function Notificacoes() {
             titulo,
             data_vencimento,
             data_fatal,
-            data_prevista,
+            data_base,
             prioridade,
             processo:processos!tarefas_processo_id_fkey(
               id,
@@ -321,10 +321,10 @@ export default function Notificacoes() {
         .order("data_vencimento", { ascending: true, nullsFirst: false })
         .order("id", { ascending: true });
 
-      // Filtro de data: usa qualquer campo de data relevante
-      // Prazos com data_vencimento, data_fatal ou data_prevista nos próximos 5 dias
-      query = query.or(`data_vencimento.gte.${inicio},data_fatal.gte.${inicio},data_prevista.gte.${inicio}`);
-      query = query.or(`data_vencimento.lte.${fim},data_fatal.lte.${fim},data_prevista.lte.${fim}`);
+      // Filtro de data: usa qualquer campo de data relevante (colunas reais do banco)
+      // Prazos com data_vencimento, data_fatal ou data_base nos próximos 5 dias
+      query = query.or(`data_vencimento.gte.${inicio},data_fatal.gte.${inicio},data_base.gte.${inicio}`);
+      query = query.or(`data_vencimento.lte.${fim},data_fatal.lte.${fim},data_base.lte.${fim}`);
 
       // Filtros adicionais
       if (prioridadeFilter !== "todas") {
@@ -376,8 +376,8 @@ export default function Notificacoes() {
 
     return prazosPendentesData
       .map((prazo: any) => {
-        // Usa data_vencimento, data_fatal ou data_prevista (primeira disponível)
-        const dataStr = prazo.data_vencimento || prazo.data_fatal || prazo.data_prevista;
+        // Usa data_vencimento, data_fatal ou data_base (colunas reais do banco)
+        const dataStr = prazo.data_vencimento || prazo.data_fatal || prazo.data_base;
         if (!dataStr) return null;
         
         const vencimento = new Date(dataStr + "T00:00:00");
