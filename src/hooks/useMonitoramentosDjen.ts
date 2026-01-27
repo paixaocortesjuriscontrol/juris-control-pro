@@ -72,31 +72,24 @@ export function useMonitoramentosDjen() {
     enabled: !!user?.id,
   });
 
-  // Buscar contagens agregadas por monitoramento (sem limite)
+  // Buscar contagens agregadas por monitoramento via RPC (mais eficiente)
   const { data: contagensPublicacoes = [], isLoading: loadingContagens } = useQuery({
     queryKey: ['publicacoes-djen-contagens', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       
-      // Usar RPC ou query agrupada para contar publicações por monitoramento
-      const { data, error } = await supabase
-        .from('publicacoes_djen')
-        .select('monitoramento_id, lida');
+      // Usar RPC que faz GROUP BY no servidor
+      const { data, error } = await supabase.rpc('get_publicacoes_contagens_por_monitoramento');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro ao buscar contagens:', error);
+        return [];
+      }
       
-      // Agregar contagens no cliente
-      const contagens = new Map<string, { total: number; nao_lidas: number }>();
-      (data || []).forEach((pub) => {
-        const current = contagens.get(pub.monitoramento_id) || { total: 0, nao_lidas: 0 };
-        current.total += 1;
-        if (!pub.lida) current.nao_lidas += 1;
-        contagens.set(pub.monitoramento_id, current);
-      });
-
-      return Array.from(contagens.entries()).map(([monitoramento_id, counts]) => ({
-        monitoramento_id,
-        ...counts,
+      return (data || []).map((item: { monitoramento_id: string; total: number; nao_lidas: number }) => ({
+        monitoramento_id: item.monitoramento_id,
+        total: Number(item.total),
+        nao_lidas: Number(item.nao_lidas),
       })) as PublicacaoContagem[];
     },
     enabled: !!user?.id,
