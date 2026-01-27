@@ -244,15 +244,13 @@ export default function Notificacoes() {
       searchQuery,
     ],
     initialPageParam: 0,
-    enabled:
-      coordenacaoId !== "todas"
-        ? !!coordenacaoId
-        : Array.isArray(visibleCoordIds) && visibleCoordIds.length > 0,
+    enabled: true, // Sempre habilita - filtro por coordenação é feito client-side
     queryFn: async ({ pageParam }) => {
       const q = searchQuery.trim();
       const inicio = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
       const fim = periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined;
 
+      // LEFT JOIN para incluir tarefas sem processo
       let query = supabase
         .from("tarefas")
         .select(
@@ -261,7 +259,7 @@ export default function Notificacoes() {
             titulo,
             data_vencimento,
             prioridade,
-            processo:processos!inner(
+            processo:processos!tarefas_processo_id_fkey(
               id,
               numero,
               coordenacao_id
@@ -272,13 +270,6 @@ export default function Notificacoes() {
         .not("data_vencimento", "is", null)
         .order("data_vencimento", { ascending: true, nullsFirst: false })
         .order("id", { ascending: true });
-
-      // Filtro por coordenação (server-side para não cair no limite de 1000 de outras coordenações)
-      if (coordenacaoId !== "todas") {
-        query = query.eq("processo.coordenacao_id", coordenacaoId);
-      } else {
-        query = query.in("processo.coordenacao_id", visibleCoordIds);
-      }
 
       // Filtros
       if (prioridadeFilter !== "todas") {
@@ -308,8 +299,22 @@ export default function Notificacoes() {
   });
 
   const prazosPendentesData = useMemo(() => {
-    return prazosPaged.data?.pages?.flat() ?? [];
-  }, [prazosPaged.data]);
+    const allPrazos = prazosPaged.data?.pages?.flat() ?? [];
+    
+    // Filtrar por coordenação client-side (já que usamos LEFT JOIN)
+    return allPrazos.filter((prazo: any) => {
+      // Se não tem processo ou coordenacao_id, inclui na lista geral
+      const coordId = prazo.processo?.coordenacao_id;
+      
+      if (coordenacaoId === "todas") {
+        // Se "todas", mostrar tarefas sem processo + tarefas das coordenações visíveis
+        return !coordId || visibleCoordIds.includes(coordId);
+      }
+      
+      // Se coordenação específica, mostrar apenas tarefas dessa coordenação
+      return coordId === coordenacaoId;
+    });
+  }, [prazosPaged.data, coordenacaoId, visibleCoordIds]);
 
   const prazosComMeta = useMemo(() => {
     const hoje = new Date();
