@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -149,6 +149,7 @@ export default function MinhaAgenda() {
   const { isAdminOrCoordinator, loading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>("lista");
@@ -455,6 +456,20 @@ export default function MinhaAgenda() {
   // Loading state para skeleton (enquanto itensAgenda ainda está carregando)
   const statsLoading = isLoading;
   const statsDisplay = statsFromItems;
+
+  // Handle selectedId from URL to auto-open an item
+  useEffect(() => {
+    const selectedId = searchParams.get("selectedId");
+    if (!selectedId || !itensAgenda || itensAgenda.length === 0) return;
+    
+    // Find the item with this ID
+    const item = itensAgenda.find(i => i.id === selectedId);
+    if (item) {
+      setSelectedItem(item);
+      // Clear the URL param after selecting
+      setSearchParams({}, { replace: true });
+    }
+  }, [itensAgenda, searchParams, setSearchParams]);
 
   // Filter and sort items
   const itensFiltrados = useMemo(() => {
