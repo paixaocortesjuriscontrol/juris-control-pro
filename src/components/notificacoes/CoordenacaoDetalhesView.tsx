@@ -70,14 +70,12 @@ export function CoordenacaoDetalhesView({
     dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
   });
 
-  // Buscar prazos urgentes da coordenação (alinhado com RPC)
+  // Buscar todos os prazos pendentes da coordenação
   const { data: prazosCoordData = [] } = useQuery({
     queryKey: ["prazos-coord", coordenacaoId, statusFilter, periodoInicio?.toISOString(), periodoFim?.toISOString()],
     queryFn: async () => {
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
-      const tresDias = new Date(hoje);
-      tresDias.setDate(tresDias.getDate() + 3);
       
       let query = supabase
         .from("tarefas")
@@ -90,7 +88,6 @@ export function CoordenacaoDetalhesView({
         `)
         .eq("status", "pendente")
         .not("data_vencimento", "is", null)
-        .lte("data_vencimento", tresDias.toISOString().split("T")[0])
         .order("data_vencimento", { ascending: true });
       
       // Filtrar por período se especificado
