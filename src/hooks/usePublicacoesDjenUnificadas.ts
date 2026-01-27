@@ -173,7 +173,19 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (dataFimFiltro) queryTermos = queryTermos.lte('created_at', dataFimFiltro);
         if (filtros.apenasNaoLidas) queryTermos = queryTermos.eq('lida', false);
 
-        const { data: termosData } = await queryTermos.limit(300);
+        // Buscar TODOS os registros para contagem precisa (sem limit artificial)
+        // Usa paginação para lidar com grandes volumes
+        const allTermosData: any[] = [];
+        const PAGE_SIZE = 1000;
+        let from = 0;
+        while (true) {
+          const { data: chunk } = await queryTermos.range(from, from + PAGE_SIZE - 1);
+          if (!chunk || chunk.length === 0) break;
+          allTermosData.push(...chunk);
+          if (chunk.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+        const termosData = allTermosData;
 
         // Coletar números de processos para buscar IDs
         (termosData || []).forEach((pub: any) => {
@@ -267,7 +279,18 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (dataFimFiltro) queryProcessos = queryProcessos.lte('created_at', dataFimFiltro);
         if (filtros.apenasNaoLidas) queryProcessos = queryProcessos.eq('lida', false);
 
-        const { data: processosData } = await queryProcessos.limit(300);
+        // Buscar TODOS os registros para contagem precisa (sem limit artificial)
+        const allProcessosData: any[] = [];
+        const PROC_PAGE_SIZE = 1000;
+        let fromProc = 0;
+        while (true) {
+          const { data: chunk } = await queryProcessos.range(fromProc, fromProc + PROC_PAGE_SIZE - 1);
+          if (!chunk || chunk.length === 0) break;
+          allProcessosData.push(...chunk);
+          if (chunk.length < PROC_PAGE_SIZE) break;
+          fromProc += PROC_PAGE_SIZE;
+        }
+        const processosData = allProcessosData;
 
         (processosData || []).forEach((pub: any) => {
           // Filtrar por coordenação se especificado
