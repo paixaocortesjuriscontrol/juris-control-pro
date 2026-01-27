@@ -47,9 +47,10 @@ export function useAuditoriaDjenProcessos() {
     mutationFn: async (lote: LoteDjenProcessos) => {
       const { data, error } = await supabase.functions.invoke('monitorar-djen-processos', {
         body: {
-          dataInicio: lote.detalhes.dataInicio,
-          dataFim: lote.detalhes.dataFim,
-          continuarDe: lote.detalhes.offset,
+          dataInicio: lote.detalhes?.dataInicio,
+          dataFim: lote.detalhes?.dataFim,
+          continuarDe: lote.detalhes?.offset,
+          completeRun: true,
         },
       });
 
@@ -66,8 +67,65 @@ export function useAuditoriaDjenProcessos() {
     },
   });
 
+  // Nova mutation para retomar de onde parou em caso de erro
+  const retomarDeOndeParou = useMutation({
+    mutationFn: async () => {
+      // Buscar configuração para obter o offset salvo
+      const { data: config, error: configError } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen_processos')
+        .maybeSingle();
+
+      if (configError) throw configError;
+
+      const metadata = config?.metadata as Record<string, any> | null;
+      const nextOffset = metadata?.next_offset || 0;
+      const podeRetomar = metadata?.pode_retomar || nextOffset > 0;
+
+      if (!podeRetomar && nextOffset === 0) {
+        throw new Error('Não há execução para retomar. Inicie uma nova execução.');
+      }
+
+      // Limpar flags de erro antes de retomar
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...metadata,
+            status: 'em_andamento',
+            ultimo_erro: null,
+            erro_em: null,
+            pode_retomar: false,
+            cancelado: false,
+          },
+        })
+        .eq('tipo', 'djen_processos');
+
+      // Invocar com continuarDe = offset salvo
+      const { data, error } = await supabase.functions.invoke('monitorar-djen-processos', {
+        body: {
+          continuarDe: nextOffset,
+          completeRun: true,
+        },
+      });
+
+      if (error) throw error;
+      return { ...data, offsetRetomado: nextOffset };
+    },
+    onSuccess: (data) => {
+      toast.success(`Retomando do offset ${data.offsetRetomado}. Acompanhe o progresso.`);
+      queryClient.invalidateQueries({ queryKey: ['auditoria-djen-processos'] });
+      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+    },
+    onError: (error) => {
+      toast.error(`Erro ao retomar: ${error.message}`);
+    },
+  });
+
   return {
     lotes,
     reprocessarLote,
+    retomarDeOndeParou,
   };
 }
