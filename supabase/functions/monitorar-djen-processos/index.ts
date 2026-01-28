@@ -55,7 +55,7 @@ let CONCURRENT_REQUESTS = CONFIG.max_paralelo;
 const PAGE_SIZE = 100; // Max page size from API
 const MAX_PAGES = 2; // Limit pages per process
 let BASE_DELAY = CONFIG.delay_entre_lotes;
-const STAGGER_DELAY = 300; // Meio-termo: 300ms (era 100 agressivo, 500 lento)
+let STAGGER_DELAY = 300; // Meio-termo: 300ms (era 100 agressivo, 500 lento)
 
 // Browser-like headers
 const browserHeaders = {
@@ -86,23 +86,51 @@ async function loadConfigFromDatabase(supabase: any): Promise<void> {
     }
 
     if (data) {
+      // IMPORTANTE: a tabela é compartilhada com o DJEN por termos.
+      // Para DJEN Processos (13k+), precisamos de um *meio-termo* mínimo para não ficar inviável.
+      // Portanto, aplicamos clamps (mín./máx.) aos valores vindos da tabela.
+
+      const tableParallel = Number(data.max_paralelo) || CONFIG.max_paralelo;
+      const tunedParallel = Math.max(3, Math.min(tableParallel, 6));
+
+      const tableDelayLotes = Number(data.delay_entre_monitoramentos) || CONFIG.delay_entre_lotes;
+      const tunedDelayLotes = Math.max(800, Math.min(tableDelayLotes, 2500));
+
+      const tableDelayPaginas = Number(data.delay_entre_paginas) || CONFIG.delay_entre_paginas;
+      const tunedDelayPaginas = Math.max(150, Math.min(tableDelayPaginas, 800));
+
+      const tableMaxRetries = Number(data.max_retries) || CONFIG.max_retries;
+      const tunedMaxRetries = Math.max(1, Math.min(tableMaxRetries, 4));
+
+      const tableRetryBase = Number(data.retry_base_delay_ms) || CONFIG.retry_base_delay_ms;
+      const tunedRetryBase = Math.max(1500, Math.min(tableRetryBase, 8000));
+
+      const softTimeout = Number(data.soft_timeout_ms) || CONFIG.soft_timeout_ms;
+      const finalBuffer = Number(data.finalization_buffer_ms) || CONFIG.finalization_buffer_ms;
+
+      // batch: para 13k processos, paralelo*20 dá um throughput bom sem explodir o PJE Comunica
+      const tunedBatchSize = Math.max(40, Math.min(120, tunedParallel * 20));
+
       CONFIG = {
-        max_paralelo: data.max_paralelo || 5,
-        batch_size: Math.min(data.max_paralelo * 10 || 50, 100), // Batch = paralelo * 10, max 100
-        delay_entre_lotes: data.delay_entre_monitoramentos || 1500,
-        delay_entre_paginas: data.delay_entre_paginas || 300,
-        soft_timeout_ms: data.soft_timeout_ms || 50000,
-        finalization_buffer_ms: data.finalization_buffer_ms || 10000,
-        max_retries: data.max_retries || 4,
-        retry_base_delay_ms: data.retry_base_delay_ms || 3000,
+        max_paralelo: tunedParallel,
+        batch_size: tunedBatchSize,
+        delay_entre_lotes: tunedDelayLotes,
+        delay_entre_paginas: tunedDelayPaginas,
+        soft_timeout_ms: softTimeout,
+        finalization_buffer_ms: finalBuffer,
+        max_retries: tunedMaxRetries,
+        retry_base_delay_ms: tunedRetryBase,
       };
 
       // Atualizar variáveis legacy
       BATCH_SIZE = CONFIG.batch_size;
       CONCURRENT_REQUESTS = CONFIG.max_paralelo;
       BASE_DELAY = CONFIG.delay_entre_lotes;
+      STAGGER_DELAY = Math.max(150, Math.min(400, Math.floor(CONFIG.delay_entre_lotes / 8)));
 
-      console.log(`[DJEN Processos] Parâmetros carregados: paralelo=${CONFIG.max_paralelo}, batch=${CONFIG.batch_size}, delay=${CONFIG.delay_entre_lotes}ms`);
+      console.log(
+        `[DJEN Processos] Parâmetros carregados (tuned): paralelo=${CONFIG.max_paralelo}, batch=${CONFIG.batch_size}, delay=${CONFIG.delay_entre_lotes}ms, pageDelay=${CONFIG.delay_entre_paginas}ms, stagger=${STAGGER_DELAY}ms`
+      );
     }
   } catch (e) {
     console.log('[DJEN Processos] Erro ao carregar config:', e);
