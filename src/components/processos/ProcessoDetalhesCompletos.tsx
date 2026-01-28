@@ -49,6 +49,9 @@ import { TarefaPublicacaoView } from "./TarefaPublicacaoView";
 import { PublicacoesDjenList } from "./PublicacoesDjenList";
 import { CobrancaSection } from "./CobrancaSection";
 import { MonitoramentoToggle } from "./MonitoramentoToggle";
+import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
+import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
+import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
 
 interface Responsavel {
   id: string;
@@ -448,73 +451,85 @@ export function ProcessoDetalhesCompletos({
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Valor da ação</p>
                             <p className="text-lg font-semibold text-foreground">{formatCurrency(processo.valor_causa)}</p>
                           </div>
+
+                          {/* Campos movidos da coluna direita - abaixo do valor da ação */}
+                          <div className="pt-3 border-t space-y-3">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Data de distribuição</p>
+                                <p className="text-sm text-foreground">{formatDate(processo.data_distribuicao)}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão julgador</p>
+                                <p className="text-sm text-foreground">{processo.orgao_julgador || "Não informado"}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Área</p>
+                                <p className="text-sm text-foreground">{processo.area || "Não informado"}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fase</p>
+                                <p className="text-sm text-foreground">{processo.fase || "Não informado"}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sistema</p>
+                                <p className="text-sm text-foreground">{processo.sistema || "Não informado"}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta física</p>
+                                <p className="text-sm text-foreground">{processo.pasta_fisica || "Não informado"}</p>
+                              </div>
+                            </div>
+
+                            {/* Descrição */}
+                            {processo.descricao && (
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Descrição</p>
+                                <p className="text-sm text-foreground mt-1">{processo.descricao}</p>
+                              </div>
+                            )}
+
+                            {/* Pasta do Cliente */}
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta do Cliente</p>
+                              <p className="text-sm text-foreground">{processo.pasta_cliente || processo.pasta?.nome || "Não vinculado"}</p>
+                            </div>
+
+                            {/* Monitoramento */}
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monitoramento</p>
+                              <div className="mt-2 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-foreground w-24">Andamentos</span>
+                                  <MonitoramentoToggle
+                                    processoId={processo.id}
+                                    campo="monitorar_andamentos"
+                                    valorInicial={!!processo.monitorar_andamentos}
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-foreground w-24">DJEN</span>
+                                  <MonitoramentoToggle
+                                    processoId={processo.id}
+                                    campo="monitorar_djen"
+                                    valorInicial={!!processo.monitorar_djen}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Coluna Direita - Informações adicionais */}
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Data de distribuição</p>
-                              <p className="text-sm text-foreground">{formatDate(processo.data_distribuicao)}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão julgador</p>
-                              <p className="text-sm text-foreground">{processo.orgao_julgador || "Não informado"}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Área</p>
-                              <p className="text-sm text-foreground">{processo.area || "Não informado"}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fase</p>
-                              <p className="text-sm text-foreground">{processo.fase || "Não informado"}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sistema</p>
-                              <p className="text-sm text-foreground">{processo.sistema || "Não informado"}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta física</p>
-                              <p className="text-sm text-foreground">{processo.pasta_fisica || "Não informado"}</p>
-                            </div>
-                          </div>
-
-                          {/* Descrição */}
-                          {processo.descricao && (
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Descrição</p>
-                              <p className="text-sm text-foreground mt-1">{processo.descricao}</p>
-                            </div>
-                          )}
-
-                          {/* Pasta do Cliente */}
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta do Cliente</p>
-                            <p className="text-sm text-foreground">{processo.pasta_cliente || processo.pasta?.nome || "Não vinculado"}</p>
-                          </div>
-
-                          {/* Monitoramento - Abaixo da Pasta do Cliente */}
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monitoramento</p>
-                            <div className="mt-2 space-y-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-foreground w-24">Andamentos</span>
-                                <MonitoramentoToggle
-                                  processoId={processo.id}
-                                  campo="monitorar_andamentos"
-                                  valorInicial={!!processo.monitorar_andamentos}
-                                />
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-foreground w-24">DJEN</span>
-                                <MonitoramentoToggle
-                                  processoId={processo.id}
-                                  campo="monitorar_djen"
-                                  valorInicial={!!processo.monitorar_djen}
-                                />
-                              </div>
-                            </div>
-                          </div>
+                        {/* Coluna Direita - Cards de Pendências, Depósitos e Custas */}
+                        <div className="space-y-3">
+                          <PendenciasProcessoCard
+                            audiencias={audiencias}
+                            intimacoes={intimacoes}
+                            tarefas={tarefas}
+                            movimentacoes={movimentacoes}
+                          />
+                          <DepositosRecursaisCard processoId={processo.id} />
+                          <CustasProcessuaisCard processoId={processo.id} />
                         </div>
                       </div>
                     </CardContent>

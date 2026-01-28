@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
   Info, 
-  ExternalLink, 
   Copy, 
   Bell, 
   BellOff, 
@@ -13,6 +12,9 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
+import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
+import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
 
 interface Responsavel {
   id: string;
@@ -46,11 +48,13 @@ interface ProcessoResumoCardProps {
     pasta?: { id: string; nome: string } | null;
   };
   responsaveis: Responsavel[];
+  audiencias?: any[];
+  intimacoes?: any[];
+  tarefas?: any[];
+  movimentacoes?: any[];
   onMaisInformacoes: () => void;
   onExpandirEnvolvidos?: () => void;
   onAbrirProcessoExterno?: () => void;
-  /** Conteúdo da aba selecionada - aparece na coluna direita */
-  activeTabContent?: React.ReactNode;
 }
 
 const statusLabels: Record<string, string> = {
@@ -72,11 +76,14 @@ const areaLabels: Record<string, string> = {
 
 export function ProcessoResumoCard({ 
   processo, 
-  responsaveis, 
+  responsaveis,
+  audiencias = [],
+  intimacoes = [],
+  tarefas = [],
+  movimentacoes = [],
   onMaisInformacoes, 
   onExpandirEnvolvidos, 
   onAbrirProcessoExterno,
-  activeTabContent 
 }: ProcessoResumoCardProps) {
   const formatCurrency = (value: number | null | undefined) => {
     if (!value) return "Não informado";
@@ -94,7 +101,6 @@ export function ProcessoResumoCard({
 
   const clienteNome = processo.cliente?.nome || processo.polo_passivo || "Cliente não identificado";
 
-  // Usar pasta_cliente que tem o formato correto da lista, ou construir a partir do processo
   const pastaNome = processo.pasta_cliente || processo.pasta?.nome || 
     (processo.polo_passivo && processo.polo_ativo 
       ? `${processo.polo_passivo} X ${processo.polo_ativo}` 
@@ -117,7 +123,7 @@ export function ProcessoResumoCard({
           <h2 className="text-base font-semibold mb-3 text-foreground">Resumo do processo</h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-3">
-            {/* Coluna Esquerda - Informações principais */}
+            {/* Coluna Esquerda - Todas as informações */}
             <div className="space-y-3">
               {/* Situação */}
               <div>
@@ -260,7 +266,7 @@ export function ProcessoResumoCard({
                 <p className="text-sm text-foreground">{processo.descricao || "Não informado"}</p>
               </div>
 
-              {/* Campos adicionais - movidos da coluna direita */}
+              {/* Campos adicionais - abaixo do valor da ação */}
               <div className="pt-3 border-t space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   {/* Data de distribuição */}
@@ -310,17 +316,16 @@ export function ProcessoResumoCard({
               </div>
             </div>
 
-            {/* Coluna Direita - Conteúdo da aba selecionada */}
+            {/* Coluna Direita - Cards de Pendências, Depósitos e Custas */}
             <div className="space-y-3">
-              {activeTabContent ? (
-                <div className="min-h-[200px]">
-                  {activeTabContent}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center min-h-[200px] text-muted-foreground border rounded-lg bg-muted/20">
-                  <p className="text-sm">Selecione uma aba para ver o conteúdo</p>
-                </div>
-              )}
+              <PendenciasProcessoCard
+                audiencias={audiencias}
+                intimacoes={intimacoes}
+                tarefas={tarefas}
+                movimentacoes={movimentacoes}
+              />
+              <DepositosRecursaisCard processoId={processo.id} />
+              <CustasProcessuaisCard processoId={processo.id} />
             </div>
           </div>
         </CardContent>
