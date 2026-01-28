@@ -518,19 +518,11 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
   );
 
   return (
-    <div className="space-y-0 min-w-0">
-      {/*
-        Scroll horizontal no CARD (header + tabela), para o gesto funcionar no Android/Chrome
-        ao abrir a aba "Pedidos" dentro do ScrollArea global.
-      */}
-      <div
-        className="border rounded-md w-full max-w-full overflow-x-auto overscroll-x-contain"
-        style={{
-          WebkitOverflowScrolling: "touch",
-          touchAction: "pan-x",
-        }}
-      >
-        <div className={pedidos.length > 0 ? "min-w-[800px]" : "min-w-0"}>
+    <div className="space-y-0 min-w-0 w-full">
+      {/* Card com scroll horizontal nativo para mobile */}
+      <div className="border rounded-md overflow-hidden">
+        <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div className={pedidos.length > 0 ? "min-w-[800px]" : ""}>
           {/* Header with buttons */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-3 py-2 bg-muted/30 border-b">
             <div className="flex items-center gap-2 text-sm font-medium flex-wrap">
@@ -613,6 +605,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           ) : (
             <ReadOnlyTable />
           )}
+          </div>
         </div>
       </div>
     </div>
