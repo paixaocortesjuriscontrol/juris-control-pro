@@ -45,10 +45,9 @@ export function useDepositosRecursais(processoId: string | undefined) {
 
   const addDeposito = useMutation({
     mutationFn: async (deposito: Omit<DepositoRecursal, "id" | "created_at">) => {
-      const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase
         .from("depositos_recursais")
-        .insert({ ...deposito, criado_por: user?.id })
+        .insert(deposito)
         .select()
         .single();
 
@@ -133,10 +132,9 @@ export function useCustasProcessuais(processoId: string | undefined) {
 
   const addCusta = useMutation({
     mutationFn: async (custa: Omit<CustaProcessual, "id" | "created_at">) => {
-      const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase
         .from("custas_processuais")
-        .insert({ ...custa, criado_por: user?.id })
+        .insert(custa)
         .select()
         .single();
 
