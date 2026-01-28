@@ -21,6 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 import { useRealtimeProgress } from "@/hooks/useRealtimeProgress";
+import { BotaoRetomarLote } from "./BotaoRetomarLote";
 
 interface ExecutionResult {
   processados: number;
@@ -78,6 +79,10 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
       return data;
     }
   });
+
+  const metadata = (config?.metadata as Record<string, any> | null) ?? null;
+  const nextOffset = (metadata?.next_offset as number | undefined) ?? undefined;
+  const totalCheckpoint = (metadata?.total as number | undefined) ?? undefined;
 
   // Buscar estatísticas
   const { data: stats } = useQuery({
@@ -168,7 +173,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     []
   );
 
-  const handleExecutarManual = async () => {
+  const handleExecutarManual = async (mode: 'novo' | 'retomar' = 'novo') => {
     if (executando) return; // Prevenir duplo clique
     setExecutandoManual(true);
     canceladoRef.current = false;
@@ -182,7 +187,22 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
       await supabase
         .from('configuracoes_monitoramento')
         .update({
-          metadata: { ...currentMetadata, cancelado: false, status: 'em_andamento', next_offset: 0, current: 0, total: 0 },
+          metadata:
+            mode === 'retomar'
+              ? {
+                  ...currentMetadata,
+                  cancelado: false,
+                  status: 'em_andamento',
+                  // NÃO zerar o checkpoint ao retomar
+                }
+              : {
+                  ...currentMetadata,
+                  cancelado: false,
+                  status: 'em_andamento',
+                  next_offset: 0,
+                  current: 0,
+                  total: 0,
+                },
         })
         .eq('id', config.id);
     }
@@ -193,6 +213,10 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     let totalNovas = 0;
     let offset = 0;
     let totalProcessos = 0;
+
+    if (mode === 'retomar') {
+      offset = nextOffset && nextOffset > 0 ? nextOffset : 0;
+    }
 
     try {
       // Loop para processar todos os lotes
@@ -220,6 +244,8 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
                 current: result.concluido ? totalProcessos : offset,
                 total: totalProcessos,
                 novas: totalNovas,
+                // manter checkpoint para permitir retomada em caso de falha/timeout
+                next_offset: result.concluido ? 0 : offset,
                 status: result.concluido ? 'concluido' : 'em_andamento',
               },
             })
@@ -608,7 +634,13 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
         )}
 
         {/* Botões */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <BotaoRetomarLote
+            nextOffset={nextOffset}
+            total={totalCheckpoint}
+            onRetomar={() => handleExecutarManual('retomar')}
+            disabled={executando}
+          />
           {executando ? (
             <Button
               variant="destructive"
@@ -620,7 +652,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             </Button>
           ) : (
             <Button 
-              onClick={handleExecutarManual} 
+              onClick={() => handleExecutarManual('novo')} 
               className="flex-1"
             >
               <Play className="h-4 w-4 mr-2" />
