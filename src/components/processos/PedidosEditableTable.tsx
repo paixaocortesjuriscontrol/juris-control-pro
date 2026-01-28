@@ -67,6 +67,49 @@ const parseCurrencyInput = (value: string): number | null => {
   return isNaN(parsed) ? null : parsed;
 };
 
+// Currency input component that allows free-form typing
+const CurrencyInput = ({ 
+  value, 
+  onChange, 
+  className = "",
+  placeholder = "0,00"
+}: { 
+  value: number | null; 
+  onChange: (value: number | null) => void;
+  className?: string;
+  placeholder?: string;
+}) => {
+  const [displayValue, setDisplayValue] = useState(formatCurrencyInput(value));
+  
+  // Update display when external value changes
+  useEffect(() => {
+    setDisplayValue(formatCurrencyInput(value));
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Allow typing freely - only numbers, dots, and commas
+    const inputValue = e.target.value.replace(/[^0-9.,]/g, "");
+    setDisplayValue(inputValue);
+  };
+
+  const handleBlur = () => {
+    const parsed = parseCurrencyInput(displayValue);
+    onChange(parsed);
+    // Format the display value on blur
+    setDisplayValue(formatCurrencyInput(parsed));
+  };
+
+  return (
+    <Input
+      value={displayValue}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+};
+
 export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) {
   const { pedidos, isLoading, totalValor, addPedido, updatePedido, deletePedido } = usePedidosProcesso(processoId);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -199,10 +242,9 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
         </div>
         <div className="space-y-2">
           <Label>Valor do Pedido (R$)</Label>
-          <Input
-            value={formatCurrencyInput(data.valor_pedido)}
-            onChange={(e) => setData({ ...data, valor_pedido: parseCurrencyInput(e.target.value) })}
-            placeholder="0,00"
+          <CurrencyInput
+            value={data.valor_pedido}
+            onChange={(val) => setData({ ...data, valor_pedido: val })}
             className="text-right"
           />
         </div>
@@ -338,11 +380,10 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                     />
                   </td>
                   <td className="px-1 py-0.5 border-r">
-                    <Input
-                      value={formatCurrencyInput(editData[pedido.id].valor_pedido)}
-                      onChange={(e) => updateField(pedido.id, "valor_pedido", parseCurrencyInput(e.target.value))}
+                    <CurrencyInput
+                      value={editData[pedido.id].valor_pedido}
+                      onChange={(val) => updateField(pedido.id, "valor_pedido", val)}
                       className="h-7 text-xs px-1 text-right"
-                      placeholder="0,00"
                     />
                   </td>
                   <td className="px-1 py-0.5 border-r">
