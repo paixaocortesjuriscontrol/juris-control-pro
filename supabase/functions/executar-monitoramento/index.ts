@@ -18,7 +18,7 @@ const FUNCOES_MAP: Record<string, string> = {
 const MAX_RETRIES = 3;
 // Timeout por chamada ao worker. Importante manter bem abaixo do limite de runtime da Edge Function
 // para evitar ficar com execução “executando” travada no banco em caso de request pendurado.
-const WORKER_CALL_TIMEOUT_MS = 90 * 1000; // 90s
+const WORKER_CALL_TIMEOUT_MS = 180 * 1000; // 180s - evita abort prematuro em tarefas pesadas
 
 // Se uma execução estiver marcada como "executando" mas não houver batimento (ultima_execucao)
 // há algum tempo, consideramos que travou e liberamos para nova execução.
@@ -273,6 +273,26 @@ Deno.serve(async (req) => {
         );
       } catch (error: any) {
         clearTimeout(timeoutId);
+        const isAbort = error?.name === 'AbortError' || error?.message?.includes('aborted');
+        
+        // Se foi abort (timeout), o worker provavelmente ainda está rodando em background.
+        // Não marcar como falhou imediatamente - deixar o worker atualizar o progresso.
+        if (isAbort) {
+          console.log(`[${tipo}] Timeout ao aguardar worker, mas ele pode estar rodando em background`);
+          
+          // Retornar sucesso parcial - o progresso real será acompanhado pela UI
+          return new Response(
+            JSON.stringify({
+              success: true,
+              execucaoId,
+              status: 'executando',
+              background: true,
+              message: 'Worker iniciado em background. Acompanhe o progresso no painel.',
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+        
         const lastError = error?.message || 'Erro desconhecido ao iniciar worker';
 
         if (execucaoId) {
