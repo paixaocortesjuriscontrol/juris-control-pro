@@ -518,7 +518,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
   );
 
   return (
-    <div className="border rounded-md bg-background overflow-hidden">
+    <div className="border rounded-md bg-background">
       {/* Header with buttons - sticky on mobile */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
         <div className="flex items-center gap-2 text-sm font-medium flex-wrap">
