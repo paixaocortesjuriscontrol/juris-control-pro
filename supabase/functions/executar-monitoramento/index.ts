@@ -76,10 +76,13 @@ Deno.serve(async (req) => {
     }
 
     // Verificar se já existe uma execução em andamento para QUALQUER tipo (evitar WORKER_LIMIT)
+    // IMPORTANTE: só considera "em andamento" se status=executando E finalizado_em IS NULL
+    // Isso evita bloquear por execuções fantasmas que têm status errado
     const { data: todasExecucoesEmAndamento } = await supabase
       .from('execucoes_agendadas')
-      .select('id, tipo, iniciado_em')
+      .select('id, tipo, iniciado_em, finalizado_em')
       .eq('status', 'executando')
+      .is('finalizado_em', null)
       .order('created_at', { ascending: false });
 
     // Se a configuração ficou com status "cancelado" por uma execução anterior (sem jobs rodando),
