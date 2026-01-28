@@ -432,12 +432,12 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                       <td className="px-2 py-1 border-r truncate" title={pedido.ministro_turma_sessao || ""}>{pedido.ministro_turma_sessao || "-"}</td>
                       <td className="px-2 py-1 border-r truncate max-w-[100px]" title={pedido.observacao || ""}>{pedido.observacao || "-"}</td>
                       <td className="px-1 py-1 text-center">
-                        <div className="flex gap-0.5 justify-center">
-                          <Button size="icon" variant="ghost" onClick={() => startEdit(pedido)} className="h-5 w-5">
-                            <Pencil className="w-3 h-3" />
+                        <div className="flex gap-1 justify-center">
+                          <Button size="icon" variant="ghost" onClick={() => startEdit(pedido)} className="h-6 w-6 hover:bg-primary/10" title="Editar">
+                            <Pencil className="w-3.5 h-3.5 text-primary" />
                           </Button>
-                          <Button size="icon" variant="ghost" onClick={() => handleDelete(pedido.id)} className="h-5 w-5">
-                            <Trash2 className="w-3 h-3 text-red-600" />
+                          <Button size="icon" variant="ghost" onClick={() => handleDelete(pedido.id)} className="h-6 w-6 hover:bg-destructive/10" title="Excluir">
+                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
                           </Button>
                         </div>
                       </td>
