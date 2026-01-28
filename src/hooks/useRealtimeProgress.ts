@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -28,6 +28,9 @@ interface UseRealtimeProgressOptions {
 /**
  * Hook unificado para acompanhar progresso de monitoramentos em tempo real.
  * Combina dados de `configuracoes_monitoramento.metadata` e `execucoes_agendadas`.
+ * 
+ * IMPORTANTE: Implementa normalização monotônica para evitar regressão de progresso
+ * quando as fontes de dados oscilam ou chegam em ordem diferente.
  */
 export function useRealtimeProgress({
   tipo,
@@ -40,6 +43,13 @@ export function useRealtimeProgress({
     total: 0,
     percentage: 0,
     isRunning: false,
+  });
+
+  // Referência para guardar o maior progresso visto durante a execução atual
+  const maxProgressRef = useRef<{ current: number; total: number; percentage: number; executionId?: string }>({
+    current: 0,
+    total: 0,
+    percentage: 0,
   });
 
   // Função para extrair progresso de múltiplas fontes
@@ -94,41 +104,82 @@ export function useRealtimeProgress({
   }, []);
 
   // Normaliza para NÃO regredir durante a MESMA execução.
-  // Isso evita o efeito “5% voltou para 4%” quando a UI alterna entre
+  // Isso evita o efeito "5% voltou para 4%" quando a UI alterna entre
   // fontes (execucao vs metadata) ou quando total/current chegam em ordem diferente.
   const normalizeMonotonic = useCallback((
     prev: RealtimeProgress,
     next: RealtimeProgress
   ): RealtimeProgress => {
-    // Se não está rodando, não força monotonicidade.
-    if (!prev.isRunning || !next.isRunning) return next;
-
-    // Se identificador mudou, é uma nova execução -> permitir reset.
-    const prevId = prev.executionId;
+    const maxRef = maxProgressRef.current;
+    
+    // Se identificador mudou, é uma nova execução -> resetar referência e permitir reset
+    const prevId = prev.executionId || maxRef.executionId;
     const nextId = next.executionId;
-    const sameRun = (prevId && nextId && prevId === nextId) || (!prevId && !nextId);
-    if (!sameRun) return next;
+    const isNewExecution = nextId && prevId && nextId !== prevId;
+    
+    if (isNewExecution) {
+      // Nova execução: resetar referência
+      maxProgressRef.current = {
+        current: next.current,
+        total: next.total,
+        percentage: next.percentage,
+        executionId: nextId,
+      };
+      return next;
+    }
 
-    // Mantém total “travado” quando já conhecido, para evitar queda de % por mudança de total.
-    // (Em DJEN Processos, total tende a ser estável; mudanças aqui são geralmente ruído.)
-    const stableTotal = prev.total > 0 ? prev.total : next.total;
+    // Atualiza referência com o executionId atual
+    if (nextId && !maxRef.executionId) {
+      maxRef.executionId = nextId;
+    }
 
-    // Current nunca deve voltar; usa o maior.
-    const stableCurrent = Math.max(prev.current ?? 0, next.current ?? 0);
+    // Se nenhum está rodando E current é zero, é um reset legítimo (início de nova execução)
+    if (!prev.isRunning && !next.isRunning && next.current === 0 && prev.current === 0) {
+      maxProgressRef.current = { current: 0, total: 0, percentage: 0 };
+      return next;
+    }
 
-    // Recalcula % com base em valores estabilizados, garantindo monotonicidade.
+    // CORREÇÃO PRINCIPAL: Sempre aplica monotonicidade se houve algum progresso
+    // Usa a referência máxima para garantir que nunca regride
+    const stableTotal = Math.max(maxRef.total, prev.total, next.total);
+    const stableCurrent = Math.max(maxRef.current, prev.current, next.current);
+    
+    // Recalcula % com base em valores estabilizados
     const computedPct = stableTotal > 0
       ? Math.min(100, Math.round((stableCurrent / stableTotal) * 100))
       : next.percentage;
 
-    const stablePct = Math.max(prev.percentage ?? 0, computedPct ?? 0, next.percentage ?? 0);
+    const stablePct = Math.max(maxRef.percentage, prev.percentage, computedPct, next.percentage);
+
+    // Atualiza a referência máxima
+    maxProgressRef.current = {
+      current: stableCurrent,
+      total: stableTotal,
+      percentage: stablePct,
+      executionId: nextId || prevId,
+    };
+
+    // Preserva isRunning como true se ainda há progresso a fazer
+    const stableIsRunning = next.isRunning || (prev.isRunning && stableCurrent < stableTotal);
 
     return {
       ...next,
       current: stableCurrent,
       total: stableTotal,
       percentage: stablePct,
+      isRunning: stableIsRunning,
     };
+  }, []);
+
+  // Reset manual da referência quando o componente inicia uma nova busca
+  const resetMaxProgress = useCallback(() => {
+    maxProgressRef.current = { current: 0, total: 0, percentage: 0 };
+    setProgress({
+      current: 0,
+      total: 0,
+      percentage: 0,
+      isRunning: false,
+    });
   }, []);
 
   // Fetch inicial combinando ambas as fontes
@@ -158,7 +209,16 @@ export function useRealtimeProgress({
   // Fetch inicial
   useEffect(() => {
     if (!enabled) return;
-    fetchProgress().then(setProgress);
+    fetchProgress().then((newProgress) => {
+      // Inicializa a referência máxima com os valores iniciais
+      maxProgressRef.current = {
+        current: newProgress.current,
+        total: newProgress.total,
+        percentage: newProgress.percentage,
+        executionId: newProgress.executionId,
+      };
+      setProgress(newProgress);
+    });
   }, [enabled, fetchProgress]);
 
   // Realtime subscription para configuracoes_monitoramento
@@ -180,8 +240,11 @@ export function useRealtimeProgress({
           const newProgress = await fetchProgress();
           
           setProgress((prev) => {
-            if (prev.isRunning && !newProgress.isRunning && onComplete) onComplete(newProgress);
-            return normalizeMonotonic(prev, newProgress);
+            const normalized = normalizeMonotonic(prev, newProgress);
+            if (prev.isRunning && !normalized.isRunning && onComplete) {
+              onComplete(normalized);
+            }
+            return normalized;
           });
 
           queryClient.invalidateQueries({ queryKey: ['config-djen-processos'] });
@@ -200,8 +263,11 @@ export function useRealtimeProgress({
           const newProgress = await fetchProgress();
           
           setProgress((prev) => {
-            if (prev.isRunning && !newProgress.isRunning && onComplete) onComplete(newProgress);
-            return normalizeMonotonic(prev, newProgress);
+            const normalized = normalizeMonotonic(prev, newProgress);
+            if (prev.isRunning && !normalized.isRunning && onComplete) {
+              onComplete(normalized);
+            }
+            return normalized;
           });
         }
       )
@@ -219,26 +285,20 @@ export function useRealtimeProgress({
     const interval = setInterval(async () => {
       const newProgress = await fetchProgress();
       setProgress((prev) => {
-        if (prev.isRunning && !newProgress.isRunning && onComplete) onComplete(newProgress);
-        return normalizeMonotonic(prev, newProgress);
+        const normalized = normalizeMonotonic(prev, newProgress);
+        if (prev.isRunning && !normalized.isRunning && onComplete) {
+          onComplete(normalized);
+        }
+        return normalized;
       });
     }, 3000);
 
     return () => clearInterval(interval);
   }, [enabled, progress.isRunning, fetchProgress, onComplete, normalizeMonotonic]);
 
-  const reset = useCallback(() => {
-    setProgress({
-      current: 0,
-      total: 0,
-      percentage: 0,
-      isRunning: false,
-    });
-  }, []);
-
   return {
     progress,
-    reset,
+    reset: resetMaxProgress,
     refetch: fetchProgress,
   };
 }
