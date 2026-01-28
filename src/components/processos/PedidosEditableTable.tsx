@@ -518,9 +518,9 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
   );
 
   return (
-    <div className="border rounded-md bg-background">
-      {/* Header with buttons - sticky on mobile */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
+    <div className="space-y-0">
+      {/* Header with buttons */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-3 py-2 border border-b-0 rounded-t-md bg-muted/30">
         <div className="flex items-center gap-2 text-sm font-medium flex-wrap">
           <Gavel className="w-4 h-4 shrink-0" />
           <span>Pedidos Trabalhistas</span>
@@ -593,20 +593,55 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
         </div>
       </div>
       
+      {/* Table container with horizontal scroll */}
       {isLoading ? (
-        <div className="text-center py-4 text-muted-foreground text-sm">Carregando...</div>
+        <div className="text-center py-4 text-muted-foreground text-sm border rounded-b-md">Carregando...</div>
       ) : pedidos.length === 0 ? (
-        <div className="text-center py-4 text-muted-foreground text-sm">
+        <div className="text-center py-4 text-muted-foreground text-sm border rounded-b-md">
           Nenhum pedido cadastrado. Clique em "Adicionar" para criar.
         </div>
       ) : (
-        <div
-          className="overflow-x-auto overscroll-x-contain touch-pan-x"
-          style={{ WebkitOverflowScrolling: "touch" }}
+        <div 
+          className="border rounded-b-md overflow-x-scroll"
+          style={{ 
+            WebkitOverflowScrolling: "touch",
+            overscrollBehaviorX: "contain"
+          }}
         >
-          <div className="min-w-[800px]">
-            <ReadOnlyTable />
-          </div>
+          <table className="w-full text-xs border-collapse" style={{ minWidth: "800px" }}>
+            <thead>
+              <tr className="bg-muted/50 border-b">
+                <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r whitespace-nowrap">Pedido</th>
+                <th className="px-2 py-1.5 text-right font-medium text-muted-foreground border-r w-24 whitespace-nowrap">Valor</th>
+                <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-20 whitespace-nowrap">Lei</th>
+                <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-20 whitespace-nowrap">Data</th>
+                <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-14 whitespace-nowrap">Sent.</th>
+                <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Juiz</th>
+                <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-14 whitespace-nowrap">Acór.</th>
+                <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Desemb.</th>
+                <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-12 whitespace-nowrap">TST</th>
+                <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Ministro</th>
+                <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">Obs.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pedidos.map((pedido, idx) => (
+                <tr key={pedido.id} className={`border-b hover:bg-muted/30 ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
+                  <td className="px-2 py-1 border-r font-medium whitespace-nowrap">{pedido.pedido}</td>
+                  <td className="px-2 py-1 border-r text-right tabular-nums whitespace-nowrap">{formatCurrency(pedido.valor_pedido)}</td>
+                  <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.lei || "-"}</td>
+                  <td className="px-2 py-1 border-r text-center whitespace-nowrap">{formatDate(pedido.data)}</td>
+                  <td className="px-2 py-1 border-r text-center">{pedido.sentenca ? "✓" : "-"}</td>
+                  <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.juiz_sentenca || "-"}</td>
+                  <td className="px-2 py-1 border-r text-center">{pedido.acordao ? "✓" : "-"}</td>
+                  <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.desembargador_turma || "-"}</td>
+                  <td className="px-2 py-1 border-r text-center">{pedido.tst ? "✓" : "-"}</td>
+                  <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.ministro_turma_sessao || "-"}</td>
+                  <td className="px-2 py-1 whitespace-nowrap">{pedido.observacao || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
