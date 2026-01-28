@@ -33,12 +33,30 @@ function getBrazilDayUtcRange(iso: string): { startUtc: string; endUtc: string }
 
 // Single optimized endpoint
 const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
-const BATCH_SIZE = 150; // Increased for 20k+ processes
-const CONCURRENT_REQUESTS = 8; // More parallelism for large volumes
-const PAGE_SIZE = 100; // Max page size
+
+// ============================================================================
+// PARÂMETROS DE THROTTLING - valores padrão (serão sobrescritos pela tabela)
+// ============================================================================
+// Estes valores serão carregados dinamicamente da tabela parametros_monitoramento_djen
+// Mesmos parâmetros do monitorar-djen (termos) para evitar rate limiting
+let CONFIG = {
+  max_paralelo: 5,               // Reduzido de 8 para 5 (igual ao DJEN termos)
+  batch_size: 50,                // Reduzido de 150 para 50 (mais conservador)
+  delay_entre_lotes: 1500,       // Aumentado de 600ms para 1500ms
+  delay_entre_paginas: 300,      // Delay entre páginas
+  soft_timeout_ms: 50000,        // 50s soft timeout (igual termos)
+  finalization_buffer_ms: 10000, // 10s buffer para finalização
+  max_retries: 4,
+  retry_base_delay_ms: 3000,
+};
+
+// Legacy constants - will be dynamically updated
+let BATCH_SIZE = CONFIG.batch_size;
+let CONCURRENT_REQUESTS = CONFIG.max_paralelo;
+const PAGE_SIZE = 100; // Max page size from API
 const MAX_PAGES = 2; // Limit pages per process
-const BASE_DELAY = 600; // 600ms delay between batches
-const STAGGER_DELAY = 100; // 100ms between requests in same chunk
+let BASE_DELAY = CONFIG.delay_entre_lotes;
+const STAGGER_DELAY = 500; // Increased from 100ms to 500ms
 
 // Browser-like headers
 const browserHeaders = {
@@ -51,6 +69,45 @@ const browserHeaders = {
 
 function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Função para carregar parâmetros da tabela (igual ao DJEN Termos)
+async function loadConfigFromDatabase(supabase: any): Promise<void> {
+  try {
+    const { data, error } = await supabase
+      .from('parametros_monitoramento_djen')
+      .select('*')
+      .eq('ativo', true)
+      .limit(1)
+      .single();
+
+    if (error) {
+      console.log('[DJEN Processos] Erro ao carregar parâmetros da tabela, usando valores padrão:', error.message);
+      return;
+    }
+
+    if (data) {
+      CONFIG = {
+        max_paralelo: data.max_paralelo || 5,
+        batch_size: Math.min(data.max_paralelo * 10 || 50, 100), // Batch = paralelo * 10, max 100
+        delay_entre_lotes: data.delay_entre_monitoramentos || 1500,
+        delay_entre_paginas: data.delay_entre_paginas || 300,
+        soft_timeout_ms: data.soft_timeout_ms || 50000,
+        finalization_buffer_ms: data.finalization_buffer_ms || 10000,
+        max_retries: data.max_retries || 4,
+        retry_base_delay_ms: data.retry_base_delay_ms || 3000,
+      };
+
+      // Atualizar variáveis legacy
+      BATCH_SIZE = CONFIG.batch_size;
+      CONCURRENT_REQUESTS = CONFIG.max_paralelo;
+      BASE_DELAY = CONFIG.delay_entre_lotes;
+
+      console.log(`[DJEN Processos] Parâmetros carregados: paralelo=${CONFIG.max_paralelo}, batch=${CONFIG.batch_size}, delay=${CONFIG.delay_entre_lotes}ms`);
+    }
+  } catch (e) {
+    console.log('[DJEN Processos] Erro ao carregar config:', e);
+  }
 }
 
 // Jina Reader proxy (only fallback - Bright Data removed as too expensive)
@@ -624,7 +681,8 @@ async function processProcessosBatch(
     
     // Add delay between chunks to avoid rate limiting (except first chunk)
     if (i > 0) {
-      console.log(`[DJEN Processos] Chunk ${Math.floor(i / CONCURRENT_REQUESTS) + 1}: processando ${chunk.length} processos...`);
+      const chunkNum = Math.floor(i / CONCURRENT_REQUESTS) + 1;
+      console.log(`[DJEN Processos] Chunk ${chunkNum}: processando ${chunk.length} processos... (delay=${BASE_DELAY}ms)`);
       await delay(BASE_DELAY);
     }
     
@@ -875,9 +933,9 @@ async function processProcessosBatch(
       }
     }
 
-    // Small delay between chunks to avoid rate limiting
+    // Larger delay between chunks to avoid rate limiting (use STAGGER_DELAY)
     if (i + CONCURRENT_REQUESTS < processos.length) {
-      await delay(100);
+      await delay(STAGGER_DELAY);
     }
   }
 
@@ -923,6 +981,9 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Carregar parâmetros dinâmicos da tabela (igual ao DJEN Termos)
+    await loadConfigFromDatabase(supabase);
 
     let dataInicio: string | undefined;
     let dataFim: string | undefined;
