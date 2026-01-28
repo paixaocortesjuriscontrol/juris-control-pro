@@ -40,8 +40,10 @@ import {
   Home,
   Bell,
   BellOff,
-  Info
+  Info,
+  ListPlus
 } from "lucide-react";
+import { ProcessoPedidosTab } from "./ProcessoPedidosTab";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -181,6 +183,7 @@ export function ProcessoDetalhesCompletos({
     { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
     { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.length },
     { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
+    { id: "pedidos", label: "Pedidos", icon: ListPlus },
     { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
     { id: "andamentos", label: "Andamentos", icon: Activity, count: movimentacoes.length },
     { id: "redistribuicoes", label: "Redistrib.", icon: Shuffle, count: redistribuicoes.length },
@@ -1093,6 +1096,11 @@ export function ProcessoDetalhesCompletos({
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* Pedidos Trabalhistas Section */}
+              {activeSection === "pedidos" && (
+                <ProcessoPedidosTab processo={processo} />
               )}
 
               {/* Publicações DJEN Section */}
