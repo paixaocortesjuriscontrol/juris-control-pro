@@ -314,11 +314,16 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
             </>
           ) : (
             <>
-              {pedidos.length > 0 && (
-                <Button size="sm" variant="outline" onClick={() => setIsEditMode(true)} className="h-7 px-2 text-xs">
-                  <Pencil className="w-3 h-3 mr-1" /> Editar
-                </Button>
-              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsEditMode(true)}
+                disabled={pedidos.length === 0}
+                className="h-7 px-2 text-xs"
+                title={pedidos.length === 0 ? 'Adicione um pedido para poder editar' : 'Editar apenas os pedidos desta aba'}
+              >
+                <Pencil className="w-3 h-3 mr-1" /> Editar pedidos
+              </Button>
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
