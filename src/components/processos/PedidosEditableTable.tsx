@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,9 +21,23 @@ interface PedidosEditableTableProps {
   processoId: string;
 }
 
-const emptyPedido = {
+type PedidoFormData = {
+  pedido: string;
+  valor_pedido: number | null;
+  lei: string;
+  data: string;
+  sentenca: boolean;
+  juiz_sentenca: string;
+  acordao: boolean;
+  desembargador_turma: string;
+  tst: boolean;
+  ministro_turma_sessao: string;
+  observacao: string;
+};
+
+const emptyPedido: PedidoFormData = {
   pedido: "",
-  valor_pedido: null as number | null,
+  valor_pedido: null,
   lei: "",
   data: "",
   sentenca: false,
@@ -37,10 +51,34 @@ const emptyPedido = {
 
 export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) {
   const { pedidos, isLoading, totalValor, addPedido, updatePedido, deletePedido } = usePedidosProcesso(processoId);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editData, setEditData] = useState<typeof emptyPedido>(emptyPedido);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editData, setEditData] = useState<Record<string, PedidoFormData>>({});
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [newPedido, setNewPedido] = useState<typeof emptyPedido>(emptyPedido);
+  const [newPedido, setNewPedido] = useState<PedidoFormData>(emptyPedido);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Initialize edit data when entering edit mode
+  useEffect(() => {
+    if (isEditMode && pedidos.length > 0) {
+      const initialData: Record<string, PedidoFormData> = {};
+      pedidos.forEach((p) => {
+        initialData[p.id] = {
+          pedido: p.pedido,
+          valor_pedido: p.valor_pedido,
+          lei: p.lei || "",
+          data: p.data || "",
+          sentenca: p.sentenca,
+          juiz_sentenca: p.juiz_sentenca || "",
+          acordao: p.acordao,
+          desembargador_turma: p.desembargador_turma || "",
+          tst: p.tst,
+          ministro_turma_sessao: p.ministro_turma_sessao || "",
+          observacao: p.observacao || "",
+        };
+      });
+      setEditData(initialData);
+    }
+  }, [isEditMode, pedidos]);
 
   const handleAdd = async () => {
     if (!newPedido.pedido.trim()) return;
@@ -62,45 +100,43 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
     setIsAddDialogOpen(false);
   };
 
-  const startEdit = (pedido: PedidoProcesso) => {
-    setEditingId(pedido.id);
-    setEditData({
-      pedido: pedido.pedido,
-      valor_pedido: pedido.valor_pedido,
-      lei: pedido.lei || "",
-      data: pedido.data || "",
-      sentenca: pedido.sentenca,
-      juiz_sentenca: pedido.juiz_sentenca || "",
-      acordao: pedido.acordao,
-      desembargador_turma: pedido.desembargador_turma || "",
-      tst: pedido.tst,
-      ministro_turma_sessao: pedido.ministro_turma_sessao || "",
-      observacao: pedido.observacao || "",
-    });
+  const updateField = (id: string, field: keyof PedidoFormData, value: any) => {
+    setEditData((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: value },
+    }));
   };
 
-  const saveEdit = async () => {
-    if (!editingId || !editData.pedido.trim()) return;
-    await updatePedido.mutateAsync({
-      id: editingId,
-      pedido: editData.pedido,
-      valor_pedido: editData.valor_pedido,
-      lei: editData.lei || null,
-      data: editData.data || null,
-      sentenca: editData.sentenca,
-      juiz_sentenca: editData.juiz_sentenca || null,
-      acordao: editData.acordao,
-      desembargador_turma: editData.desembargador_turma || null,
-      tst: editData.tst,
-      ministro_turma_sessao: editData.ministro_turma_sessao || null,
-      observacao: editData.observacao || null,
-    });
-    setEditingId(null);
+  const saveAllChanges = async () => {
+    setIsSaving(true);
+    try {
+      for (const [id, data] of Object.entries(editData)) {
+        if (!data.pedido.trim()) continue;
+        await updatePedido.mutateAsync({
+          id,
+          pedido: data.pedido,
+          valor_pedido: data.valor_pedido,
+          lei: data.lei || null,
+          data: data.data || null,
+          sentenca: data.sentenca,
+          juiz_sentenca: data.juiz_sentenca || null,
+          acordao: data.acordao,
+          desembargador_turma: data.desembargador_turma || null,
+          tst: data.tst,
+          ministro_turma_sessao: data.ministro_turma_sessao || null,
+          observacao: data.observacao || null,
+        });
+      }
+      setIsEditMode(false);
+      setEditData({});
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const cancelEdit = () => {
-    setEditingId(null);
-    setEditData(emptyPedido);
+    setIsEditMode(false);
+    setEditData({});
   };
 
   const handleDelete = async (id: string) => {
@@ -126,20 +162,12 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
     }
   };
 
-  const renderBooleanBadge = (value: boolean, label: string) => {
-    return value ? (
-      <Badge variant="default" className="bg-green-600 text-xs">{label}</Badge>
-    ) : (
-      <Badge variant="outline" className="text-xs">Não</Badge>
-    );
-  };
-
   const PedidoFormFields = ({
     data,
     setData,
   }: {
-    data: typeof emptyPedido;
-    setData: (data: typeof emptyPedido) => void;
+    data: PedidoFormData;
+    setData: (data: PedidoFormData) => void;
   }) => (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">
@@ -268,33 +296,53 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           Pedidos Trabalhistas
           <Badge variant="secondary" className="text-xs h-5">{pedidos.length}</Badge>
           {totalValor > 0 && (
-            <Badge variant="outline" className="text-xs h-5 text-green-600 border-green-600">
+            <Badge variant="outline" className="text-xs h-5 text-primary border-primary">
               <DollarSign className="w-3 h-3 mr-1" />
               {formatCurrency(totalValor)}
             </Badge>
           )}
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
-              <Plus className="w-3 h-3 mr-1" /> Adicionar
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Novo Pedido</DialogTitle>
-            </DialogHeader>
-            <PedidoFormFields data={newPedido} setData={setNewPedido} />
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                Cancelar
+        <div className="flex items-center gap-2">
+          {isEditMode ? (
+            <>
+              <Button size="sm" variant="outline" onClick={cancelEdit} className="h-7 px-2 text-xs">
+                <X className="w-3 h-3 mr-1" /> Cancelar
               </Button>
-              <Button onClick={handleAdd} disabled={!newPedido.pedido.trim() || addPedido.isPending}>
-                <Save className="w-4 h-4 mr-1" /> Salvar
+              <Button size="sm" onClick={saveAllChanges} disabled={isSaving} className="h-7 px-2 text-xs">
+                <Save className="w-3 h-3 mr-1" /> {isSaving ? "Salvando..." : "Salvar"}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </>
+          ) : (
+            <>
+              {pedidos.length > 0 && (
+                <Button size="sm" variant="outline" onClick={() => setIsEditMode(true)} className="h-7 px-2 text-xs">
+                  <Pencil className="w-3 h-3 mr-1" /> Editar
+                </Button>
+              )}
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
+                    <Plus className="w-3 h-3 mr-1" /> Adicionar
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Novo Pedido</DialogTitle>
+                  </DialogHeader>
+                  <PedidoFormFields data={newPedido} setData={setNewPedido} />
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleAdd} disabled={!newPedido.pedido.trim() || addPedido.isPending}>
+                      <Save className="w-4 h-4 mr-1" /> Salvar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+        </div>
       </div>
       
       {isLoading ? (
@@ -319,18 +367,18 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                 <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-12">TST</th>
                 <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28">Ministro</th>
                 <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r">Obs.</th>
-                <th className="px-1 py-1.5 text-center font-medium text-muted-foreground w-16">Ações</th>
+                {isEditMode && <th className="px-1 py-1.5 text-center font-medium text-muted-foreground w-10">Del</th>}
               </tr>
             </thead>
             <tbody>
               {pedidos.map((pedido, idx) => (
                 <tr key={pedido.id} className={`border-b hover:bg-muted/30 ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
-                  {editingId === pedido.id ? (
+                  {isEditMode && editData[pedido.id] ? (
                     <>
                       <td className="px-1 py-0.5 border-r">
                         <Input
-                          value={editData.pedido}
-                          onChange={(e) => setEditData({ ...editData, pedido: e.target.value })}
+                          value={editData[pedido.id].pedido}
+                          onChange={(e) => updateField(pedido.id, "pedido", e.target.value)}
                           className="h-6 text-xs px-1"
                         />
                       </td>
@@ -338,84 +386,79 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                         <Input
                           type="number"
                           step="0.01"
-                          value={editData.valor_pedido ?? ""}
-                          onChange={(e) => setEditData({ ...editData, valor_pedido: e.target.value ? parseFloat(e.target.value) : null })}
+                          value={editData[pedido.id].valor_pedido ?? ""}
+                          onChange={(e) => updateField(pedido.id, "valor_pedido", e.target.value ? parseFloat(e.target.value) : null)}
                           className="h-6 text-xs px-1 text-right"
                         />
                       </td>
                       <td className="px-1 py-0.5 border-r">
                         <Input
-                          value={editData.lei}
-                          onChange={(e) => setEditData({ ...editData, lei: e.target.value })}
+                          value={editData[pedido.id].lei}
+                          onChange={(e) => updateField(pedido.id, "lei", e.target.value)}
                           className="h-6 text-xs px-1"
                         />
                       </td>
                       <td className="px-1 py-0.5 border-r">
                         <Input
                           type="date"
-                          value={editData.data}
-                          onChange={(e) => setEditData({ ...editData, data: e.target.value })}
+                          value={editData[pedido.id].data}
+                          onChange={(e) => updateField(pedido.id, "data", e.target.value)}
                           className="h-6 text-xs px-1"
                         />
                       </td>
                       <td className="px-1 py-0.5 border-r text-center">
                         <Checkbox
-                          checked={editData.sentenca}
-                          onCheckedChange={(checked) => setEditData({ ...editData, sentenca: !!checked })}
+                          checked={editData[pedido.id].sentenca}
+                          onCheckedChange={(checked) => updateField(pedido.id, "sentenca", !!checked)}
                           className="h-3.5 w-3.5"
                         />
                       </td>
                       <td className="px-1 py-0.5 border-r">
                         <Input
-                          value={editData.juiz_sentenca}
-                          onChange={(e) => setEditData({ ...editData, juiz_sentenca: e.target.value })}
+                          value={editData[pedido.id].juiz_sentenca}
+                          onChange={(e) => updateField(pedido.id, "juiz_sentenca", e.target.value)}
                           className="h-6 text-xs px-1"
                         />
                       </td>
                       <td className="px-1 py-0.5 border-r text-center">
                         <Checkbox
-                          checked={editData.acordao}
-                          onCheckedChange={(checked) => setEditData({ ...editData, acordao: !!checked })}
+                          checked={editData[pedido.id].acordao}
+                          onCheckedChange={(checked) => updateField(pedido.id, "acordao", !!checked)}
                           className="h-3.5 w-3.5"
                         />
                       </td>
                       <td className="px-1 py-0.5 border-r">
                         <Input
-                          value={editData.desembargador_turma}
-                          onChange={(e) => setEditData({ ...editData, desembargador_turma: e.target.value })}
+                          value={editData[pedido.id].desembargador_turma}
+                          onChange={(e) => updateField(pedido.id, "desembargador_turma", e.target.value)}
                           className="h-6 text-xs px-1"
                         />
                       </td>
                       <td className="px-1 py-0.5 border-r text-center">
                         <Checkbox
-                          checked={editData.tst}
-                          onCheckedChange={(checked) => setEditData({ ...editData, tst: !!checked })}
+                          checked={editData[pedido.id].tst}
+                          onCheckedChange={(checked) => updateField(pedido.id, "tst", !!checked)}
                           className="h-3.5 w-3.5"
                         />
                       </td>
                       <td className="px-1 py-0.5 border-r">
                         <Input
-                          value={editData.ministro_turma_sessao}
-                          onChange={(e) => setEditData({ ...editData, ministro_turma_sessao: e.target.value })}
+                          value={editData[pedido.id].ministro_turma_sessao}
+                          onChange={(e) => updateField(pedido.id, "ministro_turma_sessao", e.target.value)}
                           className="h-6 text-xs px-1"
                         />
                       </td>
                       <td className="px-1 py-0.5 border-r">
                         <Input
-                          value={editData.observacao}
-                          onChange={(e) => setEditData({ ...editData, observacao: e.target.value })}
+                          value={editData[pedido.id].observacao}
+                          onChange={(e) => updateField(pedido.id, "observacao", e.target.value)}
                           className="h-6 text-xs px-1"
                         />
                       </td>
                       <td className="px-1 py-0.5 text-center">
-                        <div className="flex gap-0.5 justify-center">
-                          <Button size="icon" variant="ghost" onClick={saveEdit} disabled={updatePedido.isPending} className="h-5 w-5">
-                            <Save className="w-3 h-3 text-green-600" />
-                          </Button>
-                          <Button size="icon" variant="ghost" onClick={cancelEdit} className="h-5 w-5">
-                            <X className="w-3 h-3 text-red-600" />
-                          </Button>
-                        </div>
+                        <Button size="icon" variant="ghost" onClick={() => handleDelete(pedido.id)} className="h-5 w-5 hover:bg-destructive/10">
+                          <Trash2 className="w-3 h-3 text-destructive" />
+                        </Button>
                       </td>
                     </>
                   ) : (
@@ -431,16 +474,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                       <td className="px-2 py-1 border-r text-center">{pedido.tst ? "✓" : "-"}</td>
                       <td className="px-2 py-1 border-r truncate" title={pedido.ministro_turma_sessao || ""}>{pedido.ministro_turma_sessao || "-"}</td>
                       <td className="px-2 py-1 border-r truncate max-w-[100px]" title={pedido.observacao || ""}>{pedido.observacao || "-"}</td>
-                      <td className="px-1 py-1 text-center">
-                        <div className="flex gap-1 justify-center">
-                          <Button size="icon" variant="ghost" onClick={() => startEdit(pedido)} className="h-6 w-6 hover:bg-primary/10" title="Editar">
-                            <Pencil className="w-3.5 h-3.5 text-primary" />
-                          </Button>
-                          <Button size="icon" variant="ghost" onClick={() => handleDelete(pedido.id)} className="h-6 w-6 hover:bg-destructive/10" title="Excluir">
-                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                          </Button>
-                        </div>
-                      </td>
                     </>
                   )}
                 </tr>
