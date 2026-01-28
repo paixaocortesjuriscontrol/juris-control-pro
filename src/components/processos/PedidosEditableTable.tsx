@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -117,6 +117,17 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newPedido, setNewPedido] = useState<PedidoFormData>(emptyPedido);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Scroll horizontal por arrasto (robusto no Android quando o scroll vertical do layout captura o gesto)
+  const cardScrollerRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef({
+    active: false,
+    pointerId: -1,
+    startX: 0,
+    startY: 0,
+    startScrollLeft: 0,
+    lockedHorizontal: false,
+  });
 
   // Initialize edit data when opening edit dialog
   useEffect(() => {
@@ -475,7 +486,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                   <td className="px-2 py-1.5 border-r">{pedido.desembargador_turma || "-"}</td>
                   <td className="px-2 py-1.5 border-r text-center">{pedido.tst ? "✓" : "-"}</td>
                   <td className="px-2 py-1.5 border-r">{pedido.ministro_turma_sessao || "-"}</td>
-                  <td className="px-2 py-1.5 border-r">{pedido.observacao || "-"}</td>
+                  <td className="px-2 py-1.5 border-r">{formatObs(pedido.observacao)}</td>
                   <td className="px-1 py-1.5 text-center">-</td>
                 </>
               )}
@@ -600,8 +611,50 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
 
       {/* Área com scroll horizontal (mesma ideia do popup) */}
       <div
+        ref={cardScrollerRef}
         className="overflow-x-auto w-full"
-        style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+        style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+        onPointerDown={(e) => {
+          const el = cardScrollerRef.current;
+          if (!el || el.scrollWidth <= el.clientWidth) return;
+
+          dragRef.current.active = true;
+          dragRef.current.pointerId = e.pointerId;
+          dragRef.current.startX = e.clientX;
+          dragRef.current.startY = e.clientY;
+          dragRef.current.startScrollLeft = el.scrollLeft;
+          dragRef.current.lockedHorizontal = false;
+
+          try {
+            (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+          } catch {
+            // ignore
+          }
+        }}
+        onPointerMove={(e) => {
+          const el = cardScrollerRef.current;
+          const st = dragRef.current;
+          if (!el || !st.active || st.pointerId !== e.pointerId) return;
+
+          const dx = e.clientX - st.startX;
+          const dy = e.clientY - st.startY;
+
+          if (!st.lockedHorizontal) {
+            if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+            st.lockedHorizontal = Math.abs(dx) > Math.abs(dy);
+          }
+
+          if (!st.lockedHorizontal) return;
+
+          e.preventDefault();
+          el.scrollLeft = st.startScrollLeft - dx;
+        }}
+        onPointerUp={(e) => {
+          if (dragRef.current.pointerId === e.pointerId) dragRef.current.active = false;
+        }}
+        onPointerCancel={(e) => {
+          if (dragRef.current.pointerId === e.pointerId) dragRef.current.active = false;
+        }}
       >
         <div className={pedidos.length > 0 ? "min-w-[800px]" : "min-w-0"}>
           {isLoading ? (
