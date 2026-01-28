@@ -466,6 +466,13 @@ export function useMonitoringDashboard() {
       progress = 100;
     }
 
+    // CORREÇÃO CRÍTICA: Se o progresso é 100%, o status DEVE ser 'completed'
+    // independentemente do status no banco (que pode ter sido marcado como timeout
+    // antes de o progresso ser atualizado para 100%)
+    if (progress === 100) {
+      status = 'completed';
+    }
+
     // Se a execução está concluída, garantir 100% quando houver total conhecido.
     // Para tipos sem total estruturado (distribuições), mostrar 100% se concluído
     if (status === 'completed') {
