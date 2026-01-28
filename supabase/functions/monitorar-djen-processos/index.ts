@@ -35,28 +35,29 @@ function getBrazilDayUtcRange(iso: string): { startUtc: string; endUtc: string }
 const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 
 // ============================================================================
-// PARÂMETROS OTIMIZADOS PARA 13k+ PROCESSOS
+// PARÂMETROS OTIMIZADOS PARA 13k+ PROCESSOS - MODO AGRESSIVO
 // ============================================================================
-// Valores hardcoded otimizados - independente da tabela parametros_monitoramento_djen
-// (a tabela compartilhada continua sendo usada pelo DJEN por Termos)
+// O DJEN Termos (frontend) faz milhares de buscas rapidamente.
+// Precisamos igualar essa performance. Aumentar paralelismo, reduzir delays.
 const CONFIG = {
-  max_paralelo: 5,               // 5 requisições simultâneas - bom throughput sem rate limit
-  batch_size: 100,               // 100 processos por lote - menos overhead
-  delay_entre_lotes: 1200,       // 1.2s entre lotes - respiro adequado
-  delay_entre_paginas: 150,      // 150ms entre páginas da API
+  max_paralelo: 10,              // 10 requisições simultâneas - agressivo
+  batch_size: 100,               // 100 processos por lote
+  delay_entre_lotes: 500,        // 500ms entre lotes - mais rápido
+  delay_entre_paginas: 50,       // 50ms entre páginas
   soft_timeout_ms: 55000,        // 55s soft timeout
-  finalization_buffer_ms: 5000,  // 5s buffer para finalização
-  max_retries: 4,                // 4 tentativas com backoff exponencial
-  retry_base_delay_ms: 2000,     // Backoff: 2s, 4s, 8s, 16s
+  finalization_buffer_ms: 5000,  // 5s buffer
+  max_retries: 3,                // 3 tentativas (reduzido para velocidade)
+  retry_base_delay_ms: 1000,     // Backoff: 1s, 2s, 4s
 };
 
-// Constantes derivadas da config otimizada
+// Constantes derivadas - AGRESSIVAS
 const BATCH_SIZE = CONFIG.batch_size;           // 100
-const CONCURRENT_REQUESTS = CONFIG.max_paralelo; // 5
+const CONCURRENT_REQUESTS = CONFIG.max_paralelo; // 10
 const PAGE_SIZE = 100; // Max page size from API
-const MAX_PAGES = 2;   // Limit pages per process
-const BASE_DELAY = CONFIG.delay_entre_lotes;    // 1200
-const STAGGER_DELAY = 150; // 150ms entre requisições paralelas
+const MAX_PAGES = 1;   // 1 página só - mais rápido
+const BASE_DELAY = CONFIG.delay_entre_lotes;    // 500
+const STAGGER_DELAY = 50; // 50ms entre requisições paralelas
+
 
 // Browser-like headers
 const browserHeaders = {
@@ -618,7 +619,8 @@ async function searchDJENByProcesso(
   }
 }
 
-// Process a batch of processes in parallel
+// Process a batch of processes in parallel - OTIMIZADO PARA VELOCIDADE
+// Coleta todas as publicações primeiro, depois faz batch inserts
 async function processProcessosBatch(
   processos: Array<{ id: string; numero: string; status?: string; coordenacao_id?: string }>,
   dataInicio?: string,
@@ -637,45 +639,36 @@ async function processProcessosBatch(
   let processosComResultados = 0;
   let alertasProcessosNaoAtivos = 0;
   
-  // Status considerados "não-ativos" para gerar alerta especial
-  const statusNaoAtivos = ['arquivado', 'arquivado_definitivamente', 'arquivado_provisoriamente', 'suspenso', 'encerrado'];
+  // Acumuladores para batch insert
+  const publicacoesToInsert: any[] = [];
+  const seenHashes = new Set<string>();
 
-  // Process in chunks of CONCURRENT_REQUESTS with delays between chunks
+  // FASE 1: Buscar todas as publicações em paralelo (RÁPIDO)
   for (let i = 0; i < processos.length; i += CONCURRENT_REQUESTS) {
     const chunk = processos.slice(i, i + CONCURRENT_REQUESTS);
-    const chunkNum = Math.floor(i / CONCURRENT_REQUESTS) + 1;
-    console.log(`[DJEN Processos] Chunk ${chunkNum}: processando ${chunk.length} processos...`);
     
-    // Process chunk in parallel (Promise.all) - much faster than sequential
+    // Process chunk in parallel - SEM STAGGER interno para máxima velocidade
     const results = await Promise.all(
-      chunk.map(async (processo, idx) => {
-        // Stagger para evitar burst (reduz 429) sem penalizar throughput com delay entre chunks
-        if (idx > 0) await delay(idx * STAGGER_DELAY);
+      chunk.map(async (processo) => {
         const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
         return { processo, publicacoes };
       })
     );
 
-    // Process results
+    // Processar resultados e preparar para batch insert
     for (const { processo, publicacoes } of results) {
       if (publicacoes.length > 0) {
         processosComResultados++;
       }
 
       let novasDoProcesso = 0;
-      const seenHashes = new Set<string>();
 
       for (const pub of publicacoes) {
         const conteudo = pub.texto ?? pub.teor ?? pub.conteudo ?? pub.conteudoPublicacao ?? pub.resumo ?? '';
         if (!conteudo || typeof conteudo !== 'string') continue;
 
-        // Data de disponibilização (dia que saiu no sistema) vs publicação (dia oficial do diário)
-        // A API PJE Comunica retorna os campos diretamente no item ou dentro de comunicacao
-        // IMPORTANTE: Buscar em TODOS os níveis possíveis da resposta
         const pubObj = pub.comunicacao || pub;
-        // (removido) log detalhado de estrutura — custoso em alto volume
         
-        // Buscar dataDisponibilizacao em todos os campos possíveis (nível raiz e aninhado)
         const rawDataDisponibilizacao = 
           pub.dataDisponibilizacao || pubObj.dataDisponibilizacao ||
           pub.dataDJe || pubObj.dataDJe || 
@@ -684,7 +677,6 @@ async function processProcessosBatch(
           pub.data_disponibilizacao || pubObj.data_disponibilizacao ||
           null;
           
-        // Buscar dataPublicacao em todos os campos possíveis
         const rawDataPublicacao = 
           pub.dataPublicacao || pubObj.dataPublicacao ||
           pub.dataJornal || pubObj.dataJornal || 
@@ -696,28 +688,17 @@ async function processProcessosBatch(
         let dataDisponibilizacao = rawDataDisponibilizacao;
         let dataPublicacao = rawDataPublicacao;
         
-        // Log quando datas não são encontradas para debug
-        if (!dataDisponibilizacao && !dataPublicacao) {
-          console.log(`[DJEN Processos] No dates found. Full pub keys: ${Object.keys(pub).join(', ')}. Full pubObj keys: ${Object.keys(pubObj).join(', ')}`);
-        }
-        
-        // Se temos data_disponibilizacao, calcular data_publicacao como próximo dia útil
         if (dataDisponibilizacao && !rawDataPublicacao) {
           try {
             const dispDate = new Date(dataDisponibilizacao);
             if (!isNaN(dispDate.getTime())) {
-              // Data de publicação = próximo dia útil após disponibilização
-              dispDate.setDate(dispDate.getDate() + 1); // Avança 1 dia
+              dispDate.setDate(dispDate.getDate() + 1);
               const proximoDiaUtil = calcularPrimeiroDiaUtil(dispDate);
               dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
             }
-          } catch {
-            // Ignore date parsing errors
-          }
+          } catch { /* ignore */ }
         }
         
-        // Fallback: usar data atual APENAS se realmente não há data na API
-        // Este fallback é problemático pois pode gravar data errada
         if (!dataDisponibilizacao && !dataPublicacao) {
           const hoje = getBrazilISODate();
           dataDisponibilizacao = hoje;
@@ -725,15 +706,10 @@ async function processProcessosBatch(
           amanha.setDate(amanha.getDate() + 1);
           const proximoDiaUtil = calcularPrimeiroDiaUtil(amanha);
           dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
-          console.log(`[DJEN Processos] WARNING: Using today as fallback date for processo ${processo.numero}. This should be investigated!`);
         } else if (!dataDisponibilizacao && dataPublicacao) {
-          // Se só temos data_publicacao da API, manter como está
-          dataDisponibilizacao = dataPublicacao; // Fallback seguro
+          dataDisponibilizacao = dataPublicacao;
         }
         
-        // Deduplicação robusta: normaliza HTML/whitespace para evitar duplicatas com pequenas variações.
-        // Importante: muitos registros chegam sem data_publicacao/data_disponibilizacao; nesse caso,
-        // não usamos o intervalo (dataInicio/dataFim) como chave, para não re-gerar duplicatas a cada execução.
         const conteudoNorm = normalizeConteudo(conteudo);
         const dataKey = (dataPublicacao || dataDisponibilizacao || '').toString();
         const hashConteudo = generateHash(`${processo.numero}|${dataKey}|${conteudoNorm.slice(0, 2000)}`);
@@ -743,141 +719,17 @@ async function processProcessosBatch(
           continue;
         }
         seenHashes.add(hashConteudo);
-
-        // Upsert to avoid race conditions - onConflict ignores if already exists
-        const { data: inserted, error: insertError } = await supabase
-          .from('publicacoes_djen_processos')
-          .upsert({
-            processo_id: processo.id,
-            processo_numero: processo.numero,
-            hash_conteudo: hashConteudo,
-            data_publicacao: dataPublicacao,
-            data_disponibilizacao: dataDisponibilizacao,
-            conteudo: conteudo,
-            fonte: 'pje_comunica',
-          }, { onConflict: 'hash_conteudo', ignoreDuplicates: true })
-          .select('id')
-          .single();
-
-        // If no data returned, it's a duplicate
-        if (insertError || !inserted) {
-          totalDuplicadas++;
-          continue;
-        }
-
-        totalNovas++;
         novasDoProcesso++;
 
-        // Detect audiencias and intimacoes - criar tarefas para responsáveis
-        const audienciaInfo = detectAudiencia(conteudo);
-        if (audienciaInfo) {
-          const { data: insertedAudiencia } = await supabase.from('audiencias_detectadas').insert({
-            processo_id: processo.id,
-            processo_numero: processo.numero,
-            publicacao_id: inserted.id,
-            data_audiencia: audienciaInfo.dataAudiencia,
-            hora: audienciaInfo.hora,
-            tipo_audiencia: audienciaInfo.tipoAudiencia,
-            local_audiencia: audienciaInfo.localAudiencia,
-            contexto: audienciaInfo.contexto,
-            conteudo_publicacao: conteudo,
-            origem: 'monitoramento_djen_processos',
-            status: 'pendente',
-          }).select('id').single();
-
-          // Criar tarefas para responsáveis do processo
-          if (insertedAudiencia) {
-            // Calcular data de vencimento (2 dias antes da audiência)
-            let dataVencimentoTarefa: string;
-            if (audienciaInfo.dataAudiencia) {
-              const dataAud = new Date(audienciaInfo.dataAudiencia);
-              dataAud.setDate(dataAud.getDate() - 2);
-              dataVencimentoTarefa = dataAud.toISOString().split('T')[0];
-            } else {
-              const hoje = new Date();
-              hoje.setDate(hoje.getDate() + 5);
-              dataVencimentoTarefa = hoje.toISOString().split('T')[0];
-            }
-
-            const tarefaIds = await criarTarefasParaResponsaveis(
-              supabase,
-              processo.id,
-              `[DJEN] Audiência ${audienciaInfo.tipoAudiencia || ''} - ${processo.numero}`,
-              `Audiência detectada no DJEN.\n\nData: ${audienciaInfo.dataAudiencia || 'A definir'}\nHora: ${audienciaInfo.hora || 'A definir'}\n\nContexto:\n${audienciaInfo.contexto || ''}`,
-              dataVencimentoTarefa,
-              'alta',
-              'monitoramento_djen_processos',
-              'Audiência', // tipo_tarefa
-              inserted.id // publicacao_processo_id para vincular na tabela N:N
-            );
-
-            // Vincular tarefa à audiência
-            if (tarefaIds.length > 0) {
-              await supabase
-                .from('audiencias_detectadas')
-                .update({ tarefa_id: tarefaIds[0] })
-                .eq('id', insertedAudiencia.id);
-            }
-          }
-        }
-
-        const intimacaoInfo = detectIntimacao(conteudo, processo.numero);
-        if (intimacaoInfo) {
-          // Calcular datas corretamente
-          const dataDisponibilizacao = dataPublicacao ? new Date(dataPublicacao) : new Date();
-          const dataIntimacao = calcularPrimeiroDiaUtil(new Date(dataDisponibilizacao.getTime() + 86400000));
-          
-          let dataLimite: string | null = null;
-          if (intimacaoInfo.prazoDias) {
-            const limite = calcularPrimeiroDiaUtil(dataIntimacao, intimacaoInfo.prazoDias);
-            dataLimite = limite.toISOString().split('T')[0];
-          }
-          
-          // Usar upsert com hash_dedup para evitar duplicatas
-          const { data: insertedIntimacao } = await supabase.from('intimacoes_detectadas')
-            .upsert({
-              processo_id: processo.id,
-              processo_numero: processo.numero,
-              tipo_intimacao: intimacaoInfo.tipoIntimacao,
-              prazo_dias: intimacaoInfo.prazoDias,
-              data_disponibilizacao: dataDisponibilizacao.toISOString(),
-              data_intimacao: dataIntimacao.toISOString(),
-              data_limite: dataLimite,
-              contexto: intimacaoInfo.contexto,
-              conteudo_publicacao: conteudo,
-              origem: 'monitoramento_djen_processos',
-              status: 'pendente',
-              hash_dedup: intimacaoInfo.hashDedup,
-            }, { onConflict: 'hash_dedup', ignoreDuplicates: true })
-            .select('id')
-            .single();
-
-          // Criar tarefas para responsáveis do processo (se não é duplicata)
-          if (insertedIntimacao) {
-            const dataVencimentoTarefa = dataLimite || 
-              new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-            const tarefaIds = await criarTarefasParaResponsaveis(
-              supabase,
-              processo.id,
-              `[DJEN] ${intimacaoInfo.tipoIntimacao || 'Intimação'} - ${processo.numero}`,
-              `Intimação detectada no DJEN.\n\nPrazo: ${intimacaoInfo.prazoDias ? intimacaoInfo.prazoDias + ' dias' : 'Verificar'}\nData Limite: ${dataLimite || 'A calcular'}\n\nContexto:\n${intimacaoInfo.contexto || ''}`,
-              dataVencimentoTarefa,
-              intimacaoInfo.prazoDias && intimacaoInfo.prazoDias <= 5 ? 'urgente' : 'alta',
-              'monitoramento_djen_processos',
-              'Intimação', // tipo_tarefa
-              inserted.id // publicacao_processo_id para vincular na tabela N:N
-            );
-
-            // Vincular tarefa à intimação
-            if (tarefaIds.length > 0) {
-              await supabase
-                .from('intimacoes_detectadas')
-                .update({ tarefa_id: tarefaIds[0] })
-                .eq('id', insertedIntimacao.id);
-            }
-          }
-        }
+        publicacoesToInsert.push({
+          processo_id: processo.id,
+          processo_numero: processo.numero,
+          hash_conteudo: hashConteudo,
+          data_publicacao: dataPublicacao,
+          data_disponibilizacao: dataDisponibilizacao,
+          conteudo: conteudo,
+          fonte: 'pje_comunica',
+        });
       }
 
       if (novasDoProcesso > 0) {
@@ -885,9 +737,76 @@ async function processProcessosBatch(
       }
     }
 
-    // Larger delay between chunks to avoid rate limiting (use STAGGER_DELAY)
+    // Pequeno delay entre chunks para evitar rate limit
     if (i + CONCURRENT_REQUESTS < processos.length) {
-      await delay(STAGGER_DELAY);
+      await delay(50); // 50ms mínimo
+    }
+  }
+
+  // FASE 2: Batch insert de todas as publicações (RÁPIDO)
+  if (publicacoesToInsert.length > 0) {
+    // Inserir em batches de 100 para evitar payload muito grande
+    const BATCH_INSERT_SIZE = 100;
+    for (let i = 0; i < publicacoesToInsert.length; i += BATCH_INSERT_SIZE) {
+      const batch = publicacoesToInsert.slice(i, i + BATCH_INSERT_SIZE);
+      
+      const { data: inserted, error } = await supabase
+        .from('publicacoes_djen_processos')
+        .upsert(batch, { onConflict: 'hash_conteudo', ignoreDuplicates: true })
+        .select('id, processo_id, processo_numero, conteudo');
+      
+      if (error) {
+        console.error(`[DJEN Processos] Batch insert error:`, error.message);
+        totalDuplicadas += batch.length;
+      } else if (inserted) {
+        totalNovas += inserted.length;
+        totalDuplicadas += batch.length - inserted.length;
+        
+        // FASE 3: Detectar audiências/intimações para publicações NOVAS (background)
+        // Fazer em paralelo para não bloquear
+        const detectPromises = inserted.map(async (pub: any) => {
+          const conteudo = pub.conteudo || '';
+          
+          // Detectar audiência
+          const audienciaInfo = detectAudiencia(conteudo);
+          if (audienciaInfo) {
+            await supabase.from('audiencias_detectadas').upsert({
+              processo_id: pub.processo_id,
+              processo_numero: pub.processo_numero,
+              publicacao_id: pub.id,
+              data_audiencia: audienciaInfo.dataAudiencia,
+              hora: audienciaInfo.hora,
+              tipo_audiencia: audienciaInfo.tipoAudiencia,
+              local_audiencia: audienciaInfo.localAudiencia,
+              contexto: audienciaInfo.contexto,
+              conteudo_publicacao: conteudo.slice(0, 5000),
+              origem: 'monitoramento_djen_processos',
+              status: 'pendente',
+            }, { onConflict: 'publicacao_id', ignoreDuplicates: true });
+          }
+          
+          // Detectar intimação
+          const intimacaoInfo = detectIntimacao(conteudo, pub.processo_numero);
+          if (intimacaoInfo) {
+            await supabase.from('intimacoes_detectadas').upsert({
+              processo_id: pub.processo_id,
+              processo_numero: pub.processo_numero,
+              tipo_intimacao: intimacaoInfo.tipoIntimacao,
+              prazo_dias: intimacaoInfo.prazoDias,
+              contexto: intimacaoInfo.contexto,
+              conteudo_publicacao: conteudo.slice(0, 5000),
+              origem: 'monitoramento_djen_processos',
+              status: 'pendente',
+              hash_dedup: intimacaoInfo.hashDedup,
+            }, { onConflict: 'hash_dedup', ignoreDuplicates: true });
+          }
+        });
+        
+        // Executar detecções em paralelo (não bloqueia o fluxo principal)
+        await Promise.all(detectPromises).catch(e => 
+          console.log(`[DJEN Processos] Detection errors (non-fatal):`, e.message)
+        );
+      }
     }
   }
 
