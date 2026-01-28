@@ -35,19 +35,18 @@ function getBrazilDayUtcRange(iso: string): { startUtc: string; endUtc: string }
 const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 
 // ============================================================================
-// PARÂMETROS DE THROTTLING - valores padrão (serão sobrescritos pela tabela)
+// PARÂMETROS DE THROTTLING - MEIO-TERMO OTIMIZADO
 // ============================================================================
-// Estes valores serão carregados dinamicamente da tabela parametros_monitoramento_djen
-// Mesmos parâmetros do monitorar-djen (termos) para evitar rate limiting
+// Valores balanceados: nem tão agressivo (rate limit), nem tão lento
 let CONFIG = {
-  max_paralelo: 5,               // Reduzido de 8 para 5 (igual ao DJEN termos)
-  batch_size: 50,                // Reduzido de 150 para 50 (mais conservador)
-  delay_entre_lotes: 1500,       // Aumentado de 600ms para 1500ms
-  delay_entre_paginas: 300,      // Delay entre páginas
-  soft_timeout_ms: 50000,        // 50s soft timeout (igual termos)
+  max_paralelo: 3,               // Meio-termo: 3 (era 8 agressivo, 1 lento)
+  batch_size: 20,                // Meio-termo: 20 (era 150 agressivo, 10 lento)
+  delay_entre_lotes: 2500,       // Meio-termo: 2500ms (era 600 agressivo, 4000 lento)
+  delay_entre_paginas: 200,      // Delay entre páginas
+  soft_timeout_ms: 50000,        // 50s soft timeout
   finalization_buffer_ms: 10000, // 10s buffer para finalização
-  max_retries: 4,
-  retry_base_delay_ms: 3000,
+  max_retries: 3,
+  retry_base_delay_ms: 2000,
 };
 
 // Legacy constants - will be dynamically updated
@@ -56,7 +55,7 @@ let CONCURRENT_REQUESTS = CONFIG.max_paralelo;
 const PAGE_SIZE = 100; // Max page size from API
 const MAX_PAGES = 2; // Limit pages per process
 let BASE_DELAY = CONFIG.delay_entre_lotes;
-const STAGGER_DELAY = 500; // Increased from 100ms to 500ms
+const STAGGER_DELAY = 300; // Meio-termo: 300ms (era 100 agressivo, 500 lento)
 
 // Browser-like headers
 const browserHeaders = {
