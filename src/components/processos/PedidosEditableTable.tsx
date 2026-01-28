@@ -481,50 +481,49 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
 
   // Read-only table for main view
   const ReadOnlyTable = () => (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs border-collapse">
-        <thead>
-          <tr className="bg-muted/50 border-b">
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r">Pedido</th>
-            <th className="px-2 py-1.5 text-right font-medium text-muted-foreground border-r w-24">Valor</th>
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-20">Lei</th>
-            <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-20">Data</th>
-            <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-14">Sent.</th>
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28">Juiz</th>
-            <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-14">Acór.</th>
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28">Desemb.</th>
-            <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-12">TST</th>
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28">Ministro</th>
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Obs.</th>
+    <table className="w-full text-xs border-collapse">
+      <thead>
+        <tr className="bg-muted/50 border-b">
+          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r whitespace-nowrap">Pedido</th>
+          <th className="px-2 py-1.5 text-right font-medium text-muted-foreground border-r w-24 whitespace-nowrap">Valor</th>
+          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-20 whitespace-nowrap">Lei</th>
+          <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-20 whitespace-nowrap">Data</th>
+          <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-14 whitespace-nowrap">Sent.</th>
+          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Juiz</th>
+          <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-14 whitespace-nowrap">Acór.</th>
+          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Desemb.</th>
+          <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-12 whitespace-nowrap">TST</th>
+          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Ministro</th>
+          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">Obs.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {pedidos.map((pedido, idx) => (
+          <tr key={pedido.id} className={`border-b hover:bg-muted/30 ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
+            <td className="px-2 py-1 border-r font-medium whitespace-nowrap">{pedido.pedido}</td>
+            <td className="px-2 py-1 border-r text-right tabular-nums whitespace-nowrap">{formatCurrency(pedido.valor_pedido)}</td>
+            <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.lei || "-"}</td>
+            <td className="px-2 py-1 border-r text-center whitespace-nowrap">{formatDate(pedido.data)}</td>
+            <td className="px-2 py-1 border-r text-center">{pedido.sentenca ? "✓" : "-"}</td>
+            <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.juiz_sentenca || "-"}</td>
+            <td className="px-2 py-1 border-r text-center">{pedido.acordao ? "✓" : "-"}</td>
+            <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.desembargador_turma || "-"}</td>
+            <td className="px-2 py-1 border-r text-center">{pedido.tst ? "✓" : "-"}</td>
+            <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.ministro_turma_sessao || "-"}</td>
+            <td className="px-2 py-1 whitespace-nowrap">{pedido.observacao || "-"}</td>
           </tr>
-        </thead>
-        <tbody>
-          {pedidos.map((pedido, idx) => (
-            <tr key={pedido.id} className={`border-b hover:bg-muted/30 ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
-              <td className="px-2 py-1 border-r font-medium truncate max-w-[150px]" title={pedido.pedido}>{pedido.pedido}</td>
-              <td className="px-2 py-1 border-r text-right tabular-nums">{formatCurrency(pedido.valor_pedido)}</td>
-              <td className="px-2 py-1 border-r truncate" title={pedido.lei || ""}>{pedido.lei || "-"}</td>
-              <td className="px-2 py-1 border-r text-center">{formatDate(pedido.data)}</td>
-              <td className="px-2 py-1 border-r text-center">{pedido.sentenca ? "✓" : "-"}</td>
-              <td className="px-2 py-1 border-r truncate" title={pedido.juiz_sentenca || ""}>{pedido.juiz_sentenca || "-"}</td>
-              <td className="px-2 py-1 border-r text-center">{pedido.acordao ? "✓" : "-"}</td>
-              <td className="px-2 py-1 border-r truncate" title={pedido.desembargador_turma || ""}>{pedido.desembargador_turma || "-"}</td>
-              <td className="px-2 py-1 border-r text-center">{pedido.tst ? "✓" : "-"}</td>
-              <td className="px-2 py-1 border-r truncate" title={pedido.ministro_turma_sessao || ""}>{pedido.ministro_turma_sessao || "-"}</td>
-              <td className="px-2 py-1 truncate max-w-[100px]" title={pedido.observacao || ""}>{pedido.observacao || "-"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 
   return (
-    <div className="border rounded-md bg-background">
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Gavel className="w-4 h-4" />
-          Pedidos Trabalhistas
+    <div className="border rounded-md bg-background overflow-hidden">
+      {/* Header with buttons - sticky on mobile */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
+        <div className="flex items-center gap-2 text-sm font-medium flex-wrap">
+          <Gavel className="w-4 h-4 shrink-0" />
+          <span>Pedidos Trabalhistas</span>
           <Badge variant="secondary" className="text-xs h-5">{pedidos.length}</Badge>
           {totalValor > 0 && (
             <Badge variant="outline" className="text-xs h-5 text-primary border-primary">
@@ -533,21 +532,21 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {pedidos.length > 0 && (
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
               <DialogTrigger asChild>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 px-2 text-xs"
+                  className="h-8 px-3 text-xs flex-1 sm:flex-none"
                 >
                   <Pencil className="w-3 h-3 mr-1" /> Editar pedidos
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-hidden">
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
+                  <DialogTitle className="flex items-center gap-2 flex-wrap">
                     <Gavel className="w-5 h-5" />
                     Editar Pedidos Trabalhistas
                     <Badge variant="secondary">{pedidos.length} pedidos</Badge>
@@ -572,7 +571,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           )}
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
+              <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none">
                 <Plus className="w-3 h-3 mr-1" /> Adicionar
               </Button>
             </DialogTrigger>
@@ -601,7 +600,11 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           Nenhum pedido cadastrado. Clique em "Adicionar" para criar.
         </div>
       ) : (
-        <ReadOnlyTable />
+        <div className="overflow-x-auto">
+          <div className="min-w-[800px]">
+            <ReadOnlyTable />
+          </div>
+        </div>
       )}
     </div>
   );
