@@ -318,8 +318,11 @@ export function ProcessoDetalhesCompletos({
             Isso reduz conflitos de gesto com scrolls horizontais aninhados (ex.: tabela de Pedidos).
             No desktop mantemos a altura fixa para scroll interno.
           */}
-          <ScrollArea className="sm:h-[calc(100vh-120px)]">
-            <div className="p-3 sm:p-4">
+          {/*
+            Evita ScrollArea (Radix) no conteúdo para não capturar gestos no mobile.
+            No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
+          */}
+          <div className="p-3 sm:p-4 sm:h-[calc(100vh-120px)] sm:overflow-y-auto">
               {/* Resumo Section - Visão geral rápida */}
               {activeSection === "resumo" && (
                 <div className="space-y-4">
@@ -1408,7 +1411,6 @@ export function ProcessoDetalhesCompletos({
                 </div>
               )}
             </div>
-          </ScrollArea>
         </div>
       </div>
     </div>
