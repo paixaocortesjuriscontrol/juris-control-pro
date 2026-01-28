@@ -615,8 +615,9 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
         className="overflow-x-auto pb-1 max-h-[60vh] w-full touch-pan-x touch-pan-y"
         style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y" }}
         onPointerDown={(e) => {
-          // Mobile: prefer native horizontal scroll (igual às abas)
-          if (e.pointerType === "touch") return;
+          // Só habilita drag-to-scroll para mouse.
+          // Em touch/pen, deixar o scroll nativo do browser (evita bloquear gesto no mobile).
+          if (e.pointerType !== "mouse") return;
 
           const el = cardScrollerRef.current;
           if (!el || el.scrollWidth <= el.clientWidth) return;
@@ -635,7 +636,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           }
         }}
         onPointerMove={(e) => {
-          if (e.pointerType === "touch") return;
+          if (e.pointerType !== "mouse") return;
 
           const el = cardScrollerRef.current;
           const st = dragRef.current;
@@ -659,6 +660,9 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
         }}
         onPointerCancel={(e) => {
           if (dragRef.current.pointerId === e.pointerId) dragRef.current.active = false;
+        }}
+        onPointerLeave={() => {
+          dragRef.current.active = false;
         }}
       >
         <div className={pedidos.length > 0 ? "min-w-[800px]" : "min-w-0"}>
