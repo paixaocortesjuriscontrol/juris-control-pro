@@ -518,84 +518,85 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
   );
 
   return (
-    <div className="space-y-0 min-w-0 w-full">
-      {/* Card com scroll horizontal nativo para mobile */}
-      <div className="border rounded-md overflow-hidden">
-        <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
-          <div className={pedidos.length > 0 ? "min-w-[800px]" : ""}>
-          {/* Header with buttons */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-3 py-2 bg-muted/30 border-b">
-            <div className="flex items-center gap-2 text-sm font-medium flex-wrap">
-              <Gavel className="w-4 h-4 shrink-0" />
-              <span>Pedidos Trabalhistas</span>
-              <Badge variant="secondary" className="text-xs h-5">{pedidos.length}</Badge>
-              {totalValor > 0 && (
-                <Badge variant="outline" className="text-xs h-5 text-primary border-primary">
-                  <DollarSign className="w-3 h-3 mr-1" />
-                  {formatCurrency(totalValor)}
-                </Badge>
-              )}
-            </div>
+    <div className="space-y-0 min-w-0 w-full border rounded-md overflow-hidden">
+      {/* Header fixo */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-3 py-2 bg-muted/30 border-b">
+        <div className="flex items-center gap-2 text-sm font-medium flex-wrap">
+          <Gavel className="w-4 h-4 shrink-0" />
+          <span>Pedidos Trabalhistas</span>
+          <Badge variant="secondary" className="text-xs h-5">{pedidos.length}</Badge>
+          {totalValor > 0 && (
+            <Badge variant="outline" className="text-xs h-5 text-primary border-primary">
+              <DollarSign className="w-3 h-3 mr-1" />
+              {formatCurrency(totalValor)}
+            </Badge>
+          )}
+        </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              {pedidos.length > 0 && (
-                <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none">
-                      <Pencil className="w-3 h-3 mr-1" /> Editar pedidos
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-hidden">
-                    <DialogHeader>
-                      <DialogTitle className="flex items-center gap-2 flex-wrap">
-                        <Gavel className="w-5 h-5" />
-                        Editar Pedidos Trabalhistas
-                        <Badge variant="secondary">{pedidos.length} pedidos</Badge>
-                        {totalValor > 0 && (
-                          <Badge variant="outline" className="text-primary border-primary">
-                            Total: {formatCurrency(totalValor)}
-                          </Badge>
-                        )}
-                      </DialogTitle>
-                    </DialogHeader>
-                    <EditableTableContent />
-                    <DialogFooter className="gap-2 sm:gap-0">
-                      <Button variant="outline" onClick={cancelEdit}>
-                        <X className="w-4 h-4 mr-1" /> Cancelar
-                      </Button>
-                      <Button onClick={saveAllChanges} disabled={isSaving}>
-                        <Save className="w-4 h-4 mr-1" /> {isSaving ? "Salvando..." : "Salvar Alterações"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )}
-
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none">
-                    <Plus className="w-3 h-3 mr-1" /> Adicionar
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {pedidos.length > 0 && (
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none">
+                  <Pencil className="w-3 h-3 mr-1" /> Editar pedidos
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-hidden">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 flex-wrap">
+                    <Gavel className="w-5 h-5" />
+                    Editar Pedidos Trabalhistas
+                    <Badge variant="secondary">{pedidos.length} pedidos</Badge>
+                    {totalValor > 0 && (
+                      <Badge variant="outline" className="text-primary border-primary">
+                        Total: {formatCurrency(totalValor)}
+                      </Badge>
+                    )}
+                  </DialogTitle>
+                </DialogHeader>
+                <EditableTableContent />
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="outline" onClick={cancelEdit}>
+                    <X className="w-4 h-4 mr-1" /> Cancelar
                   </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Novo Pedido</DialogTitle>
-                  </DialogHeader>
-                  <PedidoFormFields data={newPedido} setData={setNewPedido} />
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button onClick={handleAdd} disabled={!newPedido.pedido.trim() || addPedido.isPending}>
-                      <Save className="w-4 h-4 mr-1" /> Salvar
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
+                  <Button onClick={saveAllChanges} disabled={isSaving}>
+                    <Save className="w-4 h-4 mr-1" /> {isSaving ? "Salvando..." : "Salvar Alterações"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
 
-          {/* Body */}
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none">
+                <Plus className="w-3 h-3 mr-1" /> Adicionar
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Novo Pedido</DialogTitle>
+              </DialogHeader>
+              <PedidoFormFields data={newPedido} setData={setNewPedido} />
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleAdd} disabled={!newPedido.pedido.trim() || addPedido.isPending}>
+                  <Save className="w-4 h-4 mr-1" /> Salvar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Área com scroll horizontal (mesma ideia do popup) */}
+      <div
+        className="overflow-x-auto w-full"
+        style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+      >
+        <div className={pedidos.length > 0 ? "min-w-[800px]" : "min-w-0"}>
           {isLoading ? (
             <div className="text-center py-4 text-muted-foreground text-sm">Carregando...</div>
           ) : pedidos.length === 0 ? (
@@ -605,7 +606,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           ) : (
             <ReadOnlyTable />
           )}
-          </div>
         </div>
       </div>
     </div>
