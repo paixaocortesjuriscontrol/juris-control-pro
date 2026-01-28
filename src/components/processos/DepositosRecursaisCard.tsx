@@ -232,16 +232,6 @@ export function DepositosRecursaisCard({ processoId }: DepositosRecursaisCardPro
           </div>
         )}
         </div>
-
-        {/* Linha de soma total */}
-        {depositos.length > 0 && (
-          <div className="pt-2 border-t mt-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold text-muted-foreground">Total:</span>
-              <span className="font-bold text-emerald-600 text-base">{formatCurrency(total)}</span>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
