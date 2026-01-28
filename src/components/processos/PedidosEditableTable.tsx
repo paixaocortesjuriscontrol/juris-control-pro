@@ -519,105 +519,102 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
 
   return (
     <div className="space-y-0 min-w-0">
-      {/* Header with buttons */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-3 py-2 border border-b-0 rounded-t-md bg-muted/30">
-        <div className="flex items-center gap-2 text-sm font-medium flex-wrap">
-          <Gavel className="w-4 h-4 shrink-0" />
-          <span>Pedidos Trabalhistas</span>
-          <Badge variant="secondary" className="text-xs h-5">{pedidos.length}</Badge>
-          {totalValor > 0 && (
-            <Badge variant="outline" className="text-xs h-5 text-primary border-primary">
-              <DollarSign className="w-3 h-3 mr-1" />
-              {formatCurrency(totalValor)}
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {pedidos.length > 0 && (
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 px-3 text-xs flex-1 sm:flex-none"
-                >
-                  <Pencil className="w-3 h-3 mr-1" /> Editar pedidos
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-hidden">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 flex-wrap">
-                    <Gavel className="w-5 h-5" />
-                    Editar Pedidos Trabalhistas
-                    <Badge variant="secondary">{pedidos.length} pedidos</Badge>
-                    {totalValor > 0 && (
-                      <Badge variant="outline" className="text-primary border-primary">
-                        Total: {formatCurrency(totalValor)}
-                      </Badge>
-                    )}
-                  </DialogTitle>
-                </DialogHeader>
-                <EditableTableContent />
-                <DialogFooter className="gap-2 sm:gap-0">
-                  <Button variant="outline" onClick={cancelEdit}>
-                    <X className="w-4 h-4 mr-1" /> Cancelar
+      {/*
+        Scroll horizontal no CARD (header + tabela), para o gesto funcionar no Android/Chrome
+        ao abrir a aba "Pedidos" dentro do ScrollArea global.
+      */}
+      <div
+        className="border rounded-md w-full max-w-full overflow-x-auto overscroll-x-contain"
+        style={{
+          WebkitOverflowScrolling: "touch",
+          touchAction: "pan-x",
+        }}
+      >
+        <div className={pedidos.length > 0 ? "min-w-[800px]" : "min-w-0"}>
+          {/* Header with buttons */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-3 py-2 bg-muted/30 border-b">
+            <div className="flex items-center gap-2 text-sm font-medium flex-wrap">
+              <Gavel className="w-4 h-4 shrink-0" />
+              <span>Pedidos Trabalhistas</span>
+              <Badge variant="secondary" className="text-xs h-5">{pedidos.length}</Badge>
+              {totalValor > 0 && (
+                <Badge variant="outline" className="text-xs h-5 text-primary border-primary">
+                  <DollarSign className="w-3 h-3 mr-1" />
+                  {formatCurrency(totalValor)}
+                </Badge>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {pedidos.length > 0 && (
+                <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none">
+                      <Pencil className="w-3 h-3 mr-1" /> Editar pedidos
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-hidden">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2 flex-wrap">
+                        <Gavel className="w-5 h-5" />
+                        Editar Pedidos Trabalhistas
+                        <Badge variant="secondary">{pedidos.length} pedidos</Badge>
+                        {totalValor > 0 && (
+                          <Badge variant="outline" className="text-primary border-primary">
+                            Total: {formatCurrency(totalValor)}
+                          </Badge>
+                        )}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <EditableTableContent />
+                    <DialogFooter className="gap-2 sm:gap-0">
+                      <Button variant="outline" onClick={cancelEdit}>
+                        <X className="w-4 h-4 mr-1" /> Cancelar
+                      </Button>
+                      <Button onClick={saveAllChanges} disabled={isSaving}>
+                        <Save className="w-4 h-4 mr-1" /> {isSaving ? "Salvando..." : "Salvar Alterações"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none">
+                    <Plus className="w-3 h-3 mr-1" /> Adicionar
                   </Button>
-                  <Button onClick={saveAllChanges} disabled={isSaving}>
-                    <Save className="w-4 h-4 mr-1" /> {isSaving ? "Salvando..." : "Salvar Alterações"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Novo Pedido</DialogTitle>
+                  </DialogHeader>
+                  <PedidoFormFields data={newPedido} setData={setNewPedido} />
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleAdd} disabled={!newPedido.pedido.trim() || addPedido.isPending}>
+                      <Save className="w-4 h-4 mr-1" /> Salvar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          {/* Body */}
+          {isLoading ? (
+            <div className="text-center py-4 text-muted-foreground text-sm">Carregando...</div>
+          ) : pedidos.length === 0 ? (
+            <div className="text-center py-4 text-muted-foreground text-sm">
+              Nenhum pedido cadastrado. Clique em "Adicionar" para criar.
+            </div>
+          ) : (
+            <ReadOnlyTable />
           )}
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none">
-                <Plus className="w-3 h-3 mr-1" /> Adicionar
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Novo Pedido</DialogTitle>
-              </DialogHeader>
-              <PedidoFormFields data={newPedido} setData={setNewPedido} />
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleAdd} disabled={!newPedido.pedido.trim() || addPedido.isPending}>
-                  <Save className="w-4 h-4 mr-1" /> Salvar
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
-      
-      {/* Table container with horizontal scroll */}
-      {isLoading ? (
-        <div className="text-center py-4 text-muted-foreground text-sm border rounded-b-md">Carregando...</div>
-      ) : pedidos.length === 0 ? (
-        <div className="text-center py-4 text-muted-foreground text-sm border rounded-b-md">
-          Nenhum pedido cadastrado. Clique em "Adicionar" para criar.
-        </div>
-      ) : (
-        <div
-          className="border rounded-b-md w-full max-w-full overflow-x-auto overscroll-x-contain"
-          style={{
-            WebkitOverflowScrolling: "touch",
-            touchAction: "pan-x",
-          }}
-        >
-          {/*
-            Importante: em alguns layouts (especialmente dentro de containers flex/ScrollArea),
-            o elemento scrollável pode acabar "crescendo" com o conteúdo.
-            Este wrapper força a largura do conteúdo (min-w) e garante que o scroll fique no container.
-          */}
-          <div className="min-w-[800px]">
-            <ReadOnlyTable />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
