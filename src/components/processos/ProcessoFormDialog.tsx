@@ -143,7 +143,8 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
   const isEditing = !!processo;
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
-  const { data: pastas = [] } = usePastas();
+  // Evita contagens pesadas (processos/documentos por pasta) e só carrega quando o dialog abre.
+  const { data: pastas = [] } = usePastas({ enabled: open });
 
   // Fetch clientes
   const { data: clientes = [] } = useQuery({
