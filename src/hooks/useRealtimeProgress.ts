@@ -11,6 +11,12 @@ export interface RealtimeProgress {
   status?: string;
   isRunning: boolean;
   lastUpdate?: Date;
+  /** Identificador da execução corrente (quando vindo de execucoes_agendadas). */
+  executionId?: string;
+  /** Timestamp de início da execução (quando disponível). */
+  startedAt?: string;
+  /** Fonte principal usada para calcular o progresso (debug/observabilidade). */
+  source?: 'execucao' | 'metadata' | 'none';
 }
 
 interface UseRealtimeProgressOptions {
@@ -56,15 +62,18 @@ export function useRealtimeProgress({
     let current = 0;
     let total = 0;
     let novas = 0;
+    let source: RealtimeProgress['source'] = 'none';
 
     if (execProgress && typeof execProgress.current === 'number') {
       current = execProgress.current;
       total = execProgress.total ?? 0;
       novas = execucao?.registros_encontrados ?? metadata?.novas ?? 0;
+      source = 'execucao';
     } else if (metadata) {
       current = metadata.current ?? metadata.next_offset ?? 0;
       total = metadata.total ?? metadata.totalProcessos ?? 0;
       novas = metadata.novas ?? metadata.last_batch_novas ?? 0;
+      source = 'metadata';
     }
 
     const percentage = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
@@ -78,6 +87,47 @@ export function useRealtimeProgress({
       status: isRunning ? 'em_andamento' : (metaStatus || execStatus),
       isRunning,
       lastUpdate: new Date(),
+      executionId: execucao?.id,
+      startedAt: execucao?.iniciado_em,
+      source,
+    };
+  }, []);
+
+  // Normaliza para NÃO regredir durante a MESMA execução.
+  // Isso evita o efeito “5% voltou para 4%” quando a UI alterna entre
+  // fontes (execucao vs metadata) ou quando total/current chegam em ordem diferente.
+  const normalizeMonotonic = useCallback((
+    prev: RealtimeProgress,
+    next: RealtimeProgress
+  ): RealtimeProgress => {
+    // Se não está rodando, não força monotonicidade.
+    if (!prev.isRunning || !next.isRunning) return next;
+
+    // Se identificador mudou, é uma nova execução -> permitir reset.
+    const prevId = prev.executionId;
+    const nextId = next.executionId;
+    const sameRun = (prevId && nextId && prevId === nextId) || (!prevId && !nextId);
+    if (!sameRun) return next;
+
+    // Mantém total “travado” quando já conhecido, para evitar queda de % por mudança de total.
+    // (Em DJEN Processos, total tende a ser estável; mudanças aqui são geralmente ruído.)
+    const stableTotal = prev.total > 0 ? prev.total : next.total;
+
+    // Current nunca deve voltar; usa o maior.
+    const stableCurrent = Math.max(prev.current ?? 0, next.current ?? 0);
+
+    // Recalcula % com base em valores estabilizados, garantindo monotonicidade.
+    const computedPct = stableTotal > 0
+      ? Math.min(100, Math.round((stableCurrent / stableTotal) * 100))
+      : next.percentage;
+
+    const stablePct = Math.max(prev.percentage ?? 0, computedPct ?? 0, next.percentage ?? 0);
+
+    return {
+      ...next,
+      current: stableCurrent,
+      total: stableTotal,
+      percentage: stablePct,
     };
   }, []);
 
@@ -130,10 +180,8 @@ export function useRealtimeProgress({
           const newProgress = await fetchProgress();
           
           setProgress((prev) => {
-            if (prev.isRunning && !newProgress.isRunning && onComplete) {
-              onComplete(newProgress);
-            }
-            return newProgress;
+            if (prev.isRunning && !newProgress.isRunning && onComplete) onComplete(newProgress);
+            return normalizeMonotonic(prev, newProgress);
           });
 
           queryClient.invalidateQueries({ queryKey: ['config-djen-processos'] });
@@ -152,10 +200,8 @@ export function useRealtimeProgress({
           const newProgress = await fetchProgress();
           
           setProgress((prev) => {
-            if (prev.isRunning && !newProgress.isRunning && onComplete) {
-              onComplete(newProgress);
-            }
-            return newProgress;
+            if (prev.isRunning && !newProgress.isRunning && onComplete) onComplete(newProgress);
+            return normalizeMonotonic(prev, newProgress);
           });
         }
       )
@@ -164,7 +210,7 @@ export function useRealtimeProgress({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tipo, enabled, fetchProgress, onComplete, queryClient]);
+  }, [tipo, enabled, fetchProgress, onComplete, queryClient, normalizeMonotonic]);
 
   // Polling como fallback (a cada 3s quando running)
   useEffect(() => {
@@ -173,15 +219,13 @@ export function useRealtimeProgress({
     const interval = setInterval(async () => {
       const newProgress = await fetchProgress();
       setProgress((prev) => {
-        if (prev.isRunning && !newProgress.isRunning && onComplete) {
-          onComplete(newProgress);
-        }
-        return newProgress;
+        if (prev.isRunning && !newProgress.isRunning && onComplete) onComplete(newProgress);
+        return normalizeMonotonic(prev, newProgress);
       });
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [enabled, progress.isRunning, fetchProgress, onComplete]);
+  }, [enabled, progress.isRunning, fetchProgress, onComplete, normalizeMonotonic]);
 
   const reset = useCallback(() => {
     setProgress({
