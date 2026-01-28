@@ -49,6 +49,24 @@ const emptyPedido: PedidoFormData = {
   observacao: "",
 };
 
+// Format number to Brazilian currency string (without R$ prefix for input)
+const formatCurrencyInput = (value: number | null): string => {
+  if (value === null || value === undefined) return "";
+  return value.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+// Parse Brazilian currency string to number
+const parseCurrencyInput = (value: string): number | null => {
+  if (!value || value.trim() === "") return null;
+  // Remove thousand separators (.) and replace decimal separator (,) with (.)
+  const normalized = value.replace(/\./g, "").replace(",", ".");
+  const parsed = parseFloat(normalized);
+  return isNaN(parsed) ? null : parsed;
+};
+
 export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) {
   const { pedidos, isLoading, totalValor, addPedido, updatePedido, deletePedido } = usePedidosProcesso(processoId);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -180,13 +198,12 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           />
         </div>
         <div className="space-y-2">
-          <Label>Valor do Pedido</Label>
+          <Label>Valor do Pedido (R$)</Label>
           <Input
-            type="number"
-            step="0.01"
-            value={data.valor_pedido ?? ""}
-            onChange={(e) => setData({ ...data, valor_pedido: e.target.value ? parseFloat(e.target.value) : null })}
+            value={formatCurrencyInput(data.valor_pedido)}
+            onChange={(e) => setData({ ...data, valor_pedido: parseCurrencyInput(e.target.value) })}
             placeholder="0,00"
+            className="text-right"
           />
         </div>
       </div>
@@ -322,11 +339,10 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                   </td>
                   <td className="px-1 py-0.5 border-r">
                     <Input
-                      type="number"
-                      step="0.01"
-                      value={editData[pedido.id].valor_pedido ?? ""}
-                      onChange={(e) => updateField(pedido.id, "valor_pedido", e.target.value ? parseFloat(e.target.value) : null)}
+                      value={formatCurrencyInput(editData[pedido.id].valor_pedido)}
+                      onChange={(e) => updateField(pedido.id, "valor_pedido", parseCurrencyInput(e.target.value))}
                       className="h-7 text-xs px-1 text-right"
+                      placeholder="0,00"
                     />
                   </td>
                   <td className="px-1 py-0.5 border-r">
