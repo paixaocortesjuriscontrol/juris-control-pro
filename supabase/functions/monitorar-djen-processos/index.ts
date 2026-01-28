@@ -560,7 +560,7 @@ async function searchDJENByProcesso(
     const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: browserHeaders,
-    }, 2, 1000); // 2 retries, 1s base delay
+    }, CONFIG.max_retries, CONFIG.retry_base_delay_ms);
 
     const contentType = response.headers.get('content-type') || '';
 
@@ -586,9 +586,9 @@ async function searchDJENByProcesso(
 
       try {
         // Small delay before second page to avoid rate limit
-        await delay(300);
+        await delay(CONFIG.delay_entre_paginas);
         
-        const response2 = await fetchWithRetry(url2, { method: 'GET', headers: browserHeaders }, 2, 1000);
+        const response2 = await fetchWithRetry(url2, { method: 'GET', headers: browserHeaders }, CONFIG.max_retries, CONFIG.retry_base_delay_ms);
         const contentType2 = response2.headers.get('content-type') || '';
 
         let data2: any | null = null;
@@ -643,17 +643,14 @@ async function processProcessosBatch(
   // Process in chunks of CONCURRENT_REQUESTS with delays between chunks
   for (let i = 0; i < processos.length; i += CONCURRENT_REQUESTS) {
     const chunk = processos.slice(i, i + CONCURRENT_REQUESTS);
-    
-    // Add delay between chunks to avoid rate limiting (except first chunk)
-    if (i > 0) {
-      const chunkNum = Math.floor(i / CONCURRENT_REQUESTS) + 1;
-      console.log(`[DJEN Processos] Chunk ${chunkNum}: processando ${chunk.length} processos... (delay=${BASE_DELAY}ms)`);
-      await delay(BASE_DELAY);
-    }
+    const chunkNum = Math.floor(i / CONCURRENT_REQUESTS) + 1;
+    console.log(`[DJEN Processos] Chunk ${chunkNum}: processando ${chunk.length} processos...`);
     
     // Process chunk in parallel (Promise.all) - much faster than sequential
     const results = await Promise.all(
-      chunk.map(async (processo) => {
+      chunk.map(async (processo, idx) => {
+        // Stagger para evitar burst (reduz 429) sem penalizar throughput com delay entre chunks
+        if (idx > 0) await delay(idx * STAGGER_DELAY);
         const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
         return { processo, publicacoes };
       })
@@ -676,17 +673,7 @@ async function processProcessosBatch(
         // A API PJE Comunica retorna os campos diretamente no item ou dentro de comunicacao
         // IMPORTANTE: Buscar em TODOS os níveis possíveis da resposta
         const pubObj = pub.comunicacao || pub;
-        
-        // Log detalhado para debug - mostrar estrutura completa do primeiro item de cada processo
-        if (novasDoProcesso === 0) {
-          console.log(`[DJEN Processos] Pub structure for ${processo.numero}:`, JSON.stringify({
-            keys_pub: Object.keys(pub),
-            keys_pubObj: Object.keys(pubObj),
-            dataDisponibilizacao: pub.dataDisponibilizacao || pubObj.dataDisponibilizacao,
-            dataPublicacao: pub.dataPublicacao || pubObj.dataPublicacao,
-            dataDJe: pub.dataDJe || pubObj.dataDJe,
-          }));
-        }
+        // (removido) log detalhado de estrutura — custoso em alto volume
         
         // Buscar dataDisponibilizacao em todos os campos possíveis (nível raiz e aninhado)
         const rawDataDisponibilizacao = 
@@ -1168,16 +1155,20 @@ serve(async (req) => {
         // Use anon key for internal calls (verify_jwt = false, so we just need a valid key)
         const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
 
-        const p = fetch(nextUrl, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-          },
-          body: JSON.stringify(nextBody),
-        })
-          .then((r) => r.text().then((t) => console.log(`[DJEN Processos] Queued next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`)))
-          .catch((e) => console.error('[DJEN Processos] Failed to queue next batch', e));
+        const p = (async () => {
+          // Throttle ENTRE LOTES (não entre chunks) conforme CONFIG.delay_entre_lotes
+          await delay(BASE_DELAY);
+          const r = await fetch(nextUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseAnonKey}`,
+            },
+            body: JSON.stringify(nextBody),
+          });
+          const t = await r.text().catch(() => '');
+          console.log(`[DJEN Processos] Queued next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`);
+        })().catch((e) => console.error('[DJEN Processos] Failed to queue next batch', e));
 
         const er = (globalThis as any).EdgeRuntime;
         if (er?.waitUntil) er.waitUntil(p);
