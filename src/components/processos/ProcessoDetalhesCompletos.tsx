@@ -313,7 +313,12 @@ export function ProcessoDetalhesCompletos({
 
         {/* Content Area */}
         <div className="flex-1 min-w-0">
-          <ScrollArea className="h-[calc(100vh-120px)]">
+          {/*
+            No mobile, evitamos criar um scroll container próprio (ScrollArea) com altura fixa.
+            Isso reduz conflitos de gesto com scrolls horizontais aninhados (ex.: tabela de Pedidos).
+            No desktop mantemos a altura fixa para scroll interno.
+          */}
+          <ScrollArea className="sm:h-[calc(100vh-120px)]">
             <div className="p-3 sm:p-4">
               {/* Resumo Section - Visão geral rápida */}
               {activeSection === "resumo" && (
