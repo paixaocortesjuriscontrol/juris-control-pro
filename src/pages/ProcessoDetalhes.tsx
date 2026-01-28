@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -126,6 +126,7 @@ const areaOptions: AreaAtuacao[] = ["civil", "trabalhista", "empresarial"];
 export default function ProcessoDetalhes() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [atualizando, setAtualizando] = useState(false);
@@ -153,8 +154,17 @@ export default function ProcessoDetalhes() {
   const [publicacaoParaTarefa, setPublicacaoParaTarefa] = useState<PublicacaoUnificada | null>(null);
   const abrirTarefaPublicacaoAtRef = useRef<number>(0);
 
-  // Tab toggle state
-  const [activeTab, setActiveTab] = useState<string>("");
+  // Tab toggle state - inicializa do URL param se existir
+  const urlTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<string>(urlTab || "");
+  
+  // Limpar o param do URL após ler (UX limpa)
+  useEffect(() => {
+    if (urlTab) {
+      searchParams.delete("tab");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, []);
   
   // Form state for all fields
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -181,7 +191,10 @@ export default function ProcessoDetalhes() {
     enabled: !!id,
   });
 
-  // Audiências query
+  // LAZY LOADING: Queries só executam quando a aba correspondente está ativa
+  // Isso reduz de 12+ queries simultâneas para 3-4 no carregamento inicial
+
+  // Audiências query - lazy load
   const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery({
     queryKey: ["audiencias-processo", id, processo?.numero],
     queryFn: async () => {
@@ -194,10 +207,10 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && !!processo?.numero,
+    enabled: !!id && !!processo?.numero && activeTab === "audiencias",
   });
 
-  // Intimações query
+  // Intimações query - lazy load
   const { data: intimacoes = [], isLoading: loadingIntimacoes } = useQuery({
     queryKey: ["intimacoes-processo", id, processo?.numero],
     queryFn: async () => {
@@ -210,10 +223,10 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && !!processo?.numero,
+    enabled: !!id && !!processo?.numero && activeTab === "intimacoes",
   });
 
-  // Tarefas query
+  // Tarefas query - lazy load
   const { data: tarefas = [], isLoading: loadingTarefas } = useQuery({
     queryKey: ["tarefas-processo", id],
     queryFn: async () => {
@@ -229,10 +242,10 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && activeTab === "tarefas",
   });
 
-  // Documentos query
+  // Documentos query - lazy load
   const { data: documentosProcesso = [], refetch: refetchDocumentos } = useQuery({
     queryKey: ["documentos-processo", id],
     queryFn: async () => {
@@ -245,10 +258,10 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && activeTab === "documentos",
   });
 
-  // Publicações DJEN query
+  // Publicações DJEN query - lazy load
   const { data: publicacoesDjen = [], isLoading: loadingPublicacoes } = useQuery({
     queryKey: ["publicacoes-djen-processo", id],
     queryFn: async () => {
@@ -261,10 +274,10 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && activeTab === "publicacoes",
   });
 
-  // Movimentações query
+  // Movimentações query - lazy load (também alimenta redistribuições)
   const { data: movimentacoes = [], isLoading: loadingMovimentacoes, refetch: refetchMovimentacoes } = useQuery({
     queryKey: ["movimentacoes-processo", id],
     queryFn: async () => {
@@ -277,27 +290,16 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && (activeTab === "andamentos" || activeTab === "redistribuicoes"),
   });
 
-  // Redistribuições query - movimentações com redistribuição
-  const { data: redistribuicoes = [], isLoading: loadingRedistribuicoes } = useQuery({
-    queryKey: ["redistribuicoes-processo", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("movimentacoes")
-        .select("*")
-        .eq("processo_id", id!)
-        .ilike("descricao", "%redistribui%")
-        .order("data_movimentacao", { ascending: false });
+  // Redistribuições derivadas de movimentacoes (elimina query duplicada)
+  const redistribuicoes = movimentacoes.filter(
+    (m: any) => m.descricao?.toLowerCase().includes("redistribui")
+  );
+  const loadingRedistribuicoes = loadingMovimentacoes;
 
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id,
-  });
-
-  // Alertas 360 query
+  // Alertas 360 query - lazy load
   const { data: alertas360 = [], isLoading: loadingAlertas360 } = useQuery({
     queryKey: ["alertas360-processo", id],
     queryFn: async () => {
@@ -314,10 +316,10 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && activeTab === "monitoramento360",
   });
 
-  // Eventos Agenda query
+  // Eventos Agenda query - lazy load
   const { data: eventosAgenda = [] } = useQuery({
     queryKey: ["eventos-agenda-processo", id],
     queryFn: async () => {
@@ -330,7 +332,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && activeTab === "agenda",
   });
 
   // Coordenações query
