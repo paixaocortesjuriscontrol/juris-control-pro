@@ -2,6 +2,40 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+type UsePastasOptions = {
+  /**
+   * Quando true, calcula _count.processos/_count.documentos por pasta.
+   * IMPORTANTE: isso dispara queries adicionais e deve ser usado apenas
+   * na tela de Pastas.
+   */
+  withCounts?: boolean;
+  /** Controla execução da query (ex.: dialog aberto). */
+  enabled?: boolean;
+  /** Limite de concorrência ao calcular contagens para evitar ERR_INSUFFICIENT_RESOURCES. */
+  countConcurrency?: number;
+};
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const i = nextIndex++;
+      if (i >= items.length) return;
+      results[i] = await mapper(items[i], i);
+    }
+  }
+
+  const workerCount = Math.min(Math.max(1, limit), items.length || 1);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 export type Pasta = {
   id: string;
   nome: string;
@@ -26,9 +60,16 @@ export type Pasta = {
   };
 };
 
-export function usePastas() {
+export function usePastas(options: UsePastasOptions = {}) {
+  const {
+    withCounts = false,
+    enabled = true,
+    countConcurrency = 4,
+  } = options;
+
   return useQuery({
-    queryKey: ["pastas"],
+    queryKey: ["pastas", { withCounts }],
+    enabled,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pastas")
@@ -41,23 +82,35 @@ export function usePastas() {
 
       if (error) throw error;
 
-      // Get counts for each pasta
-      const pastasWithCounts = await Promise.all(
-        (data || []).map(async (pasta) => {
-          const [processosResult, documentosResult] = await Promise.all([
-            supabase.from("processos").select("id", { count: "exact" }).eq("pasta_id", pasta.id),
-            supabase.from("documentos").select("id", { count: "exact" }).eq("pasta_id", pasta.id),
-          ]);
+      const pastas = (data || []) as Pasta[];
+      if (!withCounts || pastas.length === 0) return pastas;
 
-          return {
-            ...pasta,
-            _count: {
-              processos: processosResult.count || 0,
-              documentos: documentosResult.count || 0,
-            },
-          };
-        })
-      );
+      // Get counts for each pasta
+      // NOTE: limitar concorrência evita estourar conexões do browser (ERR_INSUFFICIENT_RESOURCES)
+      const concurrency = Math.min(Math.max(1, countConcurrency), 10);
+      const pastasWithCounts = await mapWithConcurrency(pastas, concurrency, async (pasta) => {
+        const [processosResult, documentosResult] = await Promise.all([
+          supabase
+            .from("processos")
+            .select("id", { count: "exact", head: true })
+            .eq("pasta_id", pasta.id),
+          supabase
+            .from("documentos")
+            .select("id", { count: "exact", head: true })
+            .eq("pasta_id", pasta.id),
+        ]);
+
+        if (processosResult.error) throw processosResult.error;
+        if (documentosResult.error) throw documentosResult.error;
+
+        return {
+          ...pasta,
+          _count: {
+            processos: processosResult.count ?? 0,
+            documentos: documentosResult.count ?? 0,
+          },
+        } as Pasta;
+      });
 
       return pastasWithCounts as Pasta[];
     },

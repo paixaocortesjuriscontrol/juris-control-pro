@@ -56,7 +56,7 @@ export default function Pastas() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pastaToDelete, setPastaToDelete] = useState<Pasta | null>(null);
 
-  const { data: pastas, isLoading } = usePastas();
+  const { data: pastas, isLoading } = usePastas({ withCounts: true });
   const deletePasta = useDeletePasta();
 
   const filteredPastas = pastas?.filter((pasta) =>
