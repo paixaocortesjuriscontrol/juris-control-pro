@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { useNotificacoesCountsByCoordenacao, type NotificacoesCounts } from "@/hooks/useNotificacoesCounts";
 import { toast } from "sonner";
 
 interface Props {
@@ -41,18 +42,17 @@ interface Props {
 interface CoordenacaoReportData {
   id: string;
   nome: string;
-  djen: number;
-  redistribuicoes: number;
-  andamentos: number;
-  audiencias: number;
-  intimacoes: number;
-  total: number; // DJEN + Redistribuições + Andamentos + Audiências + Intimações (igual Dashboard)
+  counts: NotificacoesCounts;
   detalhes: {
     djen: any[];
     redistribuicoes: any[];
     andamentos: any[];
     audiencias: any[];
     intimacoes: any[];
+    distribuicoes: any[];
+    alertas360: any[];
+    prazos: any[];
+    tarefas: any[];
   };
 }
 
@@ -90,104 +90,20 @@ export function GerarRelatorioPdfDialog({
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   
-  // Buscar publicações DJEN SEM LIMITE para o relatório
-  const { data: publicacoes = [] } = useQuery({
-    queryKey: ["publicacoes-djen-pdf-report-unlimited", periodoInicio, periodoFim],
-    queryFn: async () => {
-      let query = supabase
-        .from('publicacoes_djen')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (periodoInicio) {
-        query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
-      }
-      if (periodoFim) {
-        const fimMaisUm = new Date(periodoFim);
-        fimMaisUm.setDate(fimMaisUm.getDate() + 1);
-        query = query.lt("created_at", format(fimMaisUm, "yyyy-MM-dd"));
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: open,
+  // IDs de todas as coordenações para a query RPC
+  const allCoordIds = useMemo(() => coordenacoes.map(c => c.id), [coordenacoes]);
+  
+  // =============== USAR O MESMO RPC DA CENTRAL DE NOTIFICAÇÕES ===============
+  // Isso garante que os totalizadores batam 100% (mesma lógica de dedup/filtros)
+  const { data: countsByCoord = {} } = useNotificacoesCountsByCoordenacao({
+    coordenacaoIds: allCoordIds,
+    periodoInicio,
+    periodoFim,
+    statusFilter,
+    searchQuery,
   });
 
-  // Buscar monitoramentos DJEN
-  const { data: monitoramentosDjen = [] } = useQuery({
-    queryKey: ["monitoramentos-djen-pdf-report"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('monitoramentos_djen')
-        .select('id, coordenacao_id, termo_busca, ativo');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: open,
-  });
-
-  // Buscar redistribuições SEM LIMITE (via movimentacoes com tipo 'Redistribuição')
-  const { data: redistribuicoesData = [] } = useQuery({
-    queryKey: ["redistribuicoes-pdf-report-unlimited", periodoInicio, periodoFim],
-    queryFn: async () => {
-      let query = supabase
-        .from('movimentacoes')
-        .select(`
-          id,
-          processo_id,
-          descricao,
-          data_movimentacao,
-          created_at,
-          processos (
-            numero,
-            area,
-            vara,
-            coordenacao_id,
-            coordenacoes (nome),
-            advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey (nome)
-          )
-        `)
-        .eq('tipo', 'Redistribuição')
-        .order('data_movimentacao', { ascending: false });
-      
-      if (periodoInicio) {
-        query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
-      }
-      if (periodoFim) {
-        const fimMaisUm = new Date(periodoFim);
-        fimMaisUm.setDate(fimMaisUm.getDate() + 1);
-        query = query.lt("created_at", format(fimMaisUm, "yyyy-MM-dd"));
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      
-      // Transformar para formato esperado
-      return (data || []).map((mov: any) => {
-        // Parse da descrição para extrair vara antiga e nova
-        const match = mov.descricao?.match(/Redistribuição detectada: (.+) -> (.+)/);
-        const varaAntiga = match?.[1] || 'N/A';
-        const varaNova = match?.[2] || mov.processos?.vara || 'N/A';
-        
-        return {
-          id: mov.id,
-          processo_id: mov.processo_id,
-          processo_numero: mov.processos?.numero,
-          processo_area: mov.processos?.area,
-          coordenacao_nome: mov.processos?.coordenacoes?.nome,
-          advogado_nome: mov.processos?.advogado_responsavel?.nome,
-          vara_antiga: varaAntiga,
-          vara_nova: varaNova,
-          data_redistribuicao: mov.data_movimentacao,
-        };
-      });
-    },
-    enabled: open,
-  });
-
-  // Helper para filtrar por busca (igual tela)
+  // Helper para filtrar por busca
   const matchesSearch = useMemo(() => {
     return (text: string | null | undefined) => {
       if (!searchQuery) return true;
@@ -195,27 +111,7 @@ export function GerarRelatorioPdfDialog({
     };
   }, [searchQuery]);
 
-  const fetchProcessosByNumero = async (numeros: string[]) => {
-    const unique = Array.from(new Set(numeros.filter(Boolean)));
-    if (unique.length === 0) return new Map<string, any>();
-
-    const map = new Map<string, any>();
-    const CHUNK = 200;
-    for (let i = 0; i < unique.length; i += CHUNK) {
-      const chunk = unique.slice(i, i + CHUNK);
-      const { data, error } = await supabase
-        .from("processos")
-        .select("id, numero, coordenacao_id")
-        .in("numero", chunk);
-      if (error) throw error;
-      for (const p of data || []) {
-        map.set((p as any).numero, p);
-      }
-    }
-    return map;
-  };
-
-  // Helper para filtrar por período - IGUAL ao Dashboard
+  // Helper para filtrar por período
   const matchesPeriodo = useMemo(() => {
     return (dateStr: string | null | undefined) => {
       if (!dateStr) return true;
@@ -232,255 +128,344 @@ export function GerarRelatorioPdfDialog({
     };
   }, [periodoInicio, periodoFim]);
 
-  // Buscar audiências COM TODOS OS CAMPOS NECESSÁRIOS
-  const { data: audienciasPendentes = [] } = useQuery({
-    queryKey: ["audiencias-pdf-report", statusFilter, periodoInicio, periodoFim],
+  // =============== DETALHES (para o PDF) ===============
+  // Buscar detalhes apenas para as categorias que serão exibidas
+  
+  // DJEN
+  const { data: djenDetails = [] } = useQuery({
+    queryKey: ["pdf-djen-details", periodoInicio, periodoFim, statusFilter, searchQuery],
+    enabled: open && tiposDjen,
     queryFn: async () => {
       let query = supabase
-        .from("audiencias_detectadas")
+        .from('publicacoes_djen')
         .select(`
-          id, processo_numero, data_audiencia, hora, hora_brasilia, tipo_audiencia, status, 
-          local_audiencia, polo_ativo, cliente, vara_camara, comarca, advogado,
-          processo:processos!audiencias_detectadas_processo_id_fkey(id, numero, coordenacao_id)
-        `);
-      if (statusFilter !== "todas") {
-        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const rows: any[] = data || [];
-      // Corrigir casos onde processo_id é nulo (processo embed vem null), mas processo_numero existe
-      const missingNums = rows
-        .filter(r => !(r as any).processo && (r as any).processo_numero)
-        .map(r => (r as any).processo_numero as string);
-
-      if (missingNums.length === 0) return rows;
-
-      const processosMap = await fetchProcessosByNumero(missingNums);
-      return rows.map(r => {
-        if ((r as any).processo || !(r as any).processo_numero) return r;
-        const proc = processosMap.get((r as any).processo_numero);
-        return proc ? { ...r, processo: proc } : r;
-      });
-    },
-    enabled: open,
-  });
-
-  // Buscar advogados vinculados (tabela de junção) para não perder detalhes no PDF
-  const { data: advogadosPorAudiencia = {} as Record<string, string[]> } = useQuery({
-    queryKey: ["audiencias-advogados-pdf", audienciasPendentes.map((a: any) => a.id)],
-    queryFn: async () => {
-      if (!audienciasPendentes.length) return {} as Record<string, string[]>;
-
-      const { data, error } = await supabase
-        .from("audiencias_advogados")
-        .select(`
-          audiencia_id,
-          profiles:advogado_id(nome)
+          id, processo_numero, conteudo, created_at, lida, data_publicacao,
+          monitoramento:monitoramentos_djen(id, coordenacao_id)
         `)
-        .in(
-          "audiencia_id",
-          audienciasPendentes.map((a: any) => a.id)
-        );
-
-      if (error) throw error;
-
-      const map: Record<string, string[]> = {};
-      for (const row of (data || []) as any[]) {
-        const audId = row.audiencia_id as string;
-        const nome = row.profiles?.nome as string | undefined;
-        if (!nome) continue;
-        map[audId] = map[audId] || [];
-        map[audId].push(nome);
-      }
-      return map;
-    },
-    enabled: open,
-  });
-
-  // Buscar intimações
-  const { data: intimacoesPendentes = [] } = useQuery({
-    queryKey: ["intimacoes-pdf-report", statusFilter, periodoInicio, periodoFim],
-    queryFn: async () => {
-      let query = supabase
-        .from("intimacoes_detectadas")
-        .select(`
-          id, processo_numero, data_intimacao, tipo_intimacao, status, data_limite, descricao,
-          processo:processos!intimacoes_detectadas_processo_id_fkey(id, numero, coordenacao_id)
-        `);
-      if (statusFilter !== "todas") {
-        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const rows: any[] = data || [];
-      const missingNums = rows
-        .filter(r => !(r as any).processo && (r as any).processo_numero)
-        .map(r => (r as any).processo_numero as string);
-
-      if (missingNums.length === 0) return rows;
-
-      const processosMap = await fetchProcessosByNumero(missingNums);
-      return rows.map(r => {
-        if ((r as any).processo || !(r as any).processo_numero) return r;
-        const proc = processosMap.get((r as any).processo_numero);
-        return proc ? { ...r, processo: proc } : r;
-      });
-    },
-    enabled: open,
-  });
-
-  // Buscar andamentos COM DESCRIÇÃO COMPLETA - aplicando filtro de período
-  const { data: andamentosData = [] } = useQuery({
-    queryKey: ["andamentos-pdf-report", periodoInicio, periodoFim],
-    queryFn: async () => {
-      let query = supabase
-        .from("movimentacoes")
-        .select(`
-          id, descricao, data_movimentacao, created_at, tipo,
-          processo:processos!movimentacoes_processo_id_fkey(id, numero, coordenacao_id, polo_ativo)
-        `)
-        .neq("tipo", "Redistribuição")
-        .order("created_at", { ascending: false });
+        .order('created_at', { ascending: false });
       
-      if (periodoInicio) {
-        query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
+      if (periodoInicio) query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
+      if (periodoFim) {
+        const fimMaisUm = new Date(periodoFim);
+        fimMaisUm.setDate(fimMaisUm.getDate() + 1);
+        query = query.lt("created_at", format(fimMaisUm, "yyyy-MM-dd"));
       }
+      if (statusFilter === "pendente") query = query.eq("lida", false);
+      
+      const { data } = await query.limit(500);
+      return (data || []).filter(p => 
+        !searchQuery || matchesSearch(p.conteudo) || matchesSearch(p.processo_numero)
+      );
+    },
+  });
+
+  // Redistribuições
+  const { data: redistDetails = [] } = useQuery({
+    queryKey: ["pdf-redist-details", periodoInicio, periodoFim, searchQuery],
+    enabled: open && tiposRedistribuicoes,
+    queryFn: async () => {
+      let query = supabase
+        .from('movimentacoes')
+        .select(`
+          id, descricao, data_movimentacao, created_at,
+          processo:processos(id, numero, coordenacao_id, vara, coordenacoes(nome), advogado_responsavel:profiles!processos_advogado_responsavel_id_fkey(nome))
+        `)
+        .eq('tipo', 'Redistribuição')
+        .order('created_at', { ascending: false });
+      
+      if (periodoInicio) query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
       if (periodoFim) {
         const fimMaisUm = new Date(periodoFim);
         fimMaisUm.setDate(fimMaisUm.getDate() + 1);
         query = query.lt("created_at", format(fimMaisUm, "yyyy-MM-dd"));
       }
       
-      const { data } = await query;
-      return data || [];
+      const { data } = await query.limit(500);
+      return (data || []).filter(r => 
+        !searchQuery || matchesSearch(r.processo?.numero) || matchesSearch(r.descricao)
+      );
     },
-    enabled: open,
   });
 
-  // Calcular dados do relatório - USANDO MESMA LÓGICA DO DASHBOARD
+  // Andamentos
+  const { data: andamentosDetails = [] } = useQuery({
+    queryKey: ["pdf-andamentos-details", periodoInicio, periodoFim, searchQuery],
+    enabled: open && tiposAndamentos,
+    queryFn: async () => {
+      let query = supabase
+        .from('movimentacoes')
+        .select(`
+          id, descricao, data_movimentacao, created_at, tipo,
+          processo:processos(id, numero, coordenacao_id, polo_ativo)
+        `)
+        .neq('tipo', 'Redistribuição')
+        .order('created_at', { ascending: false });
+      
+      if (periodoInicio) query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
+      if (periodoFim) {
+        const fimMaisUm = new Date(periodoFim);
+        fimMaisUm.setDate(fimMaisUm.getDate() + 1);
+        query = query.lt("created_at", format(fimMaisUm, "yyyy-MM-dd"));
+      }
+      
+      const { data } = await query.limit(500);
+      return (data || []).filter(a => 
+        !searchQuery || matchesSearch(a.processo?.numero) || matchesSearch(a.descricao)
+      );
+    },
+  });
+
+  // Audiências
+  const { data: audienciasDetails = [] } = useQuery({
+    queryKey: ["pdf-audiencias-details", periodoInicio, periodoFim, statusFilter, searchQuery],
+    enabled: open && tiposAudiencias,
+    queryFn: async () => {
+      let query = supabase
+        .from('audiencias_detectadas')
+        .select(`
+          id, processo_numero, data_audiencia, hora, hora_brasilia, tipo_audiencia, status, 
+          local_audiencia, polo_ativo, cliente, vara_camara, comarca, advogado,
+          processo:processos!audiencias_detectadas_processo_id_fkey(id, numero, coordenacao_id)
+        `)
+        .order('data_audiencia', { ascending: false });
+      
+      if (statusFilter !== "todas") {
+        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+      }
+      if (periodoInicio) query = query.gte("data_audiencia", format(periodoInicio, "yyyy-MM-dd"));
+      if (periodoFim) query = query.lte("data_audiencia", format(periodoFim, "yyyy-MM-dd"));
+      
+      const { data } = await query.limit(300);
+      return (data || []).filter(a => 
+        !searchQuery || matchesSearch(a.processo_numero) || matchesSearch(a.tipo_audiencia)
+      );
+    },
+  });
+
+  // Intimações
+  const { data: intimacoesDetails = [] } = useQuery({
+    queryKey: ["pdf-intimacoes-details", periodoInicio, periodoFim, statusFilter, searchQuery],
+    enabled: open && tiposIntimacoes,
+    queryFn: async () => {
+      let query = supabase
+        .from('intimacoes_detectadas')
+        .select(`
+          id, processo_numero, data_intimacao, tipo_intimacao, status, data_limite, descricao,
+          processo:processos!intimacoes_detectadas_processo_id_fkey(id, numero, coordenacao_id)
+        `)
+        .order('data_intimacao', { ascending: false });
+      
+      if (statusFilter !== "todas") {
+        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+      }
+      if (periodoInicio) query = query.gte("data_intimacao", format(periodoInicio, "yyyy-MM-dd"));
+      if (periodoFim) query = query.lte("data_intimacao", format(periodoFim, "yyyy-MM-dd"));
+      
+      const { data } = await query.limit(300);
+      return (data || []).filter(i => 
+        !searchQuery || matchesSearch(i.processo_numero) || matchesSearch(i.tipo_intimacao)
+      );
+    },
+  });
+
+  // Distribuições
+  const { data: distribuicoesDetails = [] } = useQuery({
+    queryKey: ["pdf-distribuicoes-details", periodoInicio, periodoFim, statusFilter, searchQuery],
+    enabled: open && tiposDistribuicoes,
+    queryFn: async () => {
+      let query = supabase
+        .from('distribuicoes_encontradas')
+        .select(`
+          id, numero_processo, data_distribuicao, polo_ativo, polo_passivo, vara, tribunal, status,
+          processo:processos(id, numero, coordenacao_id)
+        `)
+        .order('data_distribuicao', { ascending: false });
+      
+      if (statusFilter === "pendente") query = query.eq("status", "pendente");
+      if (periodoInicio) query = query.gte("data_distribuicao", format(periodoInicio, "yyyy-MM-dd"));
+      if (periodoFim) query = query.lte("data_distribuicao", format(periodoFim, "yyyy-MM-dd"));
+      
+      const { data } = await query.limit(300);
+      return (data || []).filter(d => 
+        !searchQuery || matchesSearch(d.numero_processo) || matchesSearch(d.polo_ativo)
+      );
+    },
+  });
+
+  // Alertas 360
+  const { data: alertas360Details = [] } = useQuery({
+    queryKey: ["pdf-alertas360-details", periodoInicio, periodoFim, statusFilter, searchQuery],
+    enabled: open && tiposAlertas360,
+    queryFn: async () => {
+      let query = supabase
+        .from('alertas_monitoramento')
+        .select(`
+          id, termo_encontrado, contexto, prioridade, status, created_at,
+          processo:processos(id, numero, coordenacao_id)
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (statusFilter !== "todas") {
+        query = query.eq("status", statusFilter === "concluido" ? "tratado" : statusFilter);
+      }
+      if (periodoInicio) query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
+      if (periodoFim) {
+        const fimMaisUm = new Date(periodoFim);
+        fimMaisUm.setDate(fimMaisUm.getDate() + 1);
+        query = query.lt("created_at", format(fimMaisUm, "yyyy-MM-dd"));
+      }
+      
+      const { data } = await query.limit(300);
+      return (data || []).filter(a => 
+        !searchQuery || matchesSearch(a.termo_encontrado) || matchesSearch(a.processo?.numero)
+      );
+    },
+  });
+
+  // Tarefas
+  const { data: tarefasDetails = [] } = useQuery({
+    queryKey: ["pdf-tarefas-details", periodoInicio, periodoFim, statusFilter, searchQuery],
+    enabled: open && tiposTarefas,
+    queryFn: async () => {
+      let query = supabase
+        .from('tarefas')
+        .select(`
+          id, titulo, data_vencimento, prioridade, status,
+          processo:processos!tarefas_processo_id_fkey(id, numero, coordenacao_id)
+        `)
+        .order('data_vencimento', { ascending: true });
+      
+      if (statusFilter !== "todas") {
+        const status = statusFilter === "concluido" ? "cumprido" : statusFilter;
+        query = query.eq("status", status as any);
+      }
+      if (periodoInicio) query = query.gte("data_vencimento", format(periodoInicio, "yyyy-MM-dd"));
+      if (periodoFim) query = query.lte("data_vencimento", format(periodoFim, "yyyy-MM-dd"));
+      
+      const { data } = await query.limit(500);
+      return (data || []).filter(t => 
+        !searchQuery || matchesSearch(t.titulo)
+      );
+    },
+  });
+
+  // Prazos (tarefas pendentes nos próximos 6 dias)
+  const { data: prazosDetails = [] } = useQuery({
+    queryKey: ["pdf-prazos-details", searchQuery],
+    enabled: open && tiposPrazos,
+    queryFn: async () => {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const daquiCincoDias = new Date(hoje);
+      daquiCincoDias.setDate(daquiCincoDias.getDate() + 5);
+      
+      const { data } = await supabase
+        .from('tarefas')
+        .select(`
+          id, titulo, data_vencimento, data_fatal, data_base, prioridade,
+          processo:processos!tarefas_processo_id_fkey(id, numero, coordenacao_id)
+        `)
+        .eq("status", "pendente")
+        .gte("data_vencimento", format(hoje, "yyyy-MM-dd"))
+        .lte("data_vencimento", format(daquiCincoDias, "yyyy-MM-dd"))
+        .order('data_vencimento', { ascending: true })
+        .limit(500);
+      
+      return (data || []).filter(p => 
+        !searchQuery || matchesSearch(p.titulo)
+      );
+    },
+  });
+
+  // =============== REPORT DATA: unir counts do RPC com detalhes ===============
   const reportData = useMemo<CoordenacaoReportData[]>(() => {
     const coordsToInclude = selectAll 
       ? coordenacoes 
       : coordenacoes.filter(c => selectedCoordenacoes.includes(c.id));
 
-    // DJEN - Aplicar filtro de status E período (usando created_at como no Dashboard)
-    const publicacoesFiltradas = publicacoes.filter(p => {
-      if (statusFilter !== "todas" && p.lida) return false;
-      if (!matchesPeriodo(p.created_at)) return false;
-      if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero)) return false;
-      return true;
-    });
-
-    // Redistribuições - já vem filtrado do hook, mas aplicar período também
-    const redistribuicoesFiltradas = redistribuicoesData.filter(r => {
-      if (!matchesPeriodo(r.data_redistribuicao)) return false;
-      if (!matchesSearch((r as any).processo_numero)) return false;
-      return true;
-    });
-
-    // Audiências - aplicar filtro de período
-    const audienciasFiltradas = audienciasPendentes.filter(a => {
-      if (!matchesPeriodo((a as any).data_audiencia)) return false;
-      if (!matchesSearch((a as any).processo_numero) && !matchesSearch((a as any).processo?.numero) && !matchesSearch((a as any).tipo_audiencia)) return false;
-      return true;
-    });
-
-    // Intimações - aplicar filtro de período
-    const intimacoesFiltradas = intimacoesPendentes.filter(i => {
-      if (!matchesPeriodo((i as any).data_intimacao)) return false;
-      if (!matchesSearch((i as any).processo_numero) && !matchesSearch((i as any).processo?.numero) && !matchesSearch((i as any).tipo_intimacao)) return false;
-      return true;
-    });
-
-    // Andamentos - aplicar filtro de período (usando created_at)
-    const andamentosFiltrados = andamentosData.filter(a => {
-      if (!matchesPeriodo((a as any).created_at)) return false;
-      if (!matchesSearch((a as any).descricao) && !matchesSearch((a as any).processo?.numero) && !matchesSearch((a as any).tipo)) return false;
-      return true;
-    });
-
     return coordsToInclude.map(coord => {
-      // DJEN: via monitoramento (igual Dashboard)
-      const monIds = monitoramentosDjen
-        .filter(m => m.coordenacao_id === coord.id)
-        .map(m => m.id);
-      const djenItems = publicacoesFiltradas.filter(p => monIds.includes(p.monitoramento_id));
+      const counts = countsByCoord[coord.id] || {
+        djen: 0, distribuicoes: 0, alertas360: 0, redistribuicoes: 0,
+        andamentos: 0, prazos: 0, tarefas: 0, audiencias: 0, intimacoes: 0, total: 0
+      };
 
-      // Redistribuições: por nome da coordenação (igual Dashboard)
-      const redistItems = redistribuicoesFiltradas.filter(r => r.coordenacao_nome === coord.nome);
-
-      // Andamentos: por coordenacao_id do processo
-      const andItems = andamentosFiltrados.filter(a => 
-        (a.processo as any)?.coordenacao_id === coord.id
-      );
-
-      // Audiências: por coordenacao_id do processo
-      const audItems = audienciasFiltradas.filter(a => 
-        (a.processo as any)?.coordenacao_id === coord.id
-      );
-
-      // Intimações: por coordenacao_id do processo
-      const intItems = intimacoesFiltradas.filter(i => 
-        (i.processo as any)?.coordenacao_id === coord.id
-      );
-
-      // Aplicar filtro de tipos selecionados
-      const djenCount = tiposDjen ? djenItems.length : 0;
-      const redistCount = tiposRedistribuicoes ? redistItems.length : 0;
-      const andCount = tiposAndamentos ? andItems.length : 0;
-      const audCount = tiposAudiencias ? audItems.length : 0;
-      const intCount = tiposIntimacoes ? intItems.length : 0;
-
-      const totalAlertas = djenCount + redistCount + andCount + audCount + intCount;
+      // Filtrar detalhes por coordenação
+      const djenItems = djenDetails.filter(p => p.monitoramento?.coordenacao_id === coord.id);
+      const redistItems = redistDetails.filter(r => r.processo?.coordenacao_id === coord.id);
+      const andItems = andamentosDetails.filter(a => a.processo?.coordenacao_id === coord.id);
+      const audItems = audienciasDetails.filter(a => a.processo?.coordenacao_id === coord.id);
+      const intItems = intimacoesDetails.filter(i => i.processo?.coordenacao_id === coord.id);
+      const distItems = distribuicoesDetails.filter(d => d.processo?.coordenacao_id === coord.id);
+      const alertaItems = alertas360Details.filter(a => a.processo?.coordenacao_id === coord.id);
+      const tarefaItems = tarefasDetails.filter(t => t.processo?.coordenacao_id === coord.id);
+      const prazoItems = prazosDetails.filter(p => p.processo?.coordenacao_id === coord.id);
 
       return {
         id: coord.id,
         nome: coord.nome,
-        djen: djenCount,
-        redistribuicoes: redistCount,
-        andamentos: andCount,
-        audiencias: audCount,
-        intimacoes: intCount,
-        total: totalAlertas,
+        counts,
         detalhes: {
           djen: tiposDjen ? djenItems.slice(0, 50) : [],
           redistribuicoes: tiposRedistribuicoes ? redistItems.slice(0, 50) : [],
           andamentos: tiposAndamentos ? andItems.slice(0, 100) : [],
           audiencias: tiposAudiencias ? audItems.slice(0, 50) : [],
           intimacoes: tiposIntimacoes ? intItems.slice(0, 50) : [],
+          distribuicoes: tiposDistribuicoes ? distItems.slice(0, 50) : [],
+          alertas360: tiposAlertas360 ? alertaItems.slice(0, 50) : [],
+          tarefas: tiposTarefas ? tarefaItems.slice(0, 100) : [],
+          prazos: tiposPrazos ? prazoItems.slice(0, 100) : [],
         },
       };
-    }).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
-    }, [
-      coordenacoes, selectedCoordenacoes, selectAll, publicacoes, monitoramentosDjen,
-      redistribuicoesData, andamentosData, audienciasPendentes, intimacoesPendentes, 
-      statusFilter, matchesPeriodo, matchesSearch,
-      tiposDjen, tiposRedistribuicoes, tiposAndamentos, tiposAudiencias, tiposIntimacoes
-    ]);
+    }).filter(c => c.counts.total > 0).sort((a, b) => b.counts.total - a.counts.total);
+  }, [
+    coordenacoes, selectedCoordenacoes, selectAll, countsByCoord,
+    djenDetails, redistDetails, andamentosDetails, audienciasDetails, intimacoesDetails,
+    distribuicoesDetails, alertas360Details, tarefasDetails, prazosDetails,
+    tiposDjen, tiposRedistribuicoes, tiposAndamentos, tiposAudiencias, tiposIntimacoes,
+    tiposDistribuicoes, tiposAlertas360, tiposTarefas, tiposPrazos
+  ]);
 
-  const totalGeral = useMemo(() => {
-    return reportData.reduce((acc, c) => ({
-      djen: acc.djen + c.djen,
-      redistribuicoes: acc.redistribuicoes + c.redistribuicoes,
-      andamentos: acc.andamentos + c.andamentos,
-      audiencias: acc.audiencias + c.audiencias,
-      intimacoes: acc.intimacoes + c.intimacoes,
-      total: acc.total + c.total,
-    }), {
-      djen: 0, redistribuicoes: 0, andamentos: 0, audiencias: 0, intimacoes: 0, total: 0
-    });
-  }, [reportData]);
+  // Totais gerais (soma dos counts do RPC)
+  const totalGeral = useMemo<NotificacoesCounts>(() => {
+    const coordsToInclude = selectAll 
+      ? coordenacoes 
+      : coordenacoes.filter(c => selectedCoordenacoes.includes(c.id));
+    
+    const zero: NotificacoesCounts = {
+      djen: 0, distribuicoes: 0, alertas360: 0, redistribuicoes: 0,
+      andamentos: 0, prazos: 0, tarefas: 0, audiencias: 0, intimacoes: 0, total: 0
+    };
+
+    for (const coord of coordsToInclude) {
+      const c = countsByCoord[coord.id];
+      if (!c) continue;
+      
+      // Aplicar filtros de tipo
+      if (tiposDjen) zero.djen += c.djen;
+      if (tiposDistribuicoes) zero.distribuicoes += c.distribuicoes;
+      if (tiposAlertas360) zero.alertas360 += c.alertas360;
+      if (tiposRedistribuicoes) zero.redistribuicoes += c.redistribuicoes;
+      if (tiposAndamentos) zero.andamentos += c.andamentos;
+      if (tiposPrazos) zero.prazos += c.prazos;
+      if (tiposTarefas) zero.tarefas += c.tarefas;
+      if (tiposAudiencias) zero.audiencias += c.audiencias;
+      if (tiposIntimacoes) zero.intimacoes += c.intimacoes;
+    }
+
+    zero.total = zero.djen + zero.distribuicoes + zero.alertas360 + zero.redistribuicoes +
+                 zero.andamentos + zero.prazos + zero.tarefas + zero.audiencias + zero.intimacoes;
+
+    return zero;
+  }, [
+    coordenacoes, selectedCoordenacoes, selectAll, countsByCoord,
+    tiposDjen, tiposDistribuicoes, tiposAlertas360, tiposRedistribuicoes,
+    tiposAndamentos, tiposPrazos, tiposTarefas, tiposAudiencias, tiposIntimacoes
+  ]);
 
   // Calcular contagem de alertas por coordenação para exibir no dialog
   const getCoordenacaoAlertCount = useMemo(() => {
-    return (coordId: string) => {
-      const found = reportData.find(r => r.id === coordId);
-      return found?.total || 0;
-    };
-  }, [reportData]);
+    return (coordId: string) => countsByCoord[coordId]?.total || 0;
+  }, [countsByCoord]);
 
   const handleSelectAll = () => {
     setSelectAll(true);
@@ -511,7 +496,6 @@ export function GerarRelatorioPdfDialog({
       const element = printRef.current;
       if (!element) throw new Error("Elemento não encontrado");
 
-      // Tornar visível para captura
       element.style.display = "block";
       element.style.position = "absolute";
       element.style.left = "-9999px";
@@ -535,7 +519,6 @@ export function GerarRelatorioPdfDialog({
       const marginTop = 10;
       const contentWidth = pdfWidth - 20;
 
-      // Capturar cada página
       const pages = Array.from(element.querySelectorAll("[data-pdf-page]")) as HTMLElement[];
       const pageElements = pages.length > 0 ? pages : [element];
 
@@ -560,7 +543,6 @@ export function GerarRelatorioPdfDialog({
           pdf.addPage();
         }
 
-        // Se a imagem for maior que uma página, dividir
         let remainingHeight = imgHeight;
         let sourceY = 0;
         const pageContentHeight = pdfHeight - 20;
@@ -573,7 +555,6 @@ export function GerarRelatorioPdfDialog({
           const sliceHeight = Math.min(remainingHeight, pageContentHeight);
           const sourceHeight = (sliceHeight * canvas.height) / imgHeight;
 
-          // Criar canvas temporário para a fatia
           const tempCanvas = document.createElement("canvas");
           tempCanvas.width = canvas.width;
           tempCanvas.height = sourceHeight;
@@ -599,7 +580,6 @@ export function GerarRelatorioPdfDialog({
 
       setProgress(95);
 
-      // Download
       const dataStr = format(new Date(), "yyyy-MM-dd");
       pdf.save(`relatorio-notificacoes-${dataStr}.pdf`);
 
@@ -715,99 +695,47 @@ export function GerarRelatorioPdfDialog({
               </Button>
             </div>
             <div className="grid grid-cols-3 gap-2 p-3 border rounded-md">
-              <div
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                onClick={() => setTiposDjen(!tiposDjen)}
-              >
-                <Checkbox checked={tiposDjen} />
-                <span className="text-sm">DJEN</span>
-              </div>
-              <div
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                onClick={() => setTiposDistribuicoes(!tiposDistribuicoes)}
-              >
-                <Checkbox checked={tiposDistribuicoes} />
-                <span className="text-sm">Distribuições</span>
-              </div>
-              <div
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                onClick={() => setTiposAlertas360(!tiposAlertas360)}
-              >
-                <Checkbox checked={tiposAlertas360} />
-                <span className="text-sm">Alertas 360°</span>
-              </div>
-              <div
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                onClick={() => setTiposRedistribuicoes(!tiposRedistribuicoes)}
-              >
-                <Checkbox checked={tiposRedistribuicoes} />
-                <span className="text-sm">Redistribuições</span>
-              </div>
-              <div
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                onClick={() => setTiposPrazos(!tiposPrazos)}
-              >
-                <Checkbox checked={tiposPrazos} />
-                <span className="text-sm">Prazos</span>
-              </div>
-              <div
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                onClick={() => setTiposTarefas(!tiposTarefas)}
-              >
-                <Checkbox checked={tiposTarefas} />
-                <span className="text-sm">Tarefas</span>
-              </div>
-              <div
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                onClick={() => setTiposAudiencias(!tiposAudiencias)}
-              >
-                <Checkbox checked={tiposAudiencias} />
-                <span className="text-sm">Audiências</span>
-              </div>
-              <div
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                onClick={() => setTiposIntimacoes(!tiposIntimacoes)}
-              >
-                <Checkbox checked={tiposIntimacoes} />
-                <span className="text-sm">Intimações</span>
-              </div>
-              <div
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                onClick={() => setTiposAndamentos(!tiposAndamentos)}
-              >
-                <Checkbox checked={tiposAndamentos} />
-                <span className="text-sm">Andamentos</span>
-              </div>
+              {[
+                { state: tiposDjen, setState: setTiposDjen, label: "DJEN" },
+                { state: tiposDistribuicoes, setState: setTiposDistribuicoes, label: "Distribuições" },
+                { state: tiposAlertas360, setState: setTiposAlertas360, label: "Alertas 360°" },
+                { state: tiposRedistribuicoes, setState: setTiposRedistribuicoes, label: "Redistribuições" },
+                { state: tiposPrazos, setState: setTiposPrazos, label: "Prazos" },
+                { state: tiposTarefas, setState: setTiposTarefas, label: "Tarefas" },
+                { state: tiposAudiencias, setState: setTiposAudiencias, label: "Audiências" },
+                { state: tiposIntimacoes, setState: setTiposIntimacoes, label: "Intimações" },
+                { state: tiposAndamentos, setState: setTiposAndamentos, label: "Andamentos" },
+              ].map(tipo => (
+                <div
+                  key={tipo.label}
+                  className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                  onClick={() => tipo.setState(!tipo.state)}
+                >
+                  <Checkbox checked={tipo.state} />
+                  <span className="text-sm">{tipo.label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Resumo */}
-          <div className="bg-muted/30 rounded-lg p-4">
-            <h4 className="text-sm font-medium mb-3">Resumo do Relatório</h4>
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              <div className="text-center p-2 bg-background rounded-md">
-                <div className="text-2xl font-bold text-primary">{reportData.length}</div>
-                <div className="text-xs text-muted-foreground">Coordenações</div>
-              </div>
-              <div className="text-center p-2 bg-background rounded-md">
-                <div className="text-2xl font-bold text-primary">{totalGeral.total}</div>
-                <div className="text-xs text-muted-foreground">Total Alertas</div>
-              </div>
-              <div className="text-center p-2 bg-background rounded-md">
-                <div className="text-lg font-medium text-muted-foreground">{periodoLabel}</div>
-                <div className="text-xs text-muted-foreground">Período</div>
-              </div>
+          {/* Preview com filtros */}
+          <div className="flex items-center justify-between text-sm text-muted-foreground bg-muted/30 p-3 rounded-md">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">{periodoLabel}</Badge>
+              <Badge variant="outline">{statusFilter === "todas" ? "Todos status" : statusFilter}</Badge>
+            </div>
+            <div>
+              {reportData.length} coordenações • <strong>{totalGeral.total}</strong> alertas
             </div>
           </div>
 
           {/* Progress */}
           {generating && (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Gerando relatório...
-              </div>
               <Progress value={progress} className="h-2" />
+              <p className="text-xs text-center text-muted-foreground">
+                Gerando PDF... {Math.round(progress)}%
+              </p>
             </div>
           )}
         </div>
@@ -834,7 +762,7 @@ export function GerarRelatorioPdfDialog({
 
       {/* Conteúdo para impressão (hidden) */}
       <div ref={printRef} style={{ display: "none" }}>
-        {/* Capa + Sumário Executivo - Página única */}
+        {/* Capa + Sumário Executivo */}
         <div data-pdf-page="cover-summary" style={{ 
           padding: "24px", 
           fontFamily: "Arial, sans-serif",
@@ -866,11 +794,7 @@ export function GerarRelatorioPdfDialog({
                 ⚖️
               </div>
               <div>
-                <h1 style={{ 
-                  fontSize: "22px", 
-                  fontWeight: "bold", 
-                  margin: 0,
-                }}>
+                <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>
                   RELATÓRIO EXECUTIVO
                 </h1>
                 <div style={{ fontSize: "12px", opacity: 0.8 }}>
@@ -885,34 +809,38 @@ export function GerarRelatorioPdfDialog({
             </div>
           </div>
 
-          {/* Totais Gerais */}
+          {/* Totais Gerais - 9 categorias */}
           <h3 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "10px", color: "#1a1a2e" }}>
             Resumo Geral
           </h3>
           <div style={{ 
             display: "grid", 
             gridTemplateColumns: "repeat(5, 1fr)", 
-            gap: "8px",
-            marginBottom: "20px",
+            gap: "6px",
+            marginBottom: "12px",
           }}>
             {[
-              { label: "DJEN", value: totalGeral.djen },
-              { label: "Andamentos", value: totalGeral.andamentos },
-              { label: "Audiências", value: totalGeral.audiencias },
-              { label: "Redistribuições", value: totalGeral.redistribuicoes },
-              { label: "Intimações", value: totalGeral.intimacoes },
-            ].map(item => (
+              { label: "DJEN", value: totalGeral.djen, show: tiposDjen },
+              { label: "Distribuições", value: totalGeral.distribuicoes, show: tiposDistribuicoes },
+              { label: "Alertas 360°", value: totalGeral.alertas360, show: tiposAlertas360 },
+              { label: "Redistribuições", value: totalGeral.redistribuicoes, show: tiposRedistribuicoes },
+              { label: "Prazos", value: totalGeral.prazos, show: tiposPrazos },
+              { label: "Tarefas", value: totalGeral.tarefas, show: tiposTarefas },
+              { label: "Audiências", value: totalGeral.audiencias, show: tiposAudiencias },
+              { label: "Intimações", value: totalGeral.intimacoes, show: tiposIntimacoes },
+              { label: "Andamentos", value: totalGeral.andamentos, show: tiposAndamentos },
+            ].filter(item => item.show).map(item => (
               <div key={item.label} style={{
                 border: "1px solid #e5e7eb",
-                padding: "10px",
+                padding: "8px",
                 textAlign: "center",
                 borderRadius: "6px",
                 background: "#f8fafc",
               }}>
-                <div style={{ fontSize: "22px", fontWeight: "bold", color: "#1a1a2e" }}>
+                <div style={{ fontSize: "18px", fontWeight: "bold", color: "#1a1a2e" }}>
                   {item.value}
                 </div>
-                <div style={{ fontSize: "8px", color: "#64748b", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "7px", color: "#64748b", textTransform: "uppercase" }}>
                   {item.label}
                 </div>
               </div>
@@ -923,42 +851,68 @@ export function GerarRelatorioPdfDialog({
           <h3 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "10px", color: "#1a1a2e" }}>
             Visão por Coordenação
           </h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
             <thead>
               <tr style={{ background: "#1a1a2e", color: "white" }}>
-                <th style={{ padding: "8px", textAlign: "left", border: "1px solid #1a1a2e" }}>Coordenação</th>
-                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>DJEN</th>
-                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Andamentos</th>
-                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Audiências</th>
-                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Redistribuições</th>
-                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>Intimações</th>
-                <th style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e", fontWeight: "bold" }}>Total</th>
+                <th style={{ padding: "6px", textAlign: "left", border: "1px solid #1a1a2e" }}>Coordenação</th>
+                {tiposDjen && <th style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>DJEN</th>}
+                {tiposDistribuicoes && <th style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>Distrib.</th>}
+                {tiposAlertas360 && <th style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>360°</th>}
+                {tiposRedistribuicoes && <th style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>Redist.</th>}
+                {tiposPrazos && <th style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>Prazos</th>}
+                {tiposTarefas && <th style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>Tarefas</th>}
+                {tiposAudiencias && <th style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>Aud.</th>}
+                {tiposIntimacoes && <th style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>Intim.</th>}
+                {tiposAndamentos && <th style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>Andamentos</th>}
+                <th style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e", fontWeight: "bold" }}>Total</th>
               </tr>
             </thead>
             <tbody>
-              {reportData.map((coord, idx) => (
-                <tr key={coord.id} style={{ background: idx % 2 === 0 ? "#f8fafc" : "white" }}>
-                  <td style={{ padding: "8px", fontWeight: "500", border: "1px solid #e5e7eb" }}>{coord.nome}</td>
-                  <td style={{ padding: "8px", textAlign: "center", border: "1px solid #e5e7eb" }}>{coord.djen}</td>
-                  <td style={{ padding: "8px", textAlign: "center", border: "1px solid #e5e7eb" }}>{coord.andamentos}</td>
-                  <td style={{ padding: "8px", textAlign: "center", border: "1px solid #e5e7eb" }}>{coord.audiencias}</td>
-                  <td style={{ padding: "8px", textAlign: "center", border: "1px solid #e5e7eb" }}>{coord.redistribuicoes}</td>
-                  <td style={{ padding: "8px", textAlign: "center", border: "1px solid #e5e7eb" }}>{coord.intimacoes}</td>
-                  <td style={{ padding: "8px", textAlign: "center", fontWeight: "bold", border: "1px solid #e5e7eb" }}>
-                    {coord.total}
-                  </td>
-                </tr>
-              ))}
+              {reportData.map((coord, idx) => {
+                const c = coord.counts;
+                const rowTotal = 
+                  (tiposDjen ? c.djen : 0) +
+                  (tiposDistribuicoes ? c.distribuicoes : 0) +
+                  (tiposAlertas360 ? c.alertas360 : 0) +
+                  (tiposRedistribuicoes ? c.redistribuicoes : 0) +
+                  (tiposPrazos ? c.prazos : 0) +
+                  (tiposTarefas ? c.tarefas : 0) +
+                  (tiposAudiencias ? c.audiencias : 0) +
+                  (tiposIntimacoes ? c.intimacoes : 0) +
+                  (tiposAndamentos ? c.andamentos : 0);
+                
+                return (
+                  <tr key={coord.id} style={{ background: idx % 2 === 0 ? "#f8fafc" : "white" }}>
+                    <td style={{ padding: "6px", fontWeight: "500", border: "1px solid #e5e7eb" }}>{coord.nome}</td>
+                    {tiposDjen && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>{c.djen}</td>}
+                    {tiposDistribuicoes && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>{c.distribuicoes}</td>}
+                    {tiposAlertas360 && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>{c.alertas360}</td>}
+                    {tiposRedistribuicoes && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>{c.redistribuicoes}</td>}
+                    {tiposPrazos && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>{c.prazos}</td>}
+                    {tiposTarefas && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>{c.tarefas}</td>}
+                    {tiposAudiencias && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>{c.audiencias}</td>}
+                    {tiposIntimacoes && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>{c.intimacoes}</td>}
+                    {tiposAndamentos && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>{c.andamentos}</td>}
+                    <td style={{ padding: "6px", textAlign: "center", fontWeight: "bold", border: "1px solid #e5e7eb" }}>
+                      {rowTotal}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr style={{ background: "#1a1a2e", color: "white", fontWeight: "bold" }}>
-                <td style={{ padding: "8px", border: "1px solid #1a1a2e" }}>TOTAL GERAL</td>
-                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.djen}</td>
-                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.andamentos}</td>
-                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.audiencias}</td>
-                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.redistribuicoes}</td>
-                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.intimacoes}</td>
-                <td style={{ padding: "8px", textAlign: "center", border: "1px solid #1a1a2e" }}>
+                <td style={{ padding: "6px", border: "1px solid #1a1a2e" }}>TOTAL GERAL</td>
+                {tiposDjen && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.djen}</td>}
+                {tiposDistribuicoes && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.distribuicoes}</td>}
+                {tiposAlertas360 && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.alertas360}</td>}
+                {tiposRedistribuicoes && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.redistribuicoes}</td>}
+                {tiposPrazos && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.prazos}</td>}
+                {tiposTarefas && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.tarefas}</td>}
+                {tiposAudiencias && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.audiencias}</td>}
+                {tiposIntimacoes && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.intimacoes}</td>}
+                {tiposAndamentos && <td style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>{totalGeral.andamentos}</td>}
+                <td style={{ padding: "6px", textAlign: "center", border: "1px solid #1a1a2e" }}>
                   {totalGeral.total}
                 </td>
               </tr>
@@ -1000,119 +954,96 @@ export function GerarRelatorioPdfDialog({
                 {coord.nome}
               </h2>
               <span style={{ fontSize: "12px", color: "#64748b" }}>
-                Total: {coord.total} alertas
+                Total: {coord.counts.total} alertas
               </span>
             </div>
 
-            {/* ============ DJEN ============ */}
+            {/* DJEN */}
             {coord.detalhes.djen.length > 0 && (
               <div style={{ marginBottom: "16px" }}>
                 <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
-                  Publicações DJEN ({coord.djen})
+                  Publicações DJEN ({coord.counts.djen})
                 </h4>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
                   <thead>
                     <tr style={{ background: "#f1f5f9" }}>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Conteúdo</th>
-                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb", width: "80px" }}>Data</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb", width: "20%" }}>Processo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Conteúdo</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb", width: "12%" }}>Data</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {coord.detalhes.djen.map((p: any, i: number) => {
-                      const processoNumero = p.processo_numero || extractProcessoNumero(p.conteudo) || "Não identificado";
-                      return (
-                        <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
-                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>{processoNumero}</td>
-                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b", lineHeight: "1.4" }}>
-                            {(p.conteudo || "Sem conteúdo").substring(0, 300)}...
-                          </td>
-                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", color: "#64748b" }}>
-                            {formatDate(p.data_publicacao || p.created_at)}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {coord.detalhes.djen.map((pub: any, idx: number) => (
+                      <tr key={pub.id} style={{ background: idx % 2 === 0 ? "white" : "#f8fafc" }}>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb", verticalAlign: "top" }}>
+                          {pub.processo_numero || extractProcessoNumero(pub.conteudo) || "-"}
+                        </td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>
+                          {(pub.conteudo || "").replace(/<[^>]*>/g, " ").slice(0, 200)}...
+                        </td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>
+                          {formatDate(pub.data_publicacao || pub.created_at)}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
-                {coord.djen > coord.detalhes.djen.length && (
-                  <div style={{ fontStyle: "italic", marginTop: "4px", color: "#64748b", fontSize: "9px" }}>
-                    ... e mais {coord.djen - coord.detalhes.djen.length} publicações
-                  </div>
-                )}
               </div>
             )}
 
-            {/* ============ AUDIÊNCIAS ============ */}
+            {/* Audiências */}
             {coord.detalhes.audiencias.length > 0 && (
               <div style={{ marginBottom: "16px" }}>
                 <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
-                  Audiências ({coord.audiencias})
+                  Audiências ({coord.counts.audiencias})
                 </h4>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
                   <thead>
                     <tr style={{ background: "#f1f5f9" }}>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
-                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Tipo</th>
-                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data/Hora</th>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Local</th>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Parte</th>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Advogado</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Tipo</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data/Hora</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Local</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {coord.detalhes.audiencias.map((a: any, i: number) => {
-                      const hora = a.hora_brasilia || a.hora || "";
-                      const local = [a.local_audiencia, a.vara_camara, a.comarca].filter(Boolean).join(" - ") || "-";
-                      const parte = a.cliente || a.polo_ativo || "-";
-                      const advogadosVinculados = advogadosPorAudiencia[a.id]?.join(", ") || "";
-                      const advogadoExibicao = a.advogado || advogadosVinculados || "-";
-                      return (
-                        <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
-                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>{a.processo_numero}</td>
-                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center" }}>{a.tipo_audiencia || "-"}</td>
-                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", whiteSpace: "nowrap" }}>
-                            {formatDate(a.data_audiencia)} {hora ? `${hora}` : ""}
-                          </td>
-                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{local}</td>
-                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{parte}</td>
-                          <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{advogadoExibicao}</td>
-                        </tr>
-                      );
-                    })}
+                    {coord.detalhes.audiencias.map((aud: any, idx: number) => (
+                      <tr key={aud.id} style={{ background: idx % 2 === 0 ? "white" : "#f8fafc" }}>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{aud.processo_numero || aud.processo?.numero || "-"}</td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{aud.tipo_audiencia || "-"}</td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>
+                          {formatDate(aud.data_audiencia)} {aud.hora || aud.hora_brasilia || ""}
+                        </td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{aud.local_audiencia || aud.vara_camara || "-"}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
 
-            {/* ============ INTIMAÇÕES ============ */}
+            {/* Intimações */}
             {coord.detalhes.intimacoes.length > 0 && (
               <div style={{ marginBottom: "16px" }}>
                 <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
-                  Intimações ({coord.intimacoes})
+                  Intimações ({coord.counts.intimacoes})
                 </h4>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
                   <thead>
                     <tr style={{ background: "#f1f5f9" }}>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
-                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Tipo</th>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Descrição</th>
-                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data</th>
-                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Prazo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Tipo</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>Prazo</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {coord.detalhes.intimacoes.map((int: any, i: number) => (
-                      <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>{int.processo_numero}</td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center" }}>{int.tipo_intimacao || "-"}</td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b", lineHeight: "1.4" }}>
-                          {int.descricao || "-"}
-                        </td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center" }}>{formatDate(int.data_intimacao)}</td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", fontWeight: "500" }}>
-                          {int.data_limite ? formatDate(int.data_limite) : "-"}
-                        </td>
+                    {coord.detalhes.intimacoes.map((int: any, idx: number) => (
+                      <tr key={int.id} style={{ background: idx % 2 === 0 ? "white" : "#f8fafc" }}>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{int.processo_numero || int.processo?.numero || "-"}</td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{int.tipo_intimacao || "-"}</td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>{formatDate(int.data_intimacao)}</td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>{formatDate(int.data_limite)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1120,32 +1051,26 @@ export function GerarRelatorioPdfDialog({
               </div>
             )}
 
-            {/* ============ REDISTRIBUIÇÕES ============ */}
+            {/* Redistribuições */}
             {coord.detalhes.redistribuicoes.length > 0 && (
               <div style={{ marginBottom: "16px" }}>
                 <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
-                  Redistribuições ({coord.redistribuicoes})
+                  Redistribuições ({coord.counts.redistribuicoes})
                 </h4>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
                   <thead>
                     <tr style={{ background: "#f1f5f9" }}>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Vara Origem</th>
-                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb", width: "30px" }}></th>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Vara Destino</th>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Responsável</th>
-                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Descrição</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {coord.detalhes.redistribuicoes.map((r: any, i: number) => (
-                      <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500", whiteSpace: "nowrap" }}>{r.processo_numero}</td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{r.vara_antiga || "-"}</td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", fontWeight: "bold" }}>→</td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{r.vara_nova || "-"}</td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#64748b" }}>{r.advogado_nome || "-"}</td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center" }}>{formatDate(r.data_redistribuicao)}</td>
+                    {coord.detalhes.redistribuicoes.map((red: any, idx: number) => (
+                      <tr key={red.id} style={{ background: idx % 2 === 0 ? "white" : "#f8fafc" }}>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{red.processo?.numero || "-"}</td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{red.descricao?.slice(0, 100) || "-"}</td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>{formatDate(red.data_movimentacao)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1153,66 +1078,164 @@ export function GerarRelatorioPdfDialog({
               </div>
             )}
 
-            {/* ============ ANDAMENTOS ============ */}
+            {/* Andamentos */}
             {coord.detalhes.andamentos.length > 0 && (
               <div style={{ marginBottom: "16px" }}>
                 <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
-                  Andamentos ({coord.andamentos})
+                  Andamentos ({coord.counts.andamentos})
                 </h4>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
                   <thead>
                     <tr style={{ background: "#f1f5f9" }}>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb", width: "160px" }}>Processo</th>
-                      <th style={{ padding: "6px", textAlign: "left", border: "1px solid #e5e7eb" }}>Descrição</th>
-                      <th style={{ padding: "6px", textAlign: "center", border: "1px solid #e5e7eb", width: "80px" }}>Data</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb", width: "20%" }}>Processo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Descrição</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb", width: "12%" }}>Data</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {coord.detalhes.andamentos.map((a: any, i: number) => (
-                      <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "white" }}>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", fontWeight: "500" }}>{(a.processo as any)?.numero || "-"}</td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", color: "#374151", lineHeight: "1.5", whiteSpace: "pre-wrap" }}>
-                          {a.descricao || "Sem descrição"}
-                        </td>
-                        <td style={{ padding: "6px", border: "1px solid #e5e7eb", textAlign: "center", color: "#64748b" }}>
-                          {formatDate(a.data_movimentacao)}
-                        </td>
+                    {coord.detalhes.andamentos.map((and: any, idx: number) => (
+                      <tr key={and.id} style={{ background: idx % 2 === 0 ? "white" : "#f8fafc" }}>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{and.processo?.numero || "-"}</td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{and.descricao || "-"}</td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>{formatDate(and.data_movimentacao)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {coord.andamentos > coord.detalhes.andamentos.length && (
-                  <div style={{ fontStyle: "italic", marginTop: "4px", color: "#64748b", fontSize: "9px" }}>
-                    ... e mais {coord.andamentos - coord.detalhes.andamentos.length} andamentos
-                  </div>
-                )}
               </div>
             )}
+
+            {/* Distribuições */}
+            {coord.detalhes.distribuicoes.length > 0 && (
+              <div style={{ marginBottom: "16px" }}>
+                <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
+                  Distribuições ({coord.counts.distribuicoes})
+                </h4>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9" }}>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Vara/Tribunal</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coord.detalhes.distribuicoes.map((dist: any, idx: number) => (
+                      <tr key={dist.id} style={{ background: idx % 2 === 0 ? "white" : "#f8fafc" }}>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{dist.numero_processo || "-"}</td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{dist.vara || dist.tribunal || "-"}</td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>{formatDate(dist.data_distribuicao)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Alertas 360° */}
+            {coord.detalhes.alertas360.length > 0 && (
+              <div style={{ marginBottom: "16px" }}>
+                <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
+                  Alertas 360° ({coord.counts.alertas360})
+                </h4>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9" }}>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Termo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Contexto</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coord.detalhes.alertas360.map((alerta: any, idx: number) => (
+                      <tr key={alerta.id} style={{ background: idx % 2 === 0 ? "white" : "#f8fafc" }}>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{alerta.processo?.numero || "-"}</td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{alerta.termo_encontrado || "-"}</td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{(alerta.contexto || "").slice(0, 80)}...</td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>{formatDate(alerta.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Tarefas */}
+            {coord.detalhes.tarefas.length > 0 && (
+              <div style={{ marginBottom: "16px" }}>
+                <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
+                  Tarefas ({coord.counts.tarefas})
+                </h4>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9" }}>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Título</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>Vencimento</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>Prioridade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coord.detalhes.tarefas.map((tarefa: any, idx: number) => (
+                      <tr key={tarefa.id} style={{ background: idx % 2 === 0 ? "white" : "#f8fafc" }}>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{tarefa.processo?.numero || "-"}</td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{tarefa.titulo?.slice(0, 60) || "-"}</td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>{formatDate(tarefa.data_vencimento)}</td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>{tarefa.prioridade || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Prazos */}
+            {coord.detalhes.prazos.length > 0 && (
+              <div style={{ marginBottom: "16px" }}>
+                <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#1a1a2e", marginBottom: "6px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>
+                  Prazos Próximos ({coord.counts.prazos})
+                </h4>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9" }}>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Processo</th>
+                      <th style={{ padding: "4px", textAlign: "left", border: "1px solid #e5e7eb" }}>Título</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>Vencimento</th>
+                      <th style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>Prioridade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coord.detalhes.prazos.map((prazo: any, idx: number) => (
+                      <tr key={prazo.id} style={{ background: idx % 2 === 0 ? "white" : "#f8fafc" }}>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{prazo.processo?.numero || "-"}</td>
+                        <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>{prazo.titulo?.slice(0, 60) || "-"}</td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>
+                          {formatDate(prazo.data_vencimento || prazo.data_fatal || prazo.data_base)}
+                        </td>
+                        <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>{prazo.prioridade || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Rodapé */}
+            <div style={{ 
+              marginTop: "auto",
+              paddingTop: "12px", 
+              borderTop: "1px solid #e5e7eb",
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: "9px",
+              color: "#64748b",
+            }}>
+              <span>{coord.nome}</span>
+              <span>{dataAtual}</span>
+            </div>
           </div>
         ))}
-
-        {/* Rodapé */}
-        <div data-pdf-page="footer" style={{
-          padding: "24px",
-          fontFamily: "Arial, sans-serif",
-          background: "#1a1a2e",
-          color: "white",
-          textAlign: "center",
-          minHeight: "60mm",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-        }}>
-          <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "8px" }}>
-            Juris Control | Paixão Cortes Advogados
-          </div>
-          <div style={{ fontSize: "11px", opacity: 0.7 }}>
-            Relatório gerado automaticamente em {dataAtual}
-          </div>
-          <div style={{ fontSize: "10px", opacity: 0.5, marginTop: "16px" }}>
-            Este documento é confidencial e de uso exclusivo da diretoria.
-          </div>
-        </div>
       </div>
     </Dialog>
   );
