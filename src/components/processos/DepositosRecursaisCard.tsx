@@ -102,7 +102,8 @@ export function DepositosRecursaisCard({ processoId }: DepositosRecursaisCardPro
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-3 space-y-2 max-h-[300px] overflow-y-auto">
+      <CardContent className="p-3 space-y-2">
+        <div className="max-h-[250px] overflow-y-auto space-y-2">
         {/* Lista de depósitos */}
         {depositos.map((dep) => (
           <div key={dep.id} className="text-xs p-2 bg-muted/50 rounded border-l-2 border-emerald-500">
@@ -228,6 +229,17 @@ export function DepositosRecursaisCard({ processoId }: DepositosRecursaisCardPro
           <div className="text-center py-3 text-muted-foreground">
             <Banknote className="w-6 h-6 mx-auto mb-1 opacity-30" />
             <p className="text-xs">Nenhum depósito registrado</p>
+          </div>
+        )}
+        </div>
+
+        {/* Linha de soma total */}
+        {depositos.length > 0 && (
+          <div className="pt-2 border-t mt-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold text-muted-foreground">Total:</span>
+              <span className="font-bold text-emerald-600 text-base">{formatCurrency(total)}</span>
+            </div>
           </div>
         )}
       </CardContent>

@@ -102,7 +102,8 @@ export function CustasProcessuaisCard({ processoId }: CustasProcessuaisCardProps
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-3 space-y-2 max-h-[300px] overflow-y-auto">
+      <CardContent className="p-3 space-y-2">
+        <div className="max-h-[250px] overflow-y-auto space-y-2">
         {/* Lista de custas */}
         {custas.map((custa) => (
           <div key={custa.id} className="text-xs p-2 bg-muted/50 rounded border-l-2 border-blue-500">
@@ -228,6 +229,17 @@ export function CustasProcessuaisCard({ processoId }: CustasProcessuaisCardProps
           <div className="text-center py-3 text-muted-foreground">
             <Receipt className="w-6 h-6 mx-auto mb-1 opacity-30" />
             <p className="text-xs">Nenhuma custa registrada</p>
+          </div>
+        )}
+        </div>
+
+        {/* Linha de soma total */}
+        {custas.length > 0 && (
+          <div className="pt-2 border-t mt-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold text-muted-foreground">Total:</span>
+              <span className="font-bold text-blue-600 text-base">{formatCurrency(total)}</span>
+            </div>
           </div>
         )}
       </CardContent>
