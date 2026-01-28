@@ -12,6 +12,7 @@ import {
   XCircle,
   Briefcase
 } from "lucide-react";
+import { PedidosEditableTable } from "./PedidosEditableTable";
 
 interface ProcessoPedidosTabProps {
   processo: any;
@@ -138,24 +139,16 @@ export function ProcessoPedidosTab({ processo }: ProcessoPedidosTabProps) {
     hasValue(processo.lei_13467_2017) ||
     hasValue(processo.responsabilidade_subsidiaria);
   
-  if (!hasAnyPedido) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Sem pedidos cadastrados</h3>
-          <p className="text-muted-foreground">
-            Este processo não possui pedidos trabalhistas importados.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Summary Card */}
-      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
+    <div className="space-y-6">
+      {/* Tabela Editável de Pedidos */}
+      <PedidosEditableTable processoId={processo.id} />
+
+      {/* Dados Importados da Planilha - só mostra se houver dados */}
+      {hasAnyPedido && (
+        <>
+          {/* Summary Card */}
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
         <CardContent className="py-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
@@ -291,6 +284,8 @@ export function ProcessoPedidosTab({ processo }: ProcessoPedidosTabProps) {
             <p className="text-sm text-foreground whitespace-pre-wrap">{processo.pedidos}</p>
           </CardContent>
         </Card>
+      )}
+        </>
       )}
     </div>
   );

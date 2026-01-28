@@ -2839,6 +2839,71 @@ export type Database = {
           },
         ]
       }
+      pedidos_processo: {
+        Row: {
+          acordao: boolean | null
+          created_at: string
+          criado_por: string | null
+          data: string | null
+          desembargador_turma: string | null
+          id: string
+          juiz_sentenca: string | null
+          lei: string | null
+          ministro_turma_sessao: string | null
+          observacao: string | null
+          pedido: string
+          processo_id: string
+          sentenca: boolean | null
+          tst: boolean | null
+          updated_at: string
+          valor_pedido: number | null
+        }
+        Insert: {
+          acordao?: boolean | null
+          created_at?: string
+          criado_por?: string | null
+          data?: string | null
+          desembargador_turma?: string | null
+          id?: string
+          juiz_sentenca?: string | null
+          lei?: string | null
+          ministro_turma_sessao?: string | null
+          observacao?: string | null
+          pedido: string
+          processo_id: string
+          sentenca?: boolean | null
+          tst?: boolean | null
+          updated_at?: string
+          valor_pedido?: number | null
+        }
+        Update: {
+          acordao?: boolean | null
+          created_at?: string
+          criado_por?: string | null
+          data?: string | null
+          desembargador_turma?: string | null
+          id?: string
+          juiz_sentenca?: string | null
+          lei?: string | null
+          ministro_turma_sessao?: string | null
+          observacao?: string | null
+          pedido?: string
+          processo_id?: string
+          sentenca?: boolean | null
+          tst?: boolean | null
+          updated_at?: string
+          valor_pedido?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedidos_processo_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processos: {
         Row: {
           adicao_baixa: string | null
