@@ -8,7 +8,11 @@ const ScrollArea = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
 >(({ className, children, ...props }, ref) => (
   <ScrollAreaPrimitive.Root ref={ref} className={cn("relative overflow-hidden", className)} {...props}>
-    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit] touch-pan-y [&>div]:!min-w-0">{children}</ScrollAreaPrimitive.Viewport>
+    {/*
+      Importante para mobile: permitir pan-x também.
+      Se o viewport força só pan-y, o browser bloqueia o gesto horizontal em filhos (mesmo com overflow-x).
+    */}
+    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit] touch-pan-x touch-pan-y [&>div]:!min-w-0">{children}</ScrollAreaPrimitive.Viewport>
     <ScrollBar />
     <ScrollAreaPrimitive.Corner />
   </ScrollAreaPrimitive.Root>

@@ -223,6 +223,13 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
     }
   };
 
+  const formatObs = (value: string | null) => {
+    const v = (value ?? "").trim();
+    // Alguns dados legados podem ter sido gravados como string "false".
+    if (!v || v.toLowerCase() === "false") return "-";
+    return v;
+  };
+
   const PedidoFormFields = ({
     data,
     setData,
@@ -510,7 +517,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
             <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.desembargador_turma || "-"}</td>
             <td className="px-2 py-1 border-r text-center">{pedido.tst ? "✓" : "-"}</td>
             <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.ministro_turma_sessao || "-"}</td>
-            <td className="px-2 py-1 whitespace-nowrap">{pedido.observacao || "-"}</td>
+            <td className="px-2 py-1 whitespace-nowrap">{formatObs(pedido.observacao)}</td>
           </tr>
         ))}
       </tbody>
