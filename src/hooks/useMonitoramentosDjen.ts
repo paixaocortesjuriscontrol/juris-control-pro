@@ -52,9 +52,10 @@ export interface PublicacaoContagem {
   nao_lidas: number;
 }
 
-export function useMonitoramentosDjen() {
+export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const enabled = options?.enabled ?? true;
 
   const { data: monitoramentos = [], isLoading } = useQuery({
     queryKey: ['monitoramentos-djen', user?.id],
@@ -69,7 +70,7 @@ export function useMonitoramentosDjen() {
       if (error) throw error;
       return data as MonitoramentoDjen[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && enabled,
   });
 
   // Buscar contagens agregadas por monitoramento via RPC (mais eficiente)
@@ -92,7 +93,7 @@ export function useMonitoramentosDjen() {
         nao_lidas: Number(item.nao_lidas),
       })) as PublicacaoContagem[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && enabled,
   });
 
   // Manter busca de publicações recentes para exibição em detalhes
@@ -110,7 +111,7 @@ export function useMonitoramentosDjen() {
       if (error) throw error;
       return data as PublicacaoDjen[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && enabled,
   });
 
   const { data: descartadas = [], isLoading: loadingDescartadas } = useQuery({
@@ -127,7 +128,7 @@ export function useMonitoramentosDjen() {
       if (error) throw error;
       return data as PublicacaoDescartada[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && enabled,
   });
 
   const criarMonitoramento = useMutation({

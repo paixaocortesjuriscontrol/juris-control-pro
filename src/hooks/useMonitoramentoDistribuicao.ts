@@ -33,9 +33,10 @@ export interface DistribuicaoEncontrada {
   created_at: string;
 }
 
-export function useMonitoramentoDistribuicao() {
+export function useMonitoramentoDistribuicao(options?: { enabled?: boolean }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const enabled = options?.enabled ?? true;
 
   const { data: monitoramentos = [], isLoading } = useQuery({
     queryKey: ['monitoramentos-distribuicao'],
@@ -48,6 +49,7 @@ export function useMonitoramentoDistribuicao() {
       if (error) throw error;
       return data as MonitoramentoDistribuicao[];
     },
+    enabled,
   });
 
   const { data: distribuicoesEncontradas = [], isLoading: loadingDistribuicoes } = useQuery({
@@ -62,6 +64,7 @@ export function useMonitoramentoDistribuicao() {
       if (error) throw error;
       return data as DistribuicaoEncontrada[];
     },
+    enabled,
   });
 
   const criarMonitoramento = useMutation({

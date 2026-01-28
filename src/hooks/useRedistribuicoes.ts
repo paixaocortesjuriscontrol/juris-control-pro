@@ -18,9 +18,11 @@ export function useRedistribuicoes(filters?: {
   dataFim?: string;
   processoNumero?: string;
   coordenacaoId?: string;
+  enabled?: boolean;
 }) {
   return useQuery({
     queryKey: ['redistribuicoes', filters],
+    enabled: filters?.enabled ?? true,
     queryFn: async () => {
       const pageSize = 1000;
 
