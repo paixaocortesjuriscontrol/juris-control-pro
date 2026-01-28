@@ -1192,6 +1192,94 @@ export type Database = {
           },
         ]
       }
+      custas_processuais: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          data_pagamento: string
+          descricao: string
+          id: string
+          observacoes: string | null
+          processo_id: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          data_pagamento: string
+          descricao: string
+          id?: string
+          observacoes?: string | null
+          processo_id: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          data_pagamento?: string
+          descricao?: string
+          id?: string
+          observacoes?: string | null
+          processo_id?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custas_processuais_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      depositos_recursais: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          data_pagamento: string
+          id: string
+          observacoes: string | null
+          processo_id: string
+          titulo: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          data_pagamento: string
+          id?: string
+          observacoes?: string | null
+          processo_id: string
+          titulo: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          data_pagamento?: string
+          id?: string
+          observacoes?: string | null
+          processo_id?: string
+          titulo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "depositos_recursais_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       distribuicoes_encontradas: {
         Row: {
           assunto: string | null
