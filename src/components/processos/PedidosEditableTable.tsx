@@ -600,7 +600,10 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           Nenhum pedido cadastrado. Clique em "Adicionar" para criar.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto overscroll-x-contain touch-pan-x"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           <div className="min-w-[800px]">
             <ReadOnlyTable />
           </div>
