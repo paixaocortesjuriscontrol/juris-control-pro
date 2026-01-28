@@ -87,6 +87,7 @@ import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
 import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentosTab";
 import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
+import { ProcessoPedidosTab } from "@/components/processos/ProcessoPedidosTab";
 import { SelecionarResponsaveisProcesso } from "@/components/processos/SelecionarResponsaveisProcesso";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
@@ -1371,6 +1372,17 @@ export default function ProcessoDetalhes() {
           <Globe className="w-4 h-4" />
           <span className="hidden sm:inline">Portal</span>
         </TabsTrigger>
+        <TabsTrigger 
+          value="pedidos" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "pedidos" ? "" : "pedidos");
+          }}
+        >
+          <ListPlus className="w-4 h-4" />
+          <span className="hidden sm:inline">Pedidos</span>
+        </TabsTrigger>
       </TabsList>
 
       {/* Tab Contents - Audiências */}
@@ -1790,6 +1802,11 @@ export default function ProcessoDetalhes() {
       {/* Tab Contents - Portal */}
       <TabsContent value="portal" className="mt-4">
         <ProcessoPortalTab processoId={id!} processoNumero={processo.numero} tribunal={processo.tribunal} />
+      </TabsContent>
+
+      {/* Tab Contents - Pedidos Trabalhistas */}
+      <TabsContent value="pedidos" className="mt-4">
+        <ProcessoPedidosTab processo={processo} />
       </TabsContent>
     </Tabs>
   );
