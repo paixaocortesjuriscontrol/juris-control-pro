@@ -612,9 +612,12 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
       {/* Área com scroll horizontal (mesma ideia do popup) */}
       <div
         ref={cardScrollerRef}
-        className="overflow-x-auto max-h-[60vh] w-full"
-        style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+        className="overflow-x-auto pb-1 max-h-[60vh] w-full touch-pan-x touch-pan-y"
+        style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y" }}
         onPointerDown={(e) => {
+          // Mobile: prefer native horizontal scroll (igual às abas)
+          if (e.pointerType === "touch") return;
+
           const el = cardScrollerRef.current;
           if (!el || el.scrollWidth <= el.clientWidth) return;
 
@@ -632,6 +635,8 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           }
         }}
         onPointerMove={(e) => {
+          if (e.pointerType === "touch") return;
+
           const el = cardScrollerRef.current;
           const st = dragRef.current;
           if (!el || !st.active || st.pointerId !== e.pointerId) return;
