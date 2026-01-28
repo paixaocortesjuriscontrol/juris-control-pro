@@ -618,70 +618,36 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     return Array.from(statsMap.values()).sort((a, b) => b.total - a.total);
   })();
 
-  // Marcar como lida - com tratamento de erros e batching para evitar limite do Supabase
+  // Marcar como lida - usa RPC que marca TODOS os registros duplicados (mesmo hash de dedup)
+  // Isso resolve o problema onde a UI mostra 1 publicação deduplicada, mas existem N registros subjacentes
   const marcarComoLida = useMutation({
     mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' }[]) => {
       const termos = items.filter(i => i.tipo_origem === 'termo').map(i => i.id);
       const processos = items.filter(i => i.tipo_origem === 'processo').map(i => i.id);
       const descartadas = items.filter(i => i.tipo_origem === 'descartada').map(i => i.id);
 
-      const errors: string[] = [];
-      const BATCH_SIZE = 500; // Limite seguro para evitar problemas com .in()
+      // Usa RPC que encontra e marca TODOS os registros que compartilham o mesmo hash de deduplicação
+      const { data, error } = await (supabase as any).rpc('marcar_publicacoes_lidas_por_dedup', {
+        p_ids_termos: termos.length > 0 ? termos : null,
+        p_ids_processos: processos.length > 0 ? processos : null,
+        p_ids_descartadas: descartadas.length > 0 ? descartadas : null,
+      });
 
-      // Helper para processar em lotes
-      const processInBatches = async (
-        ids: string[], 
-        tableName: string, 
-        updateFn: (batch: string[]) => Promise<{ error: any }>
-      ) => {
-        for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-          const batch = ids.slice(i, i + BATCH_SIZE);
-          const { error } = await updateFn(batch);
-          if (error) {
-            console.error(`Erro ao marcar ${tableName} (lote ${Math.floor(i/BATCH_SIZE) + 1}):`, error);
-            errors.push(`${tableName}: ${error.message}`);
-          }
-        }
-      };
-
-      // Processar termos em lotes
-      if (termos.length > 0) {
-        await processInBatches(termos, 'publicacoes_djen', async (batch) => {
-          return await supabase
-            .from('publicacoes_djen')
-            .update({ lida: true })
-            .in('id', batch);
-        });
+      if (error) {
+        console.error('Erro ao marcar publicações lidas via RPC:', error);
+        throw new Error(error.message);
       }
 
-      // Processar processos em lotes
-      if (processos.length > 0) {
-        await processInBatches(processos, 'publicacoes_djen_processos', async (batch) => {
-          return await supabase
-            .from('publicacoes_djen_processos')
-            .update({ lida: true })
-            .in('id', batch);
-        });
-      }
-
-      // Processar descartadas em lotes
-      if (descartadas.length > 0) {
-        await processInBatches(descartadas, 'publicacoes_djen_descartadas', async (batch) => {
-          return await (supabase
-            .from('publicacoes_djen_descartadas') as any)
-            .update({ lida: true })
-            .in('id', batch);
-        });
-      }
-
-      // Se houve erros, lançar exceção para que o toast de erro apareça
-      if (errors.length > 0) {
-        throw new Error(`Falha ao marcar algumas publicações: ${errors.join('; ')}`);
-      }
+      console.log('[DJEN] Publicações marcadas via dedup:', data);
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
-      toast.success("Publicação(ões) marcada(s) como lida(s)");
+      queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
+      queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
+      
+      const total = (data?.termos_atualizados || 0) + (data?.processos_atualizados || 0) + (data?.descartadas_atualizados || 0);
+      toast.success(`${total} publicação(ões) marcada(s) como lida(s)`);
     },
     onError: (error) => {
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
