@@ -70,8 +70,9 @@ const PRIORIDADES = [
   { value: 'urgente', label: 'Urgente' },
 ];
 
-export function useMonitoramento360() {
+export function useMonitoramento360(options?: { enabled?: boolean }) {
   const queryClient = useQueryClient();
+  const enabled = options?.enabled ?? true;
 
   // Buscar termos de monitoramento
   const { data: termos = [], isLoading: loadingTermos } = useQuery({
@@ -86,6 +87,7 @@ export function useMonitoramento360() {
       if (error) throw error;
       return data as TermoMonitoramento[];
     },
+    enabled,
   });
 
   // Buscar alertas
@@ -106,6 +108,7 @@ export function useMonitoramento360() {
       if (error) throw error;
       return data as AlertaMonitoramento[];
     },
+    enabled,
   });
 
   // Buscar carteiras
@@ -120,6 +123,7 @@ export function useMonitoramento360() {
       if (error) throw error;
       return data as CarteiraProcessos[];
     },
+    enabled,
   });
 
   // Criar termo
