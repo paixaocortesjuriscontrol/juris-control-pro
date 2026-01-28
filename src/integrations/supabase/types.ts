@@ -4581,6 +4581,14 @@ export type Database = {
       is_cliente: { Args: { _user_id: string }; Returns: boolean }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
       limpar_execucoes_antigas: { Args: never; Returns: undefined }
+      marcar_publicacoes_lidas_por_dedup: {
+        Args: {
+          p_ids_descartadas?: string[]
+          p_ids_processos?: string[]
+          p_ids_termos?: string[]
+        }
+        Returns: Json
+      }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       search_users_basic: {
         Args: { _limit?: number; _query?: string }
