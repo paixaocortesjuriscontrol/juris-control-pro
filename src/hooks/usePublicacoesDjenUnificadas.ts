@@ -618,39 +618,74 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     return Array.from(statsMap.values()).sort((a, b) => b.total - a.total);
   })();
 
-  // Marcar como lida
+  // Marcar como lida - com tratamento de erros e batching para evitar limite do Supabase
   const marcarComoLida = useMutation({
     mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' }[]) => {
       const termos = items.filter(i => i.tipo_origem === 'termo').map(i => i.id);
       const processos = items.filter(i => i.tipo_origem === 'processo').map(i => i.id);
       const descartadas = items.filter(i => i.tipo_origem === 'descartada').map(i => i.id);
 
+      const errors: string[] = [];
+      const BATCH_SIZE = 500; // Limite seguro para evitar problemas com .in()
+
+      // Helper para processar em lotes
+      const processInBatches = async (
+        ids: string[], 
+        tableName: string, 
+        updateFn: (batch: string[]) => Promise<{ error: any }>
+      ) => {
+        for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+          const batch = ids.slice(i, i + BATCH_SIZE);
+          const { error } = await updateFn(batch);
+          if (error) {
+            console.error(`Erro ao marcar ${tableName} (lote ${Math.floor(i/BATCH_SIZE) + 1}):`, error);
+            errors.push(`${tableName}: ${error.message}`);
+          }
+        }
+      };
+
+      // Processar termos em lotes
       if (termos.length > 0) {
-        await supabase
-          .from('publicacoes_djen')
-          .update({ lida: true })
-          .in('id', termos);
+        await processInBatches(termos, 'publicacoes_djen', async (batch) => {
+          return await supabase
+            .from('publicacoes_djen')
+            .update({ lida: true })
+            .in('id', batch);
+        });
       }
 
+      // Processar processos em lotes
       if (processos.length > 0) {
-        await supabase
-          .from('publicacoes_djen_processos')
-          .update({ lida: true })
-          .in('id', processos);
+        await processInBatches(processos, 'publicacoes_djen_processos', async (batch) => {
+          return await supabase
+            .from('publicacoes_djen_processos')
+            .update({ lida: true })
+            .in('id', batch);
+        });
       }
 
+      // Processar descartadas em lotes
       if (descartadas.length > 0) {
-        // Cast para contornar tipagem até regenerar types
-        const { error } = await (supabase
-          .from('publicacoes_djen_descartadas') as any)
-          .update({ lida: true })
-          .in('id', descartadas);
-        if (error) console.error('Erro ao marcar descartadas:', error);
+        await processInBatches(descartadas, 'publicacoes_djen_descartadas', async (batch) => {
+          return await (supabase
+            .from('publicacoes_djen_descartadas') as any)
+            .update({ lida: true })
+            .in('id', batch);
+        });
+      }
+
+      // Se houve erros, lançar exceção para que o toast de erro apareça
+      if (errors.length > 0) {
+        throw new Error(`Falha ao marcar algumas publicações: ${errors.join('; ')}`);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       toast.success("Publicação(ões) marcada(s) como lida(s)");
+    },
+    onError: (error) => {
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
+      toast.error(`Erro ao marcar publicações: ${error.message}`);
     },
   });
 
