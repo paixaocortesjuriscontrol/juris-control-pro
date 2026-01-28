@@ -612,7 +612,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
       {/* Área com scroll horizontal (mesma ideia do popup) */}
       <div
         ref={cardScrollerRef}
-        className="overflow-x-auto w-full"
+        className="overflow-x-auto max-h-[60vh] w-full"
         style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
         onPointerDown={(e) => {
           const el = cardScrollerRef.current;
