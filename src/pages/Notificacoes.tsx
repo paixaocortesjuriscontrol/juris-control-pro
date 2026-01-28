@@ -114,12 +114,20 @@ export default function Notificacoes() {
     excluirNotificacao 
   } = useNotificacoes();
   
-  const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen();
-  const { distribuicoesEncontradas } = useMonitoramentoDistribuicao();
-  const { alertas } = useMonitoramento360();
+  // LAZY LOADING: só carrega quando a aba específica é aberta
+  const { publicacoes, monitoramentos: monitoramentosDjen } = useMonitoramentosDjen({
+    enabled: activeTab === "djen",
+  });
+  const { distribuicoesEncontradas } = useMonitoramentoDistribuicao({
+    enabled: activeTab === "distribuicoes",
+  });
+  const { alertas } = useMonitoramento360({
+    enabled: activeTab === "alertas360",
+  });
   const { data: redistribuicoesData = [] } = useRedistribuicoes({
     dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
     dataFim: periodoFim ? format(periodoFim, "yyyy-MM-dd") : undefined,
+    enabled: activeTab === "redistribuicoes",
   });
 
   // Counts quando usuário seleciona uma coordenação específica
