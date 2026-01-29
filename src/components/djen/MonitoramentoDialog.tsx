@@ -106,7 +106,20 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       setDescricao(monitoramento.descricao || '');
       setExclusoes(monitoramento.exclusoes || []);
       setCondicaoConcomitante(monitoramento.condicao_concomitante || '');
-      setTribunaisSelecionados(monitoramento.tribunais || []);
+      
+      // Expandir IDs sintéticos ao carregar
+      let tribunaisCarregados = monitoramento.tribunais || [];
+      const expandidos: string[] = [];
+      for (const t of tribunaisCarregados) {
+        if (t === 'TODOS_TRT') {
+          expandidos.push(...TODOS_IDS_TRABALHISTAS);
+        } else if (t === 'TODOS_CIVEIS') {
+          expandidos.push(...TODOS_IDS_CIVEIS);
+        } else {
+          expandidos.push(t);
+        }
+      }
+      setTribunaisSelecionados([...new Set(expandidos)]);
       
       if (monitoramento.uf) {
         if (monitoramento.uf === 'TODAS') {
