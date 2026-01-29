@@ -248,7 +248,8 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       descricao: descricao || undefined,
       exclusoes: exclusoes.length > 0 ? exclusoes : undefined,
       condicao_concomitante: condicaoConcomitante || undefined,
-      tribunais: tribunaisSelecionados.length > 0 ? tribunaisSelecionados : undefined,
+      // IMPORTANT: ao limpar seleção, precisamos atualizar o campo no DB (undefined não atualiza)
+      tribunais: tribunaisSelecionados.length > 0 ? tribunaisSelecionados : null,
     };
 
     if (monitoramento) {
