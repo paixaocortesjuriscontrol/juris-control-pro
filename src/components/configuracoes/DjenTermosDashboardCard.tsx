@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,17 +6,27 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Loader2, Newspaper, PlayCircle, StopCircle, Trash2, Mail,
-  CheckCircle2, XCircle, Clock, TrendingUp, Zap, MinusCircle
+  CheckCircle2, XCircle, Clock, TrendingUp, Zap, MinusCircle,
+  RotateCcw, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { MonitoringStats, MonitoringStatus } from "@/hooks/useMonitoringDashboard";
 import { formatDuration, formatDateTime } from "@/hooks/useMonitoringDashboard";
 import { cn } from "@/lib/utils";
-import { useBuscaDjenDireta } from "@/hooks/useBuscaDjenDireta";
+import { useBuscaDjenDireta, type FaseStatus } from "@/hooks/useBuscaDjenDireta";
 import { withTimeout } from "@/utils/withTimeout";
-import { useState } from "react";
 import { useEnviarResumoManual } from "@/hooks/useEnviarResumoManual";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Props = {
   stats: MonitoringStats;
@@ -26,7 +36,7 @@ type Props = {
   onAfterMutation: () => void;
 };
 
-const STATUS_CONFIG: Record<MonitoringStatus, { 
+const STATUS_CONFIG: Record<MonitoringStatus | 'cancelado', { 
   label: string; 
   color: string; 
   bgColor: string;
@@ -70,6 +80,13 @@ const STATUS_CONFIG: Record<MonitoringStatus, {
     borderColor: 'border-orange-500/30',
     icon: StopCircle 
   },
+  cancelado: { 
+    label: 'Cancelado', 
+    color: 'text-orange-600', 
+    bgColor: 'bg-orange-500/10',
+    borderColor: 'border-orange-500/30',
+    icon: StopCircle 
+  },
   timeout: { 
     label: 'Timeout', 
     color: 'text-red-600', 
@@ -79,8 +96,14 @@ const STATUS_CONFIG: Record<MonitoringStatus, {
   },
 };
 
-function StatusBadge({ status }: { status: MonitoringStatus }) {
-  const config = STATUS_CONFIG[status];
+const FASE_LABELS = {
+  1: 'Buscar Publicações',
+  2: 'Identificar Eventos',
+  3: 'Enviar Notificações',
+};
+
+function StatusBadge({ status }: { status: MonitoringStatus | 'cancelado' }) {
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.idle;
   const Icon = config.icon;
   
   return (
@@ -96,6 +119,72 @@ function StatusBadge({ status }: { status: MonitoringStatus }) {
       <Icon className={cn("h-3.5 w-3.5", config.animate && "animate-spin")} />
       {config.label}
     </Badge>
+  );
+}
+
+function FaseIndicator({ 
+  fase, 
+  label, 
+  status, 
+  processados, 
+  total 
+}: { 
+  fase: number; 
+  label: string; 
+  status: FaseStatus;
+  processados: number;
+  total: number;
+}) {
+  const getIcon = () => {
+    switch (status) {
+      case 'concluido':
+        return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+      case 'executando':
+        return <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />;
+      case 'erro':
+        return <XCircle className="h-4 w-4 text-red-600" />;
+      default:
+        return <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />;
+    }
+  };
+
+  const getStatusText = () => {
+    switch (status) {
+      case 'concluido':
+        return total > 0 ? `✓ Concluído (${total})` : '✓ Concluído';
+      case 'executando':
+        return total > 0 ? `${processados}/${total} (${Math.round((processados / total) * 100)}%)` : 'Processando...';
+      case 'erro':
+        return 'Erro';
+      default:
+        return 'Pendente';
+    }
+  };
+
+  return (
+    <div className={cn(
+      "flex items-center justify-between py-1.5 px-2 rounded-md text-sm",
+      status === 'executando' && "bg-blue-500/10",
+      status === 'concluido' && "bg-green-500/5",
+    )}>
+      <div className="flex items-center gap-2">
+        {getIcon()}
+        <span className={cn(
+          "font-medium",
+          status === 'pendente' && "text-muted-foreground",
+        )}>
+          Fase {fase}: {label}
+        </span>
+      </div>
+      <span className={cn(
+        "text-xs font-mono",
+        status === 'concluido' && "text-green-600",
+        status === 'executando' && "text-blue-600",
+        status === 'pendente' && "text-muted-foreground",
+      )}>
+        {getStatusText()}
+      </span>
+    </div>
   );
 }
 
@@ -144,22 +233,29 @@ export function DjenTermosDashboardCard({
     progresso,
     executarMonitoramento,
     cancelarExecucao,
+    verificarCheckpoint,
+    limparCheckpoint,
   } = useBuscaDjenDireta();
 
   const { enviando, enviarResumo } = useEnviarResumoManual();
   const [limpando, setLimpando] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
 
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
 
-  // Para BUSCA DIRETA, a fonte de verdade do status/progresso é o hook local.
-  // O backend (metadata) representa a execução orquestrada/cron e pode estar “concluído”
-  // enquanto a busca direta ainda roda (ou vice-versa). Não misturar.
-  // Fonte única para a UI: o status do progresso do hook.
-  // (O boolean `executando` pode ficar alguns ticks desencontrado em transições.)
-  const localRunActive = progresso.status === 'executando';
+  // Verificar checkpoint disponível
+  const checkpoint = verificarCheckpoint();
+  const hasCheckpoint = !!checkpoint && progresso.status !== 'executando';
+  const checkpointPercent = checkpoint 
+    ? Math.round((checkpoint.monitoramentosProcessados.length / (progresso.totalMonitoramentos || 114)) * 100)
+    : 0;
 
-  // Progresso exibido: local quando busca direta está ativa; senão, usa metadata do dashboard
+  // Status baseado no progresso local (fonte de verdade)
+  const localRunActive = progresso.status === 'executando';
+  const localCancelled = progresso.status === 'cancelado';
+  const localCompleted = progresso.status === 'concluido';
+
   const backendTotal = md.total ?? 0;
   const backendCurrent = md.current ?? 0;
 
@@ -169,40 +265,75 @@ export function DjenTermosDashboardCard({
   const percent = useMemo(() => {
     if (effectiveTotal <= 0) return 0;
     const calc = Math.round((effectiveCurrent / effectiveTotal) * 100);
-    // Se atingiu 100%, manter 100%
     return Math.min(100, calc);
   }, [effectiveCurrent, effectiveTotal]);
 
-  // Status exibido: se busca direta está ativa, reflete o hook; senão, reflete o dashboard.
-  const localCompleted = progresso.status === 'concluido';
-
-  const currentStatus: MonitoringStatus = localRunActive
-    ? (localCompleted ? 'completed' : (progresso.status === 'erro' ? 'failed' : 'running'))
-    : stats.status;
+  // Mapear status local para MonitoringStatus
+  const currentStatus: MonitoringStatus | 'cancelado' = localRunActive
+    ? 'running'
+    : localCancelled
+      ? 'cancelado'
+      : localCompleted
+        ? 'completed'
+        : progresso.status === 'erro'
+          ? 'failed'
+          : stats.status;
 
   const isRunning = currentStatus === 'running';
 
-  const statusConfig = STATUS_CONFIG[currentStatus];
+  const statusConfig = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.idle;
 
   const handleExecutar = async () => {
-    // DJEN Termos (busca direta) não usa o estado "executing" do MonitoringDashboard.
     if (isRunning) return;
+
+    // Verificar se há checkpoint
+    if (hasCheckpoint) {
+      setShowResumeDialog(true);
+      return;
+    }
 
     try {
       if (isPaused) {
         await onReativarConfig('djen');
       }
-      await executarMonitoramento();
+      await executarMonitoramento(undefined, false);
       toast.info('DJEN Termos iniciado (busca direta).');
     } catch (e: any) {
       toast.error(`Erro ao iniciar DJEN: ${e?.message || 'erro desconhecido'}`);
     }
   };
 
+  const handleRetomar = async () => {
+    setShowResumeDialog(false);
+    try {
+      if (isPaused) {
+        await onReativarConfig('djen');
+      }
+      await executarMonitoramento(undefined, true);
+      toast.info('DJEN Termos retomando de onde parou...');
+    } catch (e: any) {
+      toast.error(`Erro ao retomar: ${e?.message || 'erro desconhecido'}`);
+    }
+  };
+
+  const handleExecutarDoZero = async () => {
+    setShowResumeDialog(false);
+    limparCheckpoint();
+    try {
+      if (isPaused) {
+        await onReativarConfig('djen');
+      }
+      await executarMonitoramento(undefined, false);
+      toast.info('DJEN Termos iniciado do zero.');
+    } catch (e: any) {
+      toast.error(`Erro ao iniciar: ${e?.message || 'erro desconhecido'}`);
+    }
+  };
+
   const handleCancelar = () => {
     try {
       cancelarExecucao();
-      toast.success('Cancelamento solicitado.');
+      toast.success('Cancelamento solicitado. Progresso salvo para retomada.');
     } catch (e: any) {
       toast.error(`Erro ao cancelar: ${e?.message || 'erro desconhecido'}`);
     }
@@ -235,29 +366,19 @@ export function DjenTermosDashboardCard({
   };
 
   const canExecute = !isRunning && currentStatus !== 'timeout';
-  // Cancelar só faz sentido para a busca direta (local)
   const canCancel = localRunActive && isRunning;
 
-  // Métricas reais - USAR APENAS todayStats (banco consolidado, fonte única de verdade)
-  // Evita inconsistência entre Dashboard e Análise DJEN
   const processados = effectiveCurrent;
   const total = effectiveTotal;
-  // todayStats vem de COUNT(*) direto na tabela publicacoes_djen - é a fonte confiável
   const encontrados = stats.todayStats.found ?? 0;
   const descartadas = stats.todayStats.descartadas ?? 0;
 
-  // Tempo - PRIORIDADE: 1) progresso local (se ativo ou recém concluído), 2) metadata.duracao_s, 3) stats.elapsedSeconds
   const tempoLocal = progresso.tempoDecorrido ?? 0;
-  // O metadata.duracao_s é gravado pelo backend ao finalizar a busca direta
   const metadataDuracao = md.duracao_s ?? 0;
   
-  // Lógica:
-  // - Se está executando localmente: usar tempo local (contador ativo)
-  // - Se busca local acabou de concluir (tempoLocal > 0): usar tempo local persistido
-  // - Senão: usar duracao do metadata (fonte de verdade do backend)
   const tempoSegundos = localRunActive
     ? tempoLocal
-    : (tempoLocal > 0 && localCompleted)
+    : (tempoLocal > 0 && (localCompleted || localCancelled))
       ? tempoLocal
       : (metadataDuracao > 0 ? metadataDuracao : 0);
   
@@ -266,195 +387,293 @@ export function DjenTermosDashboardCard({
     : (stats.elapsedSeconds > 0 ? formatDuration(stats.elapsedSeconds) : '-');
 
   return (
-    <Card className={cn(
-      "overflow-hidden transition-all duration-300",
-      isRunning && "ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10",
-      currentStatus === 'failed' && "ring-1 ring-red-500/30",
-    )}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              "p-2.5 rounded-xl transition-colors",
-              statusConfig.bgColor,
-            )}>
-              <Newspaper className={cn(
-                "h-5 w-5",
-                statusConfig.color,
-                isRunning && "animate-pulse"
-              )} />
-            </div>
-            <div>
-              <CardTitle className="text-base font-semibold">{stats.nome}</CardTitle>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="outline" className="text-xs">
-                  {stats.config?.frequencia || 'diário'}
-                </Badge>
-                <Badge variant="outline" className="text-xs">
-                  Busca direta
-                </Badge>
-                {isPaused && (
-                  <Badge variant="secondary" className="text-xs">Desativado</Badge>
-                )}
+    <>
+      <Card className={cn(
+        "overflow-hidden transition-all duration-300",
+        isRunning && "ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10",
+        currentStatus === 'failed' && "ring-1 ring-red-500/30",
+        currentStatus === 'cancelado' && "ring-1 ring-orange-500/30",
+      )}>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "p-2.5 rounded-xl transition-colors",
+                statusConfig.bgColor,
+              )}>
+                <Newspaper className={cn(
+                  "h-5 w-5",
+                  statusConfig.color,
+                  isRunning && "animate-pulse"
+                )} />
+              </div>
+              <div>
+                <CardTitle className="text-base font-semibold">{stats.nome}</CardTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline" className="text-xs">
+                    {stats.config?.frequencia || 'diário'}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    Busca direta
+                  </Badge>
+                  {isPaused && (
+                    <Badge variant="secondary" className="text-xs">Desativado</Badge>
+                  )}
+                </div>
               </div>
             </div>
+            <StatusBadge status={currentStatus} />
           </div>
-          <StatusBadge status={currentStatus} />
-        </div>
-      </CardHeader>
+        </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Execution Details Panel - mesmo padrão dos outros cards */}
-        <div className={cn(
-          "rounded-xl p-4 space-y-3 border-2 transition-all",
-          statusConfig.bgColor,
-          statusConfig.borderColor,
-          isRunning && "shadow-lg shadow-blue-500/10"
-        )}>
-          {/* Progress Bar */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground font-medium">
-                {isRunning ? (
-                  total > 0 
-                    ? `Processando: ${processados.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')}`
-                    : 'Processando...'
-                ) : 'Progresso'}
-              </span>
-              <span className={cn("font-bold", statusConfig.color)}>
-                {`${percent}%`}
-              </span>
-            </div>
-            <Progress 
-              value={percent} 
-              className={cn("h-2.5", isRunning && "animate-pulse")}
-            />
-            {isRunning && localRunActive && progresso.mensagem && (
-              <div className="text-xs text-muted-foreground truncate">
-                {progresso.mensagem}
+        <CardContent className="space-y-4">
+          {/* Alerta de checkpoint disponível */}
+          {hasCheckpoint && !isRunning && (
+            <div className="flex items-center gap-2 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg text-sm">
+              <AlertCircle className="h-4 w-4 text-orange-600 flex-shrink-0" />
+              <div className="flex-1">
+                <span className="font-medium text-orange-700">Execução interrompida</span>
+                <span className="text-orange-600 ml-1">
+                  ({checkpointPercent}% concluído)
+                </span>
               </div>
-            )}
-          </div>
-
-          {/* Metrics Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-background/60 rounded-lg p-2.5 text-center border">
-              <div className="text-xs text-muted-foreground mb-0.5">Processados</div>
-              <div className="text-lg font-bold font-mono text-foreground">
-                {processados.toLocaleString('pt-BR')}
-              </div>
-            </div>
-            <div className="bg-background/60 rounded-lg p-2.5 text-center border">
-              <div className="text-xs text-muted-foreground mb-0.5">Encontrados / Descartadas (hoje)</div>
-              <div className="text-lg font-bold font-mono text-green-600">
-                {encontrados.toLocaleString('pt-BR')}
-              </div>
-              <div className="text-xs font-mono text-red-600">
-                {descartadas.toLocaleString('pt-BR')}
-              </div>
-            </div>
-            <div className="bg-background/60 rounded-lg p-2.5 text-center border">
-              <div className="text-xs text-muted-foreground mb-0.5">Total</div>
-              <div className="text-lg font-bold font-mono text-foreground">
-                {total > 0 ? total.toLocaleString('pt-BR') : '-'}
-              </div>
-            </div>
-            <div className="bg-background/60 rounded-lg p-2.5 text-center border">
-              <div className="text-xs text-muted-foreground mb-0.5">Tempo</div>
-              <div className={cn("text-lg font-bold font-mono", isRunning && "text-blue-600")}>
-                {tempoFormatado}
-              </div>
-            </div>
-          </div>
-
-          {/* Running Indicator */}
-          {isRunning && (
-            <div className="flex items-center justify-center gap-2 text-blue-600 py-1">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm font-medium">Execução em andamento...</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
+                onClick={() => setShowResumeDialog(true)}
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                Retomar
+              </Button>
             </div>
           )}
-        </div>
 
-        {/* Today's Stats Summary */}
-        <div className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded-lg">
-          <span className="text-xs text-muted-foreground font-medium">Hoje:</span>
-          <div className="flex items-center gap-4">
-            <MetricBadge icon={Zap} value={stats.todayStats.executions} label="Execuções hoje" />
-            <MetricBadge icon={TrendingUp} value={stats.todayStats.novas ?? 0} label="Novas" variant="success" />
-            <MetricBadge icon={MinusCircle} value={stats.todayStats.descartadas ?? 0} label="Descartadas" />
-          </div>
-        </div>
+          {/* Indicador de Fases (durante execução) */}
+          {(isRunning || localCancelled) && (
+            <div className="space-y-1 border rounded-lg p-3 bg-muted/30">
+              <div className="text-xs font-medium text-muted-foreground mb-2">Fases da Execução</div>
+              <FaseIndicator
+                fase={1}
+                label={FASE_LABELS[1]}
+                status={progresso.fases.fase1.status}
+                processados={progresso.fases.fase1.processados}
+                total={progresso.fases.fase1.total}
+              />
+              <FaseIndicator
+                fase={2}
+                label={FASE_LABELS[2]}
+                status={progresso.fases.fase2.status}
+                processados={progresso.fases.fase2.processados}
+                total={progresso.fases.fase2.total}
+              />
+              <FaseIndicator
+                fase={3}
+                label={FASE_LABELS[3]}
+                status={progresso.fases.fase3.status}
+                processados={progresso.fases.fase3.processados}
+                total={progresso.fases.fase3.total}
+              />
+            </div>
+          )}
 
-        {/* Last Execution Time */}
-        <div className="text-xs text-muted-foreground text-center">
-          Última execução: {formatDateTime(stats.currentExecution?.iniciado_em || stats.lastCompletedExecution?.iniciado_em)}
-        </div>
+          {/* Execution Details Panel */}
+          <div className={cn(
+            "rounded-xl p-4 space-y-3 border-2 transition-all",
+            statusConfig.bgColor,
+            statusConfig.borderColor,
+            isRunning && "shadow-lg shadow-blue-500/10"
+          )}>
+            {/* Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground font-medium">
+                  {isRunning ? (
+                    total > 0 
+                      ? `Processando: ${processados.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')}`
+                      : 'Processando...'
+                  ) : 'Progresso'}
+                </span>
+                <span className={cn("font-bold", statusConfig.color)}>
+                  {`${percent}%`}
+                </span>
+              </div>
+              <Progress 
+                value={percent} 
+                className={cn("h-2.5", isRunning && "animate-pulse")}
+              />
+              {isRunning && localRunActive && progresso.mensagem && (
+                <div className="text-xs text-muted-foreground truncate">
+                  {progresso.mensagem}
+                </div>
+              )}
+            </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2">
-          <Button 
-            size="sm"
-            className="flex-1"
-            onClick={handleExecutar}
-            disabled={!canExecute}
-          >
-            {isRunning ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Executando...
-              </>
-            ) : (
-              <>
-                <PlayCircle className="h-4 w-4 mr-2" />
-                Executar
-              </>
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-background/60 rounded-lg p-2.5 text-center border">
+                <div className="text-xs text-muted-foreground mb-0.5">Processados</div>
+                <div className="text-lg font-bold font-mono text-foreground">
+                  {processados.toLocaleString('pt-BR')}
+                </div>
+              </div>
+              <div className="bg-background/60 rounded-lg p-2.5 text-center border">
+                <div className="text-xs text-muted-foreground mb-0.5">Encontrados / Desc.</div>
+                <div className="text-lg font-bold font-mono text-green-600">
+                  {encontrados.toLocaleString('pt-BR')}
+                </div>
+                <div className="text-xs font-mono text-red-600">
+                  {descartadas.toLocaleString('pt-BR')}
+                </div>
+              </div>
+              <div className="bg-background/60 rounded-lg p-2.5 text-center border">
+                <div className="text-xs text-muted-foreground mb-0.5">Total</div>
+                <div className="text-lg font-bold font-mono text-foreground">
+                  {total > 0 ? total.toLocaleString('pt-BR') : '-'}
+                </div>
+              </div>
+              <div className="bg-background/60 rounded-lg p-2.5 text-center border">
+                <div className="text-xs text-muted-foreground mb-0.5">Tempo</div>
+                <div className={cn("text-lg font-bold font-mono", isRunning && "text-blue-600")}>
+                  {tempoFormatado}
+                </div>
+              </div>
+            </div>
+
+            {/* Running Indicator */}
+            {isRunning && (
+              <div className="flex items-center justify-center gap-2 text-blue-600 py-1">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm font-medium">Execução em andamento...</span>
+              </div>
             )}
-          </Button>
-          
-          <Button 
-            size="sm"
-            variant="destructive"
-            onClick={handleCancelar}
-            disabled={!canCancel}
-          >
-            <StopCircle className="h-4 w-4" />
-          </Button>
+          </div>
 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  size="sm"
-                  variant="outline"
-                  onClick={() => enviarResumo('djen')}
-                  disabled={enviando['djen']}
-                  title="Enviar resumo de hoje"
-                >
-                  {enviando['djen'] ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Mail className="h-4 w-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Enviar resumo de hoje (Email/WhatsApp)</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          {/* Today's Stats Summary */}
+          <div className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded-lg">
+            <span className="text-xs text-muted-foreground font-medium">Hoje:</span>
+            <div className="flex items-center gap-4">
+              <MetricBadge icon={Zap} value={stats.todayStats.executions} label="Execuções hoje" />
+              <MetricBadge icon={TrendingUp} value={stats.todayStats.novas ?? 0} label="Novas" variant="success" />
+              <MetricBadge icon={MinusCircle} value={stats.todayStats.descartadas ?? 0} label="Descartadas" />
+            </div>
+          </div>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleLimparHoje}
-            disabled={limpando}
-            title="Limpar DJEN hoje"
-          >
-            {limpando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          {/* Last Execution Time */}
+          <div className="text-xs text-muted-foreground text-center">
+            Última execução: {formatDateTime(stats.currentExecution?.iniciado_em || stats.lastCompletedExecution?.iniciado_em)}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <Button 
+              size="sm"
+              className="flex-1"
+              onClick={handleExecutar}
+              disabled={!canExecute}
+            >
+              {isRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Executando...
+                </>
+              ) : hasCheckpoint ? (
+                <>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Continuar ({checkpointPercent}%)
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="h-4 w-4 mr-2" />
+                  Executar
+                </>
+              )}
+            </Button>
+            
+            <Button 
+              size="sm"
+              variant="destructive"
+              onClick={handleCancelar}
+              disabled={!canCancel}
+            >
+              <StopCircle className="h-4 w-4" />
+            </Button>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    onClick={() => enviarResumo('djen')}
+                    disabled={enviando['djen']}
+                    title="Enviar resumo de hoje"
+                  >
+                    {enviando['djen'] ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Mail className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Enviar resumo de hoje (Email/WhatsApp)</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleLimparHoje}
+              disabled={limpando}
+              title="Limpar DJEN hoje"
+            >
+              {limpando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dialog de Retomada */}
+      <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-orange-600" />
+              Execução Interrompida
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Uma execução anterior foi interrompida em <strong>{checkpointPercent}%</strong> de progresso.
+              </p>
+              <p>
+                Deseja retomar de onde parou ou começar do zero?
+              </p>
+              {checkpoint && (
+                <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
+                  <div><strong>Monitoramentos processados:</strong> {checkpoint.monitoramentosProcessados.length}</div>
+                  <div><strong>Publicações encontradas:</strong> {checkpoint.totalNovas}</div>
+                  <div><strong>Tempo acumulado:</strong> {formatDuration(checkpoint.tempoAcumulado)}</div>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleExecutarDoZero}
+              className="bg-muted text-foreground hover:bg-muted/80"
+            >
+              Começar do Zero
+            </AlertDialogAction>
+            <AlertDialogAction onClick={handleRetomar}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Retomar de {checkpointPercent}%
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
