@@ -1,145 +1,139 @@
 
+# Plano: Selecionar Todos os Tribunais ao Clicar "Todos os TRTs" / "Todos os Cíveis"
 
-# Plano: Monitoração 360 - Varredura de 7 Dias Sem Duplicadas
+## Objetivo
 
-## Análise do Problema
+Ao clicar em "Todos os TRTs" ou "Todos os Tribunais Cíveis (TJs)", o sistema deve automaticamente marcar/desmarcar todos os tribunais daquela categoria na interface, ao invés de salvar um ID sintético (`TODOS_TRT` ou `TODOS_CIVEIS`).
 
-A edge function `monitorar-termos` está filtrando movimentações por `created_at >= início do dia atual` (linhas 170-173). Como não houve movimentações capturadas hoje (29/01), a varredura termina em segundos sem encontrar nada.
+## Mudanças Propostas
 
-**Logs confirmam:**
+### Arquivo: `src/components/djen/MonitoramentoDialog.tsx`
+
+#### 1. Adicionar constantes com IDs dos tribunais por categoria
+
+```typescript
+// Todos os TJs disponíveis
+const TODOS_IDS_CIVEIS = TRIBUNAIS_DISPONIVEIS
+  .filter(t => t.categoria === 'Estadual' && t.id !== 'TODOS_CIVEIS')
+  .map(t => t.id);
+
+// Todos os TRTs + TST
+const TODOS_IDS_TRABALHISTAS = TRIBUNAIS_DISPONIVEIS
+  .filter(t => t.categoria === 'Trabalhista' && t.id !== 'TODOS_TRT')
+  .map(t => t.id);
 ```
-Init: 11 terms, 0 movements today
-Batch complete in 11741ms. Progress: 0/0 (100%). isComplete=true
+
+#### 2. Modificar a função `handleToggleTribunal`
+
+Alterar a lógica para que, ao clicar em um "Todos", marque/desmarque todos os tribunais daquela categoria:
+
+```typescript
+const handleToggleTribunal = (tribunalId: string) => {
+  // Caso especial: "Todos os TRTs"
+  if (tribunalId === 'TODOS_TRT') {
+    const todosMarcados = TODOS_IDS_TRABALHISTAS.every(id => 
+      tribunaisSelecionados.includes(id)
+    );
+    if (todosMarcados) {
+      // Desmarcar todos
+      setTribunaisSelecionados(prev => 
+        prev.filter(t => !TODOS_IDS_TRABALHISTAS.includes(t))
+      );
+    } else {
+      // Marcar todos
+      setTribunaisSelecionados(prev => 
+        [...new Set([...prev, ...TODOS_IDS_TRABALHISTAS])]
+      );
+    }
+    return;
+  }
+  
+  // Caso especial: "Todos os Cíveis"
+  if (tribunalId === 'TODOS_CIVEIS') {
+    const todosMarcados = TODOS_IDS_CIVEIS.every(id => 
+      tribunaisSelecionados.includes(id)
+    );
+    if (todosMarcados) {
+      // Desmarcar todos
+      setTribunaisSelecionados(prev => 
+        prev.filter(t => !TODOS_IDS_CIVEIS.includes(t))
+      );
+    } else {
+      // Marcar todos
+      setTribunaisSelecionados(prev => 
+        [...new Set([...prev, ...TODOS_IDS_CIVEIS])]
+      );
+    }
+    return;
+  }
+  
+  // Comportamento padrão para tribunais individuais
+  setTribunaisSelecionados(prev =>
+    prev.includes(tribunalId)
+      ? prev.filter(t => t !== tribunalId)
+      : [...prev, tribunalId]
+  );
+};
 ```
 
-## Solução: Varredura dos Últimos 7 Dias
+#### 3. Atualizar o estado visual do checkbox "Todos"
 
-### Lógica de Deduplicação Existente
+O checkbox de "Todos os TRTs" deve aparecer como:
+- **Marcado**: se todos os tribunais da categoria estão selecionados
+- **Indeterminado**: se alguns (mas não todos) estão selecionados
+- **Desmarcado**: se nenhum está selecionado
 
-O sistema **já possui** proteção contra duplicatas através de:
+```typescript
+// Verificar estado do checkbox "Todos"
+const todosTrabalhistasMarcados = TODOS_IDS_TRABALHISTAS.every(id => 
+  tribunaisSelecionados.includes(id)
+);
+const algunsTrabalhistasMarcados = TODOS_IDS_TRABALHISTAS.some(id => 
+  tribunaisSelecionados.includes(id)
+);
 
-1. **Sets em memória (linhas 238-246)**:
-   ```typescript
-   const alertasSet = new Set(
-     (alertasResult.data || []).map(a => `${a.movimentacao_id}-${a.termo_id}`)
-   );
-   const audienciasExistentes = new Set(
-     (audienciasResult.data || []).map(a => a.movimentacao_id)
-   );
-   const intimacoesExistentes = new Set(
-     (intimacoesResult.data || []).map(i => i.movimentacao_id)
-   );
-   ```
+const todosCiveisMarcados = TODOS_IDS_CIVEIS.every(id => 
+  tribunaisSelecionados.includes(id)
+);
+const algunsCiveisMarcados = TODOS_IDS_CIVEIS.some(id => 
+  tribunaisSelecionados.includes(id)
+);
+```
 
-2. **Verificação antes de inserir (linhas 266-268)**:
-   ```typescript
-   if (!alertasSet.has(key)) { // Só insere se não existir
-     // ... cria alerta
-     alertasSet.add(key); // Adiciona ao set para evitar duplicatas no mesmo lote
-   }
-   ```
-
-### Problema Atual com 7 Dias
-
-O problema é que os sets de deduplicação são carregados **apenas para as movimentações do lote atual** (otimização de performance feita anteriormente). Com 7 dias, precisamos verificar **todo o histórico de alertas** para essas movimentações.
-
-**Solução:** Ajustar a query de deduplicação para buscar alertas existentes para **todas** as movimentações do período de 7 dias, não apenas do lote.
+Na renderização do checkbox de "TODOS_TRT":
+```tsx
+<Checkbox
+  checked={todosTrabalhistasMarcados}
+  indeterminate={algunsTrabalhistasMarcados && !todosTrabalhistasMarcados}
+  onCheckedChange={() => handleToggleTribunal('TODOS_TRT')}
+/>
+```
 
 ---
 
-## Mudanças Técnicas
+## Comportamento Esperado
 
-### Arquivo: `supabase/functions/monitorar-termos/index.ts`
-
-#### 1. Alterar Filtro de Data (linhas 170-174)
-
-**De:**
-```typescript
-const hoje = new Date();
-hoje.setHours(0, 0, 0, 0);
-const inicioDoDia = hoje.toISOString();
-```
-
-**Para:**
-```typescript
-// Varrer movimentações dos últimos 7 dias para garantir cobertura
-const seteDiasAtras = new Date();
-seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
-seteDiasAtras.setHours(0, 0, 0, 0);
-const dataFiltro = seteDiasAtras.toISOString();
-console.log(`Filtering movements from last 7 days: ${dataFiltro}`);
-```
-
-#### 2. Atualizar Query de Contagem (linha 179)
-
-```typescript
-supabase.from('movimentacoes').select('id', { count: 'exact', head: true }).gte('created_at', dataFiltro),
-```
-
-#### 3. Atualizar Query de Movimentações (linhas 203-208)
-
-```typescript
-const { data: movimentacoes } = await supabase
-  .from('movimentacoes')
-  .select('id, processo_id, descricao, data_movimentacao, created_at, processo:processos(numero)')
-  .gte('created_at', dataFiltro)
-  .order('created_at', { ascending: false })
-  .range(currentOffset, currentOffset + BATCH_SIZE - 1);
-```
-
-#### 4. Otimizar Deduplicação (garantir que verifica TODO o histórico)
-
-O código atual já faz isso corretamente:
-- Busca alertas existentes apenas para os IDs do lote atual (linhas 223-233)
-- Isso é eficiente porque só verifica as movimentações que serão processadas
-- Como cada movimentação tem ID único, a deduplicação funciona corretamente
-
-**Mas há uma melhoria necessária:** Se uma movimentação já foi processada em execução anterior (alerta já existe), ela ainda será contada no total. Para evitar reprocessar, podemos **excluir** movimentações que já têm alertas:
-
-```typescript
-// ANTES do loop principal, filtrar movimentações que já têm TODOS os termos processados
-// (otimização opcional - a lógica atual já pula via Set, mas isso reduz I/O)
-```
-
-**Decisão:** Manter a lógica atual porque:
-- O Set já evita inserções duplicadas
-- Filtrar previamente adicionaria complexidade
-- O overhead de iterar é mínimo comparado a queries adicionais
+| Ação do Usuário | Resultado |
+|-----------------|-----------|
+| Clica em "Todos os TRTs" (nenhum marcado) | Marca TST + TRT1 até TRT24 (25 tribunais) |
+| Clica em "Todos os TRTs" (todos marcados) | Desmarca todos os 25 tribunais |
+| Clica em "Todos os TRTs" (alguns marcados) | Marca os que faltam (completa seleção) |
+| Clica em "Todos os Cíveis" | Marca TJDFT, TJSP, TJGO (os 3 cadastrados) |
+| Ao salvar | Salva os IDs individuais, não mais `TODOS_TRT` |
 
 ---
 
-## Resumo das Alterações
+## Vantagens da Abordagem
 
-| Linha | Mudança |
-|-------|---------|
-| 170-173 | Mudar `inicioDoDia` para `seteDiasAtras` (7 dias atrás) |
-| 179 | Usar `.gte('created_at', dataFiltro)` |
-| 186 | Atualizar log para "movements last 7 days" |
-| 206 | Usar `.gte('created_at', dataFiltro)` |
+1. **API recebe IDs reais**: Não precisa de lógica de expansão na edge function
+2. **Visualização clara**: Usuário vê exatamente quais tribunais estão selecionados
+3. **Flexibilidade**: Após clicar em "Todos", pode desmarcar específicos
+4. **Não quebra existente**: Monitoramentos com `TODOS_TRT` continuam funcionando (migração gradual)
 
 ---
 
-## Garantia de Não-Duplicação
+## Arquivo a Modificar
 
-1. **Alertas:** Chave composta `movimentacao_id + termo_id` verificada via Set antes de inserir
-2. **Audiências:** Chave `movimentacao_id` verificada via Set
-3. **Intimações:** Chave `movimentacao_id` verificada via Set
-4. **Tarefas:** Trigger `prevent_duplicate_tarefas` no banco bloqueia duplicatas
-
----
-
-## Impacto Esperado
-
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Movimentações analisadas | 0 (só hoje) | ~4.000 (últimos 7 dias) |
-| Tempo de execução | Segundos | 2-5 minutos |
-| Alertas duplicados | N/A | Zero (deduplicação existente) |
-| Cobertura | Depende de timing | Robusta (7 dias de janela) |
-
----
-
-## Arquivos a Modificar
-
-- `supabase/functions/monitorar-termos/index.ts` - Alterar filtro de 1 dia para 7 dias
-
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/djen/MonitoramentoDialog.tsx` | Modificar `handleToggleTribunal` e adicionar lógica de estado "indeterminado" |
