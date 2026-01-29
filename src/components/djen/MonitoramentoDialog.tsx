@@ -62,6 +62,15 @@ const TRIBUNAIS_DISPONIVEIS = [
   { id: 'TODOS_CIVEIS', nome: 'Todos os Tribunais Cíveis (TJs)', categoria: 'Estadual' },
 ];
 
+// Listas de IDs reais para seleção em lote
+const TODOS_IDS_CIVEIS = TRIBUNAIS_DISPONIVEIS
+  .filter(t => t.categoria === 'Estadual' && t.id !== 'TODOS_CIVEIS')
+  .map(t => t.id);
+
+const TODOS_IDS_TRABALHISTAS = TRIBUNAIS_DISPONIVEIS
+  .filter(t => t.categoria === 'Trabalhista' && t.id !== 'TODOS_TRT')
+  .map(t => t.id);
+
 interface MonitoramentoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -150,12 +159,65 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
   };
 
   const handleToggleTribunal = (tribunalId: string) => {
+    // Caso especial: "Todos os TRTs"
+    if (tribunalId === 'TODOS_TRT') {
+      const todosMarcados = TODOS_IDS_TRABALHISTAS.every(id => 
+        tribunaisSelecionados.includes(id)
+      );
+      if (todosMarcados) {
+        // Desmarcar todos
+        setTribunaisSelecionados(prev => 
+          prev.filter(t => !TODOS_IDS_TRABALHISTAS.includes(t))
+        );
+      } else {
+        // Marcar todos
+        setTribunaisSelecionados(prev => 
+          [...new Set([...prev, ...TODOS_IDS_TRABALHISTAS])]
+        );
+      }
+      return;
+    }
+    
+    // Caso especial: "Todos os Cíveis"
+    if (tribunalId === 'TODOS_CIVEIS') {
+      const todosMarcados = TODOS_IDS_CIVEIS.every(id => 
+        tribunaisSelecionados.includes(id)
+      );
+      if (todosMarcados) {
+        // Desmarcar todos
+        setTribunaisSelecionados(prev => 
+          prev.filter(t => !TODOS_IDS_CIVEIS.includes(t))
+        );
+      } else {
+        // Marcar todos
+        setTribunaisSelecionados(prev => 
+          [...new Set([...prev, ...TODOS_IDS_CIVEIS])]
+        );
+      }
+      return;
+    }
+    
+    // Comportamento padrão para tribunais individuais
     setTribunaisSelecionados(prev =>
       prev.includes(tribunalId)
         ? prev.filter(t => t !== tribunalId)
         : [...prev, tribunalId]
     );
   };
+
+  // Calcular estado dos checkboxes "Todos"
+  const todosTrabalhistasMarcados = TODOS_IDS_TRABALHISTAS.every(id => 
+    tribunaisSelecionados.includes(id)
+  );
+  const algunsTrabalhistasMarcados = TODOS_IDS_TRABALHISTAS.some(id => 
+    tribunaisSelecionados.includes(id)
+  );
+  const todosCiveisMarcados = TODOS_IDS_CIVEIS.every(id => 
+    tribunaisSelecionados.includes(id)
+  );
+  const algunsCiveisMarcados = TODOS_IDS_CIVEIS.some(id => 
+    tribunaisSelecionados.includes(id)
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -422,18 +484,32 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
                     <div key={categoria} className="mb-4">
                       <h4 className="text-sm font-semibold mb-2 text-muted-foreground">{categoria}</h4>
                       <div className="grid grid-cols-1 gap-2">
-                        {TRIBUNAIS_DISPONIVEIS.filter(t => t.categoria === categoria).map((tribunal) => (
-                          <div key={tribunal.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`tribunal-${tribunal.id}`}
-                              checked={tribunaisSelecionados.includes(tribunal.id)}
-                              onCheckedChange={() => handleToggleTribunal(tribunal.id)}
-                            />
-                            <label htmlFor={`tribunal-${tribunal.id}`} className="text-sm cursor-pointer">
-                              {tribunal.nome}
-                            </label>
-                          </div>
-                        ))}
+                        {TRIBUNAIS_DISPONIVEIS.filter(t => t.categoria === categoria).map((tribunal) => {
+                          // Determinar estado do checkbox para opções "Todos"
+                          let isChecked = tribunaisSelecionados.includes(tribunal.id);
+                          let isIndeterminate = false;
+                          
+                          if (tribunal.id === 'TODOS_TRT') {
+                            isChecked = todosTrabalhistasMarcados;
+                            isIndeterminate = algunsTrabalhistasMarcados && !todosTrabalhistasMarcados;
+                          } else if (tribunal.id === 'TODOS_CIVEIS') {
+                            isChecked = todosCiveisMarcados;
+                            isIndeterminate = algunsCiveisMarcados && !todosCiveisMarcados;
+                          }
+                          
+                          return (
+                            <div key={tribunal.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`tribunal-${tribunal.id}`}
+                                checked={isIndeterminate ? 'indeterminate' : isChecked}
+                                onCheckedChange={() => handleToggleTribunal(tribunal.id)}
+                              />
+                              <label htmlFor={`tribunal-${tribunal.id}`} className="text-sm cursor-pointer">
+                                {tribunal.nome}
+                              </label>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
