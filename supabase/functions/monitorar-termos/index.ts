@@ -167,23 +167,24 @@ Deno.serve(async (req) => {
 
     const currentOffset = completeRun ? (configData?.metadata?.next_offset || 0) : 0;
 
-    // IMPORTANTE: Filtrar apenas movimentações capturadas HOJE (created_at do dia atual)
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const inicioDoDia = hoje.toISOString();
-    console.log(`Filtering movements captured since: ${inicioDoDia}`);
+    // Varrer movimentações dos últimos 7 dias para garantir cobertura robusta
+    const seteDiasAtras = new Date();
+    seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
+    seteDiasAtras.setHours(0, 0, 0, 0);
+    const dataFiltro = seteDiasAtras.toISOString();
+    console.log(`Filtering movements from last 7 days: ${dataFiltro}`);
 
-    // Contar total de movimentações DO DIA e buscar apenas termos ativos inicialmente
+    // Contar total de movimentações DOS ÚLTIMOS 7 DIAS e buscar apenas termos ativos inicialmente
     // NÃO carregar alertas/audiências/intimações aqui - usar query sob demanda depois
     const [countResult, termosResult] = await Promise.all([
-      supabase.from('movimentacoes').select('id', { count: 'exact', head: true }).gte('created_at', inicioDoDia),
+      supabase.from('movimentacoes').select('id', { count: 'exact', head: true }).gte('created_at', dataFiltro),
       supabase.from('termos_monitoramento').select('id, termo, categoria, prioridade').eq('ativo', true),
     ]);
 
     const totalMovimentacoes = countResult.count || 0;
     const termos = termosResult.data || [];
 
-    console.log(`Init: ${termos.length} terms, ${totalMovimentacoes} movements today (${Date.now() - startTime}ms)`);
+    console.log(`Init: ${termos.length} terms, ${totalMovimentacoes} movements last 7 days (${Date.now() - startTime}ms)`);
 
     if (termos.length === 0) {
       console.log('No active terms configured');
@@ -199,11 +200,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar lote de movimentações capturadas HOJE com offset
+    // Buscar lote de movimentações capturadas NOS ÚLTIMOS 7 DIAS com offset
     const { data: movimentacoes } = await supabase
       .from('movimentacoes')
       .select('id, processo_id, descricao, data_movimentacao, created_at, processo:processos(numero)')
-      .gte('created_at', inicioDoDia)
+      .gte('created_at', dataFiltro)
       .order('created_at', { ascending: false })
       .range(currentOffset, currentOffset + BATCH_SIZE - 1);
 
