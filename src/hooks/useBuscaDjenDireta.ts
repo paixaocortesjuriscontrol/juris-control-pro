@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 interface MonitoramentoDjen {
   id: string;
-  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte'; // 'parte' é mapeado para 'palavra-chave'
+  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte';
   termo_busca: string;
   oab?: string;
   uf?: string;
@@ -27,34 +27,67 @@ interface PublicacaoResultado {
   hash_conteudo: string;
 }
 
-/**
- * Calcula o próximo dia útil considerando fins de semana e recesso forense (20/dez a 6/jan)
- */
+// Checkpoint para retomada de execução
+export interface CheckpointDjen {
+  data: string; // YYYY-MM-DD
+  monitoramentosProcessados: string[]; // IDs já processados
+  totalNovas: number;
+  totalDuplicadas: number;
+  tempoAcumulado: number; // segundos
+  faseAtual: 1 | 2 | 3;
+  executionId?: string; // ID na tabela execucoes_agendadas
+}
+
+// Fases de execução
+export type FaseStatus = 'pendente' | 'executando' | 'concluido' | 'erro';
+
+export interface FaseConfig {
+  total: number;
+  processados: number;
+  status: FaseStatus;
+}
+
+export interface ProgressoExecucao {
+  monitoramentoAtual: number;
+  totalMonitoramentos: number;
+  publicacoesNovas: number;
+  publicacoesDuplicadas: number;
+  status: 'idle' | 'executando' | 'concluido' | 'erro' | 'cancelado';
+  mensagem: string;
+  tempoInicio?: number;
+  tempoDecorrido: number;
+  // Fases
+  faseAtual: 1 | 2 | 3;
+  fases: {
+    fase1: FaseConfig; // Busca Publicações
+    fase2: FaseConfig; // Identificar Eventos
+    fase3: FaseConfig; // Notificações
+  };
+  // Checkpoint info
+  hasCheckpoint?: boolean;
+  checkpointPercent?: number;
+  executionId?: string;
+}
+
 function calcularProximoDiaUtil(dataBase: Date): Date {
   const resultado = new Date(dataBase);
   
-  // Função para verificar se está no recesso forense
   const estaNoRecesso = (d: Date): boolean => {
-    const mes = d.getMonth(); // 0-11
+    const mes = d.getMonth();
     const dia = d.getDate();
     return (mes === 11 && dia >= 20) || (mes === 0 && dia <= 6);
   };
   
-  // Função para avançar para próximo dia útil
   const proximoDiaUtil = (d: Date): void => {
-    // Primeiro, sair de fim de semana
     while (d.getDay() === 0 || d.getDay() === 6) {
       d.setDate(d.getDate() + 1);
     }
-    // Se estiver no recesso, pular para 7 de janeiro
     if (estaNoRecesso(d)) {
-      // Se estamos em dezembro, vai para janeiro do próximo ano
       if (d.getMonth() === 11) {
         d.setFullYear(d.getFullYear() + 1);
       }
-      d.setMonth(0); // Janeiro
+      d.setMonth(0);
       d.setDate(7);
-      // Se 7 de janeiro cair em fim de semana, avança
       while (d.getDay() === 0 || d.getDay() === 6) {
         d.setDate(d.getDate() + 1);
       }
@@ -65,17 +98,11 @@ function calcularProximoDiaUtil(dataBase: Date): Date {
   return resultado;
 }
 
-/**
- * Extrai data no formato YYYY-MM-DD de strings de data ISO ou outros formatos
- */
 function extrairDataYMD(dataStr: string | null | undefined): string | null {
   if (!dataStr) return null;
-  // Se já está em formato YYYY-MM-DD, retorna
   if (/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) return dataStr;
-  // Tentar extrair de ISO ou outros formatos
   const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (match) return match[0];
-  // Tentar parse como Date
   const d = new Date(dataStr);
   if (!isNaN(d.getTime())) {
     return d.toISOString().split('T')[0];
@@ -83,25 +110,13 @@ function extrairDataYMD(dataStr: string | null | undefined): string | null {
   return null;
 }
 
-interface ProgressoExecucao {
-  monitoramentoAtual: number;
-  totalMonitoramentos: number;
-  publicacoesNovas: number;
-  publicacoesDuplicadas: number;
-  status: 'idle' | 'executando' | 'concluido' | 'erro';
-  mensagem: string;
-  tempoInicio?: number; // timestamp de início
-  tempoDecorrido: number; // segundos
-}
+// Configuração de paralelismo
+const CONCURRENT_LIMIT = 2;
+const DELAY_BETWEEN_BATCHES = 1500;
 
-// Configuração de paralelismo - CONSERVADOR para evitar WORKER_LIMIT (546)
-// Reduzido de 5 para 2 para evitar exaustão de workers do Edge Function
-const CONCURRENT_LIMIT = 2; // 2 simultâneos para evitar 546 WORKER_LIMIT
-const DELAY_BETWEEN_BATCHES = 1500; // 1.5s entre lotes para permitir liberação de workers
-const DELAY_BETWEEN_REQUESTS = 0; // Sem delay intra-lote
-
-// Chave para persistir estado no localStorage
+// Chaves para localStorage
 const STORAGE_KEY = 'djen-direta-progresso';
+const CHECKPOINT_KEY = 'djen-direta-checkpoint';
 
 // Salvar estado no localStorage
 const salvarEstado = (progresso: ProgressoExecucao) => {
@@ -122,14 +137,11 @@ const carregarEstado = (): ProgressoExecucao | null => {
     if (!saved) return null;
     
     const parsed = JSON.parse(saved);
-    // Limpar estados muito antigos (mais de 12 horas)
-    // (A busca direta pode demorar em bases grandes; não podemos perder o estado ao atualizar a página.)
     if (Date.now() - parsed.savedAt > 12 * 60 * 60 * 1000) {
       localStorage.removeItem(STORAGE_KEY);
       return null;
     }
     
-    // Se estava executando quando salvou, atualizar tempo decorrido
     if (parsed.status === 'executando' && parsed.tempoInicio) {
       parsed.tempoDecorrido = Math.floor((Date.now() - parsed.tempoInicio) / 1000);
     }
@@ -140,48 +152,103 @@ const carregarEstado = (): ProgressoExecucao | null => {
   }
 };
 
+// Salvar checkpoint para retomada
+const salvarCheckpoint = (checkpoint: CheckpointDjen) => {
+  try {
+    localStorage.setItem(CHECKPOINT_KEY, JSON.stringify(checkpoint));
+  } catch (e) {
+    console.warn('Erro ao salvar checkpoint:', e);
+  }
+};
+
+// Carregar checkpoint (só válido no mesmo dia)
+const carregarCheckpoint = (): CheckpointDjen | null => {
+  try {
+    const saved = localStorage.getItem(CHECKPOINT_KEY);
+    if (!saved) return null;
+    
+    const parsed: CheckpointDjen = JSON.parse(saved);
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    // Checkpoint só válido no mesmo dia
+    if (parsed.data !== hoje) {
+      localStorage.removeItem(CHECKPOINT_KEY);
+      return null;
+    }
+    
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+};
+
+const limparCheckpoint = () => {
+  localStorage.removeItem(CHECKPOINT_KEY);
+};
+
+const defaultFases = (): ProgressoExecucao['fases'] => ({
+  fase1: { total: 0, processados: 0, status: 'pendente' },
+  fase2: { total: 0, processados: 0, status: 'pendente' },
+  fase3: { total: 0, processados: 0, status: 'pendente' },
+});
+
+const defaultProgresso = (): ProgressoExecucao => ({
+  monitoramentoAtual: 0,
+  totalMonitoramentos: 0,
+  publicacoesNovas: 0,
+  publicacoesDuplicadas: 0,
+  status: 'idle',
+  mensagem: '',
+  tempoDecorrido: 0,
+  faseAtual: 1,
+  fases: defaultFases(),
+});
+
 /**
- * Hook com busca DJEN paralela para máxima performance
- * - Processa múltiplos monitoramentos em paralelo
- * - Usa a Edge Function `buscar-djen` apenas como proxy leve
- * - Grava resultados diretamente via Supabase Client
- * - PERSISTE estado no localStorage para não perder ao navegar
+ * Hook com busca DJEN paralela com suporte a fases e retomada
  */
 export function useBuscaDjenDireta() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  // Carregar estado inicial do localStorage
-  // CORREÇÃO: Se já estava concluído, não restaurar como executando
+  // Verificar checkpoint disponível
+  const checkpointDisponivel = carregarCheckpoint();
+  
   const [progresso, setProgresso] = useState<ProgressoExecucao>(() => {
     const saved = carregarEstado();
     if (saved) {
-      // Se estava em 100% ou concluído, forçar status concluído e parar timer
       const isComplete = saved.status === 'concluido' || 
         (saved.totalMonitoramentos > 0 && saved.monitoramentoAtual >= saved.totalMonitoramentos);
       if (isComplete) {
         return {
           ...saved,
           status: 'concluido',
-          tempoInicio: undefined, // Remove tempoInicio para parar timer
+          tempoInicio: undefined,
+          hasCheckpoint: !!checkpointDisponivel,
+          checkpointPercent: checkpointDisponivel 
+            ? Math.round((checkpointDisponivel.monitoramentosProcessados.length / saved.totalMonitoramentos) * 100)
+            : 0,
         };
       }
-      return saved;
+      return {
+        ...saved,
+        hasCheckpoint: !!checkpointDisponivel,
+        checkpointPercent: checkpointDisponivel
+          ? Math.round((checkpointDisponivel.monitoramentosProcessados.length / saved.totalMonitoramentos) * 100)
+          : 0,
+      };
     }
     return {
-      monitoramentoAtual: 0,
-      totalMonitoramentos: 0,
-      publicacoesNovas: 0,
-      publicacoesDuplicadas: 0,
-      status: 'idle',
-      mensagem: '',
-      tempoDecorrido: 0,
+      ...defaultProgresso(),
+      hasCheckpoint: !!checkpointDisponivel,
+      checkpointPercent: checkpointDisponivel 
+        ? Math.round(checkpointDisponivel.monitoramentosProcessados.length / 114 * 100) // Estimate
+        : 0,
     };
   });
   
   const [executando, setExecutando] = useState(() => {
     const saved = carregarEstado();
-    // CORREÇÃO: Não marcar como executando se já está em 100% ou concluído
     if (!saved) return false;
     const isComplete = saved.status === 'concluido' || 
       (saved.totalMonitoramentos > 0 && saved.monitoramentoAtual >= saved.totalMonitoramentos);
@@ -191,16 +258,15 @@ export function useBuscaDjenDireta() {
   const cancelarRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const executionIdRef = useRef<string | null>(null);
 
   // Timer para atualizar tempo decorrido
   useEffect(() => {
-    // Sempre limpar o timer anterior ao reavaliar
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
-    // Só conta tempo enquanto a execução está efetivamente em andamento
     if (!executando || !progresso.tempoInicio || progresso.status !== 'executando') {
       return;
     }
@@ -228,7 +294,7 @@ export function useBuscaDjenDireta() {
     salvarEstado(progresso);
   }, [progresso]);
 
-  // Gera hash simples para deduplicação
+  // Gera hash para deduplicação
   const gerarHash = (conteudo: string, data: string): string => {
     const normalized = (conteudo + data).toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 300);
     let hash = 0;
@@ -240,7 +306,7 @@ export function useBuscaDjenDireta() {
     return Math.abs(hash).toString(16);
   };
 
-  // Verifica se a publicação já existe (batch)
+  // Verificar duplicatas em batch
   const verificarDuplicatasBatch = async (
     hashes: string[], 
     monitoramentoId: string
@@ -256,23 +322,72 @@ export function useBuscaDjenDireta() {
     return new Set((data || []).map(d => d.hash_conteudo));
   };
 
-  // Verifica se deve excluir com base nas exclusões configuradas
+  // Verificar exclusões
   const deveExcluir = (conteudo: string, exclusoes?: string[]): boolean => {
     if (!exclusoes || exclusoes.length === 0) return false;
     const conteudoUpper = conteudo.toUpperCase();
     return exclusoes.some(termo => conteudoUpper.includes(termo.toUpperCase()));
   };
 
-  // Buscar um monitoramento via Edge Function leve
+  // Registrar execução no banco
+  const registrarExecucao = async (status: 'executando' | 'concluido' | 'cancelado' | 'erro', detalhes?: Record<string, any>): Promise<string | null> => {
+    try {
+      const executionId = executionIdRef.current;
+      
+      if (status === 'executando' && !executionId) {
+        // Criar novo registro
+        const { data, error } = await supabase
+          .from('execucoes_agendadas')
+          .insert({
+            tipo: 'djen',
+            status: 'executando',
+            iniciado_em: new Date().toISOString(),
+            detalhes: detalhes || {},
+          })
+          .select('id')
+          .single();
+        
+        if (error) {
+          console.error('Erro ao registrar execução:', error);
+          return null;
+        }
+        
+        executionIdRef.current = data.id;
+        return data.id;
+      } else if (executionId) {
+        // Atualizar registro existente
+        const updateData: Record<string, any> = {
+          status,
+          detalhes: detalhes || {},
+        };
+        
+        if (status !== 'executando') {
+          updateData.finalizado_em = new Date().toISOString();
+        }
+        
+        await supabase
+          .from('execucoes_agendadas')
+          .update(updateData)
+          .eq('id', executionId);
+        
+        return executionId;
+      }
+      
+      return null;
+    } catch (e) {
+      console.error('Erro ao registrar execução:', e);
+      return null;
+    }
+  };
+
+  // Buscar um monitoramento via Edge Function
   const buscarMonitoramento = async (monitoramento: MonitoramentoDjen): Promise<PublicacaoResultado[]> => {
-    // Checar cancelamento antes de iniciar
     if (cancelarRef.current) return [];
 
     const hoje = new Date();
     const dataInicio = new Date(hoje);
     dataInicio.setDate(dataInicio.getDate() - 1);
 
-    // Mapear tipos do banco para tipos aceitos pela API
     const tipoMapeado = monitoramento.tipo === 'parte' ? 'palavra-chave' : monitoramento.tipo;
 
     const params: Record<string, any> = {
@@ -285,27 +400,21 @@ export function useBuscaDjenDireta() {
 
     if (tipoMapeado === 'advogado' && monitoramento.oab && monitoramento.uf) {
       params.oab = monitoramento.oab;
-      // Tratar UF 'TODAS' ou múltiplas UFs: usar apenas a primeira UF válida (2 letras)
-      // A API DJEN exige UF com exatamente 2 letras
       const ufValue = monitoramento.uf;
       if (ufValue === 'TODAS' || !ufValue) {
-        // Se 'TODAS', buscar por palavra-chave usando o nome do advogado
         params.palavraChave = monitoramento.termo_busca;
         delete params.oab;
       } else if (ufValue.includes(',')) {
-        // Múltiplas UFs: usar a primeira
         const primeiraUf = ufValue.split(',')[0].trim();
         if (primeiraUf.length === 2) {
           params.uf = primeiraUf;
         } else {
-          // Fallback para palavra-chave
           params.palavraChave = monitoramento.termo_busca;
           delete params.oab;
         }
       } else if (ufValue.length === 2) {
         params.uf = ufValue;
       } else {
-        // UF inválida, usar palavra-chave
         params.palavraChave = monitoramento.termo_busca;
         delete params.oab;
       }
@@ -316,10 +425,8 @@ export function useBuscaDjenDireta() {
     }
 
     try {
-      // Checar cancelamento novamente antes da requisição
       if (cancelarRef.current) return [];
 
-      // Timeout individual de 30 segundos por monitoramento para evitar travamento
       const timeoutController = new AbortController();
       const timeoutId = setTimeout(() => timeoutController.abort(), 30000);
 
@@ -327,7 +434,6 @@ export function useBuscaDjenDireta() {
         body: params,
       });
 
-      // Wrapper para aplicar timeout
       const { data, error } = await Promise.race([
         invokePromise,
         new Promise<{ data: null; error: Error }>((_, reject) => {
@@ -337,7 +443,6 @@ export function useBuscaDjenDireta() {
         }),
       ]).finally(() => clearTimeout(timeoutId));
 
-      // Checar cancelamento após a requisição
       if (cancelarRef.current) return [];
 
       if (error) {
@@ -348,31 +453,26 @@ export function useBuscaDjenDireta() {
       const comunicacoes = data?.comunicacoes || data?.items || [];
       
       return comunicacoes.map((pub: any) => {
-        // Extrair data de disponibilização (a data que vem do DJEN)
         const rawDataDisp = pub.dataDisponibilizacao || pub.dataDJe || pub.dtDisponibilizacao || null;
         const rawDataPub = pub.dataPublicacao || pub.dataJornal || pub.dtPublicacao || null;
         
         let dataDisponibilizacao = extrairDataYMD(rawDataDisp);
         let dataPublicacao: string | null = null;
         
-        // Se temos data de disponibilização, calcular publicação como próximo dia útil
         if (dataDisponibilizacao) {
-          const dispDate = new Date(dataDisponibilizacao + 'T12:00:00'); // Meio-dia para evitar timezone issues
-          dispDate.setDate(dispDate.getDate() + 1); // Avança 1 dia
+          const dispDate = new Date(dataDisponibilizacao + 'T12:00:00');
+          dispDate.setDate(dispDate.getDate() + 1);
           const proximoDiaUtil = calcularProximoDiaUtil(dispDate);
           dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
         } else if (rawDataPub) {
-          // Se só temos dataPublicacao da API, usar ela e inferir disponibilização
           dataPublicacao = extrairDataYMD(rawDataPub);
           if (dataPublicacao) {
-            // Disponibilização é tipicamente 1 dia antes da publicação
             const pubDate = new Date(dataPublicacao + 'T12:00:00');
             pubDate.setDate(pubDate.getDate() - 1);
             dataDisponibilizacao = pubDate.toISOString().split('T')[0];
           }
         }
         
-        // Fallback: usar data atual se nenhuma data disponível
         if (!dataDisponibilizacao && !dataPublicacao) {
           const hoje = new Date();
           dataDisponibilizacao = hoje.toISOString().split('T')[0];
@@ -392,14 +492,13 @@ export function useBuscaDjenDireta() {
         };
       });
     } catch (err: any) {
-      // Ignorar erros de abort ou timeout
       if (err?.name === 'AbortError' || cancelarRef.current) return [];
       console.warn(`[DJEN Direta] Erro na busca (${monitoramento.termo_busca}):`, err?.message || err);
       return [];
     }
   };
 
-  // Processar um único monitoramento e retornar estatísticas
+  // Processar um monitoramento
   const processarMonitoramento = async (
     mon: MonitoramentoDjen
   ): Promise<{ novas: number; duplicadas: number; coordenacaoStats?: any }> => {
@@ -409,12 +508,10 @@ export function useBuscaDjenDireta() {
       return { novas: 0, duplicadas: 0 };
     }
 
-    // Filtrar exclusões primeiro
     const pubsFiltradas = publicacoes.filter(pub => 
       !pub.conteudo || !deveExcluir(pub.conteudo, mon.exclusoes)
     );
 
-    // Gerar hashes para todas as publicações
     const pubsComHash = pubsFiltradas.map(pub => ({
       ...pub,
       hash_conteudo: gerarHash(
@@ -423,7 +520,6 @@ export function useBuscaDjenDireta() {
       ),
     }));
 
-    // Deduplicar dentro do próprio lote (evita violar UNIQUE (monitoramento_id, hash_conteudo))
     const uniqueMap = new Map<string, typeof pubsComHash[number]>();
     let duplicadasInternas = 0;
     for (const p of pubsComHash) {
@@ -435,7 +531,6 @@ export function useBuscaDjenDireta() {
     }
     const pubsUnicas = Array.from(uniqueMap.values());
 
-    // Verificar duplicatas já existentes no banco (mais eficiente)
     const hashes = pubsUnicas.map(p => p.hash_conteudo);
     const existentes = await verificarDuplicatasBatch(hashes, mon.id);
 
@@ -443,7 +538,6 @@ export function useBuscaDjenDireta() {
     const duplicadasBanco = pubsUnicas.length - novas.length;
     const duplicadas = duplicadasInternas + duplicadasBanco;
 
-    // Inserir novas em batch (ignorar duplicatas em caso de corrida)
     if (novas.length > 0) {
       const payload = novas.map(pub => ({
         monitoramento_id: mon.id,
@@ -465,12 +559,10 @@ export function useBuscaDjenDireta() {
 
       if (upsertError) {
         console.error('Erro ao inserir publicações:', upsertError);
-        // Não derrubar a execução inteira por duplicata/concorrência
         return { novas: 0, duplicadas };
       }
     }
 
-    // Estatísticas para resumo por coordenação
     let coordenacaoStats;
     if (mon.coordenacao_id && novas.length > 0) {
       coordenacaoStats = {
@@ -478,7 +570,6 @@ export function useBuscaDjenDireta() {
         total_verificados: publicacoes.length,
         total_encontrados: novas.length,
         exemplos: novas.slice(0, 3).map(p => {
-          // Tentar extrair número do processo do conteúdo se não existir no campo
           let numeroProcesso = p.processo_numero;
           if (!numeroProcesso && p.conteudo) {
             const match = p.conteudo.match(/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
@@ -495,30 +586,57 @@ export function useBuscaDjenDireta() {
     return { novas: novas.length, duplicadas, coordenacaoStats };
   };
 
-  // Executar monitoramento com paralelismo
-  const executarMonitoramento = useCallback(async (monitoramentosIds?: string[]) => {
+  // Executar monitoramento com suporte a retomada
+  const executarMonitoramento = useCallback(async (monitoramentosIds?: string[], retomar: boolean = false) => {
     if (!user?.id) {
       toast.error("Usuário não autenticado");
       return;
     }
 
-    const tempoInicio = Date.now();
+    const hoje = new Date().toISOString().split('T')[0];
+    const checkpoint = carregarCheckpoint();
+    
+    // Se retomar=false mas existe checkpoint do mesmo dia, limpar
+    if (!retomar && checkpoint) {
+      limparCheckpoint();
+    }
+    
+    // Se retomar=true mas não há checkpoint válido, executar do zero
+    const usarCheckpoint = retomar && checkpoint && checkpoint.data === hoje;
+    
+    const tempoInicio = usarCheckpoint ? Date.now() - (checkpoint.tempoAcumulado * 1000) : Date.now();
     setExecutando(true);
     cancelarRef.current = false;
     abortControllerRef.current = new AbortController();
-    setProgresso({
-      monitoramentoAtual: 0,
+    executionIdRef.current = null;
+    
+    const progressoInicial: ProgressoExecucao = {
+      monitoramentoAtual: usarCheckpoint ? checkpoint.monitoramentosProcessados.length : 0,
       totalMonitoramentos: 0,
-      publicacoesNovas: 0,
-      publicacoesDuplicadas: 0,
+      publicacoesNovas: usarCheckpoint ? checkpoint.totalNovas : 0,
+      publicacoesDuplicadas: usarCheckpoint ? checkpoint.totalDuplicadas : 0,
       status: 'executando',
-      mensagem: 'Carregando monitoramentos...',
+      mensagem: usarCheckpoint ? 'Retomando execução...' : 'Carregando monitoramentos...',
       tempoInicio,
-      tempoDecorrido: 0,
+      tempoDecorrido: usarCheckpoint ? checkpoint.tempoAcumulado : 0,
+      faseAtual: usarCheckpoint ? checkpoint.faseAtual : 1,
+      fases: {
+        fase1: { total: 0, processados: usarCheckpoint ? checkpoint.monitoramentosProcessados.length : 0, status: 'executando' },
+        fase2: { total: 0, processados: 0, status: 'pendente' },
+        fase3: { total: 0, processados: 0, status: 'pendente' },
+      },
+      hasCheckpoint: false,
+    };
+    
+    setProgresso(progressoInicial);
+
+    // Registrar execução no banco
+    const executionId = await registrarExecucao('executando', {
+      retomada: usarCheckpoint,
+      checkpoint: usarCheckpoint ? checkpoint : null,
     });
 
     try {
-      // Buscar monitoramentos ativos
       let query = supabase
         .from('monitoramentos_djen')
         .select('*')
@@ -535,48 +653,88 @@ export function useBuscaDjenDireta() {
           ...prev,
           status: 'erro',
           mensagem: 'Nenhum monitoramento ativo encontrado',
+          fases: { ...prev.fases, fase1: { ...prev.fases.fase1, status: 'erro' } },
         }));
+        await registrarExecucao('erro', { mensagem: 'Nenhum monitoramento ativo' });
         setExecutando(false);
         return;
       }
 
       const total = monitoramentos.length;
+      
+      // Filtrar monitoramentos já processados se retomando
+      const idsProcessados = new Set(usarCheckpoint ? checkpoint.monitoramentosProcessados : []);
+      const monitoramentosRestantes = monitoramentos.filter(m => !idsProcessados.has(m.id));
+      
       setProgresso(prev => ({
         ...prev,
         totalMonitoramentos: total,
-        mensagem: `Processando ${total} monitoramentos em paralelo (${CONCURRENT_LIMIT} simultâneos)...`,
+        mensagem: usarCheckpoint 
+          ? `Retomando de ${idsProcessados.size}/${total}... (${monitoramentosRestantes.length} restantes)`
+          : `Fase 1: Buscando publicações (${total} monitoramentos)...`,
+        fases: {
+          ...prev.fases,
+          fase1: { total, processados: idsProcessados.size, status: 'executando' },
+        },
       }));
 
-      let totalNovas = 0;
-      let totalDuplicadas = 0;
-      let processados = 0;
+      let totalNovas = usarCheckpoint ? checkpoint.totalNovas : 0;
+      let totalDuplicadas = usarCheckpoint ? checkpoint.totalDuplicadas : 0;
+      let processados = idsProcessados.size;
+      const monitoramentosProcessadosIds = new Set(idsProcessados);
+      
       const resumosPorCoordenacao: Record<string, {
         total_verificados: number;
         total_encontrados: number;
         exemplos: Array<{ processo_numero: string; descricao: string }>;
       }> = {};
 
-      // Processar em lotes paralelos
-      for (let i = 0; i < monitoramentos.length; i += CONCURRENT_LIMIT) {
+      // FASE 1: Buscar Publicações
+      for (let i = 0; i < monitoramentosRestantes.length; i += CONCURRENT_LIMIT) {
         if (cancelarRef.current) {
+          // Salvar checkpoint antes de encerrar
+          const checkpointData: CheckpointDjen = {
+            data: hoje,
+            monitoramentosProcessados: Array.from(monitoramentosProcessadosIds),
+            totalNovas,
+            totalDuplicadas,
+            tempoAcumulado: Math.floor((Date.now() - tempoInicio) / 1000),
+            faseAtual: 1,
+            executionId: executionId || undefined,
+          };
+          salvarCheckpoint(checkpointData);
+          
+          const percentual = Math.round((processados / total) * 100);
           setProgresso(prev => ({
             ...prev,
-            status: 'concluido',
-            mensagem: `Cancelado. ${totalNovas} novas, ${totalDuplicadas} duplicadas.`,
+            status: 'cancelado',
+            mensagem: `Cancelado em ${percentual}%. ${totalNovas} novas encontradas.`,
+            hasCheckpoint: true,
+            checkpointPercent: percentual,
+            fases: {
+              ...prev.fases,
+              fase1: { ...prev.fases.fase1, status: 'concluido', processados },
+            },
           }));
+          
+          await registrarExecucao('cancelado', {
+            checkpoint: checkpointData,
+            processados,
+            total,
+            novas: totalNovas,
+          });
+          
           break;
         }
 
-        const lote = monitoramentos.slice(i, i + CONCURRENT_LIMIT) as MonitoramentoDjen[];
+        const lote = monitoramentosRestantes.slice(i, i + CONCURRENT_LIMIT) as MonitoramentoDjen[];
         
-        // Mostrar quais termos estão sendo buscados
         const termos = lote.map(m => m.termo_busca).join(', ');
         setProgresso(prev => ({
           ...prev,
-          mensagem: `Buscando: ${termos.slice(0, 50)}${termos.length > 50 ? '...' : ''}`,
+          mensagem: `Fase 1: ${termos.slice(0, 40)}${termos.length > 40 ? '...' : ''}`,
         }));
 
-        // Processar lote em PARALELO com timeout de lote de 60s (segurança)
         const loteTimeoutPromise = new Promise<PromiseSettledResult<{ novas: number; duplicadas: number; coordenacaoStats?: any }>[]>((resolve) => {
           setTimeout(() => {
             console.warn('[DJEN Direta] Timeout de lote (60s), continuando...');
@@ -589,13 +747,12 @@ export function useBuscaDjenDireta() {
           loteTimeoutPromise,
         ]);
 
-        // Contabilizar resultados
-        for (const resultado of resultados) {
+        for (let j = 0; j < resultados.length; j++) {
+          const resultado = resultados[j];
           if (resultado.status === 'fulfilled') {
             totalNovas += resultado.value.novas;
             totalDuplicadas += resultado.value.duplicadas;
             
-            // Acumular stats de coordenação
             if (resultado.value.coordenacaoStats) {
               const stats = resultado.value.coordenacaoStats;
               if (!resumosPorCoordenacao[stats.coordenacao_id]) {
@@ -612,6 +769,11 @@ export function useBuscaDjenDireta() {
               }
             }
           }
+          
+          // Marcar como processado
+          if (j < lote.length) {
+            monitoramentosProcessadosIds.add(lote[j].id);
+          }
         }
 
         processados += lote.length;
@@ -620,15 +782,59 @@ export function useBuscaDjenDireta() {
           monitoramentoAtual: processados,
           publicacoesNovas: totalNovas,
           publicacoesDuplicadas: totalDuplicadas,
+          fases: {
+            ...prev.fases,
+            fase1: { ...prev.fases.fase1, processados },
+          },
         }));
 
-        // Pequeno delay entre lotes para não sobrecarregar
-        if (i + CONCURRENT_LIMIT < monitoramentos.length) {
+        // Atualizar execução no banco periodicamente
+        if (processados % 10 === 0) {
+          await registrarExecucao('executando', {
+            processados,
+            total,
+            novas: totalNovas,
+            duplicadas: totalDuplicadas,
+          });
+        }
+
+        if (i + CONCURRENT_LIMIT < monitoramentosRestantes.length) {
           await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES));
         }
       }
 
-      // Enviar resumos por coordenação ao finalizar (só se encontrou publicações)
+      // Se foi cancelado, encerrar aqui
+      if (cancelarRef.current) {
+        setExecutando(false);
+        return;
+      }
+
+      // Fase 1 concluída
+      setProgresso(prev => ({
+        ...prev,
+        faseAtual: 2,
+        fases: {
+          ...prev.fases,
+          fase1: { ...prev.fases.fase1, status: 'concluido', processados: total },
+          fase2: { total: totalNovas, processados: 0, status: 'executando' },
+        },
+        mensagem: 'Fase 2: Identificando eventos...',
+      }));
+
+      // FASE 2: Identificar Eventos (placeholder - será expandido)
+      // Por enquanto, apenas marca como concluído
+      setProgresso(prev => ({
+        ...prev,
+        fases: {
+          ...prev.fases,
+          fase2: { ...prev.fases.fase2, status: 'concluido', processados: totalNovas },
+          fase3: { total: Object.keys(resumosPorCoordenacao).length, processados: 0, status: 'executando' },
+        },
+        faseAtual: 3,
+        mensagem: 'Fase 3: Enviando notificações...',
+      }));
+
+      // FASE 3: Enviar resumos por coordenação
       if (totalNovas > 0 && Object.keys(resumosPorCoordenacao).length > 0) {
         try {
           const coordIds = Object.keys(resumosPorCoordenacao);
@@ -637,7 +843,6 @@ export function useBuscaDjenDireta() {
             .select('id, nome')
             .in('id', coordIds);
 
-          // Filtrar apenas coordenações que tiveram achados
           const resumosFormatados = coordIds
             .filter(id => resumosPorCoordenacao[id].total_encontrados > 0)
             .map(id => ({
@@ -660,6 +865,9 @@ export function useBuscaDjenDireta() {
         }
       }
 
+      // Limpar checkpoint ao concluir com sucesso
+      limparCheckpoint();
+
       const tempoFinal = Math.floor((Date.now() - tempoInicio) / 1000);
       setProgresso({
         monitoramentoAtual: total,
@@ -670,11 +878,25 @@ export function useBuscaDjenDireta() {
         mensagem: `Concluído! ${totalNovas} novas, ${totalDuplicadas} duplicadas.`,
         tempoInicio: undefined,
         tempoDecorrido: tempoFinal,
+        faseAtual: 3,
+        fases: {
+          fase1: { total, processados: total, status: 'concluido' },
+          fase2: { total: totalNovas, processados: totalNovas, status: 'concluido' },
+          fase3: { total: Object.keys(resumosPorCoordenacao).length, processados: Object.keys(resumosPorCoordenacao).length, status: 'concluido' },
+        },
+        hasCheckpoint: false,
       });
 
-      // Invalidar queries relacionadas
+      await registrarExecucao('concluido', {
+        total,
+        novas: totalNovas,
+        duplicadas: totalDuplicadas,
+        duracao_s: tempoFinal,
+      });
+
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
       queryClient.invalidateQueries({ queryKey: ['monitoramentos-djen'] });
+      queryClient.invalidateQueries({ queryKey: ['execucoes-monitoramento'] });
 
       if (totalNovas > 0) {
         toast.success(`${totalNovas} novas publicações encontradas!`);
@@ -688,7 +910,12 @@ export function useBuscaDjenDireta() {
         ...prev,
         status: 'erro',
         mensagem: `Erro: ${error?.message || 'Erro desconhecido'}`,
+        fases: {
+          ...prev.fases,
+          fase1: { ...prev.fases.fase1, status: 'erro' },
+        },
       }));
+      await registrarExecucao('erro', { mensagem: error?.message });
       toast.error(`Erro: ${error?.message || 'Erro desconhecido'}`);
     } finally {
       setExecutando(false);
@@ -697,22 +924,30 @@ export function useBuscaDjenDireta() {
 
   const cancelarExecucao = useCallback(() => {
     cancelarRef.current = true;
-    // Abortar requisições em andamento
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    // Limpar localStorage para não restaurar estado cancelado
-    localStorage.removeItem(STORAGE_KEY);
-    // Agendar atualizações de estado para o próximo tick para evitar conflitos com React
+    // NÃO limpar localStorage - o checkpoint será salvo pelo loop principal
+    // quando detectar o cancelamento
     queueMicrotask(() => {
       setExecutando(false);
-      setProgresso(prev => ({
-        ...prev,
-        status: 'concluido',
-        mensagem: 'Cancelado pelo usuário.',
-      }));
     });
+  }, []);
+
+  // Verificar se há checkpoint disponível
+  const verificarCheckpoint = useCallback((): CheckpointDjen | null => {
+    return carregarCheckpoint();
+  }, []);
+
+  // Limpar checkpoint manualmente
+  const limparCheckpointManual = useCallback(() => {
+    limparCheckpoint();
+    setProgresso(prev => ({
+      ...prev,
+      hasCheckpoint: false,
+      checkpointPercent: 0,
+    }));
   }, []);
 
   return {
@@ -720,5 +955,7 @@ export function useBuscaDjenDireta() {
     executando,
     executarMonitoramento,
     cancelarExecucao,
+    verificarCheckpoint,
+    limparCheckpoint: limparCheckpointManual,
   };
 }
