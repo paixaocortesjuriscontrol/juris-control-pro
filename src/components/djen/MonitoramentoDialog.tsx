@@ -261,6 +261,9 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
   };
 
   const isUfValid = tipo !== 'advogado' || todasRegioes || selectedUfs.length > 0;
+  
+  // Debug: verificar estado dos campos
+  console.log('MonitoramentoDialog validation:', { isUfValid, coordenacaoId, termoBusca, tipo, todasRegioes, selectedUfs });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
