@@ -869,6 +869,7 @@ export function useBuscaDjenDireta() {
     // Filtrar publicações:
     // 1. Verificar exclusões configuradas
     // 2. IMPORTANTE: Validar que o TERMO COMPLETO está presente (evita resultados parciais da API)
+    let publicacoesIgnoradas = 0;
     const pubsFiltradas = publicacoes.filter(pub => {
       // Se não tem conteúdo, aceita (será processado de outra forma)
       if (!pub.conteudo) return true;
@@ -878,12 +879,17 @@ export function useBuscaDjenDireta() {
       
       // Validar que o termo completo está presente
       if (!conteudoContemTermo(pub.conteudo, mon.termo_busca, mon.tipo)) {
-        console.log(`[DJEN] Publicação ignorada - termo "${mon.termo_busca}" não encontrado integralmente no conteúdo`);
+        publicacoesIgnoradas++;
         return false;
       }
       
       return true;
     });
+    
+    // Log resumido para diagnóstico (apenas se houver publicações ignoradas)
+    if (publicacoesIgnoradas > 0) {
+      console.log(`[DJEN] "${mon.termo_busca}": ${publicacoesIgnoradas} publicações ignoradas (termo não encontrado integralmente)`);
+    }
 
     // Usar data_disponibilizacao para hash (alinhado com API e backend)
     const pubsComHash = pubsFiltradas.map(pub => ({
