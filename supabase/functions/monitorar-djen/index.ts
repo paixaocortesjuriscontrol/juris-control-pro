@@ -835,8 +835,12 @@ async function processMonitoramento(
     };
 
     let publications: any[] = [];
-    let pages = 0;
+    let totalPages = 0;
+    const seenPublicationIds = new Set<string>();
 
+    // IMPORTANTE: Buscar TODAS as variantes (com e sem acento) e acumular resultados
+    // Não fazer break no primeiro resultado - algumas publicações só aparecem
+    // na variante sem acento (ex: TJRJ usa "UNIAO QUIMICA" sem acentos)
     for (const candidate of searchCandidates) {
       const candidateLabel = candidate.numeroOab
         ? `numeroOab=${candidate.numeroOab}/${candidate.ufOab || ''}`
@@ -855,13 +859,23 @@ async function processMonitoramento(
         dataFim: options.dataFim,
       };
       const result = await fetchDJENResultsWithStats(searchParams, { scheduled: options.scheduled === true });
-      publications = result.items;
-      pages = result.pages;
-      if (publications.length > 0) break;
+      
+      // Acumular resultados únicos de todas as variantes
+      for (const item of result.items) {
+        const itemId = item.id || generateHash(JSON.stringify(item).slice(0, 500));
+        if (!seenPublicationIds.has(itemId)) {
+          seenPublicationIds.add(itemId);
+          publications.push(item);
+        }
+      }
+      totalPages += result.pages;
+      
+      console.log(`[DJEN] Candidate ${candidateLabel}: ${result.items.length} resultados (acumulado: ${publications.length})`);
       
       // Delay entre candidatos de busca para evitar rate limit
       await delay(INTER_CANDIDATE_DELAY_MS);
     }
+    const pages = totalPages;
     tribunalStat.paginas = pages;
     tribunalStat.resultados = publications.length;
 
