@@ -601,12 +601,15 @@ export function DjenTermosDashboardCard({
     }
   };
 
-  const canExecute = !isRunning && currentStatus !== 'timeout';
+  // Timeout é estado final (não está executando) — deve permitir nova execução.
+  // Porém, se detectamos órfã/ghost, bloqueamos nova execução até o usuário limpar/cancelar.
+  const canExecute = !isRunning && !limpando && !forcandoCancelamento && !hasOrfa;
   const canCancel = localRunActive && isRunning;
   // Para DJEN Termos (busca direta), se detectamos execução órfã/ghost,
   // o botão correto é o de *forçar cancelamento*, pois não há loop ativo para consumir cancel_requested.
   const canRequestCancel = !localRunActive && isRunning && !hasOrfa;
-  const showForceCancel = !localRunActive && isRunning && hasOrfa;
+  // Mostrar caveira sempre que houver órfã/ghost detectada, mesmo se o status já virou timeout.
+  const showForceCancel = !localRunActive && hasOrfa;
 
   const processados = effectiveCurrent;
   const total = effectiveTotal;
