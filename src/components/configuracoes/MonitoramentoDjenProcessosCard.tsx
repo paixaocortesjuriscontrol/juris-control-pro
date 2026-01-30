@@ -83,6 +83,8 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   const metadata = (config?.metadata as Record<string, any> | null) ?? null;
   const nextOffset = (metadata?.next_offset as number | undefined) ?? undefined;
   const totalCheckpoint = (metadata?.total as number | undefined) ?? undefined;
+  // Detecta se foi cancelamento explícito do usuário (não mostrar botão Retomar)
+  const wasCancelledByUser = metadata?.cancelado === true || metadata?.status === 'cancelado';
 
   // Buscar estatísticas
   const { data: stats } = useQuery({
@@ -640,6 +642,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             total={totalCheckpoint}
             onRetomar={() => handleExecutarManual('retomar')}
             disabled={executando}
+            wasCancelledByUser={wasCancelledByUser}
           />
           {executando ? (
             <Button

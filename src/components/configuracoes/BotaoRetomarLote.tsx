@@ -7,14 +7,22 @@ interface BotaoRetomarLoteProps {
   total?: number;
   onRetomar: () => void;
   disabled?: boolean;
+  /** Se true, o usuário cancelou explicitamente - não mostrar botão de retomar */
+  wasCancelledByUser?: boolean;
 }
 
 export function BotaoRetomarLote({ 
   nextOffset, 
   total, 
   onRetomar, 
-  disabled 
+  disabled,
+  wasCancelledByUser,
 }: BotaoRetomarLoteProps) {
+  // Não mostrar se foi cancelamento explícito do usuário
+  if (wasCancelledByUser) {
+    return null;
+  }
+
   // Só mostrar se há offset pendente
   if (!nextOffset || nextOffset <= 0) {
     return null;
