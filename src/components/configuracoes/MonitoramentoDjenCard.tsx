@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, StopCircle, Trash2, CalendarIcon, XCircle } from "lucide-react";
+import { ProgressoDjenDetalhado } from "@/components/djen/ProgressoDjenDetalhado";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
 import { useBuscaDjenDireta } from "@/hooks/useBuscaDjenDireta";
@@ -558,8 +559,36 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           </div>
         </div>
 
-        {/* Progresso ao vivo - fonte primária: busca direta (frontend) */}
-        {isExecuting && (
+        {/* Progresso ao vivo - versão detalhada por coordenação */}
+        {isExecuting && executandoDireta && progressoDireta.coordenacoes.length > 0 ? (
+          <div className="space-y-3">
+            <ProgressoDjenDetalhado
+              coordenacoes={progressoDireta.coordenacoes}
+              coordenacaoAtualId={progressoDireta.coordenacaoAtualId}
+              tipoAtual={progressoDireta.tipoAtual}
+              termoAtual={progressoDireta.termoAtual}
+              totalNovas={progressoDireta.publicacoesNovas}
+              totalDuplicadas={progressoDireta.publicacoesDuplicadas}
+              tempoDecorrido={progressoDireta.tempoDecorrido}
+              percentualGeral={progressoDireta.totalMonitoramentos > 0 
+                ? Math.round((progressoDireta.monitoramentoAtual / progressoDireta.totalMonitoramentos) * 100)
+                : 0
+              }
+              executando={true}
+            />
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleCancelarExecucao}
+              disabled={cancelando}
+              className="w-full"
+            >
+              <StopCircle className="h-4 w-4 mr-2" />
+              {cancelando ? 'Cancelando...' : 'Cancelar Execução'}
+            </Button>
+          </div>
+        ) : isExecuting && (
+          /* Fallback: progresso simples quando não há coordenações detalhadas */
           <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
