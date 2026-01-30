@@ -484,12 +484,6 @@ export function DjenTermosDashboardCard({
   const handleForceCancelar = async () => {
     setForcandoCancelamento(true);
     try {
-      // Se não há execução ativa nem detecção de órfã/ghost, não há o que cancelar.
-      if (!isRunning && !hasOrfa) {
-        toast.info('Nenhuma execução ativa para forçar cancelamento.');
-        return;
-      }
-
       // Se houver loop local, pedir cancelamento cooperativo também (aborta requests em andamento)
       if (localRunActive) {
         try {
@@ -499,42 +493,36 @@ export function DjenTermosDashboardCard({
         }
       }
 
-      const execId = execucaoOrfaNoBanco;
+      // FORÇA: Cancelar TODAS as execuções DJEN com status='executando', 
+      // independente de finalizado_em (para limpar execuções inconsistentes)
+      const { data: execucoesAtivas } = await supabase
+        .from('execucoes_agendadas')
+        .select('id')
+        .eq('tipo', 'djen')
+        .eq('status', 'executando');
 
-      if (execId && execId !== ORFA_GHOST_ID) {
+      if (execucoesAtivas && execucoesAtivas.length > 0) {
+        const ids = execucoesAtivas.map(e => e.id);
         await supabase
           .from('execucoes_agendadas')
           .update({
             status: 'cancelado',
             finalizado_em: new Date().toISOString(),
-            ultimo_erro: 'Cancelamento forçado pelo usuário',
+            ultimo_erro: 'Cancelamento forçado pelo usuário (kill switch)',
           })
-          .eq('id', execId);
-      } else if (execId !== ORFA_GHOST_ID) {
-        // Fallback: buscar qualquer execução ativa
-        const { data: execucao } = await supabase
-          .from('execucoes_agendadas')
-          .select('id')
-          .eq('tipo', 'djen')
-          .eq('status', 'executando')
-          .is('finalizado_em', null)
-          .order('iniciado_em', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (execucao) {
-          await supabase
-            .from('execucoes_agendadas')
-            .update({
-              status: 'cancelado',
-              finalizado_em: new Date().toISOString(),
-              ultimo_erro: 'Cancelamento forçado pelo usuário',
-            })
-            .eq('id', execucao.id);
-        }
+          .in('id', ids);
+        
+        console.log(`[DJEN] Forçou cancelamento de ${ids.length} execução(ões):`, ids);
       }
 
-      // Limpar/ajustar metadata da config também (SEM sobrescrever o objeto inteiro)
+      // Limpar localStorage para resetar estado local
+      try {
+        localStorage.removeItem('djen-direta-progresso');
+      } catch {
+        // silencioso
+      }
+
+      // Limpar/ajustar metadata da config também
       await supabase
         .from('configuracoes_monitoramento')
         .update({
@@ -544,14 +532,9 @@ export function DjenTermosDashboardCard({
             cancelado: true,
             continuingRun: false,
             cancel_requested: false,
-            last_stop_reason:
-              execId === ORFA_GHOST_ID
-                ? 'ghost_force_cancel'
-                : execId
-                  ? 'force_cancel_orphan'
-                  : 'force_cancel_user',
+            last_stop_reason: 'force_cancel_kill_switch',
             last_stop_at: new Date().toISOString(),
-            last_error: 'Cancelamento forçado pelo usuário',
+            last_error: 'Cancelamento forçado pelo usuário (kill switch)',
           },
         })
         .eq('tipo', 'djen')
