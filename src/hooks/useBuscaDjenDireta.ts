@@ -115,59 +115,12 @@ function extrairDataYMD(dataStr: string | null | undefined): string | null {
 const CONCURRENT_LIMIT = 2;
 const DELAY_BETWEEN_BATCHES = 1500;
 
-// Retry config para WORKER_LIMIT (erro 546)
-const MAX_RETRIES = 6;
-const INITIAL_BACKOFF_MS = 2000;
-
 // Helper para delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Invocar Edge Function com retry e exponential backoff para WORKER_LIMIT
-const invokeWithRetry = async <T>(
-  fnName: string,
-  body: Record<string, any>,
-  maxRetries = MAX_RETRIES
-): Promise<{ data: T | null; error: Error | null }> => {
-  let lastError: Error | null = null;
-  
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const { data, error } = await supabase.functions.invoke(fnName, { body });
-      
-      if (error) {
-        const errMsg = error.message || String(error);
-        const is546 = errMsg.includes('546') || errMsg.includes('WORKER_LIMIT');
-        
-        if (is546 && attempt < maxRetries) {
-          const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
-          console.warn(`[DJEN] WORKER_LIMIT (tentativa ${attempt + 1}/${maxRetries + 1}), aguardando ${backoff}ms...`);
-          await delay(backoff);
-          lastError = error;
-          continue;
-        }
-        
-        return { data: null, error };
-      }
-      
-      return { data: data as T, error: null };
-    } catch (err: any) {
-      const errMsg = err?.message || String(err);
-      const is546 = errMsg.includes('546') || errMsg.includes('WORKER_LIMIT');
-      
-      if (is546 && attempt < maxRetries) {
-        const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
-        console.warn(`[DJEN] WORKER_LIMIT catch (tentativa ${attempt + 1}/${maxRetries + 1}), aguardando ${backoff}ms...`);
-        await delay(backoff);
-        lastError = err;
-        continue;
-      }
-      
-      return { data: null, error: err };
-    }
-  }
-  
-  return { data: null, error: lastError || new Error('Max retries exceeded') };
-};
+// ============ BROWSER-ONLY STRATEGY ============
+// Edge Function buscar-djen foi REMOVIDA para evitar erros 546 (WORKER_LIMIT).
+// Todas as buscas DJEN são feitas via navegador (IP do usuário) usando buscarPjeComunicaPaginado.
 
 // Chaves para localStorage
 const STORAGE_KEY = 'djen-direta-progresso';

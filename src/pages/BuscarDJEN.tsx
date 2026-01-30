@@ -78,72 +78,20 @@ const estados = [
   "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"
 ];
 
-// Retry/backoff para erros intermitentes do runtime (546 WORKER_LIMIT)
-// (mesma estratégia usada no hook useBuscaDjenDireta)
-const DJEN_MAX_RETRIES = 6;
-const DJEN_INITIAL_BACKOFF_MS = 2000;
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// ============ BROWSER-ONLY STRATEGY ============
+// Edge Function buscar-djen foi removida para evitar erros 546 (WORKER_LIMIT).
+// Todas as buscas são feitas via navegador (IP do usuário).
 
-async function invokeBuscarDjenWithRetry<T>(
-  body: Record<string, any>,
-  maxRetries = DJEN_MAX_RETRIES
-): Promise<{ data: T | null; error: Error | null }> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const { data, error } = await supabase.functions.invoke("buscar-djen", { body });
-
-      if (error) {
-        const errMsg = (error as any)?.message || String(error);
-        const is546 = errMsg.includes("546") || errMsg.includes("WORKER_LIMIT");
-
-        if (is546 && attempt < maxRetries) {
-          const backoff = DJEN_INITIAL_BACKOFF_MS * Math.pow(2, attempt);
-          console.warn(
-            `[buscar-djen] WORKER_LIMIT (tentativa ${attempt + 1}/${maxRetries + 1}), aguardando ${backoff}ms...`
-          );
-          await delay(backoff);
-          lastError = error as any;
-          continue;
-        }
-
-        return { data: null, error: error as any };
-      }
-
-      return { data: data as T, error: null };
-    } catch (err: any) {
-      const errMsg = err?.message || String(err);
-      const is546 = errMsg.includes("546") || errMsg.includes("WORKER_LIMIT");
-
-      if (is546 && attempt < maxRetries) {
-        const backoff = DJEN_INITIAL_BACKOFF_MS * Math.pow(2, attempt);
-        console.warn(
-          `[buscar-djen] WORKER_LIMIT catch (tentativa ${attempt + 1}/${maxRetries + 1}), aguardando ${backoff}ms...`
-        );
-        await delay(backoff);
-        lastError = err;
-        continue;
-      }
-
-      return { data: null, error: err };
-    }
-  }
-
-  return { data: null, error: lastError || new Error("Max retries exceeded") };
-}
-
-// Preferir busca no navegador (IP do usuário) para evitar saturação/546 no Supabase.
-// Se falhar (CORS/bloqueio/rede), cai para a Edge Function com retry/backoff.
 async function invokeBuscarDjenPreferBrowser<T>(
   body: Record<string, any>
 ): Promise<{ data: T | null; error: Error | null }> {
   const tipo = body?.tipo as any;
 
-  // Apenas os tipos suportados no client-side.
+  // Todos os tipos suportados no client-side (browser-only).
   if (tipo === "palavra-chave" || tipo === "advogado" || tipo === "processo") {
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+    // Timeout aumentado para 60s para permitir buscas mais longas
+    const timeoutId = window.setTimeout(() => controller.abort(), 60000);
     try {
       const data = await buscarPjeComunicaNoBrowser(
         {
@@ -155,22 +103,23 @@ async function invokeBuscarDjenPreferBrowser<T>(
           dataInicio: body?.dataInicio,
           dataFim: body?.dataFim,
           page: body?.page ?? 0,
-          // Keep payload small to avoid Edge Function 546 (WORKER_LIMIT)
           pageSize: body?.pageSize ?? 10,
         },
         { signal: controller.signal }
       );
 
       return { data: data as unknown as T, error: null };
-    } catch (e) {
-      // fallback para edge
-      return await invokeBuscarDjenWithRetry<T>(body);
+    } catch (e: any) {
+      // SEM fallback para Edge Function - retorna erro diretamente
+      console.error('[BuscarDJEN] Erro na busca via navegador:', e);
+      return { data: null, error: e };
     } finally {
       window.clearTimeout(timeoutId);
     }
   }
 
-  return await invokeBuscarDjenWithRetry<T>(body);
+  // Tipo não suportado
+  return { data: null, error: new Error(`Tipo de busca "${tipo}" não suportado`) };
 }
 
 const BuscarDJEN = () => {
