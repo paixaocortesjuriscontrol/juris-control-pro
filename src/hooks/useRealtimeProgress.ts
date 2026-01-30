@@ -61,11 +61,21 @@ export function useRealtimeProgress({
     const execProgress = execucao?.detalhes?.progress;
     const metaStatus = metadata?.status as string | undefined;
     const cancelado = metadata?.cancelado === true;
+
+    // Detectar execuções “travadas/stale” (status fica em_andamento, mas o backend já marcou como parado)
+    const metaStopReason = (metadata?.last_stop_reason as string | undefined) ?? undefined;
+    const metaLastError =
+      (metadata?.last_error as string | undefined) ??
+      (metadata?.last_error_message as string | undefined) ??
+      undefined;
+    const metaIsStale =
+      metaStopReason === 'stale' ||
+      (!!metaLastError && /travada|stale|sem\s+progresso|heartbeat/i.test(metaLastError));
     
     // Determina se está rodando com base nas duas fontes
     const execStatus = execucao?.status;
     const hasActiveExec = execStatus === 'executando' && !execucao?.finalizado_em;
-    const metaRunning = metaStatus === 'em_andamento' && !cancelado;
+    const metaRunning = metaStatus === 'em_andamento' && !cancelado && !metaIsStale;
     const isRunning = hasActiveExec || metaRunning;
 
     // Usa progresso da execução se disponível, senão do metadata
@@ -94,7 +104,9 @@ export function useRealtimeProgress({
       percentage,
       novas,
       descartadas: metadata?.descartadas,
-      status: isRunning ? 'em_andamento' : (metaStatus || execStatus),
+      status: isRunning
+        ? 'em_andamento'
+        : (metaIsStale ? 'timeout' : (metaStatus || execStatus)),
       isRunning,
       lastUpdate: new Date(),
       executionId: execucao?.id,
@@ -125,6 +137,21 @@ export function useRealtimeProgress({
         percentage: next.percentage,
         executionId: nextId,
       };
+      return next;
+    }
+
+    // Caso comum em jobs “metadata-driven” (sem executionId): quando uma nova execução começa,
+    // o backend costuma zerar current/total antes de publicar progresso real.
+    // Se a execução anterior já estava finalizada e o próximo snapshot volta para 0/0 enquanto
+    // isRunning=true, permitimos reset (evita UI “travada” em % antigo).
+    const looksLikeFreshStart =
+      !prev.isRunning &&
+      next.isRunning &&
+      prev.current > 0 &&
+      next.current === 0 &&
+      next.total === 0;
+    if (looksLikeFreshStart) {
+      maxProgressRef.current = { current: 0, total: 0, percentage: 0 };
       return next;
     }
 
@@ -159,8 +186,9 @@ export function useRealtimeProgress({
       executionId: nextId || prevId,
     };
 
-    // Preserva isRunning como true se ainda há progresso a fazer
-    const stableIsRunning = next.isRunning || (prev.isRunning && stableCurrent < stableTotal);
+    // NÃO “prender” isRunning com base em progresso incompleto.
+    // Se o backend sinalizou que parou (ex.: stale/timeout), precisamos destravar a UI.
+    const stableIsRunning = next.isRunning;
 
     return {
       ...next,

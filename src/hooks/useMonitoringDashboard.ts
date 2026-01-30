@@ -308,6 +308,16 @@ export function useMonitoringDashboard() {
     const metaStatus = metadata?.status as string | undefined;
     const metaCancelado = metadata?.cancelado === true;
     const metaPausedGlobally = metadata?.paused_globally === true;
+
+    // Detectar execução travada/stale (status pode ficar em_andamento mesmo após o backend parar)
+    const metaStopReason = (metadata?.last_stop_reason as string | undefined) ?? undefined;
+    const metaLastError =
+      (metadata?.last_error as string | undefined) ??
+      (metadata?.last_error_message as string | undefined) ??
+      undefined;
+    const metaIsStale =
+      metaStopReason === 'stale' ||
+      (!!metaLastError && /travada|stale|sem\s+progresso|heartbeat/i.test(metaLastError));
     
     // CORREÇÃO CRÍTICA: Para DJEN, verificar se a última execução já foi finalizada
     // O metadata pode ficar com status='em_andamento' mesmo após finalizar
@@ -316,7 +326,12 @@ export function useMonitoringDashboard() {
     
     // Só considera running se status for EXATAMENTE 'em_andamento' e não cancelado/pausado
     // E se a execução correspondente ainda não foi finalizada
-    const metaIsRunning = metaStatus === 'em_andamento' && !metaCancelado && !metaPausedGlobally && !execJaFinalizada;
+    const metaIsRunning =
+      metaStatus === 'em_andamento' &&
+      !metaCancelado &&
+      !metaPausedGlobally &&
+      !execJaFinalizada &&
+      !metaIsStale;
 
     // Determine status
     let status: MonitoringStatus = 'idle';
@@ -349,6 +364,16 @@ export function useMonitoringDashboard() {
       // Execução manual em andamento (detectada via metadata, sem registro em execucoes_agendadas)
       status = 'running';
       // Tentar calcular tempo decorrido desde ultima_execucao
+      if (config?.ultima_execucao) {
+        const started = new Date(config.ultima_execucao);
+        const now = new Date();
+        elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
+      }
+    } else if (metaIsStale) {
+      // Backend sinalizou que a execução parou por staleness (sem heartbeat/progresso)
+      // => UI deve destravar e permitir retomar/reiniciar.
+      status = 'timeout';
+      // Tentar estimar duração (última atualização conhecida)
       if (config?.ultima_execucao) {
         const started = new Date(config.ultima_execucao);
         const now = new Date();
