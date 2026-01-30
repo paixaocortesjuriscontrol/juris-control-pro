@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { APP_VERSION } from "@/constants/version";
 import { NavLink } from "react-router-dom";
 import { 
   LayoutDashboard, 
@@ -70,6 +71,7 @@ export function Sidebar() {
             <div className="animate-fade-in">
               <h1 className="font-serif text-lg font-bold text-sidebar-foreground">Juris Control</h1>
               <p className="text-xs text-sidebar-foreground/60">Paixão Cortes Advogados</p>
+              <p className="text-[10px] text-sidebar-foreground/40 mt-0.5">v{APP_VERSION}</p>
             </div>
           )}
         </div>
