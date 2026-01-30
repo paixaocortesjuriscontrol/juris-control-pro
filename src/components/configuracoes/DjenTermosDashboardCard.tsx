@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { 
   Loader2, Newspaper, PlayCircle, StopCircle, Trash2, Mail,
   CheckCircle2, XCircle, Clock, TrendingUp, Zap, MinusCircle,
-  RotateCcw, AlertCircle
+  RotateCcw, AlertCircle, Skull
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -240,6 +240,7 @@ export function DjenTermosDashboardCard({
   const { enviando, enviarResumo } = useEnviarResumoManual();
   const [limpando, setLimpando] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [forcandoCancelamento, setForcandoCancelamento] = useState(false);
 
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
@@ -280,8 +281,49 @@ export function DjenTermosDashboardCard({
           : stats.status;
 
   const isRunning = currentStatus === 'running';
+  
+  // Detectar se a execução está "órfã" (rodando no banco mas não no frontend)
+  const execucaoOrfa = isRunning && !localRunActive;
 
   const statusConfig = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.idle;
+
+  // AUTO-LIMPEZA: Detectar e limpar execuções órfãs automaticamente
+  useEffect(() => {
+    const limparExecucoesOrfas = async () => {
+      // Se não há execução local ativa, verificar banco por execuções travadas
+      if (!localRunActive) {
+        const dezMinutosAtras = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        
+        const { data: orfas } = await supabase
+          .from('execucoes_agendadas')
+          .select('id, iniciado_em')
+          .eq('tipo', 'djen')
+          .eq('status', 'executando')
+          .is('finalizado_em', null)
+          .lt('iniciado_em', dezMinutosAtras)
+          .limit(5);
+
+        if (orfas && orfas.length > 0) {
+          console.log(`[DJEN] Detectadas ${orfas.length} execuções órfãs, limpando...`);
+          
+          for (const orfa of orfas) {
+            await supabase
+              .from('execucoes_agendadas')
+              .update({
+                status: 'timeout',
+                finalizado_em: new Date().toISOString(),
+                ultimo_erro: 'Execução órfã detectada e limpa automaticamente',
+              })
+              .eq('id', orfa.id);
+          }
+          
+          onAfterMutation();
+        }
+      }
+    };
+
+    limparExecucoesOrfas();
+  }, [localRunActive, stats.status, onAfterMutation]);
 
   const handleExecutar = async () => {
     if (isRunning) return;
@@ -336,6 +378,54 @@ export function DjenTermosDashboardCard({
       toast.success('Cancelamento solicitado. Progresso salvo para retomada.');
     } catch (e: any) {
       toast.error(`Erro ao cancelar: ${e?.message || 'erro desconhecido'}`);
+    }
+  };
+
+  // FORÇAR CANCELAMENTO: para execuções órfãs (rodando no banco mas não no frontend)
+  const handleForceCancelar = async () => {
+    setForcandoCancelamento(true);
+    try {
+      // Buscar execução em andamento deste tipo
+      const { data: execucao } = await supabase
+        .from('execucoes_agendadas')
+        .select('id')
+        .eq('tipo', 'djen')
+        .eq('status', 'executando')
+        .is('finalizado_em', null)
+        .order('iniciado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (execucao) {
+        await supabase
+          .from('execucoes_agendadas')
+          .update({
+            status: 'cancelado',
+            finalizado_em: new Date().toISOString(),
+            ultimo_erro: 'Cancelamento forçado pelo usuário (execução órfã)',
+          })
+          .eq('id', execucao.id);
+      }
+
+      // Limpar metadata da config também
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            status: 'cancelado',
+            cancelado: true,
+            continuingRun: false,
+          },
+        })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+
+      toast.success('Execução cancelada forçadamente! Você já pode iniciar uma nova.');
+      onAfterMutation();
+    } catch (e: any) {
+      toast.error(`Erro ao forçar cancelamento: ${e?.message}`);
+    } finally {
+      setForcandoCancelamento(false);
     }
   };
 
@@ -590,14 +680,53 @@ export function DjenTermosDashboardCard({
               )}
             </Button>
             
-            <Button 
-              size="sm"
-              variant="destructive"
-              onClick={handleCancelar}
-              disabled={!canCancel}
-            >
-              <StopCircle className="h-4 w-4" />
-            </Button>
+            {/* Botão de cancelar normal (loop ativo) */}
+            {canCancel && (
+              <Button 
+                size="sm"
+                variant="destructive"
+                onClick={handleCancelar}
+              >
+                <StopCircle className="h-4 w-4" />
+              </Button>
+            )}
+
+            {/* Botão FORÇAR CANCELAMENTO (execução órfã - loop morto) */}
+            {execucaoOrfa && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleForceCancelar}
+                      disabled={forcandoCancelamento}
+                      className="gap-1"
+                    >
+                      {forcandoCancelamento ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Skull className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Forçar cancelamento (execução travada)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
+            {/* Botão desabilitado quando não pode cancelar */}
+            {!canCancel && !execucaoOrfa && (
+              <Button 
+                size="sm"
+                variant="destructive"
+                disabled
+              >
+                <StopCircle className="h-4 w-4" />
+              </Button>
+            )}
 
             <TooltipProvider>
               <Tooltip>
