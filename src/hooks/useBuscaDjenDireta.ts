@@ -114,6 +114,60 @@ function extrairDataYMD(dataStr: string | null | undefined): string | null {
 const CONCURRENT_LIMIT = 2;
 const DELAY_BETWEEN_BATCHES = 1500;
 
+// Retry config para WORKER_LIMIT (erro 546)
+const MAX_RETRIES = 6;
+const INITIAL_BACKOFF_MS = 2000;
+
+// Helper para delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Invocar Edge Function com retry e exponential backoff para WORKER_LIMIT
+const invokeWithRetry = async <T>(
+  fnName: string,
+  body: Record<string, any>,
+  maxRetries = MAX_RETRIES
+): Promise<{ data: T | null; error: Error | null }> => {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const { data, error } = await supabase.functions.invoke(fnName, { body });
+      
+      if (error) {
+        const errMsg = error.message || String(error);
+        const is546 = errMsg.includes('546') || errMsg.includes('WORKER_LIMIT');
+        
+        if (is546 && attempt < maxRetries) {
+          const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+          console.warn(`[DJEN] WORKER_LIMIT (tentativa ${attempt + 1}/${maxRetries + 1}), aguardando ${backoff}ms...`);
+          await delay(backoff);
+          lastError = error;
+          continue;
+        }
+        
+        return { data: null, error };
+      }
+      
+      return { data: data as T, error: null };
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      const is546 = errMsg.includes('546') || errMsg.includes('WORKER_LIMIT');
+      
+      if (is546 && attempt < maxRetries) {
+        const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+        console.warn(`[DJEN] WORKER_LIMIT catch (tentativa ${attempt + 1}/${maxRetries + 1}), aguardando ${backoff}ms...`);
+        await delay(backoff);
+        lastError = err;
+        continue;
+      }
+      
+      return { data: null, error: err };
+    }
+  }
+  
+  return { data: null, error: lastError || new Error('Max retries exceeded') };
+};
+
 // Chaves para localStorage
 const STORAGE_KEY = 'djen-direta-progresso';
 const CHECKPOINT_KEY = 'djen-direta-checkpoint';
@@ -456,17 +510,15 @@ export function useBuscaDjenDireta() {
       if (cancelarRef.current) return [];
 
       const timeoutController = new AbortController();
-      const timeoutId = setTimeout(() => timeoutController.abort(), 30000);
+      const timeoutId = setTimeout(() => timeoutController.abort(), 60000); // Increased timeout for retries
 
-      const invokePromise = supabase.functions.invoke('buscar-djen', {
-        body: params,
-      });
+      const invokePromise = invokeWithRetry<any>('buscar-djen', params);
 
       const { data, error } = await Promise.race([
         invokePromise,
         new Promise<{ data: null; error: Error }>((_, reject) => {
           timeoutController.signal.addEventListener('abort', () => {
-            reject({ data: null, error: new Error('Timeout ao buscar DJEN (30s)') });
+            reject({ data: null, error: new Error('Timeout ao buscar DJEN (60s)') });
           });
         }),
       ]).finally(() => clearTimeout(timeoutId));
