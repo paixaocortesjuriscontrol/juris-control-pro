@@ -1,8 +1,9 @@
+import { useEffect, useMemo, useRef } from "react";
 import { RefreshCw, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { useSincronizarDjenBrowser } from "@/hooks/useSincronizarDjenBrowser";
-import { format, subDays } from "date-fns";
+import { useBuscaDjenDireta } from "@/hooks/useBuscaDjenDireta";
+import { toast } from "sonner";
 
 interface BotaoSincronizarDjenProps {
   /** IDs específicos de monitoramentos (opcional - se vazio, sincroniza todos) */
@@ -21,40 +22,62 @@ export function BotaoSincronizarDjen({
   size = "sm",
   variant = "outline",
 }: BotaoSincronizarDjenProps) {
-  const { sincronizar, cancelar, isSyncing, progress } = useSincronizarDjenBrowser();
+  const {
+    progresso,
+    executando,
+    executarMonitoramento,
+    cancelarExecucao,
+    verificarCheckpoint,
+  } = useBuscaDjenDireta();
+
+  const wasRunningRef = useRef(false);
+  const isRunning = executando && progresso.status === "executando";
+
+  const progressPercent = useMemo(() => {
+    if (!progresso?.totalMonitoramentos) return 0;
+    return Math.min(
+      100,
+      Math.round((progresso.monitoramentoAtual / progresso.totalMonitoramentos) * 100)
+    );
+  }, [progresso.monitoramentoAtual, progresso.totalMonitoramentos]);
+
+  useEffect(() => {
+    // Disparar onComplete quando uma execução que estava rodando finalizar
+    if (wasRunningRef.current && !isRunning) {
+      onComplete?.();
+    }
+    wasRunningRef.current = isRunning;
+  }, [isRunning, onComplete]);
 
   const handleClick = async () => {
-    if (isSyncing) {
-      cancelar();
+    if (isRunning) {
+      cancelarExecucao();
+      toast.info("Cancelamento solicitado. Progresso será salvo para retomada.");
       return;
     }
 
-    // Por padrão, buscar últimos 3 dias para garantir cobertura
-    const dataFim = format(new Date(), 'yyyy-MM-dd');
-    const dataInicio = format(subDays(new Date(), 2), 'yyyy-MM-dd');
-
-    await sincronizar(monitoramentoIds, { dataInicio, dataFim });
-    
-    onComplete?.();
+    const hasCheckpoint = !!verificarCheckpoint();
+    try {
+      await executarMonitoramento(monitoramentoIds, hasCheckpoint);
+      toast.info(hasCheckpoint ? "Retomando execução DJEN..." : "Iniciando execução DJEN...");
+    } catch (e: any) {
+      toast.error(e?.message ? `Erro ao iniciar: ${e.message}` : "Erro ao iniciar execução");
+    }
   };
 
-  const progressPercent = progress 
-    ? Math.round((progress.current / progress.total) * 100) 
-    : 0;
-
-  if (isSyncing && progress) {
+  if (isRunning) {
     return (
       <div className="flex flex-col gap-2 min-w-[200px]">
         <div className="flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
           <span className="text-sm text-muted-foreground">
-            {progress.current}/{progress.total} monitoramentos
+            {progresso.monitoramentoAtual}/{progresso.totalMonitoramentos} monitoramentos
           </span>
           <Button 
             variant="ghost" 
             size="icon" 
             className="h-6 w-6 ml-auto"
-            onClick={cancelar}
+            onClick={cancelarExecucao}
           >
             <X className="h-3 w-3" />
           </Button>
@@ -62,11 +85,11 @@ export function BotaoSincronizarDjen({
         <Progress value={progressPercent} className="h-2" />
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>
-            {progress.currentMonitoramento?.slice(0, 20)}
-            {(progress.currentMonitoramento?.length || 0) > 20 ? '...' : ''}
+            {progresso.mensagem?.slice(0, 22)}
+            {(progresso.mensagem?.length || 0) > 22 ? "..." : ""}
           </span>
           <span>
-            {progress.novasInseridas} novas
+            {progresso.publicacoesNovas} novas
           </span>
         </div>
       </div>
@@ -78,7 +101,7 @@ export function BotaoSincronizarDjen({
       variant={variant} 
       size={size} 
       onClick={handleClick}
-      disabled={isSyncing}
+      disabled={isRunning}
     >
       <RefreshCw className="h-4 w-4 mr-2" />
       Sincronizar Agora

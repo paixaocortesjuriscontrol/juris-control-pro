@@ -546,11 +546,12 @@ export function useBuscaDjenDireta() {
     // Usar data em Brasília para alinhar com a API e evitar “virada do dia” em UTC
     const now = new Date();
     const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-    const yesterdayBrasilia = new Date(todayBrasilia);
-    yesterdayBrasilia.setDate(yesterdayBrasilia.getDate() - 1);
+    // Cobertura padrão: últimos 3 dias (hoje + 2 dias anteriores)
+    const startBrasilia = new Date(todayBrasilia);
+    startBrasilia.setDate(startBrasilia.getDate() - 2);
 
     const dataFimYmd = todayBrasilia.toISOString().split('T')[0];
-    const dataInicioYmd = yesterdayBrasilia.toISOString().split('T')[0];
+    const dataInicioYmd = startBrasilia.toISOString().split('T')[0];
 
     const tipoMapeado = monitoramento.tipo === 'parte' ? 'palavra-chave' : monitoramento.tipo;
 
@@ -563,14 +564,25 @@ export function useBuscaDjenDireta() {
         .replace(/\s+/g, ' ')
         .trim();
 
-    // Gerar variantes de busca (termo original + sem acentos se diferir)
+    // Gerar variantes de busca (original + sem acentos + prefixo curto)
+    // Objetivo: capturar variações como "... S/A", "... S A", etc.
     const gerarVariantes = (termo: string): string[] => {
-      const original = termo.trim();
+      const original = (termo || '').trim();
       const semAcento = normalizeAccents(original);
-      if (semAcento.toLowerCase() !== original.toLowerCase()) {
-        return [original, semAcento];
+      const variantes = new Set<string>();
+
+      if (original) variantes.add(original);
+      if (semAcento && semAcento.toLowerCase() !== original.toLowerCase()) {
+        variantes.add(semAcento);
       }
-      return [original];
+
+      const palavras = semAcento.split(/\s+/).filter((p) => p.length >= 2);
+      if (palavras.length >= 3) {
+        const prefixo = palavras.slice(0, 2).join(' ').toUpperCase();
+        if (prefixo.length >= 6) variantes.add(prefixo);
+      }
+
+      return Array.from(variantes);
     };
 
     const params: Record<string, any> = {
@@ -619,50 +631,58 @@ export function useBuscaDjenDireta() {
     try {
       if (cancelarRef.current) return [];
 
-      // 1) Preferir browser (IP do usuário) para evitar 546 WORKER_LIMIT e bloqueios no IP do Supabase
-      const browserController = new AbortController();
-      const browserTimeoutId = setTimeout(() => browserController.abort(), 25000);
-
+      // 1) Preferir browser (IP do usuário) para evitar 546/memória no Supabase.
+      // Importante: NÃO cair em fallback para Edge Function aqui — isso estava gerando 546/Memory limit.
       let data: any | null = null;
       let error: Error | null = null;
 
-      try {
-        // Monitoramento pode ter filtro de tribunais: buscar por tribunal reduz volume e evita
-        // “perder” resultados por paginação (ex: item fica depois do 50º/100º resultado).
-        const tribunais = Array.isArray(monitoramento.tribunais) && monitoramento.tribunais.length > 0
-          ? monitoramento.tribunais
-          : [undefined];
+      // Monitoramento pode ter filtro de tribunais: buscar por tribunal reduz volume e evita
+      // “perder” resultados por paginação (ex: item fica depois do 50º/100º resultado).
+      const tribunais = Array.isArray(monitoramento.tribunais) && monitoramento.tribunais.length > 0
+        ? monitoramento.tribunais
+        : [undefined];
 
-        // Lista de variantes de palavras-chave (com e sem acentos)
-        // IMPORTANTE: evitar chamadas com termo vazio/curto, pois a Edge Function valida min 3 chars
-        // e, no browser-first, termos muito curtos podem gerar consultas amplas demais.
-        const variantesParaBuscarRaw = palavrasChaveVariantes.length > 0
-          ? palavrasChaveVariantes
-          : (params.palavraChave ? [params.palavraChave] : [undefined]);
+      // Lista de variantes de palavras-chave (com e sem acentos + prefixo)
+      const variantesParaBuscarRaw = palavrasChaveVariantes.length > 0
+        ? palavrasChaveVariantes
+        : (params.palavraChave ? [params.palavraChave] : [undefined]);
 
-        const variantesParaBuscar = variantesParaBuscarRaw
-          .filter((v): v is string => typeof v === 'string')
-          .map((v) => v.trim())
-          .filter((v) => v.length > 0)
-          .filter((v) => normalizeAccents(v).length >= 3);
+      const variantesParaBuscar = variantesParaBuscarRaw
+        .filter((v): v is string => typeof v === 'string')
+        .map((v) => v.trim())
+        .filter((v) => v.length > 0)
+        .filter((v) => normalizeAccents(v).length >= 3);
 
-        if (tipoMapeado === 'palavra-chave' && !params.oab && variantesParaBuscar.length === 0) {
-          console.warn(
-            `[DJEN Direta] Monitoramento com termo muito curto para palavra-chave (min 3): "${monitoramento.termo_busca}"`
-          );
-          return [];
+      if (tipoMapeado === 'palavra-chave' && !params.oab && variantesParaBuscar.length === 0) {
+        console.warn(
+          `[DJEN Direta] Monitoramento com termo muito curto para palavra-chave (min 3): "${monitoramento.termo_busca}"`
+        );
+        return [];
+      }
+
+      const seen = new Set<string>();
+      const acumulado: any[] = [];
+
+      const createLinkedController = () => {
+        const controller = new AbortController();
+        const globalSignal = abortControllerRef.current?.signal;
+        if (globalSignal) {
+          if (globalSignal.aborted) controller.abort();
+          else globalSignal.addEventListener('abort', () => controller.abort(), { once: true });
         }
+        return controller;
+      };
 
-        const seen = new Set<string>();
-        const acumulado: any[] = [];
+      for (const variante of variantesParaBuscar) {
+        if (cancelarRef.current) break;
 
-        // Buscar todas as combinações: variantes x tribunais
-        for (const variante of variantesParaBuscar) {
+        for (const trib of tribunais) {
           if (cancelarRef.current) break;
 
-          for (const trib of tribunais) {
-            if (cancelarRef.current) break;
+          const reqController = createLinkedController();
+          const timeoutId = setTimeout(() => reqController.abort(), 60_000);
 
+          try {
             const resp = await buscarPjeComunicaPaginado(
               {
                 tipo: params.tipo,
@@ -677,7 +697,7 @@ export function useBuscaDjenDireta() {
                 pageSize: params.pageSize ?? 10,
               },
               {
-                signal: browserController.signal,
+                signal: reqController.signal,
                 maxPages: 10,
                 delayMs: 150,
               }
@@ -691,112 +711,29 @@ export function useBuscaDjenDireta() {
                 acumulado.push(item);
               }
             }
-
-            // Pequeno delay entre tribunais para reduzir 429
-            await delay(120);
-          }
-        }
-
-        data = { comunicacoes: acumulado, items: acumulado };
-      } catch (browserErr: any) {
-        // 2) Fallback para Edge Function apenas quando o browser falhar (ex: CORS/rede)
-        //    Importante: paginar também no fallback, senão perdemos publicações fora da 1ª página.
-        const MAX_PAGES_FALLBACK = 10;
-        const TIMEOUT_PER_PAGE_MS = 30_000;
-
-        // Usar palavra-chave do monitoramento (termo_busca) para fallback.
-        // Atenção: a Edge Function valida comprimento mínimo de 3 caracteres.
-        const palavraChaveFallback = !params.oab
-          ? [...(palavrasChaveVariantes || []), monitoramento.termo_busca]
-              .filter((v): v is string => typeof v === 'string')
-              .map((v) => v.trim())
-              .filter((v) => v.length > 0)
-              .find((v) => normalizeAccents(v).length >= 3) ?? null
-          : null;
-
-        if (tipoMapeado === 'palavra-chave' && !params.oab && !palavraChaveFallback) {
-          // Se o browser falhou e o termo é inválido para a Edge Function,
-          // não faz sentido invocar e causar erro 400.
-          error = new Error(
-            `Termo do monitoramento inválido para busca por palavra-chave (mínimo 3 caracteres): "${monitoramento.termo_busca}"`
-          );
-        }
-
-        const fetchPage = async (page: number) => {
-          const timeoutController = new AbortController();
-          const timeoutId = setTimeout(() => timeoutController.abort(), TIMEOUT_PER_PAGE_MS);
-
-          try {
-            if (error) {
-              // Já detectamos erro de validação (ex: termo curto); não invocar a função.
-              return { data: null, error };
+          } catch (browserErr: any) {
+            if (browserErr?.name === 'AbortError') {
+              if (cancelarRef.current) break;
+              console.warn(
+                `[DJEN Direta] Timeout no browser (60s) para variante "${variante}" tribunal ${trib ?? 'TODOS'}. Continuando...`
+              );
+            } else {
+              console.warn(
+                `[DJEN Direta] Erro no browser para "${variante}" tribunal ${trib ?? 'TODOS'}:`,
+                browserErr?.message || browserErr
+              );
             }
-
-            const invokePromise = invokeWithRetry<any>("buscar-djen", {
-              ...params,
-              palavraChave: params.oab ? undefined : palavraChaveFallback, // Só envia palavraChave se não for advogado
-              page,
-              pageSize: params.pageSize ?? 10,
-              fetchAll: false,
-            });
-
-            const raced = await Promise.race([
-              invokePromise,
-              new Promise<{ data: null; error: Error }>((_, reject) => {
-                timeoutController.signal.addEventListener("abort", () => {
-                  reject({ data: null, error: new Error(`Timeout ao buscar DJEN (${TIMEOUT_PER_PAGE_MS / 1000}s)`) });
-                });
-              }),
-            ]);
-
-            return raced;
-          } catch (e: any) {
-            // Garantir que qualquer exceção (incluindo 400) seja convertida em retorno padrão
-            // para evitar crash/tela em branco.
-            return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
           } finally {
             clearTimeout(timeoutId);
           }
-        };
 
-        const seen = new Set<string>();
-        const acumulado: any[] = [];
-
-        for (let p = 0; p < MAX_PAGES_FALLBACK; p++) {
-          if (cancelarRef.current) break;
-          const raced = await fetchPage(p);
-          if (raced.error) {
-            error = raced.error;
-            break;
-          }
-
-          const comunicacoes = raced.data?.comunicacoes || raced.data?.items || [];
-          if (!Array.isArray(comunicacoes) || comunicacoes.length === 0) break;
-
-          for (const item of comunicacoes) {
-            const id = String(item?.id ?? "");
-            const key = id || JSON.stringify(item).slice(0, 400);
-            if (!seen.has(key)) {
-              seen.add(key);
-              acumulado.push(item);
-            }
-          }
-
-          const hasMore = Boolean(raced.data?.hasMore);
-          if (!hasMore) break;
-
-          await delay(150);
+          // Pequeno delay entre tribunais para reduzir 429
+          await delay(120);
         }
-
-        data = { comunicacoes: acumulado, items: acumulado };
-
-        console.warn(
-          `[DJEN Direta] Browser falhou, usando Edge Function (${monitoramento.termo_busca}):`,
-          browserErr?.message || browserErr
-        );
-      } finally {
-        clearTimeout(browserTimeoutId);
       }
+
+      data = { comunicacoes: acumulado, items: acumulado };
+      error = null;
 
       if (cancelarRef.current) return [];
 
