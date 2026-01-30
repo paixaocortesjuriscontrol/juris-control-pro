@@ -63,6 +63,39 @@ function gerarVariantesBusca(termo: string): string[] {
   return Array.from(variantes);
 }
 
+// IMPORTANTE: Validar que o TERMO COMPLETO está presente na publicação
+// A API do PJE Comunica faz busca por substring, então pode retornar resultados parciais
+function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boolean {
+  if (!conteudo || !termo) return false;
+  
+  // Para advogado, a validação é diferente (OAB)
+  if (tipo === 'advogado') return true;
+  
+  // Normalizar ambos para comparação
+  const normalizar = (t: string) => t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[&\/\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+  
+  const conteudoNorm = normalizar(conteudo);
+  const termoNorm = normalizar(termo);
+  
+  // Verificar se o termo completo está presente
+  if (conteudoNorm.includes(termoNorm)) return true;
+  
+  // Fallback: verificar se todas as palavras significativas do termo estão presentes
+  const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+  if (palavrasTermo.length === 0) return true;
+  
+  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
+  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+  
+  return palavrasEncontradas.length >= minPalavras;
+}
+
 // Gera hash global para deduplicação (igual ao backend)
 function generateGlobalHash(conteudo: string, dataDisponibilizacao: string): string {
   const normalized = (conteudo || '')
@@ -228,9 +261,16 @@ export function useSincronizarDjenBrowser() {
             publicacoesEncontradas: prev!.publicacoesEncontradas + todasPublicacoes.length,
           }));
 
+          // Filtrar publicações que realmente contêm o termo completo
+          // A API do PJE Comunica pode retornar resultados parciais (substring)
+          const publicacoesFiltradas = todasPublicacoes.filter(pub => {
+            const conteudo = pub.texto || pub.teor || '';
+            return conteudoContemTermo(conteudo, mon.termo_busca, mon.tipo);
+          });
+
           // Inserir publicações no banco (com deduplicação)
-          if (todasPublicacoes.length > 0) {
-            const novas = await inserirPublicacoes(todasPublicacoes, mon);
+          if (publicacoesFiltradas.length > 0) {
+            const novas = await inserirPublicacoes(publicacoesFiltradas, mon);
             result.novasInseridas += novas;
             
             setProgress(prev => ({
