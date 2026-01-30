@@ -513,6 +513,42 @@ export function useBuscaDjenDireta() {
     return exclusoes.some(termo => conteudoUpper.includes(termo.toUpperCase()));
   };
 
+  // IMPORTANTE: Validar que o TERMO COMPLETO está presente na publicação
+  // A API do PJE Comunica faz busca por substring, então pode retornar resultados parciais
+  // Ex: Buscar "F & F DISTRIBUIDORA" pode retornar publicação que só tem "DISTRIBUIDORA"
+  const conteudoContemTermo = (conteudo: string, termo: string, tipo: string): boolean => {
+    if (!conteudo || !termo) return false;
+    
+    // Para advogado, a validação é diferente (OAB)
+    if (tipo === 'advogado') return true; // Validação já feita pela API por OAB
+    
+    // Normalizar ambos para comparação
+    const normalizar = (t: string) => t
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+      .replace(/[&\/\\]/g, ' ')         // & -> espaço, / -> espaço
+      .replace(/\s+/g, ' ')             // Normaliza espaços
+      .trim()
+      .toUpperCase();
+    
+    const conteudoNorm = normalizar(conteudo);
+    const termoNorm = normalizar(termo);
+    
+    // Verificar se o termo completo está presente
+    if (conteudoNorm.includes(termoNorm)) return true;
+    
+    // Fallback: verificar se todas as palavras significativas do termo estão presentes
+    // Isso ajuda com variações como "F. & F." vs "F & F"
+    const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+    if (palavrasTermo.length === 0) return true; // Termo muito curto, aceitar
+    
+    // Pelo menos 80% das palavras devem estar presentes (tolerância para variações)
+    const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
+    const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+    
+    return palavrasEncontradas.length >= minPalavras;
+  };
+
   // Registrar execução no banco
   const registrarExecucao = async (status: 'executando' | 'concluido' | 'cancelado' | 'erro', detalhes?: Record<string, any>): Promise<string | null> => {
     try {
@@ -830,9 +866,24 @@ export function useBuscaDjenDireta() {
       return { novas: 0, duplicadas: 0 };
     }
 
-    const pubsFiltradas = publicacoes.filter(pub => 
-      !pub.conteudo || !deveExcluir(pub.conteudo, mon.exclusoes)
-    );
+    // Filtrar publicações:
+    // 1. Verificar exclusões configuradas
+    // 2. IMPORTANTE: Validar que o TERMO COMPLETO está presente (evita resultados parciais da API)
+    const pubsFiltradas = publicacoes.filter(pub => {
+      // Se não tem conteúdo, aceita (será processado de outra forma)
+      if (!pub.conteudo) return true;
+      
+      // Verificar exclusões
+      if (deveExcluir(pub.conteudo, mon.exclusoes)) return false;
+      
+      // Validar que o termo completo está presente
+      if (!conteudoContemTermo(pub.conteudo, mon.termo_busca, mon.tipo)) {
+        console.log(`[DJEN] Publicação ignorada - termo "${mon.termo_busca}" não encontrado integralmente no conteúdo`);
+        return false;
+      }
+      
+      return true;
+    });
 
     // Usar data_disponibilizacao para hash (alinhado com API e backend)
     const pubsComHash = pubsFiltradas.map(pub => ({
