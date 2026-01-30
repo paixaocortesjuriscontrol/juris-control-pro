@@ -150,6 +150,8 @@ const TODOS_IDS_TRABALHISTAS = [
 ];
 
 // Expande IDs sintéticos (TODOS_CIVEIS, TODOS_TRT) para a lista real de tribunais
+// IMPORTANTE: Sempre retorna tribunais individuais para buscar em cada um.
+// Busca sem filtro não funciona bem para termos específicos/advogados.
 function expandirTribunais(tribunais: string[] | undefined): string[] | undefined {
   if (!tribunais || tribunais.length === 0) return undefined;
   
@@ -161,19 +163,20 @@ function expandirTribunais(tribunais: string[] | undefined): string[] | undefine
     } else if (t === 'TODOS_TRT') {
       TODOS_IDS_TRABALHISTAS.forEach(id => expandidos.add(id));
     } else {
-      // Tribunal normal, adiciona diretamente
-      expandidos.add(t);
+      // Tribunal normal, adiciona diretamente (normalizar para maiúsculas)
+      expandidos.add(t.toUpperCase());
     }
   }
   
-  // Se após expansão temos muitos tribunais (>15), pode ser mais eficiente
-  // não filtrar (buscar em todos) já que a API pagina bem
-  if (expandidos.size > 15) {
-    console.log(`[DJEN] Expandiu para ${expandidos.size} tribunais. Buscando sem filtro para melhor performance.`);
-    return undefined;
+  // Retorna sempre os tribunais expandidos - NÃO mais cair para undefined
+  // A busca sem filtro de tribunal é muito genérica e não encontra resultados
+  // para termos específicos ou advogados
+  if (expandidos.size > 0) {
+    console.log(`[DJEN] Processando ${expandidos.size} tribunais configurados`);
+    return Array.from(expandidos);
   }
   
-  return Array.from(expandidos);
+  return undefined;
 }
 
 // ============ BROWSER-ONLY STRATEGY ============
