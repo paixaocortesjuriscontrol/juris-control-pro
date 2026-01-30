@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { 
   Loader2, Newspaper, PlayCircle, StopCircle, Trash2, Mail,
   CheckCircle2, XCircle, Clock, TrendingUp, Zap, MinusCircle,
-  RotateCcw, AlertCircle, Skull
+  RotateCcw, AlertCircle, Skull, FlaskConical
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,7 @@ import { useBuscaDjenDireta, type FaseStatus } from "@/hooks/useBuscaDjenDireta"
 import { withTimeout } from "@/utils/withTimeout";
 import { useEnviarResumoManual } from "@/hooks/useEnviarResumoManual";
 import { ProgressoDjenDetalhado } from "@/components/djen/ProgressoDjenDetalhado";
+import { DjenAdvogadoDiagnosticoDialog } from "@/components/djen/DjenAdvogadoDiagnosticoDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -244,6 +245,7 @@ export function DjenTermosDashboardCard({
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [forcandoCancelamento, setForcandoCancelamento] = useState(false);
   const [execucaoOrfaNoBanco, setExecucaoOrfaNoBanco] = useState<string | null>(null);
+  const [showDiagnostico, setShowDiagnostico] = useState(false);
 
   const ORFA_GHOST_ID = "__ghost__";
 
@@ -981,6 +983,24 @@ export function DjenTermosDashboardCard({
               </Tooltip>
             </TooltipProvider>
 
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowDiagnostico(true)}
+                    title="Diagnóstico de busca por advogado"
+                  >
+                    <FlaskConical className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Diagnóstico (OAB): ver URL/HTTP/retorno do PJE</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
             <Button
               size="sm"
               variant="outline"
@@ -993,6 +1013,8 @@ export function DjenTermosDashboardCard({
           </div>
         </CardContent>
       </Card>
+
+      <DjenAdvogadoDiagnosticoDialog open={showDiagnostico} onOpenChange={setShowDiagnostico} />
 
       {/* Dialog de Retomada */}
       <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
