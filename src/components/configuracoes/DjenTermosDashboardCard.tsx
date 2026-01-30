@@ -618,8 +618,17 @@ export function DjenTermosDashboardCard({
 
   const processados = effectiveCurrent;
   const total = effectiveTotal;
-  const encontrados = stats.todayStats.found ?? 0;
-  const descartadas = stats.todayStats.descartadas ?? 0;
+  
+  // CORREÇÃO: Durante e após execução local, usar valores em tempo real do hook
+  // Somente quando não há execução local (idle), usar valores do banco
+  // Isso mantém sincronização entre o card de progresso detalhado e o grid de métricas
+  const hasLocalExecution = localRunActive || localCompleted || localCancelled;
+  const encontrados = hasLocalExecution && progresso.publicacoesNovas > 0
+    ? progresso.publicacoesNovas 
+    : (stats.todayStats.found ?? 0);
+  const descartadas = hasLocalExecution && progresso.publicacoesDuplicadas > 0
+    ? progresso.publicacoesDuplicadas 
+    : (stats.todayStats.descartadas ?? 0);
 
   const tempoLocal = progresso.tempoDecorrido ?? 0;
   const metadataDuracao = md.duracao_s ?? 0;
