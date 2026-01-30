@@ -20,19 +20,48 @@ const UFS = [
   'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO'
 ];
 
-// Tribunais disponíveis para busca específica
+// Tribunais disponíveis para busca específica - TODOS OS 27 TJs + Federais + Trabalhistas
 const TRIBUNAIS_DISPONIVEIS = [
+  // Estadual (TJs) - TODOS OS 27 ESTADOS em ordem alfabética
+  { id: 'TJAC', nome: 'TJAC - Tribunal de Justiça do Acre', categoria: 'Estadual' },
+  { id: 'TJAL', nome: 'TJAL - Tribunal de Justiça de Alagoas', categoria: 'Estadual' },
+  { id: 'TJAM', nome: 'TJAM - Tribunal de Justiça do Amazonas', categoria: 'Estadual' },
+  { id: 'TJAP', nome: 'TJAP - Tribunal de Justiça do Amapá', categoria: 'Estadual' },
+  { id: 'TJBA', nome: 'TJBA - Tribunal de Justiça da Bahia', categoria: 'Estadual' },
+  { id: 'TJCE', nome: 'TJCE - Tribunal de Justiça do Ceará', categoria: 'Estadual' },
   { id: 'TJDFT', nome: 'TJDFT - Tribunal de Justiça do DF', categoria: 'Estadual' },
-  { id: 'TJSP', nome: 'TJSP - Tribunal de Justiça de SP', categoria: 'Estadual' },
-  { id: 'TJGO', nome: 'TJGO - Tribunal de Justiça de GO', categoria: 'Estadual' },
+  { id: 'TJES', nome: 'TJES - Tribunal de Justiça do Espírito Santo', categoria: 'Estadual' },
+  { id: 'TJGO', nome: 'TJGO - Tribunal de Justiça de Goiás', categoria: 'Estadual' },
+  { id: 'TJMA', nome: 'TJMA - Tribunal de Justiça do Maranhão', categoria: 'Estadual' },
+  { id: 'TJMG', nome: 'TJMG - Tribunal de Justiça de Minas Gerais', categoria: 'Estadual' },
+  { id: 'TJMS', nome: 'TJMS - Tribunal de Justiça de Mato Grosso do Sul', categoria: 'Estadual' },
+  { id: 'TJMT', nome: 'TJMT - Tribunal de Justiça de Mato Grosso', categoria: 'Estadual' },
+  { id: 'TJPA', nome: 'TJPA - Tribunal de Justiça do Pará', categoria: 'Estadual' },
+  { id: 'TJPB', nome: 'TJPB - Tribunal de Justiça da Paraíba', categoria: 'Estadual' },
+  { id: 'TJPE', nome: 'TJPE - Tribunal de Justiça de Pernambuco', categoria: 'Estadual' },
+  { id: 'TJPI', nome: 'TJPI - Tribunal de Justiça do Piauí', categoria: 'Estadual' },
+  { id: 'TJPR', nome: 'TJPR - Tribunal de Justiça do Paraná', categoria: 'Estadual' },
+  { id: 'TJRJ', nome: 'TJRJ - Tribunal de Justiça do Rio de Janeiro', categoria: 'Estadual' },
+  { id: 'TJRN', nome: 'TJRN - Tribunal de Justiça do Rio Grande do Norte', categoria: 'Estadual' },
+  { id: 'TJRO', nome: 'TJRO - Tribunal de Justiça de Rondônia', categoria: 'Estadual' },
+  { id: 'TJRR', nome: 'TJRR - Tribunal de Justiça de Roraima', categoria: 'Estadual' },
+  { id: 'TJRS', nome: 'TJRS - Tribunal de Justiça do Rio Grande do Sul', categoria: 'Estadual' },
+  { id: 'TJSC', nome: 'TJSC - Tribunal de Justiça de Santa Catarina', categoria: 'Estadual' },
+  { id: 'TJSE', nome: 'TJSE - Tribunal de Justiça de Sergipe', categoria: 'Estadual' },
+  { id: 'TJSP', nome: 'TJSP - Tribunal de Justiça de São Paulo', categoria: 'Estadual' },
+  { id: 'TJTO', nome: 'TJTO - Tribunal de Justiça de Tocantins', categoria: 'Estadual' },
+  { id: 'TODOS_CIVEIS', nome: 'Todos os Tribunais Cíveis (27 TJs)', categoria: 'Estadual' },
+  // Federal (TRFs)
   { id: 'TRF1', nome: 'TRF1 - Tribunal Regional Federal 1ª Região', categoria: 'Federal' },
   { id: 'TRF2', nome: 'TRF2 - Tribunal Regional Federal 2ª Região', categoria: 'Federal' },
   { id: 'TRF3', nome: 'TRF3 - Tribunal Regional Federal 3ª Região', categoria: 'Federal' },
   { id: 'TRF4', nome: 'TRF4 - Tribunal Regional Federal 4ª Região', categoria: 'Federal' },
   { id: 'TRF5', nome: 'TRF5 - Tribunal Regional Federal 5ª Região', categoria: 'Federal' },
   { id: 'TRF6', nome: 'TRF6 - Tribunal Regional Federal 6ª Região', categoria: 'Federal' },
+  // Superior
   { id: 'STJ', nome: 'STJ - Superior Tribunal de Justiça', categoria: 'Superior' },
   { id: 'STF', nome: 'STF - Supremo Tribunal Federal', categoria: 'Superior' },
+  // Trabalhista
   { id: 'TST', nome: 'TST - Tribunal Superior do Trabalho', categoria: 'Trabalhista' },
   { id: 'TRT1', nome: 'TRT1 - Rio de Janeiro', categoria: 'Trabalhista' },
   { id: 'TRT2', nome: 'TRT2 - São Paulo', categoria: 'Trabalhista' },
@@ -59,7 +88,6 @@ const TRIBUNAIS_DISPONIVEIS = [
   { id: 'TRT23', nome: 'TRT23 - Mato Grosso', categoria: 'Trabalhista' },
   { id: 'TRT24', nome: 'TRT24 - Mato Grosso do Sul', categoria: 'Trabalhista' },
   { id: 'TODOS_TRT', nome: 'Todos os TRTs (1ª instância + TRTs + TST)', categoria: 'Trabalhista' },
-  { id: 'TODOS_CIVEIS', nome: 'Todos os Tribunais Cíveis (TJs)', categoria: 'Estadual' },
 ];
 
 // Listas de IDs reais para seleção em lote
