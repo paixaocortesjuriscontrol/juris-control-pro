@@ -62,12 +62,12 @@ export interface MonitoringStats {
   elapsedSeconds: number;
 }
 
-// DJEN Termos: mantido no grid para visualização unificada (usa busca direta no frontend)
+// DJEN Termos: usa busca direta no frontend (browser-only), não tem Edge Function associada
 const MONITORING_TYPES = [
   { tipo: 'redistribuicoes', nome: 'Redistribuições', icon: 'RefreshCw', funcao: 'monitorar-redistribuicoes' },
   { tipo: 'andamentos', nome: 'Andamentos', icon: 'Activity', funcao: 'monitorar-andamentos' },
   { tipo: 'distribuicoes', nome: 'Distribuições', icon: 'Globe', funcao: 'monitorar-distribuicoes' },
-  { tipo: 'djen', nome: 'DJEN Termos', icon: 'Newspaper', funcao: 'buscar-djen' },
+  { tipo: 'djen', nome: 'DJEN Termos', icon: 'Newspaper', funcao: null }, // Browser-only
   { tipo: 'djen_processos', nome: 'DJEN Processos', icon: 'FileSearch', funcao: 'monitorar-djen-processos' },
   { tipo: 'termos', nome: 'Monitoração 360', icon: 'Radar', funcao: 'monitorar-termos' },
 ] as const;

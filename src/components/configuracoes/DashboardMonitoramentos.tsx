@@ -49,11 +49,11 @@ const NOMES: Record<string, string> = {
   termos: 'Monitoração 360',
 };
 
-const FUNCOES: Record<string, string> = {
+const FUNCOES: Record<string, string | null> = {
   redistribuicoes: 'monitorar-redistribuicoes',
   andamentos: 'monitorar-andamentos',
   distribuicoes: 'monitorar-distribuicoes',
-  djen: 'buscar-djen',
+  djen: null, // Browser-only - não tem Edge Function
   djen_processos: 'monitorar-djen-processos',
   termos: 'monitorar-termos',
 };
