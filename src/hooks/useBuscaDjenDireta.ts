@@ -915,10 +915,27 @@ export function useBuscaDjenDireta() {
           fase1: { ...prev.fases.fase1, status: 'erro' },
         },
       }));
-      await registrarExecucao('erro', { mensagem: error?.message });
+      
+      // GARANTIR que sempre finalize no banco, mesmo em caso de erro
+      if (executionIdRef.current) {
+        try {
+          await supabase
+            .from('execucoes_agendadas')
+            .update({
+              status: 'erro',
+              finalizado_em: new Date().toISOString(),
+              ultimo_erro: error?.message || 'Erro desconhecido',
+            })
+            .eq('id', executionIdRef.current);
+        } catch (dbError) {
+          console.error('Erro ao atualizar execução no banco:', dbError);
+        }
+      }
+      
       toast.error(`Erro: ${error?.message || 'Erro desconhecido'}`);
     } finally {
       setExecutando(false);
+      executionIdRef.current = null; // Limpar ref ao finalizar
     }
   }, [user?.id, queryClient]);
 
