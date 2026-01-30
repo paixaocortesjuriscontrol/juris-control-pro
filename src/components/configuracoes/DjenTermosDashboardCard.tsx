@@ -290,6 +290,7 @@ export function DjenTermosDashboardCard({
   // 2) Ghost: UI aponta 'executando' mas NÃO existe execução ativa no banco (metadata travado)
   const isGhostOrfa = execucaoOrfaNoBanco === ORFA_GHOST_ID;
   const isOrfaReal = !!execucaoOrfaNoBanco && execucaoOrfaNoBanco !== ORFA_GHOST_ID;
+  const hasOrfa = isGhostOrfa || isOrfaReal;
 
   const statusConfig = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.idle;
 
@@ -602,7 +603,10 @@ export function DjenTermosDashboardCard({
 
   const canExecute = !isRunning && currentStatus !== 'timeout';
   const canCancel = localRunActive && isRunning;
-  const canRequestCancel = !localRunActive && isRunning && !isGhostOrfa;
+  // Para DJEN Termos (busca direta), se detectamos execução órfã/ghost,
+  // o botão correto é o de *forçar cancelamento*, pois não há loop ativo para consumir cancel_requested.
+  const canRequestCancel = !localRunActive && isRunning && !hasOrfa;
+  const showForceCancel = !localRunActive && isRunning && hasOrfa;
 
   const processados = effectiveCurrent;
   const total = effectiveTotal;
@@ -857,8 +861,8 @@ export function DjenTermosDashboardCard({
               </TooltipProvider>
             )}
 
-            {/* Botão FORÇAR CANCELAMENTO (ghost: UI travado sem execução ativa no banco) */}
-            {isGhostOrfa && (
+            {/* Botão FORÇAR CANCELAMENTO (órfã/ghost) */}
+            {showForceCancel && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -877,14 +881,18 @@ export function DjenTermosDashboardCard({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Forçar limpeza (status travado sem execução ativa)</p>
+                    <p>
+                      {isGhostOrfa
+                        ? 'Forçar limpeza (status travado sem execução ativa)'
+                        : 'Forçar cancelamento (execução órfã no banco)'}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
 
             {/* Botão desabilitado quando não pode cancelar */}
-            {!canCancel && !canRequestCancel && !isGhostOrfa && (
+            {!canCancel && !canRequestCancel && !showForceCancel && (
               <Button 
                 size="sm"
                 variant="destructive"
