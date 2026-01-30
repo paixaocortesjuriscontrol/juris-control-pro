@@ -314,6 +314,82 @@ export function useBuscaDjenDireta() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const executionIdRef = useRef<string | null>(null);
 
+  // Se o domínio (ex: publicado) ficou com um estado local antigo marcado como "executando",
+  // o card pode ficar preso em % (ex: 73%) mesmo sem execução ativa no banco.
+  // Aqui validamos no mount: se não existir execução ativa, limpamos o estado local.
+  useEffect(() => {
+    let isMounted = true;
+
+    const validarEstadoLocalExecutando = async () => {
+      const saved = carregarEstado();
+      if (!saved || saved.status !== 'executando') return;
+
+      try {
+        let existeExecucaoAtiva = false;
+
+        // 1) Preferir validar pelo executionId salvo (quando existir)
+        if (saved.executionId) {
+          const { data } = await supabase
+            .from('execucoes_agendadas')
+            .select('id, status, finalizado_em')
+            .eq('id', saved.executionId)
+            .maybeSingle();
+
+          existeExecucaoAtiva = !!data && data.status === 'executando' && !data.finalizado_em;
+        }
+
+        // 2) Fallback: verificar se existe qualquer execução DJEN ativa no banco
+        if (!existeExecucaoAtiva) {
+          const { data } = await supabase
+            .from('execucoes_agendadas')
+            .select('id')
+            .eq('tipo', 'djen')
+            .eq('status', 'executando')
+            .is('finalizado_em', null)
+            .order('iniciado_em', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          existeExecucaoAtiva = !!data;
+        }
+
+        if (!isMounted) return;
+
+        if (!existeExecucaoAtiva) {
+          console.warn('[DJEN] Estado local "executando" sem execução ativa no banco. Limpando localStorage.');
+          localStorage.removeItem(STORAGE_KEY);
+          executionIdRef.current = null;
+          setExecutando(false);
+
+          const hasCp = !!checkpointDisponivel;
+          const cpPct = hasCp
+            ? Math.round((checkpointDisponivel!.monitoramentosProcessados.length / (saved.totalMonitoramentos || 114)) * 100)
+            : 0;
+
+          setProgresso({
+            ...defaultProgresso(),
+            status: hasCp ? 'cancelado' : 'idle',
+            mensagem: hasCp
+              ? 'Execução anterior interrompida. Você pode retomar a partir do checkpoint.'
+              : '',
+            hasCheckpoint: hasCp,
+            checkpointPercent: cpPct,
+          });
+        }
+      } catch (e) {
+        // Se não conseguir validar, não derrubar UI.
+        // (Preferimos manter o estado e deixar a detecção de órfã/ghost atuar no card.)
+        console.warn('[DJEN] Falha ao validar estado local executando:', e);
+      }
+    };
+
+    validarEstadoLocalExecutando();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [checkpointDisponivel]);
+
   // Helpers para checkpoint/controle no banco (configuracoes_monitoramento)
   const loadConfigMetadata = useCallback(async (): Promise<Record<string, any>> => {
     try {
