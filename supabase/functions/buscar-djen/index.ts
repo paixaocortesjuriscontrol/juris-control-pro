@@ -24,7 +24,8 @@ function getCacheKey(params: SearchParams): string {
     dataInicio: params.dataInicio,
     dataFim: params.dataFim,
     page: params.page ?? 0,
-    pageSize: params.pageSize ?? 100,
+    // Hard cap: reduce payload to avoid Memory limit exceeded (WORKER_LIMIT 546)
+    pageSize: params.pageSize ?? 25,
     fetchAll: !!params.fetchAll,
   });
 }
@@ -269,7 +270,8 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   if (dataFim) baseParams.append("dataDisponibilizacaoFim", dataFim);
 
   const page = Math.max(params.page ?? 0, 0);
-  const pageSize = Math.min(Math.max(params.pageSize ?? 100, 1), 100);
+  // CRITICAL: cap to 25 to keep response.json() within memory limits
+  const pageSize = Math.min(Math.max(params.pageSize ?? 25, 1), 25);
 
   const extractItems = (data: any): any[] => {
     const items = data?.items ?? data?.content ?? data?.comunicacoes ?? data?.publicacoes ?? [];
@@ -391,7 +393,7 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
       try {
         const { data } = await fetchPage(endpoint, page);
         const totalExpected = getTotalCount(data);
-        const pageItems = extractItems(data).map(optimizeItem);
+        const pageItems = extractItems(data).map(optimizeItem).filter(Boolean);
 
         // ALWAYS compute totalElements - use API value or estimate based on page size
         const totalElements = typeof totalExpected === "number" && totalExpected >= 0
@@ -735,7 +737,8 @@ serve(async (req) => {
       dataInicio,
       dataFim,
       page: typeof page === "number" ? page : 0,
-      pageSize: typeof pageSize === "number" ? pageSize : 100,
+      // Default to 25 to avoid large payloads (WORKER_LIMIT 546)
+      pageSize: typeof pageSize === "number" ? pageSize : 25,
       fetchAll: !!fetchAll,
     };
 
