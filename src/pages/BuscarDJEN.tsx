@@ -58,6 +58,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
+import { buscarPjeComunicaNoBrowser } from "@/utils/pjeComunicaClient";
 
 type SearchType = "palavra-chave" | "advogado" | "processo" | "monitoramento";
 
@@ -130,6 +131,45 @@ async function invokeBuscarDjenWithRetry<T>(
   }
 
   return { data: null, error: lastError || new Error("Max retries exceeded") };
+}
+
+// Preferir busca no navegador (IP do usuário) para evitar saturação/546 no Supabase.
+// Se falhar (CORS/bloqueio/rede), cai para a Edge Function com retry/backoff.
+async function invokeBuscarDjenPreferBrowser<T>(
+  body: Record<string, any>
+): Promise<{ data: T | null; error: Error | null }> {
+  const tipo = body?.tipo as any;
+
+  // Apenas os tipos suportados no client-side.
+  if (tipo === "palavra-chave" || tipo === "advogado" || tipo === "processo") {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+    try {
+      const data = await buscarPjeComunicaNoBrowser(
+        {
+          tipo,
+          oab: body?.oab,
+          uf: body?.uf,
+          palavraChave: body?.palavraChave,
+          numeroProcesso: body?.numeroProcesso,
+          dataInicio: body?.dataInicio,
+          dataFim: body?.dataFim,
+          page: body?.page ?? 0,
+          pageSize: body?.pageSize ?? 100,
+        },
+        { signal: controller.signal }
+      );
+
+      return { data: data as unknown as T, error: null };
+    } catch (e) {
+      // fallback para edge
+      return await invokeBuscarDjenWithRetry<T>(body);
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
+  return await invokeBuscarDjenWithRetry<T>(body);
 }
 
 const BuscarDJEN = () => {
@@ -421,7 +461,7 @@ const BuscarDJEN = () => {
         let anyFullPage = false;
         
           for (const mon of monsParaBuscar) {
-            const { data, error } = await invokeBuscarDjenWithRetry<any>({
+            const { data, error } = await invokeBuscarDjenPreferBrowser<any>({
               tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
               palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
               oab: mon.tipo === "advogado" ? mon.oab : undefined,
@@ -491,7 +531,7 @@ const BuscarDJEN = () => {
     setHasSearched(true);
 
     try {
-      const { data, error } = await invokeBuscarDjenWithRetry<any>({
+      const { data, error } = await invokeBuscarDjenPreferBrowser<any>({
         tipo: searchType,
         palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
         oab: searchType === "advogado" ? oab.trim() : undefined,
@@ -586,7 +626,7 @@ const BuscarDJEN = () => {
         let anyFullPage = false;
 
         for (const mon of monsParaBuscar) {
-          const { data, error } = await invokeBuscarDjenWithRetry<any>({
+          const { data, error } = await invokeBuscarDjenPreferBrowser<any>({
             tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
             palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
             oab: mon.tipo === "advogado" ? mon.oab : undefined,
@@ -637,7 +677,7 @@ const BuscarDJEN = () => {
       }
 
       // Paginação padrão (busca manual)
-      const { data, error } = await invokeBuscarDjenWithRetry<any>({
+      const { data, error } = await invokeBuscarDjenPreferBrowser<any>({
         tipo: searchType,
         palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
         oab: searchType === "advogado" ? oab.trim() : undefined,
@@ -738,7 +778,7 @@ const BuscarDJEN = () => {
           let anyFullPage = false;
 
           for (const mon of monsParaBuscar) {
-            const { data, error } = await invokeBuscarDjenWithRetry<any>({
+            const { data, error } = await invokeBuscarDjenPreferBrowser<any>({
               tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
               palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
               oab: mon.tipo === "advogado" ? mon.oab : undefined,
@@ -792,7 +832,7 @@ const BuscarDJEN = () => {
         }
 
         // Modo padrão (busca manual)
-        const { data, error } = await invokeBuscarDjenWithRetry<any>({
+        const { data, error } = await invokeBuscarDjenPreferBrowser<any>({
           tipo: searchType,
           palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
           oab: searchType === "advogado" ? oab.trim() : undefined,
