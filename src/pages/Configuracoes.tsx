@@ -6,6 +6,7 @@ import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/Mon
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
 import { MonitoramentoDjenCard } from "@/components/configuracoes/MonitoramentoDjenCard";
+import { BotaoSincronizarDjen } from "@/components/djen/BotaoSincronizarDjen";
 import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/MonitoramentoDjenProcessosCard";
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
@@ -120,11 +121,14 @@ export default function Configuracoes() {
 
         {/* Aba DJEN */}
         <TabsContent value="djen" className="space-y-4">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold">Monitoramento DJEN</h2>
-            <p className="text-sm text-muted-foreground">
-              Busca publicações no Diário de Justiça Eletrônico Nacional
-            </p>
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Monitoramento DJEN</h2>
+              <p className="text-sm text-muted-foreground">
+                Busca publicações no Diário de Justiça Eletrônico Nacional
+              </p>
+            </div>
+            <BotaoSincronizarDjen />
           </div>
           <MonitoramentoDjenCard coordenacaoId="" />
         </TabsContent>
