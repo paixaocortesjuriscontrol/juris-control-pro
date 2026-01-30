@@ -688,12 +688,16 @@ export function useBuscaDjenDireta() {
         const MAX_PAGES_FALLBACK = 10;
         const TIMEOUT_PER_PAGE_MS = 30_000;
 
+        // Usar palavra-chave do monitoramento (termo_busca) para fallback
+        const palavraChaveFallback = palavrasChaveVariantes.find(v => v && v.length >= 3) || monitoramento.termo_busca;
+
         const fetchPage = async (page: number) => {
           const timeoutController = new AbortController();
           const timeoutId = setTimeout(() => timeoutController.abort(), TIMEOUT_PER_PAGE_MS);
 
           const invokePromise = invokeWithRetry<any>("buscar-djen", {
             ...params,
+            palavraChave: params.oab ? undefined : palavraChaveFallback, // Só envia palavraChave se não for advogado
             page,
             pageSize: params.pageSize ?? 100,
             fetchAll: false,
