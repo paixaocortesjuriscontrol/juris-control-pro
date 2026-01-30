@@ -55,8 +55,9 @@ function getTotal(data: any): number | null {
   );
 }
 
-// Para não estourar memória no frontend (e evitar travar a UI), truncamos conteúdo.
-const MAX_TEXT_LENGTH = 4000;
+// Texto completo é essencial para análise jurídica - NÃO truncar
+// O limite anterior de 4000 chars cortava publicações importantes
+const MAX_TEXT_LENGTH = 100000;
 function optimizeItem(item: any) {
   return {
     id: item?.id,
