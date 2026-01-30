@@ -554,6 +554,25 @@ export function useBuscaDjenDireta() {
 
     const tipoMapeado = monitoramento.tipo === 'parte' ? 'palavra-chave' : monitoramento.tipo;
 
+    // Normaliza termo (remove acentos) para variante adicional de busca
+    const normalizeAccents = (text: string) =>
+      text
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\/]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Gerar variantes de busca (termo original + sem acentos se diferir)
+    const gerarVariantes = (termo: string): string[] => {
+      const original = termo.trim();
+      const semAcento = normalizeAccents(original);
+      if (semAcento.toLowerCase() !== original.toLowerCase()) {
+        return [original, semAcento];
+      }
+      return [original];
+    };
+
     const params: Record<string, any> = {
       tipo: tipoMapeado,
       dataInicio: dataInicioYmd,
@@ -562,30 +581,38 @@ export function useBuscaDjenDireta() {
       fetchAll: false,
     };
 
+    // Lista de variantes para busca (importante para termos com acentos)
+    let palavrasChaveVariantes: string[] = [];
+
     if (tipoMapeado === 'advogado' && monitoramento.oab && monitoramento.uf) {
       params.oab = monitoramento.oab;
       const ufValue = monitoramento.uf;
       if (ufValue === 'TODAS' || !ufValue) {
-        params.palavraChave = monitoramento.termo_busca;
+        palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
         delete params.oab;
       } else if (ufValue.includes(',')) {
         const primeiraUf = ufValue.split(',')[0].trim();
         if (primeiraUf.length === 2) {
           params.uf = primeiraUf;
         } else {
-          params.palavraChave = monitoramento.termo_busca;
+          palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
           delete params.oab;
         }
       } else if (ufValue.length === 2) {
         params.uf = ufValue;
       } else {
-        params.palavraChave = monitoramento.termo_busca;
+        palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
         delete params.oab;
       }
     } else if (tipoMapeado === 'palavra-chave' || monitoramento.tipo === 'parte') {
-      params.palavraChave = monitoramento.termo_busca;
+      palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
     } else if (tipoMapeado === 'processo') {
       params.numeroProcesso = monitoramento.termo_busca.replace(/\D/g, '');
+    }
+
+    // Se não temos variantes, usar termo original diretamente
+    if (palavrasChaveVariantes.length === 0 && !params.oab && !params.numeroProcesso) {
+      palavrasChaveVariantes = [monitoramento.termo_busca];
     }
 
     try {
@@ -605,43 +632,53 @@ export function useBuscaDjenDireta() {
           ? monitoramento.tribunais
           : [undefined];
 
+        // Lista de variantes de palavras-chave (com e sem acentos)
+        const variantesParaBuscar = palavrasChaveVariantes.length > 0
+          ? palavrasChaveVariantes
+          : (params.palavraChave ? [params.palavraChave] : [undefined]);
+
         const seen = new Set<string>();
         const acumulado: any[] = [];
 
-        for (const trib of tribunais) {
+        // Buscar todas as combinações: variantes x tribunais
+        for (const variante of variantesParaBuscar) {
           if (cancelarRef.current) break;
 
-          const resp = await buscarPjeComunicaPaginado(
-            {
-              tipo: params.tipo,
-              oab: params.oab,
-              uf: params.uf,
-              palavraChave: params.palavraChave,
-              numeroProcesso: params.numeroProcesso,
-              siglaTribunal: trib,
-              dataInicio: params.dataInicio,
-              dataFim: params.dataFim,
-              page: 0,
-              pageSize: params.pageSize ?? 100,
-            },
-            {
-              signal: browserController.signal,
-              maxPages: 10,
-              delayMs: 150,
-            }
-          );
+          for (const trib of tribunais) {
+            if (cancelarRef.current) break;
 
-          for (const item of resp.items) {
-            const id = String(item?.id ?? "");
-            const key = id || JSON.stringify(item).slice(0, 400);
-            if (!seen.has(key)) {
-              seen.add(key);
-              acumulado.push(item);
+            const resp = await buscarPjeComunicaPaginado(
+              {
+                tipo: params.tipo,
+                oab: params.oab,
+                uf: params.uf,
+                palavraChave: variante,
+                numeroProcesso: params.numeroProcesso,
+                siglaTribunal: trib,
+                dataInicio: params.dataInicio,
+                dataFim: params.dataFim,
+                page: 0,
+                pageSize: params.pageSize ?? 100,
+              },
+              {
+                signal: browserController.signal,
+                maxPages: 10,
+                delayMs: 150,
+              }
+            );
+
+            for (const item of resp.items) {
+              const id = String(item?.id ?? "");
+              const key = id || JSON.stringify(item).slice(0, 400);
+              if (!seen.has(key)) {
+                seen.add(key);
+                acumulado.push(item);
+              }
             }
+
+            // Pequeno delay entre tribunais para reduzir 429
+            await delay(120);
           }
-
-          // Pequeno delay entre tribunais para reduzir 429
-          await delay(120);
         }
 
         data = { comunicacoes: acumulado, items: acumulado };
