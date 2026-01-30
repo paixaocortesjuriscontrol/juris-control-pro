@@ -484,6 +484,21 @@ export function DjenTermosDashboardCard({
   const handleForceCancelar = async () => {
     setForcandoCancelamento(true);
     try {
+      // Se não há execução ativa nem detecção de órfã/ghost, não há o que cancelar.
+      if (!isRunning && !hasOrfa) {
+        toast.info('Nenhuma execução ativa para forçar cancelamento.');
+        return;
+      }
+
+      // Se houver loop local, pedir cancelamento cooperativo também (aborta requests em andamento)
+      if (localRunActive) {
+        try {
+          cancelarExecucao();
+        } catch {
+          // não bloquear cancelamento forçado no banco
+        }
+      }
+
       const execId = execucaoOrfaNoBanco;
 
       if (execId && execId !== ORFA_GHOST_ID) {
@@ -492,7 +507,7 @@ export function DjenTermosDashboardCard({
           .update({
             status: 'cancelado',
             finalizado_em: new Date().toISOString(),
-            ultimo_erro: 'Cancelamento forçado pelo usuário (execução órfã)',
+            ultimo_erro: 'Cancelamento forçado pelo usuário',
           })
           .eq('id', execId);
       } else if (execId !== ORFA_GHOST_ID) {
@@ -513,7 +528,7 @@ export function DjenTermosDashboardCard({
             .update({
               status: 'cancelado',
               finalizado_em: new Date().toISOString(),
-              ultimo_erro: 'Cancelamento forçado pelo usuário (execução órfã)',
+              ultimo_erro: 'Cancelamento forçado pelo usuário',
             })
             .eq('id', execucao.id);
         }
@@ -529,7 +544,12 @@ export function DjenTermosDashboardCard({
             cancelado: true,
             continuingRun: false,
             cancel_requested: false,
-            last_stop_reason: execId === ORFA_GHOST_ID ? 'ghost_force_cancel' : 'force_cancel_orphan',
+            last_stop_reason:
+              execId === ORFA_GHOST_ID
+                ? 'ghost_force_cancel'
+                : execId
+                  ? 'force_cancel_orphan'
+                  : 'force_cancel_user',
             last_stop_at: new Date().toISOString(),
             last_error: 'Cancelamento forçado pelo usuário',
           },
@@ -609,7 +629,8 @@ export function DjenTermosDashboardCard({
   // o botão correto é o de *forçar cancelamento*, pois não há loop ativo para consumir cancel_requested.
   const canRequestCancel = !localRunActive && isRunning && !hasOrfa;
   // Mostrar caveira sempre que houver órfã/ghost detectada, mesmo se o status já virou timeout.
-  const showForceCancel = !localRunActive && hasOrfa;
+  // Pedido do usuário: manter botão de caveira sempre disponível como “kill switch”.
+  const showForceCancel = true;
 
   const processados = effectiveCurrent;
   const total = effectiveTotal;
@@ -864,7 +885,7 @@ export function DjenTermosDashboardCard({
               </TooltipProvider>
             )}
 
-            {/* Botão FORÇAR CANCELAMENTO (órfã/ghost) */}
+            {/* Botão FORÇAR CANCELAMENTO (sempre disponível) */}
             {showForceCancel && (
               <TooltipProvider>
                 <Tooltip>
@@ -885,9 +906,11 @@ export function DjenTermosDashboardCard({
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>
-                      {isGhostOrfa
-                        ? 'Forçar limpeza (status travado sem execução ativa)'
-                        : 'Forçar cancelamento (execução órfã no banco)'}
+                      {hasOrfa
+                        ? (isGhostOrfa
+                            ? 'Forçar limpeza (status travado sem execução ativa)'
+                            : 'Forçar cancelamento (execução órfã no banco)')
+                        : 'Forçar cancelamento imediato (kill switch)'}
                     </p>
                   </TooltipContent>
                 </Tooltip>
