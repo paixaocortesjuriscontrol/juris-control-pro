@@ -34,10 +34,12 @@ const makeDedupKey = (pub: PublicacaoUnificada): string => {
   const coordenacao = pub.coordenacao_id ?? "sem_coord";
   const processo = (pub.processo_numero ?? "").replace(/\D/g, ""); // só dígitos
   
-  // Cascata de datas: publicação > disponibilização > created_at
-  let dataPrimaria = extractDateKey(pub.data_publicacao);
+  // Cascata de datas: disponibilização > publicação > created_at
+  // Prioriza data_disponibilizacao para alinhar com backend e tratar
+  // republicações como registros distintos
+  let dataPrimaria = extractDateKey(pub.data_disponibilizacao);
   if (dataPrimaria === "null") {
-    dataPrimaria = extractDateKey(pub.data_disponibilizacao);
+    dataPrimaria = extractDateKey(pub.data_publicacao);
   }
   if (dataPrimaria === "null") {
     dataPrimaria = extractDateKey(pub.created_at);
