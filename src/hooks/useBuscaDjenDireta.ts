@@ -406,9 +406,14 @@ export function useBuscaDjenDireta() {
     salvarEstado(progresso);
   }, [progresso]);
 
-  // Gera hash para deduplicação
-  const gerarHash = (conteudo: string, data: string): string => {
-    const normalized = (conteudo + data).toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 300);
+  // Gera hash para deduplicação - usa apenas data + início do conteúdo
+  // A deduplicação é feita POR MONITORAMENTO (cada coordenação é isolada)
+  // Não comparamos entre coordenações diferentes - mesma publicação pode aparecer em várias
+  const gerarHash = (conteudo: string, dataDisponibilizacao: string): string => {
+    // Usar data de disponibilização (não publicação) para alinhar com a API
+    const dataKey = (dataDisponibilizacao || '').slice(0, 10); // YYYY-MM-DD
+    // Usar mais caracteres do conteúdo para maior precisão (500 chars)
+    const normalized = (dataKey + '|' + conteudo).toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 500);
     let hash = 0;
     for (let i = 0; i < normalized.length; i++) {
       const char = normalized.charCodeAt(i);
@@ -418,13 +423,15 @@ export function useBuscaDjenDireta() {
     return Math.abs(hash).toString(16);
   };
 
-  // Verificar duplicatas em batch
+  // Verificar duplicatas em batch - APENAS no mesmo monitoramento
+  // Cada monitoramento/coordenação é isolado - publicações podem aparecer em múltiplas coordenações
   const verificarDuplicatasBatch = async (
     hashes: string[], 
     monitoramentoId: string
   ): Promise<Set<string>> => {
     if (hashes.length === 0) return new Set();
     
+    // Buscar apenas publicações do MESMO monitoramento (isolamento por coordenação)
     const { data } = await supabase
       .from('publicacoes_djen')
       .select('hash_conteudo')
@@ -757,11 +764,12 @@ export function useBuscaDjenDireta() {
       !pub.conteudo || !deveExcluir(pub.conteudo, mon.exclusoes)
     );
 
+    // Usar data_disponibilizacao para hash (alinhado com API e backend)
     const pubsComHash = pubsFiltradas.map(pub => ({
       ...pub,
       hash_conteudo: gerarHash(
         pub.conteudo || '',
-        pub.data_publicacao || new Date().toISOString()
+        pub.data_disponibilizacao || pub.data_publicacao || new Date().toISOString().split('T')[0]
       ),
     }));
 
