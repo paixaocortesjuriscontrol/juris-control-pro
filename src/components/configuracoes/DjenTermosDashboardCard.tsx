@@ -243,6 +243,8 @@ export function DjenTermosDashboardCard({
   const [forcandoCancelamento, setForcandoCancelamento] = useState(false);
   const [execucaoOrfaNoBanco, setExecucaoOrfaNoBanco] = useState<string | null>(null);
 
+  const ORFA_GHOST_ID = "__ghost__";
+
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
 
@@ -282,10 +284,12 @@ export function DjenTermosDashboardCard({
           : stats.status;
 
   const isRunning = currentStatus === 'running';
-  
-  // Detectar se a execução está "órfã" - USANDO ESTADO DO BANCO, NÃO stats.status
-  // A variável execucaoOrfaNoBanco é atualizada pelo useEffect que verifica o banco diretamente
-  const execucaoOrfa = !!execucaoOrfaNoBanco && !localRunActive;
+
+  // Tipos de travamento:
+  // 1) Órfã real: existe execucao_agendada 'executando' mas o loop local não está ativo
+  // 2) Ghost: UI aponta 'executando' mas NÃO existe execução ativa no banco (metadata travado)
+  const isGhostOrfa = execucaoOrfaNoBanco === ORFA_GHOST_ID;
+  const isOrfaReal = !!execucaoOrfaNoBanco && execucaoOrfaNoBanco !== ORFA_GHOST_ID;
 
   const statusConfig = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.idle;
 
@@ -337,6 +341,23 @@ export function DjenTermosDashboardCard({
                   ultimo_erro: 'Execução órfã detectada e limpa automaticamente',
                 })
                 .eq('id', execucaoAtiva.id);
+
+              // Também limpar o metadata (evita UI ficar “Executando” mesmo após timeout)
+              await supabase
+                .from('configuracoes_monitoramento')
+                .update({
+                  metadata: {
+                    ...(md || {}),
+                    status: 'timeout',
+                    last_error: 'Execução órfã detectada e limpa automaticamente',
+                    last_stop_reason: 'stale',
+                    continuingRun: false,
+                    cancelado: false,
+                    last_stop_at: new Date().toISOString(),
+                  },
+                })
+                .eq('tipo', 'djen')
+                .is('coordenacao_id', null);
               
               if (isMounted) {
                 setExecucaoOrfaNoBanco(null);
@@ -347,7 +368,45 @@ export function DjenTermosDashboardCard({
             setExecucaoOrfaNoBanco(null);
           }
         } else {
-          setExecucaoOrfaNoBanco(null);
+          // Se UI está como “executando”, mas não existe execução ativa no banco,
+          // é um “ghost running” (metadata travado). Expor o botão de caveira.
+          if (isRunning) {
+            const startedAt = stats.currentExecution?.iniciado_em;
+            const base = startedAt ? new Date(startedAt) : null;
+            const minutosDecorridos = base ? (Date.now() - base.getTime()) / 60000 : 999;
+
+            if (minutosDecorridos >= 2) {
+              setExecucaoOrfaNoBanco(ORFA_GHOST_ID);
+
+              // AUTO-LIMPEZA: se já passou muito tempo, limpar o metadata automaticamente
+              if (minutosDecorridos >= 10) {
+                await supabase
+                  .from('configuracoes_monitoramento')
+                  .update({
+                    metadata: {
+                      ...(md || {}),
+                      status: 'timeout',
+                      last_error: 'Execução travada (sem execução ativa no banco).',
+                      last_stop_reason: 'ghost',
+                      continuingRun: false,
+                      cancelado: false,
+                      last_stop_at: new Date().toISOString(),
+                    },
+                  })
+                  .eq('tipo', 'djen')
+                  .is('coordenacao_id', null);
+
+                if (isMounted) {
+                  setExecucaoOrfaNoBanco(null);
+                  onAfterMutation();
+                }
+              }
+            } else {
+              setExecucaoOrfaNoBanco(null);
+            }
+          } else {
+            setExecucaoOrfaNoBanco(null);
+          }
         }
       } catch (e) {
         console.warn('[DJEN] Erro ao verificar execuções órfãs:', e);
@@ -362,7 +421,7 @@ export function DjenTermosDashboardCard({
       isMounted = false;
       clearInterval(interval);
     };
-  }, [localRunActive, onAfterMutation]);
+  }, [localRunActive, onAfterMutation, isRunning, stats.currentExecution?.iniciado_em]);
 
   const handleExecutar = async () => {
     if (isRunning) return;
@@ -425,8 +484,8 @@ export function DjenTermosDashboardCard({
     setForcandoCancelamento(true);
     try {
       const execId = execucaoOrfaNoBanco;
-      
-      if (execId) {
+
+      if (execId && execId !== ORFA_GHOST_ID) {
         await supabase
           .from('execucoes_agendadas')
           .update({
@@ -435,7 +494,7 @@ export function DjenTermosDashboardCard({
             ultimo_erro: 'Cancelamento forçado pelo usuário (execução órfã)',
           })
           .eq('id', execId);
-      } else {
+      } else if (execId !== ORFA_GHOST_ID) {
         // Fallback: buscar qualquer execução ativa
         const { data: execucao } = await supabase
           .from('execucoes_agendadas')
@@ -459,14 +518,19 @@ export function DjenTermosDashboardCard({
         }
       }
 
-      // Limpar metadata da config também
+      // Limpar/ajustar metadata da config também (SEM sobrescrever o objeto inteiro)
       await supabase
         .from('configuracoes_monitoramento')
         .update({
           metadata: {
+            ...(md || {}),
             status: 'cancelado',
             cancelado: true,
             continuingRun: false,
+            cancel_requested: false,
+            last_stop_reason: execId === ORFA_GHOST_ID ? 'ghost_force_cancel' : 'force_cancel_orphan',
+            last_stop_at: new Date().toISOString(),
+            last_error: 'Cancelamento forçado pelo usuário',
           },
         })
         .eq('tipo', 'djen')
@@ -479,6 +543,34 @@ export function DjenTermosDashboardCard({
       toast.error(`Erro ao forçar cancelamento: ${e?.message}`);
     } finally {
       setForcandoCancelamento(false);
+    }
+  };
+
+  // Cancelar via flag no banco (funciona até quando o loop está em outra aba/dispositivo)
+  const handleSolicitarCancelamento = async () => {
+    try {
+      // Se o loop local está ativo, cancela cooperativamente
+      if (localRunActive) {
+        handleCancelar();
+        return;
+      }
+
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...(md || {}),
+            cancel_requested: true,
+            last_stop_reason: 'cancel_requested',
+          },
+        })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+
+      toast.success('Cancelamento solicitado. Aguarde alguns segundos.');
+      onAfterMutation();
+    } catch (e: any) {
+      toast.error(`Erro ao solicitar cancelamento: ${e?.message || 'erro desconhecido'}`);
     }
   };
 
@@ -510,6 +602,7 @@ export function DjenTermosDashboardCard({
 
   const canExecute = !isRunning && currentStatus !== 'timeout';
   const canCancel = localRunActive && isRunning;
+  const canRequestCancel = !localRunActive && isRunning && !isGhostOrfa;
 
   const processados = effectiveCurrent;
   const total = effectiveTotal;
@@ -744,8 +837,28 @@ export function DjenTermosDashboardCard({
               </Button>
             )}
 
-            {/* Botão FORÇAR CANCELAMENTO (execução órfã - loop morto) */}
-            {execucaoOrfa && (
+            {/* Cancelamento remoto (loop não está ativo aqui, mas há execução ativa no banco) */}
+            {canRequestCancel && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleSolicitarCancelamento}
+                    >
+                      <StopCircle className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Solicitar cancelamento (execução em outra aba/dispositivo)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
+            {/* Botão FORÇAR CANCELAMENTO (ghost: UI travado sem execução ativa no banco) */}
+            {isGhostOrfa && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -764,14 +877,14 @@ export function DjenTermosDashboardCard({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Forçar cancelamento (execução travada)</p>
+                    <p>Forçar limpeza (status travado sem execução ativa)</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
 
             {/* Botão desabilitado quando não pode cancelar */}
-            {!canCancel && !execucaoOrfa && (
+            {!canCancel && !canRequestCancel && !isGhostOrfa && (
               <Button 
                 size="sm"
                 variant="destructive"
