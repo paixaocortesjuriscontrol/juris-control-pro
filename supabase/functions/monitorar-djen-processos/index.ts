@@ -35,28 +35,27 @@ function getBrazilDayUtcRange(iso: string): { startUtc: string; endUtc: string }
 const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 
 // ============================================================================
-// PARÂMETROS OTIMIZADOS PARA 13k+ PROCESSOS - MODO AGRESSIVO
+// PARÂMETROS CONSERVADORES - API PJE COMUNICA IMPÕE RATE LIMIT (429)
 // ============================================================================
-// O DJEN Termos (frontend) faz milhares de buscas rapidamente.
-// Precisamos igualar essa performance. Aumentar paralelismo, reduzir delays.
+// A API bloqueia requisições em excesso. Precisamos ser conservadores.
 const CONFIG = {
-  max_paralelo: 10,              // 10 requisições simultâneas - agressivo
-  batch_size: 100,               // 100 processos por lote
-  delay_entre_lotes: 500,        // 500ms entre lotes - mais rápido
-  delay_entre_paginas: 50,       // 50ms entre páginas
+  max_paralelo: 2,               // 2 requisições simultâneas - conservador
+  batch_size: 50,                // 50 processos por lote
+  delay_entre_lotes: 3000,       // 3s entre lotes - respeitar rate limit
+  delay_entre_paginas: 500,      // 500ms entre páginas
   soft_timeout_ms: 55000,        // 55s soft timeout
   finalization_buffer_ms: 5000,  // 5s buffer
-  max_retries: 3,                // 3 tentativas (reduzido para velocidade)
-  retry_base_delay_ms: 1000,     // Backoff: 1s, 2s, 4s
+  max_retries: 5,                // 5 tentativas com backoff exponencial
+  retry_base_delay_ms: 5000,     // Backoff: 5s, 10s, 20s, 40s, 80s
 };
 
-// Constantes derivadas - AGRESSIVAS
-const BATCH_SIZE = CONFIG.batch_size;           // 100
-const CONCURRENT_REQUESTS = CONFIG.max_paralelo; // 10
+// Constantes derivadas - CONSERVADORAS
+const BATCH_SIZE = CONFIG.batch_size;           // 50
+const CONCURRENT_REQUESTS = CONFIG.max_paralelo; // 2
 const PAGE_SIZE = 100; // Max page size from API
-const MAX_PAGES = 1;   // 1 página só - mais rápido
-const BASE_DELAY = CONFIG.delay_entre_lotes;    // 500
-const STAGGER_DELAY = 50; // 50ms entre requisições paralelas
+const MAX_PAGES = 1;   // 1 página só
+const BASE_DELAY = CONFIG.delay_entre_lotes;    // 3000
+const STAGGER_DELAY = 1000; // 1s entre requisições paralelas
 
 
 // Browser-like headers
