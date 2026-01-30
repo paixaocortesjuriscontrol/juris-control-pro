@@ -1,139 +1,121 @@
 
-# Plano: Selecionar Todos os Tribunais ao Clicar "Todos os TRTs" / "Todos os Cíveis"
+# Plano: Timeout Inteligente + Heartbeat Intermediário (Solução 2 + 3)
 
-## Objetivo
+## Problema Atual
 
-Ao clicar em "Todos os TRTs" ou "Todos os Tribunais Cíveis (TJs)", o sistema deve automaticamente marcar/desmarcar todos os tribunais daquela categoria na interface, ao invés de salvar um ID sintético (`TODOS_TRT` ou `TODOS_CIVEIS`).
+O monitoramento de andamentos com 14.155+ processos está dando timeout após ~75 minutos porque:
 
-## Mudanças Propostas
+1. **Timeout absoluto de 60 minutos** no orquestrador (`executar-monitoramento`) que ignora se o worker ainda está fazendo progresso
+2. **Heartbeat atualizado apenas ao final de cada lote** (200 processos), o que pode levar tempo quando a API DataJud está lenta
 
-### Arquivo: `src/components/djen/MonitoramentoDialog.tsx`
+## Solução Combinada
 
-#### 1. Adicionar constantes com IDs dos tribunais por categoria
+### Parte 1: Timeout Inteligente no Orquestrador
 
+Modificar a lógica de timeout para considerar se há progresso recente:
+- Se a execução está há mais de 60 minutos **E** não há heartbeat recente (5 min), aplicar timeout
+- Se há progresso recente, deixar continuar independente do tempo total
+
+**Arquivo**: `supabase/functions/executar-monitoramento/index.ts`
+
+Alterar linhas 123-134 de:
 ```typescript
-// Todos os TJs disponíveis
-const TODOS_IDS_CIVEIS = TRIBUNAIS_DISPONIVEIS
-  .filter(t => t.categoria === 'Estadual' && t.id !== 'TODOS_CIVEIS')
-  .map(t => t.id);
-
-// Todos os TRTs + TST
-const TODOS_IDS_TRABALHISTAS = TRIBUNAIS_DISPONIVEIS
-  .filter(t => t.categoria === 'Trabalhista' && t.id !== 'TODOS_TRT')
-  .map(t => t.id);
+// Se está executando há mais de 60 minutos, marcar como timeout
+if (minutosDecorridos > 60) {
+  await supabase
+    .from('execucoes_agendadas')
+    .update({ ... })
+    .eq('id', execucao.id);
+  continue;
+}
 ```
 
-#### 2. Modificar a função `handleToggleTribunal`
-
-Alterar a lógica para que, ao clicar em um "Todos", marque/desmarque todos os tribunais daquela categoria:
-
+Para:
 ```typescript
-const handleToggleTribunal = (tribunalId: string) => {
-  // Caso especial: "Todos os TRTs"
-  if (tribunalId === 'TODOS_TRT') {
-    const todosMarcados = TODOS_IDS_TRABALHISTAS.every(id => 
-      tribunaisSelecionados.includes(id)
-    );
-    if (todosMarcados) {
-      // Desmarcar todos
-      setTribunaisSelecionados(prev => 
-        prev.filter(t => !TODOS_IDS_TRABALHISTAS.includes(t))
-      );
-    } else {
-      // Marcar todos
-      setTribunaisSelecionados(prev => 
-        [...new Set([...prev, ...TODOS_IDS_TRABALHISTAS])]
-      );
-    }
-    return;
-  }
-  
-  // Caso especial: "Todos os Cíveis"
-  if (tribunalId === 'TODOS_CIVEIS') {
-    const todosMarcados = TODOS_IDS_CIVEIS.every(id => 
-      tribunaisSelecionados.includes(id)
-    );
-    if (todosMarcados) {
-      // Desmarcar todos
-      setTribunaisSelecionados(prev => 
-        prev.filter(t => !TODOS_IDS_CIVEIS.includes(t))
-      );
-    } else {
-      // Marcar todos
-      setTribunaisSelecionados(prev => 
-        [...new Set([...prev, ...TODOS_IDS_CIVEIS])]
-      );
-    }
-    return;
-  }
-  
-  // Comportamento padrão para tribunais individuais
-  setTribunaisSelecionados(prev =>
-    prev.includes(tribunalId)
-      ? prev.filter(t => t !== tribunalId)
-      : [...prev, tribunalId]
-  );
-};
-```
-
-#### 3. Atualizar o estado visual do checkbox "Todos"
-
-O checkbox de "Todos os TRTs" deve aparecer como:
-- **Marcado**: se todos os tribunais da categoria estão selecionados
-- **Indeterminado**: se alguns (mas não todos) estão selecionados
-- **Desmarcado**: se nenhum está selecionado
-
-```typescript
-// Verificar estado do checkbox "Todos"
-const todosTrabalhistasMarcados = TODOS_IDS_TRABALHISTAS.every(id => 
-  tribunaisSelecionados.includes(id)
-);
-const algunsTrabalhistasMarcados = TODOS_IDS_TRABALHISTAS.some(id => 
-  tribunaisSelecionados.includes(id)
-);
-
-const todosCiveisMarcados = TODOS_IDS_CIVEIS.every(id => 
-  tribunaisSelecionados.includes(id)
-);
-const algunsCiveisMarcados = TODOS_IDS_CIVEIS.some(id => 
-  tribunaisSelecionados.includes(id)
-);
-```
-
-Na renderização do checkbox de "TODOS_TRT":
-```tsx
-<Checkbox
-  checked={todosTrabalhistasMarcados}
-  indeterminate={algunsTrabalhistasMarcados && !todosTrabalhistasMarcados}
-  onCheckedChange={() => handleToggleTribunal('TODOS_TRT')}
-/>
+// TIMEOUT INTELIGENTE: só aplicar timeout absoluto se TAMBÉM não houver progresso recente
+// Isso permite execuções longas quando a API DataJud está lenta
+if (minutosDecorridos > 60 && heartbeatStale) {
+  console.log(`[${tipo}] Timeout após ${Math.round(minutosDecorridos)}min SEM progresso recente`);
+  await supabase
+    .from('execucoes_agendadas')
+    .update({ 
+      status: 'timeout', 
+      finalizado_em: agora.toISOString(),
+      ultimo_erro: `Timeout após ${Math.round(minutosDecorridos)} minutos sem progresso`
+    })
+    .eq('id', execucao.id);
+  continue;
+}
+// Se há progresso recente, NÃO aplicar timeout (log para visibilidade)
+if (minutosDecorridos > 60) {
+  console.log(`[${tipo}] Execução há ${Math.round(minutosDecorridos)}min, mas com heartbeat ativo - continuando`);
+}
 ```
 
 ---
 
-## Comportamento Esperado
+### Parte 2: Heartbeat Intermediário no Worker
 
-| Ação do Usuário | Resultado |
-|-----------------|-----------|
-| Clica em "Todos os TRTs" (nenhum marcado) | Marca TST + TRT1 até TRT24 (25 tribunais) |
-| Clica em "Todos os TRTs" (todos marcados) | Desmarca todos os 25 tribunais |
-| Clica em "Todos os TRTs" (alguns marcados) | Marca os que faltam (completa seleção) |
-| Clica em "Todos os Cíveis" | Marca TJDFT, TJSP, TJGO (os 3 cadastrados) |
-| Ao salvar | Salva os IDs individuais, não mais `TODOS_TRT` |
+Adicionar atualização de `ultima_execucao` a cada 50 processos dentro do loop de processamento.
+
+**Arquivo**: `supabase/functions/monitorar-andamentos/index.ts`
+
+Após linha 1342 (depois do `Promise.all(batchPromises)`), adicionar:
+```typescript
+// HEARTBEAT INTERMEDIÁRIO: sinalizar vida ao orquestrador a cada 50 processos
+// Evita timeout quando a API DataJud está lenta mas o worker ainda está processando
+if (results.checked % 50 < PARALLEL_BATCH_SIZE) {
+  await supabase
+    .from('configuracoes_monitoramento')
+    .update({ ultima_execucao: new Date().toISOString() })
+    .eq('tipo', 'andamentos')
+    .is('coordenacao_id', null);
+  console.log(`[HEARTBEAT] Atualizado em ${results.checked}/${totalCount || 0} processos`);
+}
+```
 
 ---
 
-## Vantagens da Abordagem
+### Verificação do Mecanismo de Retomada
 
-1. **API recebe IDs reais**: Não precisa de lógica de expansão na edge function
-2. **Visualização clara**: Usuário vê exatamente quais tribunais estão selecionados
-3. **Flexibilidade**: Após clicar em "Todos", pode desmarcar específicos
-4. **Não quebra existente**: Monitoramentos com `TODOS_TRT` continuam funcionando (migração gradual)
+O sistema **JÁ TEM** retomada funcionando:
+
+1. **Checkpoint persistido**: O campo `next_offset` é salvo no metadata a cada lote (linha 1361):
+```typescript
+next_offset: results.cancelled ? currentOffset : (isComplete ? 0 : nextOffset)
+```
+
+2. **UI detecta checkpoint**: O `MonitoringDashboard` mostra botão "Retomar" quando:
+   - `next_offset > 0`
+   - Status é `timeout`, `failed`, `cancelled` ou `completed`
+
+3. **Hook respeita retomada**: O `useExecutarMonitoramento` só zera offsets se `retomar = false` (linhas 79-86)
 
 ---
 
-## Arquivo a Modificar
+## Arquivos a Modificar
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/djen/MonitoramentoDialog.tsx` | Modificar `handleToggleTribunal` e adicionar lógica de estado "indeterminado" |
+| Arquivo | Mudança | Linhas |
+|---------|---------|--------|
+| `supabase/functions/executar-monitoramento/index.ts` | Timeout inteligente (só se heartbeat stale) | 123-134 |
+| `supabase/functions/monitorar-andamentos/index.ts` | Heartbeat intermediário a cada 50 processos | Após 1342 |
+
+---
+
+## Comportamento Esperado Após Implementação
+
+| Cenário | Antes | Depois |
+|---------|-------|--------|
+| Execução de 2h com API lenta | Timeout aos 60min | Completa se há progresso |
+| Worker travado (sem resposta) | Timeout aos 60min | Timeout aos 5min sem heartbeat |
+| Execução interrompida no meio | Retomável (já funciona) | Retomável (sem mudança) |
+| Cancelamento pelo usuário | Funciona | Funciona (sem mudança) |
+
+---
+
+## Resultado Final
+
+- 14k+ processos poderão ser processados mesmo se levar 2+ horas
+- Processos realmente travados ainda serão detectados (5min sem heartbeat)
+- UI continuará mostrando progresso em tempo real
+- Botão "Retomar" continuará funcionando para interrupções
