@@ -1,104 +1,207 @@
 
-# Plano: Timeout Inteligente + Heartbeat Intermediário (Solução 2 + 3)
+# Plano: Corrigir Travamento e Cancelamento do Monitoramento DJEN
 
-## Problema Atual
+## Diagnóstico do Problema
 
-O monitoramento de andamentos com 14.155+ processos está dando timeout após ~75 minutos porque:
+### Situação Atual
+1. **Execução travada no banco**: A execução `247bd5c0-3a5a-491c-bdb7-320f9eb9e6c7` (tipo "djen") está com:
+   - `status: executando` 
+   - `finalizado_em: null` (não finalizado)
+   - `registros_processados: 0` (30 de 118 no `detalhes`)
+   - Iniciada às 09:07:29 - há mais de 12 minutos sem progresso
 
-1. **Timeout absoluto de 60 minutos** no orquestrador (`executar-monitoramento`) que ignora se o worker ainda está fazendo progresso
-2. **Heartbeat atualizado apenas ao final de cada lote** (200 processos), o que pode levar tempo quando a API DataJud está lenta
+2. **Cancelamento não funciona**: O botão "Cancelar" no frontend usa `cancelarRef.current = true`, que **só funciona se o loop de execução estiver ativo** (`localRunActive`). Se o loop travou/morreu por erro, não há nada verificando essa flag.
 
-## Solução Combinada
+3. **UI mostra 31% travado**: O frontend exibe o progresso da última atualização do registro, mas como a execução está "morta" sem ter sido finalizada, fica preso visualmente.
 
-### Parte 1: Timeout Inteligente no Orquestrador
+### Causa Raiz
+Diferente do `monitorar-andamentos` que acabamos de implementar timeout inteligente + heartbeat, o **monitoramento DJEN (useBuscaDjenDireta)** roda no frontend e não tem:
+- Timeout automático para liberar execuções travadas
+- Mecanismo de "force cancel" quando o loop não está ativo
+- Limpeza de execuções órfãs no banco
 
-Modificar a lógica de timeout para considerar se há progresso recente:
-- Se a execução está há mais de 60 minutos **E** não há heartbeat recente (5 min), aplicar timeout
-- Se há progresso recente, deixar continuar independente do tempo total
+---
 
-**Arquivo**: `supabase/functions/executar-monitoramento/index.ts`
+## Solução Proposta
 
-Alterar linhas 123-134 de:
+### Parte 1: Limpeza Imediata de Execução Travada
+Adicionar um botão "Forçar Cancelamento" que atualiza diretamente o banco quando o loop não está ativo.
+
+**Arquivo**: `src/components/configuracoes/DjenTermosDashboardCard.tsx`
+
 ```typescript
-// Se está executando há mais de 60 minutos, marcar como timeout
-if (minutosDecorridos > 60) {
-  await supabase
-    .from('execucoes_agendadas')
-    .update({ ... })
-    .eq('id', execucao.id);
-  continue;
-}
-```
+// Detectar se a execução está "órfã" (rodando no banco mas não no frontend)
+const execucaoOrfa = isRunning && !localRunActive;
 
-Para:
-```typescript
-// TIMEOUT INTELIGENTE: só aplicar timeout absoluto se TAMBÉM não houver progresso recente
-// Isso permite execuções longas quando a API DataJud está lenta
-if (minutosDecorridos > 60 && heartbeatStale) {
-  console.log(`[${tipo}] Timeout após ${Math.round(minutosDecorridos)}min SEM progresso recente`);
-  await supabase
-    .from('execucoes_agendadas')
-    .update({ 
-      status: 'timeout', 
-      finalizado_em: agora.toISOString(),
-      ultimo_erro: `Timeout após ${Math.round(minutosDecorridos)} minutos sem progresso`
-    })
-    .eq('id', execucao.id);
-  continue;
-}
-// Se há progresso recente, NÃO aplicar timeout (log para visibilidade)
-if (minutosDecorridos > 60) {
-  console.log(`[${tipo}] Execução há ${Math.round(minutosDecorridos)}min, mas com heartbeat ativo - continuando`);
-}
+// Função para forçar cancelamento direto no banco
+const handleForceCancelar = async () => {
+  try {
+    // Buscar execução em andamento deste tipo
+    const { data: execucao } = await supabase
+      .from('execucoes_agendadas')
+      .select('id')
+      .eq('tipo', 'djen')
+      .eq('status', 'executando')
+      .is('finalizado_em', null)
+      .order('iniciado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (execucao) {
+      await supabase
+        .from('execucoes_agendadas')
+        .update({
+          status: 'cancelado',
+          finalizado_em: new Date().toISOString(),
+          detalhes: { cancelled: true, reason: 'force_cancel_orphan' },
+        })
+        .eq('id', execucao.id);
+    }
+
+    // Limpar metadata da config também
+    await supabase
+      .from('configuracoes_monitoramento')
+      .update({
+        metadata: {
+          status: 'cancelado',
+          cancelado: true,
+          continuingRun: false,
+        },
+      })
+      .eq('tipo', 'djen')
+      .is('coordenacao_id', null);
+
+    toast.success('Execução cancelada forçadamente');
+    onAfterMutation();
+  } catch (e: any) {
+    toast.error(`Erro ao forçar cancelamento: ${e?.message}`);
+  }
+};
 ```
 
 ---
 
-### Parte 2: Heartbeat Intermediário no Worker
+### Parte 2: UI para Exibir Botão Correto
+Mostrar "Forçar Cancelamento" quando a execução está órfã (rodando no banco mas não no frontend).
 
-Adicionar atualização de `ultima_execucao` a cada 50 processos dentro do loop de processamento.
+**Arquivo**: `src/components/configuracoes/DjenTermosDashboardCard.tsx`
 
-**Arquivo**: `supabase/functions/monitorar-andamentos/index.ts`
-
-Após linha 1342 (depois do `Promise.all(batchPromises)`), adicionar:
 ```typescript
-// HEARTBEAT INTERMEDIÁRIO: sinalizar vida ao orquestrador a cada 50 processos
-// Evita timeout quando a API DataJud está lenta mas o worker ainda está processando
-if (results.checked % 50 < PARALLEL_BATCH_SIZE) {
-  await supabase
-    .from('configuracoes_monitoramento')
-    .update({ ultima_execucao: new Date().toISOString() })
-    .eq('tipo', 'andamentos')
-    .is('coordenacao_id', null);
-  console.log(`[HEARTBEAT] Atualizado em ${results.checked}/${totalCount || 0} processos`);
-}
+// Substituir lógica do botão cancelar
+{canCancel && (
+  <Button variant="destructive" size="sm" onClick={handleCancelar}>
+    <StopCircle className="h-4 w-4 mr-2" />
+    Cancelar
+  </Button>
+)}
+
+{/* NOVO: Botão para forçar cancelamento de execução órfã */}
+{execucaoOrfa && (
+  <Button 
+    variant="destructive" 
+    size="sm" 
+    onClick={handleForceCancelar}
+    className="gap-2"
+  >
+    <XCircle className="h-4 w-4" />
+    Forçar Cancelamento
+  </Button>
+)}
 ```
 
 ---
 
-### Verificação do Mecanismo de Retomada
+### Parte 3: Auto-Limpeza de Execuções Órfãs (Preventivo)
+Adicionar lógica no `useEffect` do card para detectar e limpar execuções órfãs automaticamente.
 
-O sistema **JÁ TEM** retomada funcionando:
+**Arquivo**: `src/components/configuracoes/DjenTermosDashboardCard.tsx`
 
-1. **Checkpoint persistido**: O campo `next_offset` é salvo no metadata a cada lote (linha 1361):
 ```typescript
-next_offset: results.cancelled ? currentOffset : (isComplete ? 0 : nextOffset)
+// No início do componente, verificar e limpar execuções órfãs
+useEffect(() => {
+  const limparExecucoesOrfas = async () => {
+    // Se não há execução local ativa, verificar banco por execuções travadas
+    if (!localRunActive) {
+      const dezMinutosAtras = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      
+      const { data: orfas } = await supabase
+        .from('execucoes_agendadas')
+        .select('id, iniciado_em')
+        .eq('tipo', 'djen')
+        .eq('status', 'executando')
+        .is('finalizado_em', null)
+        .lt('iniciado_em', dezMinutosAtras)
+        .limit(5);
+
+      if (orfas && orfas.length > 0) {
+        console.log(`[DJEN] Detectadas ${orfas.length} execuções órfãs, limpando...`);
+        
+        for (const orfa of orfas) {
+          await supabase
+            .from('execucoes_agendadas')
+            .update({
+              status: 'timeout',
+              finalizado_em: new Date().toISOString(),
+              ultimo_erro: 'Execução órfã detectada e limpa automaticamente',
+            })
+            .eq('id', orfa.id);
+        }
+        
+        onAfterMutation();
+      }
+    }
+  };
+
+  limparExecucoesOrfas();
+}, [localRunActive, stats.status]);
 ```
 
-2. **UI detecta checkpoint**: O `MonitoringDashboard` mostra botão "Retomar" quando:
-   - `next_offset > 0`
-   - Status é `timeout`, `failed`, `cancelled` ou `completed`
+---
 
-3. **Hook respeita retomada**: O `useExecutarMonitoramento` só zera offsets se `retomar = false` (linhas 79-86)
+### Parte 4: Refatorar Hook para Finalização Robusta
+Garantir que o hook `useBuscaDjenDireta` sempre finalize a execução no banco, mesmo em caso de erro.
+
+**Arquivo**: `src/hooks/useBuscaDjenDireta.ts`
+
+Na função `executarMonitoramento`, adicionar try/finally para garantir finalização:
+
+```typescript
+const executarMonitoramento = useCallback(async (...) => {
+  let executionId: string | null = null;
+  
+  try {
+    executionId = await registrarExecucao('executando', { ... });
+    // ... lógica principal ...
+  } catch (error) {
+    console.error('[DJEN] Erro na execução:', error);
+    
+    // GARANTIR que sempre finalize no banco
+    if (executionId) {
+      await supabase
+        .from('execucoes_agendadas')
+        .update({
+          status: 'erro',
+          finalizado_em: new Date().toISOString(),
+          detalhes: { error: error.message },
+        })
+        .eq('id', executionId);
+    }
+    
+    throw error;
+  } finally {
+    setExecutando(false);
+  }
+}, [...]);
+```
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Mudança | Linhas |
-|---------|---------|--------|
-| `supabase/functions/executar-monitoramento/index.ts` | Timeout inteligente (só se heartbeat stale) | 123-134 |
-| `supabase/functions/monitorar-andamentos/index.ts` | Heartbeat intermediário a cada 50 processos | Após 1342 |
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/configuracoes/DjenTermosDashboardCard.tsx` | Adicionar botão "Forçar Cancelamento" para execuções órfãs + auto-limpeza |
+| `src/hooks/useBuscaDjenDireta.ts` | Garantir finalização robusta com try/finally |
 
 ---
 
@@ -106,16 +209,15 @@ next_offset: results.cancelled ? currentOffset : (isComplete ? 0 : nextOffset)
 
 | Cenário | Antes | Depois |
 |---------|-------|--------|
-| Execução de 2h com API lenta | Timeout aos 60min | Completa se há progresso |
-| Worker travado (sem resposta) | Timeout aos 60min | Timeout aos 5min sem heartbeat |
-| Execução interrompida no meio | Retomável (já funciona) | Retomável (sem mudança) |
-| Cancelamento pelo usuário | Funciona | Funciona (sem mudança) |
+| Execução travada sem loop ativo | UI mostra "executando" sem botão útil | Botão "Forçar Cancelamento" aparece |
+| Execução órfã há mais de 10min | Fica travada indefinidamente | Auto-limpa ao abrir o card |
+| Erro durante execução | Execução fica "executando" no banco | Sempre finaliza como "erro" |
+| Cancelamento normal (loop ativo) | Funciona | Continua funcionando igual |
 
 ---
 
-## Resultado Final
-
-- 14k+ processos poderão ser processados mesmo se levar 2+ horas
-- Processos realmente travados ainda serão detectados (5min sem heartbeat)
-- UI continuará mostrando progresso em tempo real
-- Botão "Retomar" continuará funcionando para interrupções
+## Benefício Imediato
+Após implementar, o usuário poderá:
+1. Clicar em "Forçar Cancelamento" para liberar a execução travada
+2. Iniciar uma nova execução normalmente
+3. Não ter mais execuções órfãs bloqueando o sistema
