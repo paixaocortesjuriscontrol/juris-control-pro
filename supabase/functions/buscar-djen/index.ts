@@ -236,13 +236,26 @@ async function fetchJsonViaJina(url: string, jinaApiKey: string): Promise<any | 
   }
 }
 
+// Normaliza texto removendo acentos para melhor cobertura de busca
+function normalizeAccents(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')  // Remove acentos
+    .replace(/[\/]/g, ' ')             // S/A -> S A
+    .replace(/\s+/g, ' ')              // Normaliza espaços
+    .trim();
+}
+
 async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Promise<any> {
   const { tipo, oab, uf, palavraChave, numeroProcesso, dataInicio, dataFim } = params;
 
   const baseParams = new URLSearchParams();
 
   if (tipo === "palavra-chave" && palavraChave) {
-    baseParams.append("texto", palavraChave);
+    // Normalizar acentos para melhor cobertura (API armazena às vezes sem acentos)
+    const termoNormalizado = normalizeAccents(palavraChave);
+    baseParams.append("texto", termoNormalizado);
+    console.log(`[buscar-djen] Termo normalizado: "${palavraChave}" -> "${termoNormalizado}"`);
   } else if (tipo === "advogado" && oab) {
     const oabQuery = uf ? `OAB ${oab} ${uf}` : `OAB ${oab}`;
     baseParams.append("texto", oabQuery);
