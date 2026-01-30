@@ -25,7 +25,7 @@ function getCacheKey(params: SearchParams): string {
     dataFim: params.dataFim,
     page: params.page ?? 0,
     // Hard cap: reduce payload to avoid Memory limit exceeded (WORKER_LIMIT 546)
-    pageSize: params.pageSize ?? 25,
+    pageSize: params.pageSize ?? 10,
     fetchAll: !!params.fetchAll,
   });
 }
@@ -144,6 +144,35 @@ async function fetchWithRetry(
 }
 
 async function fetchJsonViaJina(url: string, jinaApiKey: string): Promise<any | null> {
+  const readTextLimited = async (resp: Response, maxChars = 64_000): Promise<string> => {
+    try {
+      if (!resp.body) {
+        const t = await resp.text();
+        return t.slice(0, maxChars);
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let out = "";
+
+      while (out.length < maxChars) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) out += decoder.decode(value, { stream: true });
+      }
+
+      try {
+        reader.cancel();
+      } catch {
+        // ignore
+      }
+
+      return out.slice(0, maxChars);
+    } catch {
+      return "";
+    }
+  };
+
   const tryParseJson = (rawText: string): any | null => {
     const text = rawText.trim();
     if (!text) return null;
@@ -220,12 +249,12 @@ async function fetchJsonViaJina(url: string, jinaApiKey: string): Promise<any | 
     });
 
     if (!resp.ok) {
-      const t = await resp.text();
+      const t = await readTextLimited(resp);
       console.log(`Jina proxy error ${resp.status}:`, t.slice(0, 200));
       return null;
     }
 
-    const text = await resp.text();
+    const text = await readTextLimited(resp);
     const parsed = tryParseJson(text);
     if (parsed) return parsed;
 
@@ -270,8 +299,8 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   if (dataFim) baseParams.append("dataDisponibilizacaoFim", dataFim);
 
   const page = Math.max(params.page ?? 0, 0);
-  // CRITICAL: cap to 25 to keep response.json() within memory limits
-  const pageSize = Math.min(Math.max(params.pageSize ?? 25, 1), 25);
+  // CRITICAL: cap to 10 to keep response.json() within memory limits
+  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 10);
 
   const extractItems = (data: any): any[] => {
     const items = data?.items ?? data?.content ?? data?.comunicacoes ?? data?.publicacoes ?? [];
@@ -287,6 +316,37 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   // Optimize items to reduce memory - only keep essential fields
   // CRITICAL: Truncate large text fields AGGRESSIVELY to avoid memory exhaustion (WORKER_LIMIT 546)
   const MAX_TEXT_LENGTH = 2000; // Reduced from 4000 to 2KB per item max
+
+  // Read only a limited amount of text from a response to avoid memory spikes
+  // (e.g., HTML error pages or proxy content)
+  const readTextLimited = async (resp: Response, maxChars = 64_000): Promise<string> => {
+    try {
+      if (!resp.body) {
+        const t = await resp.text();
+        return t.slice(0, maxChars);
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let out = "";
+
+      while (out.length < maxChars) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) out += decoder.decode(value, { stream: true });
+      }
+
+      try {
+        reader.cancel();
+      } catch {
+        // ignore
+      }
+
+      return out.slice(0, maxChars);
+    } catch {
+      return "";
+    }
+  };
   
   const optimizeItem = (item: any) => {
     // Skip null/undefined items
@@ -368,7 +428,7 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     } else if (response.ok) {
       data = await response.json();
     } else if (response.status === 422) {
-      const errorText = await response.text();
+      const errorText = await readTextLimited(response);
       console.log("422 response:", errorText);
       return {
         data: {
@@ -380,7 +440,7 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
         ok: true,
       };
     } else {
-      const t = await response.text().catch(() => "");
+      const t = await readTextLimited(response);
       throw new Error(`Status ${response.status} ${t.slice(0, 120)}`);
     }
 
@@ -427,8 +487,10 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   // Legacy mode: fetch multiple pages (used by internal backfill jobs).
   // Keep VERY strict limits to avoid worker OOM (WORKER_LIMIT 546).
   if (params.fetchAll) {
-    const MAX_PAGES = 4; // Reduced from 8 to 4 (400 items max)
-    const MAX_ITEMS = 400; // Reduced from 800 to prevent OOM
+    // With pageSize=10 we can safely fetch more pages while keeping memory bounded.
+    // (Roughly similar max items compared to the previous 25*4=100)
+    const MAX_PAGES = 10;
+    const MAX_ITEMS = 120;
 
     for (const endpoint of endpoints) {
       let totalExpected: number | null = null;
@@ -446,7 +508,7 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
           }
 
           const rawItems = extractItems(data);
-          const optimized = rawItems.map(optimizeItem);
+          const optimized = rawItems.map(optimizeItem).filter(Boolean);
           allItems.push(...optimized);
 
           console.log(
@@ -737,8 +799,8 @@ serve(async (req) => {
       dataInicio,
       dataFim,
       page: typeof page === "number" ? page : 0,
-      // Default to 25 to avoid large payloads (WORKER_LIMIT 546)
-      pageSize: typeof pageSize === "number" ? pageSize : 25,
+      // Default to 10 to avoid large payloads (WORKER_LIMIT 546)
+      pageSize: typeof pageSize === "number" ? pageSize : 10,
       fetchAll: !!fetchAll,
     };
 

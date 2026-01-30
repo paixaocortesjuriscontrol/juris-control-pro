@@ -107,7 +107,7 @@ export async function buscarPjeComunicaNoBrowser(
 
   const page = Math.max(params.page ?? 0, 0);
   // Keep payload small (consistent with buscar-djen hard cap)
-  const pageSize = Math.min(Math.max(params.pageSize ?? 25, 1), 25);
+  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 10);
 
   const qp = new URLSearchParams();
 
@@ -212,7 +212,7 @@ export async function buscarPjeComunicaPaginado(
 
   const startPage = Math.max(params.page ?? 0, 0);
   // Keep payload small (consistent with buscar-djen hard cap)
-  const pageSize = Math.min(Math.max(params.pageSize ?? 25, 1), 25);
+  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 10);
 
   const all: any[] = [];
   const seen = new Set<string>();

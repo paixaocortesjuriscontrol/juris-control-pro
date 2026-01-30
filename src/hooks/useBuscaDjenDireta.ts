@@ -578,7 +578,7 @@ export function useBuscaDjenDireta() {
       dataInicio: dataInicioYmd,
       dataFim: dataFimYmd,
       // Hard cap to keep payload small and avoid Edge Function 546 (WORKER_LIMIT)
-      pageSize: 25,
+      pageSize: 10,
       fetchAll: false,
     };
 
@@ -674,7 +674,7 @@ export function useBuscaDjenDireta() {
                 dataInicio: params.dataInicio,
                 dataFim: params.dataFim,
                 page: 0,
-                pageSize: params.pageSize ?? 25,
+                pageSize: params.pageSize ?? 10,
               },
               {
                 signal: browserController.signal,
@@ -736,7 +736,7 @@ export function useBuscaDjenDireta() {
               ...params,
               palavraChave: params.oab ? undefined : palavraChaveFallback, // Só envia palavraChave se não for advogado
               page,
-              pageSize: params.pageSize ?? 25,
+              pageSize: params.pageSize ?? 10,
               fetchAll: false,
             });
 
