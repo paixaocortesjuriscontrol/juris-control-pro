@@ -260,6 +260,34 @@ export function useBuscaDjenDireta() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const executionIdRef = useRef<string | null>(null);
 
+  // Helpers para checkpoint/controle no banco (configuracoes_monitoramento)
+  const loadConfigMetadata = useCallback(async (): Promise<Record<string, any>> => {
+    try {
+      const { data, error } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.metadata as Record<string, any>) || {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const saveConfigMetadata = useCallback(async (next: Record<string, any>) => {
+    try {
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({ metadata: next })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+    } catch {
+      // silencioso: não quebrar o loop por falha de atualização de UI
+    }
+  }, []);
+
   // Timer para atualizar tempo decorrido
   useEffect(() => {
     if (timerRef.current) {
@@ -595,33 +623,67 @@ export function useBuscaDjenDireta() {
 
     const hoje = new Date().toISOString().split('T')[0];
     const checkpoint = carregarCheckpoint();
+
+    // Fonte de checkpoint no banco (server-side) - igual padrão do DJEN Processos
+    let configMd = await loadConfigMetadata();
+    const serverProcessedIds: string[] = Array.isArray(configMd.processed_ids) ? configMd.processed_ids : [];
+    const serverNextOffset: number | null = typeof configMd.next_offset === 'number' ? configMd.next_offset : null;
+    const usarCheckpointServidor = !!retomar && serverProcessedIds.length > 0 && (serverNextOffset ?? serverProcessedIds.length) > 0;
     
     // Se retomar=false mas existe checkpoint do mesmo dia, limpar
     if (!retomar && checkpoint) {
       limparCheckpoint();
     }
     
-    // Se retomar=true mas não há checkpoint válido, executar do zero
-    const usarCheckpoint = retomar && checkpoint && checkpoint.data === hoje;
+    // Checkpoint local (mesmo dia)
+    const usarCheckpointLocal = !!retomar && !!checkpoint && checkpoint.data === hoje;
+
+    // Preferir checkpoint do banco (server-side). Se não houver, usar local.
+    const usarCheckpoint = usarCheckpointServidor || usarCheckpointLocal;
+
+    const idsProcessadosInicial = new Set<string>(
+      usarCheckpointServidor
+        ? serverProcessedIds
+        : (usarCheckpointLocal ? checkpoint!.monitoramentosProcessados : [])
+    );
     
-    const tempoInicio = usarCheckpoint ? Date.now() - (checkpoint.tempoAcumulado * 1000) : Date.now();
+    const tempoInicio = usarCheckpointLocal
+      ? Date.now() - (checkpoint!.tempoAcumulado * 1000)
+      : Date.now();
     setExecutando(true);
     cancelarRef.current = false;
     abortControllerRef.current = new AbortController();
     executionIdRef.current = null;
+
+    // Resetar sinalizações de cancelamento no banco ao iniciar
+    if (!retomar) {
+      configMd = {
+        ...configMd,
+        cancel_requested: false,
+        cancelado: false,
+        processed_ids: [],
+        next_offset: null,
+      };
+    } else {
+      configMd = {
+        ...configMd,
+        cancel_requested: false,
+      };
+    }
+    await saveConfigMetadata(configMd);
     
     const progressoInicial: ProgressoExecucao = {
-      monitoramentoAtual: usarCheckpoint ? checkpoint.monitoramentosProcessados.length : 0,
+      monitoramentoAtual: usarCheckpoint ? idsProcessadosInicial.size : 0,
       totalMonitoramentos: 0,
-      publicacoesNovas: usarCheckpoint ? checkpoint.totalNovas : 0,
-      publicacoesDuplicadas: usarCheckpoint ? checkpoint.totalDuplicadas : 0,
+      publicacoesNovas: usarCheckpointLocal ? checkpoint!.totalNovas : 0,
+      publicacoesDuplicadas: usarCheckpointLocal ? checkpoint!.totalDuplicadas : 0,
       status: 'executando',
       mensagem: usarCheckpoint ? 'Retomando execução...' : 'Carregando monitoramentos...',
       tempoInicio,
-      tempoDecorrido: usarCheckpoint ? checkpoint.tempoAcumulado : 0,
-      faseAtual: usarCheckpoint ? checkpoint.faseAtual : 1,
+      tempoDecorrido: usarCheckpointLocal ? checkpoint!.tempoAcumulado : 0,
+      faseAtual: usarCheckpointLocal ? checkpoint!.faseAtual : 1,
       fases: {
-        fase1: { total: 0, processados: usarCheckpoint ? checkpoint.monitoramentosProcessados.length : 0, status: 'executando' },
+        fase1: { total: 0, processados: usarCheckpoint ? idsProcessadosInicial.size : 0, status: 'executando' },
         fase2: { total: 0, processados: 0, status: 'pendente' },
         fase3: { total: 0, processados: 0, status: 'pendente' },
       },
@@ -633,7 +695,7 @@ export function useBuscaDjenDireta() {
     // Registrar execução no banco
     const executionId = await registrarExecucao('executando', {
       retomada: usarCheckpoint,
-      checkpoint: usarCheckpoint ? checkpoint : null,
+      checkpoint: usarCheckpointLocal ? checkpoint : null,
     });
 
     try {
@@ -663,8 +725,24 @@ export function useBuscaDjenDireta() {
       const total = monitoramentos.length;
       
       // Filtrar monitoramentos já processados se retomando
-      const idsProcessados = new Set(usarCheckpoint ? checkpoint.monitoramentosProcessados : []);
+      const idsProcessados = new Set(idsProcessadosInicial);
       const monitoramentosRestantes = monitoramentos.filter(m => !idsProcessados.has(m.id));
+
+      // Atualizar metadata inicial (total/current) para refletir no dashboard
+      configMd = {
+        ...configMd,
+        status: 'executando',
+        total,
+        current: idsProcessados.size,
+        percentage: total > 0 ? Math.round((idsProcessados.size / total) * 100) : 0,
+        next_offset: idsProcessados.size,
+        processed_ids: Array.from(idsProcessados),
+        last_run: new Date().toISOString(),
+        continuingRun: usarCheckpoint,
+        cancelado: false,
+        last_error: null,
+      };
+      await saveConfigMetadata(configMd);
       
       setProgresso(prev => ({
         ...prev,
@@ -678,8 +756,8 @@ export function useBuscaDjenDireta() {
         },
       }));
 
-      let totalNovas = usarCheckpoint ? checkpoint.totalNovas : 0;
-      let totalDuplicadas = usarCheckpoint ? checkpoint.totalDuplicadas : 0;
+      let totalNovas = usarCheckpointLocal ? checkpoint!.totalNovas : 0;
+      let totalDuplicadas = usarCheckpointLocal ? checkpoint!.totalDuplicadas : 0;
       let processados = idsProcessados.size;
       const monitoramentosProcessadosIds = new Set(idsProcessados);
       
@@ -691,6 +769,13 @@ export function useBuscaDjenDireta() {
 
       // FASE 1: Buscar Publicações
       for (let i = 0; i < monitoramentosRestantes.length; i += CONCURRENT_LIMIT) {
+        // Cancelamento remoto: se alguém clicar em “Cancelar” em outra aba/dispositivo
+        // o loop para de forma cooperativa.
+        const cfg = await loadConfigMetadata();
+        if (cfg?.cancel_requested === true) {
+          cancelarRef.current = true;
+        }
+
         if (cancelarRef.current) {
           // Salvar checkpoint antes de encerrar
           const checkpointData: CheckpointDjen = {
@@ -723,6 +808,26 @@ export function useBuscaDjenDireta() {
             total,
             novas: totalNovas,
           });
+
+          // Checkpoint no banco (server-side)
+          const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
+          configMd = {
+            ...configMd,
+            status: 'cancelado',
+            cancelado: true,
+            cancel_requested: false,
+            total,
+            current: processados,
+            percentage: total > 0 ? Math.round((processados / total) * 100) : 0,
+            next_offset: processados,
+            processed_ids: Array.from(monitoramentosProcessadosIds),
+            duracao_s,
+            last_stop_at: new Date().toISOString(),
+            last_stop_reason: cfg?.cancel_requested ? 'remote_cancel' : 'local_cancel',
+            last_error: null,
+            continuingRun: true,
+          };
+          await saveConfigMetadata(configMd);
           
           break;
         }
@@ -797,6 +902,23 @@ export function useBuscaDjenDireta() {
             duplicadas: totalDuplicadas,
           });
         }
+
+        // Atualizar metadata (dashboard) a cada lote
+        const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
+        configMd = {
+          ...configMd,
+          status: 'executando',
+          total,
+          current: processados,
+          percentage: total > 0 ? Math.round((processados / total) * 100) : 0,
+          next_offset: processados,
+          processed_ids: Array.from(monitoramentosProcessadosIds),
+          duracao_s,
+          last_run: new Date().toISOString(),
+          continuingRun: true,
+          cancelado: false,
+        };
+        await saveConfigMetadata(configMd);
 
         if (i + CONCURRENT_LIMIT < monitoramentosRestantes.length) {
           await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES));
@@ -894,6 +1016,26 @@ export function useBuscaDjenDireta() {
         duracao_s: tempoFinal,
       });
 
+      // Finalizar metadata (dashboard)
+      configMd = {
+        ...configMd,
+        status: 'concluido',
+        cancelado: false,
+        cancel_requested: false,
+        total,
+        current: total,
+        percentage: 100,
+        next_offset: null,
+        processed_ids: [],
+        duracao_s: tempoFinal,
+        last_complete_run: new Date().toISOString(),
+        continuingRun: false,
+        last_error: null,
+        last_stop_at: new Date().toISOString(),
+        last_stop_reason: 'completed',
+      };
+      await saveConfigMetadata(configMd);
+
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
       queryClient.invalidateQueries({ queryKey: ['monitoramentos-djen'] });
       queryClient.invalidateQueries({ queryKey: ['execucoes-monitoramento'] });
@@ -933,11 +1075,32 @@ export function useBuscaDjenDireta() {
       }
       
       toast.error(`Erro: ${error?.message || 'Erro desconhecido'}`);
+
+      // Persistir estado de erro no metadata (dashboard)
+      try {
+        const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
+        configMd = {
+          ...configMd,
+          status: 'erro',
+          cancelado: false,
+          cancel_requested: false,
+          next_offset: progresso.monitoramentoAtual,
+          processed_ids: Array.isArray(configMd.processed_ids) ? configMd.processed_ids : [],
+          duracao_s,
+          last_error: error?.message || 'Erro desconhecido',
+          last_stop_at: new Date().toISOString(),
+          last_stop_reason: 'error',
+          continuingRun: true,
+        };
+        await saveConfigMetadata(configMd);
+      } catch {
+        // noop
+      }
     } finally {
       setExecutando(false);
       executionIdRef.current = null; // Limpar ref ao finalizar
     }
-  }, [user?.id, queryClient]);
+  }, [user?.id, queryClient, loadConfigMetadata, saveConfigMetadata]);
 
   const cancelarExecucao = useCallback(() => {
     cancelarRef.current = true;
