@@ -241,6 +241,7 @@ export function DjenTermosDashboardCard({
   const [limpando, setLimpando] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [forcandoCancelamento, setForcandoCancelamento] = useState(false);
+  const [execucaoOrfaNoBanco, setExecucaoOrfaNoBanco] = useState<string | null>(null);
 
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
@@ -282,48 +283,86 @@ export function DjenTermosDashboardCard({
 
   const isRunning = currentStatus === 'running';
   
-  // Detectar se a execução está "órfã" (rodando no banco mas não no frontend)
-  const execucaoOrfa = isRunning && !localRunActive;
+  // Detectar se a execução está "órfã" - USANDO ESTADO DO BANCO, NÃO stats.status
+  // A variável execucaoOrfaNoBanco é atualizada pelo useEffect que verifica o banco diretamente
+  const execucaoOrfa = !!execucaoOrfaNoBanco && !localRunActive;
 
   const statusConfig = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.idle;
 
-  // AUTO-LIMPEZA: Detectar e limpar execuções órfãs automaticamente
+  // DETECÇÃO DE ÓRFÃ: Verificar diretamente o banco por execuções travadas
+  // Roda sempre que o loop local não estiver ativo e não estiver forçando cancelamento
   useEffect(() => {
-    const limparExecucoesOrfas = async () => {
-      // Se não há execução local ativa, verificar banco por execuções travadas
-      if (!localRunActive) {
-        const dezMinutosAtras = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-        
-        const { data: orfas } = await supabase
+    let isMounted = true;
+    
+    const verificarExecucoesOrfas = async () => {
+      // Se há execução local ativa, não há órfã
+      if (localRunActive) {
+        setExecucaoOrfaNoBanco(null);
+        return;
+      }
+      
+      try {
+        // Buscar execução DJEN que está "executando" no banco mas não tem loop local
+        const { data: execucaoAtiva } = await supabase
           .from('execucoes_agendadas')
           .select('id, iniciado_em')
           .eq('tipo', 'djen')
           .eq('status', 'executando')
           .is('finalizado_em', null)
-          .lt('iniciado_em', dezMinutosAtras)
-          .limit(5);
-
-        if (orfas && orfas.length > 0) {
-          console.log(`[DJEN] Detectadas ${orfas.length} execuções órfãs, limpando...`);
+          .order('iniciado_em', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (!isMounted) return;
+        
+        if (execucaoAtiva) {
+          const iniciado = new Date(execucaoAtiva.iniciado_em);
+          const agora = new Date();
+          const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
           
-          for (const orfa of orfas) {
-            await supabase
-              .from('execucoes_agendadas')
-              .update({
-                status: 'timeout',
-                finalizado_em: new Date().toISOString(),
-                ultimo_erro: 'Execução órfã detectada e limpa automaticamente',
-              })
-              .eq('id', orfa.id);
+          // Se a execução tem mais de 2 minutos e não tem loop local, é órfã
+          // (2 minutos para dar tempo do loop iniciar normalmente)
+          if (minutosDecorridos >= 2) {
+            console.log(`[DJEN] Execução órfã detectada: ${execucaoAtiva.id} (${Math.round(minutosDecorridos)}min)`);
+            setExecucaoOrfaNoBanco(execucaoAtiva.id);
+            
+            // AUTO-LIMPEZA: Se tem mais de 10 minutos, limpar automaticamente
+            if (minutosDecorridos >= 10) {
+              console.log(`[DJEN] Execução órfã antiga, limpando automaticamente...`);
+              await supabase
+                .from('execucoes_agendadas')
+                .update({
+                  status: 'timeout',
+                  finalizado_em: new Date().toISOString(),
+                  ultimo_erro: 'Execução órfã detectada e limpa automaticamente',
+                })
+                .eq('id', execucaoAtiva.id);
+              
+              if (isMounted) {
+                setExecucaoOrfaNoBanco(null);
+                onAfterMutation();
+              }
+            }
+          } else {
+            setExecucaoOrfaNoBanco(null);
           }
-          
-          onAfterMutation();
+        } else {
+          setExecucaoOrfaNoBanco(null);
         }
+      } catch (e) {
+        console.warn('[DJEN] Erro ao verificar execuções órfãs:', e);
       }
     };
 
-    limparExecucoesOrfas();
-  }, [localRunActive, stats.status, onAfterMutation]);
+    // Verificar imediatamente e a cada 5 segundos
+    verificarExecucoesOrfas();
+    const interval = setInterval(verificarExecucoesOrfas, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [localRunActive, onAfterMutation]);
 
   const handleExecutar = async () => {
     if (isRunning) return;
@@ -385,18 +424,9 @@ export function DjenTermosDashboardCard({
   const handleForceCancelar = async () => {
     setForcandoCancelamento(true);
     try {
-      // Buscar execução em andamento deste tipo
-      const { data: execucao } = await supabase
-        .from('execucoes_agendadas')
-        .select('id')
-        .eq('tipo', 'djen')
-        .eq('status', 'executando')
-        .is('finalizado_em', null)
-        .order('iniciado_em', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (execucao) {
+      const execId = execucaoOrfaNoBanco;
+      
+      if (execId) {
         await supabase
           .from('execucoes_agendadas')
           .update({
@@ -404,7 +434,29 @@ export function DjenTermosDashboardCard({
             finalizado_em: new Date().toISOString(),
             ultimo_erro: 'Cancelamento forçado pelo usuário (execução órfã)',
           })
-          .eq('id', execucao.id);
+          .eq('id', execId);
+      } else {
+        // Fallback: buscar qualquer execução ativa
+        const { data: execucao } = await supabase
+          .from('execucoes_agendadas')
+          .select('id')
+          .eq('tipo', 'djen')
+          .eq('status', 'executando')
+          .is('finalizado_em', null)
+          .order('iniciado_em', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (execucao) {
+          await supabase
+            .from('execucoes_agendadas')
+            .update({
+              status: 'cancelado',
+              finalizado_em: new Date().toISOString(),
+              ultimo_erro: 'Cancelamento forçado pelo usuário (execução órfã)',
+            })
+            .eq('id', execucao.id);
+        }
       }
 
       // Limpar metadata da config também
@@ -420,6 +472,7 @@ export function DjenTermosDashboardCard({
         .eq('tipo', 'djen')
         .is('coordenacao_id', null);
 
+      setExecucaoOrfaNoBanco(null);
       toast.success('Execução cancelada forçadamente! Você já pode iniciar uma nova.');
       onAfterMutation();
     } catch (e: any) {
