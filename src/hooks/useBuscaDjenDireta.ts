@@ -682,8 +682,13 @@ export function useBuscaDjenDireta() {
     let ufsParaBuscar: string[] = [];
 
     if (tipoMapeado === 'advogado' && monitoramento.oab && monitoramento.uf) {
-      params.oab = monitoramento.oab;
-      const ufValue = monitoramento.uf;
+      // Normalização CRÍTICA:
+      // - OAB: apenas dígitos (evita '123.456'/'12345-6' quebrando filtros da API)
+      // - UF: trim + UPPERCASE (evita 'sp', 'SP ', etc.)
+      const oabDigits = String(monitoramento.oab).replace(/\D/g, '');
+      const ufValue = String(monitoramento.uf).trim().toUpperCase();
+
+      params.oab = oabDigits;
       
       if (ufValue === 'TODAS' || !ufValue) {
         // Sem UF específica: buscar por palavra-chave (nome do advogado)
@@ -692,7 +697,7 @@ export function useBuscaDjenDireta() {
       } else if (ufValue.includes(',')) {
         // CORREÇÃO: Múltiplas UFs - iterar por CADA uma, não só a primeira
         ufsParaBuscar = ufValue.split(',')
-          .map(u => u.trim())
+          .map(u => u.trim().toUpperCase())
           .filter(u => u.length === 2);
         
         if (ufsParaBuscar.length > 0) {

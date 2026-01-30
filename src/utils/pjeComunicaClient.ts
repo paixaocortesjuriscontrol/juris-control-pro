@@ -94,8 +94,8 @@ function buildTextoParam(params: PjeComunicaSearchParams): string {
   }
   if (params.tipo === "processo") return (params.numeroProcesso || "").trim();
   // advogado
-  const oab = (params.oab || "").trim();
-  const uf = (params.uf || "").trim();
+  const oab = String(params.oab || "").replace(/\D/g, "").trim();
+  const uf = String(params.uf || "").trim().toUpperCase();
   return uf ? `OAB ${oab} ${uf}` : `OAB ${oab}`;
 }
 
@@ -119,8 +119,11 @@ export async function buscarPjeComunicaNoBrowser(
   //    - Para advogado, preferir parâmetros nativos (numeroOab/ufOab), pois alguns tribunais
   //      respondem melhor assim do que via texto "OAB 123 UF".
   if (params.tipo === "advogado") {
-    const oab = (params.oab || "").trim();
-    const uf = (params.uf || "").trim();
+    // Normalização para evitar falhas silenciosas na API:
+    // - OAB pode vir com máscara/pontuação
+    // - UF pode vir minúscula ou com espaços
+    const oab = String(params.oab || "").replace(/\D/g, "").trim();
+    const uf = String(params.uf || "").trim().toUpperCase();
     if (oab) qp.set("numeroOab", oab);
     if (uf) qp.set("ufOab", uf);
   }
