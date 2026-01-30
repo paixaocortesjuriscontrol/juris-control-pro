@@ -80,6 +80,44 @@ interface Monitoramento {
   descricao?: string;
 }
 
+// IDs sintéticos de tribunais que precisam ser expandidos
+const TODOS_IDS_CIVEIS = [
+  'TJAC', 'TJAL', 'TJAM', 'TJAP', 'TJBA', 'TJCE', 'TJDFT', 'TJES', 'TJGO',
+  'TJMA', 'TJMG', 'TJMS', 'TJMT', 'TJPA', 'TJPB', 'TJPE', 'TJPI', 'TJPR',
+  'TJRJ', 'TJRN', 'TJRO', 'TJRR', 'TJRS', 'TJSC', 'TJSE', 'TJSP', 'TJTO',
+];
+
+const TODOS_IDS_TRABALHISTAS = [
+  'TST', 'TRT1', 'TRT2', 'TRT3', 'TRT4', 'TRT5', 'TRT6', 'TRT7', 'TRT8',
+  'TRT9', 'TRT10', 'TRT11', 'TRT12', 'TRT13', 'TRT14', 'TRT15', 'TRT16',
+  'TRT17', 'TRT18', 'TRT19', 'TRT20', 'TRT21', 'TRT22', 'TRT23', 'TRT24',
+];
+
+// Expande IDs sintéticos (TODOS_CIVEIS, TODOS_TRT) para a lista real de tribunais
+function expandirTribunais(tribunais: string[] | undefined | null): string[] | null {
+  if (!tribunais || tribunais.length === 0) return null;
+  
+  const expandidos = new Set<string>();
+  
+  for (const t of tribunais) {
+    if (t === 'TODOS_CIVEIS') {
+      TODOS_IDS_CIVEIS.forEach(id => expandidos.add(id));
+    } else if (t === 'TODOS_TRT') {
+      TODOS_IDS_TRABALHISTAS.forEach(id => expandidos.add(id));
+    } else {
+      expandidos.add(t);
+    }
+  }
+  
+  // Se após expansão temos muitos tribunais (>15), buscar sem filtro é mais eficiente
+  if (expandidos.size > 15) {
+    console.log(`[DJEN] Expandiu para ${expandidos.size} tribunais. Buscando sem filtro para melhor performance.`);
+    return null;
+  }
+  
+  return Array.from(expandidos);
+}
+
 const browserHeaders = {
   "Accept": "application/json, text/plain, */*",
   "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
@@ -854,8 +892,10 @@ async function processMonitoramento(
     return { ...stats, tribunaisStats };
   }
 
-  const tribunais = monitoramento.tribunais && monitoramento.tribunais.length > 0
-    ? monitoramento.tribunais
+  // IMPORTANTE: Expandir IDs sintéticos (TODOS_CIVEIS, TODOS_TRT) para tribunais reais
+  const tribunaisExpandidos = expandirTribunais(monitoramento.tribunais);
+  const tribunais = tribunaisExpandidos && tribunaisExpandidos.length > 0
+    ? tribunaisExpandidos
     : [null];
 
   console.log(`Searching tribunais: ${tribunais.length === 1 && tribunais[0] === null ? 'TODOS (sem filtro)' : tribunais.join(', ')}`);
