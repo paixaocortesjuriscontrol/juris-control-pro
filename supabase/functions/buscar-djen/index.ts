@@ -1,9 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 // ============ In-memory cache (5 min TTL) ============
-// NOTE: Keep this cache small. Edge functions have tight memory limits.
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const MAX_CACHE_ENTRIES = 20;
+// NOTE: Keep this cache VERY small. Edge functions have tight memory limits (150MB).
+const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes (reduced from 5)
+const MAX_CACHE_ENTRIES = 8; // Reduced from 20 to minimize memory pressure
 
 interface CacheEntry {
   data: any;
@@ -110,8 +110,8 @@ function delay(ms: number): Promise<void> {
 async function fetchWithRetry(
   url: string,
   options: RequestInit,
-  maxRetries = 2, // Reduzido para 2 retries (menos agressivo)
-  baseDelay = 2000 // Aumentado para 2s base delay
+  maxRetries = 1, // Reduzido para 1 retry (fail fast para economizar recursos)
+  baseDelay = 1500 // 1.5s base delay
 ): Promise<Response> {
   let lastError: Error | null = null;
 
@@ -200,8 +200,9 @@ async function fetchJsonViaJina(url: string, jinaApiKey: string): Promise<any | 
   };
 
   // Important: keep a short timeout so the caller doesn't hang
+  // Reduced from 6s to 4s to fail faster and free resources
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6_000);
+  const timeoutId = setTimeout(() => controller.abort(), 4_000);
 
   try {
     const jinaUrl = `${JINA_READER_URL}/${url}`;
@@ -267,6 +268,9 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   };
 
   // Optimize items to reduce memory - only keep essential fields
+  // CRITICAL: Truncate large text fields to avoid memory exhaustion
+  const MAX_TEXT_LENGTH = 4000; // ~4KB per item max for text content
+  
   const optimizeItem = (item: any) => ({
     id: item.id,
     dataDisponibilizacao: item.dataDisponibilizacao,
@@ -281,9 +285,9 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     destinatarioNome: item.destinatarioNome,
     destinatario: item.destinatarioNome,
 
-    // Keep full content
-    texto: typeof item.texto === "string" ? item.texto : undefined,
-    teor: typeof item.teor === "string" ? item.teor : undefined,
+    // Truncate content to avoid memory issues
+    texto: typeof item.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined,
+    teor: typeof item.teor === "string" ? item.teor.slice(0, MAX_TEXT_LENGTH) : undefined,
   });
 
   const endpoints = [`${PJE_COMUNICA_API}/comunicacao`, `${PJE_COMUNICA_API}/comunicacoes`];
@@ -401,8 +405,8 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   // Legacy mode: fetch multiple pages (used by internal backfill jobs).
   // Keep strict limits to avoid worker OOM.
   if (params.fetchAll) {
-    const MAX_PAGES = 15; // 15 * 100 = 1500 items max
-    const MAX_ITEMS = 1500;
+    const MAX_PAGES = 8; // Reduced from 15 to 8 (800 items max)
+    const MAX_ITEMS = 800; // Reduced from 1500 to prevent OOM
 
     for (const endpoint of endpoints) {
       let totalExpected: number | null = null;
