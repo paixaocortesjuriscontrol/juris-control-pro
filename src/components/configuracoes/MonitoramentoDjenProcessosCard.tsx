@@ -638,8 +638,8 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
         {/* Botões */}
         <div className="flex gap-2 flex-wrap">
           <BotaoRetomarLote
-            nextOffset={nextOffset}
-            total={totalCheckpoint}
+            nextOffset={progresso.processados > 0 ? progresso.processados : nextOffset}
+            total={progresso.total > 0 ? progresso.total : totalCheckpoint}
             onRetomar={() => handleExecutarManual('retomar')}
             disabled={executando}
             wasCancelledByUser={wasCancelledByUser}
