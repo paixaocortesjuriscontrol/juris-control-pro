@@ -67,8 +67,23 @@ function optimizeItem(item: any) {
   };
 }
 
+// Normaliza texto removendo acentos para melhor cobertura de busca
+function normalizeAccents(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')  // Remove acentos
+    .replace(/[\/]/g, ' ')             // S/A -> S A
+    .replace(/\s+/g, ' ')              // Normaliza espaços
+    .trim();
+}
+
 function buildTextoParam(params: PjeComunicaSearchParams): string {
-  if (params.tipo === "palavra-chave") return (params.palavraChave || "").trim();
+  if (params.tipo === "palavra-chave") {
+    const termo = (params.palavraChave || "").trim();
+    // Usar versão sem acentos para melhor cobertura
+    // A API do PJE Comunica às vezes armazena sem acentos
+    return normalizeAccents(termo);
+  }
   if (params.tipo === "processo") return (params.numeroProcesso || "").trim();
   // advogado
   const oab = (params.oab || "").trim();
