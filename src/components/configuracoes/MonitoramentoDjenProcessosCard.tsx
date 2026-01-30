@@ -86,6 +86,23 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   // Detecta se foi cancelamento explícito do usuário (não mostrar botão Retomar)
   const wasCancelledByUser = metadata?.cancelado === true || metadata?.status === 'cancelado';
 
+  // Usa a melhor estimativa de checkpoint/progresso para evitar “voltar” ao retomar.
+  // Importante: só mostramos o botão se o backend realmente indicou checkpoint (next_offset > 0)
+  // e se ainda não atingimos o total.
+  const stableTotalForResume = Math.max(totalCheckpoint ?? 0, realtimeProgress.total ?? 0);
+  const resumeFromOffsetRaw = Math.max(
+    nextOffset ?? 0,
+    (metadata?.current as number | undefined) ?? 0,
+    realtimeProgress.current ?? 0
+  );
+  const resumeFromOffset = stableTotalForResume > 0
+    ? Math.min(resumeFromOffsetRaw, stableTotalForResume)
+    : resumeFromOffsetRaw;
+  const shouldShowRetomar =
+    !wasCancelledByUser &&
+    (nextOffset ?? 0) > 0 &&
+    (stableTotalForResume <= 0 || resumeFromOffset < stableTotalForResume);
+
   // Buscar estatísticas
   const { data: stats } = useQuery({
     queryKey: ['djen-processos-stats'],
@@ -175,7 +192,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     []
   );
 
-  const handleExecutarManual = async (mode: 'novo' | 'retomar' = 'novo') => {
+  const handleExecutarManual = async (mode: 'novo' | 'retomar' = 'novo', overrideOffset?: number) => {
     if (executando) return; // Prevenir duplo clique
     setExecutandoManual(true);
     canceladoRef.current = false;
@@ -217,7 +234,9 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     let totalProcessos = 0;
 
     if (mode === 'retomar') {
-      offset = nextOffset && nextOffset > 0 ? nextOffset : 0;
+      offset = typeof overrideOffset === 'number' && overrideOffset > 0
+        ? overrideOffset
+        : (nextOffset && nextOffset > 0 ? nextOffset : 0);
     }
 
     try {
@@ -638,9 +657,9 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
         {/* Botões */}
         <div className="flex gap-2 flex-wrap">
           <BotaoRetomarLote
-            nextOffset={progresso.processados > 0 ? progresso.processados : nextOffset}
-            total={progresso.total > 0 ? progresso.total : totalCheckpoint}
-            onRetomar={() => handleExecutarManual('retomar')}
+            nextOffset={shouldShowRetomar ? resumeFromOffset : undefined}
+            total={stableTotalForResume > 0 ? stableTotalForResume : totalCheckpoint}
+            onRetomar={() => handleExecutarManual('retomar', resumeFromOffset)}
             disabled={executando}
             wasCancelledByUser={wasCancelledByUser}
           />
