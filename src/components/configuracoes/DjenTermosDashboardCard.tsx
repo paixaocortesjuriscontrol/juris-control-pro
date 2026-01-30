@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useBuscaDjenDireta, type FaseStatus } from "@/hooks/useBuscaDjenDireta";
 import { withTimeout } from "@/utils/withTimeout";
 import { useEnviarResumoManual } from "@/hooks/useEnviarResumoManual";
+import { ProgressoDjenDetalhado } from "@/components/djen/ProgressoDjenDetalhado";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -697,7 +698,20 @@ export function DjenTermosDashboardCard({
           )}
 
           {/* Indicador de Fases (durante execução) */}
-          {(isRunning || localCancelled) && (
+          {/* Progresso detalhado por coordenação (V2) */}
+          {(isRunning || localCancelled) && progresso.coordenacoes && progresso.coordenacoes.length > 0 ? (
+            <ProgressoDjenDetalhado
+              coordenacoes={progresso.coordenacoes}
+              coordenacaoAtualId={progresso.coordenacaoAtualId}
+              tipoAtual={progresso.tipoAtual}
+              termoAtual={progresso.termoAtual}
+              totalNovas={progresso.publicacoesNovas}
+              totalDuplicadas={progresso.publicacoesDuplicadas}
+              tempoDecorrido={progresso.tempoDecorrido}
+              percentualGeral={percent}
+              executando={isRunning}
+            />
+          ) : (isRunning || localCancelled) && (
             <div className="space-y-1 border rounded-lg p-3 bg-muted/30">
               <div className="text-xs font-medium text-muted-foreground mb-2">Fases da Execução</div>
               <FaseIndicator
