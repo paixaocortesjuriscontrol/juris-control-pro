@@ -1,9 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// ============ In-memory cache (5 min TTL) ============
-// NOTE: Keep this cache VERY small. Edge functions have tight memory limits (150MB).
-const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes (reduced from 5)
-const MAX_CACHE_ENTRIES = 8; // Reduced from 20 to minimize memory pressure
+// ============ In-memory cache (DISABLED to prevent memory exhaustion) ============
+// NOTE: Cache is disabled to prevent WORKER_LIMIT (546) errors.
+// Edge functions have tight memory limits (150MB) and caching large API responses
+// causes memory to accumulate across invocations in the same isolate.
+const CACHE_TTL_MS = 60 * 1000; // 1 minute (reduced)
+const MAX_CACHE_ENTRIES = 0; // DISABLED - cache causes memory exhaustion
 
 interface CacheEntry {
   data: any;
@@ -110,8 +112,8 @@ function delay(ms: number): Promise<void> {
 async function fetchWithRetry(
   url: string,
   options: RequestInit,
-  maxRetries = 1, // Reduzido para 1 retry (fail fast para economizar recursos)
-  baseDelay = 1500 // 1.5s base delay
+  maxRetries = 1, // Fail fast to free resources
+  baseDelay = 1000 // 1s base delay (reduced from 1.5s)
 ): Promise<Response> {
   let lastError: Error | null = null;
 
@@ -281,27 +283,32 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   };
 
   // Optimize items to reduce memory - only keep essential fields
-  // CRITICAL: Truncate large text fields to avoid memory exhaustion
-  const MAX_TEXT_LENGTH = 4000; // ~4KB per item max for text content
+  // CRITICAL: Truncate large text fields AGGRESSIVELY to avoid memory exhaustion (WORKER_LIMIT 546)
+  const MAX_TEXT_LENGTH = 2000; // Reduced from 4000 to 2KB per item max
   
-  const optimizeItem = (item: any) => ({
-    id: item.id,
-    dataDisponibilizacao: item.dataDisponibilizacao,
-    dataPublicacao: item.dataPublicacao,
-    tipoComunicacao: item.tipoComunicacao,
-    siglaTribunal: item.siglaTribunal,
-    numeroProcesso: item.numeroProcesso,
+  const optimizeItem = (item: any) => {
+    // Skip null/undefined items
+    if (!item) return null;
+    
+    return {
+      id: item.id,
+      dataDisponibilizacao: item.dataDisponibilizacao,
+      dataPublicacao: item.dataPublicacao,
+      tipoComunicacao: item.tipoComunicacao,
+      siglaTribunal: item.siglaTribunal,
+      numeroProcesso: item.numeroProcesso,
 
-    // Keep compatibility aliases used by the frontend
-    nomeOrgao: item.nomeOrgao,
-    orgao: item.nomeOrgao,
-    destinatarioNome: item.destinatarioNome,
-    destinatario: item.destinatarioNome,
+      // Keep compatibility aliases used by the frontend
+      nomeOrgao: item.nomeOrgao,
+      orgao: item.nomeOrgao,
+      destinatarioNome: item.destinatarioNome,
+      destinatario: item.destinatarioNome,
 
-    // Truncate content to avoid memory issues
-    texto: typeof item.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined,
-    teor: typeof item.teor === "string" ? item.teor.slice(0, MAX_TEXT_LENGTH) : undefined,
-  });
+      // Truncate content aggressively to avoid memory issues
+      texto: typeof item.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined,
+      teor: typeof item.teor === "string" ? item.teor.slice(0, MAX_TEXT_LENGTH) : undefined,
+    };
+  };
 
   const endpoints = [`${PJE_COMUNICA_API}/comunicacao`, `${PJE_COMUNICA_API}/comunicacoes`];
 
@@ -416,10 +423,10 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   }
 
   // Legacy mode: fetch multiple pages (used by internal backfill jobs).
-  // Keep strict limits to avoid worker OOM.
+  // Keep VERY strict limits to avoid worker OOM (WORKER_LIMIT 546).
   if (params.fetchAll) {
-    const MAX_PAGES = 8; // Reduced from 15 to 8 (800 items max)
-    const MAX_ITEMS = 800; // Reduced from 1500 to prevent OOM
+    const MAX_PAGES = 4; // Reduced from 8 to 4 (400 items max)
+    const MAX_ITEMS = 400; // Reduced from 800 to prevent OOM
 
     for (const endpoint of endpoints) {
       let totalExpected: number | null = null;
@@ -732,25 +739,10 @@ serve(async (req) => {
       fetchAll: !!fetchAll,
     };
 
-    // For fetchAll we skip cache to avoid keeping large results in memory.
-    const cacheKey = getCacheKey(searchParams);
-
-    if (!searchParams.fetchAll) {
-      const cachedResult = getFromCache(cacheKey);
-      if (cachedResult) {
-        console.log("Cache HIT for:", cacheKey);
-        return new Response(JSON.stringify({ success: true, cached: true, ...cachedResult }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
-
-    console.log("Cache MISS, fetching from API...");
+    // Cache is DISABLED to prevent memory exhaustion (WORKER_LIMIT 546)
+    // Each request fetches fresh data to avoid memory accumulation
+    console.log("Fetching from API (cache disabled for memory safety)...");
     const result = await searchPJEComunica(searchParams, jinaApiKey);
-
-    if (!searchParams.fetchAll) {
-      setCache(cacheKey, result);
-    }
 
     return new Response(JSON.stringify({ success: true, cached: false, ...result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
