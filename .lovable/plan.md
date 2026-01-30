@@ -1,201 +1,196 @@
 
 
-# Plano: Corrigir Deduplicação por Data de Disponibilização + Busca com/sem Acentos
+# Plano: Solução Definitiva para Captura DJEN por Termos
 
-## Problemas Identificados
+## Problema Identificado
 
-### Problema 1: Deduplicação Incorreta
-A publicação do TJDFT (processo `0705883-56.2026.8.07.0016`) foi disponibilizada duas vezes:
+Com base na investigação detalhada do banco de dados e código, encontrei **dois problemas centrais** que estão causando a perda de publicações:
 
-| Versão | Data Disponibilização | Data Publicação | Status |
-|--------|----------------------|-----------------|--------|
-| 1ª | 27/01/2026 | 28/01/2026 | Capturada |
-| 2ª | 29/01/2026 | 30/01/2026 | Descartada como duplicata |
+### Problema 1: Monitoramento Processando Poucos Tribunais
 
-**Causa**: O hash global usa `data_publicacao` (linha 904), mas deveria usar `data_disponibilizacao` para tratar cada ato de disponibilização como distinto.
+A última execução mostra:
+```
+processados: 3 de 118 monitoramentos
+tribunais_stats: [TJSP, TRT10] apenas
+novas: 0
+```
 
-### Problema 2: Busca Sensível a Acentos
-O termo "União Quimica Farmacêutica Nacional" não encontra publicações escritas como "UNIAO QUIMICA FARMACEUTICA NACIONAL" porque a API faz busca literal.
+**Causa**: O parâmetro `max_por_invocacao: 5` combinado com 118 monitoramentos significa que cada execução só processa ~5 monitoramentos. Com 35+ tribunais configurados no monitoramento "União Química", o sistema está levando múltiplas invocações para cobrir todos os tribunais, e o loop está sendo interrompido antes de processar TJRJ, TJRS, TJDFT, TJBA.
+
+### Problema 2: Termo de Busca Não Encontra Todas as Variações
+
+O monitoramento está configurado com:
+```
+termo_busca: "União Quimica Farmacêutica Nacional"
+```
+
+Mas as publicações no DJEN estão escritas como:
+- `UNIAO QUIMICA FARMACEUTICA NACIONAL S A` (sem acentos, com "S A")
+- `UNIÃO QUÍMICA FARMACÊUTICA NACIONAL S/A` (com acentos, com "S/A")
+- `União Química Farmacêutica Nacional S.A.` (misto)
+
+A normalização de acentos já existe (linhas 779-791), mas:
+1. A variante **não inclui sufixos corporativos** ("S A", "S/A", "LTDA")
+2. O loop de tribunais **pode ser interrompido por timeout** antes de processar todos
 
 ---
 
-## Solução
+## Solução Proposta
 
-### Parte 1: Alterar Hash Global para Usar Data de Disponibilização
-
-**Arquivo**: `supabase/functions/monitorar-djen/index.ts`
-
-**Mudança 1 - Função generateGlobalHash (linhas 596-599)**:
-```typescript
-// ANTES:
-function generateGlobalHash(conteudo: string, dataPublicacao: string): string {
-  const normalized = (conteudo + dataPublicacao).toLowerCase().replace(/\s+/g, ' ').trim();
-  return generateHash(normalized);
-}
-
-// DEPOIS:
-function generateGlobalHash(conteudo: string, dataDisponibilizacao: string): string {
-  // Usar data de disponibilização para que republicações do mesmo conteúdo
-  // em datas diferentes sejam tratadas como registros distintos
-  const normalized = (conteudo + dataDisponibilizacao).toLowerCase().replace(/\s+/g, ' ').trim();
-  return generateHash(normalized);
-}
-```
-
-**Mudança 2 - Chamada do generateGlobalHash (linha 904)**:
-```typescript
-// ANTES:
-const globalHash = generateGlobalHash(conteudo, dataPublicacao);
-
-// DEPOIS:
-const globalHash = generateGlobalHash(conteudo, dataDisponibilizacao);
-```
-
-**Mudança 3 - Hash do conteúdo (linha 841)**:
-```typescript
-// ANTES:
-const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
-
-// DEPOIS:
-// Priorizar data_disponibilizacao para consistência com globalHash
-const hashConteudo = generateHash(conteudo + (pub.dataDisponibilizacao || pub.dataPublicacao || pub.data || ''));
-```
-
-### Parte 2: Adicionar Variante de Busca Sem Acentos
+### Parte 1: Aumentar Cobertura de Tribunais por Execução
 
 **Arquivo**: `supabase/functions/monitorar-djen/index.ts`
 
-**Mudança nas linhas 773-774** (tipo palavra-chave):
-```typescript
-// ANTES:
-} else if (monitoramento.tipo === "palavra-chave") {
-  searchCandidates.push({ texto: monitoramento.termo_busca });
-}
+Alterar a lógica para processar TODOS os tribunais de cada monitoramento antes de pular para o próximo, em vez de processar N monitoramentos por invocação:
 
-// DEPOIS:
-} else if (monitoramento.tipo === "palavra-chave") {
-  const termo = monitoramento.termo_busca;
-  searchCandidates.push({ texto: termo });
-  
-  // Adicionar variante sem acentos para melhor cobertura
-  const termoSemAcento = termo
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')  // Remove acentos
-    .replace(/[\/]/g, ' ')             // S/A -> S A
-    .replace(/\s+/g, ' ')              // Normaliza espaços
-    .trim();
-  
-  // Se a variante for diferente, adicionar como candidato adicional
-  if (termoSemAcento.toLowerCase() !== termo.toLowerCase()) {
-    searchCandidates.push({ texto: termoSemAcento });
-    console.log(`[DJEN] Variante sem acento adicionada: "${termoSemAcento}"`);
-  }
-}
-```
+1. Mudar o loop para processar cada monitoramento completamente (todos seus tribunais)
+2. Usar soft-timeout para garantir que pelo menos 1 monitoramento seja processado por completo
+3. Salvar progresso por monitoramento, não por lote genérico
 
-**Mudança similar nas linhas 777-783** (tipo parte):
-```typescript
-// ANTES:
-} else if (monitoramento.tipo === "parte") {
-  const termo = (monitoramento.termo_busca || "").trim();
-  if (termo.length >= 3) {
-    searchCandidates.push({ texto: termo });
-    console.log(`Parte search: "${termo}"`);
-  }
-}
+### Parte 2: Melhorar Geração de Variantes de Busca
 
-// DEPOIS:
-} else if (monitoramento.tipo === "parte") {
-  const termo = (monitoramento.termo_busca || "").trim();
-  if (termo.length >= 3) {
-    searchCandidates.push({ texto: termo });
-    
-    // Variante sem acentos
-    const termoSemAcento = termo
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[\/]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    if (termoSemAcento.toLowerCase() !== termo.toLowerCase()) {
-      searchCandidates.push({ texto: termoSemAcento });
-      console.log(`[DJEN] Parte variante sem acento: "${termoSemAcento}"`);
-    }
-    
-    console.log(`Parte search: "${termo}"`);
-  }
-}
-```
+**Arquivo**: `supabase/functions/monitorar-djen/index.ts` (linhas 775-814)
 
-### Parte 3: Alinhar Frontend (djenDedup.ts)
+Adicionar mais variantes de busca para termos empresariais:
 
-**Arquivo**: `src/utils/djenDedup.ts`
-
-**Mudança nas linhas 37-44** (priorizar data_disponibilizacao):
-```typescript
-// ANTES:
-// Cascata de datas: publicação > disponibilização > created_at
-let dataPrimaria = extractDateKey(pub.data_publicacao);
-if (dataPrimaria === "null") {
-  dataPrimaria = extractDateKey(pub.data_disponibilizacao);
-}
-if (dataPrimaria === "null") {
-  dataPrimaria = extractDateKey(pub.created_at);
-}
-
-// DEPOIS:
-// Cascata de datas: disponibilização > publicação > created_at
-// Prioriza data_disponibilizacao para alinhar com backend e tratar
-// republicações como registros distintos
-let dataPrimaria = extractDateKey(pub.data_disponibilizacao);
-if (dataPrimaria === "null") {
-  dataPrimaria = extractDateKey(pub.data_publicacao);
-}
-if (dataPrimaria === "null") {
-  dataPrimaria = extractDateKey(pub.created_at);
-}
-```
-
----
-
-## Seção Técnica
-
-### Arquivos Modificados
-
-| Arquivo | Linhas | Mudança |
-|---------|--------|---------|
-| `supabase/functions/monitorar-djen/index.ts` | 596-599 | Renomear parâmetro para `dataDisponibilizacao` |
-| `supabase/functions/monitorar-djen/index.ts` | 841 | Priorizar `dataDisponibilizacao` no hashConteudo |
-| `supabase/functions/monitorar-djen/index.ts` | 904 | Passar `dataDisponibilizacao` para `generateGlobalHash` |
-| `supabase/functions/monitorar-djen/index.ts` | 773-783 | Adicionar variantes sem acento para palavra-chave e parte |
-| `src/utils/djenDedup.ts` | 37-44 | Priorizar `data_disponibilizacao` na chave de dedup |
-
-### Lógica de Normalização de Acentos
 ```text
-"União Quimica Farmacêutica Nacional"
-    ↓ normalize('NFD')
-"União Quimica Farmacêutica Nacional" (decomposed)
-    ↓ replace(/[\u0300-\u036f]/g, '')
-"Uniao Quimica Farmaceutica Nacional"
+Termo original: "União Quimica Farmacêutica Nacional"
+Variantes geradas:
+1. "União Quimica Farmacêutica Nacional" (original)
+2. "UNIAO QUIMICA FARMACEUTICA NACIONAL" (sem acentos)
+3. "UNIAO QUIMICA" (prefixo curto - para capturar variações)
 ```
 
-### Impacto Esperado
+A variante de prefixo curto é importante porque:
+- A API do PJE Comunica usa busca por substring
+- "UNIAO QUIMICA" encontra tanto "UNIAO QUIMICA FARMACEUTICA NACIONAL S A" quanto "UNIÃO QUÍMICA FARMACÊUTICA NACIONAL S/A"
 
-1. **Deduplicação**: Publicações republicadas pelo tribunal em datas de disponibilização diferentes serão capturadas como registros distintos
-2. **Busca**: Termos com acentos também buscarão a variante sem acentos, aumentando a cobertura
-3. **Compatibilidade**: Nenhum impacto negativo em publicações existentes
+### Parte 3: Sincronização Manual via Navegador
 
-### Ação Pós-Implementação
-Após deploy da edge function, executar novamente o monitoramento DJEN para capturar as publicações que foram erroneamente descartadas.
+**Arquivos novos**:
+- `src/hooks/useSincronizarDjenBrowser.ts`
+- `src/components/djen/BotaoSincronizarDjen.tsx`
+
+**Arquivo modificado**:
+- `src/pages/MonitoramentoDjen.tsx` ou `src/pages/AnaliseDjen.tsx`
+
+Adicionar um botão "Sincronizar Agora" que:
+1. Busca os monitoramentos ativos do usuário
+2. Para cada monitoramento, executa busca via navegador (usando `pjeComunicaClient.ts`)
+3. Insere as publicações encontradas diretamente no banco
+4. Mostra progresso em tempo real
+
+**Vantagens**:
+- Contorna bloqueios de IP do backend
+- Permite ao usuário forçar captura quando necessário
+- Não depende de cron jobs ou Edge Functions
 
 ---
 
-## ✅ IMPLEMENTADO EM 30/01/2026
+## Arquivos a Modificar/Criar
 
-Todas as alterações foram aplicadas com sucesso:
-- `generateGlobalHash` agora usa `dataDisponibilizacao`
-- `hashConteudo` prioriza `dataDisponibilizacao`
-- Busca inclui variantes sem acentos automaticamente
-- Frontend `djenDedup.ts` alinhado com backend
+### 1. `supabase/functions/monitorar-djen/index.ts`
+
+**Linha 775-814** - Melhorar geração de variantes:
+- Adicionar lógica para extrair prefixo significativo do termo (primeiras 2-3 palavras)
+- Garantir que variantes sem acento sejam sempre geradas
+
+**Linhas 827-877** - Garantir processamento de todos tribunais:
+- Remover break condicional que pode interromper antes de processar todos os tribunais
+- Adicionar log detalhado por tribunal processado
+
+### 2. `src/hooks/useSincronizarDjenBrowser.ts` (NOVO)
+
+Hook React que:
+- Recebe lista de monitoramentos
+- Executa busca sequencial via `buscarPjeComunicaPaginado`
+- Retorna progresso e resultados
+
+### 3. `src/components/djen/BotaoSincronizarDjen.tsx` (NOVO)
+
+Componente de botão com:
+- Estado de loading
+- Progresso (X de Y monitoramentos)
+- Toast de sucesso/erro
+
+### 4. `src/pages/MonitoramentoDjen.tsx`
+
+Adicionar o botão de sincronização na área de ações
+
+---
+
+## Detalhes Técnicos
+
+### Lógica de Variantes de Busca Melhorada
+
+```text
+Entrada: "União Quimica Farmacêutica Nacional"
+
+Processamento:
+1. Original: "União Quimica Farmacêutica Nacional"
+2. Sem acentos: "Uniao Quimica Farmaceutica Nacional"
+3. Prefixo (2 palavras): "Uniao Quimica"
+
+Todas as variantes são buscadas sequencialmente,
+resultados são agregados e deduplicados por ID.
+```
+
+### Fluxo de Sincronização via Navegador
+
+```text
+[Usuário clica "Sincronizar"]
+         |
+         v
+[useSincronizarDjenBrowser]
+         |
+         | Busca monitoramentos ativos
+         v
+[monitoramentos_djen] (Supabase)
+         |
+         | Para cada monitoramento:
+         v
+[buscarPjeComunicaPaginado] (pjeComunicaClient.ts)
+         |
+         | IP do usuário (não bloqueado)
+         v
+[comunicaapi.pje.jus.br]
+         |
+         | Retorna publicações
+         v
+[Verifica hash global para evitar duplicatas]
+         |
+         v
+[Insere em publicacoes_djen] (Supabase)
+```
+
+### Hash de Deduplicação
+
+O sistema já usa `generateGlobalHash(conteudo, dataDisponibilizacao)` para evitar duplicatas. A sincronização via navegador deve usar a mesma lógica:
+
+1. Calcular hash da publicação
+2. Verificar se existe em `publicacoes_djen_global_hash`
+3. Se não existe, inserir em `publicacoes_djen` e registrar hash
+
+---
+
+## Resultado Esperado
+
+Após implementação:
+
+1. **Publicação TJDFT 0705883-56.2026** (29/01): Capturada pela variante "UNIAO QUIMICA"
+2. **Publicação TJRJ 0098834-12.2016** (29/01): Capturada pela variante "UNIAO QUIMICA"
+3. **Publicação TJRS 5292250-81.2024** (29/01): Capturada pela variante "UNIAO QUIMICA"
+4. **Publicação TJSP 1007378-45.2019** (29/01): Capturada pela variante "UNIAO QUIMICA"
+5. **Publicação TJSP 0007895-08.2025** (29/01): Capturada pela variante "UNIAO QUIMICA"
+
+---
+
+## Ação Imediata Recomendada
+
+Enquanto a implementação completa é feita, executar manualmente:
+
+1. Na tela de Buscar DJEN, pesquisar por "UNIAO QUIMICA" para cada tribunal (TJDFT, TJRJ, TJRS, TJSP)
+2. As publicações encontradas serão inseridas automaticamente
+
+Isso garante que as publicações do Dr. Thomás apareçam hoje enquanto a solução definitiva é implementada.
 
