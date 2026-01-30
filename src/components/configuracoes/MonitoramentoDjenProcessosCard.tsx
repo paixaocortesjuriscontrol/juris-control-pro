@@ -98,10 +98,18 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   const resumeFromOffset = stableTotalForResume > 0
     ? Math.min(resumeFromOffsetRaw, stableTotalForResume)
     : resumeFromOffsetRaw;
+  
+  // Detecta se falhou e precisa de retomada (502, timeout, etc.)
+  const hasFailed = metadata?.status === 'falhou' || metadata?.status === 'erro' || metadata?.status === 'timeout';
+  
+  // Mostrar botão Retomar se:
+  // 1. Não foi cancelado pelo usuário
+  // 2. Tem checkpoint válido (next_offset > 0)
+  // 3. Ainda não atingiu o total OU falhou/teve erro
   const shouldShowRetomar =
     !wasCancelledByUser &&
     (nextOffset ?? 0) > 0 &&
-    (stableTotalForResume <= 0 || resumeFromOffset < stableTotalForResume);
+    (hasFailed || stableTotalForResume <= 0 || resumeFromOffset < stableTotalForResume);
 
   // Buscar estatísticas
   const { data: stats } = useQuery({

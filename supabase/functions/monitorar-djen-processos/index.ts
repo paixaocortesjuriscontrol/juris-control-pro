@@ -1176,16 +1176,72 @@ serve(async (req) => {
         const p = (async () => {
           // Throttle ENTRE LOTES (não entre chunks) conforme CONFIG.delay_entre_lotes
           await delay(BASE_DELAY);
-          const r = await fetch(nextUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseAnonKey}`,
-            },
-            body: JSON.stringify(nextBody),
-          });
-          const t = await r.text().catch(() => '');
-           console.log(`[DJEN Processos] Queued next batch offset=${checkpointNow} status=${r.status} body=${t.slice(0, 200)}`);
+          
+          // Retry logic para encadeamento - evita travamento em 99%
+          const maxChainRetries = 3;
+          let chainSuccess = false;
+          
+          for (let attempt = 0; attempt < maxChainRetries; attempt++) {
+            try {
+              const r = await fetch(nextUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${supabaseAnonKey}`,
+                },
+                body: JSON.stringify(nextBody),
+              });
+              const t = await r.text().catch(() => '');
+              console.log(`[DJEN Processos] Queued next batch offset=${checkpointNow} status=${r.status} body=${t.slice(0, 200)}`);
+              
+              // Considerar sucesso se status é 2xx ou a função foi invocada (mesmo que tenha erro interno)
+              if (r.status >= 200 && r.status < 500) {
+                chainSuccess = true;
+                break;
+              }
+              
+              // Para 5xx (502, 504, etc) tentar novamente com backoff
+              if (r.status >= 500) {
+                const waitTime = 5000 * Math.pow(2, attempt); // 5s, 10s, 20s
+                console.log(`[DJEN Processos] Chain call failed (${r.status}), retrying in ${waitTime}ms (attempt ${attempt + 1}/${maxChainRetries})`);
+                await delay(waitTime);
+                continue;
+              }
+            } catch (fetchErr) {
+              const waitTime = 5000 * Math.pow(2, attempt);
+              console.log(`[DJEN Processos] Chain fetch error, retrying in ${waitTime}ms (attempt ${attempt + 1}/${maxChainRetries}):`, fetchErr);
+              await delay(waitTime);
+            }
+          }
+          
+          // Se todas as tentativas falharam, marcar como erro para permitir retomada
+          if (!chainSuccess) {
+            console.error('[DJEN Processos] All chain retries failed - marking as failed for manual resume');
+            await supabase
+              .from('configuracoes_monitoramento')
+              .update({
+                metadata: {
+                  ...((await supabase.from('configuracoes_monitoramento').select('metadata').eq('tipo', 'djen_processos').is('coordenacao_id', null).maybeSingle()).data?.metadata as Record<string, any> || {}),
+                  status: 'falhou',
+                  last_error: 'Encadeamento falhou após 3 tentativas (502/504). Use Retomar.',
+                  erro_em: new Date().toISOString(),
+                  pode_retomar: true,
+                },
+              })
+              .eq('tipo', 'djen_processos')
+              .is('coordenacao_id', null);
+              
+            // Também atualizar execucao_agendada
+            if (execucaoId) {
+              await updateExecucaoProgress(supabase, execucaoId, {
+                status: 'falhou',
+                finalizado_em: new Date().toISOString(),
+                detalhes: {
+                  erro: 'Encadeamento falhou após 3 tentativas',
+                },
+              });
+            }
+          }
         })().catch((e) => console.error('[DJEN Processos] Failed to queue next batch', e));
 
         const er = (globalThis as any).EdgeRuntime;
