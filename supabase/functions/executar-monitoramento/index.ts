@@ -120,17 +120,23 @@ Deno.serve(async (req) => {
         const iniciado = new Date(execucao.iniciado_em);
         const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
 
-        // Se está executando há mais de 60 minutos, marcar como timeout
-        if (minutosDecorridos > 60) {
+        // TIMEOUT INTELIGENTE: só aplicar timeout absoluto se TAMBÉM não houver progresso recente
+        // Isso permite execuções longas quando a API DataJud está lenta mas o worker ainda está processando
+        if (minutosDecorridos > 60 && heartbeatStale) {
+          console.log(`[${tipo}] Timeout após ${Math.round(minutosDecorridos)}min SEM progresso recente (heartbeat stale)`);
           await supabase
             .from('execucoes_agendadas')
             .update({ 
               status: 'timeout', 
               finalizado_em: agora.toISOString(),
-              ultimo_erro: `Timeout após ${Math.round(minutosDecorridos)} minutos`
+              ultimo_erro: `Timeout após ${Math.round(minutosDecorridos)} minutos sem progresso`
             })
             .eq('id', execucao.id);
           continue;
+        }
+        // Se há progresso recente, NÃO aplicar timeout (log para visibilidade)
+        if (minutosDecorridos > 60) {
+          console.log(`[${tipo}] Execução há ${Math.round(minutosDecorridos)}min, mas com heartbeat ativo - continuando`);
         }
 
         // Se é do mesmo tipo, bloquear
