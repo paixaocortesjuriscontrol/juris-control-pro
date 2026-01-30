@@ -962,11 +962,13 @@ serve(async (req) => {
             ultima_execucao: new Date().toISOString(),
             metadata: {
               ...(config.metadata || {}),
+              status: 'concluido',
               last_complete_run: new Date().toISOString(),
               next_offset: 0,
             },
           })
-          .eq('tipo', 'djen_processos');
+          .eq('tipo', 'djen_processos')
+          .is('coordenacao_id', null);
       }
 
       return new Response(
@@ -997,8 +999,10 @@ serve(async (req) => {
       await supabase
         .from('configuracoes_monitoramento')
         .update({
-          // Só marca "ultima_execucao" quando começa um ciclo completo (offset 0)
-          ultima_execucao: offset === 0 ? new Date().toISOString() : config.ultima_execucao,
+          // Heartbeat: deve ser atualizado durante toda a execução.
+          // Caso contrário, o orquestrador (executar-monitoramento) marca como "stale" após alguns minutos
+          // mesmo com progresso real, causando o efeito "vai e volta / nunca acaba".
+          ultima_execucao: new Date().toISOString(),
           metadata: {
             ...(config.metadata || {}),
             // Campos para sincronização realtime via useRealtimeProgress
@@ -1006,6 +1010,12 @@ serve(async (req) => {
             total: totalProcessos || 0,
             novas: totalNovas,
             status: hasMore ? 'em_andamento' : 'concluido',
+            has_more: hasMore,
+
+            // Limpar marcações de erro/stale quando há progresso real
+            last_stop_reason: hasMore ? null : 'completed',
+            last_stop_at: hasMore ? null : new Date().toISOString(),
+            last_error: null,
             // Campos legados de paginação
             next_offset: hasMore ? nextOffset : 0,
             last_batch_processos: processos.length,
@@ -1014,7 +1024,8 @@ serve(async (req) => {
             last_batch_tempo_ms: Date.now() - startTime,
           },
         })
-        .eq('tipo', 'djen_processos');
+        .eq('tipo', 'djen_processos')
+        .is('coordenacao_id', null);
     }
 
     // Log history (lote)
@@ -1064,6 +1075,7 @@ serve(async (req) => {
         .from('configuracoes_monitoramento')
         .select('metadata')
         .eq('tipo', 'djen_processos')
+        .is('coordenacao_id', null)
         .maybeSingle();
 
       const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
@@ -1077,7 +1089,8 @@ serve(async (req) => {
             // Mantém next_offset para poder retomar de onde parou
             metadata: { ...currentMeta, cancelado: false, status: 'cancelado', pode_retomar: true },
           })
-          .eq('tipo', 'djen_processos');
+          .eq('tipo', 'djen_processos')
+          .is('coordenacao_id', null);
       } else {
         const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen-processos`;
         const nextBody = {
