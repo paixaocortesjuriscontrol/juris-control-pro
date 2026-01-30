@@ -234,6 +234,7 @@ export function DjenTermosDashboardCard({
     progresso,
     executarMonitoramento,
     cancelarExecucao,
+    forceResetState,
     verificarCheckpoint,
     limparCheckpoint,
   } = useBuscaDjenDireta();
@@ -485,14 +486,8 @@ export function DjenTermosDashboardCard({
   const handleForceCancelar = async () => {
     setForcandoCancelamento(true);
     try {
-      // Se houver loop local, pedir cancelamento cooperativo também (aborta requests em andamento)
-      if (localRunActive) {
-        try {
-          cancelarExecucao();
-        } catch {
-          // não bloquear cancelamento forçado no banco
-        }
-      }
+      // SEMPRE forçar reset do estado local primeiro (aborta qualquer loop/request pendente)
+      forceResetState();
 
       // FORÇA: Cancelar TODAS as execuções DJEN com status='executando', 
       // independente de finalizado_em (para limpar execuções inconsistentes)
@@ -514,13 +509,6 @@ export function DjenTermosDashboardCard({
           .in('id', ids);
         
         console.log(`[DJEN] Forçou cancelamento de ${ids.length} execução(ões):`, ids);
-      }
-
-      // Limpar localStorage para resetar estado local
-      try {
-        localStorage.removeItem('djen-direta-progresso');
-      } catch {
-        // silencioso
       }
 
       // Limpar/ajustar metadata da config também
