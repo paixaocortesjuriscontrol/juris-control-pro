@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { buscarPjeComunicaNoBrowser } from "@/utils/pjeComunicaClient";
+import { buscarPjeComunicaPaginado } from "@/utils/pjeComunicaClient";
 
 interface MonitoramentoDjen {
   id: string;
@@ -543,17 +543,22 @@ export function useBuscaDjenDireta() {
   const buscarMonitoramento = async (monitoramento: MonitoramentoDjen): Promise<PublicacaoResultado[]> => {
     if (cancelarRef.current) return [];
 
-    const hoje = new Date();
-    const dataInicio = new Date(hoje);
-    dataInicio.setDate(dataInicio.getDate() - 1);
+    // Usar data em Brasília para alinhar com a API e evitar “virada do dia” em UTC
+    const now = new Date();
+    const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const yesterdayBrasilia = new Date(todayBrasilia);
+    yesterdayBrasilia.setDate(yesterdayBrasilia.getDate() - 1);
+
+    const dataFimYmd = todayBrasilia.toISOString().split('T')[0];
+    const dataInicioYmd = yesterdayBrasilia.toISOString().split('T')[0];
 
     const tipoMapeado = monitoramento.tipo === 'parte' ? 'palavra-chave' : monitoramento.tipo;
 
     const params: Record<string, any> = {
       tipo: tipoMapeado,
-      dataInicio: dataInicio.toISOString().split('T')[0],
-      dataFim: hoje.toISOString().split('T')[0],
-      pageSize: 50,
+      dataInicio: dataInicioYmd,
+      dataFim: dataFimYmd,
+      pageSize: 100,
       fetchAll: false,
     };
 
@@ -594,44 +599,116 @@ export function useBuscaDjenDireta() {
       let error: Error | null = null;
 
       try {
-        data = await buscarPjeComunicaNoBrowser(
-          {
-            tipo: params.tipo,
-            oab: params.oab,
-            uf: params.uf,
-            palavraChave: params.palavraChave,
-            numeroProcesso: params.numeroProcesso,
-            dataInicio: params.dataInicio,
-            dataFim: params.dataFim,
-            page: params.page ?? 0,
-            pageSize: params.pageSize ?? 50,
-          },
-          { signal: browserController.signal }
-        );
+        // Monitoramento pode ter filtro de tribunais: buscar por tribunal reduz volume e evita
+        // “perder” resultados por paginação (ex: item fica depois do 50º/100º resultado).
+        const tribunais = Array.isArray(monitoramento.tribunais) && monitoramento.tribunais.length > 0
+          ? monitoramento.tribunais
+          : [undefined];
+
+        const seen = new Set<string>();
+        const acumulado: any[] = [];
+
+        for (const trib of tribunais) {
+          if (cancelarRef.current) break;
+
+          const resp = await buscarPjeComunicaPaginado(
+            {
+              tipo: params.tipo,
+              oab: params.oab,
+              uf: params.uf,
+              palavraChave: params.palavraChave,
+              numeroProcesso: params.numeroProcesso,
+              siglaTribunal: trib,
+              dataInicio: params.dataInicio,
+              dataFim: params.dataFim,
+              page: 0,
+              pageSize: params.pageSize ?? 100,
+            },
+            {
+              signal: browserController.signal,
+              maxPages: 10,
+              delayMs: 150,
+            }
+          );
+
+          for (const item of resp.items) {
+            const id = String(item?.id ?? "");
+            const key = id || JSON.stringify(item).slice(0, 400);
+            if (!seen.has(key)) {
+              seen.add(key);
+              acumulado.push(item);
+            }
+          }
+
+          // Pequeno delay entre tribunais para reduzir 429
+          await delay(120);
+        }
+
+        data = { comunicacoes: acumulado, items: acumulado };
       } catch (browserErr: any) {
         // 2) Fallback para Edge Function apenas quando o browser falhar (ex: CORS/rede)
-        const timeoutController = new AbortController();
-        const timeoutId = setTimeout(() => timeoutController.abort(), 60000);
+        //    Importante: paginar também no fallback, senão perdemos publicações fora da 1ª página.
+        const MAX_PAGES_FALLBACK = 10;
+        const TIMEOUT_PER_PAGE_MS = 30_000;
 
-        const invokePromise = invokeWithRetry<any>("buscar-djen", params);
-        const raced = await Promise.race([
-          invokePromise,
-          new Promise<{ data: null; error: Error }>((_, reject) => {
-            timeoutController.signal.addEventListener("abort", () => {
-              reject({ data: null, error: new Error("Timeout ao buscar DJEN (60s)") });
-            });
-          }),
-        ]).finally(() => clearTimeout(timeoutId));
+        const fetchPage = async (page: number) => {
+          const timeoutController = new AbortController();
+          const timeoutId = setTimeout(() => timeoutController.abort(), TIMEOUT_PER_PAGE_MS);
 
-        data = raced.data;
-        error = raced.error;
-        if (browserErr && !error) {
-          // manter visível o motivo do fallback em logs (sem quebrar)
-          console.warn(
-            `[DJEN Direta] Browser falhou, usando Edge Function (${monitoramento.termo_busca}):`,
-            browserErr?.message || browserErr
-          );
+          const invokePromise = invokeWithRetry<any>("buscar-djen", {
+            ...params,
+            page,
+            pageSize: params.pageSize ?? 100,
+            fetchAll: false,
+          });
+
+          const raced = await Promise.race([
+            invokePromise,
+            new Promise<{ data: null; error: Error }>((_, reject) => {
+              timeoutController.signal.addEventListener("abort", () => {
+                reject({ data: null, error: new Error(`Timeout ao buscar DJEN (${TIMEOUT_PER_PAGE_MS / 1000}s)`) });
+              });
+            }),
+          ]).finally(() => clearTimeout(timeoutId));
+
+          return raced;
+        };
+
+        const seen = new Set<string>();
+        const acumulado: any[] = [];
+
+        for (let p = 0; p < MAX_PAGES_FALLBACK; p++) {
+          if (cancelarRef.current) break;
+          const raced = await fetchPage(p);
+          if (raced.error) {
+            error = raced.error;
+            break;
+          }
+
+          const comunicacoes = raced.data?.comunicacoes || raced.data?.items || [];
+          if (!Array.isArray(comunicacoes) || comunicacoes.length === 0) break;
+
+          for (const item of comunicacoes) {
+            const id = String(item?.id ?? "");
+            const key = id || JSON.stringify(item).slice(0, 400);
+            if (!seen.has(key)) {
+              seen.add(key);
+              acumulado.push(item);
+            }
+          }
+
+          const hasMore = Boolean(raced.data?.hasMore);
+          if (!hasMore) break;
+
+          await delay(150);
         }
+
+        data = { comunicacoes: acumulado, items: acumulado };
+
+        console.warn(
+          `[DJEN Direta] Browser falhou, usando Edge Function (${monitoramento.termo_busca}):`,
+          browserErr?.message || browserErr
+        );
       } finally {
         clearTimeout(browserTimeoutId);
       }

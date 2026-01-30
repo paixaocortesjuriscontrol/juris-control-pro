@@ -1098,12 +1098,13 @@ async function fetchDJENResultsWithStats(
   const dataHoje = todayBrasilia.toISOString().split('T')[0];
 
   // Importante: o parâmetro da API é dataDisponibilizacao (muitas vezes 1 dia antes da data_publicacao).
-  // Para não perder publicações “virando o dia”, em execuções agendadas buscamos ontem->hoje por padrão.
+  // Para não perder publicações “virando o dia” (ex: publicação 30/01 com disponibilização 29/01),
+  // o monitoramento deve buscar ontem->hoje por padrão, mesmo em execução manual.
   const yesterdayBrasilia = new Date(todayBrasilia);
   yesterdayBrasilia.setDate(yesterdayBrasilia.getDate() - 1);
   const dataOntem = yesterdayBrasilia.toISOString().split('T')[0];
 
-  const defaultInicio = options.scheduled ? dataOntem : dataHoje;
+  const defaultInicio = dataOntem;
   const defaultFim = dataHoje;
 
   while (page < maxPages) {

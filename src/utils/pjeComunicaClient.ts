@@ -9,6 +9,8 @@ export interface PjeComunicaSearchParams {
   uf?: string;
   palavraChave?: string;
   numeroProcesso?: string;
+  /** Filtro opcional (ex: TJRJ, TJSP, TRF2...) */
+  siglaTribunal?: string;
   dataInicio?: string;
   dataFim?: string;
   page?: number;
@@ -24,6 +26,11 @@ export interface PjeComunicaResponse {
   page: number;
   pageSize: number;
   hasMore: boolean;
+}
+
+export interface PjeComunicaPaginatedResponse extends PjeComunicaResponse {
+  pagesFetched: number;
+  truncated: boolean;
 }
 
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
@@ -102,15 +109,32 @@ export async function buscarPjeComunicaNoBrowser(
   const pageSize = Math.min(Math.max(params.pageSize ?? 100, 1), 100);
 
   const qp = new URLSearchParams();
+
+  // 1) Query principal por texto (compatível com endpoints antigos)
   qp.set("texto", texto);
+
+  // 2) Melhorias para cobertura/precisão:
+  //    - Para advogado, preferir parâmetros nativos (numeroOab/ufOab), pois alguns tribunais
+  //      respondem melhor assim do que via texto "OAB 123 UF".
+  if (params.tipo === "advogado") {
+    const oab = (params.oab || "").trim();
+    const uf = (params.uf || "").trim();
+    if (oab) qp.set("numeroOab", oab);
+    if (uf) qp.set("ufOab", uf);
+  }
+
+  // 3) Filtro por tribunal (quando disponível)
+  if (params.siglaTribunal) qp.set("siglaTribunal", params.siglaTribunal);
+
   if (params.dataInicio) qp.set("dataDisponibilizacaoInicio", params.dataInicio);
   if (params.dataFim) qp.set("dataDisponibilizacaoFim", params.dataFim);
 
-  // API usa tanto pagina/tamanhoPagina quanto page/size; mandamos ambos.
+  // API usa variações de paginação; mandamos todas as mais comuns.
   qp.set("pagina", String(page));
   qp.set("tamanhoPagina", String(pageSize));
   qp.set("page", String(page));
   qp.set("size", String(pageSize));
+  qp.set("itensPorPagina", String(pageSize));
 
   let lastErr: any = null;
 
@@ -157,6 +181,8 @@ export async function buscarPjeComunicaNoBrowser(
         success: true,
         items,
         comunicacoes: items,
+        // count aqui representa o total esperado (não somente o que retornou nesta página)
+        // para manter compatibilidade com o uso atual.
         count: totalElements,
         totalElements,
         page,
@@ -169,4 +195,80 @@ export async function buscarPjeComunicaNoBrowser(
   }
 
   throw lastErr || new Error("Falha ao buscar no PJE Comunica");
+}
+
+// Versão paginada (essencial para o monitoramento), com limite de páginas por segurança.
+export async function buscarPjeComunicaPaginado(
+  params: PjeComunicaSearchParams,
+  options?: {
+    signal?: AbortSignal;
+    maxPages?: number;
+    delayMs?: number;
+  }
+): Promise<PjeComunicaPaginatedResponse> {
+  const maxPages = Math.max(options?.maxPages ?? 10, 1);
+  const delayMs = Math.max(options?.delayMs ?? 150, 0);
+
+  const startPage = Math.max(params.page ?? 0, 0);
+  const pageSize = Math.min(Math.max(params.pageSize ?? 100, 1), 100);
+
+  const all: any[] = [];
+  const seen = new Set<string>();
+
+  let last: PjeComunicaResponse | null = null;
+  let pagesFetched = 0;
+  let truncated = false;
+
+  for (let p = startPage; p < startPage + maxPages; p++) {
+    const resp = await buscarPjeComunicaNoBrowser(
+      { ...params, page: p, pageSize },
+      { signal: options?.signal }
+    );
+    last = resp;
+    pagesFetched += 1;
+
+    for (const item of resp.items) {
+      const id = String(item?.id ?? "");
+      const key = id || JSON.stringify(item).slice(0, 400);
+      if (!seen.has(key)) {
+        seen.add(key);
+        all.push(item);
+      }
+    }
+
+    if (!resp.hasMore || resp.items.length === 0) break;
+
+    if (delayMs > 0) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+
+  if (last?.hasMore) truncated = true;
+
+  // Se por algum motivo não tivemos página alguma, ainda assim garantimos formato.
+  const safeLast: PjeComunicaResponse =
+    last ??
+    ({
+      success: true,
+      items: [],
+      comunicacoes: [],
+      count: 0,
+      totalElements: 0,
+      page: startPage,
+      pageSize,
+      hasMore: false,
+    } satisfies PjeComunicaResponse);
+
+  return {
+    ...safeLast,
+    items: all,
+    comunicacoes: all,
+    // No paginado, count representa o total retornado para consumo imediato.
+    count: all.length,
+    page: startPage,
+    pageSize,
+    hasMore: truncated ? true : false,
+    pagesFetched,
+    truncated,
+  };
 }
