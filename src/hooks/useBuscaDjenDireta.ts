@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
+import { buscarPjeComunicaNoBrowser } from "@/utils/pjeComunicaClient";
 
 interface MonitoramentoDjen {
   id: string;
@@ -585,19 +586,55 @@ export function useBuscaDjenDireta() {
     try {
       if (cancelarRef.current) return [];
 
-      const timeoutController = new AbortController();
-      const timeoutId = setTimeout(() => timeoutController.abort(), 60000); // Increased timeout for retries
+      // 1) Preferir browser (IP do usuário) para evitar 546 WORKER_LIMIT e bloqueios no IP do Supabase
+      const browserController = new AbortController();
+      const browserTimeoutId = setTimeout(() => browserController.abort(), 25000);
 
-      const invokePromise = invokeWithRetry<any>('buscar-djen', params);
+      let data: any | null = null;
+      let error: Error | null = null;
 
-      const { data, error } = await Promise.race([
-        invokePromise,
-        new Promise<{ data: null; error: Error }>((_, reject) => {
-          timeoutController.signal.addEventListener('abort', () => {
-            reject({ data: null, error: new Error('Timeout ao buscar DJEN (60s)') });
-          });
-        }),
-      ]).finally(() => clearTimeout(timeoutId));
+      try {
+        data = await buscarPjeComunicaNoBrowser(
+          {
+            tipo: params.tipo,
+            oab: params.oab,
+            uf: params.uf,
+            palavraChave: params.palavraChave,
+            numeroProcesso: params.numeroProcesso,
+            dataInicio: params.dataInicio,
+            dataFim: params.dataFim,
+            page: params.page ?? 0,
+            pageSize: params.pageSize ?? 50,
+          },
+          { signal: browserController.signal }
+        );
+      } catch (browserErr: any) {
+        // 2) Fallback para Edge Function apenas quando o browser falhar (ex: CORS/rede)
+        const timeoutController = new AbortController();
+        const timeoutId = setTimeout(() => timeoutController.abort(), 60000);
+
+        const invokePromise = invokeWithRetry<any>("buscar-djen", params);
+        const raced = await Promise.race([
+          invokePromise,
+          new Promise<{ data: null; error: Error }>((_, reject) => {
+            timeoutController.signal.addEventListener("abort", () => {
+              reject({ data: null, error: new Error("Timeout ao buscar DJEN (60s)") });
+            });
+          }),
+        ]).finally(() => clearTimeout(timeoutId));
+
+        data = raced.data;
+        error = raced.error;
+        if (browserErr && !error) {
+          // manter visível o motivo do fallback em logs (sem quebrar)
+          console.warn(
+            `[DJEN Direta] Browser falhou, usando Edge Function (${monitoramento.termo_busca}):`,
+            browserErr?.message || browserErr
+          );
+        }
+      } finally {
+        clearTimeout(browserTimeoutId);
+      }
 
       if (cancelarRef.current) return [];
 
