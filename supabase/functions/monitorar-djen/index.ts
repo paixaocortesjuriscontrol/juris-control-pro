@@ -789,6 +789,29 @@ async function processMonitoramento(
       searchCandidates.push({ texto: termoSemAcento });
       console.log(`[DJEN] Variante sem acento adicionada: "${termoSemAcento}"`);
     }
+    
+    // ================== NOVA LÓGICA: PREFIXO CURTO ==================
+    // Para termos empresariais (ex: "União Química Farmacêutica Nacional"),
+    // gerar variante com apenas as 2 primeiras palavras (ex: "UNIAO QUIMICA").
+    // Isso captura variações como "UNIAO QUIMICA FARMACEUTICA NACIONAL S A",
+    // "União Química Farmacêutica Nacional S/A", etc.
+    const palavras = termoSemAcento.split(/\s+/).filter(p => p.length >= 2);
+    if (palavras.length >= 3) {
+      // Prefixo curto = 2 primeiras palavras significativas (min 2 chars cada)
+      const prefixoCurto = palavras.slice(0, 2).join(' ').toUpperCase();
+      
+      // Só adicionar se for diferente das variantes já existentes
+      const jaExiste = searchCandidates.some(c => 
+        c.texto?.toUpperCase() === prefixoCurto
+      );
+      
+      if (!jaExiste && prefixoCurto.length >= 6) {
+        searchCandidates.push({ texto: prefixoCurto });
+        console.log(`[DJEN] Prefixo curto adicionado para maior cobertura: "${prefixoCurto}"`);
+      }
+    }
+    // ================== FIM NOVA LÓGICA ==================
+    
   } else if (monitoramento.tipo === "processo") {
     searchCandidates.push({ texto: monitoramento.termo_busca.replace(/\D/g, "") });
   } else if (monitoramento.tipo === "parte") {
@@ -807,6 +830,19 @@ async function processMonitoramento(
       if (termoSemAcento.toLowerCase() !== termo.toLowerCase()) {
         searchCandidates.push({ texto: termoSemAcento });
         console.log(`[DJEN] Parte variante sem acento: "${termoSemAcento}"`);
+      }
+      
+      // NOVA LÓGICA: Prefixo curto para partes também
+      const palavras = termoSemAcento.split(/\s+/).filter(p => p.length >= 2);
+      if (palavras.length >= 3) {
+        const prefixoCurto = palavras.slice(0, 2).join(' ').toUpperCase();
+        const jaExiste = searchCandidates.some(c => 
+          c.texto?.toUpperCase() === prefixoCurto
+        );
+        if (!jaExiste && prefixoCurto.length >= 6) {
+          searchCandidates.push({ texto: prefixoCurto });
+          console.log(`[DJEN] Parte prefixo curto: "${prefixoCurto}"`);
+        }
       }
       
       console.log(`Parte search: "${termo}"`);
