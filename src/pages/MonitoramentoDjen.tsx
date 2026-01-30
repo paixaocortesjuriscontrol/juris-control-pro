@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Eye,
   Loader2,
@@ -33,10 +33,12 @@ import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
 import { BackfillJobsPanel } from "@/components/djen/BackfillJobsPanel";
 import { AlertasCoordenacaoCard } from "@/components/djen/AlertasCoordenacaoCard";
 import { RelatorioMonitoramentosTab } from "@/components/djen/RelatorioMonitoramentosTab";
+import { BotaoSincronizarDjen } from "@/components/djen/BotaoSincronizarDjen";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { supabase } from "@/integrations/supabase/client";
 
 const MonitoramentoDjen = () => {
+  const queryClient = useQueryClient();
   const [monitoramentoDialogOpen, setMonitoramentoDialogOpen] = useState(false);
   const [monitoramentoParaEditar, setMonitoramentoParaEditar] = useState<any>(null);
   const [backfillPanelOpen, setBackfillPanelOpen] = useState(false);
@@ -48,6 +50,12 @@ const MonitoramentoDjen = () => {
   const [tribunalFilter, setTribunalFilter] = useState("todos");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [termoSearch, setTermoSearch] = useState("");
+
+  // Callback para invalidar queries após sincronização
+  const handleSyncComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
+    queryClient.invalidateQueries({ queryKey: ['monitoramentos-djen'] });
+  };
 
   const { data: coordenacoes = [] } = useQuery({
     queryKey: ['coordenacoes-select'],
@@ -176,6 +184,7 @@ const MonitoramentoDjen = () => {
                     </CardDescription>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <BotaoSincronizarDjen onComplete={handleSyncComplete} />
                     <Button 
                       onClick={() => setBackfillPanelOpen(!backfillPanelOpen)} 
                       variant="outline" 
