@@ -4,6 +4,14 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { buscarPjeComunicaPaginado } from "@/utils/pjeComunicaClient";
+import type { 
+  ProgressoCoordenacao, 
+  TipoTermo, 
+  StatusFase,
+} from "@/types/djenProgress";
+
+// Re-exportar tipos para consumidores do hook
+export type { ProgressoCoordenacao, TipoTermo, StatusFase } from "@/types/djenProgress";
 
 interface MonitoramentoDjen {
   id: string;
@@ -37,6 +45,10 @@ export interface CheckpointDjen {
   tempoAcumulado: number; // segundos
   faseAtual: 1 | 2 | 3;
   executionId?: string; // ID na tabela execucoes_agendadas
+  // V2: Checkpoint por coordenação
+  coordenacoesProcessadas?: string[];
+  coordenacaoAtualId?: string;
+  tipoAtual?: TipoTermo;
 }
 
 // Fases de execução
@@ -68,6 +80,12 @@ export interface ProgressoExecucao {
   hasCheckpoint?: boolean;
   checkpointPercent?: number;
   executionId?: string;
+  
+  // V2: Progresso detalhado por coordenação
+  coordenacoes: ProgressoCoordenacao[];
+  coordenacaoAtualId?: string;
+  tipoAtual?: TipoTermo;
+  termoAtual?: string;
 }
 
 function calcularProximoDiaUtil(dataBase: Date): Date {
@@ -210,6 +228,10 @@ const defaultProgresso = (): ProgressoExecucao => ({
   tempoDecorrido: 0,
   faseAtual: 1,
   fases: defaultFases(),
+  coordenacoes: [],
+  coordenacaoAtualId: undefined,
+  tipoAtual: undefined,
+  termoAtual: undefined,
 });
 
 /**
@@ -913,6 +935,10 @@ export function useBuscaDjenDireta() {
         fase3: { total: 0, processados: 0, status: 'pendente' },
       },
       hasCheckpoint: false,
+      coordenacoes: [],
+      coordenacaoAtualId: undefined,
+      tipoAtual: undefined,
+      termoAtual: undefined,
     };
     
     setProgresso(progressoInicial);
@@ -947,11 +973,97 @@ export function useBuscaDjenDireta() {
         return;
       }
 
+      // Buscar nomes das coordenações
+      const coordenacoesIds = [...new Set(monitoramentos
+        .map(m => m.coordenacao_id)
+        .filter((id): id is string => !!id)
+      )];
+      
+      const { data: coordenacoesData } = coordenacoesIds.length > 0
+        ? await supabase
+            .from('coordenacoes')
+            .select('id, nome')
+            .in('id', coordenacoesIds)
+        : { data: [] };
+      
+      const nomesCoordenacoes = new Map(
+        (coordenacoesData || []).map(c => [c.id, c.nome])
+      );
+
+      // Agrupar monitoramentos por coordenação e tipo
+      const agruparPorCoordenacaoETipo = () => {
+        const grupos = new Map<string, {
+          coordenacao: { id: string; nome: string };
+          advogados: MonitoramentoDjen[];
+          palavrasChave: MonitoramentoDjen[];
+          processos: MonitoramentoDjen[];
+        }>();
+        
+        for (const monRaw of monitoramentos) {
+          // Cast para o tipo correto (Supabase retorna string genérico)
+          const mon = monRaw as unknown as MonitoramentoDjen;
+          const coordId = mon.coordenacao_id || '__sem_coordenacao__';
+          
+          if (!grupos.has(coordId)) {
+            grupos.set(coordId, {
+              coordenacao: { 
+                id: coordId, 
+                nome: nomesCoordenacoes.get(coordId) || 'Sem Coordenação' 
+              },
+              advogados: [],
+              palavrasChave: [],
+              processos: [],
+            });
+          }
+          
+          const grupo = grupos.get(coordId)!;
+          const tipoMon = mon.tipo as string;
+          
+          if (tipoMon === 'advogado') {
+            grupo.advogados.push(mon);
+          } else if (tipoMon === 'palavra-chave' || tipoMon === 'parte') {
+            grupo.palavrasChave.push(mon);
+          } else if (tipoMon === 'processo') {
+            grupo.processos.push(mon);
+          }
+        }
+        
+        return grupos;
+      };
+
+      const gruposPorCoordenacao = agruparPorCoordenacaoETipo();
+      const coordenacoesOrdenadas = Array.from(gruposPorCoordenacao.values())
+        .sort((a, b) => a.coordenacao.nome.localeCompare(b.coordenacao.nome));
+
       const total = monitoramentos.length;
       
       // Filtrar monitoramentos já processados se retomando
       const idsProcessados = new Set(idsProcessadosInicial);
       const monitoramentosRestantes = monitoramentos.filter(m => !idsProcessados.has(m.id));
+
+      // Criar estrutura de progresso por coordenação
+      const progressoCoordenacoes: ProgressoCoordenacao[] = coordenacoesOrdenadas.map(grupo => ({
+        coordenacaoId: grupo.coordenacao.id,
+        coordenacaoNome: grupo.coordenacao.nome,
+        status: 'pendente' as StatusFase,
+        advogados: {
+          total: grupo.advogados.length,
+          processados: 0,
+          status: 'pendente' as StatusFase,
+        },
+        palavrasChave: {
+          total: grupo.palavrasChave.length,
+          processados: 0,
+          status: 'pendente' as StatusFase,
+        },
+        processos: {
+          total: grupo.processos.length,
+          processados: 0,
+          status: 'pendente' as StatusFase,
+        },
+        novas: 0,
+        duplicadas: 0,
+      }));
 
       // Atualizar metadata inicial (total/current) para refletir no dashboard
       configMd = {
@@ -974,11 +1086,12 @@ export function useBuscaDjenDireta() {
         totalMonitoramentos: total,
         mensagem: usarCheckpoint 
           ? `Retomando de ${idsProcessados.size}/${total}... (${monitoramentosRestantes.length} restantes)`
-          : `Fase 1: Buscando publicações (${total} monitoramentos)...`,
+          : `Fase 1: Buscando publicações (${coordenacoesOrdenadas.length} coordenações)...`,
         fases: {
           ...prev.fases,
           fase1: { total, processados: idsProcessados.size, status: 'executando' },
         },
+        coordenacoes: progressoCoordenacoes,
       }));
 
       let totalNovas = usarCheckpointLocal ? checkpoint!.totalNovas : 0;
@@ -992,166 +1105,267 @@ export function useBuscaDjenDireta() {
         exemplos: Array<{ processo_numero: string; descricao: string }>;
       }> = {};
 
-      // FASE 1: Buscar Publicações
-      for (let i = 0; i < monitoramentosRestantes.length; i += CONCURRENT_LIMIT) {
-        // Cancelamento remoto: se alguém clicar em “Cancelar” em outra aba/dispositivo
-        // o loop para de forma cooperativa.
-        const cfg = await loadConfigMetadata();
-        if (cfg?.cancel_requested === true) {
-          cancelarRef.current = true;
-        }
+      // Helper para processar um tipo de termo em uma coordenação
+      const processarTipo = async (
+        coordIdx: number,
+        tipoKey: 'advogados' | 'palavrasChave' | 'processos',
+        tipoLabel: TipoTermo,
+        monitoramentosTipo: MonitoramentoDjen[]
+      ) => {
+        if (monitoramentosTipo.length === 0) return;
 
-        if (cancelarRef.current) {
-          // Salvar checkpoint antes de encerrar
-          const checkpointData: CheckpointDjen = {
-            data: hoje,
-            monitoramentosProcessados: Array.from(monitoramentosProcessadosIds),
-            totalNovas,
-            totalDuplicadas,
-            tempoAcumulado: Math.floor((Date.now() - tempoInicio) / 1000),
-            faseAtual: 1,
-            executionId: executionId || undefined,
-          };
-          salvarCheckpoint(checkpointData);
+        // Atualizar estado: tipo atual executando
+        setProgresso(prev => ({
+          ...prev,
+          tipoAtual: tipoLabel,
+          coordenacoes: prev.coordenacoes.map((c, i) => 
+            i === coordIdx
+              ? { ...c, [tipoKey]: { ...c[tipoKey], status: 'executando' as StatusFase } }
+              : c
+          ),
+        }));
+
+        for (let i = 0; i < monitoramentosTipo.length; i += CONCURRENT_LIMIT) {
+          // Check cancelamento
+          const cfg = await loadConfigMetadata();
+          if (cfg?.cancel_requested === true) {
+            cancelarRef.current = true;
+          }
+          if (cancelarRef.current) break;
+
+          const lote = monitoramentosTipo.slice(i, i + CONCURRENT_LIMIT);
+          const termosLote = lote.map(m => m.termo_busca).join(', ');
           
-          const percentual = Math.round((processados / total) * 100);
+          // Atualizar termo atual
           setProgresso(prev => ({
             ...prev,
-            status: 'cancelado',
-            mensagem: `Cancelado em ${percentual}%. ${totalNovas} novas encontradas.`,
-            hasCheckpoint: true,
-            checkpointPercent: percentual,
-            fases: {
-              ...prev.fases,
-              fase1: { ...prev.fases.fase1, status: 'concluido', processados },
-            },
+            termoAtual: termosLote.slice(0, 60) + (termosLote.length > 60 ? '...' : ''),
+            mensagem: `${prev.coordenacoes[coordIdx]?.coordenacaoNome || 'Coordenação'} → ${tipoLabel}: ${lote[0]?.termo_busca || ''}`,
+            coordenacoes: prev.coordenacoes.map((c, idx) => 
+              idx === coordIdx
+                ? { ...c, [tipoKey]: { ...c[tipoKey], processados: i, termoAtual: lote[0]?.termo_busca } }
+                : c
+            ),
           }));
-          
-          await registrarExecucao('cancelado', {
-            checkpoint: checkpointData,
-            processados,
-            total,
-            novas: totalNovas,
+
+          const loteTimeoutPromise = new Promise<PromiseSettledResult<{ novas: number; duplicadas: number; coordenacaoStats?: any }>[]>((resolve) => {
+            setTimeout(() => {
+              console.warn('[DJEN Direta] Timeout de lote (60s), continuando...');
+              resolve(lote.map(() => ({ status: 'rejected' as const, reason: 'Lote timeout' })));
+            }, 60000);
           });
 
-          // Checkpoint no banco (server-side)
+          const resultados = await Promise.race([
+            Promise.allSettled(lote.map(mon => processarMonitoramento(mon))),
+            loteTimeoutPromise,
+          ]);
+
+          let novasLote = 0;
+          let duplicadasLote = 0;
+
+          for (let j = 0; j < resultados.length; j++) {
+            const resultado = resultados[j];
+            if (resultado.status === 'fulfilled') {
+              novasLote += resultado.value.novas;
+              duplicadasLote += resultado.value.duplicadas;
+              totalNovas += resultado.value.novas;
+              totalDuplicadas += resultado.value.duplicadas;
+              
+              if (resultado.value.coordenacaoStats) {
+                const stats = resultado.value.coordenacaoStats;
+                if (!resumosPorCoordenacao[stats.coordenacao_id]) {
+                  resumosPorCoordenacao[stats.coordenacao_id] = {
+                    total_verificados: 0,
+                    total_encontrados: 0,
+                    exemplos: [],
+                  };
+                }
+                resumosPorCoordenacao[stats.coordenacao_id].total_verificados += stats.total_verificados;
+                resumosPorCoordenacao[stats.coordenacao_id].total_encontrados += stats.total_encontrados;
+                if (resumosPorCoordenacao[stats.coordenacao_id].exemplos.length < 5) {
+                  resumosPorCoordenacao[stats.coordenacao_id].exemplos.push(...stats.exemplos);
+                }
+              }
+            }
+            
+            if (j < lote.length) {
+              monitoramentosProcessadosIds.add(lote[j].id);
+            }
+          }
+
+          processados += lote.length;
+
+          // Atualizar progresso da coordenação
+          setProgresso(prev => ({
+            ...prev,
+            monitoramentoAtual: processados,
+            publicacoesNovas: totalNovas,
+            publicacoesDuplicadas: totalDuplicadas,
+            fases: {
+              ...prev.fases,
+              fase1: { ...prev.fases.fase1, processados },
+            },
+            coordenacoes: prev.coordenacoes.map((c, idx) => 
+              idx === coordIdx
+                ? { 
+                    ...c, 
+                    novas: c.novas + novasLote,
+                    duplicadas: c.duplicadas + duplicadasLote,
+                    [tipoKey]: { ...c[tipoKey], processados: Math.min(i + lote.length, monitoramentosTipo.length) },
+                  }
+                : c
+            ),
+          }));
+
+          // Atualizar execução no banco periodicamente
+          if (processados % 10 === 0) {
+            await registrarExecucao('executando', {
+              processados,
+              total,
+              novas: totalNovas,
+              duplicadas: totalDuplicadas,
+            });
+          }
+
+          // Atualizar metadata (dashboard) a cada lote
           const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
           configMd = {
             ...configMd,
-            status: 'cancelado',
-            cancelado: true,
-            cancel_requested: false,
+            status: 'executando',
             total,
             current: processados,
             percentage: total > 0 ? Math.round((processados / total) * 100) : 0,
             next_offset: processados,
             processed_ids: Array.from(monitoramentosProcessadosIds),
             duracao_s,
-            last_stop_at: new Date().toISOString(),
-            last_stop_reason: cfg?.cancel_requested ? 'remote_cancel' : 'local_cancel',
-            last_error: null,
+            last_run: new Date().toISOString(),
             continuingRun: true,
+            cancelado: false,
           };
           await saveConfigMetadata(configMd);
-          
-          break;
+
+          if (i + CONCURRENT_LIMIT < monitoramentosTipo.length) {
+            await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES));
+          }
         }
 
-        const lote = monitoramentosRestantes.slice(i, i + CONCURRENT_LIMIT) as MonitoramentoDjen[];
-        
-        const termos = lote.map(m => m.termo_busca).join(', ');
+        // Marcar tipo como concluído
+        if (!cancelarRef.current) {
+          setProgresso(prev => ({
+            ...prev,
+            coordenacoes: prev.coordenacoes.map((c, idx) => 
+              idx === coordIdx
+                ? { 
+                    ...c, 
+                    [tipoKey]: { 
+                      ...c[tipoKey], 
+                      status: 'concluido' as StatusFase,
+                      processados: monitoramentosTipo.length,
+                      termoAtual: undefined,
+                    } 
+                  }
+                : c
+            ),
+          }));
+        }
+      };
+
+      // FASE 1: Buscar Publicações por Coordenação e Tipo
+      for (let coordIdx = 0; coordIdx < coordenacoesOrdenadas.length; coordIdx++) {
+        if (cancelarRef.current) break;
+
+        const grupo = coordenacoesOrdenadas[coordIdx];
+        const coordId = grupo.coordenacao.id;
+        const coordNome = grupo.coordenacao.nome;
+
+        // Atualizar estado: coordenação atual executando
         setProgresso(prev => ({
           ...prev,
-          mensagem: `Fase 1: ${termos.slice(0, 40)}${termos.length > 40 ? '...' : ''}`,
+          coordenacaoAtualId: coordId,
+          mensagem: `Processando: ${coordNome}`,
+          coordenacoes: prev.coordenacoes.map((c, i) => 
+            i === coordIdx
+              ? { ...c, status: 'executando' as StatusFase }
+              : c
+          ),
         }));
 
-        const loteTimeoutPromise = new Promise<PromiseSettledResult<{ novas: number; duplicadas: number; coordenacaoStats?: any }>[]>((resolve) => {
-          setTimeout(() => {
-            console.warn('[DJEN Direta] Timeout de lote (60s), continuando...');
-            resolve(lote.map(() => ({ status: 'rejected' as const, reason: 'Lote timeout' })));
-          }, 60000);
-        });
+        // 1. Processar Advogados
+        await processarTipo(coordIdx, 'advogados', 'advogado', grupo.advogados);
+        if (cancelarRef.current) break;
 
-        const resultados = await Promise.race([
-          Promise.allSettled(lote.map(mon => processarMonitoramento(mon))),
-          loteTimeoutPromise,
-        ]);
+        // 2. Processar Palavras-chave
+        await processarTipo(coordIdx, 'palavrasChave', 'palavra-chave', grupo.palavrasChave);
+        if (cancelarRef.current) break;
 
-        for (let j = 0; j < resultados.length; j++) {
-          const resultado = resultados[j];
-          if (resultado.status === 'fulfilled') {
-            totalNovas += resultado.value.novas;
-            totalDuplicadas += resultado.value.duplicadas;
-            
-            if (resultado.value.coordenacaoStats) {
-              const stats = resultado.value.coordenacaoStats;
-              if (!resumosPorCoordenacao[stats.coordenacao_id]) {
-                resumosPorCoordenacao[stats.coordenacao_id] = {
-                  total_verificados: 0,
-                  total_encontrados: 0,
-                  exemplos: [],
-                };
-              }
-              resumosPorCoordenacao[stats.coordenacao_id].total_verificados += stats.total_verificados;
-              resumosPorCoordenacao[stats.coordenacao_id].total_encontrados += stats.total_encontrados;
-              if (resumosPorCoordenacao[stats.coordenacao_id].exemplos.length < 5) {
-                resumosPorCoordenacao[stats.coordenacao_id].exemplos.push(...stats.exemplos);
-              }
-            }
-          }
-          
-          // Marcar como processado
-          if (j < lote.length) {
-            monitoramentosProcessadosIds.add(lote[j].id);
-          }
-        }
+        // 3. Processar Processos
+        await processarTipo(coordIdx, 'processos', 'processo', grupo.processos);
+        if (cancelarRef.current) break;
 
-        processados += lote.length;
+        // Marcar coordenação como concluída
         setProgresso(prev => ({
           ...prev,
-          monitoramentoAtual: processados,
-          publicacoesNovas: totalNovas,
-          publicacoesDuplicadas: totalDuplicadas,
+          coordenacoes: prev.coordenacoes.map((c, i) => 
+            i === coordIdx
+              ? { ...c, status: 'concluido' as StatusFase }
+              : c
+          ),
+        }));
+      }
+
+      // Verificar cancelamento
+      if (cancelarRef.current) {
+        const cfg = await loadConfigMetadata();
+        const checkpointData: CheckpointDjen = {
+          data: hoje,
+          monitoramentosProcessados: Array.from(monitoramentosProcessadosIds),
+          totalNovas,
+          totalDuplicadas,
+          tempoAcumulado: Math.floor((Date.now() - tempoInicio) / 1000),
+          faseAtual: 1,
+          executionId: executionId || undefined,
+        };
+        salvarCheckpoint(checkpointData);
+        
+        const percentual = Math.round((processados / total) * 100);
+        setProgresso(prev => ({
+          ...prev,
+          status: 'cancelado',
+          mensagem: `Cancelado em ${percentual}%. ${totalNovas} novas encontradas.`,
+          hasCheckpoint: true,
+          checkpointPercent: percentual,
           fases: {
             ...prev.fases,
-            fase1: { ...prev.fases.fase1, processados },
+            fase1: { ...prev.fases.fase1, status: 'concluido', processados },
           },
         }));
+        
+        await registrarExecucao('cancelado', {
+          checkpoint: checkpointData,
+          processados,
+          total,
+          novas: totalNovas,
+        });
 
-        // Atualizar execução no banco periodicamente
-        if (processados % 10 === 0) {
-          await registrarExecucao('executando', {
-            processados,
-            total,
-            novas: totalNovas,
-            duplicadas: totalDuplicadas,
-          });
-        }
-
-        // Atualizar metadata (dashboard) a cada lote
         const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
         configMd = {
           ...configMd,
-          status: 'executando',
+          status: 'cancelado',
+          cancelado: true,
+          cancel_requested: false,
           total,
           current: processados,
           percentage: total > 0 ? Math.round((processados / total) * 100) : 0,
           next_offset: processados,
           processed_ids: Array.from(monitoramentosProcessadosIds),
           duracao_s,
-          last_run: new Date().toISOString(),
+          last_stop_at: new Date().toISOString(),
+          last_stop_reason: cfg?.cancel_requested ? 'remote_cancel' : 'local_cancel',
+          last_error: null,
           continuingRun: true,
-          cancelado: false,
         };
         await saveConfigMetadata(configMd);
-
-        if (i + CONCURRENT_LIMIT < monitoramentosRestantes.length) {
-          await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES));
-        }
-      }
-
-      // Se foi cancelado, encerrar aqui
-      if (cancelarRef.current) {
+        
         setExecutando(false);
         return;
       }
@@ -1216,7 +1430,8 @@ export function useBuscaDjenDireta() {
       limparCheckpoint();
 
       const tempoFinal = Math.floor((Date.now() - tempoInicio) / 1000);
-      setProgresso({
+      setProgresso(prev => ({
+        ...prev,
         monitoramentoAtual: total,
         totalMonitoramentos: total,
         publicacoesNovas: totalNovas,
@@ -1232,7 +1447,14 @@ export function useBuscaDjenDireta() {
           fase3: { total: Object.keys(resumosPorCoordenacao).length, processados: Object.keys(resumosPorCoordenacao).length, status: 'concluido' },
         },
         hasCheckpoint: false,
-      });
+        coordenacoes: prev.coordenacoes.map(c => ({
+          ...c,
+          status: 'concluido' as const,
+          advogados: { ...c.advogados, status: 'concluido' as const },
+          palavrasChave: { ...c.palavrasChave, status: 'concluido' as const },
+          processos: { ...c.processos, status: 'concluido' as const },
+        })),
+      }));
 
       await registrarExecucao('concluido', {
         total,
