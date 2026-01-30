@@ -136,6 +136,46 @@ const DELAY_BETWEEN_BATCHES = 1500;
 // Helper para delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// IDs sintéticos de tribunais que precisam ser expandidos
+const TODOS_IDS_CIVEIS = [
+  'TJAC', 'TJAL', 'TJAM', 'TJAP', 'TJBA', 'TJCE', 'TJDFT', 'TJES', 'TJGO',
+  'TJMA', 'TJMG', 'TJMS', 'TJMT', 'TJPA', 'TJPB', 'TJPE', 'TJPI', 'TJPR',
+  'TJRJ', 'TJRN', 'TJRO', 'TJRR', 'TJRS', 'TJSC', 'TJSE', 'TJSP', 'TJTO',
+];
+
+const TODOS_IDS_TRABALHISTAS = [
+  'TST', 'TRT1', 'TRT2', 'TRT3', 'TRT4', 'TRT5', 'TRT6', 'TRT7', 'TRT8',
+  'TRT9', 'TRT10', 'TRT11', 'TRT12', 'TRT13', 'TRT14', 'TRT15', 'TRT16',
+  'TRT17', 'TRT18', 'TRT19', 'TRT20', 'TRT21', 'TRT22', 'TRT23', 'TRT24',
+];
+
+// Expande IDs sintéticos (TODOS_CIVEIS, TODOS_TRT) para a lista real de tribunais
+function expandirTribunais(tribunais: string[] | undefined): string[] | undefined {
+  if (!tribunais || tribunais.length === 0) return undefined;
+  
+  const expandidos = new Set<string>();
+  
+  for (const t of tribunais) {
+    if (t === 'TODOS_CIVEIS') {
+      TODOS_IDS_CIVEIS.forEach(id => expandidos.add(id));
+    } else if (t === 'TODOS_TRT') {
+      TODOS_IDS_TRABALHISTAS.forEach(id => expandidos.add(id));
+    } else {
+      // Tribunal normal, adiciona diretamente
+      expandidos.add(t);
+    }
+  }
+  
+  // Se após expansão temos muitos tribunais (>15), pode ser mais eficiente
+  // não filtrar (buscar em todos) já que a API pagina bem
+  if (expandidos.size > 15) {
+    console.log(`[DJEN] Expandiu para ${expandidos.size} tribunais. Buscando sem filtro para melhor performance.`);
+    return undefined;
+  }
+  
+  return Array.from(expandidos);
+}
+
 // ============ BROWSER-ONLY STRATEGY ============
 // Edge Function buscar-djen foi REMOVIDA para evitar erros 546 (WORKER_LIMIT).
 // Todas as buscas DJEN são feitas via navegador (IP do usuário) usando buscarPjeComunicaPaginado.
@@ -619,9 +659,14 @@ export function useBuscaDjenDireta() {
       let error: Error | null = null;
 
       // Monitoramento pode ter filtro de tribunais: buscar por tribunal reduz volume e evita
-      // “perder” resultados por paginação (ex: item fica depois do 50º/100º resultado).
-      const tribunais = Array.isArray(monitoramento.tribunais) && monitoramento.tribunais.length > 0
+      // "perder" resultados por paginação (ex: item fica depois do 50º/100º resultado).
+      // IMPORTANTE: Expandir IDs sintéticos (TODOS_CIVEIS, TODOS_TRT) para tribunais reais
+      const tribunaisRaw = Array.isArray(monitoramento.tribunais) && monitoramento.tribunais.length > 0
         ? monitoramento.tribunais
+        : undefined;
+      const tribunaisExpandidos = expandirTribunais(tribunaisRaw);
+      const tribunais = tribunaisExpandidos && tribunaisExpandidos.length > 0
+        ? tribunaisExpandidos
         : [undefined];
 
       // Lista de variantes de palavras-chave (com e sem acentos + prefixo)
