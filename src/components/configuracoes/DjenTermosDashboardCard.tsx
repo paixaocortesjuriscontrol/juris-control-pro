@@ -697,9 +697,9 @@ export function DjenTermosDashboardCard({
             </div>
           )}
 
-          {/* Indicador de Fases (durante execução) */}
-          {/* Progresso detalhado por coordenação (V2) */}
-          {(isRunning || localCancelled) && progresso.coordenacoes && progresso.coordenacoes.length > 0 ? (
+          {/* Indicador de Fases (durante e após execução) */}
+          {/* Progresso detalhado por coordenação (V2) - mantém visível após conclusão */}
+          {progresso.coordenacoes && progresso.coordenacoes.length > 0 ? (
             <ProgressoDjenDetalhado
               coordenacoes={progresso.coordenacoes}
               coordenacaoAtualId={progresso.coordenacaoAtualId}
@@ -711,7 +711,7 @@ export function DjenTermosDashboardCard({
               percentualGeral={percent}
               executando={isRunning}
             />
-          ) : (isRunning || localCancelled) && (
+          ) : (isRunning || localCancelled || localCompleted) && progresso.fases.fase1.total > 0 && (
             <div className="space-y-1 border rounded-lg p-3 bg-muted/30">
               <div className="text-xs font-medium text-muted-foreground mb-2">Fases da Execução</div>
               <FaseIndicator
