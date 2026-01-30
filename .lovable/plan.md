@@ -1,196 +1,277 @@
 
+# Plano: Reestruturar Monitoramento DJEN por Coordenação e Tipo de Termo
 
-# Plano: Solução Definitiva para Captura DJEN por Termos
+## Problema Atual
 
-## Problema Identificado
-
-Com base na investigação detalhada do banco de dados e código, encontrei **dois problemas centrais** que estão causando a perda de publicações:
-
-### Problema 1: Monitoramento Processando Poucos Tribunais
-
-A última execução mostra:
-```
-processados: 3 de 118 monitoramentos
-tribunais_stats: [TJSP, TRT10] apenas
-novas: 0
-```
-
-**Causa**: O parâmetro `max_por_invocacao: 5` combinado com 118 monitoramentos significa que cada execução só processa ~5 monitoramentos. Com 35+ tribunais configurados no monitoramento "União Química", o sistema está levando múltiplas invocações para cobrir todos os tribunais, e o loop está sendo interrompido antes de processar TJRJ, TJRS, TJDFT, TJBA.
-
-### Problema 2: Termo de Busca Não Encontra Todas as Variações
-
-O monitoramento está configurado com:
-```
-termo_busca: "União Quimica Farmacêutica Nacional"
-```
-
-Mas as publicações no DJEN estão escritas como:
-- `UNIAO QUIMICA FARMACEUTICA NACIONAL S A` (sem acentos, com "S A")
-- `UNIÃO QUÍMICA FARMACÊUTICA NACIONAL S/A` (com acentos, com "S/A")
-- `União Química Farmacêutica Nacional S.A.` (misto)
-
-A normalização de acentos já existe (linhas 779-791), mas:
-1. A variante **não inclui sufixos corporativos** ("S A", "S/A", "LTDA")
-2. O loop de tribunais **pode ser interrompido por timeout** antes de processar todos
-
----
+O loop de monitoramento DJEN atual processa **todos os monitoramentos de forma sequencial misturada**, sem organização por coordenação ou tipo. Isso dificulta:
+1. Identificar onde o processamento está (qual coordenação, qual tipo de termo)
+2. Rastrear problemas específicos de uma coordenação
+3. Saber se advogados, palavras-chave ou processos já foram processados
+4. Apresentar progresso granular ao usuário
 
 ## Solução Proposta
 
-### Parte 1: Aumentar Cobertura de Tribunais por Execução
+Reestruturar o loop de execução em **3 níveis hierárquicos**:
 
-**Arquivo**: `supabase/functions/monitorar-djen/index.ts`
-
-Alterar a lógica para processar TODOS os tribunais de cada monitoramento antes de pular para o próximo, em vez de processar N monitoramentos por invocação:
-
-1. Mudar o loop para processar cada monitoramento completamente (todos seus tribunais)
-2. Usar soft-timeout para garantir que pelo menos 1 monitoramento seja processado por completo
-3. Salvar progresso por monitoramento, não por lote genérico
-
-### Parte 2: Melhorar Geração de Variantes de Busca
-
-**Arquivo**: `supabase/functions/monitorar-djen/index.ts` (linhas 775-814)
-
-Adicionar mais variantes de busca para termos empresariais:
-
-```text
-Termo original: "União Quimica Farmacêutica Nacional"
-Variantes geradas:
-1. "União Quimica Farmacêutica Nacional" (original)
-2. "UNIAO QUIMICA FARMACEUTICA NACIONAL" (sem acentos)
-3. "UNIAO QUIMICA" (prefixo curto - para capturar variações)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  NÍVEL 1: COORDENAÇÃO                                          │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  NÍVEL 2: TIPO DE TERMO                                   │ │
+│  │  ┌─────────────────────────────────────────────────────┐  │ │
+│  │  │  NÍVEL 3: MONITORAMENTOS                            │  │ │
+│  │  │  - Processa cada termo individual                   │  │ │
+│  │  │  - Busca em todos os tribunais configurados         │  │ │
+│  │  └─────────────────────────────────────────────────────┘  │ │
+│  │                                                           │ │
+│  │  Sequência por tipo:                                     │ │
+│  │  1. Advogados (busca por OAB/UF)                         │ │
+│  │  2. Palavras-chave (busca por termo/parte)               │ │
+│  │  3. Processos (busca por número CNJ)                     │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                │
+│  Exemplo de execução:                                          │
+│  → Coordenação: Santander Cível                               │
+│     → Advogados: 2/2 concluídos                               │
+│     → Palavras-chave: 5/12 (executando)                       │
+│     → Processos: 0/0 (pendente)                               │
+│  → Coordenação: Dr. Thomás                                     │
+│     → (aguardando)                                            │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-A variante de prefixo curto é importante porque:
-- A API do PJE Comunica usa busca por substring
-- "UNIAO QUIMICA" encontra tanto "UNIAO QUIMICA FARMACEUTICA NACIONAL S A" quanto "UNIÃO QUÍMICA FARMACÊUTICA NACIONAL S/A"
-
-### Parte 3: Sincronização Manual via Navegador
-
-**Arquivos novos**:
-- `src/hooks/useSincronizarDjenBrowser.ts`
-- `src/components/djen/BotaoSincronizarDjen.tsx`
-
-**Arquivo modificado**:
-- `src/pages/MonitoramentoDjen.tsx` ou `src/pages/AnaliseDjen.tsx`
-
-Adicionar um botão "Sincronizar Agora" que:
-1. Busca os monitoramentos ativos do usuário
-2. Para cada monitoramento, executa busca via navegador (usando `pjeComunicaClient.ts`)
-3. Insere as publicações encontradas diretamente no banco
-4. Mostra progresso em tempo real
-
-**Vantagens**:
-- Contorna bloqueios de IP do backend
-- Permite ao usuário forçar captura quando necessário
-- Não depende de cron jobs ou Edge Functions
-
 ---
 
-## Arquivos a Modificar/Criar
+## Mudanças Técnicas
 
-### 1. `supabase/functions/monitorar-djen/index.ts`
+### 1. Novo Modelo de Progresso (src/hooks/useBuscaDjenDireta.ts)
 
-**Linha 775-814** - Melhorar geração de variantes:
-- Adicionar lógica para extrair prefixo significativo do termo (primeiras 2-3 palavras)
-- Garantir que variantes sem acento sejam sempre geradas
+Adicionar estrutura detalhada para rastrear cada fase:
 
-**Linhas 827-877** - Garantir processamento de todos tribunais:
-- Remover break condicional que pode interromper antes de processar todos os tribunais
-- Adicionar log detalhado por tribunal processado
+```typescript
+export interface ProgressoPorCoordenacao {
+  coordenacaoId: string;
+  coordenacaoNome: string;
+  status: 'pendente' | 'executando' | 'concluido' | 'erro';
+  
+  // Progresso por tipo de termo
+  advogados: {
+    total: number;
+    processados: number;
+    status: FaseStatus;
+  };
+  palavrasChave: {
+    total: number;
+    processados: number;
+    status: FaseStatus;
+  };
+  processos: {
+    total: number;
+    processados: number;
+    status: FaseStatus;
+  };
+  
+  // Estatísticas
+  novas: number;
+  duplicadas: number;
+}
 
-### 2. `src/hooks/useSincronizarDjenBrowser.ts` (NOVO)
-
-Hook React que:
-- Recebe lista de monitoramentos
-- Executa busca sequencial via `buscarPjeComunicaPaginado`
-- Retorna progresso e resultados
-
-### 3. `src/components/djen/BotaoSincronizarDjen.tsx` (NOVO)
-
-Componente de botão com:
-- Estado de loading
-- Progresso (X de Y monitoramentos)
-- Toast de sucesso/erro
-
-### 4. `src/pages/MonitoramentoDjen.tsx`
-
-Adicionar o botão de sincronização na área de ações
-
----
-
-## Detalhes Técnicos
-
-### Lógica de Variantes de Busca Melhorada
-
-```text
-Entrada: "União Quimica Farmacêutica Nacional"
-
-Processamento:
-1. Original: "União Quimica Farmacêutica Nacional"
-2. Sem acentos: "Uniao Quimica Farmaceutica Nacional"
-3. Prefixo (2 palavras): "Uniao Quimica"
-
-Todas as variantes são buscadas sequencialmente,
-resultados são agregados e deduplicados por ID.
+export interface ProgressoExecucaoV2 extends ProgressoExecucao {
+  // Novo: progresso detalhado por coordenação
+  coordenacoes: ProgressoPorCoordenacao[];
+  coordenacaoAtual?: string;
+  tipoAtual?: 'advogado' | 'palavra-chave' | 'processo';
+}
 ```
 
-### Fluxo de Sincronização via Navegador
+### 2. Reestruturar Loop Principal (src/hooks/useBuscaDjenDireta.ts)
 
-```text
-[Usuário clica "Sincronizar"]
-         |
-         v
-[useSincronizarDjenBrowser]
-         |
-         | Busca monitoramentos ativos
-         v
-[monitoramentos_djen] (Supabase)
-         |
-         | Para cada monitoramento:
-         v
-[buscarPjeComunicaPaginado] (pjeComunicaClient.ts)
-         |
-         | IP do usuário (não bloqueado)
-         v
-[comunicaapi.pje.jus.br]
-         |
-         | Retorna publicações
-         v
-[Verifica hash global para evitar duplicatas]
-         |
-         v
-[Insere em publicacoes_djen] (Supabase)
+O loop atual (linhas 996-1151) será refatorado para:
+
+```
+ANTES:
+for (monitoramentos) {
+  processar(monitoramento)
+}
+
+DEPOIS:
+for (coordenacao of coordenacoes) {
+  atualizar_status(coordenacao, 'executando')
+  
+  // 1. Advogados
+  advogados = filtrar_por_tipo(coordenacao, 'advogado')
+  for (adv of advogados) {
+    processar(adv)
+    atualizar_progresso_tipo('advogados')
+  }
+  
+  // 2. Palavras-chave
+  termos = filtrar_por_tipo(coordenacao, ['palavra-chave', 'parte'])
+  for (termo of termos) {
+    processar(termo)
+    atualizar_progresso_tipo('palavrasChave')
+  }
+  
+  // 3. Processos
+  processos = filtrar_por_tipo(coordenacao, 'processo')
+  for (proc of processos) {
+    processar(proc)
+    atualizar_progresso_tipo('processos')
+  }
+  
+  atualizar_status(coordenacao, 'concluido')
+}
 ```
 
-### Hash de Deduplicação
+### 3. Novo Componente de Visualização
 
-O sistema já usa `generateGlobalHash(conteudo, dataDisponibilizacao)` para evitar duplicatas. A sincronização via navegador deve usar a mesma lógica:
+Criar `src/components/djen/ProgressoDjenDetalhado.tsx`:
 
-1. Calcular hash da publicação
-2. Verificar se existe em `publicacoes_djen_global_hash`
-3. Se não existe, inserir em `publicacoes_djen` e registrar hash
+- Exibir lista de coordenações com status (ícones: pendente, executando, concluído)
+- Para coordenação em execução, mostrar barra de progresso por tipo de termo
+- Indicador visual: qual advogado/termo está sendo processado no momento
+- Contador de novas/duplicadas por coordenação
 
----
+### 4. Atualizar MonitoramentoDjenCard.tsx
 
-## Resultado Esperado
-
-Após implementação:
-
-1. **Publicação TJDFT 0705883-56.2026** (29/01): Capturada pela variante "UNIAO QUIMICA"
-2. **Publicação TJRJ 0098834-12.2016** (29/01): Capturada pela variante "UNIAO QUIMICA"
-3. **Publicação TJRS 5292250-81.2024** (29/01): Capturada pela variante "UNIAO QUIMICA"
-4. **Publicação TJSP 1007378-45.2019** (29/01): Capturada pela variante "UNIAO QUIMICA"
-5. **Publicação TJSP 0007895-08.2025** (29/01): Capturada pela variante "UNIAO QUIMICA"
+Integrar o novo componente de progresso no card existente, substituindo a barra de progresso simples atual (linhas 561-613) por uma visualização detalhada.
 
 ---
 
-## Ação Imediata Recomendada
+## Arquivos a Modificar
 
-Enquanto a implementação completa é feita, executar manualmente:
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/hooks/useBuscaDjenDireta.ts` | Reestruturar loop por coordenação e tipo; adicionar interfaces de progresso |
+| `src/components/djen/ProgressoDjenDetalhado.tsx` | **NOVO** - Componente de visualização detalhada |
+| `src/components/configuracoes/MonitoramentoDjenCard.tsx` | Integrar novo componente de progresso |
 
-1. Na tela de Buscar DJEN, pesquisar por "UNIAO QUIMICA" para cada tribunal (TJDFT, TJRJ, TJRS, TJSP)
-2. As publicações encontradas serão inseridas automaticamente
+---
 
-Isso garante que as publicações do Dr. Thomás apareçam hoje enquanto a solução definitiva é implementada.
+## Lógica de Agrupamento
 
+```typescript
+// Agrupar monitoramentos por coordenação e tipo
+const agruparPorCoordenacaoETipo = (monitoramentos: MonitoramentoDjen[]) => {
+  const grupos = new Map<string, {
+    coordenacao: { id: string; nome: string };
+    advogados: MonitoramentoDjen[];
+    palavrasChave: MonitoramentoDjen[];
+    processos: MonitoramentoDjen[];
+  }>();
+  
+  for (const mon of monitoramentos) {
+    const coordId = mon.coordenacao_id || '__sem_coordenacao__';
+    
+    if (!grupos.has(coordId)) {
+      grupos.set(coordId, {
+        coordenacao: { id: coordId, nome: '' }, // nome será preenchido depois
+        advogados: [],
+        palavrasChave: [],
+        processos: [],
+      });
+    }
+    
+    const grupo = grupos.get(coordId)!;
+    
+    switch (mon.tipo) {
+      case 'advogado':
+        grupo.advogados.push(mon);
+        break;
+      case 'palavra-chave':
+      case 'parte':
+        grupo.palavrasChave.push(mon);
+        break;
+      case 'processo':
+        grupo.processos.push(mon);
+        break;
+    }
+  }
+  
+  return grupos;
+};
+```
+
+---
+
+## Interface Visual Proposta
+
+### Durante Execução:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Monitoramento DJEN - Em Execução                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ✓ Santander Cível                     12 novas, 45 dup.   │
+│    ✓ Advogados: 2/2                                         │
+│    ✓ Palavras-chave: 15/15                                  │
+│    ✓ Processos: 0/0                                         │
+│                                                             │
+│  ⟳ Dr. Thomás (Executando)             3 novas, 8 dup.     │
+│    ✓ Advogados: 1/1                                         │
+│    ⟳ Palavras-chave: 2/5 "UNIAO QUIMICA..."                │
+│    ○ Processos: 0/3                                         │
+│                                                             │
+│  ○ Dra. Janaína (Aguardando)                                │
+│  ○ Polyana (Aguardando)                                     │
+│                                                             │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 35%                          │
+│  Tempo: 02:34  |  Total: 15 novas, 53 duplicadas            │
+│                                                             │
+│  [Cancelar Execução]                                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Após Conclusão:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Monitoramento DJEN - Concluído em 05:23                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ▼ Santander Cível                     12 novas ↓          │
+│    Advogados: 2 | Termos: 15 | Processos: 0                │
+│                                                             │
+│  ▼ Dr. Thomás                          8 novas ↓           │
+│    Advogados: 1 | Termos: 5 | Processos: 3                 │
+│                                                             │
+│  ▼ Dra. Janaína                        3 novas ↓           │
+│    Advogados: 0 | Termos: 22 | Processos: 0                │
+│                                                             │
+│  Total: 23 novas publicações encontradas                   │
+│                                                             │
+│  [Executar Novamente]  [Limpar Dados de Hoje]              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Benefícios
+
+1. **Visibilidade**: Saber exatamente qual coordenação e tipo está sendo processado
+2. **Diagnóstico**: Se uma coordenação falhar, as outras continuam
+3. **Priorização**: Advogados primeiro (menor volume), depois termos (maior cobertura), depois processos
+4. **Rastreabilidade**: Estatísticas por coordenação facilitam identificar problemas
+5. **UX Melhorada**: Usuário entende exatamente o que está acontecendo
+
+---
+
+## Ordem de Implementação
+
+1. Criar interfaces de progresso detalhado
+2. Implementar função de agrupamento por coordenação/tipo
+3. Refatorar loop principal para processar hierarquicamente
+4. Criar componente `ProgressoDjenDetalhado.tsx`
+5. Integrar no `MonitoramentoDjenCard.tsx`
+6. Testar com dados reais
+
+---
+
+## Critérios de Sucesso
+
+- [ ] Executar monitoramento mostra progresso por coordenação
+- [ ] Cada coordenação exibe status dos 3 tipos (advogados, termos, processos)
+- [ ] Mensagem indica qual termo está sendo processado no momento
+- [ ] Estatísticas (novas/duplicadas) são contabilizadas por coordenação
+- [ ] Cancelamento salva checkpoint corretamente por coordenação/tipo
