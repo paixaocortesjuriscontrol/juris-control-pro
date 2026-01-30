@@ -1725,10 +1725,41 @@ export function useBuscaDjenDireta() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    // NÃO limpar localStorage - o checkpoint será salvo pelo loop principal
-    // quando detectar o cancelamento
+    
+    // Atualizar o estado local IMEDIATAMENTE para refletir na UI
+    // O loop principal vai salvar o checkpoint quando detectar o cancelamento
+    setProgresso(prev => ({
+      ...prev,
+      status: 'cancelado',
+      mensagem: 'Cancelamento solicitado...',
+    }));
+    
     queueMicrotask(() => {
       setExecutando(false);
+    });
+  }, []);
+  
+  // Forçar reset do estado local (para uso após kill switch)
+  const forceResetState = useCallback(() => {
+    cancelarRef.current = true;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    executionIdRef.current = null;
+    setExecutando(false);
+    
+    // Limpar localStorage
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(CHECKPOINT_KEY);
+    } catch { /* silencioso */ }
+    
+    // Resetar progresso para estado inicial
+    setProgresso({
+      ...defaultProgresso(),
+      status: 'idle',
+      mensagem: 'Estado resetado. Pronto para nova execução.',
     });
   }, []);
 
@@ -1752,6 +1783,7 @@ export function useBuscaDjenDireta() {
     executando,
     executarMonitoramento,
     cancelarExecucao,
+    forceResetState,
     verificarCheckpoint,
     limparCheckpoint: limparCheckpointManual,
   };
