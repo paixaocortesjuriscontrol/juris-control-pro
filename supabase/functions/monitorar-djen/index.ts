@@ -593,8 +593,10 @@ async function criarTarefasParaResponsaveis(
   return tarefaIds;
 }
 
-function generateGlobalHash(conteudo: string, dataPublicacao: string): string {
-  const normalized = (conteudo + dataPublicacao).toLowerCase().replace(/\s+/g, ' ').trim();
+function generateGlobalHash(conteudo: string, dataDisponibilizacao: string): string {
+  // Usar data de disponibilização para que republicações do mesmo conteúdo
+  // em datas diferentes sejam tratadas como registros distintos
+  const normalized = (conteudo + dataDisponibilizacao).toLowerCase().replace(/\s+/g, ' ').trim();
   return generateHash(normalized);
 }
 
@@ -771,13 +773,42 @@ async function processMonitoramento(
       `Advogado search candidates: oab=${monitoramento.oab || "(none)"}, uf=${(monitoramento.uf || "DF").toUpperCase()}, nome=${hasNome ? termo : "(none)"}`
     );
   } else if (monitoramento.tipo === "palavra-chave") {
-    searchCandidates.push({ texto: monitoramento.termo_busca });
+    const termo = monitoramento.termo_busca;
+    searchCandidates.push({ texto: termo });
+    
+    // Adicionar variante sem acentos para melhor cobertura
+    const termoSemAcento = termo
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')  // Remove acentos
+      .replace(/[\/]/g, ' ')             // S/A -> S A
+      .replace(/\s+/g, ' ')              // Normaliza espaços
+      .trim();
+    
+    // Se a variante for diferente, adicionar como candidato adicional
+    if (termoSemAcento.toLowerCase() !== termo.toLowerCase()) {
+      searchCandidates.push({ texto: termoSemAcento });
+      console.log(`[DJEN] Variante sem acento adicionada: "${termoSemAcento}"`);
+    }
   } else if (monitoramento.tipo === "processo") {
     searchCandidates.push({ texto: monitoramento.termo_busca.replace(/\D/g, "") });
   } else if (monitoramento.tipo === "parte") {
     const termo = (monitoramento.termo_busca || "").trim();
     if (termo.length >= 3) {
       searchCandidates.push({ texto: termo });
+      
+      // Variante sem acentos
+      const termoSemAcento = termo
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\/]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      if (termoSemAcento.toLowerCase() !== termo.toLowerCase()) {
+        searchCandidates.push({ texto: termoSemAcento });
+        console.log(`[DJEN] Parte variante sem acento: "${termoSemAcento}"`);
+      }
+      
       console.log(`Parte search: "${termo}"`);
     }
   }
@@ -838,7 +869,8 @@ async function processMonitoramento(
 
     for (const pub of publications) {
       const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
-      const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
+      // Priorizar data_disponibilizacao para consistência com globalHash
+      const hashConteudo = generateHash(conteudo + (pub.dataDisponibilizacao || pub.dataPublicacao || pub.data || ''));
       
       // A API pode retornar datas em diferentes campos dependendo do tribunal
       // Buscar em níveis raiz e aninhado (pub.comunicacao)
@@ -901,7 +933,7 @@ async function processMonitoramento(
         dataDisponibilizacao = dataPublicacao; // Fallback seguro
       }
       
-      const globalHash = generateGlobalHash(conteudo, dataPublicacao);
+      const globalHash = generateGlobalHash(conteudo, dataDisponibilizacao);
 
       const { data: existingGlobal } = await supabase
         .from('publicacoes_djen_global_hash')

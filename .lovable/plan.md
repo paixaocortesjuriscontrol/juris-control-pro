@@ -189,3 +189,13 @@ if (dataPrimaria === "null") {
 ### Ação Pós-Implementação
 Após deploy da edge function, executar novamente o monitoramento DJEN para capturar as publicações que foram erroneamente descartadas.
 
+---
+
+## ✅ IMPLEMENTADO EM 30/01/2026
+
+Todas as alterações foram aplicadas com sucesso:
+- `generateGlobalHash` agora usa `dataDisponibilizacao`
+- `hashConteudo` prioriza `dataDisponibilizacao`
+- Busca inclui variantes sem acentos automaticamente
+- Frontend `djenDedup.ts` alinhado com backend
+
