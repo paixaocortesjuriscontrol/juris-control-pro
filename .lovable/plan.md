@@ -1,84 +1,191 @@
 
-# Plano: Adicionar Todos os Tribunais Cíveis (TJs) ao DJEN Termos
 
-## Problema Identificado
+# Plano: Corrigir Deduplicação por Data de Disponibilização + Busca com/sem Acentos
 
-O sistema DJEN não está encontrando publicações de vários tribunais cíveis porque **faltam tribunais na lista `TRIBUNAIS_DISPONIVEIS`**.
+## Problemas Identificados
 
-### Situação Atual
-A lista de tribunais cíveis disponíveis contém apenas:
-- TJDFT (DF)
-- TJSP (São Paulo)  
-- TJGO (Goiás)
+### Problema 1: Deduplicação Incorreta
+A publicação do TJDFT (processo `0705883-56.2026.8.07.0016`) foi disponibilizada duas vezes:
 
-### Tribunais Faltantes
-Faltam **24 TJs** (todos os outros estados brasileiros):
-- TJRJ, TJBA, TJRS, TJMG, TJPR, TJSC, TJPE, TJCE, TJPA, TJAM, TJMA, TJPB, TJRN, TJPI, TJSE, TJAL, TJES, TJMT, TJMS, TJTO, TJAC, TJRO, TJRR, TJAP
+| Versão | Data Disponibilização | Data Publicação | Status |
+|--------|----------------------|-----------------|--------|
+| 1ª | 27/01/2026 | 28/01/2026 | Capturada |
+| 2ª | 29/01/2026 | 30/01/2026 | Descartada como duplicata |
 
-### Impacto
-Quando o usuário marca "Todos os Tribunais Cíveis", o sistema só expande para TJDFT, TJSP e TJGO. Publicações de outros tribunais (como as do Dr. Thomás em TJRJ, TJBA, TJRS) nunca são buscadas.
+**Causa**: O hash global usa `data_publicacao` (linha 904), mas deveria usar `data_disponibilizacao` para tratar cada ato de disponibilização como distinto.
+
+### Problema 2: Busca Sensível a Acentos
+O termo "União Quimica Farmacêutica Nacional" não encontra publicações escritas como "UNIAO QUIMICA FARMACEUTICA NACIONAL" porque a API faz busca literal.
 
 ---
 
 ## Solução
 
-### Arquivo a Modificar
-`src/components/djen/MonitoramentoDialog.tsx`
+### Parte 1: Alterar Hash Global para Usar Data de Disponibilização
 
-### Mudança
-Adicionar todos os 27 Tribunais de Justiça estaduais à lista `TRIBUNAIS_DISPONIVEIS`:
+**Arquivo**: `supabase/functions/monitorar-djen/index.ts`
 
-```text
-const TRIBUNAIS_DISPONIVEIS = [
-  // Estadual (TJs) - TODOS OS 27 ESTADOS
-  { id: 'TJAC', nome: 'TJAC - Tribunal de Justiça do Acre', categoria: 'Estadual' },
-  { id: 'TJAL', nome: 'TJAL - Tribunal de Justiça de Alagoas', categoria: 'Estadual' },
-  { id: 'TJAM', nome: 'TJAM - Tribunal de Justiça do Amazonas', categoria: 'Estadual' },
-  { id: 'TJAP', nome: 'TJAP - Tribunal de Justiça do Amapá', categoria: 'Estadual' },
-  { id: 'TJBA', nome: 'TJBA - Tribunal de Justiça da Bahia', categoria: 'Estadual' },
-  { id: 'TJCE', nome: 'TJCE - Tribunal de Justiça do Ceará', categoria: 'Estadual' },
-  { id: 'TJDFT', nome: 'TJDFT - Tribunal de Justiça do DF', categoria: 'Estadual' },
-  { id: 'TJES', nome: 'TJES - Tribunal de Justiça do Espírito Santo', categoria: 'Estadual' },
-  { id: 'TJGO', nome: 'TJGO - Tribunal de Justiça de Goiás', categoria: 'Estadual' },
-  { id: 'TJMA', nome: 'TJMA - Tribunal de Justiça do Maranhão', categoria: 'Estadual' },
-  { id: 'TJMG', nome: 'TJMG - Tribunal de Justiça de Minas Gerais', categoria: 'Estadual' },
-  { id: 'TJMS', nome: 'TJMS - Tribunal de Justiça de Mato Grosso do Sul', categoria: 'Estadual' },
-  { id: 'TJMT', nome: 'TJMT - Tribunal de Justiça de Mato Grosso', categoria: 'Estadual' },
-  { id: 'TJPA', nome: 'TJPA - Tribunal de Justiça do Pará', categoria: 'Estadual' },
-  { id: 'TJPB', nome: 'TJPB - Tribunal de Justiça da Paraíba', categoria: 'Estadual' },
-  { id: 'TJPE', nome: 'TJPE - Tribunal de Justiça de Pernambuco', categoria: 'Estadual' },
-  { id: 'TJPI', nome: 'TJPI - Tribunal de Justiça do Piauí', categoria: 'Estadual' },
-  { id: 'TJPR', nome: 'TJPR - Tribunal de Justiça do Paraná', categoria: 'Estadual' },
-  { id: 'TJRJ', nome: 'TJRJ - Tribunal de Justiça do Rio de Janeiro', categoria: 'Estadual' },
-  { id: 'TJRN', nome: 'TJRN - Tribunal de Justiça do Rio Grande do Norte', categoria: 'Estadual' },
-  { id: 'TJRO', nome: 'TJRO - Tribunal de Justiça de Rondônia', categoria: 'Estadual' },
-  { id: 'TJRR', nome: 'TJRR - Tribunal de Justiça de Roraima', categoria: 'Estadual' },
-  { id: 'TJRS', nome: 'TJRS - Tribunal de Justiça do Rio Grande do Sul', categoria: 'Estadual' },
-  { id: 'TJSC', nome: 'TJSC - Tribunal de Justiça de Santa Catarina', categoria: 'Estadual' },
-  { id: 'TJSE', nome: 'TJSE - Tribunal de Justiça de Sergipe', categoria: 'Estadual' },
-  { id: 'TJSP', nome: 'TJSP - Tribunal de Justiça de São Paulo', categoria: 'Estadual' },
-  { id: 'TJTO', nome: 'TJTO - Tribunal de Justiça de Tocantins', categoria: 'Estadual' },
-  // ... mantém Federal, Superior e Trabalhista
-  { id: 'TODOS_CIVEIS', nome: 'Todos os Tribunais Cíveis (27 TJs)', categoria: 'Estadual' },
-];
+**Mudança 1 - Função generateGlobalHash (linhas 596-599)**:
+```typescript
+// ANTES:
+function generateGlobalHash(conteudo: string, dataPublicacao: string): string {
+  const normalized = (conteudo + dataPublicacao).toLowerCase().replace(/\s+/g, ' ').trim();
+  return generateHash(normalized);
+}
+
+// DEPOIS:
+function generateGlobalHash(conteudo: string, dataDisponibilizacao: string): string {
+  // Usar data de disponibilização para que republicações do mesmo conteúdo
+  // em datas diferentes sejam tratadas como registros distintos
+  const normalized = (conteudo + dataDisponibilizacao).toLowerCase().replace(/\s+/g, ' ').trim();
+  return generateHash(normalized);
+}
+```
+
+**Mudança 2 - Chamada do generateGlobalHash (linha 904)**:
+```typescript
+// ANTES:
+const globalHash = generateGlobalHash(conteudo, dataPublicacao);
+
+// DEPOIS:
+const globalHash = generateGlobalHash(conteudo, dataDisponibilizacao);
+```
+
+**Mudança 3 - Hash do conteúdo (linha 841)**:
+```typescript
+// ANTES:
+const hashConteudo = generateHash(conteudo + (pub.dataPublicacao || pub.dataDisponibilizacao || pub.data || ''));
+
+// DEPOIS:
+// Priorizar data_disponibilizacao para consistência com globalHash
+const hashConteudo = generateHash(conteudo + (pub.dataDisponibilizacao || pub.dataPublicacao || pub.data || ''));
+```
+
+### Parte 2: Adicionar Variante de Busca Sem Acentos
+
+**Arquivo**: `supabase/functions/monitorar-djen/index.ts`
+
+**Mudança nas linhas 773-774** (tipo palavra-chave):
+```typescript
+// ANTES:
+} else if (monitoramento.tipo === "palavra-chave") {
+  searchCandidates.push({ texto: monitoramento.termo_busca });
+}
+
+// DEPOIS:
+} else if (monitoramento.tipo === "palavra-chave") {
+  const termo = monitoramento.termo_busca;
+  searchCandidates.push({ texto: termo });
+  
+  // Adicionar variante sem acentos para melhor cobertura
+  const termoSemAcento = termo
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')  // Remove acentos
+    .replace(/[\/]/g, ' ')             // S/A -> S A
+    .replace(/\s+/g, ' ')              // Normaliza espaços
+    .trim();
+  
+  // Se a variante for diferente, adicionar como candidato adicional
+  if (termoSemAcento.toLowerCase() !== termo.toLowerCase()) {
+    searchCandidates.push({ texto: termoSemAcento });
+    console.log(`[DJEN] Variante sem acento adicionada: "${termoSemAcento}"`);
+  }
+}
+```
+
+**Mudança similar nas linhas 777-783** (tipo parte):
+```typescript
+// ANTES:
+} else if (monitoramento.tipo === "parte") {
+  const termo = (monitoramento.termo_busca || "").trim();
+  if (termo.length >= 3) {
+    searchCandidates.push({ texto: termo });
+    console.log(`Parte search: "${termo}"`);
+  }
+}
+
+// DEPOIS:
+} else if (monitoramento.tipo === "parte") {
+  const termo = (monitoramento.termo_busca || "").trim();
+  if (termo.length >= 3) {
+    searchCandidates.push({ texto: termo });
+    
+    // Variante sem acentos
+    const termoSemAcento = termo
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[\/]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (termoSemAcento.toLowerCase() !== termo.toLowerCase()) {
+      searchCandidates.push({ texto: termoSemAcento });
+      console.log(`[DJEN] Parte variante sem acento: "${termoSemAcento}"`);
+    }
+    
+    console.log(`Parte search: "${termo}"`);
+  }
+}
+```
+
+### Parte 3: Alinhar Frontend (djenDedup.ts)
+
+**Arquivo**: `src/utils/djenDedup.ts`
+
+**Mudança nas linhas 37-44** (priorizar data_disponibilizacao):
+```typescript
+// ANTES:
+// Cascata de datas: publicação > disponibilização > created_at
+let dataPrimaria = extractDateKey(pub.data_publicacao);
+if (dataPrimaria === "null") {
+  dataPrimaria = extractDateKey(pub.data_disponibilizacao);
+}
+if (dataPrimaria === "null") {
+  dataPrimaria = extractDateKey(pub.created_at);
+}
+
+// DEPOIS:
+// Cascata de datas: disponibilização > publicação > created_at
+// Prioriza data_disponibilizacao para alinhar com backend e tratar
+// republicações como registros distintos
+let dataPrimaria = extractDateKey(pub.data_disponibilizacao);
+if (dataPrimaria === "null") {
+  dataPrimaria = extractDateKey(pub.data_publicacao);
+}
+if (dataPrimaria === "null") {
+  dataPrimaria = extractDateKey(pub.created_at);
+}
 ```
 
 ---
 
-## Ação Pós-Implementação
+## Seção Técnica
 
-Após a implementação, será necessário **editar os monitoramentos existentes** do Dr. Thomás que usam `TODOS_CIVEIS` e salvá-los novamente para que expandam para os 27 tribunais.
+### Arquivos Modificados
 
-### Monitoramentos Afetados (Coordenação Dr. Thomás)
-Os monitoramentos que atualmente têm `tribunais: [TJSP]` ou `tribunais: [TJDFT, TJSP, TJGO]` precisarão ser atualizados para incluir todos os cíveis.
+| Arquivo | Linhas | Mudança |
+|---------|--------|---------|
+| `supabase/functions/monitorar-djen/index.ts` | 596-599 | Renomear parâmetro para `dataDisponibilizacao` |
+| `supabase/functions/monitorar-djen/index.ts` | 841 | Priorizar `dataDisponibilizacao` no hashConteudo |
+| `supabase/functions/monitorar-djen/index.ts` | 904 | Passar `dataDisponibilizacao` para `generateGlobalHash` |
+| `supabase/functions/monitorar-djen/index.ts` | 773-783 | Adicionar variantes sem acento para palavra-chave e parte |
+| `src/utils/djenDedup.ts` | 37-44 | Priorizar `data_disponibilizacao` na chave de dedup |
 
----
+### Lógica de Normalização de Acentos
+```text
+"União Quimica Farmacêutica Nacional"
+    ↓ normalize('NFD')
+"União Quimica Farmacêutica Nacional" (decomposed)
+    ↓ replace(/[\u0300-\u036f]/g, '')
+"Uniao Quimica Farmaceutica Nacional"
+```
 
-## Resumo Técnico
+### Impacto Esperado
 
-| Item | Detalhe |
-|------|---------|
-| Arquivo | `src/components/djen/MonitoramentoDialog.tsx` |
-| Linhas afetadas | 24-63 (lista TRIBUNAIS_DISPONIVEIS) |
-| Tribunais adicionados | 24 (todos os TJs faltantes) |
-| Impacto | "Todos os Tribunais Cíveis" passará a incluir 27 TJs |
+1. **Deduplicação**: Publicações republicadas pelo tribunal em datas de disponibilização diferentes serão capturadas como registros distintos
+2. **Busca**: Termos com acentos também buscarão a variante sem acentos, aumentando a cobertura
+3. **Compatibilidade**: Nenhum impacto negativo em publicações existentes
+
+### Ação Pós-Implementação
+Após deploy da edge function, executar novamente o monitoramento DJEN para capturar as publicações que foram erroneamente descartadas.
+
