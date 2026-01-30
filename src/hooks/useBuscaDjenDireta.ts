@@ -657,23 +657,35 @@ export function useBuscaDjenDireta() {
 
     // Lista de variantes para busca (importante para termos com acentos)
     let palavrasChaveVariantes: string[] = [];
+    
+    // Para advogados com múltiplas UFs, precisamos iterar por cada UF
+    let ufsParaBuscar: string[] = [];
 
     if (tipoMapeado === 'advogado' && monitoramento.oab && monitoramento.uf) {
       params.oab = monitoramento.oab;
       const ufValue = monitoramento.uf;
+      
       if (ufValue === 'TODAS' || !ufValue) {
+        // Sem UF específica: buscar por palavra-chave (nome do advogado)
         palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
         delete params.oab;
       } else if (ufValue.includes(',')) {
-        const primeiraUf = ufValue.split(',')[0].trim();
-        if (primeiraUf.length === 2) {
-          params.uf = primeiraUf;
+        // CORREÇÃO: Múltiplas UFs - iterar por CADA uma, não só a primeira
+        ufsParaBuscar = ufValue.split(',')
+          .map(u => u.trim())
+          .filter(u => u.length === 2);
+        
+        if (ufsParaBuscar.length > 0) {
+          // Definir primeira UF como default (será sobrescrito no loop)
+          params.uf = ufsParaBuscar[0];
         } else {
+          // Nenhuma UF válida - buscar por nome
           palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
           delete params.oab;
         }
       } else if (ufValue.length === 2) {
         params.uf = ufValue;
+        ufsParaBuscar = [ufValue];
       } else {
         palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
         delete params.oab;
@@ -739,35 +751,41 @@ export function useBuscaDjenDireta() {
         return controller;
       };
 
-      for (const variante of variantesParaBuscar) {
+      // Para advogados com múltiplas UFs, iterar por cada UF
+      const ufsLoop = ufsParaBuscar.length > 0 ? ufsParaBuscar : [params.uf];
+      
+      for (const ufAtual of ufsLoop) {
         if (cancelarRef.current) break;
-
-        for (const trib of tribunais) {
+        
+        for (const variante of variantesParaBuscar) {
           if (cancelarRef.current) break;
 
-          const reqController = createLinkedController();
-          const timeoutId = setTimeout(() => reqController.abort(), 60_000);
+          for (const trib of tribunais) {
+            if (cancelarRef.current) break;
 
-          try {
-            const resp = await buscarPjeComunicaPaginado(
-              {
-                tipo: params.tipo,
-                oab: params.oab,
-                uf: params.uf,
-                palavraChave: variante,
-                numeroProcesso: params.numeroProcesso,
-                siglaTribunal: trib,
-                dataInicio: params.dataInicio,
-                dataFim: params.dataFim,
-                page: 0,
-                pageSize: params.pageSize ?? 10,
-              },
-              {
-                signal: reqController.signal,
-                maxPages: 10,
-                delayMs: 150,
-              }
-            );
+            const reqController = createLinkedController();
+            const timeoutId = setTimeout(() => reqController.abort(), 60_000);
+
+            try {
+              const resp = await buscarPjeComunicaPaginado(
+                {
+                  tipo: params.tipo,
+                  oab: params.oab,
+                  uf: ufAtual, // Usar UF atual do loop
+                  palavraChave: variante,
+                  numeroProcesso: params.numeroProcesso,
+                  siglaTribunal: trib,
+                  dataInicio: params.dataInicio,
+                  dataFim: params.dataFim,
+                  page: 0,
+                  pageSize: params.pageSize ?? 10,
+                },
+                {
+                  signal: reqController.signal,
+                  maxPages: 10,
+                  delayMs: 150,
+                }
+              );
 
             for (const item of resp.items) {
               const id = String(item?.id ?? "");
@@ -795,6 +813,7 @@ export function useBuscaDjenDireta() {
 
           // Pequeno delay entre tribunais para reduzir 429
           await delay(120);
+        }
         }
       }
 
