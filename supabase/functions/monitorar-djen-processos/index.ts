@@ -905,11 +905,12 @@ serve(async (req) => {
 
     console.log(`[DJEN Processos] Início: ${dataInicio} a ${dataFim} | completeRun=${completeRun} | continued=${continued} | scheduled=${scheduled} | execucaoId=${execucaoId}`);
 
-    // Get config
+    // Get config (sempre global: coordenacao_id IS NULL)
     const { data: config } = await supabase
       .from('configuracoes_monitoramento')
       .select('*')
       .eq('tipo', 'djen_processos')
+      .is('coordenacao_id', null)
       .single();
 
     // Count total - agora inclui todos os processos com monitorar_djen=true (mesmo não-ativos)
@@ -922,6 +923,7 @@ serve(async (req) => {
     // - primeira chamada (cron/manual completeRun) começa do 0
     // - continuações sempre passam continuarDe
     const meta: any = config?.metadata || {};
+    const checkpointAtual = Math.max(Number(meta?.next_offset || 0), Number(meta?.current || 0));
 
     // Lógica de offset:
     // 1. Se continuarDe foi passado explicitamente, usa ele
@@ -940,6 +942,28 @@ serve(async (req) => {
       console.log(`[DJEN Processos] Iniciando novo ciclo do offset 0`);
     }
 
+    // ============================================================
+    // GUARDA CRÍTICA: ignora invocações atrasadas (offset antigo)
+    // ============================================================
+    // Quando há rate limit/timeouts, invocações mais antigas podem chegar depois
+    // e sobrescrever o progresso (efeito: 100% -> volta para 93%).
+    // Se a chamada veio com continuarDe explícito e ela está atrás do checkpoint atual,
+    // consideramos esta invocação "stale" e NÃO processamos / NÃO atualizamos / NÃO encadeamos.
+    if (typeof continuarDe === 'number' && checkpointAtual > 0 && continuarDe < checkpointAtual) {
+      console.log(
+        `[DJEN Processos] Ignorando invocação atrasada: continuarDe=${continuarDe} < checkpointAtual=${checkpointAtual}`
+      );
+      return new Response(
+        JSON.stringify({
+          success: true,
+          stale: true,
+          message: 'Invocação atrasada ignorada',
+          checkpointAtual,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Get batch - agora inclui todos os processos com monitorar_djen=true
     // Processos não-ativos com monitoramento ativo terão alerta especial
     const { data: processos, error: processosError } = await supabase
@@ -954,29 +978,55 @@ serve(async (req) => {
     }
 
     if (!processos || processos.length === 0) {
-      // Complete cycle
+      // Complete cycle (ou offset já além do fim)
+      const doneAt = new Date().toISOString();
+      const total = Number(totalProcessos || 0);
+      const finalCurrent = total > 0 ? total : Math.max(checkpointAtual, offset);
+
       if (config) {
         await supabase
           .from('configuracoes_monitoramento')
           .update({
-            ultima_execucao: new Date().toISOString(),
+            ultima_execucao: doneAt,
             metadata: {
               ...(config.metadata || {}),
+              current: finalCurrent,
+              total,
               status: 'concluido',
-              last_complete_run: new Date().toISOString(),
+              last_complete_run: doneAt,
               next_offset: 0,
+              has_more: false,
+              last_stop_reason: 'completed',
+              last_stop_at: doneAt,
+              last_error: null,
             },
           })
           .eq('tipo', 'djen_processos')
           .is('coordenacao_id', null);
       }
 
+      // Garante finalização da execução para o frontend (evita ficar "executando" pra sempre)
+      const pct = total > 0 ? 100 : 0;
+      await updateExecucaoProgress(supabase, execucaoId, {
+        status: 'concluido',
+        registros_processados: finalCurrent,
+        total_lotes: total,
+        detalhes: {
+          progress: {
+            current: finalCurrent,
+            total,
+            percentage: pct,
+          },
+        },
+        finalizado_em: doneAt,
+      });
+
       return new Response(
         JSON.stringify({
           success: true,
           message: 'Ciclo completo',
           processados: 0,
-          totalProcessos: totalProcessos || 0,
+          totalProcessos: total,
           concluido: true,
           tempoMs: Date.now() - startTime,
         }),
@@ -994,8 +1044,17 @@ serve(async (req) => {
     const nextOffset = offset + processos.length;
     const hasMore = nextOffset < (totalProcessos || 0);
 
+    // Monotonicidade no backend: nunca permitir que current/next_offset diminua.
+    const checkpointBase = Math.max(
+      checkpointAtual,
+      Number((config?.metadata as any)?.next_offset || 0),
+      Number((config?.metadata as any)?.current || 0),
+      offset
+    );
+    const checkpointNow = Math.max(checkpointBase, nextOffset);
+
     if (config) {
-      const progressPercentage = (totalProcessos || 0) > 0 ? Math.min(100, Math.round((nextOffset / (totalProcessos || 1)) * 100)) : 0;
+      const progressPercentage = (totalProcessos || 0) > 0 ? Math.min(100, Math.round((checkpointNow / (totalProcessos || 1)) * 100)) : 0;
       await supabase
         .from('configuracoes_monitoramento')
         .update({
@@ -1006,7 +1065,7 @@ serve(async (req) => {
           metadata: {
             ...(config.metadata || {}),
             // Campos para sincronização realtime via useRealtimeProgress
-            current: nextOffset,
+            current: checkpointNow,
             total: totalProcessos || 0,
             novas: totalNovas,
             status: hasMore ? 'em_andamento' : 'concluido',
@@ -1017,7 +1076,7 @@ serve(async (req) => {
             last_stop_at: hasMore ? null : new Date().toISOString(),
             last_error: null,
             // Campos legados de paginação
-            next_offset: hasMore ? nextOffset : 0,
+            next_offset: hasMore ? checkpointNow : 0,
             last_batch_processos: processos.length,
             last_batch_novas: totalNovas,
             last_batch_offset: offset,
@@ -1049,15 +1108,15 @@ serve(async (req) => {
     console.log(`[DJEN Processos] Lote: ${totalNovas} novas, ${totalDuplicadas} dup, ${tempoMs}ms, hasMore: ${hasMore}`);
 
     // Atualizar progresso em tempo real na tabela execucoes_agendadas
-    const progressPercentage = (totalProcessos || 0) > 0 ? Math.min(100, Math.round((nextOffset / (totalProcessos || 1)) * 100)) : 0;
+    const progressPercentage = (totalProcessos || 0) > 0 ? Math.min(100, Math.round((checkpointNow / (totalProcessos || 1)) * 100)) : 0;
     await updateExecucaoProgress(supabase, execucaoId, {
       status: hasMore ? 'executando' : 'concluido',
-      registros_processados: nextOffset,
+      registros_processados: checkpointNow,
       registros_encontrados: totalNovas,
       total_lotes: totalProcessos || 0,
       detalhes: {
         progress: {
-          current: nextOffset,
+          current: checkpointNow,
           total: totalProcessos || 0,
           percentage: progressPercentage,
         },
@@ -1079,6 +1138,8 @@ serve(async (req) => {
         .maybeSingle();
 
       const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
+      const freshMeta = (freshConfig?.metadata as any) || {};
+      const freshCheckpoint = Math.max(Number(freshMeta?.next_offset || 0), Number(freshMeta?.current || 0));
 
       if (wasCancelled) {
         console.log('[DJEN Processos] Cancelamento detectado, parando auto-continuação');
@@ -1091,12 +1152,18 @@ serve(async (req) => {
           })
           .eq('tipo', 'djen_processos')
           .is('coordenacao_id', null);
+      } else if (freshCheckpoint > nextOffset) {
+        // Outro lote já avançou o checkpoint (ou esta invocação ficou lenta / rate-limited).
+        // Evita disparar uma cadeia paralela que vai sobrescrever progresso com offset antigo.
+        console.log(
+          `[DJEN Processos] Pulando encadeamento: freshCheckpoint=${freshCheckpoint} > nextOffset=${nextOffset} (invocação atrasada)`
+        );
       } else {
         const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen-processos`;
         const nextBody = {
           dataInicio,
           dataFim,
-          continuarDe: nextOffset,
+          continuarDe: checkpointNow,
           completeRun: true,
           scheduled: true,
           continued: true,
@@ -1118,7 +1185,7 @@ serve(async (req) => {
             body: JSON.stringify(nextBody),
           });
           const t = await r.text().catch(() => '');
-          console.log(`[DJEN Processos] Queued next batch offset=${nextOffset} status=${r.status} body=${t.slice(0, 200)}`);
+           console.log(`[DJEN Processos] Queued next batch offset=${checkpointNow} status=${r.status} body=${t.slice(0, 200)}`);
         })().catch((e) => console.error('[DJEN Processos] Failed to queue next batch', e));
 
         const er = (globalThis as any).EdgeRuntime;
