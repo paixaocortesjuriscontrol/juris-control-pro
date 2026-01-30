@@ -77,6 +77,61 @@ const estados = [
   "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"
 ];
 
+// Retry/backoff para erros intermitentes do runtime (546 WORKER_LIMIT)
+// (mesma estratégia usada no hook useBuscaDjenDireta)
+const DJEN_MAX_RETRIES = 6;
+const DJEN_INITIAL_BACKOFF_MS = 2000;
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function invokeBuscarDjenWithRetry<T>(
+  body: Record<string, any>,
+  maxRetries = DJEN_MAX_RETRIES
+): Promise<{ data: T | null; error: Error | null }> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const { data, error } = await supabase.functions.invoke("buscar-djen", { body });
+
+      if (error) {
+        const errMsg = (error as any)?.message || String(error);
+        const is546 = errMsg.includes("546") || errMsg.includes("WORKER_LIMIT");
+
+        if (is546 && attempt < maxRetries) {
+          const backoff = DJEN_INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+          console.warn(
+            `[buscar-djen] WORKER_LIMIT (tentativa ${attempt + 1}/${maxRetries + 1}), aguardando ${backoff}ms...`
+          );
+          await delay(backoff);
+          lastError = error as any;
+          continue;
+        }
+
+        return { data: null, error: error as any };
+      }
+
+      return { data: data as T, error: null };
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      const is546 = errMsg.includes("546") || errMsg.includes("WORKER_LIMIT");
+
+      if (is546 && attempt < maxRetries) {
+        const backoff = DJEN_INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+        console.warn(
+          `[buscar-djen] WORKER_LIMIT catch (tentativa ${attempt + 1}/${maxRetries + 1}), aguardando ${backoff}ms...`
+        );
+        await delay(backoff);
+        lastError = err;
+        continue;
+      }
+
+      return { data: null, error: err };
+    }
+  }
+
+  return { data: null, error: lastError || new Error("Max retries exceeded") };
+}
+
 const BuscarDJEN = () => {
   const { startImport, endImport } = useImport();
   const [searchType, setSearchType] = useState<SearchType>("palavra-chave");
@@ -365,19 +420,17 @@ const BuscarDJEN = () => {
         const allPubs: Publicacao[] = [];
         let anyFullPage = false;
         
-        for (const mon of monsParaBuscar) {
-          const { data, error } = await supabase.functions.invoke('buscar-djen', {
-            body: {
-              tipo: mon.tipo === 'advogado' ? 'advogado' : 'palavra-chave',
-              palavraChave: mon.tipo !== 'advogado' ? mon.termo_busca : undefined,
-              oab: mon.tipo === 'advogado' ? mon.oab : undefined,
-              uf: mon.tipo === 'advogado' ? mon.uf : undefined,
+          for (const mon of monsParaBuscar) {
+            const { data, error } = await invokeBuscarDjenWithRetry<any>({
+              tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
+              palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
+              oab: mon.tipo === "advogado" ? mon.oab : undefined,
+              uf: mon.tipo === "advogado" ? mon.uf : undefined,
               dataInicio: dataInicio || undefined,
               dataFim: dataFim || undefined,
               page: 0,
               pageSize: 100,
-            }
-          });
+            });
           
           if (!error && data?.success) {
             const rawPubs = data.publicacoes || data.comunicacoes || data.items || [];
@@ -438,18 +491,16 @@ const BuscarDJEN = () => {
     setHasSearched(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('buscar-djen', {
-        body: {
-          tipo: searchType,
-          palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
-          oab: searchType === "advogado" ? oab.trim() : undefined,
-          uf: searchType === "advogado" ? uf : undefined,
-          numeroProcesso: searchType === "processo" ? numeroProcesso.trim() : undefined,
-          dataInicio: dataInicio || undefined,
-          dataFim: dataFim || undefined,
-          page: 0,
-          pageSize: DJEN_PAGE_SIZE,
-        }
+      const { data, error } = await invokeBuscarDjenWithRetry<any>({
+        tipo: searchType,
+        palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
+        oab: searchType === "advogado" ? oab.trim() : undefined,
+        uf: searchType === "advogado" ? uf : undefined,
+        numeroProcesso: searchType === "processo" ? numeroProcesso.trim() : undefined,
+        dataInicio: dataInicio || undefined,
+        dataFim: dataFim || undefined,
+        page: 0,
+        pageSize: DJEN_PAGE_SIZE,
       });
 
       if (error) throw error;
@@ -535,17 +586,15 @@ const BuscarDJEN = () => {
         let anyFullPage = false;
 
         for (const mon of monsParaBuscar) {
-          const { data, error } = await supabase.functions.invoke("buscar-djen", {
-            body: {
-              tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
-              palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
-              oab: mon.tipo === "advogado" ? mon.oab : undefined,
-              uf: mon.tipo === "advogado" ? mon.uf : undefined,
-              dataInicio: dataInicio || undefined,
-              dataFim: dataFim || undefined,
-              page: nextPage,
-              pageSize: DJEN_PAGE_SIZE,
-            },
+          const { data, error } = await invokeBuscarDjenWithRetry<any>({
+            tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
+            palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
+            oab: mon.tipo === "advogado" ? mon.oab : undefined,
+            uf: mon.tipo === "advogado" ? mon.uf : undefined,
+            dataInicio: dataInicio || undefined,
+            dataFim: dataFim || undefined,
+            page: nextPage,
+            pageSize: DJEN_PAGE_SIZE,
           });
 
           if (error) throw error;
@@ -588,18 +637,16 @@ const BuscarDJEN = () => {
       }
 
       // Paginação padrão (busca manual)
-      const { data, error } = await supabase.functions.invoke('buscar-djen', {
-        body: {
-          tipo: searchType,
-          palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
-          oab: searchType === "advogado" ? oab.trim() : undefined,
-          uf: searchType === "advogado" ? uf : undefined,
-          numeroProcesso: searchType === "processo" ? numeroProcesso.trim() : undefined,
-          dataInicio: dataInicio || undefined,
-          dataFim: dataFim || undefined,
-          page: nextPage,
-          pageSize: DJEN_PAGE_SIZE,
-        }
+      const { data, error } = await invokeBuscarDjenWithRetry<any>({
+        tipo: searchType,
+        palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
+        oab: searchType === "advogado" ? oab.trim() : undefined,
+        uf: searchType === "advogado" ? uf : undefined,
+        numeroProcesso: searchType === "processo" ? numeroProcesso.trim() : undefined,
+        dataInicio: dataInicio || undefined,
+        dataFim: dataFim || undefined,
+        page: nextPage,
+        pageSize: DJEN_PAGE_SIZE,
       });
 
       if (error) throw error;
@@ -691,17 +738,15 @@ const BuscarDJEN = () => {
           let anyFullPage = false;
 
           for (const mon of monsParaBuscar) {
-            const { data, error } = await supabase.functions.invoke("buscar-djen", {
-              body: {
-                tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
-                palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
-                oab: mon.tipo === "advogado" ? mon.oab : undefined,
-                uf: mon.tipo === "advogado" ? mon.uf : undefined,
-                dataInicio: dataInicio || undefined,
-                dataFim: dataFim || undefined,
-                page: currentPageNum,
-                pageSize: DJEN_PAGE_SIZE,
-              },
+            const { data, error } = await invokeBuscarDjenWithRetry<any>({
+              tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
+              palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
+              oab: mon.tipo === "advogado" ? mon.oab : undefined,
+              uf: mon.tipo === "advogado" ? mon.uf : undefined,
+              dataInicio: dataInicio || undefined,
+              dataFim: dataFim || undefined,
+              page: currentPageNum,
+              pageSize: DJEN_PAGE_SIZE,
             });
 
             if (error) throw error;
@@ -747,18 +792,16 @@ const BuscarDJEN = () => {
         }
 
         // Modo padrão (busca manual)
-        const { data, error } = await supabase.functions.invoke("buscar-djen", {
-          body: {
-            tipo: searchType,
-            palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
-            oab: searchType === "advogado" ? oab.trim() : undefined,
-            uf: searchType === "advogado" ? uf : undefined,
-            numeroProcesso: searchType === "processo" ? numeroProcesso.trim() : undefined,
-            dataInicio: dataInicio || undefined,
-            dataFim: dataFim || undefined,
-            page: currentPageNum,
-            pageSize: DJEN_PAGE_SIZE,
-          },
+        const { data, error } = await invokeBuscarDjenWithRetry<any>({
+          tipo: searchType,
+          palavraChave: searchType === "palavra-chave" ? palavraChave.trim() : undefined,
+          oab: searchType === "advogado" ? oab.trim() : undefined,
+          uf: searchType === "advogado" ? uf : undefined,
+          numeroProcesso: searchType === "processo" ? numeroProcesso.trim() : undefined,
+          dataInicio: dataInicio || undefined,
+          dataFim: dataFim || undefined,
+          page: currentPageNum,
+          pageSize: DJEN_PAGE_SIZE,
         });
 
         if (error) throw error;
