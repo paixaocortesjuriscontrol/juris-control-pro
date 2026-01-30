@@ -24,6 +24,17 @@ const WORKER_CALL_TIMEOUT_MS = 180 * 1000; // 180s - evita abort prematuro em ta
 // há algum tempo, consideramos que travou e liberamos para nova execução.
 const STALE_HEARTBEAT_MS = 5 * 60 * 1000; // 5min
 
+async function getFreshMetadata(supabase: any, tipo: string): Promise<Record<string, any>> {
+  const { data } = await supabase
+    .from('configuracoes_monitoramento')
+    .select('metadata')
+    .eq('tipo', tipo)
+    .is('coordenacao_id', null)
+    .maybeSingle();
+
+  return ((data?.metadata as any) || {}) as Record<string, any>;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -159,11 +170,14 @@ Deno.serve(async (req) => {
               })
               .eq('id', execucao.id);
 
+            // CRÍTICO: não usar metaCfg (snapshot antigo) aqui, pois isso pode sobrescrever
+            // next_offset/current/total atualizados pelo worker e fazer o progresso “voltar”.
+            const freshMeta = await getFreshMetadata(supabase, tipo);
             await supabase
               .from('configuracoes_monitoramento')
               .update({
                 metadata: {
-                  ...(metaCfg || {}),
+                  ...(freshMeta || {}),
                   status: 'idle',
                   continuingRun: true,
                   last_stop_reason: 'stale',
@@ -318,11 +332,14 @@ Deno.serve(async (req) => {
             .neq('status', 'cancelado');
         }
 
+        // CRÍTICO: não usar metaCfg (snapshot antigo) aqui para não sobrescrever
+        // checkpoint/progresso atualizado em background.
+        const freshMeta = await getFreshMetadata(supabase, tipo);
         await supabase
           .from('configuracoes_monitoramento')
           .update({
             metadata: {
-              ...(metaCfg || {}),
+              ...(freshMeta || {}),
               status: 'idle',
               continuingRun: true,
               last_stop_reason: 'falhou',

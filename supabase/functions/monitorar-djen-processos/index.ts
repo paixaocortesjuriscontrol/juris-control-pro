@@ -829,6 +829,26 @@ async function updateExecucaoProgress(
   if (!execucaoId) return;
   // NOTE: execucoes_agendadas não possui coluna updated_at.
   // Se enviarmos updated_at aqui, o update falha silenciosamente e o progresso nunca aparece no frontend.
+
+  // GUARD: evitar corrida onde um lote atrasado sobrescreve uma execução já finalizada
+  // (ex.: marcar de volta como 'executando' após finalizado_em).
+  const { data: currentRow, error: readErr } = await supabase
+    .from('execucoes_agendadas')
+    .select('status, finalizado_em')
+    .eq('id', execucaoId)
+    .maybeSingle();
+
+  if (readErr) {
+    console.error('Error reading execucoes_agendadas before update:', readErr);
+  }
+
+  const alreadyFinalized = !!currentRow?.finalizado_em || ['concluido', 'falhou', 'cancelado', 'timeout'].includes(String(currentRow?.status));
+  const wantsToReopen = data.status === 'executando' && alreadyFinalized;
+  if (wantsToReopen) {
+    // Mantém integridade do registro; apenas ignora update tardio.
+    return;
+  }
+
   const { error } = await supabase
     .from('execucoes_agendadas')
     .update({
