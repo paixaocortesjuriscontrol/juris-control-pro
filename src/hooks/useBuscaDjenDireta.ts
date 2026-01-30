@@ -633,9 +633,24 @@ export function useBuscaDjenDireta() {
           : [undefined];
 
         // Lista de variantes de palavras-chave (com e sem acentos)
-        const variantesParaBuscar = palavrasChaveVariantes.length > 0
+        // IMPORTANTE: evitar chamadas com termo vazio/curto, pois a Edge Function valida min 3 chars
+        // e, no browser-first, termos muito curtos podem gerar consultas amplas demais.
+        const variantesParaBuscarRaw = palavrasChaveVariantes.length > 0
           ? palavrasChaveVariantes
           : (params.palavraChave ? [params.palavraChave] : [undefined]);
+
+        const variantesParaBuscar = variantesParaBuscarRaw
+          .filter((v): v is string => typeof v === 'string')
+          .map((v) => v.trim())
+          .filter((v) => v.length > 0)
+          .filter((v) => normalizeAccents(v).length >= 3);
+
+        if (tipoMapeado === 'palavra-chave' && !params.oab && variantesParaBuscar.length === 0) {
+          console.warn(
+            `[DJEN Direta] Monitoramento com termo muito curto para palavra-chave (min 3): "${monitoramento.termo_busca}"`
+          );
+          return [];
+        }
 
         const seen = new Set<string>();
         const acumulado: any[] = [];
@@ -688,31 +703,59 @@ export function useBuscaDjenDireta() {
         const MAX_PAGES_FALLBACK = 10;
         const TIMEOUT_PER_PAGE_MS = 30_000;
 
-        // Usar palavra-chave do monitoramento (termo_busca) para fallback
-        const palavraChaveFallback = palavrasChaveVariantes.find(v => v && v.length >= 3) || monitoramento.termo_busca;
+        // Usar palavra-chave do monitoramento (termo_busca) para fallback.
+        // Atenção: a Edge Function valida comprimento mínimo de 3 caracteres.
+        const palavraChaveFallback = !params.oab
+          ? [...(palavrasChaveVariantes || []), monitoramento.termo_busca]
+              .filter((v): v is string => typeof v === 'string')
+              .map((v) => v.trim())
+              .filter((v) => v.length > 0)
+              .find((v) => normalizeAccents(v).length >= 3) ?? null
+          : null;
+
+        if (tipoMapeado === 'palavra-chave' && !params.oab && !palavraChaveFallback) {
+          // Se o browser falhou e o termo é inválido para a Edge Function,
+          // não faz sentido invocar e causar erro 400.
+          error = new Error(
+            `Termo do monitoramento inválido para busca por palavra-chave (mínimo 3 caracteres): "${monitoramento.termo_busca}"`
+          );
+        }
 
         const fetchPage = async (page: number) => {
           const timeoutController = new AbortController();
           const timeoutId = setTimeout(() => timeoutController.abort(), TIMEOUT_PER_PAGE_MS);
 
-          const invokePromise = invokeWithRetry<any>("buscar-djen", {
-            ...params,
-            palavraChave: params.oab ? undefined : palavraChaveFallback, // Só envia palavraChave se não for advogado
-            page,
-            pageSize: params.pageSize ?? 100,
-            fetchAll: false,
-          });
+          try {
+            if (error) {
+              // Já detectamos erro de validação (ex: termo curto); não invocar a função.
+              return { data: null, error };
+            }
 
-          const raced = await Promise.race([
-            invokePromise,
-            new Promise<{ data: null; error: Error }>((_, reject) => {
-              timeoutController.signal.addEventListener("abort", () => {
-                reject({ data: null, error: new Error(`Timeout ao buscar DJEN (${TIMEOUT_PER_PAGE_MS / 1000}s)`) });
-              });
-            }),
-          ]).finally(() => clearTimeout(timeoutId));
+            const invokePromise = invokeWithRetry<any>("buscar-djen", {
+              ...params,
+              palavraChave: params.oab ? undefined : palavraChaveFallback, // Só envia palavraChave se não for advogado
+              page,
+              pageSize: params.pageSize ?? 100,
+              fetchAll: false,
+            });
 
-          return raced;
+            const raced = await Promise.race([
+              invokePromise,
+              new Promise<{ data: null; error: Error }>((_, reject) => {
+                timeoutController.signal.addEventListener("abort", () => {
+                  reject({ data: null, error: new Error(`Timeout ao buscar DJEN (${TIMEOUT_PER_PAGE_MS / 1000}s)`) });
+                });
+              }),
+            ]);
+
+            return raced;
+          } catch (e: any) {
+            // Garantir que qualquer exceção (incluindo 400) seja convertida em retorno padrão
+            // para evitar crash/tela em branco.
+            return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
+          } finally {
+            clearTimeout(timeoutId);
+          }
         };
 
         const seen = new Set<string>();
