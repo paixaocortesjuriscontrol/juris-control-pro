@@ -86,6 +86,18 @@ export interface ProgressoExecucao {
   coordenacaoAtualId?: string;
   tipoAtual?: TipoTermo;
   termoAtual?: string;
+  
+  // V3: Totais por tipo de monitoramento
+  novasPorTipo: {
+    advogado: number;
+    'palavra-chave': number;
+    processo: number;
+  };
+  duplicadasPorTipo: {
+    advogado: number;
+    'palavra-chave': number;
+    processo: number;
+  };
 }
 
 function calcularProximoDiaUtil(dataBase: Date): Date {
@@ -261,6 +273,12 @@ const defaultFases = (): ProgressoExecucao['fases'] => ({
   fase3: { total: 0, processados: 0, status: 'pendente' },
 });
 
+const defaultNovasPorTipo = () => ({
+  advogado: 0,
+  'palavra-chave': 0,
+  processo: 0,
+});
+
 const defaultProgresso = (): ProgressoExecucao => ({
   monitoramentoAtual: 0,
   totalMonitoramentos: 0,
@@ -275,6 +293,8 @@ const defaultProgresso = (): ProgressoExecucao => ({
   coordenacaoAtualId: undefined,
   tipoAtual: undefined,
   termoAtual: undefined,
+  novasPorTipo: defaultNovasPorTipo(),
+  duplicadasPorTipo: defaultNovasPorTipo(),
 });
 
 /**
@@ -721,15 +741,20 @@ export function useBuscaDjenDireta() {
         : [undefined];
 
       // Lista de variantes de palavras-chave (com e sem acentos + prefixo)
+      // IMPORTANTE: Para advogados com OAB, não precisamos de variantes de texto,
+      // mas o loop precisa executar pelo menos uma vez - usamos [null] como placeholder
       const variantesParaBuscarRaw = palavrasChaveVariantes.length > 0
         ? palavrasChaveVariantes
-        : (params.palavraChave ? [params.palavraChave] : [undefined]);
+        : (params.palavraChave ? [params.palavraChave] : [null as unknown as string]);
 
-      const variantesParaBuscar = variantesParaBuscarRaw
-        .filter((v): v is string => typeof v === 'string')
-        .map((v) => v.trim())
-        .filter((v) => v.length > 0)
-        .filter((v) => normalizeAccents(v).length >= 3);
+      // Para advogados, permitir busca sem variante de texto (apenas OAB)
+      const variantesParaBuscar = params.oab
+        ? (variantesParaBuscarRaw.length > 0 ? variantesParaBuscarRaw : [null as unknown as string])
+        : variantesParaBuscarRaw
+            .filter((v): v is string => typeof v === 'string')
+            .map((v) => v.trim())
+            .filter((v) => v.length > 0)
+            .filter((v) => normalizeAccents(v).length >= 3);
 
       if (tipoMapeado === 'palavra-chave' && !params.oab && variantesParaBuscar.length === 0) {
         console.warn(
@@ -737,6 +762,9 @@ export function useBuscaDjenDireta() {
         );
         return [];
       }
+      
+      // Se é advogado e ainda assim variantesParaBuscar está vazio, usar placeholder
+      const variantesLoop = variantesParaBuscar.length > 0 ? variantesParaBuscar : [null as unknown as string];
 
       const seen = new Set<string>();
       const acumulado: any[] = [];
@@ -757,7 +785,7 @@ export function useBuscaDjenDireta() {
       for (const ufAtual of ufsLoop) {
         if (cancelarRef.current) break;
         
-        for (const variante of variantesParaBuscar) {
+        for (const variante of variantesLoop) {
           if (cancelarRef.current) break;
 
           for (const trib of tribunais) {
@@ -772,7 +800,8 @@ export function useBuscaDjenDireta() {
                   tipo: params.tipo,
                   oab: params.oab,
                   uf: ufAtual, // Usar UF atual do loop
-                  palavraChave: variante,
+                  // Não passar palavraChave se for null (busca por OAB apenas)
+                  palavraChave: variante || undefined,
                   numeroProcesso: params.numeroProcesso,
                   siglaTribunal: trib,
                   dataInicio: params.dataInicio,
@@ -1063,6 +1092,8 @@ export function useBuscaDjenDireta() {
       coordenacaoAtualId: undefined,
       tipoAtual: undefined,
       termoAtual: undefined,
+      novasPorTipo: defaultNovasPorTipo(),
+      duplicadasPorTipo: defaultNovasPorTipo(),
     };
     
     setProgresso(progressoInicial);
@@ -1223,6 +1254,10 @@ export function useBuscaDjenDireta() {
       let processados = idsProcessados.size;
       const monitoramentosProcessadosIds = new Set(idsProcessados);
       
+      // Totais por tipo de monitoramento
+      const novasPorTipo = { advogado: 0, 'palavra-chave': 0, processo: 0 };
+      const duplicadasPorTipo = { advogado: 0, 'palavra-chave': 0, processo: 0 };
+      
       const resumosPorCoordenacao: Record<string, {
         total_verificados: number;
         total_encontrados: number;
@@ -1295,6 +1330,10 @@ export function useBuscaDjenDireta() {
               totalNovas += resultado.value.novas;
               totalDuplicadas += resultado.value.duplicadas;
               
+              // Acumular totais por tipo
+              novasPorTipo[tipoLabel] += resultado.value.novas;
+              duplicadasPorTipo[tipoLabel] += resultado.value.duplicadas;
+              
               if (resultado.value.coordenacaoStats) {
                 const stats = resultado.value.coordenacaoStats;
                 if (!resumosPorCoordenacao[stats.coordenacao_id]) {
@@ -1325,6 +1364,8 @@ export function useBuscaDjenDireta() {
             monitoramentoAtual: processados,
             publicacoesNovas: totalNovas,
             publicacoesDuplicadas: totalDuplicadas,
+            novasPorTipo: { ...novasPorTipo },
+            duplicadasPorTipo: { ...duplicadasPorTipo },
             fases: {
               ...prev.fases,
               fase1: { ...prev.fases.fase1, processados },
