@@ -64,22 +64,23 @@ const queryClient = new QueryClient({
   },
 });
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <ImportProvider>
-            <Routes>
-              {/* Client Portal Routes (separate from internal system) */}
-              <Route path="/cliente/login" element={<ClienteLogin />} />
-              <Route path="/cliente/cadastro" element={<ClienteCadastro />} />
-              <Route path="/cliente" element={<ClientePortal />} />
-              
-              {/* VPS Worker Route - headless page for distributed DJEN search */}
-              <Route path="/worker-djen-vps" element={<ProtectedRoute><WorkerDjenVps /></ProtectedRoute>} />
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <ImportProvider>
+              <Routes>
+                {/* Client Portal Routes (separate from internal system) */}
+                <Route path="/cliente/login" element={<ClienteLogin />} />
+                <Route path="/cliente/cadastro" element={<ClienteCadastro />} />
+                <Route path="/cliente" element={<ClientePortal />} />
+                
+                {/* VPS Worker Route - headless page for distributed DJEN search */}
+                <Route path="/worker-djen-vps" element={<ProtectedRoute><WorkerDjenVps /></ProtectedRoute>} />
               
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
@@ -125,13 +126,14 @@ const App = () => (
               <Route path="/cofre-senhas" element={<ProtectedRoute><CofreSenhas /></ProtectedRoute>} />
               <Route path="/capturas-intimacoes" element={<ProtectedRoute><CapturasIntimacoes /></ProtectedRoute>} />
               <Route path="/relatorio-execucoes" element={<ProtectedRoute><RelatorioExecucoes /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </ImportProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </ImportProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;
