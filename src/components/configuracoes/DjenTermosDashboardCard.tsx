@@ -844,12 +844,14 @@ export function DjenTermosDashboardCard({
                 {canShowTop && (
                   <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
                     {/* NOVO: Indicador de data atual */}
-                    {diaFormatado && totalDias && totalDias > 1 && (
+                    {!!diaFormatado && (
                       <div className="flex items-center justify-between text-xs mb-2">
                         <div className="flex items-center gap-2">
                           <CalendarIcon className="h-3.5 w-3.5 text-primary" />
                           <span className="font-semibold text-primary">
-                            📅 Dia {diaAtualIndice}/{totalDias}: {diaFormatado}
+                            {typeof diaAtualIndice === 'number' && typeof totalDias === 'number'
+                              ? `📅 Dia ${diaAtualIndice}/${totalDias}: ${diaFormatado}`
+                              : `📅 ${diaFormatado}`}
                           </span>
                         </div>
                         <Badge variant="outline" className="text-xs bg-primary/10">

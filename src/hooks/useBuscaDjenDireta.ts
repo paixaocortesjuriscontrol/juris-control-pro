@@ -1256,6 +1256,9 @@ export function useBuscaDjenDireta() {
                   novas: totalNovas,
                   duplicadas: totalDuplicadas,
                   descartadas: totalDescartadas,
+                  // manter o intervalo para que a retomada não perca o contexto
+                  data_inicio: resolvedDataInicio,
+                  data_fim: resolvedDataFim,
                   data_override: dataOverrideRef.current,
                   run_key: runKey,
                   termoAtual: mon.termo_busca,
@@ -1282,10 +1285,17 @@ export function useBuscaDjenDireta() {
             }
 
             await registrarExecucao('executando', {
+              // manter campos-base em TODAS as atualizações para não “sumirem” do JSON
+              retomada: retomar,
+              run_key: runKey,
+              data_inicio: resolvedDataInicio,
+              data_fim: resolvedDataFim,
+              total_dias: totalDias,
               processados: i + 1,
               total,
               novas: totalNovas,
               duplicadas: totalDuplicadas,
+              descartadas: totalDescartadas,
               diaAtual: diaYmd,
               diaIndice: diaIdx + 1,
               totalDias,
@@ -1343,6 +1353,8 @@ export function useBuscaDjenDireta() {
               novas: totalNovas,
               duplicadas: totalDuplicadas,
               descartadas: totalDescartadas,
+              data_inicio: resolvedDataInicio,
+              data_fim: resolvedDataFim,
               data_override: dataOverrideRef.current,
               run_key: runKey,
             } 
@@ -1378,6 +1390,8 @@ export function useBuscaDjenDireta() {
               novas: totalNovas,
               duplicadas: totalDuplicadas,
               descartadas: totalDescartadas,
+              data_inicio: resolvedDataInicio,
+              data_fim: resolvedDataFim,
               data_override: dataOverrideRef.current,
               run_key: runKey,
               last_run: new Date().toISOString(),
@@ -1423,10 +1437,19 @@ export function useBuscaDjenDireta() {
     
     // Sinalizar cancelamento no banco
     try {
+      const { data } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+
+      const md = (data?.metadata as any) || {};
       await supabase
         .from('configuracoes_monitoramento')
         .update({ 
           metadata: {
+            ...md,
             cancel_requested: true,
           } 
         })
