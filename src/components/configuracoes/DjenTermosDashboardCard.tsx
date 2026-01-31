@@ -1,13 +1,17 @@
 import { useMemo, useState, useEffect } from "react";
+import { format, subDays } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
   Loader2, Newspaper, PlayCircle, StopCircle, Trash2, Mail,
   CheckCircle2, XCircle, Clock, TrendingUp, Zap, MinusCircle,
-  RotateCcw, AlertCircle, Skull, FlaskConical
+  RotateCcw, AlertCircle, Skull, FlaskConical, CalendarIcon
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -246,6 +250,8 @@ export function DjenTermosDashboardCard({
   const [forcandoCancelamento, setForcandoCancelamento] = useState(false);
   const [execucaoOrfaNoBanco, setExecucaoOrfaNoBanco] = useState<string | null>(null);
   const [showDiagnostico, setShowDiagnostico] = useState(false);
+  // Data selecionada para busca (null = últimos 3 dias, Date = data específica)
+  const [dataSelecionada, setDataSelecionada] = useState<Date | undefined>(undefined);
 
   const ORFA_GHOST_ID = "__ghost__";
 
@@ -428,6 +434,12 @@ export function DjenTermosDashboardCard({
     };
   }, [localRunActive, onAfterMutation, isRunning, stats.currentExecution?.iniciado_em]);
 
+  // Converte Date para YYYY-MM-DD (fuso horário local)
+  const getDataYmd = (date?: Date): string | undefined => {
+    if (!date) return undefined;
+    return format(date, 'yyyy-MM-dd');
+  };
+
   const handleExecutar = async () => {
     if (isRunning) return;
 
@@ -441,8 +453,12 @@ export function DjenTermosDashboardCard({
       if (isPaused) {
         await onReativarConfig('djen');
       }
-      await executarMonitoramento(undefined, false);
-      toast.info('DJEN Termos iniciado (busca direta).');
+      const dataYmd = getDataYmd(dataSelecionada);
+      await executarMonitoramento(undefined, false, dataYmd);
+      toast.info(dataYmd 
+        ? `DJEN Termos iniciado para ${format(dataSelecionada!, 'dd/MM/yyyy')}.`
+        : 'DJEN Termos iniciado (últimos 3 dias).'
+      );
     } catch (e: any) {
       toast.error(`Erro ao iniciar DJEN: ${e?.message || 'erro desconhecido'}`);
     }
@@ -468,8 +484,12 @@ export function DjenTermosDashboardCard({
       if (isPaused) {
         await onReativarConfig('djen');
       }
-      await executarMonitoramento(undefined, false);
-      toast.info('DJEN Termos iniciado do zero.');
+      const dataYmd = getDataYmd(dataSelecionada);
+      await executarMonitoramento(undefined, false, dataYmd);
+      toast.info(dataYmd 
+        ? `DJEN Termos iniciado do zero para ${format(dataSelecionada!, 'dd/MM/yyyy')}.`
+        : 'DJEN Termos iniciado do zero.'
+      );
     } catch (e: any) {
       toast.error(`Erro ao iniciar: ${e?.message || 'erro desconhecido'}`);
     }
@@ -861,31 +881,82 @@ export function DjenTermosDashboardCard({
             Última execução: {formatDateTime(stats.currentExecution?.iniciado_em || stats.lastCompletedExecution?.iniciado_em)}
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            <Button 
-              size="sm"
-              className="flex-1"
-              onClick={handleExecutar}
-              disabled={!canExecute}
-            >
-              {isRunning ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Executando...
-                </>
-              ) : hasCheckpoint ? (
-                <>
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Continuar ({checkpointPercent}%)
-                </>
-              ) : (
-                <>
-                  <PlayCircle className="h-4 w-4 mr-2" />
-                  Executar
-                </>
-              )}
-            </Button>
+          {/* Date Picker + Action Buttons */}
+          <div className="flex flex-col gap-2">
+            {/* Seletor de data - só mostra se não está executando */}
+            {!isRunning && (
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "flex-1 justify-start text-left font-normal",
+                        !dataSelecionada && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dataSelecionada 
+                        ? format(dataSelecionada, "dd/MM/yyyy", { locale: ptBR })
+                        : "Últimos 3 dias"
+                      }
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dataSelecionada}
+                      onSelect={setDataSelecionada}
+                      disabled={(date) =>
+                        date > new Date() || date < subDays(new Date(), 30)
+                      }
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                      locale={ptBR}
+                    />
+                    {dataSelecionada && (
+                      <div className="p-2 border-t">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={() => setDataSelecionada(undefined)}
+                        >
+                          Limpar (últimos 3 dias)
+                        </Button>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
+            {/* Botões de ação */}
+            <div className="flex gap-2">
+              <Button 
+                size="sm"
+                className="flex-1"
+                onClick={handleExecutar}
+                disabled={!canExecute}
+              >
+                {isRunning ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Executando...
+                  </>
+                ) : hasCheckpoint ? (
+                  <>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Continuar ({checkpointPercent}%)
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="h-4 w-4 mr-2" />
+                    Executar
+                  </>
+                )}
+              </Button>
             
             {/* Botão de cancelar normal (loop ativo) */}
             {canCancel && (
@@ -1011,6 +1082,7 @@ export function DjenTermosDashboardCard({
             >
               {limpando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
