@@ -735,15 +735,12 @@ export function useBuscaDjenDireta() {
   // IMPORTANTE: Validar que o TERMO COMPLETO está presente na publicação
   // A API do PJE Comunica faz busca por substring, então pode retornar resultados parciais
   // Ex: Buscar "F & F DISTRIBUIDORA" pode retornar publicação que só tem "DISTRIBUIDORA"
-  const conteudoContemTermo = (conteudo: string, termo: string, tipo: string, _oab?: string, _uf?: string): boolean => {
-    // Para advogado: NÃO descartar por “OAB não encontrada no conteúdo”.
-    // O filtro principal deve ser feito na própria consulta (numeroOab/ufOab).
-    // Aqui seguimos apenas com termos de exclusão (aplicados fora desta função).
-    if (tipo === 'advogado') return true;
-
-    if (!conteudo || !termo) return false;
+  // Para advogados: Valida que AMBOS nome e OAB estão no conteúdo antes de aceitar.
+  // Descarte só ocorre pelos termos de exclusão configurados (aplicados fora desta função).
+  const conteudoContemTermo = (conteudo: string, termo: string, tipo: string, oab?: string, uf?: string): boolean => {
+    if (!conteudo) return false;
     
-    // Normalizar ambos para comparação
+    // Normalizar para comparação
     const normalizar = (t: string) => t
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // Remove acentos
@@ -753,6 +750,45 @@ export function useBuscaDjenDireta() {
       .toUpperCase();
     
     const conteudoNorm = normalizar(conteudo);
+    
+    // Para advogado: validar que AMBOS o nome (termo) E a OAB estão presentes
+    // Só assim a publicação é considerada válida para este monitoramento
+    if (tipo === 'advogado') {
+      // 1. Validar OAB está presente (número + opcionalmente UF)
+      if (oab) {
+        const oabDigits = String(oab).replace(/\D/g, '');
+        // Buscar o número da OAB no conteúdo (ex: "15553", "OAB/DF 15553", "OAB 15.553")
+        // Regex flexível que aceita pontos/espaços no número
+        const oabPattern = new RegExp(oabDigits.split('').join('[.\\s]?'), 'i');
+        if (!oabPattern.test(conteudo)) {
+          // OAB não encontrada no conteúdo - descartar
+          return false;
+        }
+      }
+      
+      // 2. Validar nome do advogado está presente (pelo menos 80% das palavras)
+      if (termo) {
+        const termoNorm = normalizar(termo);
+        const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+        
+        if (palavrasTermo.length > 0) {
+          const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
+          const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+          
+          if (palavrasEncontradas.length < minPalavras) {
+            // Nome não encontrado adequadamente - descartar
+            return false;
+          }
+        }
+      }
+      
+      // Ambos OAB e nome estão presentes - válido!
+      return true;
+    }
+
+    // Para outros tipos (palavra-chave, parte, processo)
+    if (!termo) return false;
+    
     const termoNorm = normalizar(termo);
     
     // Verificar se o termo completo está presente
