@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { buscarPjeComunicaPaginado } from "@/utils/pjeComunicaClient";
+import { fetchDjenBackendResumeSnapshot } from "@/hooks/djen/djenBackendResume";
 
 // ============================================================================
 // VERSÃO SIMPLIFICADA - Loop sequencial por monitoramento
@@ -291,6 +292,21 @@ export function useBuscaDjenDireta() {
           const total = md.total ?? detalhes?.total ?? saved?.totalMonitoramentos ?? 0;
           const current = md.current ?? detalhes?.processados ?? saved?.monitoramentoAtual ?? 0;
           const duracao_s = md.duracao_s ?? Math.floor((Date.now() - iniciado) / 1000);
+
+          const runKey =
+            (typeof md.run_key === 'string' ? md.run_key : null) ??
+            (typeof md.data_override === 'string' ? md.data_override : null) ??
+            (typeof md.data_fim === 'string' ? md.data_fim : null);
+
+          const checkpointFromBackend = runKey && current > 0
+            ? {
+                indice: current,
+                data: runKey,
+                novasAcumuladas: Number(md.novas ?? saved?.checkpoint?.novasAcumuladas ?? 0),
+                duplicadasAcumuladas: Number(md.duplicadas ?? saved?.checkpoint?.duplicadasAcumuladas ?? 0),
+                descartadasAcumuladas: Number(md.descartadas ?? saved?.checkpoint?.descartadasAcumuladas ?? 0),
+              }
+            : undefined;
           
           // Reconectar ao estado de execução para que o timer funcione
           console.log('[DJEN] Execução ativa encontrada no banco, sincronizando estado local...');
@@ -314,6 +330,7 @@ export function useBuscaDjenDireta() {
             dataOverrideYmd: md.data_override ?? prev.dataOverrideYmd,
             dataInicioYmd: md.data_inicio ?? prev.dataInicioYmd,
             dataFimYmd: md.data_fim ?? prev.dataFimYmd,
+            checkpoint: checkpointFromBackend ?? prev.checkpoint,
           }));
         }
       } catch (e) {
@@ -886,6 +903,7 @@ export function useBuscaDjenDireta() {
     // Carregar checkpoint se retomar = true
     const savedState = retomar ? carregarEstado() : null;
     const checkpoint = savedState?.checkpoint;
+    const backendResume = retomar ? await fetchDjenBackendResumeSnapshot() : null;
     const hoje = getHojeBrasiliaYmd();
 
     const tempoInicio = Date.now();
@@ -894,23 +912,25 @@ export function useBuscaDjenDireta() {
     abortControllerRef.current = new AbortController();
     executionIdRef.current = null;
     // Se estiver retomando e não vieram datas explícitas, reutilizar os overrides salvos.
-    const resolvedDataInicio = dataInicioYmd ?? savedState?.dataInicioYmd ?? null;
-    const resolvedDataFim = dataFimYmd ?? savedState?.dataFimYmd ?? savedState?.dataOverrideYmd ?? null;
+    // Fallback: metadata do backend (permite retomar mesmo com localStorage perdido).
+    const resolvedDataInicio = dataInicioYmd ?? savedState?.dataInicioYmd ?? backendResume?.dataInicioYmd ?? null;
+    const resolvedDataFim = dataFimYmd ?? savedState?.dataFimYmd ?? savedState?.dataOverrideYmd ?? backendResume?.dataFimYmd ?? null;
     dataOverrideRef.current = resolvedDataFim; // manter compatibilidade com código legado
 
     // Chave estável da execução para validação do checkpoint:
     // 1) Se há datas explícitas, usa dataFim (ou combinação)
     // 2) Senão, manter o valor já salvo no checkpoint (permite retomar mesmo no dia seguinte)
     // 3) Fallback: hoje (Brasília)
-    const runKey = resolvedDataFim ?? resolvedDataInicio ?? checkpoint?.data ?? hoje;
+    const runKey = resolvedDataFim ?? resolvedDataInicio ?? checkpoint?.data ?? backendResume?.runKey ?? hoje;
 
     // Verificar se checkpoint é válido para ESTE runKey
     const checkpointValido = !!(checkpoint && checkpoint.indice > 0 && checkpoint.data === runKey);
+    const backendCheckpointValido = !checkpointValido && !!(backendResume && backendResume.runKey === runKey && backendResume.current > 0);
 
     // Limpar metadata de execução anterior (ou iniciar retomada)
     try {
-      const initialTotal = savedState?.totalMonitoramentos ?? 0;
-      const initialCurrent = checkpointValido ? checkpoint.indice : 0;
+      const initialTotal = savedState?.totalMonitoramentos ?? (backendCheckpointValido ? backendResume!.total : 0);
+      const initialCurrent = checkpointValido ? checkpoint!.indice : (backendCheckpointValido ? backendResume!.current : 0);
       await supabase
         .from('configuracoes_monitoramento')
         .update({ 
@@ -921,7 +941,7 @@ export function useBuscaDjenDireta() {
             current: initialCurrent,
             total: initialTotal,
             percentage: initialTotal > 0 ? Math.round((initialCurrent / initialTotal) * 100) : 0,
-            retomando: checkpointValido,
+            retomando: checkpointValido || backendCheckpointValido,
             data_inicio: resolvedDataInicio,
             data_fim: resolvedDataFim,
             data_override: resolvedDataFim, // compatibilidade
@@ -963,39 +983,70 @@ export function useBuscaDjenDireta() {
     // Índice inicial (do checkpoint ou 0)
     // checkpoint.indice é "quantos já foram processados" (1-based). O próximo índice a executar é igual ao índice.
     // Se checkpoint.indice === total, não devemos reprocessar o último item.
-    const indiceInicial = checkpointValido ? Math.min(checkpoint.indice, total) : 0;
+    const indiceInicial = checkpointValido
+      ? Math.min(checkpoint!.indice, total)
+      : (backendCheckpointValido ? Math.min(backendResume!.current, total) : 0);
 
     // Track local do progresso efetivo para evitar "stale closure" (não usar `progresso.*` no finally).
-    let lastProcessed = checkpointValido ? checkpoint.indice : 0;
+    let lastProcessed = checkpointValido ? checkpoint!.indice : (backendCheckpointValido ? backendResume!.current : 0);
 
     // Inicializar progresso COM o total já conhecido
     setProgresso({
-      monitoramentoAtual: checkpointValido ? checkpoint.indice : 0,
+      monitoramentoAtual: checkpointValido
+        ? checkpoint!.indice
+        : (backendCheckpointValido ? backendResume!.current : 0),
       totalMonitoramentos: total,
-      publicacoesNovas: checkpointValido ? checkpoint.novasAcumuladas : 0,
-      publicacoesDuplicadas: checkpointValido ? checkpoint.duplicadasAcumuladas : 0,
-      publicacoesDescartadas: checkpointValido ? checkpoint.descartadasAcumuladas : 0,
+      publicacoesNovas: checkpointValido
+        ? checkpoint!.novasAcumuladas
+        : (backendCheckpointValido ? backendResume!.novas : 0),
+      publicacoesDuplicadas: checkpointValido
+        ? checkpoint!.duplicadasAcumuladas
+        : (backendCheckpointValido ? backendResume!.duplicadas : 0),
+      publicacoesDescartadas: checkpointValido
+        ? checkpoint!.descartadasAcumuladas
+        : (backendCheckpointValido ? backendResume!.descartadas : 0),
       status: 'executando',
       mensagem: checkpointValido 
         ? `Retomando do monitoramento ${indiceInicial + 1}/${total}...`
+        : backendCheckpointValido
+          ? `Retomando do monitoramento ${indiceInicial + 1}/${total} (via backend)...`
         : `Processando ${total} monitoramentos...`,
       tempoInicio,
       tempoDecorrido: 0,
-      termoAtual: undefined,
+      termoAtual: backendCheckpointValido ? (backendResume!.termoAtual ?? undefined) : undefined,
       dataOverrideYmd: resolvedDataFim,
       dataInicioYmd: resolvedDataInicio,
       dataFimYmd: resolvedDataFim,
-      checkpoint: undefined,
+      checkpoint: checkpointValido
+        ? checkpoint!
+        : (backendCheckpointValido
+          ? {
+              indice: backendResume!.current,
+              data: runKey,
+              novasAcumuladas: backendResume!.novas,
+              duplicadasAcumuladas: backendResume!.duplicadas,
+              descartadasAcumuladas: backendResume!.descartadas,
+            }
+          : undefined),
     });
 
     // Registrar execução
-    const executionId = await registrarExecucao('executando', { retomada: retomar });
+    const executionId = await registrarExecucao('executando', {
+      retomada: retomar,
+      run_key: runKey,
+      data_inicio: resolvedDataInicio,
+      data_fim: resolvedDataFim,
+      processados: checkpointValido ? checkpoint!.indice : (backendCheckpointValido ? backendResume!.current : 0),
+      total: checkpointValido
+        ? (savedState?.totalMonitoramentos ?? 0)
+        : (backendCheckpointValido ? backendResume!.total : 0),
+    });
 
     try {
       // Acumuladores (do checkpoint ou 0)
-      let totalNovas = checkpointValido ? checkpoint.novasAcumuladas : 0;
-      let totalDuplicadas = checkpointValido ? checkpoint.duplicadasAcumuladas : 0;
-      let totalDescartadas = checkpointValido ? checkpoint.descartadasAcumuladas : 0;
+      let totalNovas = checkpointValido ? checkpoint!.novasAcumuladas : (backendCheckpointValido ? backendResume!.novas : 0);
+      let totalDuplicadas = checkpointValido ? checkpoint!.duplicadasAcumuladas : (backendCheckpointValido ? backendResume!.duplicadas : 0);
+      let totalDescartadas = checkpointValido ? checkpoint!.descartadasAcumuladas : (backendCheckpointValido ? backendResume!.descartadas : 0);
 
       // ================================================================
       // LOOP SEQUENCIAL SIMPLES - Um monitoramento por vez
