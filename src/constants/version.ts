@@ -1,9 +1,10 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "1.0.2";
+export const APP_VERSION = "1.1.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
   { version: "1.0.0", date: "2026-01-30", notes: "Versão inicial com versionamento" },
   { version: "1.0.1", date: "2026-01-30", notes: "Correções no dashboard DJEN (destravamento/execução)" },
   { version: "1.0.2", date: "2026-01-31", notes: "Correção validação OAB+nome para advogados DJEN" },
+  { version: "1.1.0", date: "2026-01-31", notes: "Busca DJEN otimizada: agrupamento por OAB com distribuição inteligente (~75% menos chamadas API)" },
 ];

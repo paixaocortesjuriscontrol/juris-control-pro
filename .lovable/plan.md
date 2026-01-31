@@ -128,11 +128,11 @@ O loop de advogados passa a iterar por **OABs agrupadas** em vez de monitorament
 
 ## Critérios de Sucesso
 
-- [ ] Advogados com mesma OAB executam UMA busca na API
-- [ ] Publicações são distribuídas corretamente por coordenação
-- [ ] Exclusões são aplicadas POR COORDENAÇÃO (uma pub pode ser aceita em A e excluída em B)
-- [ ] Estatísticas refletem novas/duplicadas/descartadas por coordenação
-- [ ] UI mostra progresso por OAB (não por monitoramento individual)
+- [x] Advogados com mesma OAB executam UMA busca na API
+- [x] Publicações são distribuídas corretamente por coordenação
+- [x] Exclusões são aplicadas POR COORDENAÇÃO (uma pub pode ser aceita em A e excluída em B)
+- [x] Estatísticas refletem novas/duplicadas/descartadas por coordenação
+- [x] UI mostra progresso por OAB (não por monitoramento individual)
 
 ---
 
