@@ -71,14 +71,15 @@ export interface ProgressoExecucao {
 }
 
 // ============================================================================
-// CONFIGURAÇÃO OTIMIZADA v1.0.5 - Performance restaurada
+// CONFIGURAÇÃO OTIMIZADA v1.1.0 - Parâmetros das execuções bem-sucedidas
+// Baseado nas execuções concluídas: 118 termos em ~5-6min (~3s/termo)
 // ============================================================================
 const CONFIG = {
-  concurrent_limit: 2,
-  delay_between_batches: 0,        // ELIMINADO - sem delay entre monitoramentos
-  delay_between_tribunals: 100,    // Reduzido de 250ms para 100ms
-  delay_between_variants: 50,      // Reduzido de 150ms para 50ms
-  delay_on_rate_limit: 5000,       // Reduzido de 10s para 5s (já tem retry interno)
+  concurrent_limit: 1,              // Sequencial para evitar 429
+  delay_between_batches: 2000,      // 2s entre monitoramentos (execuções de sucesso usavam ~3s/termo)
+  delay_between_tribunals: 500,     // 500ms entre tribunais
+  delay_between_variants: 300,      // 300ms entre variantes de busca
+  delay_on_rate_limit: 10000,       // 10s no rate limit (backoff conservador)
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

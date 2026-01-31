@@ -296,7 +296,7 @@ export async function buscarPjeComunicaNoBrowser(
 }
 
 // Versão paginada (essencial para o monitoramento), com limite de páginas por segurança.
-// PARÂMETROS CONSERVADORES: alinhados com DJEN Processos para evitar 429
+// PARÂMETROS CONSERVADORES v1.1.0: baseado em execuções bem-sucedidas (~5-6min para 118 termos)
 export async function buscarPjeComunicaPaginado(
   params: PjeComunicaSearchParams,
   options?: {
@@ -308,11 +308,11 @@ export async function buscarPjeComunicaPaginado(
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = Math.max(options?.maxPages ?? 10, 1);
-  // Delay otimizado entre páginas: 150ms (velocidade máxima com resiliência)
-  const delayMs = Math.max(options?.delayMs ?? 150, 0);
-  // Retry com backoff exponencial
-  const maxRetries = options?.maxRetries ?? 3;
-  const retryBaseDelay = options?.retryBaseDelay ?? 2000;  // Reduzido de 3000ms
+  // Delay entre páginas: 500ms (conservador para evitar 429)
+  const delayMs = Math.max(options?.delayMs ?? 500, 0);
+  // Retry com backoff exponencial conservador
+  const maxRetries = options?.maxRetries ?? 4;
+  const retryBaseDelay = options?.retryBaseDelay ?? 5000;  // 5s base para 429
 
   const startPage = Math.max(params.page ?? 0, 0);
   // Keep payload small (consistent with buscar-djen hard cap)
