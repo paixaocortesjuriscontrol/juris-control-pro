@@ -466,26 +466,28 @@ export function useBuscaDjenDireta() {
     };
   }, []); // Empty dependency array - run once on mount
 
-  // Reconstruir coordenações se o estado tem dados mas não tem coordenações
-  // Isso acontece quando a página é recarregada durante ou após uma execução
-  // TAMBÉM reconstruir durante execução ativa se as coordenações estiverem vazias
+  // Reconstruir coordenações UMA VEZ no mount se o estado salvo tem dados mas falta a estrutura
+  // NÃO usar dependências dinâmicas para evitar loops de reconstrução
+  const coordenacoesReconstruidasRef = useRef(false);
+  
   useEffect(() => {
+    if (coordenacoesReconstruidasRef.current) return; // Já reconstruiu
+    
     let isMounted = true;
 
     const reconstruirCoordenacoes = async () => {
-      // Só reconstruir se tem dados mas não tem coordenações
-      // OU se está executando mas não tem coordenações (execução iniciada antes do reload)
-      const temDados = progresso.totalMonitoramentos > 0 || progresso.publicacoesNovas > 0;
-      const estaExecutando = progresso.status === 'executando';
-      const temCoordenacoes = progresso.coordenacoes && progresso.coordenacoes.length > 0;
+      // Carregar estado salvo para verificar se precisa reconstruir
+      const saved = carregarEstado();
+      if (!saved) return;
       
-      // Não reconstruir se já tem coordenações
-      if (temCoordenacoes) return;
+      const temDados = (saved.totalMonitoramentos || 0) > 0 || (saved.publicacoesNovas || 0) > 0;
+      const temCoordenacoes = saved.coordenacoes && saved.coordenacoes.length > 0;
       
-      // Reconstruir se tem dados OU se está executando
-      if (!temDados && !estaExecutando) return;
+      // Não reconstruir se já tem coordenações ou não tem dados
+      if (temCoordenacoes || !temDados) return;
       
-      console.log('[DJEN] Reconstruindo coordenações a partir do banco...');
+      console.log('[DJEN] Reconstruindo coordenações a partir do banco (mount)...');
+      coordenacoesReconstruidasRef.current = true;
       
       try {
         // Buscar monitoramentos ativos
@@ -550,11 +552,9 @@ export function useBuscaDjenDireta() {
         
         if (!isMounted) return;
         
-        // Determinar status baseado no estado atual
+        // Determinar status baseado no estado salvo
         const statusParaCoordenacoes: StatusFase = 
-          progresso.status === 'concluido' ? 'concluido' : 
-          progresso.status === 'executando' ? 'pendente' : 
-          'pendente';
+          saved.status === 'concluido' ? 'concluido' : 'pendente';
         
         // Criar estrutura de coordenações
         const coordenacoesReconstruidas: ProgressoCoordenacao[] = Array.from(grupos.values())
@@ -565,17 +565,17 @@ export function useBuscaDjenDireta() {
             status: statusParaCoordenacoes,
             advogados: {
               total: grupo.advogados,
-              processados: progresso.status === 'concluido' ? grupo.advogados : 0,
+              processados: saved.status === 'concluido' ? grupo.advogados : 0,
               status: statusParaCoordenacoes,
             },
             palavrasChave: {
               total: grupo.palavrasChave,
-              processados: progresso.status === 'concluido' ? grupo.palavrasChave : 0,
+              processados: saved.status === 'concluido' ? grupo.palavrasChave : 0,
               status: statusParaCoordenacoes,
             },
             processos: {
               total: grupo.processos,
-              processados: progresso.status === 'concluido' ? grupo.processos : 0,
+              processados: saved.status === 'concluido' ? grupo.processos : 0,
               status: statusParaCoordenacoes,
             },
             novas: 0,
@@ -600,7 +600,7 @@ export function useBuscaDjenDireta() {
     return () => {
       isMounted = false;
     };
-  }, [progresso.totalMonitoramentos, progresso.publicacoesNovas, progresso.coordenacoes?.length, progresso.status]);
+  }, []); // SEM DEPENDÊNCIAS - rodar apenas uma vez no mount
 
   // Helpers para checkpoint/controle no banco (configuracoes_monitoramento)
   const loadConfigMetadata = useCallback(async (): Promise<Record<string, any>> => {
