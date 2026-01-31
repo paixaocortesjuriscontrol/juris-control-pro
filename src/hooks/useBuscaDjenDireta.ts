@@ -1005,8 +1005,25 @@ export function useBuscaDjenDireta() {
     executionIdRef.current = null;
     // Se estiver retomando e não vieram datas explícitas, reutilizar os overrides salvos.
     // Fallback: metadata do backend (permite retomar mesmo com localStorage perdido).
-    const resolvedDataInicio = dataInicioYmd ?? savedState?.dataInicioYmd ?? backendResume?.dataInicioYmd ?? null;
-    const resolvedDataFim = dataFimYmd ?? savedState?.dataFimYmd ?? savedState?.dataOverrideYmd ?? backendResume?.dataFimYmd ?? null;
+    let resolvedDataInicio = dataInicioYmd ?? savedState?.dataInicioYmd ?? backendResume?.dataInicioYmd ?? null;
+    let resolvedDataFim = dataFimYmd ?? savedState?.dataFimYmd ?? savedState?.dataOverrideYmd ?? backendResume?.dataFimYmd ?? null;
+
+    // DEFAULT SIMPLES: se não houver intervalo explícito, buscar os últimos 3 dias (inclui ontem).
+    // Isso evita "pular" o dia 30 quando o usuário clica em Executar sem selecionar datas.
+    if (!resolvedDataInicio && !resolvedDataFim) {
+      // âncora em 12:00 local para evitar saltos por timezone/UTC
+      const base = new Date();
+      base.setHours(12, 0, 0, 0);
+      const inicio = new Date(base);
+      inicio.setDate(inicio.getDate() - 2);
+      resolvedDataFim = hoje;
+      resolvedDataInicio = ymdInTimeZone(inicio, BR_TZ);
+    }
+
+    // Se veio apenas uma das datas, tratar como busca de 1 dia.
+    if (resolvedDataInicio && !resolvedDataFim) resolvedDataFim = resolvedDataInicio;
+    if (!resolvedDataInicio && resolvedDataFim) resolvedDataInicio = resolvedDataFim;
+
     dataOverrideRef.current = resolvedDataFim; // manter compatibilidade com código legado
 
     // Chave estável da execução para validação do checkpoint:
