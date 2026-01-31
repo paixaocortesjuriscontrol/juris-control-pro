@@ -147,9 +147,23 @@ function extrairDataYMD(dataStr: string | null | undefined): string | null {
   return null;
 }
 
-// Configuração de paralelismo
-const CONCURRENT_LIMIT = 2;
-const DELAY_BETWEEN_BATCHES = 1500;
+// ============================================================================
+// PARÂMETROS CONSERVADORES - ALINHADOS COM DJEN PROCESSOS
+// ============================================================================
+// Ajustados para evitar Rate Limit (429) e travamentos
+const CONFIG_TERMOS = {
+  concurrent_limit: 2,           // 2 requisições simultâneas
+  delay_between_batches: 3000,   // 3s entre lotes (era 1500ms)
+  delay_between_tribunals: 500,  // 500ms entre tribunais
+  delay_between_variants: 300,   // 300ms entre variantes de busca
+  max_retries: 3,                // 3 tentativas
+  retry_base_delay: 5000,        // Backoff: 5s, 10s, 20s
+};
+
+const CONCURRENT_LIMIT = CONFIG_TERMOS.concurrent_limit;
+const DELAY_BETWEEN_BATCHES = CONFIG_TERMOS.delay_between_batches;
+const DELAY_BETWEEN_TRIBUNALS = CONFIG_TERMOS.delay_between_tribunals;
+const DELAY_BETWEEN_VARIANTS = CONFIG_TERMOS.delay_between_variants;
 
 // Helper para delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -1028,9 +1042,11 @@ export function useBuscaDjenDireta() {
             clearTimeout(timeoutId);
           }
 
-          // Pequeno delay entre tribunais para reduzir 429
-          await delay(120);
+          // Delay conservador entre tribunais para evitar 429
+          await delay(DELAY_BETWEEN_TRIBUNALS);
         }
+        // Delay entre variantes de busca
+        await delay(DELAY_BETWEEN_VARIANTS);
         }
       }
 
