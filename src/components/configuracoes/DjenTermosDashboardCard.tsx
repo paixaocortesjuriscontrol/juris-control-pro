@@ -157,6 +157,7 @@ export function DjenTermosDashboardCard({
   const [limpando, setLimpando] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [forcandoCancelamento, setForcandoCancelamento] = useState(false);
+  const [forceCancelCooldown, setForceCancelCooldown] = useState(false);
   const [execucaoOrfaNoBanco, setExecucaoOrfaNoBanco] = useState<string | null>(null);
   const [showDiagnostico, setShowDiagnostico] = useState(false);
   const [showHistorico, setShowHistorico] = useState(false);
@@ -570,7 +571,11 @@ export function DjenTermosDashboardCard({
 
   // FORÇAR CANCELAMENTO: para execuções órfãs (rodando no banco mas não no frontend)
   const handleForceCancelar = async () => {
+    if (forceCancelCooldown) return;
+    
     setForcandoCancelamento(true);
+    setForceCancelCooldown(true);
+    
     try {
       // SEMPRE forçar reset do estado local primeiro (aborta qualquer loop/request pendente)
       limparEstado();
@@ -602,18 +607,21 @@ export function DjenTermosDashboardCard({
         .from('configuracoes_monitoramento')
         .update({
           metadata: {
-            ...(md || {}),
             status: 'cancelado',
             cancelado: true,
             continuingRun: false,
             cancel_requested: false,
             last_stop_reason: 'force_cancel_kill_switch',
             last_stop_at: new Date().toISOString(),
-            last_error: 'Cancelamento forçado pelo usuário (kill switch)',
+            current: 0,
+            total: 0,
           },
         })
         .eq('tipo', 'djen')
         .is('coordenacao_id', null);
+
+      // Limpar localStorage também
+      localStorage.removeItem('djen-direta-progresso');
 
       setExecucaoOrfaNoBanco(null);
       toast.success('Execução cancelada forçadamente! Você já pode iniciar uma nova.');
@@ -622,6 +630,8 @@ export function DjenTermosDashboardCard({
       toast.error(`Erro ao forçar cancelamento: ${e?.message}`);
     } finally {
       setForcandoCancelamento(false);
+      // Cooldown de 3 segundos antes de permitir outro clique
+      setTimeout(() => setForceCancelCooldown(false), 3000);
     }
   };
 
@@ -1073,174 +1083,167 @@ export function DjenTermosDashboardCard({
               </div>
             )}
 
-            {/* Botões de ação */}
-            <div className="flex gap-2">
-              <Button 
-                size="sm"
-                className="flex-1"
-                onClick={handleExecutar}
-                disabled={!canExecute}
-              >
-                {isRunning ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Executando...
-                  </>
-                ) : canResume ? (
-                  <>
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Continuar ({resumePercent}%)
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="h-4 w-4 mr-2" />
-                    Executar
-                  </>
-                )}
-              </Button>
-            
-            {/* Botão de cancelar normal (loop ativo) */}
-            {canCancel && (
-              <Button 
-                size="sm"
-                variant="destructive"
-                onClick={handleCancelar}
-              >
-                <StopCircle className="h-4 w-4" />
-              </Button>
-            )}
-
-            {/* Cancelamento remoto (loop não está ativo aqui, mas há execução ativa no banco) */}
-            {canRequestCancel && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={handleSolicitarCancelamento}
-                    >
-                      <StopCircle className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Solicitar cancelamento (execução em outra aba/dispositivo)</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-
-            {/* Botão FORÇAR CANCELAMENTO (sempre disponível) */}
-            {showForceCancel && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      size="sm"
-                      variant="destructive"
-                      onClick={handleForceCancelar}
-                      disabled={forcandoCancelamento}
-                      className="gap-1"
-                    >
-                      {forcandoCancelamento ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Skull className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>
-                      {hasOrfa
-                        ? (isGhostOrfa
-                            ? 'Forçar limpeza (status travado sem execução ativa)'
-                            : 'Forçar cancelamento (execução órfã no banco)')
-                        : 'Forçar cancelamento imediato (kill switch)'}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-
-            {/* Botão desabilitado quando não pode cancelar */}
-            {!canCancel && !canRequestCancel && !showForceCancel && (
-              <Button 
-                size="sm"
-                variant="destructive"
-                disabled
-              >
-                <StopCircle className="h-4 w-4" />
-              </Button>
-            )}
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
+            {/* Botões de ação - reorganizados */}
+            <div className="space-y-2">
+              {/* Linha principal: Executar + Cancelar + Caveira */}
+              <div className="flex gap-2">
+                <Button 
+                  size="sm"
+                  className="flex-1"
+                  onClick={handleExecutar}
+                  disabled={!canExecute || forceCancelCooldown}
+                >
+                  {isRunning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Executando...
+                    </>
+                  ) : canResume ? (
+                    <>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Continuar ({resumePercent}%)
+                    </>
+                  ) : (
+                    <>
+                      <PlayCircle className="h-4 w-4 mr-2" />
+                      Executar
+                    </>
+                  )}
+                </Button>
+              
+                {/* Botão de cancelar normal (loop ativo) */}
+                {canCancel && (
                   <Button 
                     size="sm"
-                    variant="outline"
-                    onClick={() => enviarResumo('djen')}
-                    disabled={enviando['djen']}
-                    title="Enviar resumo de hoje"
+                    variant="destructive"
+                    onClick={handleCancelar}
                   >
-                    {enviando['djen'] ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Mail className="h-4 w-4" />
-                    )}
+                    <StopCircle className="h-4 w-4" />
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Enviar resumo de hoje (Email/WhatsApp)</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                )}
 
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowHistorico(true)}
-                    title="Histórico de execuções"
-                  >
-                    <TrendingUp className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Histórico (todas as execuções em tabela)</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                {/* Cancelamento remoto (loop não está ativo aqui, mas há execução ativa no banco) */}
+                {canRequestCancel && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={handleSolicitarCancelamento}
+                        >
+                          <StopCircle className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Solicitar cancelamento (execução em outra aba/dispositivo)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
 
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowDiagnostico(true)}
-                    title="Diagnóstico de busca por advogado"
-                  >
-                    <FlaskConical className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Diagnóstico (OAB): ver URL/HTTP/retorno do PJE</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                {/* Botão FORÇAR CANCELAMENTO (sempre disponível - kill switch) */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        size="sm"
+                        variant="destructive"
+                        onClick={handleForceCancelar}
+                        disabled={forcandoCancelamento || forceCancelCooldown}
+                        className="gap-1"
+                      >
+                        {forcandoCancelamento || forceCancelCooldown ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Skull className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Kill switch: força cancelamento + limpa estado</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
 
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleLimparHoje}
-              disabled={limpando}
-              title="Limpar DJEN hoje"
-            >
-              {limpando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            </Button>
+              {/* Linha secundária: ferramentas */}
+              <div className="flex gap-2 flex-wrap">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        size="sm"
+                        variant="outline"
+                        onClick={() => enviarResumo('djen')}
+                        disabled={enviando['djen']}
+                      >
+                        {enviando['djen'] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Mail className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Enviar resumo de hoje</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowHistorico(true)}
+                      >
+                        <TrendingUp className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Histórico de execuções</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowDiagnostico(true)}
+                      >
+                        <FlaskConical className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Diagnóstico OAB</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleLimparHoje}
+                        disabled={limpando || isRunning}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        {limpando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Apagar todas publicações de hoje</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
             </div>
           </div>
         </CardContent>
