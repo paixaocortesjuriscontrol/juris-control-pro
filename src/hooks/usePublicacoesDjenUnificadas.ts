@@ -4,9 +4,29 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { startOfDay, endOfDay } from "date-fns";
 import { dedupePublicacoesDjen } from "@/utils/djenDedup";
+import { addDays, parse } from "date-fns";
 
 // Helper para formatar data em ISO com timezone UTC
 const formatToUTC = (date: Date) => date.toISOString();
+
+// Helper para converter data local (YYYY-MM-DD) para range UTC considerando BRT (UTC-3)
+// Se usuário seleciona 30/01, deve buscar:
+// - Início: 30/01 00:00 BRT = 30/01 03:00 UTC
+// - Fim: 30/01 23:59:59 BRT = 31/01 02:59:59 UTC
+const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
+  // Parse a data como componentes locais para evitar interpretação UTC
+  const [year, month, day] = dateStr.split('-').map(Number);
+  
+  if (isEnd) {
+    // Fim do dia em BRT (23:59:59) = próximo dia às 02:59:59 UTC
+    // Usar Date para calcular corretamente a virada de mês/ano
+    const nextDay = addDays(new Date(year, month - 1, day), 1);
+    return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}T02:59:59.999Z`;
+  } else {
+    // Início do dia em BRT (00:00) = mesmo dia às 03:00 UTC
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T03:00:00Z`;
+  }
+};
 
 export interface PublicacaoUnificada {
   id: string;
@@ -80,17 +100,17 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     queryFn: async () => {
       if (!user?.id) return 0;
 
-      // Mesma lógica de período do hook principal
+      // IMPORTANTE: Usar timezone local (BRT) para evitar off-by-one
       const dataInicioFiltro = filtros.apenasHoje
         ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio
-          ? `${filtros.dataInicio}T00:00:00Z`
+          ? dateLocalToUTCRange(filtros.dataInicio, false)
           : undefined;
 
       const dataFimFiltro = filtros.apenasHoje
         ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
-          ? `${filtros.dataFim}T23:59:59Z`
+          ? dateLocalToUTCRange(filtros.dataFim, true)
           : undefined;
 
       try {
@@ -131,17 +151,18 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     queryFn: async () => {
       if (!user?.id) return [];
       
-      // Usar timezone UTC para filtros de data
+      // IMPORTANTE: Usar timezone local (BRT) para evitar off-by-one
+      // Se usuário seleciona 30/01, deve buscar 30/01 00:00 BRT até 30/01 23:59 BRT
       const dataInicioFiltro = filtros.apenasHoje 
         ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio 
-          ? `${filtros.dataInicio}T00:00:00Z`
+          ? dateLocalToUTCRange(filtros.dataInicio, false)
           : undefined;
       
       const dataFimFiltro = filtros.apenasHoje
         ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
-          ? `${filtros.dataFim}T23:59:59Z`
+          ? dateLocalToUTCRange(filtros.dataFim, true)
           : undefined;
 
       const resultados: PublicacaoUnificada[] = [];
