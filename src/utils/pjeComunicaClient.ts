@@ -167,65 +167,84 @@ export async function buscarPjeComunicaNoBrowser(
   // O endpoint /comunicacoes (plural) retorna 404 para vários tribunais
   const endpoint = ENDPOINTS[0]; // /comunicacao (singular)
 
+  // Timeout de 30s por requisição para evitar travamentos
+  const REQUEST_TIMEOUT_MS = 30000;
+
   const doRequest = async (queryParams: URLSearchParams): Promise<PjeComunicaResponse> => {
     const url = `${endpoint}?${queryParams.toString()}`;
-    const resp = await fetch(url, {
-      method: "GET",
-      headers: requestHeaders,
-      signal: options?.signal,
-    });
+    
+    // Criar AbortController com timeout automático
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
+    
+    // Combinar sinais: timeout próprio + sinal externo (cancelamento)
+    const combinedSignal = options?.signal 
+      ? AbortSignal.any([timeoutController.signal, options.signal])
+      : timeoutController.signal;
+    
+    try {
+      const resp = await fetch(url, {
+        method: "GET",
+        headers: requestHeaders,
+        signal: combinedSignal,
+      });
+      clearTimeout(timeoutId);
 
-    const contentType = resp.headers.get("content-type") || "";
-    if (!resp.ok) {
-      const t = await resp.text().catch(() => "");
-      // Se é 404, provavelmente não há dados para esse filtro - não é erro fatal
-      if (resp.status === 404) {
-        return {
-          success: true,
-          items: [],
-          comunicacoes: [],
-          count: 0,
-          totalElements: 0,
-          page,
-          pageSize,
-          hasMore: false,
-        };
+      const contentType = resp.headers.get("content-type") || "";
+      if (!resp.ok) {
+        const t = await resp.text().catch(() => "");
+        // Se é 404, provavelmente não há dados para esse filtro - não é erro fatal
+        if (resp.status === 404) {
+          return {
+            success: true,
+            items: [],
+            comunicacoes: [],
+            count: 0,
+            totalElements: 0,
+            page,
+            pageSize,
+            hasMore: false,
+          };
+        }
+        throw new Error(`HTTP ${resp.status} ${t.slice(0, 120)}`);
       }
-      throw new Error(`HTTP ${resp.status} ${t.slice(0, 120)}`);
+
+      if (!contentType.includes("application/json")) {
+        const t = await resp.text().catch(() => "");
+        throw new Error(`Resposta não-JSON: ${t.slice(0, 120)}`);
+      }
+
+      const data = await resp.json();
+      const rawItems = extractItems(data);
+      const items = rawItems.map(optimizeItem);
+      const totalExpected = getTotal(data);
+
+      const totalElements =
+        typeof totalExpected === "number" && totalExpected >= 0
+          ? totalExpected
+          : items.length === pageSize
+            ? (page + 1) * pageSize + 1
+            : page * pageSize + items.length;
+
+      const hasMore =
+        typeof totalExpected === "number" && totalExpected >= 0
+          ? (page + 1) * pageSize < totalExpected
+          : items.length === pageSize;
+
+      return {
+        success: true,
+        items,
+        comunicacoes: items,
+        count: totalElements,
+        totalElements,
+        page,
+        pageSize,
+        hasMore,
+      };
+    } catch (fetchErr: any) {
+      clearTimeout(timeoutId);
+      throw fetchErr;
     }
-
-    if (!contentType.includes("application/json")) {
-      const t = await resp.text().catch(() => "");
-      throw new Error(`Resposta não-JSON: ${t.slice(0, 120)}`);
-    }
-
-    const data = await resp.json();
-    const rawItems = extractItems(data);
-    const items = rawItems.map(optimizeItem);
-    const totalExpected = getTotal(data);
-
-    const totalElements =
-      typeof totalExpected === "number" && totalExpected >= 0
-        ? totalExpected
-        : items.length === pageSize
-          ? (page + 1) * pageSize + 1
-          : page * pageSize + items.length;
-
-    const hasMore =
-      typeof totalExpected === "number" && totalExpected >= 0
-        ? (page + 1) * pageSize < totalExpected
-        : items.length === pageSize;
-
-    return {
-      success: true,
-      items,
-      comunicacoes: items,
-      count: totalElements,
-      totalElements,
-      page,
-      pageSize,
-      hasMore,
-    };
   };
 
   try {
