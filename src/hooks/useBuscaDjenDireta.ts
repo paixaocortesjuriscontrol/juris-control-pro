@@ -227,11 +227,27 @@ const carregarEstado = (): ProgressoExecucao | null => {
       parsed.tempoDecorrido = Math.floor((Date.now() - parsed.tempoInicio) / 1000);
     }
     
+    // Garantir que coordenacoes sempre é um array (para compatibilidade)
+    if (!Array.isArray(parsed.coordenacoes)) {
+      parsed.coordenacoes = [];
+    }
+    
+    // Garantir que novasPorTipo e duplicadasPorTipo existem
+    if (!parsed.novasPorTipo) {
+      parsed.novasPorTipo = defaultNovasPorTipo();
+    }
+    if (!parsed.duplicadasPorTipo) {
+      parsed.duplicadasPorTipo = defaultNovasPorTipo();
+    }
+    
     return parsed;
   } catch (e) {
     return null;
   }
 };
+
+// Chave para salvar coordenações separadamente (maior volume de dados)
+const COORDENACOES_KEY = 'djen-direta-coordenacoes';
 
 // Salvar checkpoint para retomada
 const salvarCheckpoint = (checkpoint: CheckpointDjen) => {
@@ -395,8 +411,9 @@ export function useBuscaDjenDireta() {
         if (!isMounted) return;
 
         if (!existeExecucaoAtiva) {
-          console.warn('[DJEN] Estado local "executando" sem execução ativa no banco. Limpando localStorage.');
-          localStorage.removeItem(STORAGE_KEY);
+          console.warn('[DJEN] Estado local "executando" sem execução ativa no banco. Ajustando status.');
+          // NÃO limpar localStorage - apenas ajustar o status
+          // Isso preserva as coordenações e métricas para visualização
           executionIdRef.current = null;
           setExecutando(false);
 
@@ -405,15 +422,35 @@ export function useBuscaDjenDireta() {
             ? Math.round((checkpointDisponivel!.monitoramentosProcessados.length / (saved.totalMonitoramentos || 114)) * 100)
             : 0;
 
-          setProgresso({
-            ...defaultProgresso(),
-            status: hasCp ? 'cancelado' : 'idle',
+          // Preservar coordenações e métricas do estado salvo, apenas mudar o status
+          setProgresso(prev => ({
+            ...prev,
+            // Manter coordenações do estado salvo se existirem
+            coordenacoes: saved.coordenacoes?.length > 0 ? saved.coordenacoes : prev.coordenacoes,
+            novasPorTipo: saved.novasPorTipo || prev.novasPorTipo,
+            duplicadasPorTipo: saved.duplicadasPorTipo || prev.duplicadasPorTipo,
+            publicacoesNovas: saved.publicacoesNovas || prev.publicacoesNovas,
+            publicacoesDuplicadas: saved.publicacoesDuplicadas || prev.publicacoesDuplicadas,
+            totalMonitoramentos: saved.totalMonitoramentos || prev.totalMonitoramentos,
+            monitoramentoAtual: saved.monitoramentoAtual || prev.monitoramentoAtual,
+            tempoDecorrido: saved.tempoDecorrido || prev.tempoDecorrido,
+            status: hasCp ? 'cancelado' : (saved.status === 'executando' ? 'idle' : saved.status),
+            tempoInicio: undefined,
             mensagem: hasCp
               ? 'Execução anterior interrompida. Você pode retomar a partir do checkpoint.'
               : '',
             hasCheckpoint: hasCp,
             checkpointPercent: cpPct,
-          });
+          }));
+          
+          // Atualizar localStorage com estado corrigido (sem status executando)
+          const correctedState = {
+            ...saved,
+            status: hasCp ? 'cancelado' : 'idle',
+            tempoInicio: undefined,
+            savedAt: Date.now(),
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(correctedState));
         }
       } catch (e) {
         // Se não conseguir validar, não derrubar UI.
@@ -428,6 +465,128 @@ export function useBuscaDjenDireta() {
       isMounted = false;
     };
   }, [checkpointDisponivel]);
+
+  // Reconstruir coordenações se o estado tem dados mas não tem coordenações
+  // Isso acontece quando a página é recarregada durante ou após uma execução
+  useEffect(() => {
+    let isMounted = true;
+
+    const reconstruirCoordenacoes = async () => {
+      // Só reconstruir se tem dados mas não tem coordenações
+      const temDados = progresso.totalMonitoramentos > 0 || progresso.publicacoesNovas > 0;
+      const temCoordenacoes = progresso.coordenacoes && progresso.coordenacoes.length > 0;
+      
+      if (!temDados || temCoordenacoes) return;
+      
+      console.log('[DJEN] Reconstruindo coordenações a partir do banco...');
+      
+      try {
+        // Buscar monitoramentos ativos
+        const { data: monitoramentos } = await supabase
+          .from('monitoramentos_djen')
+          .select('id, tipo, termo_busca, coordenacao_id, ativo')
+          .eq('ativo', true);
+        
+        if (!monitoramentos || monitoramentos.length === 0 || !isMounted) return;
+        
+        // Buscar nomes das coordenações
+        const coordenacoesIds = [...new Set(monitoramentos
+          .map(m => m.coordenacao_id)
+          .filter((id): id is string => !!id)
+        )];
+        
+        const { data: coordenacoesData } = coordenacoesIds.length > 0
+          ? await supabase
+              .from('coordenacoes')
+              .select('id, nome')
+              .in('id', coordenacoesIds)
+          : { data: [] };
+        
+        const nomesCoordenacoes = new Map(
+          (coordenacoesData || []).map(c => [c.id, c.nome])
+        );
+        
+        // Agrupar por coordenação
+        const grupos = new Map<string, {
+          coordenacao: { id: string; nome: string };
+          advogados: number;
+          palavrasChave: number;
+          processos: number;
+        }>();
+        
+        for (const mon of monitoramentos) {
+          const coordId = mon.coordenacao_id || '__sem_coordenacao__';
+          
+          if (!grupos.has(coordId)) {
+            grupos.set(coordId, {
+              coordenacao: { 
+                id: coordId, 
+                nome: nomesCoordenacoes.get(coordId) || 'Sem Coordenação' 
+              },
+              advogados: 0,
+              palavrasChave: 0,
+              processos: 0,
+            });
+          }
+          
+          const grupo = grupos.get(coordId)!;
+          const tipoMon = mon.tipo as string;
+          
+          if (tipoMon === 'advogado') {
+            grupo.advogados++;
+          } else if (tipoMon === 'palavra-chave' || tipoMon === 'parte') {
+            grupo.palavrasChave++;
+          } else if (tipoMon === 'processo') {
+            grupo.processos++;
+          }
+        }
+        
+        if (!isMounted) return;
+        
+        // Criar estrutura de coordenações
+        const coordenacoesReconstruidas: ProgressoCoordenacao[] = Array.from(grupos.values())
+          .sort((a, b) => a.coordenacao.nome.localeCompare(b.coordenacao.nome))
+          .map(grupo => ({
+            coordenacaoId: grupo.coordenacao.id,
+            coordenacaoNome: grupo.coordenacao.nome,
+            status: progresso.status === 'concluido' ? 'concluido' as StatusFase : 'pendente' as StatusFase,
+            advogados: {
+              total: grupo.advogados,
+              processados: progresso.status === 'concluido' ? grupo.advogados : 0,
+              status: progresso.status === 'concluido' ? 'concluido' as StatusFase : 'pendente' as StatusFase,
+            },
+            palavrasChave: {
+              total: grupo.palavrasChave,
+              processados: progresso.status === 'concluido' ? grupo.palavrasChave : 0,
+              status: progresso.status === 'concluido' ? 'concluido' as StatusFase : 'pendente' as StatusFase,
+            },
+            processos: {
+              total: grupo.processos,
+              processados: progresso.status === 'concluido' ? grupo.processos : 0,
+              status: progresso.status === 'concluido' ? 'concluido' as StatusFase : 'pendente' as StatusFase,
+            },
+            novas: 0,
+            duplicadas: 0,
+          }));
+        
+        if (coordenacoesReconstruidas.length > 0) {
+          console.log(`[DJEN] Reconstruídas ${coordenacoesReconstruidas.length} coordenações`);
+          setProgresso(prev => ({
+            ...prev,
+            coordenacoes: coordenacoesReconstruidas,
+          }));
+        }
+      } catch (e) {
+        console.warn('[DJEN] Erro ao reconstruir coordenações:', e);
+      }
+    };
+    
+    reconstruirCoordenacoes();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [progresso.totalMonitoramentos, progresso.publicacoesNovas, progresso.coordenacoes?.length, progresso.status]);
 
   // Helpers para checkpoint/controle no banco (configuracoes_monitoramento)
   const loadConfigMetadata = useCallback(async (): Promise<Record<string, any>> => {
