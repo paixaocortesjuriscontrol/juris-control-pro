@@ -56,14 +56,14 @@ export interface ProgressoExecucao {
 }
 
 // ============================================================================
-// CONFIGURAÇÃO
+// CONFIGURAÇÃO OTIMIZADA v1.0.5 - Performance restaurada
 // ============================================================================
 const CONFIG = {
   concurrent_limit: 2,
-  delay_between_batches: 1500,    // Reduzido de 3000ms
-  delay_between_tribunals: 250,    // Reduzido de 500ms
-  delay_between_variants: 150,     // Reduzido de 300ms
-  delay_on_rate_limit: 10000,      // Pausa quando receber 429
+  delay_between_batches: 0,        // ELIMINADO - sem delay entre monitoramentos
+  delay_between_tribunals: 100,    // Reduzido de 250ms para 100ms
+  delay_between_variants: 50,      // Reduzido de 150ms para 50ms
+  delay_on_rate_limit: 5000,       // Reduzido de 10s para 5s (já tem retry interno)
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -534,64 +534,60 @@ export function useBuscaDjenDireta() {
         return controller;
       };
 
-      const ufsLoop = ufsParaBuscar.length > 0 ? ufsParaBuscar : [params.uf];
+      // ==================================================================
+      // LOOP OTIMIZADO v1.0.5 - 2 níveis apenas (tribunal → variante)
+      // Sem timeout artificial, sem loop extra de UF
+      // ==================================================================
+      const ufParaBusca = ufsParaBuscar.length > 0 ? ufsParaBuscar[0] : params.uf;
       
-      for (const ufAtual of ufsLoop) {
+      for (const trib of tribunais) {
         if (cancelarRef.current) break;
-        
+
         for (const variante of variantesLoop) {
           if (cancelarRef.current) break;
 
-          for (const trib of tribunais) {
-            if (cancelarRef.current) break;
+          const reqController = createLinkedController();
 
-            const reqController = createLinkedController();
-            const timeoutId = setTimeout(() => reqController.abort(), 60_000);
-
-            try {
-              const resp = await buscarPjeComunicaPaginado(
-                {
-                  tipo: params.tipo,
-                  oab: params.oab,
-                  uf: ufAtual,
-                  palavraChave: variante || undefined,
-                  numeroProcesso: params.numeroProcesso,
-                  siglaTribunal: trib,
-                  dataInicio: params.dataInicio,
-                  dataFim: params.dataFim,
-                  page: 0,
-                  pageSize: params.pageSize ?? 10,
-                },
-                {
-                  signal: reqController.signal,
-                  maxPages: 10,
-                  delayMs: 200,  // Otimizado de 500ms
-                }
-              );
-
-              for (const item of resp.items) {
-                const id = String(item?.id ?? "");
-                const key = id || JSON.stringify(item).slice(0, 400);
-                if (!seen.has(key)) {
-                  seen.add(key);
-                  acumulado.push(item);
-                }
+          try {
+            const resp = await buscarPjeComunicaPaginado(
+              {
+                tipo: params.tipo,
+                oab: params.oab,
+                uf: ufParaBusca,
+                palavraChave: variante || undefined,
+                numeroProcesso: params.numeroProcesso,
+                siglaTribunal: trib,
+                dataInicio: params.dataInicio,
+                dataFim: params.dataFim,
+                page: 0,
+                pageSize: params.pageSize ?? 10,
+              },
+              {
+                signal: reqController.signal,
+                maxPages: 10,
+                delayMs: 150,  // Otimizado para 150ms
               }
-            } catch (browserErr: any) {
-              if (browserErr?.name === 'AbortError') {
-                if (cancelarRef.current) break;
-                console.warn(`[DJEN] Timeout para variante "${variante}" tribunal ${trib ?? 'TODOS'}`);
-              } else {
-                console.warn(`[DJEN] Erro para "${variante}" tribunal ${trib ?? 'TODOS'}:`, browserErr?.message);
+            );
+
+            for (const item of resp.items) {
+              const id = String(item?.id ?? "");
+              const key = id || JSON.stringify(item).slice(0, 400);
+              if (!seen.has(key)) {
+                seen.add(key);
+                acumulado.push(item);
               }
-            } finally {
-              clearTimeout(timeoutId);
             }
-
-            await delay(CONFIG.delay_between_tribunals);
+          } catch (browserErr: any) {
+            if (browserErr?.name === 'AbortError') {
+              if (cancelarRef.current) break;
+            }
+            // Logar erro mas continuar para próximo tribunal
+            console.warn(`[DJEN] Erro ${trib ?? 'TODOS'}: ${browserErr?.message}`);
           }
+
           await delay(CONFIG.delay_between_variants);
         }
+        await delay(CONFIG.delay_between_tribunals);
       }
 
       if (cancelarRef.current) return [];
@@ -885,26 +881,15 @@ export function useBuscaDjenDireta() {
       // LOOP SEQUENCIAL SIMPLES - Um monitoramento por vez
       // Pula monitoramentos já processados se retomando
       // ================================================================
+      // ================================================================
+      // LOOP PRINCIPAL OTIMIZADO v1.0.5
+      // - Sem verificação de cancelamento no banco (apenas local)
+      // - Atualização de metadata a cada 10 itens (não a cada 1)
+      // - SEM delay entre monitoramentos
+      // ================================================================
       for (let i = indiceInicial; i < total; i++) {
-        // Verificar cancelamento
+        // Verificar cancelamento APENAS local (rápido!)
         if (cancelarRef.current) break;
-
-        // Verificar cancelamento no banco
-        try {
-          const { data: configData } = await supabase
-            .from('configuracoes_monitoramento')
-            .select('metadata')
-            .eq('tipo', 'djen')
-            .is('coordenacao_id', null)
-            .maybeSingle();
-          
-          if ((configData?.metadata as any)?.cancel_requested === true) {
-            cancelarRef.current = true;
-            break;
-          }
-        } catch (e) {
-          // Ignorar erro de verificação
-        }
 
         const mon = monitoramentos[i];
 
@@ -941,31 +926,31 @@ export function useBuscaDjenDireta() {
           checkpoint: checkpointAtual,
         }));
 
-        // Atualizar metadata no banco
-        const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
-        try {
-          await supabase
-            .from('configuracoes_monitoramento')
-            .update({ 
-              metadata: {
-                status: 'executando',
-                total,
-                current: i + 1,
-                percentage: Math.round(((i + 1) / total) * 100),
-                duracao_s,
-                novas: totalNovas,
-                duplicadas: totalDuplicadas,
-                descartadas: totalDescartadas,
-              } 
-            })
-            .eq('tipo', 'djen')
-            .is('coordenacao_id', null);
-        } catch (e) {
-          // Ignorar erro de atualização
-        }
+        // Atualizar metadata no banco apenas a cada 10 itens (reduz overhead)
+        if ((i + 1) % 10 === 0 || i === total - 1) {
+          const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
+          try {
+            await supabase
+              .from('configuracoes_monitoramento')
+              .update({ 
+                metadata: {
+                  status: 'executando',
+                  total,
+                  current: i + 1,
+                  percentage: Math.round(((i + 1) / total) * 100),
+                  duracao_s,
+                  novas: totalNovas,
+                  duplicadas: totalDuplicadas,
+                  descartadas: totalDescartadas,
+                } 
+              })
+              .eq('tipo', 'djen')
+              .is('coordenacao_id', null);
+          } catch (e) {
+            // Ignorar erro de atualização
+          }
 
-        // Atualizar execução no banco periodicamente
-        if ((i + 1) % 5 === 0) {
+          // Atualizar execução no banco
           await registrarExecucao('executando', {
             processados: i + 1,
             total,
@@ -974,10 +959,7 @@ export function useBuscaDjenDireta() {
           });
         }
 
-        // Delay entre monitoramentos
-        if (i < total - 1 && !cancelarRef.current) {
-          await delay(CONFIG.delay_between_batches);
-        }
+        // SEM delay entre monitoramentos - velocidade máxima!
       }
 
       // ================================================================
