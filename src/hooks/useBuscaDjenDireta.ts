@@ -45,6 +45,14 @@ export interface ProgressoExecucao {
   tempoDecorrido: number;
   termoAtual?: string;
   executionId?: string;
+  // Checkpoint para retomada
+  checkpoint?: {
+    indice: number;
+    data: string;
+    novasAcumuladas: number;
+    duplicadasAcumuladas: number;
+    descartadasAcumuladas: number;
+  };
 }
 
 // ============================================================================
@@ -178,6 +186,7 @@ const defaultProgresso = (): ProgressoExecucao => ({
   mensagem: '',
   tempoDecorrido: 0,
   termoAtual: undefined,
+  checkpoint: undefined,
 });
 
 /**
@@ -775,6 +784,14 @@ export function useBuscaDjenDireta() {
       return;
     }
 
+    // Carregar checkpoint se retomar = true
+    const savedState = retomar ? carregarEstado() : null;
+    const checkpoint = savedState?.checkpoint;
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    // Verificar se checkpoint é do mesmo dia
+    const checkpointValido = checkpoint && checkpoint.data === hoje && checkpoint.indice > 0;
+
     const tempoInicio = Date.now();
     setExecutando(true);
     cancelarRef.current = false;
@@ -782,7 +799,7 @@ export function useBuscaDjenDireta() {
     executionIdRef.current = null;
     dataOverrideRef.current = dataOverride || null;
 
-    // Limpar metadata de execução anterior
+    // Limpar metadata de execução anterior (ou iniciar retomada)
     try {
       await supabase
         .from('configuracoes_monitoramento')
@@ -791,9 +808,10 @@ export function useBuscaDjenDireta() {
             status: 'executando',
             cancel_requested: false,
             cancelado: false,
-            current: 0,
+            current: checkpointValido ? checkpoint.indice : 0,
             total: 0,
             percentage: 0,
+            retomando: checkpointValido,
           } 
         })
         .eq('tipo', 'djen')
@@ -802,21 +820,23 @@ export function useBuscaDjenDireta() {
       console.warn('[DJEN] Erro ao limpar metadata:', e);
     }
     
+    // Inicializar progresso (com valores do checkpoint se retomando)
     setProgresso({
-      monitoramentoAtual: 0,
+      monitoramentoAtual: checkpointValido ? checkpoint.indice : 0,
       totalMonitoramentos: 0,
-      publicacoesNovas: 0,
-      publicacoesDuplicadas: 0,
-      publicacoesDescartadas: 0,
+      publicacoesNovas: checkpointValido ? checkpoint.novasAcumuladas : 0,
+      publicacoesDuplicadas: checkpointValido ? checkpoint.duplicadasAcumuladas : 0,
+      publicacoesDescartadas: checkpointValido ? checkpoint.descartadasAcumuladas : 0,
       status: 'executando',
-      mensagem: 'Carregando monitoramentos...',
+      mensagem: checkpointValido ? 'Retomando de onde parou...' : 'Carregando monitoramentos...',
       tempoInicio,
       tempoDecorrido: 0,
       termoAtual: undefined,
+      checkpoint: undefined, // Limpar checkpoint ao iniciar
     });
 
     // Registrar execução
-    const executionId = await registrarExecucao('executando', {});
+    const executionId = await registrarExecucao('executando', { retomada: retomar });
 
     try {
       // Buscar monitoramentos ativos
@@ -845,20 +865,27 @@ export function useBuscaDjenDireta() {
       const monitoramentos = monitoramentosRaw as unknown as MonitoramentoDjen[];
       const total = monitoramentos.length;
       
+      // Índice inicial (do checkpoint ou 0)
+      const indiceInicial = checkpointValido ? Math.min(checkpoint.indice, total - 1) : 0;
+      
       setProgresso(prev => ({
         ...prev,
         totalMonitoramentos: total,
-        mensagem: `Processando ${total} monitoramentos...`,
+        mensagem: checkpointValido 
+          ? `Retomando do monitoramento ${indiceInicial + 1}/${total}...`
+          : `Processando ${total} monitoramentos...`,
       }));
 
-      let totalNovas = 0;
-      let totalDuplicadas = 0;
-      let totalDescartadas = 0;
+      // Acumuladores (do checkpoint ou 0)
+      let totalNovas = checkpointValido ? checkpoint.novasAcumuladas : 0;
+      let totalDuplicadas = checkpointValido ? checkpoint.duplicadasAcumuladas : 0;
+      let totalDescartadas = checkpointValido ? checkpoint.descartadasAcumuladas : 0;
 
       // ================================================================
       // LOOP SEQUENCIAL SIMPLES - Um monitoramento por vez
+      // Pula monitoramentos já processados se retomando
       // ================================================================
-      for (let i = 0; i < total; i++) {
+      for (let i = indiceInicial; i < total; i++) {
         // Verificar cancelamento
         if (cancelarRef.current) break;
 
@@ -897,12 +924,21 @@ export function useBuscaDjenDireta() {
         totalDuplicadas += result.duplicadas;
         totalDescartadas += result.descartadas;
 
-        // Atualizar progresso DEPOIS de processar
+        // Atualizar progresso DEPOIS de processar (com checkpoint para retomada)
+        const checkpointAtual = {
+          indice: i + 1,
+          data: hoje,
+          novasAcumuladas: totalNovas,
+          duplicadasAcumuladas: totalDuplicadas,
+          descartadasAcumuladas: totalDescartadas,
+        };
+        
         setProgresso(prev => ({
           ...prev,
           publicacoesNovas: totalNovas,
           publicacoesDuplicadas: totalDuplicadas,
           publicacoesDescartadas: totalDescartadas,
+          checkpoint: checkpointAtual,
         }));
 
         // Atualizar metadata no banco

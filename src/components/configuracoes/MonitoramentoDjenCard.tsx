@@ -11,7 +11,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, StopCircle, Trash2, CalendarIcon, XCircle } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Newspaper, Play, Clock, RefreshCw, ChevronDown, FileText, StopCircle, Trash2, CalendarIcon, XCircle, RotateCcw } from "lucide-react";
 import { ProgressoDjenDetalhado } from "@/components/djen/ProgressoDjenDetalhado";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useDjenRunsHistory, useDjenRunDetails } from "@/hooks/useDjenRunsHistory";
@@ -77,11 +78,14 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   const [cancelando, setCancelando] = useState(false);
   const [limpando, setLimpando] = useState(false);
   const [ocultarErroAnterior, setOcultarErroAnterior] = useState(false);
+  const [dialogRetomada, setDialogRetomada] = useState(false);
   const { runDetails } = useDjenRunDetails(selectedRunId);
   
   // Estados para período de consulta
   const [dataInicio, setDataInicio] = useState<Date>(new Date());
   const [dataFim, setDataFim] = useState<Date>(new Date());
+
+  // Verificar se existe checkpoint válido para retomada (movido para depois das queries)
 
   // Fetch last execution report from historico_monitoramento and new djen_runs table
   const { data: ultimoHistorico } = useQuery({
@@ -190,6 +194,19 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   // Latest run from the new table
   const latestRun = runs && runs.length > 0 ? runs[0] : null;
 
+  // Verificar se existe checkpoint válido para retomada
+  const checkpoint = progressoDireta.checkpoint;
+  const hoje = new Date().toISOString().split('T')[0];
+  
+  // Checkpoint válido: do mesmo dia, com índice > 0, e não processou tudo
+  // Também considerar se a última execução foi timeout/cancelado e tem progresso
+  const checkpointLocal = checkpoint && checkpoint.data === hoje && checkpoint.indice > 0;
+  const ultimaExecucaoCheckpoint = ultimaExecucaoErro?.detalhes as any;
+  const checkpointDaExecucao = ultimaExecucaoCheckpoint?.processados > 0 
+    && (ultimaExecucaoErro?.status === 'timeout' || ultimaExecucaoErro?.status === 'cancelado');
+  
+  const hasCheckpointValido = checkpointLocal || checkpointDaExecucao;
+
   // CONTADORES REAIS DO BANCO (publicações persistidas hoje)
   const { data: statsHoje } = useQuery({
     queryKey: ['djen-stats-hoje'],
@@ -289,8 +306,20 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
       return;
     }
     
+    // Se há checkpoint e não especificou retomar, mostrar diálogo de escolha
+    if (hasCheckpointValido && !retomar) {
+      setDialogRetomada(true);
+      return;
+    }
+    
     setOcultarErroAnterior(true);
-    await executarDireta();
+    await executarDireta(undefined, retomar);
+  };
+
+  const handleConfirmarRetomada = async (retomar: boolean) => {
+    setDialogRetomada(false);
+    setOcultarErroAnterior(true);
+    await executarDireta(undefined, retomar);
   };
 
   const handleFrequenciaChange = (frequencia: string) => {
@@ -443,6 +472,55 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   }
 
   return (
+    <>
+    {/* Diálogo de Retomada */}
+    <AlertDialog open={dialogRetomada} onOpenChange={setDialogRetomada}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <RotateCcw className="h-5 w-5" />
+            Execução Anterior Incompleta
+          </AlertDialogTitle>
+          <AlertDialogDescription className="space-y-2">
+            <p>
+              Foi encontrado um checkpoint do monitoramento de hoje:
+            </p>
+            <div className="p-3 bg-muted rounded-lg text-sm">
+              <div className="flex justify-between">
+                <span>Progresso:</span>
+                <span className="font-medium">
+                  {checkpoint?.indice || 0}/{progressoDireta.totalMonitoramentos} monitoramentos
+                </span>
+              </div>
+              <div className="flex justify-between text-emerald-600">
+                <span>Novas encontradas:</span>
+                <span className="font-medium">{checkpoint?.novasAcumuladas || 0}</span>
+              </div>
+            </div>
+            <p className="text-sm">
+              Deseja <strong>continuar de onde parou</strong> ou <strong>iniciar do zero</strong>?
+            </p>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogCancel onClick={() => setDialogRetomada(false)}>
+            Cancelar
+          </AlertDialogCancel>
+          <Button
+            variant="outline"
+            onClick={() => handleConfirmarRetomada(false)}
+          >
+            <Play className="h-4 w-4 mr-2" />
+            Iniciar do Zero
+          </Button>
+          <AlertDialogAction onClick={() => handleConfirmarRetomada(true)}>
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Continuar de onde parou
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
     <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
@@ -803,5 +881,6 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
         </div>
       </CardContent>
     </Card>
+    </>
   );
 }
