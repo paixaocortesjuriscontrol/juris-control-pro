@@ -24,14 +24,13 @@ export function BotaoSincronizarDjen({
 }: BotaoSincronizarDjenProps) {
   const {
     progresso,
-    executando,
+    isExecutando,
     executarMonitoramento,
-    cancelarExecucao,
-    verificarCheckpoint,
+    cancelar,
   } = useBuscaDjenDireta();
 
   const wasRunningRef = useRef(false);
-  const isRunning = executando && progresso.status === "executando";
+  const isRunning = isExecutando && progresso.status === "executando";
 
   const progressPercent = useMemo(() => {
     if (!progresso?.totalMonitoramentos) return 0;
@@ -51,15 +50,14 @@ export function BotaoSincronizarDjen({
 
   const handleClick = async () => {
     if (isRunning) {
-      cancelarExecucao();
-      toast.info("Cancelamento solicitado. Progresso será salvo para retomada.");
+      cancelar();
+      toast.info("Cancelamento solicitado.");
       return;
     }
 
-    const hasCheckpoint = !!verificarCheckpoint();
     try {
-      await executarMonitoramento(monitoramentoIds, hasCheckpoint);
-      toast.info(hasCheckpoint ? "Retomando execução DJEN..." : "Iniciando execução DJEN...");
+      await executarMonitoramento(monitoramentoIds, false);
+      toast.info("Iniciando execução DJEN...");
     } catch (e: any) {
       toast.error(e?.message ? `Erro ao iniciar: ${e.message}` : "Erro ao iniciar execução");
     }
@@ -77,7 +75,7 @@ export function BotaoSincronizarDjen({
             variant="ghost" 
             size="icon" 
             className="h-6 w-6 ml-auto"
-            onClick={cancelarExecucao}
+            onClick={cancelar}
           >
             <X className="h-3 w-3" />
           </Button>
