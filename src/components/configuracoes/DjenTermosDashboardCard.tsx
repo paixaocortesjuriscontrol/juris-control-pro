@@ -195,8 +195,12 @@ export function DjenTermosDashboardCard({
   }, [progresso.status]); // Re-avaliar quando status muda
 
   const checkpoint = savedState?.checkpoint;
-  // IMPORTANTE: usar “hoje” em Brasília para não invalidar checkpoint após 21h (UTC vira dia seguinte)
-  const hasCheckpoint = !!(checkpoint && checkpoint.data === hojeBrasiliaYmd && checkpoint.indice > 0);
+  // Chave estável do run:
+  // - se houve dataOverride, ela define o recorte e deve ser usada para validação
+  // - senão, usamos o próprio checkpoint.data (permite retomar mesmo no dia seguinte)
+  // - fallback: hoje em Brasília
+  const runKey = (savedState as any)?.dataOverrideYmd ?? checkpoint?.data ?? hojeBrasiliaYmd;
+  const hasCheckpoint = !!(checkpoint && checkpoint.data === runKey && checkpoint.indice > 0);
   const checkpointPercent = hasCheckpoint && checkpoint.indice > 0 && savedState?.totalMonitoramentos > 0
     ? Math.round((checkpoint.indice / savedState.totalMonitoramentos) * 100)
     : 0;
@@ -209,8 +213,18 @@ export function DjenTermosDashboardCard({
   const backendTotal = md.total ?? 0;
   const backendCurrent = md.current ?? 0;
 
-  const effectiveTotal = localRunActive ? (progresso.totalMonitoramentos ?? 0) : backendTotal;
-  const effectiveCurrent = localRunActive ? (progresso.monitoramentoAtual ?? 0) : backendCurrent;
+  // Se o usuário saiu/voltou, a fonte do backend pode estar defasada.
+  // Para NÃO regredir (ex: 76% → 25%), usamos o maior valor entre backend e o estado salvo.
+  const savedTotal = (savedState as any)?.totalMonitoramentos ?? 0;
+  const savedCurrent = (savedState as any)?.checkpoint?.indice ?? (savedState as any)?.monitoramentoAtual ?? 0;
+
+  const effectiveTotal = localRunActive
+    ? (progresso.totalMonitoramentos ?? 0)
+    : Math.max(backendTotal, savedTotal);
+
+  const effectiveCurrent = localRunActive
+    ? (progresso.monitoramentoAtual ?? 0)
+    : Math.max(backendCurrent, savedCurrent);
   
   const percent = useMemo(() => {
     if (effectiveTotal <= 0) return 0;

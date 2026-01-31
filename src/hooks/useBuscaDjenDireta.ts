@@ -462,13 +462,15 @@ export function useBuscaDjenDireta() {
       dataFimYmd = dataOverrideRef.current;
       dataInicioYmd = dataOverrideRef.current;
     } else {
-      const now = new Date();
-      const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-      const startBrasilia = new Date(todayBrasilia);
-      startBrasilia.setDate(startBrasilia.getDate() - 2);
+      // IMPORTANTE: NÃO usar toISOString() em Date “convertido” por timezone.
+      // Isso pode trocar o dia (ex: BRT 21:30 -> UTC dia seguinte) e “pular” 30/01.
+      // Estratégia estável: usar YYYY-MM-DD em Brasília e derivar o início a partir de um horário neutro (12:00).
+      const hojeYmd = getHojeBrasiliaYmd();
+      const start = new Date(`${hojeYmd}T12:00:00`);
+      start.setDate(start.getDate() - 2);
 
-      dataFimYmd = todayBrasilia.toISOString().split('T')[0];
-      dataInicioYmd = startBrasilia.toISOString().split('T')[0];
+      dataFimYmd = hojeYmd;
+      dataInicioYmd = start.toISOString().slice(0, 10);
     }
 
     const tipoMapeado = monitoramento.tipo === 'parte' ? 'palavra-chave' : monitoramento.tipo;
@@ -810,9 +812,6 @@ export function useBuscaDjenDireta() {
     const savedState = retomar ? carregarEstado() : null;
     const checkpoint = savedState?.checkpoint;
     const hoje = getHojeBrasiliaYmd();
-    
-    // Verificar se checkpoint é do mesmo dia
-    const checkpointValido = checkpoint && checkpoint.data === hoje && checkpoint.indice > 0;
 
     const tempoInicio = Date.now();
     setExecutando(true);
@@ -821,6 +820,15 @@ export function useBuscaDjenDireta() {
     executionIdRef.current = null;
     // Se estiver retomando e não veio override explícito, reutilizar o override salvo.
     dataOverrideRef.current = (dataOverride ?? savedState?.dataOverrideYmd) || null;
+
+    // Chave estável da execução para validação do checkpoint:
+    // 1) Se há dataOverride, ela define o recorte (ex: 2026-01-30)
+    // 2) Senão, manter o valor já salvo no checkpoint (permite retomar mesmo no dia seguinte)
+    // 3) Fallback: hoje (Brasília)
+    const runKey = dataOverrideRef.current ?? checkpoint?.data ?? hoje;
+
+    // Verificar se checkpoint é válido para ESTE runKey
+    const checkpointValido = !!(checkpoint && checkpoint.indice > 0 && checkpoint.data === runKey);
 
     // Limpar metadata de execução anterior (ou iniciar retomada)
     try {
@@ -838,6 +846,7 @@ export function useBuscaDjenDireta() {
             percentage: initialTotal > 0 ? Math.round((initialCurrent / initialTotal) * 100) : 0,
             retomando: checkpointValido,
             data_override: dataOverrideRef.current,
+            run_key: runKey,
           } 
         })
         .eq('tipo', 'djen')
@@ -937,7 +946,7 @@ export function useBuscaDjenDireta() {
         // Atualizar progresso DEPOIS de processar (com checkpoint para retomada)
         const checkpointAtual = {
           indice: i + 1,
-          data: hoje,
+          data: runKey,
           novasAcumuladas: totalNovas,
           duplicadasAcumuladas: totalDuplicadas,
           descartadasAcumuladas: totalDescartadas,
@@ -952,31 +961,34 @@ export function useBuscaDjenDireta() {
           checkpoint: checkpointAtual,
         }));
 
-        // Atualizar metadata no banco apenas a cada 10 itens (reduz overhead)
-        if ((i + 1) % 10 === 0 || i === total - 1) {
-          const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
-          try {
-            await supabase
-              .from('configuracoes_monitoramento')
-              .update({ 
-                metadata: {
-                  status: 'executando',
-                  total,
-                  current: i + 1,
-                  percentage: Math.round(((i + 1) / total) * 100),
-                  duracao_s,
-                  novas: totalNovas,
-                  duplicadas: totalDuplicadas,
-                  descartadas: totalDescartadas,
-                } 
-              })
-              .eq('tipo', 'djen')
-              .is('coordenacao_id', null);
-          } catch (e) {
-            // Ignorar erro de atualização
-          }
+        // CRÍTICO: persistir o progresso a CADA monitoramento.
+        // Isso evita regressão visual ao sair/voltar (DB fica no “último múltiplo de 10”).
+        const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
+        try {
+          await supabase
+            .from('configuracoes_monitoramento')
+            .update({
+              metadata: {
+                status: 'executando',
+                total,
+                current: i + 1,
+                percentage: Math.round(((i + 1) / total) * 100),
+                duracao_s,
+                novas: totalNovas,
+                duplicadas: totalDuplicadas,
+                descartadas: totalDescartadas,
+                data_override: dataOverrideRef.current,
+                run_key: runKey,
+              },
+            })
+            .eq('tipo', 'djen')
+            .is('coordenacao_id', null);
+        } catch {
+          // Ignorar erro de atualização para não interromper a execução
+        }
 
-          // Atualizar execução no banco
+        // Atualizar execução no banco com menor frequência (reduz overhead)
+        if ((i + 1) % 10 === 0 || i === total - 1) {
           await registrarExecucao('executando', {
             processados: i + 1,
             total,
