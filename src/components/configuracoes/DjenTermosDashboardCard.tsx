@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -322,8 +322,35 @@ export function DjenTermosDashboardCard({
     }
   }, [localRunActive, localCompleted, localCancelled, progresso.status, onAfterMutation]);
 
-  // DETECÇÃO DE ÓRFÃ: Verificar diretamente o banco por execuções travadas
-  // Roda sempre que o loop local não estiver ativo e não estiver forçando cancelamento
+  // ============================================================================
+  // DETECÇÃO DE ÓRFÃ + AUTO-RESTART
+  // - Se execução órfã detectada: expor botão caveira (sem auto-limpeza)
+  // - Se timeout recente (< 5 min): auto-restart
+  // ============================================================================
+  const autoRestartTriedRef = useRef(false);
+
+  // Converte Date para YYYY-MM-DD (fuso horário local, usando meio-dia para evitar problemas de timezone)
+  // NOTA: definido aqui (antes do useCallback) para poder ser usado no handleExecutarInternal
+  const getDataYmd = useCallback((date?: Date): string | undefined => {
+    if (!date) return undefined;
+    const d = new Date(date);
+    d.setHours(12, 0, 0, 0);
+    return format(d, 'yyyy-MM-dd');
+  }, []);
+
+  // Helper interno para disparar execução (usado pelo auto-restart)
+  const handleExecutarInternal = useCallback(async (retomar: boolean) => {
+    if (isPaused) {
+      await onReativarConfig('djen');
+    }
+    
+    const dataInicioYmd = dataInicio ? getDataYmd(dataInicio) : undefined;
+    const dataFimYmd = dataFim ? getDataYmd(dataFim) : undefined;
+    
+    await executarMonitoramento(undefined, retomar, dataInicioYmd, dataFimYmd);
+    onAfterMutation();
+  }, [isPaused, onReativarConfig, dataInicio, dataFim, executarMonitoramento, onAfterMutation, getDataYmd]);
+
   useEffect(() => {
     let isMounted = true;
     
@@ -335,107 +362,94 @@ export function DjenTermosDashboardCard({
       }
       
       try {
-        // Buscar execução DJEN que está "executando" no banco mas não tem loop local
-        const { data: execucaoAtiva } = await supabase
+        // Buscar execução DJEN mais recente (executando ou timeout)
+        const { data: execucaoRecente } = await supabase
           .from('execucoes_agendadas')
-          .select('id, iniciado_em')
+          .select('id, status, iniciado_em, finalizado_em')
           .eq('tipo', 'djen')
-          .eq('status', 'executando')
-          .is('finalizado_em', null)
+          .in('status', ['executando', 'timeout'])
           .order('iniciado_em', { ascending: false })
           .limit(1)
           .maybeSingle();
         
         if (!isMounted) return;
         
-        if (execucaoAtiva) {
-          const iniciado = new Date(execucaoAtiva.iniciado_em);
+        // CASO 1: Execução "executando" no banco mas sem loop local = órfã
+        if (execucaoRecente?.status === 'executando' && !execucaoRecente.finalizado_em) {
+          const iniciado = new Date(execucaoRecente.iniciado_em);
           const agora = new Date();
           const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
           
-          // Se a execução tem mais de 2 minutos e não tem loop local, é órfã
-          // (2 minutos para dar tempo do loop iniciar normalmente)
           if (minutosDecorridos >= 2) {
-            console.log(`[DJEN] Execução órfã detectada: ${execucaoAtiva.id} (${Math.round(minutosDecorridos)}min)`);
-            setExecucaoOrfaNoBanco(execucaoAtiva.id);
+            console.log(`[DJEN] Execução órfã detectada: ${execucaoRecente.id} (${Math.round(minutosDecorridos)}min)`);
+            setExecucaoOrfaNoBanco(execucaoRecente.id);
             
-            // AUTO-LIMPEZA: Se tem mais de 10 minutos, limpar automaticamente
-            if (minutosDecorridos >= 10) {
-              console.log(`[DJEN] Execução órfã antiga, limpando automaticamente...`);
-              await supabase
-                .from('execucoes_agendadas')
-                .update({
-                  status: 'timeout',
-                  finalizado_em: new Date().toISOString(),
-                  ultimo_erro: 'Execução órfã detectada e limpa automaticamente',
-                })
-                .eq('id', execucaoAtiva.id);
-
-              // Também limpar o metadata (evita UI ficar “Executando” mesmo após timeout)
-              await supabase
-                .from('configuracoes_monitoramento')
-                .update({
-                  metadata: {
-                    ...(md || {}),
-                    status: 'timeout',
-                    last_error: 'Execução órfã detectada e limpa automaticamente',
-                    last_stop_reason: 'stale',
-                    continuingRun: false,
-                    cancelado: false,
-                    last_stop_at: new Date().toISOString(),
-                  },
-                })
-                .eq('tipo', 'djen')
-                .is('coordenacao_id', null);
+            // AUTO-RESTART: Se órfã há mais de 5 min, tentar retomar automaticamente
+            if (minutosDecorridos >= 5 && !autoRestartTriedRef.current) {
+              autoRestartTriedRef.current = true;
+              console.log('[DJEN] Órfã antiga - tentando auto-restart...');
               
-              if (isMounted) {
-                setExecucaoOrfaNoBanco(null);
-                onAfterMutation();
+              // Verificar se há checkpoint válido para retomar
+              const hasProgress = backendTotal > 0 && backendCurrent > 0 && backendCurrent < backendTotal;
+              
+              if (hasProgress) {
+                toast.info(`Retomando DJEN do monitoramento ${backendCurrent}/${backendTotal}...`);
+                handleExecutarInternal(true);
+              } else {
+                toast.info('Reiniciando DJEN do zero...');
+                handleExecutarInternal(false);
               }
+              return;
             }
+            
+            // NÃO fazer auto-limpeza silenciosa - apenas expor botão caveira
+          } else {
+            setExecucaoOrfaNoBanco(null);
+          }
+          return;
+        }
+        
+        // CASO 2: Timeout recente → auto-restart
+        if (execucaoRecente?.status === 'timeout' && execucaoRecente.finalizado_em) {
+          const finalizadoEm = new Date(execucaoRecente.finalizado_em).getTime();
+          const agora = Date.now();
+          const minutosDesdeTimeout = (agora - finalizadoEm) / 60000;
+          
+          // Auto-restart se timeout foi há menos de 5 minutos e ainda não tentamos
+          if (minutosDesdeTimeout < 5 && !autoRestartTriedRef.current) {
+            autoRestartTriedRef.current = true;
+            console.log(`[DJEN] Timeout recente (${Math.round(minutosDesdeTimeout)}min atrás) - auto-reiniciando...`);
+            
+            const hasProgress = backendTotal > 0 && backendCurrent > 0 && backendCurrent < backendTotal;
+            
+            if (hasProgress) {
+              toast.info(`Retomando DJEN do monitoramento ${backendCurrent}/${backendTotal}...`);
+              handleExecutarInternal(true);
+            } else {
+              toast.info('Reiniciando DJEN do zero...');
+              handleExecutarInternal(false);
+            }
+            return;
+          }
+          
+          setExecucaoOrfaNoBanco(null);
+          return;
+        }
+        
+        // CASO 3: UI em "executando" mas sem execução no banco = ghost
+        if (isRunning && !execucaoRecente) {
+          const startedAt = stats.currentExecution?.iniciado_em;
+          const base = startedAt ? new Date(startedAt) : null;
+          const minutosDecorridos = base ? (Date.now() - base.getTime()) / 60000 : 999;
+
+          if (minutosDecorridos >= 2) {
+            setExecucaoOrfaNoBanco(ORFA_GHOST_ID);
+            // NÃO fazer auto-limpeza - apenas expor botão caveira
           } else {
             setExecucaoOrfaNoBanco(null);
           }
         } else {
-          // Se UI está como “executando”, mas não existe execução ativa no banco,
-          // é um “ghost running” (metadata travado). Expor o botão de caveira.
-          if (isRunning) {
-            const startedAt = stats.currentExecution?.iniciado_em;
-            const base = startedAt ? new Date(startedAt) : null;
-            const minutosDecorridos = base ? (Date.now() - base.getTime()) / 60000 : 999;
-
-            if (minutosDecorridos >= 2) {
-              setExecucaoOrfaNoBanco(ORFA_GHOST_ID);
-
-              // AUTO-LIMPEZA: se já passou muito tempo, limpar o metadata automaticamente
-              if (minutosDecorridos >= 10) {
-                await supabase
-                  .from('configuracoes_monitoramento')
-                  .update({
-                    metadata: {
-                      ...(md || {}),
-                      status: 'timeout',
-                      last_error: 'Execução travada (sem execução ativa no banco).',
-                      last_stop_reason: 'ghost',
-                      continuingRun: false,
-                      cancelado: false,
-                      last_stop_at: new Date().toISOString(),
-                    },
-                  })
-                  .eq('tipo', 'djen')
-                  .is('coordenacao_id', null);
-
-                if (isMounted) {
-                  setExecucaoOrfaNoBanco(null);
-                  onAfterMutation();
-                }
-              }
-            } else {
-              setExecucaoOrfaNoBanco(null);
-            }
-          } else {
-            setExecucaoOrfaNoBanco(null);
-          }
+          setExecucaoOrfaNoBanco(null);
         }
       } catch (e) {
         console.warn('[DJEN] Erro ao verificar execuções órfãs:', e);
@@ -450,7 +464,7 @@ export function DjenTermosDashboardCard({
       isMounted = false;
       clearInterval(interval);
     };
-  }, [localRunActive, onAfterMutation, isRunning, stats.currentExecution?.iniciado_em]);
+  }, [localRunActive, isRunning, stats.currentExecution?.iniciado_em, backendTotal, backendCurrent, handleExecutarInternal]);
 
   // Converte Date para YYYY-MM-DD (fuso horário local, usando meio-dia para evitar problemas de timezone)
   const getDataYmd = (date?: Date): string | undefined => {

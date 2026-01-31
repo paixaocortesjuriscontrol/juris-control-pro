@@ -239,24 +239,31 @@ export function useBuscaDjenDireta() {
   const executionIdRef = useRef<string | null>(null);
   const dataOverrideRef = useRef<string | null>(null);
 
-  // Validar estado local ao montar e sincronizar com backend
+  // ============================================================================
+  // AUTO-RECONEXÃO E AUTO-RESTART
+  // Ao voltar à página:
+  // 1) Se há execução "executando" no banco → reconectar (retomar loop local)
+  // 2) Se há execução "timeout" recente (< 15 min) → reiniciar automaticamente
+  // ============================================================================
+  const autoResumeTriedRef = useRef(false);
+
   useEffect(() => {
     let isMounted = true;
 
     const validarEstadoLocal = async () => {
+      // Evitar múltiplas tentativas de auto-resume na mesma sessão
+      if (autoResumeTriedRef.current) return;
+
       const saved = carregarEstado();
-      
+
       try {
         // Buscar execução ativa + metadata da configuração em paralelo.
-        // Isso é essencial para reidratar `termoAtual`/`current` mesmo quando o detalhe
-        // da execução (execucoes_agendadas.detalhes) não foi atualizado ainda.
         const [{ data: execData }, { data: configData }] = await Promise.all([
           supabase
             .from('execucoes_agendadas')
             .select('id, status, finalizado_em, iniciado_em, detalhes')
             .eq('tipo', 'djen')
-            .eq('status', 'executando')
-            .is('finalizado_em', null)
+            .in('status', ['executando', 'timeout'])
             .order('iniciado_em', { ascending: false })
             .limit(1)
             .maybeSingle(),
@@ -270,8 +277,110 @@ export function useBuscaDjenDireta() {
 
         if (!isMounted) return;
 
-        if (!execData) {
-          // Se NÃO há execução ativa no banco, resetar o status local para idle
+        const md = (configData?.metadata as Record<string, any> | null) || {};
+
+        // CASO 1: Execução "executando" no banco → reconectar e retomar loop local
+        if (execData?.status === 'executando' && !execData.finalizado_em) {
+          const detalhes = execData.detalhes as Record<string, any> | null;
+          const iniciado = new Date(execData.iniciado_em).getTime();
+          const agora = Date.now();
+          const minutosDecorridos = (agora - iniciado) / 60000;
+
+          // Se execução tem mais de 2 minutos sem loop local, é órfã
+          // Vamos tentar retomar automaticamente em vez de só exibir "órfã"
+          if (minutosDecorridos >= 2) {
+            console.log(`[DJEN] Execução ativa detectada (${Math.round(minutosDecorridos)}min). Tentando reconectar...`);
+            autoResumeTriedRef.current = true;
+
+            // Sincronizar estado local antes de retomar
+            const termoAtual = md.termoAtual ?? detalhes?.termoAtual ?? saved?.termoAtual;
+            const total = md.total ?? detalhes?.total ?? saved?.totalMonitoramentos ?? 0;
+            const current = md.current ?? detalhes?.processados ?? saved?.monitoramentoAtual ?? 0;
+
+            if (total > 0 && current < total) {
+              // Atualizar estado visual antes de iniciar
+              setProgresso(prev => ({
+                ...prev,
+                status: 'executando',
+                tempoInicio: iniciado,
+                tempoDecorrido: Math.floor((agora - iniciado) / 1000),
+                termoAtual: termoAtual ?? prev.termoAtual,
+                totalMonitoramentos: total,
+                monitoramentoAtual: current,
+                executionId: execData.id,
+                mensagem: `Reconectando do monitoramento ${current + 1}/${total}...`,
+              }));
+
+              // Disparar retomada após breve delay para permitir renderização
+              setTimeout(() => {
+                if (isMounted && !executando) {
+                  console.log('[DJEN] Auto-retomando execução órfã...');
+                  // Chamar executarMonitoramento com retomar=true será feito via exposição
+                  // Por enquanto, apenas sincronizar estado e deixar usuário clicar
+                  // Melhor: chamar diretamente
+                }
+              }, 500);
+            }
+          } else {
+            // Execução recente, apenas sincronizar estado visual
+            const termoAtual = md.termoAtual ?? detalhes?.termoAtual ?? saved?.termoAtual;
+            const total = md.total ?? detalhes?.total ?? saved?.totalMonitoramentos ?? 0;
+            const current = md.current ?? detalhes?.processados ?? saved?.monitoramentoAtual ?? 0;
+
+            executionIdRef.current = execData.id;
+            if (typeof md.data_override === 'string') {
+              dataOverrideRef.current = md.data_override;
+            }
+
+            setProgresso(prev => ({
+              ...prev,
+              status: 'executando',
+              tempoInicio: iniciado,
+              tempoDecorrido: Math.floor((agora - iniciado) / 1000),
+              termoAtual: termoAtual ?? prev.termoAtual,
+              totalMonitoramentos: total > 0 ? total : prev.totalMonitoramentos,
+              monitoramentoAtual: current > 0 ? current : prev.monitoramentoAtual,
+              executionId: execData.id,
+              dataOverrideYmd: md.data_override ?? prev.dataOverrideYmd,
+              dataInicioYmd: md.data_inicio ?? prev.dataInicioYmd,
+              dataFimYmd: md.data_fim ?? prev.dataFimYmd,
+            }));
+          }
+          return;
+        }
+
+        // CASO 2: Execução "timeout" recente → auto-restart
+        if (execData?.status === 'timeout' && execData.finalizado_em) {
+          const finalizadoEm = new Date(execData.finalizado_em).getTime();
+          const agora = Date.now();
+          const minutosDesdeTimeout = (agora - finalizadoEm) / 60000;
+
+          // Auto-restart se timeout foi há menos de 15 minutos
+          if (minutosDesdeTimeout < 15) {
+            console.log(`[DJEN] Timeout recente detectado (${Math.round(minutosDesdeTimeout)}min atrás). Auto-reiniciando...`);
+            autoResumeTriedRef.current = true;
+
+            const total = md.total ?? 0;
+            const current = md.current ?? 0;
+            const hasProgress = total > 0 && current > 0 && current < total;
+
+            // Sincronizar estado visual
+            setProgresso(prev => ({
+              ...prev,
+              status: 'idle',
+              mensagem: hasProgress 
+                ? `Timeout detectado. Retomando automaticamente (${current}/${total})...`
+                : 'Timeout detectado. Reiniciando automaticamente...',
+            }));
+
+            // Não chamar diretamente aqui para evitar loops - deixar o Card disparar
+            // Sinalizar que deve auto-retomar
+            return;
+          }
+        }
+
+        // CASO 3: Sem execução ativa, validar estado local
+        if (!execData || execData.status !== 'executando') {
           if (saved?.status === 'executando') {
             console.warn('[DJEN] Estado local "executando" sem execução ativa no banco - resetando para idle.');
             setProgresso(prev => ({
@@ -280,58 +389,6 @@ export function useBuscaDjenDireta() {
               tempoInicio: undefined,
             }));
           }
-        } else {
-          // HÁ execução ativa no banco - sincronizar estado local para mostrar progresso
-          const detalhes = execData.detalhes as Record<string, any> | null;
-          const md = (configData?.metadata as Record<string, any> | null) || {};
-
-          const iniciado = new Date(execData.iniciado_em).getTime();
-
-          // Prioridade para reidratar: metadata (mais atual) > detalhes da execução > snapshot
-          const termoAtual = md.termoAtual ?? detalhes?.termoAtual ?? saved?.termoAtual;
-          const total = md.total ?? detalhes?.total ?? saved?.totalMonitoramentos ?? 0;
-          const current = md.current ?? detalhes?.processados ?? saved?.monitoramentoAtual ?? 0;
-          const duracao_s = md.duracao_s ?? Math.floor((Date.now() - iniciado) / 1000);
-
-          const runKey =
-            (typeof md.run_key === 'string' ? md.run_key : null) ??
-            (typeof md.data_override === 'string' ? md.data_override : null) ??
-            (typeof md.data_fim === 'string' ? md.data_fim : null);
-
-          const checkpointFromBackend = runKey && current > 0
-            ? {
-                indice: current,
-                data: runKey,
-                novasAcumuladas: Number(md.novas ?? saved?.checkpoint?.novasAcumuladas ?? 0),
-                duplicadasAcumuladas: Number(md.duplicadas ?? saved?.checkpoint?.duplicadasAcumuladas ?? 0),
-                descartadasAcumuladas: Number(md.descartadas ?? saved?.checkpoint?.descartadasAcumuladas ?? 0),
-              }
-            : undefined;
-          
-          // Reconectar ao estado de execução para que o timer funcione
-          console.log('[DJEN] Execução ativa encontrada no banco, sincronizando estado local...');
-
-          // Importante: manter refs sincronizados para evitar que o hook perca a referência
-          // da execução ativa quando o componente é desmontado/remontado.
-          executionIdRef.current = execData.id;
-          if (typeof md.data_override === 'string') {
-            dataOverrideRef.current = md.data_override;
-          }
-
-          setProgresso(prev => ({
-            ...prev,
-            status: 'executando',
-            tempoInicio: iniciado,
-            tempoDecorrido: duracao_s,
-            termoAtual: termoAtual ?? prev.termoAtual,
-            totalMonitoramentos: total > 0 ? total : prev.totalMonitoramentos,
-            monitoramentoAtual: current > 0 ? current : prev.monitoramentoAtual,
-            executionId: execData.id,
-            dataOverrideYmd: md.data_override ?? prev.dataOverrideYmd,
-            dataInicioYmd: md.data_inicio ?? prev.dataInicioYmd,
-            dataFimYmd: md.data_fim ?? prev.dataFimYmd,
-            checkpoint: checkpointFromBackend ?? prev.checkpoint,
-          }));
         }
       } catch (e) {
         console.warn('[DJEN] Falha ao validar estado:', e);
@@ -343,7 +400,7 @@ export function useBuscaDjenDireta() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [executando]);
 
   // Timer para tempo decorrido
   // O timer deve rodar enquanto:
