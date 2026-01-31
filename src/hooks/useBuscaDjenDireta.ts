@@ -882,7 +882,12 @@ export function useBuscaDjenDireta() {
     const total = monitoramentos.length;
     
     // Índice inicial (do checkpoint ou 0)
-    const indiceInicial = checkpointValido ? Math.min(checkpoint.indice, total - 1) : 0;
+    // checkpoint.indice é "quantos já foram processados" (1-based). O próximo índice a executar é igual ao índice.
+    // Se checkpoint.indice === total, não devemos reprocessar o último item.
+    const indiceInicial = checkpointValido ? Math.min(checkpoint.indice, total) : 0;
+
+    // Track local do progresso efetivo para evitar "stale closure" (não usar `progresso.*` no finally).
+    let lastProcessed = checkpointValido ? checkpoint.indice : 0;
 
     // Inicializar progresso COM o total já conhecido
     setProgresso({
@@ -921,6 +926,22 @@ export function useBuscaDjenDireta() {
       // - Atualização de metadata a cada 10 itens (não a cada 1)
       // - SEM delay entre monitoramentos
       // ================================================================
+      const checkRemoteCancelRequested = async (): Promise<boolean> => {
+        try {
+          const { data } = await supabase
+            .from('configuracoes_monitoramento')
+            .select('metadata')
+            .eq('tipo', 'djen')
+            .is('coordenacao_id', null)
+            .maybeSingle();
+
+          const md = (data?.metadata as any) || {};
+          return md.cancel_requested === true;
+        } catch {
+          return false;
+        }
+      };
+
       for (let i = indiceInicial; i < total; i++) {
         // Verificar cancelamento APENAS local (rápido!)
         if (cancelarRef.current) break;
@@ -951,6 +972,8 @@ export function useBuscaDjenDireta() {
           duplicadasAcumuladas: totalDuplicadas,
           descartadasAcumuladas: totalDescartadas,
         };
+
+        lastProcessed = i + 1;
         
         setProgresso(prev => ({
           ...prev,
@@ -989,6 +1012,16 @@ export function useBuscaDjenDireta() {
 
         // Atualizar execução no banco com menor frequência (reduz overhead)
         if ((i + 1) % 10 === 0 || i === total - 1) {
+          // Respeitar cancelamento remoto (outra aba/dispositivo) sem custo alto: checar a cada 10 itens.
+          if (await checkRemoteCancelRequested()) {
+            cancelarRef.current = true;
+            setProgresso(prev => ({
+              ...prev,
+              mensagem: 'Cancelamento solicitado (remoto). Finalizando...'
+            }));
+            break;
+          }
+
           await registrarExecucao('executando', {
             processados: i + 1,
             total,
@@ -1027,10 +1060,14 @@ export function useBuscaDjenDireta() {
               status: 'cancelado',
               cancelado: true,
               total,
-              current: progresso.monitoramentoAtual,
-              percentage: Math.round((progresso.monitoramentoAtual / total) * 100),
+              current: lastProcessed,
+              percentage: total > 0 ? Math.round((lastProcessed / total) * 100) : 0,
               duracao_s,
               novas: totalNovas,
+              duplicadas: totalDuplicadas,
+              descartadas: totalDescartadas,
+              data_override: dataOverrideRef.current,
+              run_key: runKey,
             } 
           })
           .eq('tipo', 'djen')
@@ -1064,6 +1101,8 @@ export function useBuscaDjenDireta() {
               novas: totalNovas,
               duplicadas: totalDuplicadas,
               descartadas: totalDescartadas,
+              data_override: dataOverrideRef.current,
+              run_key: runKey,
               last_run: new Date().toISOString(),
             } 
           })
