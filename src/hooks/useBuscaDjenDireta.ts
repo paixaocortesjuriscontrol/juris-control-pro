@@ -816,62 +816,56 @@ export function useBuscaDjenDireta() {
       console.warn('[DJEN] Erro ao limpar metadata:', e);
     }
     
-    // Inicializar progresso (com valores do checkpoint se retomando)
+    // Buscar monitoramentos ativos ANTES de inicializar progresso para ter o total
+    let query = supabase
+      .from('monitoramentos_djen')
+      .select('*')
+      .eq('ativo', true);
+
+    if (monitoramentosIds?.length) {
+      query = query.in('id', monitoramentosIds);
+    }
+
+    const { data: monitoramentosRaw, error: monError } = await query;
+
+    if (monError || !monitoramentosRaw?.length) {
+      setProgresso(prev => ({
+        ...prev,
+        status: 'erro',
+        mensagem: 'Nenhum monitoramento ativo encontrado',
+      }));
+      await registrarExecucao('erro', { mensagem: 'Nenhum monitoramento ativo' });
+      setExecutando(false);
+      return;
+    }
+
+    const monitoramentos = monitoramentosRaw as unknown as MonitoramentoDjen[];
+    const total = monitoramentos.length;
+    
+    // Índice inicial (do checkpoint ou 0)
+    const indiceInicial = checkpointValido ? Math.min(checkpoint.indice, total - 1) : 0;
+
+    // Inicializar progresso COM o total já conhecido
     setProgresso({
       monitoramentoAtual: checkpointValido ? checkpoint.indice : 0,
-      totalMonitoramentos: 0,
+      totalMonitoramentos: total,
       publicacoesNovas: checkpointValido ? checkpoint.novasAcumuladas : 0,
       publicacoesDuplicadas: checkpointValido ? checkpoint.duplicadasAcumuladas : 0,
       publicacoesDescartadas: checkpointValido ? checkpoint.descartadasAcumuladas : 0,
       status: 'executando',
-      mensagem: checkpointValido ? 'Retomando de onde parou...' : 'Carregando monitoramentos...',
+      mensagem: checkpointValido 
+        ? `Retomando do monitoramento ${indiceInicial + 1}/${total}...`
+        : `Processando ${total} monitoramentos...`,
       tempoInicio,
       tempoDecorrido: 0,
       termoAtual: undefined,
-      checkpoint: undefined, // Limpar checkpoint ao iniciar
+      checkpoint: undefined,
     });
 
     // Registrar execução
     const executionId = await registrarExecucao('executando', { retomada: retomar });
 
     try {
-      // Buscar monitoramentos ativos
-      let query = supabase
-        .from('monitoramentos_djen')
-        .select('*')
-        .eq('ativo', true);
-
-      if (monitoramentosIds?.length) {
-        query = query.in('id', monitoramentosIds);
-      }
-
-      const { data: monitoramentosRaw, error: monError } = await query;
-
-      if (monError || !monitoramentosRaw?.length) {
-        setProgresso(prev => ({
-          ...prev,
-          status: 'erro',
-          mensagem: 'Nenhum monitoramento ativo encontrado',
-        }));
-        await registrarExecucao('erro', { mensagem: 'Nenhum monitoramento ativo' });
-        setExecutando(false);
-        return;
-      }
-
-      const monitoramentos = monitoramentosRaw as unknown as MonitoramentoDjen[];
-      const total = monitoramentos.length;
-      
-      // Índice inicial (do checkpoint ou 0)
-      const indiceInicial = checkpointValido ? Math.min(checkpoint.indice, total - 1) : 0;
-      
-      setProgresso(prev => ({
-        ...prev,
-        totalMonitoramentos: total,
-        mensagem: checkpointValido 
-          ? `Retomando do monitoramento ${indiceInicial + 1}/${total}...`
-          : `Processando ${total} monitoramentos...`,
-      }));
-
       // Acumuladores (do checkpoint ou 0)
       let totalNovas = checkpointValido ? checkpoint.novasAcumuladas : 0;
       let totalDuplicadas = checkpointValido ? checkpoint.duplicadasAcumuladas : 0;
