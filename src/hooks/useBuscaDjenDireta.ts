@@ -45,8 +45,12 @@ export interface ProgressoExecucao {
   tempoDecorrido: number;
   termoAtual?: string;
   executionId?: string;
-  /** Se definido, a execução fica restrita a esta data (YYYY-MM-DD) */
+  /** Se definido, a execução fica restrita a esta data fim (YYYY-MM-DD) */
   dataOverrideYmd?: string | null;
+  /** Data início do intervalo de busca */
+  dataInicioYmd?: string | null;
+  /** Data fim do intervalo de busca */
+  dataFimYmd?: string | null;
   // Checkpoint para retomada
   checkpoint?: {
     indice: number;
@@ -206,6 +210,8 @@ const defaultProgresso = (): ProgressoExecucao => ({
   tempoDecorrido: 0,
   termoAtual: undefined,
   dataOverrideYmd: null,
+  dataInicioYmd: null,
+  dataFimYmd: null,
   checkpoint: undefined,
 });
 
@@ -452,23 +458,33 @@ export function useBuscaDjenDireta() {
   };
 
   // Buscar publicações para um monitoramento
-  const buscarMonitoramento = async (monitoramento: MonitoramentoDjen): Promise<PublicacaoResultado[]> => {
+  const buscarMonitoramento = async (
+    monitoramento: MonitoramentoDjen,
+    forceDataInicioYmd?: string,
+    forceDataFimYmd?: string
+  ): Promise<PublicacaoResultado[]> => {
     if (cancelarRef.current) return [];
 
     let dataFimYmd: string;
     let dataInicioYmd: string;
     
-    if (dataOverrideRef.current) {
+    // PRIORIDADE: datas explícitas > dataOverrideRef (legado) > últimos 3 dias
+    if (forceDataInicioYmd && forceDataFimYmd) {
+      dataInicioYmd = forceDataInicioYmd;
+      dataFimYmd = forceDataFimYmd;
+    } else if (forceDataFimYmd) {
+      dataInicioYmd = forceDataFimYmd;
+      dataFimYmd = forceDataFimYmd;
+    } else if (forceDataInicioYmd) {
+      dataInicioYmd = forceDataInicioYmd;
+      dataFimYmd = getHojeBrasiliaYmd();
+    } else if (dataOverrideRef.current) {
       dataFimYmd = dataOverrideRef.current;
       dataInicioYmd = dataOverrideRef.current;
     } else {
-      // IMPORTANTE: NÃO usar toISOString() em Date “convertido” por timezone.
-      // Isso pode trocar o dia (ex: BRT 21:30 -> UTC dia seguinte) e “pular” 30/01.
-      // Estratégia estável: usar YYYY-MM-DD em Brasília e derivar o início a partir de um horário neutro (12:00).
       const hojeYmd = getHojeBrasiliaYmd();
       const start = new Date(`${hojeYmd}T12:00:00`);
       start.setDate(start.getDate() - 2);
-
       dataFimYmd = hojeYmd;
       dataInicioYmd = start.toISOString().slice(0, 10);
     }
@@ -668,9 +684,11 @@ export function useBuscaDjenDireta() {
 
   // Processar um monitoramento individual
   const processarMonitoramento = async (
-    mon: MonitoramentoDjen
+    mon: MonitoramentoDjen,
+    forceDataInicioYmd?: string,
+    forceDataFimYmd?: string
   ): Promise<{ novas: number; duplicadas: number; descartadas: number }> => {
-    const publicacoes = await buscarMonitoramento(mon);
+    const publicacoes = await buscarMonitoramento(mon, forceDataInicioYmd, forceDataFimYmd);
     
     if (publicacoes.length === 0) {
       return { novas: 0, duplicadas: 0, descartadas: 0 };
@@ -801,7 +819,8 @@ export function useBuscaDjenDireta() {
   const executarMonitoramento = useCallback(async (
     monitoramentosIds?: string[], 
     retomar: boolean = false,
-    dataOverride?: string
+    dataInicioYmd?: string,
+    dataFimYmd?: string
   ) => {
     if (!user?.id) {
       toast.error("Usuário não autenticado");
@@ -818,14 +837,16 @@ export function useBuscaDjenDireta() {
     cancelarRef.current = false;
     abortControllerRef.current = new AbortController();
     executionIdRef.current = null;
-    // Se estiver retomando e não veio override explícito, reutilizar o override salvo.
-    dataOverrideRef.current = (dataOverride ?? savedState?.dataOverrideYmd) || null;
+    // Se estiver retomando e não vieram datas explícitas, reutilizar os overrides salvos.
+    const resolvedDataInicio = dataInicioYmd ?? savedState?.dataInicioYmd ?? null;
+    const resolvedDataFim = dataFimYmd ?? savedState?.dataFimYmd ?? savedState?.dataOverrideYmd ?? null;
+    dataOverrideRef.current = resolvedDataFim; // manter compatibilidade com código legado
 
     // Chave estável da execução para validação do checkpoint:
-    // 1) Se há dataOverride, ela define o recorte (ex: 2026-01-30)
+    // 1) Se há datas explícitas, usa dataFim (ou combinação)
     // 2) Senão, manter o valor já salvo no checkpoint (permite retomar mesmo no dia seguinte)
     // 3) Fallback: hoje (Brasília)
-    const runKey = dataOverrideRef.current ?? checkpoint?.data ?? hoje;
+    const runKey = resolvedDataFim ?? resolvedDataInicio ?? checkpoint?.data ?? hoje;
 
     // Verificar se checkpoint é válido para ESTE runKey
     const checkpointValido = !!(checkpoint && checkpoint.indice > 0 && checkpoint.data === runKey);
@@ -845,7 +866,9 @@ export function useBuscaDjenDireta() {
             total: initialTotal,
             percentage: initialTotal > 0 ? Math.round((initialCurrent / initialTotal) * 100) : 0,
             retomando: checkpointValido,
-            data_override: dataOverrideRef.current,
+            data_inicio: resolvedDataInicio,
+            data_fim: resolvedDataFim,
+            data_override: resolvedDataFim, // compatibilidade
             run_key: runKey,
           } 
         })
@@ -903,7 +926,9 @@ export function useBuscaDjenDireta() {
       tempoInicio,
       tempoDecorrido: 0,
       termoAtual: undefined,
-      dataOverrideYmd: dataOverrideRef.current,
+      dataOverrideYmd: resolvedDataFim,
+      dataInicioYmd: resolvedDataInicio,
+      dataFimYmd: resolvedDataFim,
       checkpoint: undefined,
     });
 
@@ -956,8 +981,8 @@ export function useBuscaDjenDireta() {
           mensagem: `(${i + 1}/${total}) ${mon.termo_busca}`,
         }));
 
-        // Processar monitoramento
-        const result = await processarMonitoramento(mon);
+        // Processar monitoramento com as datas resolvidas
+        const result = await processarMonitoramento(mon, resolvedDataInicio ?? undefined, resolvedDataFim ?? undefined);
         
         // Acumular estatísticas
         totalNovas += result.novas;

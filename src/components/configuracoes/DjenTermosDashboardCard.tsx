@@ -158,7 +158,9 @@ export function DjenTermosDashboardCard({
   const [forcandoCancelamento, setForcandoCancelamento] = useState(false);
   const [execucaoOrfaNoBanco, setExecucaoOrfaNoBanco] = useState<string | null>(null);
   const [showDiagnostico, setShowDiagnostico] = useState(false);
-  const [dataSelecionada, setDataSelecionada] = useState<Date | undefined>(undefined);
+  // Intervalo de datas para busca personalizada
+  const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
+  const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
 
   const ORFA_GHOST_ID = "__ghost__";
 
@@ -435,10 +437,34 @@ export function DjenTermosDashboardCard({
     };
   }, [localRunActive, onAfterMutation, isRunning, stats.currentExecution?.iniciado_em]);
 
-  // Converte Date para YYYY-MM-DD (fuso horário local)
+  // Converte Date para YYYY-MM-DD (fuso horário local, usando meio-dia para evitar problemas de timezone)
   const getDataYmd = (date?: Date): string | undefined => {
     if (!date) return undefined;
-    return format(date, 'yyyy-MM-dd');
+    // Usar meio-dia para evitar que toISOString() mude de dia por causa de UTC
+    const d = new Date(date);
+    d.setHours(12, 0, 0, 0);
+    return format(d, 'yyyy-MM-dd');
+  };
+  
+  // Retorna o intervalo {dataInicioYmd, dataFimYmd} para passar ao hook
+  const getIntervalo = (): { dataInicioYmd?: string; dataFimYmd?: string } => {
+    if (dataInicio && dataFim) {
+      return {
+        dataInicioYmd: getDataYmd(dataInicio),
+        dataFimYmd: getDataYmd(dataFim),
+      };
+    }
+    // Se só dataFim foi definida (ex: "buscar até dia X"), usa ela como início e fim
+    if (dataFim && !dataInicio) {
+      const ymd = getDataYmd(dataFim);
+      return { dataInicioYmd: ymd, dataFimYmd: ymd };
+    }
+    // Se só dataInicio foi definida, buscar de dataInicio até hoje
+    if (dataInicio && !dataFim) {
+      return { dataInicioYmd: getDataYmd(dataInicio), dataFimYmd: getDataYmd(new Date()) };
+    }
+    // Nenhuma data selecionada: comportamento padrão (últimos 3 dias)
+    return {};
   };
 
   const handleExecutar = async () => {
@@ -454,12 +480,13 @@ export function DjenTermosDashboardCard({
       if (isPaused) {
         await onReativarConfig('djen');
       }
-      const dataYmd = getDataYmd(dataSelecionada);
-      await executarMonitoramento(undefined, false, dataYmd);
-      toast.info(dataYmd 
-        ? `DJEN Termos iniciado para ${format(dataSelecionada!, 'dd/MM/yyyy')}.`
-        : 'DJEN Termos iniciado (últimos 3 dias).'
-      );
+      const intervalo = getIntervalo();
+      await executarMonitoramento(undefined, false, intervalo.dataInicioYmd, intervalo.dataFimYmd);
+      if (intervalo.dataInicioYmd && intervalo.dataFimYmd) {
+        toast.info(`DJEN Termos iniciado: ${intervalo.dataInicioYmd} → ${intervalo.dataFimYmd}`);
+      } else {
+        toast.info('DJEN Termos iniciado (últimos 3 dias).');
+      }
     } catch (e: any) {
       toast.error(`Erro ao iniciar DJEN: ${e?.message || 'erro desconhecido'}`);
     }
@@ -472,8 +499,15 @@ export function DjenTermosDashboardCard({
         await onReativarConfig('djen');
       }
       // Mantém o mesmo recorte de data (se havia) ao retomar.
-      const dataYmd = getDataYmd(dataSelecionada) ?? (savedState as any)?.dataOverrideYmd;
-      await executarMonitoramento(undefined, true, dataYmd);
+      const intervalo = getIntervalo();
+      const savedDataInicio = (savedState as any)?.dataInicioYmd;
+      const savedDataFim = (savedState as any)?.dataFimYmd ?? (savedState as any)?.dataOverrideYmd;
+      await executarMonitoramento(
+        undefined, 
+        true, 
+        intervalo.dataInicioYmd ?? savedDataInicio,
+        intervalo.dataFimYmd ?? savedDataFim
+      );
       toast.info('DJEN Termos retomando de onde parou...');
     } catch (e: any) {
       toast.error(`Erro ao retomar: ${e?.message || 'erro desconhecido'}`);
@@ -487,12 +521,13 @@ export function DjenTermosDashboardCard({
       if (isPaused) {
         await onReativarConfig('djen');
       }
-      const dataYmd = getDataYmd(dataSelecionada);
-      await executarMonitoramento(undefined, false, dataYmd);
-      toast.info(dataYmd 
-        ? `DJEN Termos iniciado do zero para ${format(dataSelecionada!, 'dd/MM/yyyy')}.`
-        : 'DJEN Termos iniciado do zero.'
-      );
+      const intervalo = getIntervalo();
+      await executarMonitoramento(undefined, false, intervalo.dataInicioYmd, intervalo.dataFimYmd);
+      if (intervalo.dataInicioYmd && intervalo.dataFimYmd) {
+        toast.info(`DJEN Termos iniciado do zero: ${intervalo.dataInicioYmd} → ${intervalo.dataFimYmd}`);
+      } else {
+        toast.info('DJEN Termos iniciado do zero.');
+      }
     } catch (e: any) {
       toast.error(`Erro ao iniciar: ${e?.message || 'erro desconhecido'}`);
     }
@@ -882,52 +917,83 @@ export function DjenTermosDashboardCard({
 
           {/* Date Picker + Action Buttons */}
           <div className="flex flex-col gap-2">
-            {/* Seletor de data - só mostra se não está executando */}
+            {/* Seletor de intervalo de datas - só mostra se não está executando */}
             {!isRunning && (
-              <div className="flex items-center gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        "flex-1 justify-start text-left font-normal",
-                        !dataSelecionada && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dataSelecionada 
-                        ? format(dataSelecionada, "dd/MM/yyyy", { locale: ptBR })
-                        : "Últimos 3 dias"
-                      }
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dataSelecionada}
-                      onSelect={setDataSelecionada}
-                      disabled={(date) =>
-                        date > new Date() || date < subDays(new Date(), 30)
-                      }
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                      locale={ptBR}
-                    />
-                    {dataSelecionada && (
-                      <div className="p-2 border-t">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="w-full"
-                          onClick={() => setDataSelecionada(undefined)}
-                        >
-                          Limpar (últimos 3 dias)
-                        </Button>
-                      </div>
-                    )}
-                  </PopoverContent>
-                </Popover>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex-1 flex items-center gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "flex-1 justify-start text-left font-normal",
+                          !dataInicio && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dataInicio 
+                          ? format(dataInicio, "dd/MM/yyyy", { locale: ptBR })
+                          : "Data início"
+                        }
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dataInicio}
+                        onSelect={setDataInicio}
+                        disabled={(date) =>
+                          date > new Date() || date < subDays(new Date(), 30)
+                        }
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <span className="text-muted-foreground text-xs">→</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "flex-1 justify-start text-left font-normal",
+                          !dataFim && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dataFim 
+                          ? format(dataFim, "dd/MM/yyyy", { locale: ptBR })
+                          : "Data fim"
+                        }
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dataFim}
+                        onSelect={setDataFim}
+                        disabled={(date) =>
+                          date > new Date() || date < subDays(new Date(), 30) || (dataInicio ? date < dataInicio : false)
+                        }
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                {(dataInicio || dataFim) && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => { setDataInicio(undefined); setDataFim(undefined); }}
+                  >
+                    Limpar
+                  </Button>
+                )}
               </div>
             )}
 
