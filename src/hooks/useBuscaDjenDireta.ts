@@ -52,10 +52,18 @@ export interface ProgressoExecucao {
   dataInicioYmd?: string | null;
   /** Data fim do intervalo de busca */
   dataFimYmd?: string | null;
+  /** DIA sendo processado atualmente (YYYY-MM-DD) - para exibição no card */
+  diaAtualYmd?: string | null;
+  /** Índice do dia atual no intervalo (1-based) */
+  diaAtualIndice?: number;
+  /** Total de dias no intervalo */
+  totalDias?: number;
   // Checkpoint para retomada
   checkpoint?: {
     indice: number;
     data: string;
+    diaYmd: string; // dia sendo processado
+    diaIndice: number; // índice do dia (1-based)
     novasAcumuladas: number;
     duplicadasAcumuladas: number;
     descartadasAcumuladas: number;
@@ -213,8 +221,33 @@ const defaultProgresso = (): ProgressoExecucao => ({
   dataOverrideYmd: null,
   dataInicioYmd: null,
   dataFimYmd: null,
+  diaAtualYmd: null,
+  diaAtualIndice: undefined,
+  totalDias: undefined,
   checkpoint: undefined,
 });
+
+/**
+ * Gera lista de datas YYYY-MM-DD do intervalo (início → fim), ordem cronológica.
+ */
+function gerarListaDatas(dataInicioYmd: string, dataFimYmd: string): string[] {
+  const datas: string[] = [];
+  const inicio = new Date(`${dataInicioYmd}T12:00:00`);
+  const fim = new Date(`${dataFimYmd}T12:00:00`);
+  
+  // Garantir que início <= fim
+  if (inicio > fim) {
+    return [dataInicioYmd];
+  }
+  
+  const current = new Date(inicio);
+  while (current <= fim) {
+    datas.push(current.toISOString().slice(0, 10));
+    current.setDate(current.getDate() + 1);
+  }
+  
+  return datas;
+}
 
 /**
  * Hook simplificado para busca DJEN - Loop sequencial por monitoramento
@@ -1039,14 +1072,23 @@ export function useBuscaDjenDireta() {
     const monitoramentos = monitoramentosRaw as unknown as MonitoramentoDjen[];
     const total = monitoramentos.length;
     
-    // Índice inicial (do checkpoint ou 0)
-    // checkpoint.indice é "quantos já foram processados" (1-based). O próximo índice a executar é igual ao índice.
-    // Se checkpoint.indice === total, não devemos reprocessar o último item.
-    const indiceInicial = checkpointValido
-      ? Math.min(checkpoint!.indice, total)
-      : (backendCheckpointValido ? Math.min(backendResume!.current, total) : 0);
+    // ================================================================
+    // NOVO: LOOP DIA A DIA
+    // Gerar lista de datas do intervalo e processar todos os termos em cada dia
+    // ================================================================
+    const listaDatas = gerarListaDatas(
+      resolvedDataInicio ?? hoje,
+      resolvedDataFim ?? hoje
+    );
+    const totalDias = listaDatas.length;
 
-    // Track local do progresso efetivo para evitar "stale closure" (não usar `progresso.*` no finally).
+    // Checkpoint: verificar se estávamos em um dia específico
+    const checkpointDiaIndice = checkpointValido && checkpoint!.diaIndice
+      ? Math.min(checkpoint!.diaIndice - 1, totalDias - 1) // Converter 1-based para 0-based
+      : 0;
+    const checkpointTermoIndice = checkpointValido ? checkpoint!.indice : 0;
+
+    // Track local do progresso efetivo para evitar "stale closure".
     let lastProcessed = checkpointValido ? checkpoint!.indice : (backendCheckpointValido ? backendResume!.current : 0);
 
     // Inicializar progresso COM o total já conhecido
@@ -1066,22 +1108,25 @@ export function useBuscaDjenDireta() {
         : (backendCheckpointValido ? backendResume!.descartadas : 0),
       status: 'executando',
       mensagem: checkpointValido 
-        ? `Retomando do monitoramento ${indiceInicial + 1}/${total}...`
-        : backendCheckpointValido
-          ? `Retomando do monitoramento ${indiceInicial + 1}/${total} (via backend)...`
-        : `Processando ${total} monitoramentos...`,
+        ? `Retomando dia ${checkpointDiaIndice + 1}/${totalDias}...`
+        : `Processando ${totalDias} dia(s)...`,
       tempoInicio,
       tempoDecorrido: 0,
       termoAtual: backendCheckpointValido ? (backendResume!.termoAtual ?? undefined) : undefined,
       dataOverrideYmd: resolvedDataFim,
       dataInicioYmd: resolvedDataInicio,
       dataFimYmd: resolvedDataFim,
+      diaAtualYmd: listaDatas[checkpointDiaIndice] ?? null,
+      diaAtualIndice: checkpointDiaIndice + 1,
+      totalDias,
       checkpoint: checkpointValido
         ? checkpoint!
         : (backendCheckpointValido
           ? {
               indice: backendResume!.current,
               data: runKey,
+              diaYmd: listaDatas[0] ?? hoje,
+              diaIndice: 1,
               novasAcumuladas: backendResume!.novas,
               duplicadasAcumuladas: backendResume!.duplicadas,
               descartadasAcumuladas: backendResume!.descartadas,
@@ -1095,6 +1140,7 @@ export function useBuscaDjenDireta() {
       run_key: runKey,
       data_inicio: resolvedDataInicio,
       data_fim: resolvedDataFim,
+      total_dias: totalDias,
       processados: checkpointValido ? checkpoint!.indice : (backendCheckpointValido ? backendResume!.current : 0),
       total: checkpointValido
         ? (savedState?.totalMonitoramentos ?? 0)
@@ -1102,21 +1148,11 @@ export function useBuscaDjenDireta() {
     });
 
     try {
-      // Acumuladores (do checkpoint ou 0)
+      // Acumuladores globais (do checkpoint ou 0)
       let totalNovas = checkpointValido ? checkpoint!.novasAcumuladas : (backendCheckpointValido ? backendResume!.novas : 0);
       let totalDuplicadas = checkpointValido ? checkpoint!.duplicadasAcumuladas : (backendCheckpointValido ? backendResume!.duplicadas : 0);
       let totalDescartadas = checkpointValido ? checkpoint!.descartadasAcumuladas : (backendCheckpointValido ? backendResume!.descartadas : 0);
 
-      // ================================================================
-      // LOOP SEQUENCIAL SIMPLES - Um monitoramento por vez
-      // Pula monitoramentos já processados se retomando
-      // ================================================================
-      // ================================================================
-      // LOOP PRINCIPAL OTIMIZADO v1.0.5
-      // - Sem verificação de cancelamento no banco (apenas local)
-      // - Atualização de metadata a cada 10 itens (não a cada 1)
-      // - SEM delay entre monitoramentos
-      // ================================================================
       const checkRemoteCancelRequested = async (): Promise<boolean> => {
         try {
           const { data } = await supabase
@@ -1133,98 +1169,146 @@ export function useBuscaDjenDireta() {
         }
       };
 
-      for (let i = indiceInicial; i < total; i++) {
-        // Verificar cancelamento APENAS local (rápido!)
+      // ================================================================
+      // LOOP EXTERNO: Dias (ordem cronológica)
+      // ================================================================
+      for (let diaIdx = checkpointDiaIndice; diaIdx < totalDias; diaIdx++) {
         if (cancelarRef.current) break;
 
-        const mon = monitoramentos[i];
+        const diaYmd = listaDatas[diaIdx];
+        const diaFormatado = `${diaYmd.slice(8, 10)}/${diaYmd.slice(5, 7)}`;
 
-        // Atualizar progresso ANTES de processar
+        // Determinar índice inicial de termos para este dia
+        // Se estamos retomando no mesmo dia, usar checkpoint; senão, começar do 0
+        const termoIndiceInicial = (diaIdx === checkpointDiaIndice && checkpointValido)
+          ? checkpointTermoIndice
+          : 0;
+
+        // Atualizar UI com o dia atual
         setProgresso(prev => ({
           ...prev,
-          monitoramentoAtual: i + 1,
-          termoAtual: mon.termo_busca,
-          mensagem: `(${i + 1}/${total}) ${mon.termo_busca}`,
+          diaAtualYmd: diaYmd,
+          diaAtualIndice: diaIdx + 1,
+          totalDias,
+          monitoramentoAtual: termoIndiceInicial,
+          mensagem: `📅 ${diaFormatado} • Buscando termos...`,
         }));
 
-        // Processar monitoramento com as datas resolvidas
-        const result = await processarMonitoramento(mon, resolvedDataInicio ?? undefined, resolvedDataFim ?? undefined);
-        
-        // Acumular estatísticas
-        totalNovas += result.novas;
-        totalDuplicadas += result.duplicadas;
-        totalDescartadas += result.descartadas;
+        // ================================================================
+        // LOOP INTERNO: Termos/Monitoramentos (para este dia específico)
+        // ================================================================
+        for (let i = termoIndiceInicial; i < total; i++) {
+          if (cancelarRef.current) break;
 
-        // Atualizar progresso DEPOIS de processar (com checkpoint para retomada)
-        const checkpointAtual = {
-          indice: i + 1,
-          data: runKey,
-          novasAcumuladas: totalNovas,
-          duplicadasAcumuladas: totalDuplicadas,
-          descartadasAcumuladas: totalDescartadas,
-        };
+          const mon = monitoramentos[i];
 
-        lastProcessed = i + 1;
-        
-        setProgresso(prev => ({
-          ...prev,
-          publicacoesNovas: totalNovas,
-          publicacoesDuplicadas: totalDuplicadas,
-          publicacoesDescartadas: totalDescartadas,
-          dataOverrideYmd: dataOverrideRef.current,
-          checkpoint: checkpointAtual,
-        }));
+          // Atualizar progresso ANTES de processar
+          const percentDia = Math.round(((i + 1) / total) * 100);
+          setProgresso(prev => ({
+            ...prev,
+            monitoramentoAtual: i + 1,
+            termoAtual: mon.termo_busca,
+            mensagem: `📅 ${diaFormatado} • (${i + 1}/${total}) ${mon.termo_busca}`,
+          }));
 
-        // CRÍTICO: persistir o progresso a CADA monitoramento.
-        // Isso evita regressão visual ao sair/voltar (DB fica no “último múltiplo de 10”).
-        const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
-        try {
-          await supabase
-            .from('configuracoes_monitoramento')
-            .update({
-              metadata: {
-                status: 'executando',
-                total,
-                current: i + 1,
-                percentage: Math.round(((i + 1) / total) * 100),
-                duracao_s,
-                novas: totalNovas,
-                duplicadas: totalDuplicadas,
-                descartadas: totalDescartadas,
-                data_override: dataOverrideRef.current,
-                run_key: runKey,
-                termoAtual: mon.termo_busca, // Persistir termo atual para reconexão
-              },
-            })
-            .eq('tipo', 'djen')
-            .is('coordenacao_id', null);
-        } catch {
-          // Ignorar erro de atualização para não interromper a execução
-        }
+          // Processar monitoramento APENAS para este dia específico
+          const result = await processarMonitoramento(mon, diaYmd, diaYmd);
+          
+          // Acumular estatísticas
+          totalNovas += result.novas;
+          totalDuplicadas += result.duplicadas;
+          totalDescartadas += result.descartadas;
 
-        // Atualizar execução no banco com menor frequência (reduz overhead)
-        if ((i + 1) % 10 === 0 || i === total - 1) {
-          // Respeitar cancelamento remoto (outra aba/dispositivo) sem custo alto: checar a cada 10 itens.
-          if (await checkRemoteCancelRequested()) {
-            cancelarRef.current = true;
-            setProgresso(prev => ({
-              ...prev,
-              mensagem: 'Cancelamento solicitado (remoto). Finalizando...'
-            }));
-            break;
+          // Atualizar progresso DEPOIS de processar (com checkpoint para retomada)
+          const checkpointAtual = {
+            indice: i + 1,
+            data: runKey,
+            diaYmd,
+            diaIndice: diaIdx + 1,
+            novasAcumuladas: totalNovas,
+            duplicadasAcumuladas: totalDuplicadas,
+            descartadasAcumuladas: totalDescartadas,
+          };
+
+          lastProcessed = i + 1;
+          
+          setProgresso(prev => ({
+            ...prev,
+            publicacoesNovas: totalNovas,
+            publicacoesDuplicadas: totalDuplicadas,
+            publicacoesDescartadas: totalDescartadas,
+            dataOverrideYmd: dataOverrideRef.current,
+            checkpoint: checkpointAtual,
+          }));
+
+          // Persistir progresso a cada monitoramento
+          const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
+          try {
+            await supabase
+              .from('configuracoes_monitoramento')
+              .update({
+                metadata: {
+                  status: 'executando',
+                  total,
+                  current: i + 1,
+                  percentage: percentDia,
+                  duracao_s,
+                  novas: totalNovas,
+                  duplicadas: totalDuplicadas,
+                  descartadas: totalDescartadas,
+                  data_override: dataOverrideRef.current,
+                  run_key: runKey,
+                  termoAtual: mon.termo_busca,
+                  diaAtual: diaYmd,
+                  diaIndice: diaIdx + 1,
+                  totalDias,
+                },
+              })
+              .eq('tipo', 'djen')
+              .is('coordenacao_id', null);
+          } catch {
+            // Ignorar erro de atualização
           }
 
-          await registrarExecucao('executando', {
-            processados: i + 1,
-            total,
-            novas: totalNovas,
-            duplicadas: totalDuplicadas,
-            termoAtual: mon.termo_busca, // Persistir termo atual na execução
-          });
+          // Checar cancelamento remoto a cada 10 itens
+          if ((i + 1) % 10 === 0 || i === total - 1) {
+            if (await checkRemoteCancelRequested()) {
+              cancelarRef.current = true;
+              setProgresso(prev => ({
+                ...prev,
+                mensagem: 'Cancelamento solicitado (remoto). Finalizando...'
+              }));
+              break;
+            }
+
+            await registrarExecucao('executando', {
+              processados: i + 1,
+              total,
+              novas: totalNovas,
+              duplicadas: totalDuplicadas,
+              diaAtual: diaYmd,
+              diaIndice: diaIdx + 1,
+              totalDias,
+              termoAtual: mon.termo_busca,
+            });
+          }
+
+          // SEM delay entre monitoramentos - velocidade máxima!
         }
 
-        // SEM delay entre monitoramentos - velocidade máxima!
+        // Dia concluído! Mostrar mensagem de transição antes de ir para o próximo
+        if (!cancelarRef.current && diaIdx < totalDias - 1) {
+          const proximoDia = listaDatas[diaIdx + 1];
+          const proximoDiaFormatado = `${proximoDia.slice(8, 10)}/${proximoDia.slice(5, 7)}`;
+          setProgresso(prev => ({
+            ...prev,
+            mensagem: `✅ ${diaFormatado} concluído! Avançando para ${proximoDiaFormatado}...`,
+          }));
+        }
       }
+      // ================================================================
+      // FIM DO LOOP DE DIAS
+      // ================================================================
 
       // ================================================================
       // FINALIZAÇÃO
