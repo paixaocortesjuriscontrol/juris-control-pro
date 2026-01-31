@@ -45,6 +45,8 @@ export interface ProgressoExecucao {
   tempoDecorrido: number;
   termoAtual?: string;
   executionId?: string;
+  /** Se definido, a execução fica restrita a esta data (YYYY-MM-DD) */
+  dataOverrideYmd?: string | null;
   // Checkpoint para retomada
   checkpoint?: {
     indice: number;
@@ -144,6 +146,23 @@ function extrairDataYMD(dataStr: string | null | undefined): string | null {
   return null;
 }
 
+const BR_TZ = 'America/Sao_Paulo';
+function ymdInTimeZone(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const y = parts.find((p) => p.type === 'year')?.value ?? '1970';
+  const m = parts.find((p) => p.type === 'month')?.value ?? '01';
+  const d = parts.find((p) => p.type === 'day')?.value ?? '01';
+  return `${y}-${m}-${d}`;
+}
+function getHojeBrasiliaYmd(): string {
+  return ymdInTimeZone(new Date(), BR_TZ);
+}
+
 // Chaves para localStorage
 const STORAGE_KEY = 'djen-direta-progresso';
 
@@ -186,6 +205,7 @@ const defaultProgresso = (): ProgressoExecucao => ({
   mensagem: '',
   tempoDecorrido: 0,
   termoAtual: undefined,
+  dataOverrideYmd: null,
   checkpoint: undefined,
 });
 
@@ -583,6 +603,12 @@ export function useBuscaDjenDireta() {
             }
             // Logar erro mas continuar para próximo tribunal
             console.warn(`[DJEN] Erro ${trib ?? 'TODOS'}: ${browserErr?.message}`);
+
+            // Rate limit (429) costuma “travar” a impressão de progresso. Respeitar um backoff adicional.
+            const msg = String(browserErr?.message ?? '');
+            if (msg.includes('HTTP 429') || msg.includes('Too Many')) {
+              await delay(CONFIG.delay_on_rate_limit);
+            }
           }
 
           await delay(CONFIG.delay_between_variants);
@@ -783,7 +809,7 @@ export function useBuscaDjenDireta() {
     // Carregar checkpoint se retomar = true
     const savedState = retomar ? carregarEstado() : null;
     const checkpoint = savedState?.checkpoint;
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = getHojeBrasiliaYmd();
     
     // Verificar se checkpoint é do mesmo dia
     const checkpointValido = checkpoint && checkpoint.data === hoje && checkpoint.indice > 0;
@@ -793,10 +819,13 @@ export function useBuscaDjenDireta() {
     cancelarRef.current = false;
     abortControllerRef.current = new AbortController();
     executionIdRef.current = null;
-    dataOverrideRef.current = dataOverride || null;
+    // Se estiver retomando e não veio override explícito, reutilizar o override salvo.
+    dataOverrideRef.current = (dataOverride ?? savedState?.dataOverrideYmd) || null;
 
     // Limpar metadata de execução anterior (ou iniciar retomada)
     try {
+      const initialTotal = savedState?.totalMonitoramentos ?? 0;
+      const initialCurrent = checkpointValido ? checkpoint.indice : 0;
       await supabase
         .from('configuracoes_monitoramento')
         .update({ 
@@ -804,10 +833,11 @@ export function useBuscaDjenDireta() {
             status: 'executando',
             cancel_requested: false,
             cancelado: false,
-            current: checkpointValido ? checkpoint.indice : 0,
-            total: 0,
-            percentage: 0,
+            current: initialCurrent,
+            total: initialTotal,
+            percentage: initialTotal > 0 ? Math.round((initialCurrent / initialTotal) * 100) : 0,
             retomando: checkpointValido,
+            data_override: dataOverrideRef.current,
           } 
         })
         .eq('tipo', 'djen')
@@ -859,6 +889,7 @@ export function useBuscaDjenDireta() {
       tempoInicio,
       tempoDecorrido: 0,
       termoAtual: undefined,
+      dataOverrideYmd: dataOverrideRef.current,
       checkpoint: undefined,
     });
 
@@ -917,6 +948,7 @@ export function useBuscaDjenDireta() {
           publicacoesNovas: totalNovas,
           publicacoesDuplicadas: totalDuplicadas,
           publicacoesDescartadas: totalDescartadas,
+          dataOverrideYmd: dataOverrideRef.current,
           checkpoint: checkpointAtual,
         }));
 
