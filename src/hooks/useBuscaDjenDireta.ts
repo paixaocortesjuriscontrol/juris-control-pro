@@ -320,10 +320,9 @@ export function useBuscaDjenDireta() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  // Verificar checkpoint disponível
-  const checkpointDisponivel = carregarCheckpoint();
-  
   const [progresso, setProgresso] = useState<ProgressoExecucao>(() => {
+    // Verificar checkpoint disponível dentro do initializer
+    const checkpointDisponivel = carregarCheckpoint();
     const saved = carregarEstado();
     if (saved) {
       const isComplete = saved.status === 'concluido' || 
@@ -417,6 +416,7 @@ export function useBuscaDjenDireta() {
           executionIdRef.current = null;
           setExecutando(false);
 
+          const checkpointDisponivel = carregarCheckpoint();
           const hasCp = !!checkpointDisponivel;
           const cpPct = hasCp
             ? Math.round((checkpointDisponivel!.monitoramentosProcessados.length / (saved.totalMonitoramentos || 114)) * 100)
@@ -464,7 +464,7 @@ export function useBuscaDjenDireta() {
     return () => {
       isMounted = false;
     };
-  }, [checkpointDisponivel]);
+  }, []); // Empty dependency array - run once on mount
 
   // Reconstruir coordenações se o estado tem dados mas não tem coordenações
   // Isso acontece quando a página é recarregada durante ou após uma execução
