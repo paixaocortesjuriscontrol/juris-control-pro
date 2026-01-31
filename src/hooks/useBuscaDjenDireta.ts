@@ -468,15 +468,22 @@ export function useBuscaDjenDireta() {
 
   // Reconstruir coordenações se o estado tem dados mas não tem coordenações
   // Isso acontece quando a página é recarregada durante ou após uma execução
+  // TAMBÉM reconstruir durante execução ativa se as coordenações estiverem vazias
   useEffect(() => {
     let isMounted = true;
 
     const reconstruirCoordenacoes = async () => {
       // Só reconstruir se tem dados mas não tem coordenações
+      // OU se está executando mas não tem coordenações (execução iniciada antes do reload)
       const temDados = progresso.totalMonitoramentos > 0 || progresso.publicacoesNovas > 0;
+      const estaExecutando = progresso.status === 'executando';
       const temCoordenacoes = progresso.coordenacoes && progresso.coordenacoes.length > 0;
       
-      if (!temDados || temCoordenacoes) return;
+      // Não reconstruir se já tem coordenações
+      if (temCoordenacoes) return;
+      
+      // Reconstruir se tem dados OU se está executando
+      if (!temDados && !estaExecutando) return;
       
       console.log('[DJEN] Reconstruindo coordenações a partir do banco...');
       
@@ -543,27 +550,33 @@ export function useBuscaDjenDireta() {
         
         if (!isMounted) return;
         
+        // Determinar status baseado no estado atual
+        const statusParaCoordenacoes: StatusFase = 
+          progresso.status === 'concluido' ? 'concluido' : 
+          progresso.status === 'executando' ? 'pendente' : 
+          'pendente';
+        
         // Criar estrutura de coordenações
         const coordenacoesReconstruidas: ProgressoCoordenacao[] = Array.from(grupos.values())
           .sort((a, b) => a.coordenacao.nome.localeCompare(b.coordenacao.nome))
           .map(grupo => ({
             coordenacaoId: grupo.coordenacao.id,
             coordenacaoNome: grupo.coordenacao.nome,
-            status: progresso.status === 'concluido' ? 'concluido' as StatusFase : 'pendente' as StatusFase,
+            status: statusParaCoordenacoes,
             advogados: {
               total: grupo.advogados,
               processados: progresso.status === 'concluido' ? grupo.advogados : 0,
-              status: progresso.status === 'concluido' ? 'concluido' as StatusFase : 'pendente' as StatusFase,
+              status: statusParaCoordenacoes,
             },
             palavrasChave: {
               total: grupo.palavrasChave,
               processados: progresso.status === 'concluido' ? grupo.palavrasChave : 0,
-              status: progresso.status === 'concluido' ? 'concluido' as StatusFase : 'pendente' as StatusFase,
+              status: statusParaCoordenacoes,
             },
             processos: {
               total: grupo.processos,
               processados: progresso.status === 'concluido' ? grupo.processos : 0,
-              status: progresso.status === 'concluido' ? 'concluido' as StatusFase : 'pendente' as StatusFase,
+              status: statusParaCoordenacoes,
             },
             novas: 0,
             duplicadas: 0,
@@ -574,6 +587,7 @@ export function useBuscaDjenDireta() {
           setProgresso(prev => ({
             ...prev,
             coordenacoes: coordenacoesReconstruidas,
+            totalMonitoramentos: prev.totalMonitoramentos || monitoramentos.length,
           }));
         }
       } catch (e) {
