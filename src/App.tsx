@@ -51,6 +51,7 @@ import RelatorioExecucoes from "./pages/RelatorioExecucoes";
 import ClienteLogin from "./pages/cliente/ClienteLogin";
 import ClienteCadastro from "./pages/cliente/ClienteCadastro";
 import ClientePortal from "./pages/cliente/ClientePortal";
+import WorkerDjenVps from "./pages/WorkerDjenVps";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -76,6 +77,9 @@ const App = () => (
               <Route path="/cliente/login" element={<ClienteLogin />} />
               <Route path="/cliente/cadastro" element={<ClienteCadastro />} />
               <Route path="/cliente" element={<ClientePortal />} />
+              
+              {/* VPS Worker Route - headless page for distributed DJEN search */}
+              <Route path="/worker-djen-vps" element={<ProtectedRoute><WorkerDjenVps /></ProtectedRoute>} />
               
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />

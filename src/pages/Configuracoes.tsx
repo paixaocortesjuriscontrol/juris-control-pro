@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical } from "lucide-react";
+import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -20,6 +20,7 @@ import { FilaExecucoesPanel } from "@/components/configuracoes/FilaExecucoesPane
 import CofreSenhasPage from "@/pages/CofreSenhas";
 import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
 import ComparacaoDjenDje from "@/components/configuracoes/ComparacaoDjenDje";
+import WorkersDjenVpsPanel from "@/components/configuracoes/WorkersDjenVpsPanel";
 
 export default function Configuracoes() {
   const [showDiagnostico, setShowDiagnostico] = useState(false);
@@ -79,6 +80,10 @@ export default function Configuracoes() {
           <TabsTrigger value="dje-pdf" className="flex items-center gap-2">
             <FlaskConical className="h-4 w-4" />
             <span className="hidden sm:inline">DJE-PDF (Experimental)</span>
+          </TabsTrigger>
+          <TabsTrigger value="vps-workers" className="flex items-center gap-2">
+            <Server className="h-4 w-4" />
+            <span className="hidden sm:inline">VPS Workers</span>
           </TabsTrigger>
         </TabsList>
 
@@ -258,6 +263,11 @@ export default function Configuracoes() {
         {/* Aba DJE-PDF Experimental */}
         <TabsContent value="dje-pdf" className="space-y-4">
           <ComparacaoDjenDje />
+        </TabsContent>
+
+        {/* Aba VPS Workers - Busca distribuída */}
+        <TabsContent value="vps-workers" className="space-y-4">
+          <WorkersDjenVpsPanel />
         </TabsContent>
       </Tabs>
     </MainLayout>

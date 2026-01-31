@@ -4357,6 +4357,62 @@ export type Database = {
         }
         Relationships: []
       }
+      workers_djen_vps: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          nome_worker: string
+          progresso: Json | null
+          publicacoes_encontradas: number | null
+          publicacoes_novas: number | null
+          sessao_id: string | null
+          status: string
+          ultimo_erro: string | null
+          ultimo_heartbeat: string | null
+          updated_at: string
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          nome_worker?: string
+          progresso?: Json | null
+          publicacoes_encontradas?: number | null
+          publicacoes_novas?: number | null
+          sessao_id?: string | null
+          status?: string
+          ultimo_erro?: string | null
+          ultimo_heartbeat?: string | null
+          updated_at?: string
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          nome_worker?: string
+          progresso?: Json | null
+          publicacoes_encontradas?: number | null
+          publicacoes_novas?: number | null
+          sessao_id?: string | null
+          status?: string
+          ultimo_erro?: string | null
+          ultimo_heartbeat?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workers_djen_vps_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       profiles_basic: {
