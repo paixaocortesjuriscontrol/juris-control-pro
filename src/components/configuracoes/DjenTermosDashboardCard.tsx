@@ -802,6 +802,22 @@ export function DjenTermosDashboardCard({
               ? progresso.termoAtual
               : undefined;
 
+            // NOVO: Data atual sendo processada (dia-a-dia)
+            const diaAtualYmd = localRunActive
+              ? progresso.diaAtualYmd
+              : (md.diaAtual as string | undefined) ?? (savedState as any)?.diaAtualYmd;
+            const diaAtualIndice = localRunActive
+              ? progresso.diaAtualIndice
+              : (md.diaIndice as number | undefined) ?? (savedState as any)?.diaAtualIndice;
+            const totalDias = localRunActive
+              ? progresso.totalDias
+              : (md.totalDias as number | undefined) ?? (savedState as any)?.totalDias;
+
+            // Formatar data para exibição (DD/MM)
+            const diaFormatado = diaAtualYmd
+              ? `${diaAtualYmd.slice(8, 10)}/${diaAtualYmd.slice(5, 7)}`
+              : null;
+
             const topTotal = localRunActive
               ? (progresso.totalMonitoramentos ?? 0)
               : (snapshotTotal || effectiveTotal || 0);
@@ -816,6 +832,7 @@ export function DjenTermosDashboardCard({
               ? progresso.termoAtual
               : (rehydratedTermo || snapshotTermo || backendTermo);
 
+            // Progresso POR DIA (reseta a cada troca de dia)
             const topPercent = topTotal > 0
               ? Math.min(100, Math.round((topCurrent / topTotal) * 100))
               : percentDisplay;
@@ -826,6 +843,21 @@ export function DjenTermosDashboardCard({
               <>
                 {canShowTop && (
                   <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                    {/* NOVO: Indicador de data atual */}
+                    {diaFormatado && totalDias && totalDias > 1 && (
+                      <div className="flex items-center justify-between text-xs mb-2">
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon className="h-3.5 w-3.5 text-primary" />
+                          <span className="font-semibold text-primary">
+                            📅 Dia {diaAtualIndice}/{totalDias}: {diaFormatado}
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-xs bg-primary/10">
+                          {topPercent}% do dia
+                        </Badge>
+                      </div>
+                    )}
+                    
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium">{topMensagem}</span>
                       <span className="text-muted-foreground">
