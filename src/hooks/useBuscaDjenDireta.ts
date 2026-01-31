@@ -238,32 +238,55 @@ export function useBuscaDjenDireta() {
   const executionIdRef = useRef<string | null>(null);
   const dataOverrideRef = useRef<string | null>(null);
 
-  // Validar estado local ao montar
+  // Validar estado local ao montar e sincronizar com backend
   useEffect(() => {
     let isMounted = true;
 
     const validarEstadoLocal = async () => {
       const saved = carregarEstado();
-      if (!saved || saved.status !== 'executando') return;
-
+      
       try {
         const { data } = await supabase
           .from('execucoes_agendadas')
-          .select('id, status, finalizado_em')
+          .select('id, status, finalizado_em, iniciado_em, detalhes')
           .eq('tipo', 'djen')
           .eq('status', 'executando')
           .is('finalizado_em', null)
+          .order('iniciado_em', { ascending: false })
           .limit(1)
           .maybeSingle();
 
         if (!isMounted) return;
 
         if (!data) {
-          console.warn('[DJEN] Estado local "executando" sem execução ativa no banco.');
+          // Se NÃO há execução ativa no banco, resetar o status local para idle
+          if (saved?.status === 'executando') {
+            console.warn('[DJEN] Estado local "executando" sem execução ativa no banco - resetando para idle.');
+            setProgresso(prev => ({
+              ...prev,
+              status: 'idle',
+              tempoInicio: undefined,
+            }));
+          }
+        } else {
+          // HÁ execução ativa no banco - sincronizar estado local para mostrar progresso
+          const detalhes = data.detalhes as Record<string, any> | null;
+          const iniciado = new Date(data.iniciado_em).getTime();
+          const termoAtual = detalhes?.termoAtual ?? saved?.termoAtual;
+          const total = detalhes?.total ?? saved?.totalMonitoramentos ?? 0;
+          const current = detalhes?.processados ?? saved?.monitoramentoAtual ?? 0;
+          
+          // Reconectar ao estado de execução para que o timer funcione
+          console.log('[DJEN] Execução ativa encontrada no banco, sincronizando estado local...');
           setProgresso(prev => ({
             ...prev,
-            status: 'idle',
-            tempoInicio: undefined,
+            status: 'executando',
+            tempoInicio: iniciado,
+            tempoDecorrido: Math.floor((Date.now() - iniciado) / 1000),
+            termoAtual: termoAtual ?? prev.termoAtual,
+            totalMonitoramentos: total > 0 ? total : prev.totalMonitoramentos,
+            monitoramentoAtual: current > 0 ? current : prev.monitoramentoAtual,
+            executionId: data.id,
           }));
         }
       } catch (e) {
@@ -279,13 +302,19 @@ export function useBuscaDjenDireta() {
   }, []);
 
   // Timer para tempo decorrido
+  // O timer deve rodar enquanto:
+  // 1) O loop local estiver ativo (executando = true), OU
+  // 2) O estado local indicar que devemos continuar mostrando o tempo (ex: reconexão após página voltar)
   useEffect(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
-    if (!executando || !progresso.tempoInicio || progresso.status !== 'executando') {
+    // Condição relaxada: rodar timer se status é 'executando' E temos tempoInicio
+    // (mesmo que executando=false, pois ao voltar à página o estado salvo pode ter status 'executando')
+    const deveRodarTimer = progresso.status === 'executando' && !!progresso.tempoInicio;
+    if (!deveRodarTimer) {
       return;
     }
 
@@ -305,7 +334,7 @@ export function useBuscaDjenDireta() {
         timerRef.current = null;
       }
     };
-  }, [executando, progresso.tempoInicio, progresso.status]);
+  }, [progresso.tempoInicio, progresso.status]);
 
   // Persistir progresso
   useEffect(() => {
@@ -1027,6 +1056,7 @@ export function useBuscaDjenDireta() {
                 descartadas: totalDescartadas,
                 data_override: dataOverrideRef.current,
                 run_key: runKey,
+                termoAtual: mon.termo_busca, // Persistir termo atual para reconexão
               },
             })
             .eq('tipo', 'djen')
@@ -1052,6 +1082,7 @@ export function useBuscaDjenDireta() {
             total,
             novas: totalNovas,
             duplicadas: totalDuplicadas,
+            termoAtual: mon.termo_busca, // Persistir termo atual na execução
           });
         }
 

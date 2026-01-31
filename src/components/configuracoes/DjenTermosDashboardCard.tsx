@@ -763,6 +763,8 @@ export function DjenTermosDashboardCard({
             const snapshotTermo = typeof (savedState as any)?.termoAtual === 'string'
               ? (savedState as any).termoAtual
               : undefined;
+            // Também buscar termoAtual do metadata do backend (persistido durante execução)
+            const backendTermo = typeof md.termoAtual === 'string' ? md.termoAtual : undefined;
 
             const topTotal = localRunActive
               ? (progresso.totalMonitoramentos ?? 0)
@@ -773,7 +775,8 @@ export function DjenTermosDashboardCard({
             const topMensagem = localRunActive
               ? (progresso.mensagem || 'Processando...')
               : (snapshotMensagem || (topTotal > 0 ? `Processando: ${topCurrent} de ${topTotal}` : 'Processando...'));
-            const topTermo = localRunActive ? progresso.termoAtual : snapshotTermo;
+            // Prioridade: loop local > snapshot > backend
+            const topTermo = localRunActive ? progresso.termoAtual : (snapshotTermo || backendTermo);
 
             const topPercent = topTotal > 0
               ? Math.min(100, Math.round((topCurrent / topTotal) * 100))
