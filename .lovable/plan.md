@@ -1,126 +1,94 @@
 
+# Plano: Otimização de Performance da Busca DJEN Termos
 
-# Plano: Reverter para Modelo Original Simplificado
+## Diagnóstico do Problema
 
-## Análise do Problema
+A versão atual está **significativamente mais lenta** que a versão do dia 27 devido a várias ineficiências introduzidas:
 
-A versão atual do `useBuscaDjenDireta.ts` está com complexidade excessiva:
-- Separação por coordenações (loop aninhado)
-- Separação por tipos (advogados → palavras-chave → processos)
-- Fase 1A agrupada por OAB
-- Fase 1B por coordenação
-- Progresso complexo com múltiplas dimensões
+### Problemas Identificados
 
-A versão original (similar ao `useSincronizarDjenBrowser.ts`) era muito mais simples:
-- **Lista única de monitoramentos ativos**
-- **Loop sequencial simples**: `for i = 0 to total`
-- **Progresso direto**: `current / total`
-- Sem separação por coordenação no processamento
+| Aspecto | Versão Rápida (dia 27) | Versão Lenta (atual) |
+|---------|----------------------|---------------------|
+| **Delay entre tribunais** | 150ms | 250ms |
+| **Delay entre variantes** | 100ms | 150ms |
+| **Delay entre monitoramentos** | ❌ Não existe | 1500ms (!) |
+| **Verificação BD a cada item** | ❌ Não | ✅ Sim (query a cada loop) |
+| **Timeout por requisição** | ❌ Não | 60 segundos (bloqueia) |
+| **Loops aninhados** | Tribunal → Variante | UF → Variante → Tribunal (3 níveis) |
 
----
-
-## Modelo Original a Restaurar
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  BUSCAR todos monitoramentos ativos                             │
-│  Total = N monitoramentos                                       │
-│                                                                 │
-│  for i = 0 to N:                                                │
-│    ├─ Atualizar progresso: i / N                                │
-│    ├─ Buscar publicações para monitoramento[i]                  │
-│    ├─ Validar conteúdo (OAB+Nome para advogado, termo para KC)  │
-│    ├─ Aplicar exclusões do PRÓPRIO monitoramento               │
-│    └─ Inserir novas publicações                                 │
-│                                                                 │
-│  FIM: Mostrar totais                                            │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Causa Principal do Timeout
+O delay de **1500ms entre monitoramentos** + verificação de cancelamento no banco a cada iteração cria um overhead massivo. Com 50 monitoramentos, são 75 segundos só de delays!
 
 ---
 
-## Diferenças Chave
+## Solução: Restaurar Performance da Versão Rápida
 
-| Aspecto | Versão Atual (Complexa) | Versão Original (Simples) |
-|---------|------------------------|---------------------------|
-| Loop principal | Por coordenação → por tipo | Por monitoramento direto |
-| Progresso | Matriz coordenações × tipos | Simples: i / total |
-| Exclusões | Por coordenação (distribuição) | Por monitoramento individual |
-| Agrupamento OAB | Sim (Fase 1A) | Não |
-
----
-
-## Mudanças Técnicas
-
-### 1. Simplificar `executarMonitoramento`
-
-Remover toda a lógica de agrupamento por coordenação e tipo. Restaurar loop simples:
+### 1. Reduzir Delays Drasticamente
 
 ```typescript
-// Buscar monitoramentos ativos
-const { data: monitoramentos } = await supabase
-  .from('monitoramentos_djen')
-  .select('*')
-  .eq('ativo', true);
+const CONFIG = {
+  delay_between_batches: 0,      // ELIMINAR delay entre monitoramentos
+  delay_between_tribunals: 100,  // Reduzir de 250ms para 100ms
+  delay_between_variants: 50,    // Reduzir de 150ms para 50ms
+  delay_on_rate_limit: 5000,     // Reduzir de 10s para 5s (já tem retry interno)
+};
+```
 
-const total = monitoramentos.length;
+### 2. Simplificar Loop de Busca
 
-// Loop simples por monitoramento
+Remover o loop extra por UF e o timeout de 60s que trava requisições:
+
+```typescript
+// ANTES (3 níveis + timeout)
+for (const ufAtual of ufsLoop) {
+  for (const variante of variantesLoop) {
+    for (const trib of tribunais) {
+      const timeoutId = setTimeout(() => reqController.abort(), 60_000);
+      // ... busca
+    }
+  }
+}
+
+// DEPOIS (2 níveis, sem timeout artificial)
+for (const tribunal of tribunais) {
+  for (const variante of variantes) {
+    // Busca direta sem timeout extra
+    const resp = await buscarPjeComunicaPaginado(...);
+  }
+}
+```
+
+### 3. Remover Verificação de Cancelamento no Banco
+
+A verificação `cancel_requested` no banco a cada iteração adiciona latência. Manter apenas via `cancelarRef.current`:
+
+```typescript
+// ANTES
 for (let i = 0; i < total; i++) {
-  if (cancelarRef.current) break;
+  // Query no banco para verificar cancelamento (LENTO!)
+  const { data } = await supabase.from('configuracoes_monitoramento')...
+  if ((data?.metadata)?.cancel_requested) break;
   
-  const mon = monitoramentos[i];
-  
-  // Atualizar progresso
-  setProgresso(prev => ({
-    ...prev,
-    monitoramentoAtual: i + 1,
-    totalMonitoramentos: total,
-    termoAtual: mon.termo_busca,
-  }));
-  
-  // Processar monitoramento
-  const resultado = await processarMonitoramento(mon);
-  
-  // Acumular estatísticas
-  totalNovas += resultado.novas;
-  totalDuplicadas += resultado.duplicadas;
-  totalDescartadas += resultado.descartadas;
+  // ...
+}
+
+// DEPOIS
+for (let i = 0; i < total; i++) {
+  if (cancelarRef.current) break; // Apenas checagem local (RÁPIDO)
+  // ...
 }
 ```
 
-### 2. Manter `processarMonitoramento` Existente
+### 4. Reduzir Frequência de Updates no Banco
 
-A função que processa um monitoramento individual permanece igual, pois já funciona corretamente:
-- Busca publicações via API
-- Valida conteúdo (OAB+Nome para advogado)
-- Aplica exclusões do próprio monitoramento
-- Insere novas publicações
-
-### 3. Simplificar Interface de Progresso
-
-Manter apenas campos essenciais:
+Atualizar metadata apenas a cada 10 monitoramentos (não a cada 1):
 
 ```typescript
-interface ProgressoExecucao {
-  monitoramentoAtual: number;
-  totalMonitoramentos: number;
-  publicacoesNovas: number;
-  publicacoesDuplicadas: number;
-  publicacoesDescartadas: number;
-  status: 'idle' | 'executando' | 'concluido' | 'erro' | 'cancelado';
-  mensagem: string;
-  termoAtual?: string;
-  tempoDecorrido: number;
+// Atualizar execução no banco apenas a cada 10 itens
+if ((i + 1) % 10 === 0) {
+  await registrarExecucao('executando', {...});
 }
 ```
-
-### 4. Remover Código Não Utilizado
-
-- Remover funções de agrupamento por OAB
-- Remover lógica de fases 1A/1B
-- Remover estrutura `coordenacoes` do progresso
-- Manter validação OAB+Nome corrigida
 
 ---
 
@@ -128,81 +96,112 @@ interface ProgressoExecucao {
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useBuscaDjenDireta.ts` | Simplificar para modelo original |
-| `src/types/djenProgress.ts` | Remover interfaces não utilizadas |
-| `src/constants/version.ts` | Atualizar para 1.0.3 |
-| `src/components/djen/ProgressoDjenDetalhado.tsx` | Simplificar UI (opcional) |
+| `src/hooks/useBuscaDjenDireta.ts` | Otimizar delays, simplificar loops, remover verificações excessivas |
+| `src/constants/version.ts` | Atualizar para 1.0.5 |
 
 ---
 
-## Benefícios
+## Comparação de Performance Esperada
 
-- Código mais simples e manutenível
-- Progresso funciona corretamente (i/total)
-- Comportamento previsível e testado
-- Validação OAB+Nome mantida da correção anterior
+| Cenário (50 monitoramentos) | Versão Atual | Versão Otimizada |
+|----------------------------|-------------|-----------------|
+| Delays entre monitoramentos | 75s | 0s |
+| Delays entre tribunais (×27) | 337s | 135s |
+| Verificações no banco | 50 queries | 5 queries |
+| **Tempo Total Estimado** | 8-10min | 3-4min |
 
 ---
 
 ## Seção Técnica
 
-### Estrutura Simplificada do Hook
-
+### Configuração Otimizada
 ```typescript
-export function useBuscaDjenDireta() {
-  // Estados básicos
-  const [progresso, setProgresso] = useState<ProgressoExecucao>(INITIAL_STATE);
-  const [isExecutando, setIsExecutando] = useState(false);
-  const cancelarRef = useRef(false);
-
-  const executarMonitoramento = useCallback(async () => {
-    setIsExecutando(true);
-    cancelarRef.current = false;
-    
-    // 1. Buscar monitoramentos
-    const { data: monitoramentos } = await supabase
-      .from('monitoramentos_djen')
-      .select('*')
-      .eq('ativo', true);
-    
-    const total = monitoramentos?.length || 0;
-    let novas = 0, duplicadas = 0, descartadas = 0;
-    
-    // 2. Loop simples
-    for (let i = 0; i < total; i++) {
-      if (cancelarRef.current) break;
-      
-      const mon = monitoramentos[i];
-      
-      setProgresso(prev => ({
-        ...prev,
-        monitoramentoAtual: i + 1,
-        totalMonitoramentos: total,
-        termoAtual: mon.termo_busca,
-      }));
-      
-      const result = await processarMonitoramento(mon);
-      novas += result.novas;
-      duplicadas += result.duplicadas;
-      descartadas += result.descartadas;
-      
-      setProgresso(prev => ({
-        ...prev,
-        publicacoesNovas: novas,
-        publicacoesDuplicadas: duplicadas,
-        publicacoesDescartadas: descartadas,
-      }));
-    }
-    
-    // 3. Finalizar
-    setProgresso(prev => ({
-      ...prev,
-      status: cancelarRef.current ? 'cancelado' : 'concluido',
-    }));
-    setIsExecutando(false);
-  }, []);
-
-  return { executarMonitoramento, progresso, isExecutando, cancelar };
-}
+const CONFIG = {
+  concurrent_limit: 2,
+  delay_between_batches: 0,       // Sem delay entre monitoramentos
+  delay_between_tribunals: 100,   // 100ms entre tribunais
+  delay_between_variants: 50,     // 50ms entre variantes  
+  delay_on_rate_limit: 5000,      // 5s em caso de 429
+};
 ```
 
+### Loop Simplificado
+```typescript
+const buscarMonitoramento = async (mon: MonitoramentoDjen) => {
+  const tribunais = expandirTribunais(mon.tribunais) || [undefined];
+  const variantes = gerarVariantes(mon.termo_busca);
+  const acumulado: any[] = [];
+  const seen = new Set<string>();
+
+  for (const trib of tribunais) {
+    if (cancelarRef.current) break;
+
+    for (const variante of variantes) {
+      if (cancelarRef.current) break;
+
+      try {
+        const resp = await buscarPjeComunicaPaginado({
+          tipo: mon.tipo === 'advogado' ? 'advogado' : 'palavra-chave',
+          palavraChave: mon.tipo !== 'advogado' ? variante : undefined,
+          oab: mon.tipo === 'advogado' ? mon.oab : undefined,
+          uf: mon.tipo === 'advogado' ? mon.uf : undefined,
+          siglaTribunal: trib,
+          dataInicio: dataInicioYmd,
+          dataFim: dataFimYmd,
+        }, { maxPages: 10, delayMs: 150 });
+
+        for (const item of resp.items) {
+          const key = item?.id || JSON.stringify(item).slice(0,200);
+          if (!seen.has(key)) {
+            seen.add(key);
+            acumulado.push(item);
+          }
+        }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') break;
+        console.warn(`Erro ${trib}: ${e?.message}`);
+      }
+
+      await delay(CONFIG.delay_between_variants);
+    }
+    await delay(CONFIG.delay_between_tribunals);
+  }
+
+  return acumulado;
+};
+```
+
+### Loop Principal Enxuto
+```typescript
+for (let i = indiceInicial; i < total; i++) {
+  if (cancelarRef.current) break;
+
+  const mon = monitoramentos[i];
+  
+  setProgresso(prev => ({
+    ...prev,
+    monitoramentoAtual: i + 1,
+    termoAtual: mon.termo_busca,
+  }));
+
+  const result = await processarMonitoramento(mon);
+  
+  // Acumular estatísticas
+  totalNovas += result.novas;
+  totalDuplicadas += result.duplicadas;
+
+  // Update UI
+  setProgresso(prev => ({
+    ...prev,
+    publicacoesNovas: totalNovas,
+    publicacoesDuplicadas: totalDuplicadas,
+  }));
+
+  // Atualizar banco apenas a cada 10 itens
+  if ((i + 1) % 10 === 0) {
+    await registrarExecucao('executando', { processados: i + 1, total });
+  }
+  
+  // SEM delay entre monitoramentos!
+}
+```
