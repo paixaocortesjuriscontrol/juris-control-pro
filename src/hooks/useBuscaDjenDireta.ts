@@ -389,6 +389,8 @@ export function useBuscaDjenDireta() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const executionIdRef = useRef<string | null>(null);
+  // Ref para armazenar data customizada durante execução (YYYY-MM-DD)
+  const dataOverrideRef = useRef<string | null>(null);
   // Ref para evitar múltiplas reconstruções de coordenações
   const coordenacoesReconstruidasRef = useRef(false);
 
@@ -823,15 +825,25 @@ export function useBuscaDjenDireta() {
   const buscarMonitoramento = async (monitoramento: MonitoramentoDjen): Promise<PublicacaoResultado[]> => {
     if (cancelarRef.current) return [];
 
-    // Usar data em Brasília para alinhar com a API e evitar “virada do dia” em UTC
-    const now = new Date();
-    const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-    // Cobertura padrão: últimos 3 dias (hoje + 2 dias anteriores)
-    const startBrasilia = new Date(todayBrasilia);
-    startBrasilia.setDate(startBrasilia.getDate() - 2);
+    // Se há dataOverride definida (usuário escolheu data específica), usar apenas essa data
+    // Caso contrário, usar data em Brasília para alinhar com a API
+    let dataFimYmd: string;
+    let dataInicioYmd: string;
+    
+    if (dataOverrideRef.current) {
+      // Buscar apenas a data específica escolhida pelo usuário
+      dataFimYmd = dataOverrideRef.current;
+      dataInicioYmd = dataOverrideRef.current;
+    } else {
+      // Comportamento padrão: últimos 3 dias (hoje + 2 dias anteriores)
+      const now = new Date();
+      const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      const startBrasilia = new Date(todayBrasilia);
+      startBrasilia.setDate(startBrasilia.getDate() - 2);
 
-    const dataFimYmd = todayBrasilia.toISOString().split('T')[0];
-    const dataInicioYmd = startBrasilia.toISOString().split('T')[0];
+      dataFimYmd = todayBrasilia.toISOString().split('T')[0];
+      dataInicioYmd = startBrasilia.toISOString().split('T')[0];
+    }
 
     const tipoMapeado = monitoramento.tipo === 'parte' ? 'palavra-chave' : monitoramento.tipo;
 
@@ -1268,13 +1280,18 @@ export function useBuscaDjenDireta() {
   };
 
   // Executar monitoramento com suporte a retomada
-  const executarMonitoramento = useCallback(async (monitoramentosIds?: string[], retomar: boolean = false) => {
+  // dataOverride: permite forçar a data de busca (YYYY-MM-DD), útil para buscar dias anteriores
+  const executarMonitoramento = useCallback(async (
+    monitoramentosIds?: string[], 
+    retomar: boolean = false,
+    dataOverride?: string
+  ) => {
     if (!user?.id) {
       toast.error("Usuário não autenticado");
       return;
     }
 
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = dataOverride || new Date().toISOString().split('T')[0];
     const checkpoint = carregarCheckpoint();
 
     // Fonte de checkpoint no banco (server-side) - igual padrão do DJEN Processos
@@ -1307,6 +1324,8 @@ export function useBuscaDjenDireta() {
     cancelarRef.current = false;
     abortControllerRef.current = new AbortController();
     executionIdRef.current = null;
+    // Armazenar dataOverride para uso nas buscas
+    dataOverrideRef.current = dataOverride || null;
 
     // Resetar sinalizações de cancelamento no banco ao iniciar
     if (!retomar) {
