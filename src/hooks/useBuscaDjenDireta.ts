@@ -733,38 +733,13 @@ export function useBuscaDjenDireta() {
   // IMPORTANTE: Validar que o TERMO COMPLETO está presente na publicação
   // A API do PJE Comunica faz busca por substring, então pode retornar resultados parciais
   // Ex: Buscar "F & F DISTRIBUIDORA" pode retornar publicação que só tem "DISTRIBUIDORA"
-  const conteudoContemTermo = (conteudo: string, termo: string, tipo: string, oab?: string, uf?: string): boolean => {
+  const conteudoContemTermo = (conteudo: string, termo: string, tipo: string, _oab?: string, _uf?: string): boolean => {
+    // Para advogado: NÃO descartar por “OAB não encontrada no conteúdo”.
+    // O filtro principal deve ser feito na própria consulta (numeroOab/ufOab).
+    // Aqui seguimos apenas com termos de exclusão (aplicados fora desta função).
+    if (tipo === 'advogado') return true;
+
     if (!conteudo || !termo) return false;
-    
-    // Para advogado, validar que a OAB está presente no conteúdo
-    // A API do PJE Comunica NÃO valida corretamente - retorna publicações sem a OAB buscada
-    if (tipo === 'advogado') {
-      if (!oab) return true; // Sem OAB para validar
-      
-      const conteudoUpper = conteudo.toUpperCase();
-      const oabDigits = oab.replace(/\D/g, '');
-      
-      // Verificar padrões comuns de OAB no texto:
-      // "OAB/DF 15553", "OAB 15553", "OAB-DF 15553", "OAB/DF nº 15553"
-      // Também aceitar apenas o número se for específico o suficiente (>= 4 dígitos)
-      const patterns = [
-        new RegExp(`OAB[/\\-]?\\s*${uf || '[A-Z]{2}'}[\\s:]*[Nn°º]*\\s*${oabDigits}\\b`, 'i'),
-        new RegExp(`OAB[\\s:]*[Nn°º]*\\s*${oabDigits}\\b`, 'i'),
-      ];
-      
-      // Se OAB >= 4 dígitos, também aceitar número solto com contexto "advogado/a"
-      if (oabDigits.length >= 4) {
-        patterns.push(new RegExp(`\\b${oabDigits}\\b`, 'i'));
-      }
-      
-      const found = patterns.some(p => p.test(conteudoUpper));
-      
-      if (!found) {
-        console.log(`[DJEN] Publicação descartada: OAB ${oabDigits} não encontrada no conteúdo`);
-      }
-      
-      return found;
-    }
     
     // Normalizar ambos para comparação
     const normalizar = (t: string) => t
@@ -905,19 +880,22 @@ export function useBuscaDjenDireta() {
     // Para advogados com múltiplas UFs, precisamos iterar por cada UF
     let ufsParaBuscar: string[] = [];
 
-    if (tipoMapeado === 'advogado' && monitoramento.oab && monitoramento.uf) {
+    if (tipoMapeado === 'advogado' && monitoramento.oab) {
       // Normalização CRÍTICA:
       // - OAB: apenas dígitos (evita '123.456'/'12345-6' quebrando filtros da API)
       // - UF: trim + UPPERCASE (evita 'sp', 'SP ', etc.)
       const oabDigits = String(monitoramento.oab).replace(/\D/g, '');
-      const ufValue = String(monitoramento.uf).trim().toUpperCase();
+      const ufValue = String(monitoramento.uf || '').trim().toUpperCase();
 
       params.oab = oabDigits;
-      
-      if (ufValue === 'TODAS' || !ufValue) {
-        // Sem UF específica: buscar por palavra-chave (nome do advogado)
-        palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
-        delete params.oab;
+
+      // UF opcional:
+      // - se vier vazio/TODAS, buscamos apenas por numeroOab (sem ufOab), cobrindo todas as UFs.
+      // - se vier múltipla ("DF, MT"), iteramos UF a UF.
+      // - se vier uma UF válida ("DF"), usamos ela.
+      if (!ufValue || ufValue === 'TODAS') {
+        params.uf = undefined;
+        ufsParaBuscar = [];
       } else if (ufValue.includes(',')) {
         // CORREÇÃO: Múltiplas UFs - iterar por CADA uma, não só a primeira
         ufsParaBuscar = ufValue.split(',')
@@ -927,17 +905,14 @@ export function useBuscaDjenDireta() {
         if (ufsParaBuscar.length > 0) {
           // Definir primeira UF como default (será sobrescrito no loop)
           params.uf = ufsParaBuscar[0];
-        } else {
-          // Nenhuma UF válida - buscar por nome
-          palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
-          delete params.oab;
         }
       } else if (ufValue.length === 2) {
         params.uf = ufValue;
         ufsParaBuscar = [ufValue];
       } else {
-        palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
-        delete params.oab;
+        // UF inválida: ainda assim buscar por numeroOab (sem ufOab) em vez de cair para nome
+        params.uf = undefined;
+        ufsParaBuscar = [];
       }
     } else if (tipoMapeado === 'palavra-chave' || monitoramento.tipo === 'parte') {
       palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
@@ -1009,7 +984,7 @@ export function useBuscaDjenDireta() {
       };
 
       // Para advogados com múltiplas UFs, iterar por cada UF
-      const ufsLoop = ufsParaBuscar.length > 0 ? ufsParaBuscar : [params.uf];
+       const ufsLoop = ufsParaBuscar.length > 0 ? ufsParaBuscar : [params.uf];
       
       for (const ufAtual of ufsLoop) {
         if (cancelarRef.current) break;
@@ -1041,7 +1016,8 @@ export function useBuscaDjenDireta() {
                 {
                   signal: reqController.signal,
                   maxPages: 10,
-                  delayMs: 150,
+                   // delay conservador entre páginas para reduzir risco de 429/timeouts
+                   delayMs: 500,
                 }
               );
 
@@ -1168,7 +1144,7 @@ export function useBuscaDjenDireta() {
       // Validar que o termo completo está presente (ou OAB para advogados)
       if (!conteudoContemTermo(pub.conteudo, mon.termo_busca, mon.tipo, mon.oab, mon.uf)) {
         publicacoesIgnoradas++;
-        descartadasParaPersistir.push({ pub, motivo: mon.tipo === 'advogado' ? `OAB ${mon.oab} não encontrada` : 'Termo não encontrado integralmente' });
+        descartadasParaPersistir.push({ pub, motivo: 'Termo não encontrado integralmente' });
         return false;
       }
       
