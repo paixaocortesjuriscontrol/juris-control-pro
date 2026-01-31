@@ -1,7 +1,7 @@
 // Busca de comunicações no PJE Comunica.
-// Estratégia: browser-first com fallback para Edge Function (proxy) quando CORS bloquear.
-
-import { supabase } from "@/integrations/supabase/client";
+// Estratégia: browser-only.
+// IMPORTANTE: evitamos fallback para Edge Function `buscar-djen` porque ela pode estourar
+// WORKER_LIMIT (546) sob carga/termos com alto volume.
 
 export type PjeSearchType = "advogado" | "palavra-chave" | "processo";
 
