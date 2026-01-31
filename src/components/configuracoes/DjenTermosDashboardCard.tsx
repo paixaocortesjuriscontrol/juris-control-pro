@@ -662,7 +662,7 @@ export function DjenTermosDashboardCard({
                 </div>
               </div>
               <div className="bg-background/60 rounded-lg p-2.5 text-center border">
-                <div className="text-xs text-muted-foreground mb-0.5">Encontrados</div>
+                <div className="text-xs text-muted-foreground mb-0.5">Publicações</div>
                 <div className="text-lg font-bold font-mono text-green-600">
                   {encontrados.toLocaleString('pt-BR')}
                 </div>

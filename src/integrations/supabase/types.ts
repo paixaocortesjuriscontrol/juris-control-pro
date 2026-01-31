@@ -4392,6 +4392,13 @@ export type Database = {
         Args: { _evento_id: string; _user_id: string }
         Returns: boolean
       }
+      count_djen_publicacoes_deduplicadas_hoje: {
+        Args: never
+        Returns: {
+          total_bruto: number
+          total_unicas: number
+        }[]
+      }
       count_djen_publicacoes_unificadas: {
         Args: {
           p_apenas_nao_lidas?: boolean
