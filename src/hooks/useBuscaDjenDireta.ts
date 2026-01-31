@@ -1094,20 +1094,30 @@ export function useBuscaDjenDireta() {
       return { novas: 0, duplicadas: 0 };
     }
 
+    const ymdToIso = (ymd?: string | null) => (ymd ? `${ymd}T12:00:00.000Z` : null);
+
     // Filtrar publicações:
     // 1. Verificar exclusões configuradas
     // 2. IMPORTANTE: Validar que o TERMO COMPLETO está presente (evita resultados parciais da API)
     let publicacoesIgnoradas = 0;
+    const descartadasParaPersistir: Array<{ pub: PublicacaoResultado; motivo: string }> = [];
+
     const pubsFiltradas = publicacoes.filter(pub => {
       // Se não tem conteúdo, aceita (será processado de outra forma)
       if (!pub.conteudo) return true;
       
       // Verificar exclusões
-      if (deveExcluir(pub.conteudo, mon.exclusoes)) return false;
+      const conteudoUpper = pub.conteudo.toUpperCase();
+      const termoExclusao = mon.exclusoes?.find((t) => conteudoUpper.includes(String(t).toUpperCase()));
+      if (termoExclusao) {
+        descartadasParaPersistir.push({ pub, motivo: `Termo de exclusão: ${termoExclusao}` });
+        return false;
+      }
       
       // Validar que o termo completo está presente
       if (!conteudoContemTermo(pub.conteudo, mon.termo_busca, mon.tipo)) {
         publicacoesIgnoradas++;
+        descartadasParaPersistir.push({ pub, motivo: 'Termo não encontrado integralmente' });
         return false;
       }
       
@@ -1117,6 +1127,42 @@ export function useBuscaDjenDireta() {
     // Log resumido para diagnóstico (apenas se houver publicações ignoradas)
     if (publicacoesIgnoradas > 0) {
       console.log(`[DJEN] "${mon.termo_busca}": ${publicacoesIgnoradas} publicações ignoradas (termo não encontrado integralmente)`);
+    }
+
+    // Persistir descartadas (igual ao fluxo server-side), para o painel “Descartadas” funcionar também na execução direta.
+    // Usa índice único (monitoramento_id, hash_conteudo) para evitar duplicatas.
+    if (descartadasParaPersistir.length > 0) {
+      const payloadDescartadas = descartadasParaPersistir
+        .filter((d) => !!d.pub.conteudo)
+        .map((d) => {
+          const dataRef = d.pub.data_disponibilizacao || d.pub.data_publicacao || new Date().toISOString().slice(0, 10);
+          const hash = gerarHash(d.pub.conteudo || '', dataRef);
+          return {
+            monitoramento_id: mon.id,
+            hash_conteudo: hash,
+            processo_numero: d.pub.processo_numero,
+            conteudo: d.pub.conteudo,
+            fonte: d.pub.fonte,
+            tribunal: d.pub.fonte,
+            data_disponibilizacao: ymdToIso(d.pub.data_disponibilizacao),
+            data_publicacao: ymdToIso(d.pub.data_publicacao),
+            motivo_descarte: d.motivo,
+            lida: false,
+          };
+        });
+
+      if (payloadDescartadas.length > 0) {
+        const { error: descartadasError } = await supabase
+          .from('publicacoes_djen_descartadas')
+          .upsert(payloadDescartadas, {
+            onConflict: 'monitoramento_id,hash_conteudo',
+            ignoreDuplicates: true,
+          });
+
+        if (descartadasError) {
+          console.warn('[DJEN Direta] Falha ao persistir descartadas:', descartadasError);
+        }
+      }
     }
 
     // Usar data_disponibilizacao para hash (alinhado com API e backend)
