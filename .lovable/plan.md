@@ -1,140 +1,107 @@
 
-# Plano: Reestruturar Monitoramento DJEN por Coordenação e Tipo de Termo
+# Plano: Busca DJEN Termos Inteligente e Otimizada
 
 ## Problema Atual
 
-O loop de monitoramento DJEN atual processa **todos os monitoramentos de forma sequencial misturada**, sem organização por coordenação ou tipo. Isso dificulta:
-1. Identificar onde o processamento está (qual coordenação, qual tipo de termo)
-2. Rastrear problemas específicos de uma coordenação
-3. Saber se advogados, palavras-chave ou processos já foram processados
-4. Apresentar progresso granular ao usuário
+O sistema executa **uma busca por monitoramento**, mesmo quando vários monitoramentos usam a mesma OAB/termo. Exemplo real:
 
-## Solução Proposta
+| OAB | Coordenações | Monitoramentos | Buscas Atuais |
+|-----|--------------|----------------|---------------|
+| 10424 | 4 | 7 | 7 buscas duplicadas |
+| 15553 | 3 | 7 | 7 buscas duplicadas |
 
-Reestruturar o loop de execução em **3 níveis hierárquicos**:
+**Resultado**: Buscas lentas, redundantes e mais propensas a Rate Limit (429).
 
+---
+
+## Solução: Busca Agrupada + Distribuição Inteligente
+
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│  FASE 1: AGRUPAR ADVOGADOS POR OAB                                      │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │  OAB 10424 → 1 ÚNICA BUSCA (todas UFs configuradas)               │ │
+│  │  OAB 15553 → 1 ÚNICA BUSCA                                         │ │
+│  │  OAB 25181 → 1 ÚNICA BUSCA                                         │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  FASE 2: DISTRIBUIR RESULTADOS POR COORDENAÇÃO                          │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │  Para cada publicação encontrada:                                  │ │
+│  │  ├─ Santander Cível: aplica 81 exclusões → descarta ou aceita     │ │
+│  │  ├─ Dr. Thomás: aplica 4 exclusões → descarta ou aceita           │ │
+│  │  ├─ Dra. Janaína: aplica 1 exclusão → descarta ou aceita          │ │
+│  │  └─ Santander Trabalhista: aplica 29 exclusões → descarta ou aceita│ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  RESULTADO: Publicação pode ir para 0, 1 ou N coordenações              │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  NÍVEL 1: COORDENAÇÃO                                          │
-│  ┌───────────────────────────────────────────────────────────┐ │
-│  │  NÍVEL 2: TIPO DE TERMO                                   │ │
-│  │  ┌─────────────────────────────────────────────────────┐  │ │
-│  │  │  NÍVEL 3: MONITORAMENTOS                            │  │ │
-│  │  │  - Processa cada termo individual                   │  │ │
-│  │  │  - Busca em todos os tribunais configurados         │  │ │
-│  │  └─────────────────────────────────────────────────────┘  │ │
-│  │                                                           │ │
-│  │  Sequência por tipo:                                     │ │
-│  │  1. Advogados (busca por OAB/UF)                         │ │
-│  │  2. Palavras-chave (busca por termo/parte)               │ │
-│  │  3. Processos (busca por número CNJ)                     │ │
-│  └───────────────────────────────────────────────────────────┘ │
-│                                                                │
-│  Exemplo de execução:                                          │
-│  → Coordenação: Santander Cível                               │
-│     → Advogados: 2/2 concluídos                               │
-│     → Palavras-chave: 5/12 (executando)                       │
-│     → Processos: 0/0 (pendente)                               │
-│  → Coordenação: Dr. Thomás                                     │
-│     → (aguardando)                                            │
-└─────────────────────────────────────────────────────────────────┘
+
+---
+
+## Fluxo Hierárquico Otimizado
+
+```text
+Execução:
+│
+├─ 1. ADVOGADOS (agrupados por OAB)
+│     ├─ OAB 10424: buscar UFs [DF, MT, RO, AC, MS...] → 47 publicações
+│     │     ├─ Distribuir → Santander Cível: 12 aceitas, 35 excluídas
+│     │     ├─ Distribuir → Dr. Thomás: 40 aceitas, 7 excluídas
+│     │     ├─ Distribuir → Dra. Janaína: 45 aceitas, 2 excluídas
+│     │     └─ Distribuir → Santander Trabalhista: 20 aceitas, 27 excluídas
+│     │
+│     ├─ OAB 15553: buscar UFs [DF, SP...] → 23 publicações
+│     │     └─ (mesma lógica de distribuição)
+│     │
+│     └─ ... demais OABs
+│
+├─ 2. PALAVRAS-CHAVE (sem agrupamento - cada uma é única)
+│     ├─ "UNIAO QUIMICA" → buscar → aplicar exclusões por coordenação
+│     └─ ...
+│
+└─ 3. PROCESSOS (sem agrupamento - cada número é único)
+      └─ ...
 ```
 
 ---
 
 ## Mudanças Técnicas
 
-### 1. Novo Modelo de Progresso (src/hooks/useBuscaDjenDireta.ts)
-
-Adicionar estrutura detalhada para rastrear cada fase:
-
+### 1. Nova Interface: Grupo de Advogados
 ```typescript
-export interface ProgressoPorCoordenacao {
-  coordenacaoId: string;
-  coordenacaoNome: string;
-  status: 'pendente' | 'executando' | 'concluido' | 'erro';
-  
-  // Progresso por tipo de termo
-  advogados: {
-    total: number;
-    processados: number;
-    status: FaseStatus;
-  };
-  palavrasChave: {
-    total: number;
-    processados: number;
-    status: FaseStatus;
-  };
-  processos: {
-    total: number;
-    processados: number;
-    status: FaseStatus;
-  };
-  
-  // Estatísticas
-  novas: number;
-  duplicadas: number;
-}
-
-export interface ProgressoExecucaoV2 extends ProgressoExecucao {
-  // Novo: progresso detalhado por coordenação
-  coordenacoes: ProgressoPorCoordenacao[];
-  coordenacaoAtual?: string;
-  tipoAtual?: 'advogado' | 'palavra-chave' | 'processo';
+interface GrupoAdvogado {
+  oab: string;
+  ufsUnificadas: string[];  // Todas UFs de todos os monitoramentos
+  nomeParaValidacao: string; // Nome mais completo para validar conteúdo
+  monitoramentos: Array<{
+    id: string;
+    coordenacaoId: string;
+    coordenacaoNome: string;
+    exclusoes: string[];
+    termoOriginal: string;
+  }>;
 }
 ```
 
-### 2. Reestruturar Loop Principal (src/hooks/useBuscaDjenDireta.ts)
+### 2. Função: agruparAdvogadosPorOab()
+Antes de iniciar a busca, agrupa todos monitoramentos de advogado pela OAB:
+- Consolida UFs (remove duplicatas)
+- Preserva exclusões específicas de cada monitoramento/coordenação
 
-O loop atual (linhas 996-1151) será refatorado para:
+### 3. Função: buscarAdvogadoAgrupado()
+Executa UMA busca por OAB, iterando pelas UFs consolidadas.
 
-```
-ANTES:
-for (monitoramentos) {
-  processar(monitoramento)
-}
+### 4. Função: distribuirParaCoordenacoes()
+Para cada publicação retornada:
+1. Valida OAB + nome no conteúdo (regra atual: 80% palavras)
+2. Para cada monitoramento do grupo:
+   - Verifica exclusões específicas da coordenação
+   - Se passar, insere na `publicacoes_djen` vinculada ao monitoramento
 
-DEPOIS:
-for (coordenacao of coordenacoes) {
-  atualizar_status(coordenacao, 'executando')
-  
-  // 1. Advogados
-  advogados = filtrar_por_tipo(coordenacao, 'advogado')
-  for (adv of advogados) {
-    processar(adv)
-    atualizar_progresso_tipo('advogados')
-  }
-  
-  // 2. Palavras-chave
-  termos = filtrar_por_tipo(coordenacao, ['palavra-chave', 'parte'])
-  for (termo of termos) {
-    processar(termo)
-    atualizar_progresso_tipo('palavrasChave')
-  }
-  
-  // 3. Processos
-  processos = filtrar_por_tipo(coordenacao, 'processo')
-  for (proc of processos) {
-    processar(proc)
-    atualizar_progresso_tipo('processos')
-  }
-  
-  atualizar_status(coordenacao, 'concluido')
-}
-```
-
-### 3. Novo Componente de Visualização
-
-Criar `src/components/djen/ProgressoDjenDetalhado.tsx`:
-
-- Exibir lista de coordenações com status (ícones: pendente, executando, concluído)
-- Para coordenação em execução, mostrar barra de progresso por tipo de termo
-- Indicador visual: qual advogado/termo está sendo processado no momento
-- Contador de novas/duplicadas por coordenação
-
-### 4. Atualizar MonitoramentoDjenCard.tsx
-
-Integrar o novo componente de progresso no card existente, substituindo a barra de progresso simples atual (linhas 561-613) por uma visualização detalhada.
+### 5. Atualização do Loop Principal
+O loop de advogados passa a iterar por **OABs agrupadas** em vez de monitoramentos individuais.
 
 ---
 
@@ -142,136 +109,124 @@ Integrar o novo componente de progresso no card existente, substituindo a barra 
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useBuscaDjenDireta.ts` | Reestruturar loop por coordenação e tipo; adicionar interfaces de progresso |
-| `src/components/djen/ProgressoDjenDetalhado.tsx` | **NOVO** - Componente de visualização detalhada |
-| `src/components/configuracoes/MonitoramentoDjenCard.tsx` | Integrar novo componente de progresso |
+| `src/hooks/useBuscaDjenDireta.ts` | Nova lógica de agrupamento e distribuição para advogados |
+| `src/types/djenProgress.ts` | Nova interface `GrupoAdvogado` |
 
 ---
 
-## Lógica de Agrupamento
+## Benefícios
 
+| Métrica | Antes | Depois |
+|---------|-------|--------|
+| Buscas para OAB 10424 | 7 | 1 |
+| Buscas para OAB 15553 | 7 | 1 |
+| Total de buscas (advogados) | 28 | ~7 (OABs únicas) |
+| Risco de 429 | Alto | Reduzido 75% |
+| Tempo estimado | ~15 min | ~4 min |
+
+---
+
+## Critérios de Sucesso
+
+- [ ] Advogados com mesma OAB executam UMA busca na API
+- [ ] Publicações são distribuídas corretamente por coordenação
+- [ ] Exclusões são aplicadas POR COORDENAÇÃO (uma pub pode ser aceita em A e excluída em B)
+- [ ] Estatísticas refletem novas/duplicadas/descartadas por coordenação
+- [ ] UI mostra progresso por OAB (não por monitoramento individual)
+
+---
+
+## Detalhes de Implementação
+
+### Passo 1: Criar estrutura de agrupamento
 ```typescript
-// Agrupar monitoramentos por coordenação e tipo
-const agruparPorCoordenacaoETipo = (monitoramentos: MonitoramentoDjen[]) => {
-  const grupos = new Map<string, {
-    coordenacao: { id: string; nome: string };
-    advogados: MonitoramentoDjen[];
-    palavrasChave: MonitoramentoDjen[];
-    processos: MonitoramentoDjen[];
-  }>();
+const agruparAdvogadosPorOab = (advogados: MonitoramentoDjen[]): Map<string, GrupoAdvogado> => {
+  const grupos = new Map<string, GrupoAdvogado>();
   
-  for (const mon of monitoramentos) {
-    const coordId = mon.coordenacao_id || '__sem_coordenacao__';
+  for (const mon of advogados) {
+    const oab = (mon.oab || '').replace(/\D/g, '');
+    if (!oab) continue;
     
-    if (!grupos.has(coordId)) {
-      grupos.set(coordId, {
-        coordenacao: { id: coordId, nome: '' }, // nome será preenchido depois
-        advogados: [],
-        palavrasChave: [],
-        processos: [],
+    if (!grupos.has(oab)) {
+      grupos.set(oab, {
+        oab,
+        ufsUnificadas: [],
+        nomeParaValidacao: mon.termo_busca,
+        monitoramentos: [],
       });
     }
     
-    const grupo = grupos.get(coordId)!;
+    const grupo = grupos.get(oab)!;
     
-    switch (mon.tipo) {
-      case 'advogado':
-        grupo.advogados.push(mon);
-        break;
-      case 'palavra-chave':
-      case 'parte':
-        grupo.palavrasChave.push(mon);
-        break;
-      case 'processo':
-        grupo.processos.push(mon);
-        break;
+    // Adicionar UFs
+    const ufs = (mon.uf || '').split(',').map(u => u.trim().toUpperCase()).filter(u => u.length === 2);
+    ufs.forEach(uf => {
+      if (!grupo.ufsUnificadas.includes(uf)) grupo.ufsUnificadas.push(uf);
+    });
+    
+    // Escolher o nome mais completo para validação
+    if (mon.termo_busca.length > grupo.nomeParaValidacao.length) {
+      grupo.nomeParaValidacao = mon.termo_busca;
     }
+    
+    // Adicionar monitoramento
+    grupo.monitoramentos.push({
+      id: mon.id,
+      coordenacaoId: mon.coordenacao_id || '',
+      coordenacaoNome: '', // Preenchido depois
+      exclusoes: mon.exclusoes || [],
+      termoOriginal: mon.termo_busca,
+    });
   }
   
   return grupos;
 };
 ```
 
----
-
-## Interface Visual Proposta
-
-### Durante Execução:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Monitoramento DJEN - Em Execução                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ✓ Santander Cível                     12 novas, 45 dup.   │
-│    ✓ Advogados: 2/2                                         │
-│    ✓ Palavras-chave: 15/15                                  │
-│    ✓ Processos: 0/0                                         │
-│                                                             │
-│  ⟳ Dr. Thomás (Executando)             3 novas, 8 dup.     │
-│    ✓ Advogados: 1/1                                         │
-│    ⟳ Palavras-chave: 2/5 "UNIAO QUIMICA..."                │
-│    ○ Processos: 0/3                                         │
-│                                                             │
-│  ○ Dra. Janaína (Aguardando)                                │
-│  ○ Polyana (Aguardando)                                     │
-│                                                             │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 35%                          │
-│  Tempo: 02:34  |  Total: 15 novas, 53 duplicadas            │
-│                                                             │
-│  [Cancelar Execução]                                        │
-└─────────────────────────────────────────────────────────────┘
+### Passo 2: Busca unificada por OAB
+```typescript
+const buscarAdvogadoAgrupado = async (grupo: GrupoAdvogado): Promise<PublicacaoResultado[]> => {
+  // UMA busca com todas as UFs consolidadas
+  // Retorna publicações brutas (sem filtro de exclusão ainda)
+};
 ```
 
-### Após Conclusão:
-
+### Passo 3: Distribuição inteligente
+```typescript
+const distribuirParaCoordenacoes = async (
+  publicacoes: PublicacaoResultado[],
+  grupo: GrupoAdvogado
+): Promise<{ novasPorCoordenacao: Map<string, number> }> => {
+  for (const pub of publicacoes) {
+    // Validar OAB + nome no conteúdo
+    if (!conteudoContemAdvogado(pub.conteudo, grupo.oab, grupo.nomeParaValidacao)) {
+      continue; // Descartar globalmente
+    }
+    
+    // Para cada monitoramento/coordenação
+    for (const mon of grupo.monitoramentos) {
+      // Verificar exclusões DESTA coordenação
+      const temExclusao = mon.exclusoes.some(exc => 
+        pub.conteudo?.toUpperCase().includes(exc.toUpperCase())
+      );
+      
+      if (!temExclusao) {
+        // Inserir publicação vinculada a ESTE monitoramento
+        await inserirPublicacao(pub, mon.id, mon.coordenacaoId);
+      }
+    }
+  }
+};
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Monitoramento DJEN - Concluído em 05:23                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ▼ Santander Cível                     12 novas ↓          │
-│    Advogados: 2 | Termos: 15 | Processos: 0                │
-│                                                             │
-│  ▼ Dr. Thomás                          8 novas ↓           │
-│    Advogados: 1 | Termos: 5 | Processos: 3                 │
-│                                                             │
-│  ▼ Dra. Janaína                        3 novas ↓           │
-│    Advogados: 0 | Termos: 22 | Processos: 0                │
-│                                                             │
-│  Total: 23 novas publicações encontradas                   │
-│                                                             │
-│  [Executar Novamente]  [Limpar Dados de Hoje]              │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Benefícios
-
-1. **Visibilidade**: Saber exatamente qual coordenação e tipo está sendo processado
-2. **Diagnóstico**: Se uma coordenação falhar, as outras continuam
-3. **Priorização**: Advogados primeiro (menor volume), depois termos (maior cobertura), depois processos
-4. **Rastreabilidade**: Estatísticas por coordenação facilitam identificar problemas
-5. **UX Melhorada**: Usuário entende exatamente o que está acontecendo
 
 ---
 
 ## Ordem de Implementação
 
-1. Criar interfaces de progresso detalhado
-2. Implementar função de agrupamento por coordenação/tipo
-3. Refatorar loop principal para processar hierarquicamente
-4. Criar componente `ProgressoDjenDetalhado.tsx`
-5. Integrar no `MonitoramentoDjenCard.tsx`
-6. Testar com dados reais
-
----
-
-## Critérios de Sucesso
-
-- [ ] Executar monitoramento mostra progresso por coordenação
-- [ ] Cada coordenação exibe status dos 3 tipos (advogados, termos, processos)
-- [ ] Mensagem indica qual termo está sendo processado no momento
-- [ ] Estatísticas (novas/duplicadas) são contabilizadas por coordenação
-- [ ] Cancelamento salva checkpoint corretamente por coordenação/tipo
+1. Criar interface `GrupoAdvogado` em `src/types/djenProgress.ts`
+2. Implementar `agruparAdvogadosPorOab()` no hook
+3. Implementar `buscarAdvogadoAgrupado()` (adaptar `buscarMonitoramento`)
+4. Implementar `distribuirParaCoordenacoes()` com lógica de exclusões por coordenação
+5. Atualizar loop principal para usar nova estratégia
+6. Atualizar UI de progresso para mostrar "OAB X/Y" em vez de "Monitoramento X/Y"
+7. Testar com dados reais
