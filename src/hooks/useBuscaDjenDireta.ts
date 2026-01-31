@@ -367,6 +367,8 @@ export function useBuscaDjenDireta() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const executionIdRef = useRef<string | null>(null);
+  // Ref para evitar múltiplas reconstruções de coordenações
+  const coordenacoesReconstruidasRef = useRef(false);
 
   // Se o domínio (ex: publicado) ficou com um estado local antigo marcado como "executando",
   // o card pode ficar preso em % (ex: 73%) mesmo sem execução ativa no banco.
@@ -468,7 +470,7 @@ export function useBuscaDjenDireta() {
 
   // Reconstruir coordenações UMA VEZ no mount se o estado salvo tem dados mas falta a estrutura
   // NÃO usar dependências dinâmicas para evitar loops de reconstrução
-  const coordenacoesReconstruidasRef = useRef(false);
+  // (coordenacoesReconstruidasRef já declarada no topo do hook)
   
   useEffect(() => {
     if (coordenacoesReconstruidasRef.current) return; // Já reconstruiu
