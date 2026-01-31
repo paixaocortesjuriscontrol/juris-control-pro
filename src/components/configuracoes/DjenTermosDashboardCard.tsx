@@ -466,15 +466,6 @@ export function DjenTermosDashboardCard({
     };
   }, [localRunActive, isRunning, stats.currentExecution?.iniciado_em, backendTotal, backendCurrent, handleExecutarInternal]);
 
-  // Converte Date para YYYY-MM-DD (fuso horário local, usando meio-dia para evitar problemas de timezone)
-  const getDataYmd = (date?: Date): string | undefined => {
-    if (!date) return undefined;
-    // Usar meio-dia para evitar que toISOString() mude de dia por causa de UTC
-    const d = new Date(date);
-    d.setHours(12, 0, 0, 0);
-    return format(d, 'yyyy-MM-dd');
-  };
-  
   // Retorna o intervalo {dataInicioYmd, dataFimYmd} para passar ao hook
   const getIntervalo = (): { dataInicioYmd?: string; dataFimYmd?: string } => {
     if (dataInicio && dataFim) {
