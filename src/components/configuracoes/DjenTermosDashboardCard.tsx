@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -186,16 +186,28 @@ export function DjenTermosDashboardCard({
     return Math.min(100, calc);
   }, [effectiveCurrent, effectiveTotal]);
 
-  // Mapear status local para MonitoringStatus
+  // Prioridade de status:
+  // 1) Execução local ativa (browser)
+  // 2) Flags/metadata do backend (timeout/stale/cancelado) — evita “Concluído 93%”
+  // 3) Status local finalizado (concluido/cancelado/erro)
+  // 4) Fallback: stats.status (calculado pelo dashboard)
+  const backendStatus = (md.status as string | undefined) ?? undefined;
+  const backendIsTimeout = backendStatus === 'timeout' || backendStatus === 'stale' || md.last_stop_reason === 'stale';
+  const backendIsCancelled = backendStatus === 'cancelado' || md.cancelado === true;
+
   const currentStatus: MonitoringStatus | 'cancelado' = localRunActive
     ? 'running'
-    : localCancelled
+    : backendIsCancelled
       ? 'cancelado'
-      : localCompleted
-        ? 'completed'
-        : progresso.status === 'erro'
-          ? 'failed'
-          : stats.status;
+      : backendIsTimeout
+        ? 'timeout'
+        : localCancelled
+          ? 'cancelado'
+          : localCompleted
+            ? 'completed'
+            : progresso.status === 'erro'
+              ? 'failed'
+              : stats.status;
 
   const isRunning = currentStatus === 'running';
 
@@ -207,6 +219,21 @@ export function DjenTermosDashboardCard({
   const hasOrfa = isGhostOrfa || isOrfaReal;
 
   const statusConfig = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.idle;
+
+  // Após terminar uma execução local, forçar refresh do dashboard para pegar contagens deduplicadas do banco
+  const refreshedAfterFinishRef = useRef(false);
+  useEffect(() => {
+    if (localRunActive) {
+      refreshedAfterFinishRef.current = false;
+      return;
+    }
+
+    const finishedLocally = localCompleted || localCancelled || progresso.status === 'erro';
+    if (finishedLocally && !refreshedAfterFinishRef.current) {
+      refreshedAfterFinishRef.current = true;
+      onAfterMutation();
+    }
+  }, [localRunActive, localCompleted, localCancelled, progresso.status, onAfterMutation]);
 
   // DETECÇÃO DE ÓRFÃ: Verificar diretamente o banco por execuções travadas
   // Roda sempre que o loop local não estiver ativo e não estiver forçando cancelamento
@@ -533,16 +560,18 @@ export function DjenTermosDashboardCard({
   const processados = effectiveCurrent;
   const total = effectiveTotal;
   
-  // CORREÇÃO: Durante e após execução local, usar valores em tempo real do hook
-  // Somente quando não há execução local (idle), usar valores do banco
-  // Isso mantém sincronização entre o card de progresso detalhado e o grid de métricas
-  const hasLocalExecution = localRunActive || localCompleted || localCancelled;
-  const encontrados = hasLocalExecution && progresso.publicacoesNovas > 0
-    ? progresso.publicacoesNovas 
+  // CORREÇÃO: usar contadores locais APENAS durante a execução.
+  // Após finalizar (concluído/timeout/cancelado), usar SEMPRE o valor do banco (deduplicado via RPC).
+  const useLocalCounters = localRunActive;
+  const encontrados = useLocalCounters && progresso.publicacoesNovas > 0
+    ? progresso.publicacoesNovas
     : (stats.todayStats.found ?? 0);
-  const descartadas = hasLocalExecution && progresso.publicacoesDescartadas > 0
-    ? progresso.publicacoesDescartadas 
+  const descartadas = useLocalCounters && progresso.publicacoesDescartadas > 0
+    ? progresso.publicacoesDescartadas
     : (stats.todayStats.descartadas ?? 0);
+
+  // Progresso exibido: se concluído, garantir 100% (evita “Concluído 93%”).
+  const percentDisplay = currentStatus === 'completed' ? 100 : percent;
 
   const tempoLocal = progresso.tempoDecorrido ?? 0;
   const metadataDuracao = md.duracao_s ?? 0;
@@ -612,7 +641,7 @@ export function DjenTermosDashboardCard({
                   {progresso.monitoramentoAtual}/{progresso.totalMonitoramentos}
                 </span>
               </div>
-              <Progress value={percent} className="h-2" />
+              <Progress value={percentDisplay} className="h-2" />
               {progresso.termoAtual && (
                 <div className="text-xs text-muted-foreground truncate">
                   Buscando: {progresso.termoAtual}
@@ -639,11 +668,11 @@ export function DjenTermosDashboardCard({
                   ) : 'Progresso'}
                 </span>
                 <span className={cn("font-bold", statusConfig.color)}>
-                  {`${percent}%`}
+                  {`${percentDisplay}%`}
                 </span>
               </div>
               <Progress 
-                value={percent} 
+                value={percentDisplay} 
                 className={cn("h-2.5", isRunning && "animate-pulse")}
               />
               {isRunning && localRunActive && progresso.mensagem && (

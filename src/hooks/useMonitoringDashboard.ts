@@ -147,10 +147,20 @@ export function useMonitoringDashboard() {
       const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59).toISOString();
 
       // DJEN Termos - publicações novas hoje (DEDUPLICADAS para consistência com tela de Análise)
-      const { data: djenStats } = await supabase
+      // OBS: não podemos depender de tipos gerados para RPCs; usar cast para evitar bloqueio de build.
+      const { data: djenStats, error: djenRpcError } = await (supabase as any)
         .rpc('count_djen_publicacoes_deduplicadas_hoje');
-      
-      const djenNovas = djenStats?.[0]?.total_unicas ?? 0;
+
+      // Fallback: se RPC falhar, manter o app funcional (mas pode voltar a contar bruto).
+      let djenNovas = djenStats?.[0]?.total_unicas ?? 0;
+      if (djenRpcError) {
+        const { count } = await supabase
+          .from('publicacoes_djen')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', inicioDia)
+          .lte('created_at', fimDia);
+        djenNovas = count ?? 0;
+      }
 
       // DJEN Termos - descartadas hoje
       const { count: djenDescartadas } = await supabase
@@ -367,6 +377,11 @@ export function useMonitoringDashboard() {
         const started = new Date(config.ultima_execucao);
         const now = new Date();
         elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
+
+        // Se o metadata ficou travado em em_andamento por muito tempo, tratar como timeout
+        if (elapsedSeconds > 3600) {
+          status = 'timeout';
+        }
       }
     } else if (metaIsStale) {
       // Backend sinalizou que a execução parou por staleness (sem heartbeat/progresso)
@@ -594,13 +609,30 @@ export function useMonitoringDashboard() {
     refetchExecutions();
   }, [configs, queryClient, refetchExecutions]);
 
+  // Refetch "global" usado pelo dashboard (inclui contadores deduplicados)
+  const refetchAll = useCallback(async () => {
+    // Invalidate
+    queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
+    queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
+    queryClient.invalidateQueries({ queryKey: ['monitoring-today-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['monitoring-real-db-stats'] });
+
+    // Refetch ativo (força atualização imediata do que está montado)
+    await Promise.all([
+      refetchConfigs(),
+      refetchExecutions(),
+      queryClient.refetchQueries({ queryKey: ['monitoring-today-stats'], type: 'active' }),
+      queryClient.refetchQueries({ queryKey: ['monitoring-real-db-stats'], type: 'active' }),
+    ]);
+  }, [queryClient, refetchConfigs, refetchExecutions]);
+
   return {
     monitoringStats,
     monitoringTypes: MONITORING_TYPES,
     hasRunningJobs,
     executeMonitoring,
     cancelMonitoring,
-    refetch: refetchExecutions,
+    refetch: refetchAll,
   };
 }
 
