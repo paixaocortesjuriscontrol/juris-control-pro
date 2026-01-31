@@ -616,8 +616,8 @@ export function DjenTermosDashboardCard({
   const encontrados = hasLocalExecution && progresso.publicacoesNovas > 0
     ? progresso.publicacoesNovas 
     : (stats.todayStats.found ?? 0);
-  const descartadas = hasLocalExecution && progresso.publicacoesDuplicadas > 0
-    ? progresso.publicacoesDuplicadas 
+  const descartadas = hasLocalExecution && progresso.publicacoesDescartadas > 0
+    ? progresso.publicacoesDescartadas 
     : (stats.todayStats.descartadas ?? 0);
 
   const tempoLocal = progresso.tempoDecorrido ?? 0;
@@ -706,6 +706,7 @@ export function DjenTermosDashboardCard({
               termoAtual={progresso.termoAtual}
               totalNovas={progresso.publicacoesNovas}
               totalDuplicadas={progresso.publicacoesDuplicadas}
+              totalDescartadas={progresso.publicacoesDescartadas}
               tempoDecorrido={progresso.tempoDecorrido}
               percentualGeral={percent}
               executando={isRunning}
