@@ -45,6 +45,31 @@ export interface MonitoramentoDjenBasico {
   tribunais?: string[];
 }
 
+// ============================================================================
+// INTERFACE: Grupo de Advogados por OAB (Busca Otimizada)
+// ============================================================================
+// Agrupa múltiplos monitoramentos de advogado que compartilham a mesma OAB.
+// Permite UMA busca na API por OAB, com distribuição inteligente dos resultados
+// para cada coordenação/monitoramento, aplicando exclusões específicas.
+// ============================================================================
+export interface GrupoAdvogado {
+  oab: string;                    // Número OAB (apenas dígitos)
+  ufsUnificadas: string[];        // Todas UFs de todos os monitoramentos (sem duplicatas)
+  nomeParaValidacao: string;      // Nome mais completo para validar conteúdo
+  tribunaisUnificados: string[];  // Todos tribunais de todos os monitoramentos
+  monitoramentos: GrupoAdvogadoMonitoramento[];
+}
+
+export interface GrupoAdvogadoMonitoramento {
+  id: string;                     // ID do monitoramento
+  coordenacaoId: string;          // ID da coordenação
+  coordenacaoNome: string;        // Nome da coordenação (para logs/UI)
+  exclusoes: string[];            // Exclusões específicas desta coordenação
+  termoOriginal: string;          // Nome do advogado original
+  tribunais: string[];            // Tribunais específicos deste monitoramento
+  ufs: string[];                  // UFs específicas deste monitoramento
+}
+
 // Helper para criar fase padrão
 export const criarFasePadrao = (): FaseTermo => ({
   total: 0,

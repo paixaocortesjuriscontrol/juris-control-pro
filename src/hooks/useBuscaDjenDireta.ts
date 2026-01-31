@@ -8,10 +8,12 @@ import type {
   ProgressoCoordenacao, 
   TipoTermo, 
   StatusFase,
+  GrupoAdvogado,
+  GrupoAdvogadoMonitoramento,
 } from "@/types/djenProgress";
 
 // Re-exportar tipos para consumidores do hook
-export type { ProgressoCoordenacao, TipoTermo, StatusFase } from "@/types/djenProgress";
+export type { ProgressoCoordenacao, TipoTermo, StatusFase, GrupoAdvogado } from "@/types/djenProgress";
 
 interface MonitoramentoDjen {
   id: string;
@@ -209,6 +211,75 @@ function expandirTribunais(tribunais: string[] | undefined): string[] | undefine
   }
   
   return undefined;
+}
+
+// ============================================================================
+// FUNÇÃO: Agrupar Advogados por OAB (Otimização de Busca)
+// ============================================================================
+// Agrupa múltiplos monitoramentos de advogado pela OAB para executar UMA busca
+// por OAB em vez de uma busca por monitoramento. Reduz chamadas à API em ~75%.
+// ============================================================================
+function agruparAdvogadosPorOab(
+  advogados: MonitoramentoDjen[],
+  nomesCoordenacoes: Map<string, string>
+): Map<string, GrupoAdvogado> {
+  const grupos = new Map<string, GrupoAdvogado>();
+  
+  for (const mon of advogados) {
+    const oab = (mon.oab || '').replace(/\D/g, '');
+    if (!oab) continue;
+    
+    if (!grupos.has(oab)) {
+      grupos.set(oab, {
+        oab,
+        ufsUnificadas: [],
+        nomeParaValidacao: mon.termo_busca,
+        tribunaisUnificados: [],
+        monitoramentos: [],
+      });
+    }
+    
+    const grupo = grupos.get(oab)!;
+    
+    // Adicionar UFs (sem duplicatas)
+    const ufs = (mon.uf || '').split(',')
+      .map(u => u.trim().toUpperCase())
+      .filter(u => u.length === 2);
+    
+    ufs.forEach(uf => {
+      if (!grupo.ufsUnificadas.includes(uf)) {
+        grupo.ufsUnificadas.push(uf);
+      }
+    });
+    
+    // Adicionar tribunais (sem duplicatas)
+    const tribunais = mon.tribunais || [];
+    tribunais.forEach(t => {
+      const tribunalNorm = t.toUpperCase();
+      if (!grupo.tribunaisUnificados.includes(tribunalNorm)) {
+        grupo.tribunaisUnificados.push(tribunalNorm);
+      }
+    });
+    
+    // Escolher o nome mais completo para validação
+    if (mon.termo_busca.length > grupo.nomeParaValidacao.length) {
+      grupo.nomeParaValidacao = mon.termo_busca;
+    }
+    
+    // Adicionar monitoramento ao grupo
+    grupo.monitoramentos.push({
+      id: mon.id,
+      coordenacaoId: mon.coordenacao_id || '',
+      coordenacaoNome: nomesCoordenacoes.get(mon.coordenacao_id || '') || 'Sem Coordenação',
+      exclusoes: mon.exclusoes || [],
+      termoOriginal: mon.termo_busca,
+      tribunais: mon.tribunais || [],
+      ufs: ufs,
+    });
+  }
+  
+  console.log(`[DJEN] Agrupados ${advogados.length} monitoramentos de advogado em ${grupos.size} OABs únicas`);
+  return grupos;
 }
 
 // ============ BROWSER-ONLY STRATEGY ============
@@ -1315,7 +1386,373 @@ export function useBuscaDjenDireta() {
     return { novas: novas.length, duplicadas, descartadas: descartadasParaPersistir.length, coordenacaoStats };
   };
 
-  // Executar monitoramento com suporte a retomada
+  // ============================================================================
+  // BUSCA AGRUPADA POR OAB: Executa UMA busca por OAB unificando todas as UFs
+  // ============================================================================
+  const buscarAdvogadoAgrupado = async (
+    grupo: GrupoAdvogado
+  ): Promise<PublicacaoResultado[]> => {
+    if (cancelarRef.current) return [];
+
+    // Definir período de busca
+    let dataFimYmd: string;
+    let dataInicioYmd: string;
+    
+    if (dataOverrideRef.current) {
+      dataFimYmd = dataOverrideRef.current;
+      dataInicioYmd = dataOverrideRef.current;
+    } else {
+      const now = new Date();
+      const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      const startBrasilia = new Date(todayBrasilia);
+      startBrasilia.setDate(startBrasilia.getDate() - 2);
+      dataFimYmd = todayBrasilia.toISOString().split('T')[0];
+      dataInicioYmd = startBrasilia.toISOString().split('T')[0];
+    }
+
+    const oabDigits = grupo.oab.replace(/\D/g, '');
+    const seen = new Set<string>();
+    const acumulado: any[] = [];
+
+    const createLinkedController = () => {
+      const controller = new AbortController();
+      const globalSignal = abortControllerRef.current?.signal;
+      if (globalSignal) {
+        if (globalSignal.aborted) controller.abort();
+        else globalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+      }
+      return controller;
+    };
+
+    // Expandir tribunais unificados
+    const tribunaisExpandidos = expandirTribunais(
+      grupo.tribunaisUnificados.length > 0 ? grupo.tribunaisUnificados : undefined
+    );
+    const tribunais = tribunaisExpandidos && tribunaisExpandidos.length > 0
+      ? tribunaisExpandidos
+      : [undefined];
+
+    // Iterar pelas UFs unificadas (ou buscar sem UF se nenhuma configurada)
+    const ufsLoop = grupo.ufsUnificadas.length > 0 ? grupo.ufsUnificadas : [undefined];
+
+    console.log(`[DJEN Agrupado] OAB ${oabDigits}: ${ufsLoop.length} UFs, ${tribunais.length} tribunais`);
+
+    for (const ufAtual of ufsLoop) {
+      if (cancelarRef.current) break;
+
+      for (const trib of tribunais) {
+        if (cancelarRef.current) break;
+
+        const reqController = createLinkedController();
+        const timeoutId = setTimeout(() => reqController.abort(), 60_000);
+
+        try {
+          const resp = await buscarPjeComunicaPaginado(
+            {
+              tipo: 'advogado',
+              oab: oabDigits,
+              uf: ufAtual,
+              siglaTribunal: trib,
+              dataInicio: dataInicioYmd,
+              dataFim: dataFimYmd,
+              page: 0,
+              pageSize: 10,
+            },
+            {
+              signal: reqController.signal,
+              maxPages: 10,
+              delayMs: 500,
+            }
+          );
+
+          for (const item of resp.items) {
+            const id = String(item?.id ?? "");
+            const key = id || JSON.stringify(item).slice(0, 400);
+            if (!seen.has(key)) {
+              seen.add(key);
+              acumulado.push(item);
+            }
+          }
+        } catch (browserErr: any) {
+          if (browserErr?.name === 'AbortError') {
+            if (cancelarRef.current) break;
+          }
+          console.warn(`[DJEN Agrupado] Erro OAB ${oabDigits} UF ${ufAtual ?? 'TODAS'} trib ${trib ?? 'TODOS'}:`, browserErr?.message);
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        await delay(DELAY_BETWEEN_TRIBUNALS);
+      }
+      await delay(DELAY_BETWEEN_VARIANTS);
+    }
+
+    // Transformar resultados em PublicacaoResultado
+    return acumulado.map((pub: any) => {
+      const rawDataDisp = pub.dataDisponibilizacao || pub.dataDJe || pub.dtDisponibilizacao || null;
+      const rawDataPub = pub.dataPublicacao || pub.dataJornal || pub.dtPublicacao || null;
+      
+      let dataDisponibilizacao = extrairDataYMD(rawDataDisp);
+      let dataPublicacao: string | null = null;
+      
+      if (dataDisponibilizacao) {
+        const dispDate = new Date(dataDisponibilizacao + 'T12:00:00');
+        dispDate.setDate(dispDate.getDate() + 1);
+        const proximoDiaUtil = calcularProximoDiaUtil(dispDate);
+        dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+      } else if (rawDataPub) {
+        dataPublicacao = extrairDataYMD(rawDataPub);
+        if (dataPublicacao) {
+          const pubDate = new Date(dataPublicacao + 'T12:00:00');
+          pubDate.setDate(pubDate.getDate() - 1);
+          dataDisponibilizacao = pubDate.toISOString().split('T')[0];
+        }
+      }
+      
+      if (!dataDisponibilizacao && !dataPublicacao) {
+        const hoje = new Date();
+        dataDisponibilizacao = hoje.toISOString().split('T')[0];
+        hoje.setDate(hoje.getDate() + 1);
+        const proximoDiaUtil = calcularProximoDiaUtil(hoje);
+        dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+      }
+      
+      return {
+        id: pub.id || crypto.randomUUID(),
+        processo_numero: pub.numeroProcesso || pub.processo || null,
+        conteudo: pub.conteudo || pub.teor || pub.texto || null,
+        data_disponibilizacao: dataDisponibilizacao,
+        data_publicacao: dataPublicacao,
+        fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
+        hash_conteudo: '',
+      };
+    });
+  };
+
+  // ============================================================================
+  // DISTRIBUIÇÃO INTELIGENTE: Distribui publicações para coordenações aplicando
+  // exclusões específicas de cada uma. Uma publicação pode ir para 0, 1 ou N coordenações.
+  // ============================================================================
+  const distribuirParaCoordenacoes = async (
+    publicacoes: PublicacaoResultado[],
+    grupo: GrupoAdvogado
+  ): Promise<{
+    novasPorMonitoramento: Map<string, number>;
+    duplicadasPorMonitoramento: Map<string, number>;
+    descartadasPorMonitoramento: Map<string, number>;
+    totalNovas: number;
+    totalDuplicadas: number;
+    totalDescartadas: number;
+  }> => {
+    const ymdToIso = (ymd?: string | null) => (ymd ? `${ymd}T12:00:00.000Z` : null);
+    
+    const novasPorMonitoramento = new Map<string, number>();
+    const duplicadasPorMonitoramento = new Map<string, number>();
+    const descartadasPorMonitoramento = new Map<string, number>();
+    
+    // Inicializar contadores
+    for (const mon of grupo.monitoramentos) {
+      novasPorMonitoramento.set(mon.id, 0);
+      duplicadasPorMonitoramento.set(mon.id, 0);
+      descartadasPorMonitoramento.set(mon.id, 0);
+    }
+
+    let totalNovas = 0;
+    let totalDuplicadas = 0;
+    let totalDescartadas = 0;
+
+    // Preparar publicações com hash
+    const pubsComHash = publicacoes.map(pub => ({
+      ...pub,
+      hash_conteudo: gerarHash(
+        pub.conteudo || '',
+        pub.data_disponibilizacao || pub.data_publicacao || new Date().toISOString().split('T')[0]
+      ),
+    }));
+
+    // Deduplicar dentro do lote
+    const uniqueMap = new Map<string, typeof pubsComHash[number]>();
+    for (const p of pubsComHash) {
+      if (!uniqueMap.has(p.hash_conteudo)) {
+        uniqueMap.set(p.hash_conteudo, p);
+      }
+    }
+    const pubsUnicas = Array.from(uniqueMap.values());
+
+    console.log(`[DJEN Distribuir] OAB ${grupo.oab}: ${publicacoes.length} brutas → ${pubsUnicas.length} únicas`);
+
+    // Para cada monitoramento do grupo
+    for (const mon of grupo.monitoramentos) {
+      if (cancelarRef.current) break;
+
+      const novasParaInserir: typeof pubsUnicas = [];
+      const descartadasParaPersistir: Array<{ pub: PublicacaoResultado; motivo: string }> = [];
+      
+      for (const pub of pubsUnicas) {
+        if (!pub.conteudo) {
+          novasParaInserir.push(pub);
+          continue;
+        }
+
+        // Validar OAB + nome no conteúdo
+        if (!conteudoContemTermo(pub.conteudo, grupo.nomeParaValidacao, 'advogado', grupo.oab)) {
+          descartadasParaPersistir.push({ pub, motivo: 'OAB/Nome não encontrado' });
+          continue;
+        }
+
+        // Verificar exclusões DESTA coordenação específica
+        const conteudoUpper = pub.conteudo.toUpperCase();
+        const termoExclusao = mon.exclusoes.find((t) => conteudoUpper.includes(String(t).toUpperCase()));
+        if (termoExclusao) {
+          descartadasParaPersistir.push({ pub, motivo: `Exclusão: ${termoExclusao}` });
+          continue;
+        }
+
+        novasParaInserir.push(pub);
+      }
+
+      // Verificar duplicatas no banco para ESTE monitoramento
+      const hashes = novasParaInserir.map(p => p.hash_conteudo);
+      const existentes = await verificarDuplicatasBatch(hashes, mon.id);
+      
+      const novasReais = novasParaInserir.filter(p => !existentes.has(p.hash_conteudo));
+      const duplicadasBanco = novasParaInserir.length - novasReais.length;
+
+      // Inserir novas publicações
+      if (novasReais.length > 0) {
+        const payload = novasReais.map(pub => ({
+          monitoramento_id: mon.id,
+          hash_conteudo: pub.hash_conteudo,
+          processo_numero: pub.processo_numero,
+          conteudo: pub.conteudo,
+          data_disponibilizacao: pub.data_disponibilizacao,
+          data_publicacao: pub.data_publicacao,
+          fonte: pub.fonte,
+          lida: false,
+        }));
+
+        const { error: upsertError } = await supabase
+          .from('publicacoes_djen')
+          .upsert(payload, {
+            onConflict: 'monitoramento_id,hash_conteudo',
+            ignoreDuplicates: true,
+          });
+
+        if (upsertError) {
+          console.error(`[DJEN Distribuir] Erro ao inserir para ${mon.coordenacaoNome}:`, upsertError);
+        }
+      }
+
+      // Persistir descartadas
+      if (descartadasParaPersistir.length > 0) {
+        const payloadDescartadas = descartadasParaPersistir
+          .filter((d) => !!d.pub.conteudo)
+          .map((d) => {
+            const dataRef = d.pub.data_disponibilizacao || d.pub.data_publicacao || new Date().toISOString().slice(0, 10);
+            const hash = gerarHash(d.pub.conteudo || '', dataRef);
+            return {
+              monitoramento_id: mon.id,
+              hash_conteudo: hash,
+              processo_numero: d.pub.processo_numero,
+              conteudo: d.pub.conteudo,
+              fonte: d.pub.fonte,
+              tribunal: d.pub.fonte,
+              data_disponibilizacao: ymdToIso(d.pub.data_disponibilizacao),
+              data_publicacao: ymdToIso(d.pub.data_publicacao),
+              motivo_descarte: d.motivo,
+              lida: false,
+            };
+          });
+
+        if (payloadDescartadas.length > 0) {
+          await supabase
+            .from('publicacoes_djen_descartadas')
+            .upsert(payloadDescartadas, {
+              onConflict: 'monitoramento_id,hash_conteudo',
+              ignoreDuplicates: true,
+            });
+        }
+      }
+
+      // Atualizar contadores
+      novasPorMonitoramento.set(mon.id, novasReais.length);
+      duplicadasPorMonitoramento.set(mon.id, duplicadasBanco);
+      descartadasPorMonitoramento.set(mon.id, descartadasParaPersistir.length);
+
+      totalNovas += novasReais.length;
+      totalDuplicadas += duplicadasBanco;
+      totalDescartadas += descartadasParaPersistir.length;
+
+      console.log(`[DJEN Distribuir] ${mon.coordenacaoNome}: ${novasReais.length} novas, ${duplicadasBanco} dup, ${descartadasParaPersistir.length} desc`);
+    }
+
+    return {
+      novasPorMonitoramento,
+      duplicadasPorMonitoramento,
+      descartadasPorMonitoramento,
+      totalNovas,
+      totalDuplicadas,
+      totalDescartadas,
+    };
+  };
+
+  // ============================================================================
+  // PROCESSAR ADVOGADOS AGRUPADOS: Agrupa por OAB, busca uma vez, distribui
+  // ============================================================================
+  const processarAdvogadosAgrupados = async (
+    advogados: MonitoramentoDjen[],
+    nomesCoordenacoes: Map<string, string>,
+    onProgress: (oabIdx: number, totalOabs: number, oab: string, novas: number, dup: number, desc: number) => void
+  ): Promise<{ novas: number; duplicadas: number; descartadas: number; monitoramentosProcessados: string[] }> => {
+    if (advogados.length === 0) {
+      return { novas: 0, duplicadas: 0, descartadas: 0, monitoramentosProcessados: [] };
+    }
+
+    // Agrupar por OAB
+    const grupos = agruparAdvogadosPorOab(advogados, nomesCoordenacoes);
+    const oabsArray = Array.from(grupos.values());
+    
+    let totalNovas = 0;
+    let totalDuplicadas = 0;
+    let totalDescartadas = 0;
+    const monitoramentosProcessados: string[] = [];
+
+    console.log(`[DJEN Otimizado] Processando ${oabsArray.length} OABs únicas (de ${advogados.length} monitoramentos)`);
+
+    for (let oabIdx = 0; oabIdx < oabsArray.length; oabIdx++) {
+      if (cancelarRef.current) break;
+
+      const grupo = oabsArray[oabIdx];
+      
+      // Buscar uma vez por OAB
+      const publicacoes = await buscarAdvogadoAgrupado(grupo);
+      
+      if (publicacoes.length > 0) {
+        // Distribuir para todas as coordenações do grupo
+        const resultado = await distribuirParaCoordenacoes(publicacoes, grupo);
+        
+        totalNovas += resultado.totalNovas;
+        totalDuplicadas += resultado.totalDuplicadas;
+        totalDescartadas += resultado.totalDescartadas;
+      }
+
+      // Marcar todos monitoramentos do grupo como processados
+      for (const mon of grupo.monitoramentos) {
+        monitoramentosProcessados.push(mon.id);
+      }
+
+      // Callback de progresso
+      onProgress(oabIdx + 1, oabsArray.length, grupo.oab, totalNovas, totalDuplicadas, totalDescartadas);
+
+      // Delay entre OABs
+      if (oabIdx < oabsArray.length - 1) {
+        await delay(DELAY_BETWEEN_BATCHES);
+      }
+    }
+
+    return { novas: totalNovas, duplicadas: totalDuplicadas, descartadas: totalDescartadas, monitoramentosProcessados };
+  };
+
   // dataOverride: permite forçar a data de busca (YYYY-MM-DD), útil para buscar dias anteriores
   const executarMonitoramento = useCallback(async (
     monitoramentosIds?: string[], 
@@ -1753,13 +2190,119 @@ export function useBuscaDjenDireta() {
         }
       };
 
-      // FASE 1: Buscar Publicações por Coordenação e Tipo
+      // ================================================================
+      // FASE 1A: PROCESSAR ADVOGADOS COM AGRUPAMENTO POR OAB
+      // ================================================================
+      // Coleta TODOS advogados de todas as coordenações e processa com agrupamento
+      // Uma busca por OAB → distribui para múltiplas coordenações
+      // ================================================================
+      const todosAdvogados = coordenacoesOrdenadas.flatMap(g => g.advogados);
+      
+      if (todosAdvogados.length > 0 && !cancelarRef.current) {
+        // Calcular OABs únicas para exibição
+        const oabsUnicas = new Set(todosAdvogados.map(a => (a.oab || '').replace(/\D/g, '')).filter(o => o));
+        
+        setProgresso(prev => ({
+          ...prev,
+          tipoAtual: 'advogado',
+          mensagem: `Advogados: ${oabsUnicas.size} OABs únicas (${todosAdvogados.length} monitoramentos)`,
+          // Marcar todos advogados como "executando" em todas coordenações
+          coordenacoes: prev.coordenacoes.map(c => ({
+            ...c,
+            advogados: { ...c.advogados, status: 'executando' as StatusFase },
+          })),
+        }));
+
+        const resultadoAdvogados = await processarAdvogadosAgrupados(
+          todosAdvogados,
+          nomesCoordenacoes,
+          (oabIdx, totalOabs, oab, novasAcum, dupAcum, descAcum) => {
+            // Callback de progresso para cada OAB processada
+            setProgresso(prev => ({
+              ...prev,
+              termoAtual: `OAB ${oab} (${oabIdx}/${totalOabs})`,
+              mensagem: `Advogados: OAB ${oab} (${oabIdx}/${totalOabs})`,
+              publicacoesNovas: prev.publicacoesNovas + novasAcum - novasPorTipo['advogado'],
+              publicacoesDuplicadas: prev.publicacoesDuplicadas + dupAcum - duplicadasPorTipo['advogado'],
+              publicacoesDescartadas: prev.publicacoesDescartadas + descAcum - descartadasPorTipo['advogado'],
+            }));
+          }
+        );
+
+        // Atualizar totais
+        totalNovas += resultadoAdvogados.novas;
+        totalDuplicadas += resultadoAdvogados.duplicadas;
+        totalDescartadas += resultadoAdvogados.descartadas;
+        novasPorTipo['advogado'] = resultadoAdvogados.novas;
+        duplicadasPorTipo['advogado'] = resultadoAdvogados.duplicadas;
+        descartadasPorTipo['advogado'] = resultadoAdvogados.descartadas;
+        
+        // Marcar monitoramentos como processados
+        for (const id of resultadoAdvogados.monitoramentosProcessados) {
+          monitoramentosProcessadosIds.add(id);
+        }
+        processados += resultadoAdvogados.monitoramentosProcessados.length;
+
+        // Marcar advogados como concluídos em todas as coordenações
+        setProgresso(prev => ({
+          ...prev,
+          monitoramentoAtual: processados,
+          publicacoesNovas: totalNovas,
+          publicacoesDuplicadas: totalDuplicadas,
+          publicacoesDescartadas: totalDescartadas,
+          novasPorTipo: { ...novasPorTipo },
+          duplicadasPorTipo: { ...duplicadasPorTipo },
+          descartadasPorTipo: { ...descartadasPorTipo },
+          coordenacoes: prev.coordenacoes.map(c => ({
+            ...c,
+            advogados: { 
+              ...c.advogados, 
+              status: 'concluido' as StatusFase,
+              processados: c.advogados.total,
+              termoAtual: undefined,
+            },
+          })),
+          fases: {
+            ...prev.fases,
+            fase1: { ...prev.fases.fase1, processados },
+          },
+        }));
+
+        // Atualizar metadata
+        const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
+        configMd = {
+          ...configMd,
+          status: 'executando',
+          current: processados,
+          percentage: total > 0 ? Math.round((processados / total) * 100) : 0,
+          next_offset: processados,
+          processed_ids: Array.from(monitoramentosProcessadosIds),
+          duracao_s,
+        };
+        await saveConfigMetadata(configMd);
+      }
+
+      // ================================================================
+      // FASE 1B: PROCESSAR PALAVRAS-CHAVE E PROCESSOS (POR COORDENAÇÃO)
+      // ================================================================
       for (let coordIdx = 0; coordIdx < coordenacoesOrdenadas.length; coordIdx++) {
         if (cancelarRef.current) break;
 
         const grupo = coordenacoesOrdenadas[coordIdx];
         const coordId = grupo.coordenacao.id;
         const coordNome = grupo.coordenacao.nome;
+
+        // Pular se não tem palavras-chave nem processos
+        if (grupo.palavrasChave.length === 0 && grupo.processos.length === 0) {
+          // Marcar coordenação como concluída (advogados já foram processados)
+          setProgresso(prev => ({
+            ...prev,
+            coordenacoes: prev.coordenacoes.map((c, i) => 
+              i === coordIdx ? { ...c, status: 'concluido' as StatusFase } : c
+            ),
+          }));
+          continue;
+        }
 
         // Atualizar estado: coordenação atual executando
         setProgresso(prev => ({
@@ -1773,15 +2316,11 @@ export function useBuscaDjenDireta() {
           ),
         }));
 
-        // 1. Processar Advogados
-        await processarTipo(coordIdx, 'advogados', 'advogado', grupo.advogados);
-        if (cancelarRef.current) break;
-
-        // 2. Processar Palavras-chave
+        // 1. Processar Palavras-chave
         await processarTipo(coordIdx, 'palavrasChave', 'palavra-chave', grupo.palavrasChave);
         if (cancelarRef.current) break;
 
-        // 3. Processar Processos
+        // 2. Processar Processos
         await processarTipo(coordIdx, 'processos', 'processo', grupo.processos);
         if (cancelarRef.current) break;
 
