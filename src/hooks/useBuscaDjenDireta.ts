@@ -65,6 +65,7 @@ export interface ProgressoExecucao {
   totalMonitoramentos: number;
   publicacoesNovas: number;
   publicacoesDuplicadas: number;
+  publicacoesDescartadas: number; // NEW: Descartadas por exclusão/termo parcial
   status: 'idle' | 'executando' | 'concluido' | 'erro' | 'cancelado';
   mensagem: string;
   tempoInicio?: number;
@@ -94,6 +95,11 @@ export interface ProgressoExecucao {
     processo: number;
   };
   duplicadasPorTipo: {
+    advogado: number;
+    'palavra-chave': number;
+    processo: number;
+  };
+  descartadasPorTipo: {
     advogado: number;
     'palavra-chave': number;
     processo: number;
@@ -300,6 +306,7 @@ const defaultProgresso = (): ProgressoExecucao => ({
   totalMonitoramentos: 0,
   publicacoesNovas: 0,
   publicacoesDuplicadas: 0,
+  publicacoesDescartadas: 0,
   status: 'idle',
   mensagem: '',
   tempoDecorrido: 0,
@@ -311,6 +318,7 @@ const defaultProgresso = (): ProgressoExecucao => ({
   termoAtual: undefined,
   novasPorTipo: defaultNovasPorTipo(),
   duplicadasPorTipo: defaultNovasPorTipo(),
+  descartadasPorTipo: defaultNovasPorTipo(),
 });
 
 /**
@@ -1087,11 +1095,11 @@ export function useBuscaDjenDireta() {
   // Processar um monitoramento
   const processarMonitoramento = async (
     mon: MonitoramentoDjen
-  ): Promise<{ novas: number; duplicadas: number; coordenacaoStats?: any }> => {
+  ): Promise<{ novas: number; duplicadas: number; descartadas: number; coordenacaoStats?: any }> => {
     const publicacoes = await buscarMonitoramento(mon);
     
     if (publicacoes.length === 0) {
-      return { novas: 0, duplicadas: 0 };
+      return { novas: 0, duplicadas: 0, descartadas: 0 };
     }
 
     const ymdToIso = (ymd?: string | null) => (ymd ? `${ymd}T12:00:00.000Z` : null);
@@ -1213,7 +1221,7 @@ export function useBuscaDjenDireta() {
 
       if (upsertError) {
         console.error('Erro ao inserir publicações:', upsertError);
-        return { novas: 0, duplicadas };
+        return { novas: 0, duplicadas, descartadas: descartadasParaPersistir.length };
       }
     }
 
@@ -1237,7 +1245,7 @@ export function useBuscaDjenDireta() {
       };
     }
 
-    return { novas: novas.length, duplicadas, coordenacaoStats };
+    return { novas: novas.length, duplicadas, descartadas: descartadasParaPersistir.length, coordenacaoStats };
   };
 
   // Executar monitoramento com suporte a retomada
@@ -1303,6 +1311,7 @@ export function useBuscaDjenDireta() {
       totalMonitoramentos: 0,
       publicacoesNovas: usarCheckpointLocal ? checkpoint!.totalNovas : 0,
       publicacoesDuplicadas: usarCheckpointLocal ? checkpoint!.totalDuplicadas : 0,
+      publicacoesDescartadas: 0,
       status: 'executando',
       mensagem: usarCheckpoint ? 'Retomando execução...' : 'Carregando monitoramentos...',
       tempoInicio,
@@ -1320,6 +1329,7 @@ export function useBuscaDjenDireta() {
       termoAtual: undefined,
       novasPorTipo: defaultNovasPorTipo(),
       duplicadasPorTipo: defaultNovasPorTipo(),
+      descartadasPorTipo: defaultNovasPorTipo(),
     };
     
     setProgresso(progressoInicial);
@@ -1477,12 +1487,14 @@ export function useBuscaDjenDireta() {
 
       let totalNovas = usarCheckpointLocal ? checkpoint!.totalNovas : 0;
       let totalDuplicadas = usarCheckpointLocal ? checkpoint!.totalDuplicadas : 0;
+      let totalDescartadas = 0;
       let processados = idsProcessados.size;
       const monitoramentosProcessadosIds = new Set(idsProcessados);
       
       // Totais por tipo de monitoramento
       const novasPorTipo = { advogado: 0, 'palavra-chave': 0, processo: 0 };
       const duplicadasPorTipo = { advogado: 0, 'palavra-chave': 0, processo: 0 };
+      const descartadasPorTipo = { advogado: 0, 'palavra-chave': 0, processo: 0 };
       
       const resumosPorCoordenacao: Record<string, {
         total_verificados: number;
@@ -1533,7 +1545,7 @@ export function useBuscaDjenDireta() {
             ),
           }));
 
-          const loteTimeoutPromise = new Promise<PromiseSettledResult<{ novas: number; duplicadas: number; coordenacaoStats?: any }>[]>((resolve) => {
+          const loteTimeoutPromise = new Promise<PromiseSettledResult<{ novas: number; duplicadas: number; descartadas: number; coordenacaoStats?: any }>[]>((resolve) => {
             setTimeout(() => {
               console.warn('[DJEN Direta] Timeout de lote (60s), continuando...');
               resolve(lote.map(() => ({ status: 'rejected' as const, reason: 'Lote timeout' })));
@@ -1547,18 +1559,22 @@ export function useBuscaDjenDireta() {
 
           let novasLote = 0;
           let duplicadasLote = 0;
+          let descartadasLote = 0;
 
           for (let j = 0; j < resultados.length; j++) {
             const resultado = resultados[j];
             if (resultado.status === 'fulfilled') {
               novasLote += resultado.value.novas;
               duplicadasLote += resultado.value.duplicadas;
+              descartadasLote += resultado.value.descartadas;
               totalNovas += resultado.value.novas;
               totalDuplicadas += resultado.value.duplicadas;
+              totalDescartadas += resultado.value.descartadas;
               
               // Acumular totais por tipo
               novasPorTipo[tipoLabel] += resultado.value.novas;
               duplicadasPorTipo[tipoLabel] += resultado.value.duplicadas;
+              descartadasPorTipo[tipoLabel] += resultado.value.descartadas;
               
               if (resultado.value.coordenacaoStats) {
                 const stats = resultado.value.coordenacaoStats;
@@ -1590,8 +1606,10 @@ export function useBuscaDjenDireta() {
             monitoramentoAtual: processados,
             publicacoesNovas: totalNovas,
             publicacoesDuplicadas: totalDuplicadas,
+            publicacoesDescartadas: totalDescartadas,
             novasPorTipo: { ...novasPorTipo },
             duplicadasPorTipo: { ...duplicadasPorTipo },
+            descartadasPorTipo: { ...descartadasPorTipo },
             fases: {
               ...prev.fases,
               fase1: { ...prev.fases.fase1, processados },

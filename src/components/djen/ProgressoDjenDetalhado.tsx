@@ -34,6 +34,7 @@ export interface ProgressoDetalhadoProps {
   termoAtual?: string;
   totalNovas: number;
   totalDuplicadas: number;
+  totalDescartadas?: number;
   tempoDecorrido: number;
   percentualGeral: number;
   executando: boolean;
@@ -196,6 +197,7 @@ export function ProgressoDjenDetalhado({
   termoAtual,
   totalNovas,
   totalDuplicadas,
+  totalDescartadas = 0,
   tempoDecorrido,
   percentualGeral,
   executando,
@@ -268,6 +270,9 @@ export function ProgressoDjenDetalhado({
         <div className="flex items-center gap-4 text-xs">
           <span className="text-emerald-600 font-medium">✓ {totalNovas} novas</span>
           <span className="text-amber-600">↔ {totalDuplicadas} duplicadas</span>
+          {totalDescartadas > 0 && (
+            <span className="text-red-500">✗ {totalDescartadas} descartadas</span>
+          )}
         </div>
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <Clock className="h-3 w-3" />
