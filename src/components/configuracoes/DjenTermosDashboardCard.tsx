@@ -165,9 +165,26 @@ export function DjenTermosDashboardCard({
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
 
-  // Sem checkpoint na versão simplificada
-  const hasCheckpoint = false;
-  const checkpointPercent = 0;
+  // Detectar checkpoint válido do localStorage
+  const savedState = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('djen-direta-progresso');
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      // Expirar após 12 horas
+      if (Date.now() - parsed.savedAt > 12 * 60 * 60 * 1000) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }, [progresso.status]); // Re-avaliar quando status muda
+
+  const checkpoint = savedState?.checkpoint;
+  const hoje = new Date().toISOString().split('T')[0];
+  const hasCheckpoint = !!(checkpoint && checkpoint.data === hoje && checkpoint.indice > 0);
+  const checkpointPercent = hasCheckpoint && checkpoint.indice > 0 && savedState?.totalMonitoramentos > 0
+    ? Math.round((checkpoint.indice / savedState.totalMonitoramentos) * 100)
+    : 0;
 
   // Status baseado no progresso local (fonte de verdade)
   const localRunActive = progresso.status === 'executando';
