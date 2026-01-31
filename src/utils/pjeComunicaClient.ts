@@ -70,8 +70,16 @@ const requestHeaders: HeadersInit = {
 function optimizeItem(item: any) {
   return {
     id: item?.id,
-    dataDisponibilizacao: item?.dataDisponibilizacao,
-    dataPublicacao: item?.dataPublicacao,
+    // A API pode retornar campos em snake_case (ex: data_disponibilizacao)
+    // ou em outras variações; normalizamos aqui para o pipeline do DJEN.
+    dataDisponibilizacao:
+      item?.dataDisponibilizacao ??
+      item?.data_disponibilizacao ??
+      item?.datadisponibilizacao,
+    dataPublicacao:
+      item?.dataPublicacao ??
+      item?.data_publicacao ??
+      item?.datapublicacao,
     tipoComunicacao: item?.tipoComunicacao,
     siglaTribunal: item?.siglaTribunal,
     numeroProcesso: item?.numeroProcesso,

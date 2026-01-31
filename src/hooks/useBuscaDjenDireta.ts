@@ -921,8 +921,10 @@ export function useBuscaDjenDireta() {
         hash_conteudo: pub.hash_conteudo,
         processo_numero: pub.processo_numero,
         conteudo: pub.conteudo,
-        data_disponibilizacao: pub.data_disponibilizacao,
-        data_publicacao: pub.data_publicacao,
+        // IMPORTANTE: persistir em formato ISO ancorado ao meio-dia (UTC)
+        // para evitar "cair" no dia anterior quando visualizado em BRT.
+        data_disponibilizacao: ymdToIso(pub.data_disponibilizacao),
+        data_publicacao: ymdToIso(pub.data_publicacao),
         fonte: pub.fonte,
         lida: false,
       }));
