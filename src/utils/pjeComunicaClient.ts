@@ -1,5 +1,7 @@
-// Busca de comunicações no PJE Comunica direto do navegador.
-// Objetivo: reduzir dependência de Edge Functions (evita 546 WORKER_LIMIT).
+// Busca de comunicações no PJE Comunica.
+// Estratégia: browser-first com fallback para Edge Function (proxy) quando CORS bloquear.
+
+import { supabase } from "@/integrations/supabase/client";
 
 export type PjeSearchType = "advogado" | "palavra-chave" | "processo";
 
@@ -99,6 +101,49 @@ function buildTextoParam(params: PjeComunicaSearchParams): string {
   return uf ? `OAB ${oab} ${uf}` : `OAB ${oab}`;
 }
 
+// Fallback via Edge Function quando browser falhar (CORS blocked)
+async function buscarViaEdgeFunction(
+  params: PjeComunicaSearchParams,
+  options?: { signal?: AbortSignal }
+): Promise<PjeComunicaResponse> {
+  const page = Math.max(params.page ?? 0, 0);
+  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 10);
+
+  const { data, error } = await supabase.functions.invoke('buscar-djen', {
+    body: {
+      tipo: params.tipo,
+      oab: params.oab,
+      uf: params.uf,
+      palavraChave: params.palavraChave,
+      numeroProcesso: params.numeroProcesso,
+      siglaTribunal: params.siglaTribunal,
+      dataInicio: params.dataInicio,
+      dataFim: params.dataFim,
+      page,
+      pageSize,
+    },
+  });
+
+  if (error) {
+    throw new Error(`Edge Function error: ${error.message}`);
+  }
+
+  const items = data?.items ?? [];
+  const totalElements = data?.totalElements ?? data?.count ?? items.length;
+  const hasMore = data?.hasMore ?? false;
+
+  return {
+    success: true,
+    items,
+    comunicacoes: items,
+    count: totalElements,
+    totalElements,
+    page,
+    pageSize,
+    hasMore,
+  };
+}
+
 export async function buscarPjeComunicaNoBrowser(
   params: PjeComunicaSearchParams,
   options?: { signal?: AbortSignal }
@@ -142,6 +187,7 @@ export async function buscarPjeComunicaNoBrowser(
   qp.set("itensPorPagina", String(pageSize));
 
   let lastErr: any = null;
+  let corsBlocked = false;
 
   for (const endpoint of ENDPOINTS) {
     try {
@@ -194,8 +240,23 @@ export async function buscarPjeComunicaNoBrowser(
         pageSize,
         hasMore,
       };
-    } catch (e) {
+    } catch (e: any) {
       lastErr = e;
+      // Detectar erro de CORS/bloqueio de rede
+      if (e?.message?.includes('Failed to fetch') || e?.name === 'TypeError') {
+        corsBlocked = true;
+      }
+    }
+  }
+
+  // FALLBACK: Se CORS bloqueou, usar Edge Function como proxy
+  if (corsBlocked) {
+    console.log('[PJE Comunica] CORS blocked, falling back to Edge Function proxy...');
+    try {
+      return await buscarViaEdgeFunction(params, options);
+    } catch (proxyErr: any) {
+      console.warn('[PJE Comunica] Edge Function fallback failed:', proxyErr?.message);
+      throw proxyErr;
     }
   }
 
