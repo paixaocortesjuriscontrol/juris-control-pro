@@ -269,16 +269,23 @@ export async function buscarPjeComunicaNoBrowser(
 }
 
 // Versão paginada (essencial para o monitoramento), com limite de páginas por segurança.
+// PARÂMETROS CONSERVADORES: alinhados com DJEN Processos para evitar 429
 export async function buscarPjeComunicaPaginado(
   params: PjeComunicaSearchParams,
   options?: {
     signal?: AbortSignal;
     maxPages?: number;
     delayMs?: number;
+    maxRetries?: number;
+    retryBaseDelay?: number;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = Math.max(options?.maxPages ?? 10, 1);
-  const delayMs = Math.max(options?.delayMs ?? 150, 0);
+  // Delay conservador entre páginas: 500ms (era 150ms)
+  const delayMs = Math.max(options?.delayMs ?? 500, 0);
+  // Retry com backoff exponencial
+  const maxRetries = options?.maxRetries ?? 3;
+  const retryBaseDelay = options?.retryBaseDelay ?? 5000;
 
   const startPage = Math.max(params.page ?? 0, 0);
   // Keep payload small (consistent with buscar-djen hard cap)
@@ -291,27 +298,61 @@ export async function buscarPjeComunicaPaginado(
   let pagesFetched = 0;
   let truncated = false;
 
-  for (let p = startPage; p < startPage + maxPages; p++) {
-    const resp = await buscarPjeComunicaNoBrowser(
-      { ...params, page: p, pageSize },
-      { signal: options?.signal }
-    );
-    last = resp;
-    pagesFetched += 1;
-
-    for (const item of resp.items) {
-      const id = String(item?.id ?? "");
-      const key = id || JSON.stringify(item).slice(0, 400);
-      if (!seen.has(key)) {
-        seen.add(key);
-        all.push(item);
+  // Helper para fetch com retry e backoff exponencial
+  const fetchWithRetry = async (page: number): Promise<PjeComunicaResponse> => {
+    let lastErr: any = null;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const resp = await buscarPjeComunicaNoBrowser(
+          { ...params, page, pageSize },
+          { signal: options?.signal }
+        );
+        return resp;
+      } catch (e: any) {
+        lastErr = e;
+        
+        // Se foi cancelado, não tentar novamente
+        if (e?.name === 'AbortError') throw e;
+        
+        // Rate limited ou erro de rede - aguardar com backoff exponencial
+        if (attempt < maxRetries - 1) {
+          const waitTime = retryBaseDelay * Math.pow(2, attempt); // 5s, 10s, 20s
+          console.log(`[PJE Comunica] Erro na página ${page}. Aguardando ${waitTime}ms antes de retry ${attempt + 1}/${maxRetries}`);
+          await new Promise(r => setTimeout(r, waitTime));
+        }
       }
     }
+    
+    throw lastErr || new Error(`Falha após ${maxRetries} tentativas`);
+  };
 
-    if (!resp.hasMore || resp.items.length === 0) break;
+  for (let p = startPage; p < startPage + maxPages; p++) {
+    try {
+      const resp = await fetchWithRetry(p);
+      last = resp;
+      pagesFetched += 1;
 
-    if (delayMs > 0) {
-      await new Promise((r) => setTimeout(r, delayMs));
+      for (const item of resp.items) {
+        const id = String(item?.id ?? "");
+        const key = id || JSON.stringify(item).slice(0, 400);
+        if (!seen.has(key)) {
+          seen.add(key);
+          all.push(item);
+        }
+      }
+
+      if (!resp.hasMore || resp.items.length === 0) break;
+
+      if (delayMs > 0) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    } catch (e: any) {
+      // Se foi cancelado, parar imediatamente
+      if (e?.name === 'AbortError') throw e;
+      // Para outros erros, logar e continuar para próxima página
+      console.warn(`[PJE Comunica] Falha na página ${p} após retries:`, e?.message);
+      break;
     }
   }
 
