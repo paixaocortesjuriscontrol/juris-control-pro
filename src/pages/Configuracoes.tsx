@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
 import { MonitoramentoDjenCard } from "@/components/configuracoes/MonitoramentoDjenCard";
 import { BotaoSincronizarDjen } from "@/components/djen/BotaoSincronizarDjen";
+import { DjenAdvogadoDiagnosticoDialog } from "@/components/djen/DjenAdvogadoDiagnosticoDialog";
 import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/MonitoramentoDjenProcessosCard";
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
@@ -19,6 +22,8 @@ import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
 import ComparacaoDjenDje from "@/components/configuracoes/ComparacaoDjenDje";
 
 export default function Configuracoes() {
+  const [showDiagnostico, setShowDiagnostico] = useState(false);
+
   return (
     <MainLayout title="Configurações" subtitle="Gerencie as configurações do sistema">
       <Tabs defaultValue="dashboard" className="space-y-6">
@@ -128,9 +133,24 @@ export default function Configuracoes() {
                 Busca publicações no Diário de Justiça Eletrônico Nacional
               </p>
             </div>
-            <BotaoSincronizarDjen />
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowDiagnostico(true)}
+                className="gap-2"
+              >
+                <FlaskConical className="h-4 w-4" />
+                Diagnóstico OAB
+              </Button>
+              <BotaoSincronizarDjen />
+            </div>
           </div>
           <MonitoramentoDjenCard coordenacaoId="" />
+          <DjenAdvogadoDiagnosticoDialog 
+            open={showDiagnostico} 
+            onOpenChange={setShowDiagnostico} 
+          />
         </TabsContent>
 
         {/* Aba DJEN Processos */}
