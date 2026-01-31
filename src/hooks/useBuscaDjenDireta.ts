@@ -71,15 +71,15 @@ export interface ProgressoExecucao {
 }
 
 // ============================================================================
-// CONFIGURAÇÃO OTIMIZADA v1.1.0 - Parâmetros das execuções bem-sucedidas
-// Baseado nas execuções concluídas: 118 termos em ~5-6min (~3s/termo)
+// CONFIGURAÇÃO CONSERVADORA v1.2.0 - Restaurado dos parâmetros 29/01
+// Execução bem-sucedida: 118 termos em ~7-8min (~4s/termo)
 // ============================================================================
 const CONFIG = {
   concurrent_limit: 1,              // Sequencial para evitar 429
-  delay_between_batches: 2000,      // 2s entre monitoramentos (execuções de sucesso usavam ~3s/termo)
-  delay_between_tribunals: 500,     // 500ms entre tribunais
-  delay_between_variants: 300,      // 300ms entre variantes de busca
-  delay_on_rate_limit: 10000,       // 10s no rate limit (backoff conservador)
+  delay_between_batches: 4000,      // 4s entre termos (restaurado do 29/01)
+  delay_between_tribunals: 3000,    // 3s entre tribunais (restaurado)
+  delay_between_variants: 1000,     // 1s entre variantes (restaurado)
+  delay_on_rate_limit: 15000,       // 15s no rate limit (conservador)
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -767,7 +767,7 @@ export function useBuscaDjenDireta() {
               {
                 signal: reqController.signal,
                 maxPages: 10,
-                delayMs: 150,  // Otimizado para 150ms
+                delayMs: 3000,  // 3s entre páginas (restaurado do 29/01)
               }
             );
 
@@ -1202,13 +1202,20 @@ export function useBuscaDjenDireta() {
           ? checkpointTermoIndice
           : 0;
 
-        // Atualizar UI com o dia atual
+        // PROGRESSO GLOBAL: calcular baseado em (dias concluídos * termos) + termos do dia atual
+        // Isso evita que o percentual "volte" quando muda de dia
+        const termosJaProcessadosEmDiasAnteriores = diaIdx * total;
+        const progressoGlobalAtual = termosJaProcessadosEmDiasAnteriores + termoIndiceInicial;
+        const progressoGlobalTotal = totalDias * total;
+
+        // Atualizar UI com o dia atual - usando progresso global
         setProgresso(prev => ({
           ...prev,
           diaAtualYmd: diaYmd,
           diaAtualIndice: diaIdx + 1,
           totalDias,
-          monitoramentoAtual: termoIndiceInicial,
+          monitoramentoAtual: progressoGlobalAtual,
+          totalMonitoramentos: progressoGlobalTotal,
           mensagem: `📅 ${diaFormatado} • Buscando termos...`,
         }));
 
@@ -1220,11 +1227,15 @@ export function useBuscaDjenDireta() {
 
           const mon = monitoramentos[i];
 
-          // Atualizar progresso ANTES de processar
-          const percentDia = Math.round(((i + 1) / total) * 100);
+          // PROGRESSO GLOBAL: calcular baseado em dias + termos
+          const progressoGlobalAtual = termosJaProcessadosEmDiasAnteriores + i + 1;
+          const percentGlobal = Math.round((progressoGlobalAtual / progressoGlobalTotal) * 100);
+
+          // Atualizar progresso ANTES de processar - usando progresso global
           setProgresso(prev => ({
             ...prev,
-            monitoramentoAtual: i + 1,
+            monitoramentoAtual: progressoGlobalAtual,
+            totalMonitoramentos: progressoGlobalTotal,
             termoAtual: mon.termo_busca,
             mensagem: `📅 ${diaFormatado} • (${i + 1}/${total}) ${mon.termo_busca}`,
           }));
@@ -1248,7 +1259,7 @@ export function useBuscaDjenDireta() {
             descartadasAcumuladas: totalDescartadas,
           };
 
-          lastProcessed = i + 1;
+          lastProcessed = progressoGlobalAtual;
           
           setProgresso(prev => ({
             ...prev,
@@ -1259,7 +1270,7 @@ export function useBuscaDjenDireta() {
             checkpoint: checkpointAtual,
           }));
 
-          // Persistir progresso a cada monitoramento
+          // Persistir progresso a cada monitoramento - usando valores globais
           const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
           try {
             await supabase
@@ -1267,9 +1278,9 @@ export function useBuscaDjenDireta() {
               .update({
                 metadata: {
                   status: 'executando',
-                  total,
-                  current: i + 1,
-                  percentage: percentDia,
+                  total: progressoGlobalTotal,
+                  current: progressoGlobalAtual,
+                  percentage: percentGlobal,
                   duracao_s,
                   novas: totalNovas,
                   duplicadas: totalDuplicadas,
@@ -1321,7 +1332,8 @@ export function useBuscaDjenDireta() {
             });
           }
 
-          // SEM delay entre monitoramentos - velocidade máxima!
+          // Delay conservador entre termos (restaurado do 29/01)
+          await delay(CONFIG.delay_between_batches);
         }
 
         // Dia concluído! Mostrar mensagem de transição antes de ir para o próximo
