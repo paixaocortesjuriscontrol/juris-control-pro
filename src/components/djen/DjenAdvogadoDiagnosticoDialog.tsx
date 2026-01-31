@@ -10,7 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Cloud, Globe } from "lucide-react";
+import { buscarPjeComunicaNoBrowser } from "@/utils/pjeComunicaClient";
 
 type MonitoramentoAdvogado = {
   id: string;
@@ -293,7 +294,7 @@ export function DjenAdvogadoDiagnosticoDialog({
     setRunning(true);
     setResults([]);
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 25_000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 60_000);
 
     try {
       // Range idêntico ao do monitoramento: últimos 3 dias em BRT
@@ -322,6 +323,47 @@ export function DjenAdvogadoDiagnosticoDialog({
 
       const attempts: AttemptResult[] = [];
 
+      // TESTE 1: Via pjeComunicaClient (mesmo caminho do monitoramento - com fallback automático)
+      try {
+        const clientResult = await buscarPjeComunicaNoBrowser(
+          {
+            tipo: "advogado",
+            oab,
+            uf,
+            siglaTribunal: tribunal,
+            dataInicio,
+            dataFim,
+            page: 0,
+            pageSize: 10,
+          },
+          { signal: controller.signal }
+        );
+        attempts.push({
+          label: "🟢 Via pjeComunicaClient (com fallback proxy)",
+          url: `OAB ${oab}/${uf} • Tribunal: ${tribunal || 'todos'}`,
+          status: 200,
+          ok: true,
+          contentType: "application/json",
+          itemsCount: clientResult.items?.length ?? 0,
+          total: clientResult.totalElements,
+          sample: clientResult.items?.[0] ?? null,
+          error: null,
+        });
+      } catch (clientErr: any) {
+        attempts.push({
+          label: "🔴 Via pjeComunicaClient (com fallback proxy)",
+          url: `OAB ${oab}/${uf} • Tribunal: ${tribunal || 'todos'}`,
+          status: null,
+          ok: false,
+          contentType: null,
+          itemsCount: null,
+          total: null,
+          sample: null,
+          error: clientErr?.message || String(clientErr),
+        });
+      }
+
+      // TESTE 2: Requisições diretas (para diagnóstico detalhado)
       for (const includeTexto of [true, false]) {
         const modeLabel = includeTexto ? "Modo atual (com texto)" : "Modo alternativo (sem texto)";
         const qp = buildQueryParams(baseInput, { includeTexto });
