@@ -149,7 +149,7 @@ export function DjenTermosDashboardCard({
     executarMonitoramento,
     cancelar,
     limparEstado,
-    isExecutando,
+    isExecutando: isLoopRunning,
   } = useBuscaDjenDireta();
 
   const { enviando, enviarResumo } = useEnviarResumoManual();
@@ -181,7 +181,10 @@ export function DjenTermosDashboardCard({
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
 
   // Detectar checkpoint válido do localStorage
-  const savedState = useMemo(() => {
+  // IMPORTANTE: não memoizar apenas por status.
+  // O progresso pode avançar sem troca de status e a UI ficava lendo snapshot antigo,
+  // gerando inconsistências (ex: 76% no card vs 1% no botão Continuar).
+  const savedState = (() => {
     try {
       const saved = localStorage.getItem('djen-direta-progresso');
       if (!saved) return null;
@@ -192,7 +195,7 @@ export function DjenTermosDashboardCard({
     } catch {
       return null;
     }
-  }, [progresso.status]); // Re-avaliar quando status muda
+  })();
 
   const checkpoint = savedState?.checkpoint;
   // Chave estável do run:
@@ -201,12 +204,17 @@ export function DjenTermosDashboardCard({
   // - fallback: hoje em Brasília
   const runKey = (savedState as any)?.dataOverrideYmd ?? checkpoint?.data ?? hojeBrasiliaYmd;
   const hasCheckpoint = !!(checkpoint && checkpoint.data === runKey && checkpoint.indice > 0);
-  const checkpointPercent = hasCheckpoint && checkpoint.indice > 0 && savedState?.totalMonitoramentos > 0
-    ? Math.round((checkpoint.indice / savedState.totalMonitoramentos) * 100)
+  const checkpointTotal =
+    typeof (savedState as any)?.totalMonitoramentos === 'number'
+      ? (savedState as any).totalMonitoramentos
+      : (md.total ?? 0);
+  const checkpointPercent = hasCheckpoint && checkpoint.indice > 0 && checkpointTotal > 0
+    ? Math.round((checkpoint.indice / checkpointTotal) * 100)
     : 0;
 
-  // Status baseado no progresso local (fonte de verdade)
-  const localRunActive = progresso.status === 'executando';
+  // Status baseado no loop local (fonte de verdade)
+  // Usar isExecutando do hook para evitar “sumir” botão de cancelar por oscilação momentânea do status.
+  const localRunActive = isLoopRunning;
   const localCancelled = progresso.status === 'cancelado';
   const localCompleted = progresso.status === 'concluido';
 
@@ -214,23 +222,12 @@ export function DjenTermosDashboardCard({
   const backendCurrent = md.current ?? 0;
 
   // Se o usuário saiu/voltou, a fonte do backend pode estar defasada.
-  // Para NÃO regredir (ex: 76% → 25%), usamos o maior valor entre backend e o estado salvo.
+  // Para NÃO regredir (ex: 76% → 25%), comparamos apenas quando é o MESMO run_key.
   const savedTotal = (savedState as any)?.totalMonitoramentos ?? 0;
   const savedCurrent = (savedState as any)?.checkpoint?.indice ?? (savedState as any)?.monitoramentoAtual ?? 0;
-
-  const effectiveTotal = localRunActive
-    ? (progresso.totalMonitoramentos ?? 0)
-    : Math.max(backendTotal, savedTotal);
-
-  const effectiveCurrent = localRunActive
-    ? (progresso.monitoramentoAtual ?? 0)
-    : Math.max(backendCurrent, savedCurrent);
-  
-  const percent = useMemo(() => {
-    if (effectiveTotal <= 0) return 0;
-    const calc = Math.round((effectiveCurrent / effectiveTotal) * 100);
-    return Math.min(100, calc);
-  }, [effectiveCurrent, effectiveTotal]);
+  const backendRunKey = (md.run_key as string | undefined) ?? (md.data_override as string | undefined);
+  const snapshotRunKey = (savedState as any)?.checkpoint?.data ?? (savedState as any)?.dataOverrideYmd;
+  const sameRun = !!(backendRunKey && snapshotRunKey && backendRunKey === snapshotRunKey);
 
   // Prioridade de status:
   // 1) Execução local ativa (browser)
@@ -256,6 +253,33 @@ export function DjenTermosDashboardCard({
               : stats.status;
 
   const isRunning = currentStatus === 'running';
+
+  // Regra de ouro para não mostrar números conflitantes:
+  // 1) Se o loop local está ativo, usar sempre o progresso local.
+  // 2) Se NÃO está rodando e há checkpoint válido, usar SEMPRE o checkpoint (é o que o botão Continuar realmente retoma).
+  // 3) Se está rodando no backend (outra aba/dispositivo), usar backend; se o backend não tiver total, cair para snapshot.
+  // 4) Caso geral: usar backend.
+  const effectiveTotal = localRunActive
+    ? (progresso.totalMonitoramentos ?? 0)
+    : (!isRunning && hasCheckpoint)
+      ? (savedTotal || backendTotal)
+      : (isRunning && !localRunActive)
+        ? (backendTotal || savedTotal)
+        : backendTotal;
+
+  const effectiveCurrent = localRunActive
+    ? (progresso.monitoramentoAtual ?? 0)
+    : (!isRunning && hasCheckpoint)
+      ? (checkpoint?.indice ?? savedCurrent)
+      : (isRunning && !localRunActive)
+        ? (sameRun ? Math.max(backendCurrent, savedCurrent) : (backendCurrent || savedCurrent))
+        : backendCurrent;
+
+  const percent = useMemo(() => {
+    if (effectiveTotal <= 0) return 0;
+    const calc = Math.round((effectiveCurrent / effectiveTotal) * 100);
+    return Math.min(100, calc);
+  }, [effectiveCurrent, effectiveTotal]);
 
   // Tipos de travamento:
   // 1) Órfã real: existe execucao_agendada 'executando' mas o loop local não está ativo
