@@ -61,13 +61,11 @@ function getTotal(data: any): number | null {
 // O limite anterior de 4000 chars cortava publicações importantes
 const MAX_TEXT_LENGTH = 100000;
 
-// Browser-like headers (igual ao DJEN Processos que funciona)
-const browserHeaders = {
-  'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'pt-BR,pt;q=0.9',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-  'Origin': 'https://comunica.pje.jus.br',
-  'Referer': 'https://comunica.pje.jus.br/',
+// Headers seguros no browser.
+// IMPORTANTE: User-Agent / Origin / Referer / Accept-Language são headers proibidos no fetch do browser
+// e podem fazer a requisição falhar antes de sair da máquina do usuário.
+const requestHeaders: HeadersInit = {
+  Accept: "application/json, text/plain, */*",
 };
 function optimizeItem(item: any) {
   return {
@@ -206,7 +204,7 @@ export async function buscarPjeComunicaNoBrowser(
     const url = `${endpoint}?${qp.toString()}`;
     const resp = await fetch(url, {
       method: "GET",
-      headers: browserHeaders,
+      headers: requestHeaders,
       signal: options?.signal,
     });
 
