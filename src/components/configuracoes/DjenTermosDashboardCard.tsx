@@ -32,6 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DjenExecucoesHistoricoDialog } from "@/components/configuracoes/DjenExecucoesHistoricoDialog";
 
 type Props = {
   stats: MonitoringStats;
@@ -158,6 +159,7 @@ export function DjenTermosDashboardCard({
   const [forcandoCancelamento, setForcandoCancelamento] = useState(false);
   const [execucaoOrfaNoBanco, setExecucaoOrfaNoBanco] = useState<string | null>(null);
   const [showDiagnostico, setShowDiagnostico] = useState(false);
+  const [showHistorico, setShowHistorico] = useState(false);
   // Intervalo de datas para busca personalizada
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
@@ -222,6 +224,7 @@ export function DjenTermosDashboardCard({
 
   const backendTotal = md.total ?? 0;
   const backendCurrent = md.current ?? 0;
+  const backendPercent = backendTotal > 0 ? Math.round((backendCurrent / backendTotal) * 100) : 0;
 
   // Se o usuário saiu/voltou, a fonte do backend pode estar defasada.
   // Para NÃO regredir (ex: 76% → 25%), comparamos apenas quando é o MESMO run_key.
@@ -255,6 +258,18 @@ export function DjenTermosDashboardCard({
               : stats.status;
 
   const isRunning = currentStatus === 'running';
+
+  // Continuar via backend quando o localStorage foi perdido, mas o metadata tem current/total.
+  const backendHasCheckpoint =
+    !localRunActive &&
+    !isRunning &&
+    backendTotal > 0 &&
+    backendCurrent > 0 &&
+    backendCurrent < backendTotal &&
+    (backendIsTimeout || backendStatus === 'erro' || backendStatus === 'failed' || backendStatus === 'cancelado');
+
+  const canResume = hasCheckpoint || backendHasCheckpoint;
+  const resumePercent = hasCheckpoint ? checkpointPercent : backendPercent;
 
   // Regra de ouro para não mostrar números conflitantes:
   // 1) Se o loop local está ativo, usar sempre o progresso local.
@@ -471,7 +486,7 @@ export function DjenTermosDashboardCard({
     if (isRunning) return;
 
     // Verificar se há checkpoint
-    if (hasCheckpoint) {
+    if (canResume) {
       setShowResumeDialog(true);
       return;
     }
@@ -502,11 +517,17 @@ export function DjenTermosDashboardCard({
       const intervalo = getIntervalo();
       const savedDataInicio = (savedState as any)?.dataInicioYmd;
       const savedDataFim = (savedState as any)?.dataFimYmd ?? (savedState as any)?.dataOverrideYmd;
+
+      const backendDataInicio = typeof md.data_inicio === 'string' ? md.data_inicio : undefined;
+      const backendDataFim = typeof md.data_fim === 'string'
+        ? md.data_fim
+        : (typeof md.data_override === 'string' ? md.data_override : undefined);
+
       await executarMonitoramento(
         undefined, 
         true, 
-        intervalo.dataInicioYmd ?? savedDataInicio,
-        intervalo.dataFimYmd ?? savedDataFim
+        intervalo.dataInicioYmd ?? savedDataInicio ?? backendDataInicio,
+        intervalo.dataFimYmd ?? savedDataFim ?? backendDataFim
       );
       toast.info('DJEN Termos retomando de onde parou...');
     } catch (e: any) {
@@ -702,9 +723,9 @@ export function DjenTermosDashboardCard({
     <>
       <Card className={cn(
         "overflow-hidden transition-all duration-300",
-        isRunning && "ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10",
-        currentStatus === 'failed' && "ring-1 ring-red-500/30",
-        currentStatus === 'cancelado' && "ring-1 ring-orange-500/30",
+        isRunning && "ring-2 ring-primary/30 shadow-lg shadow-primary/10",
+        currentStatus === 'failed' && "ring-1 ring-destructive/30",
+        currentStatus === 'cancelado' && "ring-1 ring-accent/30",
       )}>
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-3">
@@ -1025,10 +1046,10 @@ export function DjenTermosDashboardCard({
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Executando...
                   </>
-                ) : hasCheckpoint ? (
+                ) : canResume ? (
                   <>
                     <RotateCcw className="h-4 w-4 mr-2" />
-                    Continuar ({checkpointPercent}%)
+                    Continuar ({resumePercent}%)
                   </>
                 ) : (
                   <>
@@ -1141,6 +1162,24 @@ export function DjenTermosDashboardCard({
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={() => setShowHistorico(true)}
+                    title="Histórico de execuções"
+                  >
+                    <TrendingUp className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Histórico (todas as execuções em tabela)</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => setShowDiagnostico(true)}
                     title="Diagnóstico de busca por advogado"
                   >
@@ -1169,6 +1208,8 @@ export function DjenTermosDashboardCard({
 
       <DjenAdvogadoDiagnosticoDialog open={showDiagnostico} onOpenChange={setShowDiagnostico} />
 
+      <DjenExecucoesHistoricoDialog open={showHistorico} onOpenChange={setShowHistorico} />
+
       {/* Dialog de Retomada */}
       <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
         <AlertDialogContent>
@@ -1179,14 +1220,17 @@ export function DjenTermosDashboardCard({
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <p>
-                Uma execução anterior foi interrompida em <strong>{checkpointPercent}%</strong> de progresso.
+                Uma execução anterior foi interrompida em <strong>{resumePercent}%</strong> de progresso.
               </p>
               <p>
                 Deseja retomar de onde parou ou começar do zero?
               </p>
-              {hasCheckpoint && (
+              {canResume && (
                 <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
-                  <div>Checkpoint disponível para retomada</div>
+                  <div>
+                    Checkpoint disponível para retomada
+                    {!hasCheckpoint && backendHasCheckpoint ? ' (via backend)' : ''}
+                  </div>
                 </div>
               )}
             </AlertDialogDescription>
@@ -1201,7 +1245,7 @@ export function DjenTermosDashboardCard({
             </AlertDialogAction>
             <AlertDialogAction onClick={handleRetomar}>
               <RotateCcw className="h-4 w-4 mr-2" />
-              Retomar de {checkpointPercent}%
+              Retomar de {resumePercent}%
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
