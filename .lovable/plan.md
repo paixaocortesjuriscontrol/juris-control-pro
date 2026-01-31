@@ -1,107 +1,126 @@
 
-# Plano: Busca DJEN Termos Inteligente e Otimizada
 
-## Problema Atual
+# Plano: Reverter para Modelo Original Simplificado
 
-O sistema executa **uma busca por monitoramento**, mesmo quando vários monitoramentos usam a mesma OAB/termo. Exemplo real:
+## Análise do Problema
 
-| OAB | Coordenações | Monitoramentos | Buscas Atuais |
-|-----|--------------|----------------|---------------|
-| 10424 | 4 | 7 | 7 buscas duplicadas |
-| 15553 | 3 | 7 | 7 buscas duplicadas |
+A versão atual do `useBuscaDjenDireta.ts` está com complexidade excessiva:
+- Separação por coordenações (loop aninhado)
+- Separação por tipos (advogados → palavras-chave → processos)
+- Fase 1A agrupada por OAB
+- Fase 1B por coordenação
+- Progresso complexo com múltiplas dimensões
 
-**Resultado**: Buscas lentas, redundantes e mais propensas a Rate Limit (429).
+A versão original (similar ao `useSincronizarDjenBrowser.ts`) era muito mais simples:
+- **Lista única de monitoramentos ativos**
+- **Loop sequencial simples**: `for i = 0 to total`
+- **Progresso direto**: `current / total`
+- Sem separação por coordenação no processamento
 
 ---
 
-## Solução: Busca Agrupada + Distribuição Inteligente
+## Modelo Original a Restaurar
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│  FASE 1: AGRUPAR ADVOGADOS POR OAB                                      │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │  OAB 10424 → 1 ÚNICA BUSCA (todas UFs configuradas)               │ │
-│  │  OAB 15553 → 1 ÚNICA BUSCA                                         │ │
-│  │  OAB 25181 → 1 ÚNICA BUSCA                                         │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│                                                                          │
-│  FASE 2: DISTRIBUIR RESULTADOS POR COORDENAÇÃO                          │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │  Para cada publicação encontrada:                                  │ │
-│  │  ├─ Santander Cível: aplica 81 exclusões → descarta ou aceita     │ │
-│  │  ├─ Dr. Thomás: aplica 4 exclusões → descarta ou aceita           │ │
-│  │  ├─ Dra. Janaína: aplica 1 exclusão → descarta ou aceita          │ │
-│  │  └─ Santander Trabalhista: aplica 29 exclusões → descarta ou aceita│ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│                                                                          │
-│  RESULTADO: Publicação pode ir para 0, 1 ou N coordenações              │
-└──────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  BUSCAR todos monitoramentos ativos                             │
+│  Total = N monitoramentos                                       │
+│                                                                 │
+│  for i = 0 to N:                                                │
+│    ├─ Atualizar progresso: i / N                                │
+│    ├─ Buscar publicações para monitoramento[i]                  │
+│    ├─ Validar conteúdo (OAB+Nome para advogado, termo para KC)  │
+│    ├─ Aplicar exclusões do PRÓPRIO monitoramento               │
+│    └─ Inserir novas publicações                                 │
+│                                                                 │
+│  FIM: Mostrar totais                                            │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Fluxo Hierárquico Otimizado
+## Diferenças Chave
 
-```text
-Execução:
-│
-├─ 1. ADVOGADOS (agrupados por OAB)
-│     ├─ OAB 10424: buscar UFs [DF, MT, RO, AC, MS...] → 47 publicações
-│     │     ├─ Distribuir → Santander Cível: 12 aceitas, 35 excluídas
-│     │     ├─ Distribuir → Dr. Thomás: 40 aceitas, 7 excluídas
-│     │     ├─ Distribuir → Dra. Janaína: 45 aceitas, 2 excluídas
-│     │     └─ Distribuir → Santander Trabalhista: 20 aceitas, 27 excluídas
-│     │
-│     ├─ OAB 15553: buscar UFs [DF, SP...] → 23 publicações
-│     │     └─ (mesma lógica de distribuição)
-│     │
-│     └─ ... demais OABs
-│
-├─ 2. PALAVRAS-CHAVE (sem agrupamento - cada uma é única)
-│     ├─ "UNIAO QUIMICA" → buscar → aplicar exclusões por coordenação
-│     └─ ...
-│
-└─ 3. PROCESSOS (sem agrupamento - cada número é único)
-      └─ ...
-```
+| Aspecto | Versão Atual (Complexa) | Versão Original (Simples) |
+|---------|------------------------|---------------------------|
+| Loop principal | Por coordenação → por tipo | Por monitoramento direto |
+| Progresso | Matriz coordenações × tipos | Simples: i / total |
+| Exclusões | Por coordenação (distribuição) | Por monitoramento individual |
+| Agrupamento OAB | Sim (Fase 1A) | Não |
 
 ---
 
 ## Mudanças Técnicas
 
-### 1. Nova Interface: Grupo de Advogados
+### 1. Simplificar `executarMonitoramento`
+
+Remover toda a lógica de agrupamento por coordenação e tipo. Restaurar loop simples:
+
 ```typescript
-interface GrupoAdvogado {
-  oab: string;
-  ufsUnificadas: string[];  // Todas UFs de todos os monitoramentos
-  nomeParaValidacao: string; // Nome mais completo para validar conteúdo
-  monitoramentos: Array<{
-    id: string;
-    coordenacaoId: string;
-    coordenacaoNome: string;
-    exclusoes: string[];
-    termoOriginal: string;
-  }>;
+// Buscar monitoramentos ativos
+const { data: monitoramentos } = await supabase
+  .from('monitoramentos_djen')
+  .select('*')
+  .eq('ativo', true);
+
+const total = monitoramentos.length;
+
+// Loop simples por monitoramento
+for (let i = 0; i < total; i++) {
+  if (cancelarRef.current) break;
+  
+  const mon = monitoramentos[i];
+  
+  // Atualizar progresso
+  setProgresso(prev => ({
+    ...prev,
+    monitoramentoAtual: i + 1,
+    totalMonitoramentos: total,
+    termoAtual: mon.termo_busca,
+  }));
+  
+  // Processar monitoramento
+  const resultado = await processarMonitoramento(mon);
+  
+  // Acumular estatísticas
+  totalNovas += resultado.novas;
+  totalDuplicadas += resultado.duplicadas;
+  totalDescartadas += resultado.descartadas;
 }
 ```
 
-### 2. Função: agruparAdvogadosPorOab()
-Antes de iniciar a busca, agrupa todos monitoramentos de advogado pela OAB:
-- Consolida UFs (remove duplicatas)
-- Preserva exclusões específicas de cada monitoramento/coordenação
+### 2. Manter `processarMonitoramento` Existente
 
-### 3. Função: buscarAdvogadoAgrupado()
-Executa UMA busca por OAB, iterando pelas UFs consolidadas.
+A função que processa um monitoramento individual permanece igual, pois já funciona corretamente:
+- Busca publicações via API
+- Valida conteúdo (OAB+Nome para advogado)
+- Aplica exclusões do próprio monitoramento
+- Insere novas publicações
 
-### 4. Função: distribuirParaCoordenacoes()
-Para cada publicação retornada:
-1. Valida OAB + nome no conteúdo (regra atual: 80% palavras)
-2. Para cada monitoramento do grupo:
-   - Verifica exclusões específicas da coordenação
-   - Se passar, insere na `publicacoes_djen` vinculada ao monitoramento
+### 3. Simplificar Interface de Progresso
 
-### 5. Atualização do Loop Principal
-O loop de advogados passa a iterar por **OABs agrupadas** em vez de monitoramentos individuais.
+Manter apenas campos essenciais:
+
+```typescript
+interface ProgressoExecucao {
+  monitoramentoAtual: number;
+  totalMonitoramentos: number;
+  publicacoesNovas: number;
+  publicacoesDuplicadas: number;
+  publicacoesDescartadas: number;
+  status: 'idle' | 'executando' | 'concluido' | 'erro' | 'cancelado';
+  mensagem: string;
+  termoAtual?: string;
+  tempoDecorrido: number;
+}
+```
+
+### 4. Remover Código Não Utilizado
+
+- Remover funções de agrupamento por OAB
+- Remover lógica de fases 1A/1B
+- Remover estrutura `coordenacoes` do progresso
+- Manter validação OAB+Nome corrigida
 
 ---
 
@@ -109,124 +128,81 @@ O loop de advogados passa a iterar por **OABs agrupadas** em vez de monitorament
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useBuscaDjenDireta.ts` | Nova lógica de agrupamento e distribuição para advogados |
-| `src/types/djenProgress.ts` | Nova interface `GrupoAdvogado` |
+| `src/hooks/useBuscaDjenDireta.ts` | Simplificar para modelo original |
+| `src/types/djenProgress.ts` | Remover interfaces não utilizadas |
+| `src/constants/version.ts` | Atualizar para 1.0.3 |
+| `src/components/djen/ProgressoDjenDetalhado.tsx` | Simplificar UI (opcional) |
 
 ---
 
 ## Benefícios
 
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Buscas para OAB 10424 | 7 | 1 |
-| Buscas para OAB 15553 | 7 | 1 |
-| Total de buscas (advogados) | 28 | ~7 (OABs únicas) |
-| Risco de 429 | Alto | Reduzido 75% |
-| Tempo estimado | ~15 min | ~4 min |
+- Código mais simples e manutenível
+- Progresso funciona corretamente (i/total)
+- Comportamento previsível e testado
+- Validação OAB+Nome mantida da correção anterior
 
 ---
 
-## Critérios de Sucesso
+## Seção Técnica
 
-- [x] Advogados com mesma OAB executam UMA busca na API
-- [x] Publicações são distribuídas corretamente por coordenação
-- [x] Exclusões são aplicadas POR COORDENAÇÃO (uma pub pode ser aceita em A e excluída em B)
-- [x] Estatísticas refletem novas/duplicadas/descartadas por coordenação
-- [x] UI mostra progresso por OAB (não por monitoramento individual)
+### Estrutura Simplificada do Hook
 
----
-
-## Detalhes de Implementação
-
-### Passo 1: Criar estrutura de agrupamento
 ```typescript
-const agruparAdvogadosPorOab = (advogados: MonitoramentoDjen[]): Map<string, GrupoAdvogado> => {
-  const grupos = new Map<string, GrupoAdvogado>();
-  
-  for (const mon of advogados) {
-    const oab = (mon.oab || '').replace(/\D/g, '');
-    if (!oab) continue;
-    
-    if (!grupos.has(oab)) {
-      grupos.set(oab, {
-        oab,
-        ufsUnificadas: [],
-        nomeParaValidacao: mon.termo_busca,
-        monitoramentos: [],
-      });
-    }
-    
-    const grupo = grupos.get(oab)!;
-    
-    // Adicionar UFs
-    const ufs = (mon.uf || '').split(',').map(u => u.trim().toUpperCase()).filter(u => u.length === 2);
-    ufs.forEach(uf => {
-      if (!grupo.ufsUnificadas.includes(uf)) grupo.ufsUnificadas.push(uf);
-    });
-    
-    // Escolher o nome mais completo para validação
-    if (mon.termo_busca.length > grupo.nomeParaValidacao.length) {
-      grupo.nomeParaValidacao = mon.termo_busca;
-    }
-    
-    // Adicionar monitoramento
-    grupo.monitoramentos.push({
-      id: mon.id,
-      coordenacaoId: mon.coordenacao_id || '',
-      coordenacaoNome: '', // Preenchido depois
-      exclusoes: mon.exclusoes || [],
-      termoOriginal: mon.termo_busca,
-    });
-  }
-  
-  return grupos;
-};
-```
+export function useBuscaDjenDireta() {
+  // Estados básicos
+  const [progresso, setProgresso] = useState<ProgressoExecucao>(INITIAL_STATE);
+  const [isExecutando, setIsExecutando] = useState(false);
+  const cancelarRef = useRef(false);
 
-### Passo 2: Busca unificada por OAB
-```typescript
-const buscarAdvogadoAgrupado = async (grupo: GrupoAdvogado): Promise<PublicacaoResultado[]> => {
-  // UMA busca com todas as UFs consolidadas
-  // Retorna publicações brutas (sem filtro de exclusão ainda)
-};
-```
-
-### Passo 3: Distribuição inteligente
-```typescript
-const distribuirParaCoordenacoes = async (
-  publicacoes: PublicacaoResultado[],
-  grupo: GrupoAdvogado
-): Promise<{ novasPorCoordenacao: Map<string, number> }> => {
-  for (const pub of publicacoes) {
-    // Validar OAB + nome no conteúdo
-    if (!conteudoContemAdvogado(pub.conteudo, grupo.oab, grupo.nomeParaValidacao)) {
-      continue; // Descartar globalmente
-    }
+  const executarMonitoramento = useCallback(async () => {
+    setIsExecutando(true);
+    cancelarRef.current = false;
     
-    // Para cada monitoramento/coordenação
-    for (const mon of grupo.monitoramentos) {
-      // Verificar exclusões DESTA coordenação
-      const temExclusao = mon.exclusoes.some(exc => 
-        pub.conteudo?.toUpperCase().includes(exc.toUpperCase())
-      );
+    // 1. Buscar monitoramentos
+    const { data: monitoramentos } = await supabase
+      .from('monitoramentos_djen')
+      .select('*')
+      .eq('ativo', true);
+    
+    const total = monitoramentos?.length || 0;
+    let novas = 0, duplicadas = 0, descartadas = 0;
+    
+    // 2. Loop simples
+    for (let i = 0; i < total; i++) {
+      if (cancelarRef.current) break;
       
-      if (!temExclusao) {
-        // Inserir publicação vinculada a ESTE monitoramento
-        await inserirPublicacao(pub, mon.id, mon.coordenacaoId);
-      }
+      const mon = monitoramentos[i];
+      
+      setProgresso(prev => ({
+        ...prev,
+        monitoramentoAtual: i + 1,
+        totalMonitoramentos: total,
+        termoAtual: mon.termo_busca,
+      }));
+      
+      const result = await processarMonitoramento(mon);
+      novas += result.novas;
+      duplicadas += result.duplicadas;
+      descartadas += result.descartadas;
+      
+      setProgresso(prev => ({
+        ...prev,
+        publicacoesNovas: novas,
+        publicacoesDuplicadas: duplicadas,
+        publicacoesDescartadas: descartadas,
+      }));
     }
-  }
-};
+    
+    // 3. Finalizar
+    setProgresso(prev => ({
+      ...prev,
+      status: cancelarRef.current ? 'cancelado' : 'concluido',
+    }));
+    setIsExecutando(false);
+  }, []);
+
+  return { executarMonitoramento, progresso, isExecutando, cancelar };
+}
 ```
 
----
-
-## Ordem de Implementação
-
-1. Criar interface `GrupoAdvogado` em `src/types/djenProgress.ts`
-2. Implementar `agruparAdvogadosPorOab()` no hook
-3. Implementar `buscarAdvogadoAgrupado()` (adaptar `buscarMonitoramento`)
-4. Implementar `distribuirParaCoordenacoes()` com lógica de exclusões por coordenação
-5. Atualizar loop principal para usar nova estratégia
-6. Atualizar UI de progresso para mostrar "OAB X/Y" em vez de "Monitoramento X/Y"
-7. Testar com dados reais
