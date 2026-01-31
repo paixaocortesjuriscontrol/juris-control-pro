@@ -336,8 +336,15 @@ export async function buscarPjeComunicaPaginado(
         
         // Rate limited ou erro de rede - aguardar com backoff exponencial
         if (attempt < maxRetries - 1) {
-          const waitTime = retryBaseDelay * Math.pow(2, attempt); // 5s, 10s, 20s
-          console.log(`[PJE Comunica] Erro na página ${page}. Aguardando ${waitTime}ms antes de retry ${attempt + 1}/${maxRetries}`);
+          const msg = String(e?.message ?? '');
+          const is429 = msg.includes('HTTP 429') || msg.includes('Too Many');
+          // 429 precisa de backoff maior para evitar “loop de bloqueio”.
+          const baseDelay = is429 ? Math.max(retryBaseDelay, 8000) : retryBaseDelay;
+          const waitTime = baseDelay * Math.pow(2, attempt);
+          console.log(
+            `[PJE Comunica] ${is429 ? 'Rate limit (429)' : 'Erro'} na página ${page}. ` +
+              `Aguardando ${waitTime}ms antes de retry ${attempt + 1}/${maxRetries}`
+          );
           await new Promise(r => setTimeout(r, waitTime));
         }
       }

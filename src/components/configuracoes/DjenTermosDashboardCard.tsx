@@ -162,6 +162,21 @@ export function DjenTermosDashboardCard({
 
   const ORFA_GHOST_ID = "__ghost__";
 
+  const BR_TZ = 'America/Sao_Paulo';
+  const ymdInTimeZone = (date: Date, timeZone: string): string => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const y = parts.find((p) => p.type === 'year')?.value ?? '1970';
+    const m = parts.find((p) => p.type === 'month')?.value ?? '01';
+    const d = parts.find((p) => p.type === 'day')?.value ?? '01';
+    return `${y}-${m}-${d}`;
+  };
+  const hojeBrasiliaYmd = ymdInTimeZone(new Date(), BR_TZ);
+
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
 
@@ -180,8 +195,8 @@ export function DjenTermosDashboardCard({
   }, [progresso.status]); // Re-avaliar quando status muda
 
   const checkpoint = savedState?.checkpoint;
-  const hoje = new Date().toISOString().split('T')[0];
-  const hasCheckpoint = !!(checkpoint && checkpoint.data === hoje && checkpoint.indice > 0);
+  // IMPORTANTE: usar “hoje” em Brasília para não invalidar checkpoint após 21h (UTC vira dia seguinte)
+  const hasCheckpoint = !!(checkpoint && checkpoint.data === hojeBrasiliaYmd && checkpoint.indice > 0);
   const checkpointPercent = hasCheckpoint && checkpoint.indice > 0 && savedState?.totalMonitoramentos > 0
     ? Math.round((checkpoint.indice / savedState.totalMonitoramentos) * 100)
     : 0;
@@ -418,7 +433,9 @@ export function DjenTermosDashboardCard({
       if (isPaused) {
         await onReativarConfig('djen');
       }
-      await executarMonitoramento(undefined, true);
+      // Mantém o mesmo recorte de data (se havia) ao retomar.
+      const dataYmd = getDataYmd(dataSelecionada) ?? (savedState as any)?.dataOverrideYmd;
+      await executarMonitoramento(undefined, true, dataYmd);
       toast.info('DJEN Termos retomando de onde parou...');
     } catch (e: any) {
       toast.error(`Erro ao retomar: ${e?.message || 'erro desconhecido'}`);
@@ -655,52 +672,89 @@ export function DjenTermosDashboardCard({
             Ao sair e voltar para a tela, o dashboard pode continuar mostrando `isRunning`
             com base no backend (execucoes_agendadas/metadata), mas o progresso local do
             hook (progresso.*) não estará ativo/atualizado. Isso causava o bloco "0/0".
-            Portanto, este painel detalhado só deve aparecer quando o loop local estiver ativo.
+            Para evitar isso, priorizamos:
+            1) progresso local (quando ativo)
+            2) snapshot salvo no localStorage (último estado conhecido)
+            3) fallback do backend (md.current/md.total)
           */}
-          {isRunning && localRunActive && (
-            <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{progresso.mensagem || 'Processando...'}</span>
-                <span className="text-muted-foreground">
-                  {progresso.monitoramentoAtual}/{progresso.totalMonitoramentos}
-                </span>
-              </div>
-              <Progress value={percentDisplay} className="h-2" />
-              {progresso.termoAtual && (
-                <div className="text-xs text-muted-foreground truncate">
-                  Buscando: {progresso.termoAtual}
-                </div>
-              )}
-            </div>
-          )}
+          {(() => {
+            const snapshotTotal = typeof (savedState as any)?.totalMonitoramentos === 'number'
+              ? (savedState as any).totalMonitoramentos
+              : 0;
+            const snapshotCurrent = typeof (savedState as any)?.monitoramentoAtual === 'number'
+              ? (savedState as any).monitoramentoAtual
+              : 0;
+            const snapshotMensagem = typeof (savedState as any)?.mensagem === 'string'
+              ? (savedState as any).mensagem
+              : '';
+            const snapshotTermo = typeof (savedState as any)?.termoAtual === 'string'
+              ? (savedState as any).termoAtual
+              : undefined;
 
-          {/*
-            Execução "rodando" no backend, mas sem loop local ativo.
-            Isso acontece quando o usuário sai da página/atualiza a aba (a busca é browser-only).
-            Nesse cenário não temos como mostrar o termo atual, então exibimos um aviso claro.
-          */}
-          {isRunning && !localRunActive && (
-            <div className="space-y-2 p-3 bg-muted/40 rounded-lg border border-border">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-medium">
-                      Execução em andamento, mas esta aba não está executando
+            const topTotal = localRunActive
+              ? (progresso.totalMonitoramentos ?? 0)
+              : (snapshotTotal || effectiveTotal || 0);
+            const topCurrent = localRunActive
+              ? (progresso.monitoramentoAtual ?? 0)
+              : Math.max(snapshotCurrent, effectiveCurrent || 0);
+            const topMensagem = localRunActive
+              ? (progresso.mensagem || 'Processando...')
+              : (snapshotMensagem || (topTotal > 0 ? `Processando: ${topCurrent} de ${topTotal}` : 'Processando...'));
+            const topTermo = localRunActive ? progresso.termoAtual : snapshotTermo;
+
+            const topPercent = topTotal > 0
+              ? Math.min(100, Math.round((topCurrent / topTotal) * 100))
+              : percentDisplay;
+
+            const canShowTop = isRunning && topTotal > 0 && topCurrent > 0;
+
+            return (
+              <>
+                {canShowTop && (
+                  <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{topMensagem}</span>
+                      <span className="text-muted-foreground">
+                        {topCurrent}/{topTotal}
+                      </span>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      O detalhe do termo atual só aparece enquanto esta tela está aberta durante a execução.
-                      Se ficou travado/"órfão", use o botão da caveira (cancelamento forçado) e então execute/retome.
-                    </div>
+                    <Progress value={topPercent} className="h-2" />
+                    {topTermo && (
+                      <div className="text-xs text-muted-foreground truncate">
+                        Buscando: {topTermo}
+                      </div>
+                    )}
                   </div>
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {effectiveCurrent}/{effectiveTotal || '-'}
-                </span>
-              </div>
-              <Progress value={percentDisplay} className="h-2" />
-            </div>
-          )}
+                )}
+
+                {/*
+                  Execução "rodando" no backend, mas sem loop local ativo E sem snapshot suficiente.
+                  Nesse cenário não temos como saber o termo atual de forma confiável.
+                */}
+                {isRunning && !localRunActive && !canShowTop && (
+                  <div className="space-y-2 p-3 bg-muted/40 rounded-lg border border-border">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">
+                            Execução em andamento, mas esta aba não está executando
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Se ficou travado/"órfão", use o botão da caveira (cancelamento forçado) e então execute/retome.
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {effectiveCurrent}/{effectiveTotal || '-'}
+                      </span>
+                    </div>
+                    <Progress value={percentDisplay} className="h-2" />
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Execution Details Panel */}
           <div className={cn(
