@@ -2218,13 +2218,20 @@ export function useBuscaDjenDireta() {
           nomesCoordenacoes,
           (oabIdx, totalOabs, oab, novasAcum, dupAcum, descAcum) => {
             // Callback de progresso para cada OAB processada
+            // novasAcum/dupAcum/descAcum já são TOTAIS ACUMULADOS
             setProgresso(prev => ({
               ...prev,
               termoAtual: `OAB ${oab} (${oabIdx}/${totalOabs})`,
               mensagem: `Advogados: OAB ${oab} (${oabIdx}/${totalOabs})`,
-              publicacoesNovas: prev.publicacoesNovas + novasAcum - novasPorTipo['advogado'],
-              publicacoesDuplicadas: prev.publicacoesDuplicadas + dupAcum - duplicadasPorTipo['advogado'],
-              publicacoesDescartadas: prev.publicacoesDescartadas + descAcum - descartadasPorTipo['advogado'],
+              // Usar valores acumulados diretamente (não somar com prev)
+              publicacoesNovas: novasAcum,
+              publicacoesDuplicadas: dupAcum,
+              publicacoesDescartadas: descAcum,
+              novasPorTipo: { ...prev.novasPorTipo, advogado: novasAcum },
+              duplicadasPorTipo: { ...prev.duplicadasPorTipo, advogado: dupAcum },
+              descartadasPorTipo: { ...prev.descartadasPorTipo, advogado: descAcum },
+              // Calcular progresso baseado nas OABs processadas
+              monitoramentoAtual: Math.floor((oabIdx / totalOabs) * todosAdvogados.length),
             }));
           }
         );
