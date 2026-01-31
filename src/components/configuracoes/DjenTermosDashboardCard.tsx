@@ -674,6 +674,34 @@ export function DjenTermosDashboardCard({
             </div>
           )}
 
+          {/*
+            Execução "rodando" no backend, mas sem loop local ativo.
+            Isso acontece quando o usuário sai da página/atualiza a aba (a busca é browser-only).
+            Nesse cenário não temos como mostrar o termo atual, então exibimos um aviso claro.
+          */}
+          {isRunning && !localRunActive && (
+            <div className="space-y-2 p-3 bg-muted/40 rounded-lg border border-border">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-medium">
+                      Execução em andamento, mas esta aba não está executando
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      O detalhe do termo atual só aparece enquanto esta tela está aberta durante a execução.
+                      Se ficou travado/"órfão", use o botão da caveira (cancelamento forçado) e então execute/retome.
+                    </div>
+                  </div>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {effectiveCurrent}/{effectiveTotal || '-'}
+                </span>
+              </div>
+              <Progress value={percentDisplay} className="h-2" />
+            </div>
+          )}
+
           {/* Execution Details Panel */}
           <div className={cn(
             "rounded-xl p-4 space-y-3 border-2 transition-all",
