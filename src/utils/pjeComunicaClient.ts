@@ -108,48 +108,9 @@ function buildTextoParam(params: PjeComunicaSearchParams): string {
   return uf ? `OAB ${oab} ${uf}` : `OAB ${oab}`;
 }
 
-// Fallback via Edge Function quando browser falhar (CORS blocked)
-async function buscarViaEdgeFunction(
-  params: PjeComunicaSearchParams,
-  options?: { signal?: AbortSignal }
-): Promise<PjeComunicaResponse> {
-  const page = Math.max(params.page ?? 0, 0);
-  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 10);
-
-  const { data, error } = await supabase.functions.invoke('buscar-djen', {
-    body: {
-      tipo: params.tipo,
-      oab: params.oab,
-      uf: params.uf,
-      palavraChave: params.palavraChave,
-      numeroProcesso: params.numeroProcesso,
-      siglaTribunal: params.siglaTribunal,
-      dataInicio: params.dataInicio,
-      dataFim: params.dataFim,
-      page,
-      pageSize,
-    },
-  });
-
-  if (error) {
-    throw new Error(`Edge Function error: ${error.message}`);
-  }
-
-  const items = data?.items ?? [];
-  const totalElements = data?.totalElements ?? data?.count ?? items.length;
-  const hasMore = data?.hasMore ?? false;
-
-  return {
-    success: true,
-    items,
-    comunicacoes: items,
-    count: totalElements,
-    totalElements,
-    page,
-    pageSize,
-    hasMore,
-  };
-}
+// NOTE: Edge Function fallback REMOVIDO para evitar erro 546 (WORKER_LIMIT).
+// A estratégia é browser-only conforme memória do projeto.
+// Se browser falhar (CORS), retornamos resultado vazio e logamos o motivo.
 
 export async function buscarPjeComunicaNoBrowser(
   params: PjeComunicaSearchParams,
@@ -288,15 +249,20 @@ export async function buscarPjeComunicaNoBrowser(
     }
   }
 
-  // FALLBACK: Se CORS bloqueou, usar Edge Function como proxy
+  // ESTRATÉGIA BROWSER-ONLY: Se CORS bloqueou, retornar vazio em vez de chamar Edge Function
+  // Isso evita o erro 546 (WORKER_LIMIT) que ocorre quando a Edge Function esgota memória
   if (corsBlocked) {
-    console.log('[PJE Comunica] CORS blocked, falling back to Edge Function proxy...');
-    try {
-      return await buscarViaEdgeFunction(params, options);
-    } catch (proxyErr: any) {
-      console.warn('[PJE Comunica] Edge Function fallback failed:', proxyErr?.message);
-      throw proxyErr;
-    }
+    console.warn('[PJE Comunica] CORS blocked - retornando resultado vazio (browser-only strategy)');
+    return {
+      success: true,
+      items: [],
+      comunicacoes: [],
+      count: 0,
+      totalElements: 0,
+      page,
+      pageSize,
+      hasMore: false,
+    };
   }
 
   throw lastErr || new Error("Falha ao buscar no PJE Comunica");
