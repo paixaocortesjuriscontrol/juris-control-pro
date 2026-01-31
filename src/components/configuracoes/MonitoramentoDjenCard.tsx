@@ -65,9 +65,9 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   // Hook de busca direta DJEN (sem Edge Function longa)
   const {
     progresso: progressoDireta,
-    executando: executandoDireta,
+    isExecutando: executandoDireta,
     executarMonitoramento: executarDireta,
-    cancelarExecucao: cancelarDireta,
+    cancelar: cancelarDireta,
   } = useBuscaDjenDireta();
 
   const [ultimoResultado, setUltimoResultado] = useState<ExecutionResult | null>(null);
@@ -559,23 +559,36 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
           </div>
         </div>
 
-        {/* Progresso ao vivo - versão detalhada por coordenação */}
-        {isExecuting && executandoDireta && progressoDireta.coordenacoes.length > 0 ? (
+        {/* Progresso ao vivo - versão simplificada */}
+        {isExecuting && executandoDireta ? (
           <div className="space-y-3">
-            <ProgressoDjenDetalhado
-              coordenacoes={progressoDireta.coordenacoes}
-              coordenacaoAtualId={progressoDireta.coordenacaoAtualId}
-              tipoAtual={progressoDireta.tipoAtual}
-              termoAtual={progressoDireta.termoAtual}
-              totalNovas={progressoDireta.publicacoesNovas}
-              totalDuplicadas={progressoDireta.publicacoesDuplicadas}
-              tempoDecorrido={progressoDireta.tempoDecorrido}
-              percentualGeral={progressoDireta.totalMonitoramentos > 0 
-                ? Math.round((progressoDireta.monitoramentoAtual / progressoDireta.totalMonitoramentos) * 100)
-                : 0
-              }
-              executando={true}
-            />
+            <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">
+                  Processando: {progressoDireta.monitoramentoAtual}/{progressoDireta.totalMonitoramentos}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {progressoDireta.totalMonitoramentos > 0 
+                    ? Math.round((progressoDireta.monitoramentoAtual / progressoDireta.totalMonitoramentos) * 100)
+                    : 0}%
+                </span>
+              </div>
+              <Progress 
+                value={progressoDireta.totalMonitoramentos > 0 
+                  ? (progressoDireta.monitoramentoAtual / progressoDireta.totalMonitoramentos) * 100
+                  : 0} 
+                className="h-2"
+              />
+              {progressoDireta.termoAtual && (
+                <div className="mt-2 text-xs text-muted-foreground truncate">
+                  Buscando: {progressoDireta.termoAtual}
+                </div>
+              )}
+              <div className="flex gap-4 mt-2 text-xs">
+                <span className="text-emerald-600">✓ {progressoDireta.publicacoesNovas} novas</span>
+                <span className="text-amber-600">↔ {progressoDireta.publicacoesDuplicadas} duplicadas</span>
+              </div>
+            </div>
             <Button
               variant="destructive"
               size="sm"
