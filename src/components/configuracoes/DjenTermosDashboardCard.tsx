@@ -681,44 +681,7 @@ export function DjenTermosDashboardCard({
               </div>
             </div>
             
-            {/* Totais por Tipo */}
-            {hasLocalExecution && (
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t">
-                <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-2 text-center border border-blue-200 dark:border-blue-900">
-                  <div className="text-[10px] text-blue-600 dark:text-blue-400 font-medium mb-0.5">Advogados (OAB)</div>
-                  <div className="text-sm font-bold font-mono text-blue-700 dark:text-blue-300">
-                    {progresso.novasPorTipo?.advogado ?? 0}
-                  </div>
-                  {(progresso.duplicadasPorTipo?.advogado ?? 0) > 0 && (
-                    <div className="text-[10px] text-muted-foreground">
-                      +{progresso.duplicadasPorTipo.advogado} dup
-                    </div>
-                  )}
-                </div>
-                <div className="bg-purple-50 dark:bg-purple-950/30 rounded-lg p-2 text-center border border-purple-200 dark:border-purple-900">
-                  <div className="text-[10px] text-purple-600 dark:text-purple-400 font-medium mb-0.5">Palavras-chave</div>
-                  <div className="text-sm font-bold font-mono text-purple-700 dark:text-purple-300">
-                    {progresso.novasPorTipo?.['palavra-chave'] ?? 0}
-                  </div>
-                  {(progresso.duplicadasPorTipo?.['palavra-chave'] ?? 0) > 0 && (
-                    <div className="text-[10px] text-muted-foreground">
-                      +{progresso.duplicadasPorTipo['palavra-chave']} dup
-                    </div>
-                  )}
-                </div>
-                <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2 text-center border border-amber-200 dark:border-amber-900">
-                  <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium mb-0.5">Processos</div>
-                  <div className="text-sm font-bold font-mono text-amber-700 dark:text-amber-300">
-                    {progresso.novasPorTipo?.processo ?? 0}
-                  </div>
-                  {(progresso.duplicadasPorTipo?.processo ?? 0) > 0 && (
-                    <div className="text-[10px] text-muted-foreground">
-                      +{progresso.duplicadasPorTipo.processo} dup
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* Progresso simples */}
 
             {/* Running Indicator */}
             {isRunning && (
@@ -967,11 +930,9 @@ export function DjenTermosDashboardCard({
               <p>
                 Deseja retomar de onde parou ou começar do zero?
               </p>
-              {checkpoint && (
+              {hasCheckpoint && (
                 <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
-                  <div><strong>Monitoramentos processados:</strong> {checkpoint.monitoramentosProcessados.length}</div>
-                  <div><strong>Publicações encontradas:</strong> {checkpoint.totalNovas}</div>
-                  <div><strong>Tempo acumulado:</strong> {formatDuration(checkpoint.tempoAcumulado)}</div>
+                  <div>Checkpoint disponível para retomada</div>
                 </div>
               )}
             </AlertDialogDescription>
