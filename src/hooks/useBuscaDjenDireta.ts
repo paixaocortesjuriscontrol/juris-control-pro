@@ -733,11 +733,38 @@ export function useBuscaDjenDireta() {
   // IMPORTANTE: Validar que o TERMO COMPLETO está presente na publicação
   // A API do PJE Comunica faz busca por substring, então pode retornar resultados parciais
   // Ex: Buscar "F & F DISTRIBUIDORA" pode retornar publicação que só tem "DISTRIBUIDORA"
-  const conteudoContemTermo = (conteudo: string, termo: string, tipo: string): boolean => {
+  const conteudoContemTermo = (conteudo: string, termo: string, tipo: string, oab?: string, uf?: string): boolean => {
     if (!conteudo || !termo) return false;
     
-    // Para advogado, a validação é diferente (OAB)
-    if (tipo === 'advogado') return true; // Validação já feita pela API por OAB
+    // Para advogado, validar que a OAB está presente no conteúdo
+    // A API do PJE Comunica NÃO valida corretamente - retorna publicações sem a OAB buscada
+    if (tipo === 'advogado') {
+      if (!oab) return true; // Sem OAB para validar
+      
+      const conteudoUpper = conteudo.toUpperCase();
+      const oabDigits = oab.replace(/\D/g, '');
+      
+      // Verificar padrões comuns de OAB no texto:
+      // "OAB/DF 15553", "OAB 15553", "OAB-DF 15553", "OAB/DF nº 15553"
+      // Também aceitar apenas o número se for específico o suficiente (>= 4 dígitos)
+      const patterns = [
+        new RegExp(`OAB[/\\-]?\\s*${uf || '[A-Z]{2}'}[\\s:]*[Nn°º]*\\s*${oabDigits}\\b`, 'i'),
+        new RegExp(`OAB[\\s:]*[Nn°º]*\\s*${oabDigits}\\b`, 'i'),
+      ];
+      
+      // Se OAB >= 4 dígitos, também aceitar número solto com contexto "advogado/a"
+      if (oabDigits.length >= 4) {
+        patterns.push(new RegExp(`\\b${oabDigits}\\b`, 'i'));
+      }
+      
+      const found = patterns.some(p => p.test(conteudoUpper));
+      
+      if (!found) {
+        console.log(`[DJEN] Publicação descartada: OAB ${oabDigits} não encontrada no conteúdo`);
+      }
+      
+      return found;
+    }
     
     // Normalizar ambos para comparação
     const normalizar = (t: string) => t
@@ -1138,10 +1165,10 @@ export function useBuscaDjenDireta() {
         return false;
       }
       
-      // Validar que o termo completo está presente
-      if (!conteudoContemTermo(pub.conteudo, mon.termo_busca, mon.tipo)) {
+      // Validar que o termo completo está presente (ou OAB para advogados)
+      if (!conteudoContemTermo(pub.conteudo, mon.termo_busca, mon.tipo, mon.oab, mon.uf)) {
         publicacoesIgnoradas++;
-        descartadasParaPersistir.push({ pub, motivo: 'Termo não encontrado integralmente' });
+        descartadasParaPersistir.push({ pub, motivo: mon.tipo === 'advogado' ? `OAB ${mon.oab} não encontrada` : 'Termo não encontrado integralmente' });
         return false;
       }
       
