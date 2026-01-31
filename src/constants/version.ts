@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "1.0.5";
+export const APP_VERSION = "1.0.6";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -9,4 +9,5 @@ export const VERSION_HISTORY = [
   { version: "1.0.3", date: "2026-01-31", notes: "Reversão para modelo sequencial simples - progresso funcional" },
   { version: "1.0.4", date: "2026-01-31", notes: "Sistema de checkpoint e retomada de execução" },
   { version: "1.0.5", date: "2026-01-31", notes: "Otimização de performance - delays reduzidos, loop simplificado" },
+  { version: "1.0.6", date: "2026-01-31", notes: "Contagem DJEN deduplicada - consistência Card x Análise" },
 ];

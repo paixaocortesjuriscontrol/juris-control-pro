@@ -146,12 +146,11 @@ export function useMonitoringDashboard() {
       const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0).toISOString();
       const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59).toISOString();
 
-      // DJEN Termos - publicações novas hoje
-      const { count: djenNovas } = await supabase
-        .from('publicacoes_djen')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', inicioDia)
-        .lte('created_at', fimDia);
+      // DJEN Termos - publicações novas hoje (DEDUPLICADAS para consistência com tela de Análise)
+      const { data: djenStats } = await supabase
+        .rpc('count_djen_publicacoes_deduplicadas_hoje');
+      
+      const djenNovas = djenStats?.[0]?.total_unicas ?? 0;
 
       // DJEN Termos - descartadas hoje
       const { count: djenDescartadas } = await supabase
