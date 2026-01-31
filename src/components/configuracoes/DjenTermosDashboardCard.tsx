@@ -18,10 +18,9 @@ import { supabase } from "@/integrations/supabase/client";
 import type { MonitoringStats, MonitoringStatus } from "@/hooks/useMonitoringDashboard";
 import { formatDuration, formatDateTime } from "@/hooks/useMonitoringDashboard";
 import { cn } from "@/lib/utils";
-import { useBuscaDjenDireta, type FaseStatus } from "@/hooks/useBuscaDjenDireta";
+import { useBuscaDjenDireta } from "@/hooks/useBuscaDjenDireta";
 import { withTimeout } from "@/utils/withTimeout";
 import { useEnviarResumoManual } from "@/hooks/useEnviarResumoManual";
-import { ProgressoDjenDetalhado } from "@/components/djen/ProgressoDjenDetalhado";
 import { DjenAdvogadoDiagnosticoDialog } from "@/components/djen/DjenAdvogadoDiagnosticoDialog";
 import {
   AlertDialog,
@@ -102,97 +101,7 @@ const STATUS_CONFIG: Record<MonitoringStatus | 'cancelado', {
   },
 };
 
-const FASE_LABELS = {
-  1: 'Buscar Publicações',
-  2: 'Identificar Eventos',
-  3: 'Enviar Notificações',
-};
-
-function StatusBadge({ status }: { status: MonitoringStatus | 'cancelado' }) {
-  const config = STATUS_CONFIG[status] || STATUS_CONFIG.idle;
-  const Icon = config.icon;
-  
-  return (
-    <Badge 
-      variant="outline" 
-      className={cn(
-        "gap-1.5 font-medium",
-        config.color,
-        config.bgColor,
-        config.borderColor
-      )}
-    >
-      <Icon className={cn("h-3.5 w-3.5", config.animate && "animate-spin")} />
-      {config.label}
-    </Badge>
-  );
-}
-
-function FaseIndicator({ 
-  fase, 
-  label, 
-  status, 
-  processados, 
-  total 
-}: { 
-  fase: number; 
-  label: string; 
-  status: FaseStatus;
-  processados: number;
-  total: number;
-}) {
-  const getIcon = () => {
-    switch (status) {
-      case 'concluido':
-        return <CheckCircle2 className="h-4 w-4 text-green-600" />;
-      case 'executando':
-        return <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />;
-      case 'erro':
-        return <XCircle className="h-4 w-4 text-red-600" />;
-      default:
-        return <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />;
-    }
-  };
-
-  const getStatusText = () => {
-    switch (status) {
-      case 'concluido':
-        return total > 0 ? `✓ Concluído (${total})` : '✓ Concluído';
-      case 'executando':
-        return total > 0 ? `${processados}/${total} (${Math.round((processados / total) * 100)}%)` : 'Processando...';
-      case 'erro':
-        return 'Erro';
-      default:
-        return 'Pendente';
-    }
-  };
-
-  return (
-    <div className={cn(
-      "flex items-center justify-between py-1.5 px-2 rounded-md text-sm",
-      status === 'executando' && "bg-blue-500/10",
-      status === 'concluido' && "bg-green-500/5",
-    )}>
-      <div className="flex items-center gap-2">
-        {getIcon()}
-        <span className={cn(
-          "font-medium",
-          status === 'pendente' && "text-muted-foreground",
-        )}>
-          Fase {fase}: {label}
-        </span>
-      </div>
-      <span className={cn(
-        "text-xs font-mono",
-        status === 'concluido' && "text-green-600",
-        status === 'executando' && "text-blue-600",
-        status === 'pendente' && "text-muted-foreground",
-      )}>
-        {getStatusText()}
-      </span>
-    </div>
-  );
-}
+// Removido FaseIndicator - interface simplificada
 
 function MetricBadge({ 
   icon: Icon, 
@@ -238,10 +147,9 @@ export function DjenTermosDashboardCard({
   const {
     progresso,
     executarMonitoramento,
-    cancelarExecucao,
-    forceResetState,
-    verificarCheckpoint,
-    limparCheckpoint,
+    cancelar,
+    limparEstado,
+    isExecutando,
   } = useBuscaDjenDireta();
 
   const { enviando, enviarResumo } = useEnviarResumoManual();
@@ -250,7 +158,6 @@ export function DjenTermosDashboardCard({
   const [forcandoCancelamento, setForcandoCancelamento] = useState(false);
   const [execucaoOrfaNoBanco, setExecucaoOrfaNoBanco] = useState<string | null>(null);
   const [showDiagnostico, setShowDiagnostico] = useState(false);
-  // Data selecionada para busca (null = últimos 3 dias, Date = data específica)
   const [dataSelecionada, setDataSelecionada] = useState<Date | undefined>(undefined);
 
   const ORFA_GHOST_ID = "__ghost__";
@@ -258,12 +165,9 @@ export function DjenTermosDashboardCard({
   const md = (stats.config?.metadata as Record<string, any> | null) || {};
   const isPaused = stats.config?.ativo === false || md.paused_globally === true;
 
-  // Verificar checkpoint disponível
-  const checkpoint = verificarCheckpoint();
-  const hasCheckpoint = !!checkpoint && progresso.status !== 'executando';
-  const checkpointPercent = checkpoint 
-    ? Math.round((checkpoint.monitoramentosProcessados.length / (progresso.totalMonitoramentos || 114)) * 100)
-    : 0;
+  // Sem checkpoint na versão simplificada
+  const hasCheckpoint = false;
+  const checkpointPercent = 0;
 
   // Status baseado no progresso local (fonte de verdade)
   const localRunActive = progresso.status === 'executando';
@@ -479,7 +383,7 @@ export function DjenTermosDashboardCard({
 
   const handleExecutarDoZero = async () => {
     setShowResumeDialog(false);
-    limparCheckpoint();
+    limparEstado();
     try {
       if (isPaused) {
         await onReativarConfig('djen');
@@ -497,8 +401,8 @@ export function DjenTermosDashboardCard({
 
   const handleCancelar = () => {
     try {
-      cancelarExecucao();
-      toast.success('Cancelamento solicitado. Progresso salvo para retomada.');
+      cancelar();
+      toast.success('Cancelamento solicitado.');
     } catch (e: any) {
       toast.error(`Erro ao cancelar: ${e?.message || 'erro desconhecido'}`);
     }
@@ -509,7 +413,7 @@ export function DjenTermosDashboardCard({
     setForcandoCancelamento(true);
     try {
       // SEMPRE forçar reset do estado local primeiro (aborta qualquer loop/request pendente)
-      forceResetState();
+      limparEstado();
 
       // FORÇA: Cancelar TODAS as execuções DJEN com status='executando', 
       // independente de finalizado_em (para limpar execuções inconsistentes)
@@ -689,72 +593,31 @@ export function DjenTermosDashboardCard({
                 </div>
               </div>
             </div>
-            <StatusBadge status={currentStatus} />
+            <Badge 
+              variant="outline" 
+              className={cn("gap-1.5 font-medium", statusConfig.color, statusConfig.bgColor, statusConfig.borderColor)}
+            >
+              {statusConfig.label}
+            </Badge>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Alerta de checkpoint disponível */}
-          {hasCheckpoint && !isRunning && (
-            <div className="flex items-center gap-2 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg text-sm">
-              <AlertCircle className="h-4 w-4 text-orange-600 flex-shrink-0" />
-              <div className="flex-1">
-                <span className="font-medium text-orange-700">Execução interrompida</span>
-                <span className="text-orange-600 ml-1">
-                  ({checkpointPercent}% concluído)
+          {/* Progresso simplificado */}
+          {isRunning && (
+            <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">{progresso.mensagem || 'Processando...'}</span>
+                <span className="text-muted-foreground">
+                  {progresso.monitoramentoAtual}/{progresso.totalMonitoramentos}
                 </span>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
-                onClick={() => setShowResumeDialog(true)}
-              >
-                <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                Retomar
-              </Button>
-            </div>
-          )}
-
-          {/* Indicador de Fases (durante e após execução) */}
-          {/* Progresso detalhado por coordenação (V2) - mantém visível após conclusão */}
-          {progresso.coordenacoes && progresso.coordenacoes.length > 0 ? (
-            <ProgressoDjenDetalhado
-              coordenacoes={progresso.coordenacoes}
-              coordenacaoAtualId={progresso.coordenacaoAtualId}
-              tipoAtual={progresso.tipoAtual}
-              termoAtual={progresso.termoAtual}
-              totalNovas={progresso.publicacoesNovas}
-              totalDuplicadas={progresso.publicacoesDuplicadas}
-              totalDescartadas={progresso.publicacoesDescartadas}
-              tempoDecorrido={progresso.tempoDecorrido}
-              percentualGeral={percent}
-              executando={isRunning}
-            />
-          ) : (isRunning || localCancelled || localCompleted) && progresso.fases.fase1.total > 0 && (
-            <div className="space-y-1 border rounded-lg p-3 bg-muted/30">
-              <div className="text-xs font-medium text-muted-foreground mb-2">Fases da Execução</div>
-              <FaseIndicator
-                fase={1}
-                label={FASE_LABELS[1]}
-                status={progresso.fases.fase1.status}
-                processados={progresso.fases.fase1.processados}
-                total={progresso.fases.fase1.total}
-              />
-              <FaseIndicator
-                fase={2}
-                label={FASE_LABELS[2]}
-                status={progresso.fases.fase2.status}
-                processados={progresso.fases.fase2.processados}
-                total={progresso.fases.fase2.total}
-              />
-              <FaseIndicator
-                fase={3}
-                label={FASE_LABELS[3]}
-                status={progresso.fases.fase3.status}
-                processados={progresso.fases.fase3.processados}
-                total={progresso.fases.fase3.total}
-              />
+              <Progress value={percent} className="h-2" />
+              {progresso.termoAtual && (
+                <div className="text-xs text-muted-foreground truncate">
+                  Buscando: {progresso.termoAtual}
+                </div>
+              )}
             </div>
           )}
 
