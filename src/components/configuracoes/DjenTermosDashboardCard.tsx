@@ -650,7 +650,14 @@ export function DjenTermosDashboardCard({
 
         <CardContent className="space-y-4">
           {/* Progresso simplificado */}
-          {isRunning && (
+          {/*
+            IMPORTANTE:
+            Ao sair e voltar para a tela, o dashboard pode continuar mostrando `isRunning`
+            com base no backend (execucoes_agendadas/metadata), mas o progresso local do
+            hook (progresso.*) não estará ativo/atualizado. Isso causava o bloco "0/0".
+            Portanto, este painel detalhado só deve aparecer quando o loop local estiver ativo.
+          */}
+          {isRunning && localRunActive && (
             <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium">{progresso.mensagem || 'Processando...'}</span>
