@@ -101,17 +101,23 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       if (!user?.id) return 0;
 
       // IMPORTANTE: Usar timezone local (BRT) para evitar off-by-one
+      // Se não há filtro de data, buscar últimos 7 dias por padrão
+      const hoje = new Date();
+      const seteDiasAtras = new Date(hoje);
+      seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
+      const defaultInicioYmd = seteDiasAtras.toISOString().slice(0, 10);
+
       const dataInicioFiltro = filtros.apenasHoje
         ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio
           ? dateLocalToUTCRange(filtros.dataInicio, false)
-          : undefined;
+          : dateLocalToUTCRange(defaultInicioYmd, false);
 
       const dataFimFiltro = filtros.apenasHoje
         ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
-          : undefined;
+          : formatToUTC(endOfDay(new Date()));
 
       try {
         let q = (supabase
@@ -153,17 +159,23 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       
       // IMPORTANTE: Usar timezone local (BRT) para evitar off-by-one
       // Se usuário seleciona 30/01, deve buscar 30/01 00:00 BRT até 30/01 23:59 BRT
+      // Se não há filtro de data, buscar últimos 7 dias por padrão
+      const hoje = new Date();
+      const seteDiasAtras = new Date(hoje);
+      seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
+      const defaultInicioYmd = seteDiasAtras.toISOString().slice(0, 10);
+
       const dataInicioFiltro = filtros.apenasHoje 
         ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio 
           ? dateLocalToUTCRange(filtros.dataInicio, false)
-          : undefined;
+          : dateLocalToUTCRange(defaultInicioYmd, false);
       
       const dataFimFiltro = filtros.apenasHoje
         ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
-          : undefined;
+          : formatToUTC(endOfDay(new Date()));
 
       const resultados: PublicacaoUnificada[] = [];
       const numerosProcessosTermo: string[] = [];
