@@ -837,7 +837,8 @@ export function DjenTermosDashboardCard({
               ? Math.min(100, Math.round((topCurrent / topTotal) * 100))
               : percentDisplay;
 
-            const canShowTop = isRunning && topTotal > 0 && topCurrent > 0;
+            // Mostrar o bloco superior mesmo no início (0/total), para sempre exibir a data atual.
+            const canShowTop = isRunning && topTotal > 0;
 
             return (
               <>
