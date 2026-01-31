@@ -164,8 +164,14 @@ export async function buscarPjeComunicaNoBrowser(
 
   const qp = new URLSearchParams();
 
-  // 1) Query principal por texto (compatível com endpoints antigos)
-  qp.set("texto", texto);
+  // 1) Query principal por texto
+  // IMPORTANTE: para busca por ADVOGADO/OAB, alguns tribunais retornam 0 quando `texto` vem junto
+  // com `numeroOab/ufOab` (isso é exatamente o que o diagnóstico compara).
+  // Estratégia: primeiro tentar SEM `texto` (só numeroOab/ufOab). Se vier vazio, tentamos COM `texto`.
+  const shouldSendTextoFirst = params.tipo !== "advogado";
+  if (shouldSendTextoFirst) {
+    qp.set("texto", texto);
+  }
 
   // 2) Melhorias para cobertura/precisão:
   //    - Para advogado, preferir parâmetros nativos (numeroOab/ufOab), pois alguns tribunais
@@ -199,9 +205,9 @@ export async function buscarPjeComunicaNoBrowser(
   // ESTRATÉGIA: Tentar apenas o primeiro endpoint (/comunicacao) que é mais confiável
   // O endpoint /comunicacoes (plural) retorna 404 para vários tribunais
   const endpoint = ENDPOINTS[0]; // /comunicacao (singular)
-  
-  try {
-    const url = `${endpoint}?${qp.toString()}`;
+
+  const doRequest = async (queryParams: URLSearchParams): Promise<PjeComunicaResponse> => {
+    const url = `${endpoint}?${queryParams.toString()}`;
     const resp = await fetch(url, {
       method: "GET",
       headers: requestHeaders,
@@ -259,6 +265,21 @@ export async function buscarPjeComunicaNoBrowser(
       pageSize,
       hasMore,
     };
+  };
+
+  try {
+    // 1) Primeira tentativa
+    const first = await doRequest(qp);
+
+    // 2) Fallback específico p/ advogado: tentar com `texto` caso a API tenha retornado vazio
+    // (sem erro HTTP) — mantém o comportamento do diagnóstico.
+    if (params.tipo === 'advogado' && first.items.length === 0) {
+      const qp2 = new URLSearchParams(qp);
+      qp2.set('texto', texto);
+      return await doRequest(qp2);
+    }
+
+    return first;
   } catch (e: any) {
     lastErr = e;
     // Detectar erro de CORS/bloqueio de rede
