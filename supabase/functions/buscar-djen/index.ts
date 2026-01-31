@@ -375,21 +375,14 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   const endpoints = [`${PJE_COMUNICA_API}/comunicacao`, `${PJE_COMUNICA_API}/comunicacoes`];
 
   console.log(
-    "Base query params:",
-    baseParams.toString(),
-    "page:",
-    page,
-    "pageSize:",
-    pageSize,
-    "fetchAll:",
-    !!params.fetchAll,
-    "useJina:",
-    !!jinaApiKey
+    "Fetching from API (cache disabled for memory safety)...",
   );
 
   let lastError: any = null;
 
-  // ESTRATÉGIA: Jina primeiro (distribui IPs), API direta como fallback
+  // ESTRATÉGIA: API direta apenas (Jina proxy DESABILITADO para evitar WORKER_LIMIT 546)
+  // O Jina proxy consome muita memória ao processar respostas HTML/não-JSON.
+  // A estratégia preferencial é usar busca via browser (IP do usuário).
   const fetchPage = async (endpoint: string, pageNumber: number) => {
     const qp = new URLSearchParams(baseParams);
     qp.set("pagina", String(pageNumber));
@@ -400,18 +393,11 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     const fullUrl = `${endpoint}?${qp.toString()}`;
     console.log(`Trying endpoint (page ${pageNumber}):`, fullUrl);
 
-    // PRIORIDADE 1: Usar Jina como proxy (evita rate limit do IP do Supabase)
-    if (jinaApiKey) {
-      console.log("Using Jina proxy for distributed requests...");
-      const jinaData = await fetchJsonViaJina(fullUrl, jinaApiKey);
-      if (jinaData) {
-        console.log("Jina proxy success!");
-        return { data: jinaData, ok: true };
-      }
-      console.log("Jina proxy failed, falling back to direct API...");
-    }
+    // JINA PROXY DESABILITADO - causava Memory limit exceeded (546)
+    // A busca agora é feita preferencialmente via browser (pjeComunicaClient).
+    // Esta Edge Function só é usada como fallback para casos específicos.
 
-    // FALLBACK: Requisição direta (pode sofrer rate limit)
+    // API direta apenas
     const response = await fetchWithRetry(fullUrl, {
       method: "GET",
       headers: browserHeaders,
