@@ -52,9 +52,10 @@ export interface ProgressoExecucao {
 // ============================================================================
 const CONFIG = {
   concurrent_limit: 2,
-  delay_between_batches: 3000,
-  delay_between_tribunals: 500,
-  delay_between_variants: 300,
+  delay_between_batches: 1500,    // Reduzido de 3000ms
+  delay_between_tribunals: 250,    // Reduzido de 500ms
+  delay_between_variants: 150,     // Reduzido de 300ms
+  delay_on_rate_limit: 10000,      // Pausa quando receber 429
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -555,7 +556,7 @@ export function useBuscaDjenDireta() {
                 {
                   signal: reqController.signal,
                   maxPages: 10,
-                  delayMs: 500,
+                  delayMs: 200,  // Otimizado de 500ms
                 }
               );
 
