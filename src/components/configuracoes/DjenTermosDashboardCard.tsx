@@ -683,11 +683,16 @@ export function DjenTermosDashboardCard({
   const tempoLocal = progresso.tempoDecorrido ?? 0;
   const metadataDuracao = md.duracao_s ?? 0;
   
-  const tempoSegundos = localRunActive
+  // Ao sair e voltar, o loop local pode não estar ativo, mas o hook reidrata `tempoInicio`
+  // e continua atualizando `tempoDecorrido`. Preferir `tempoLocal` sempre que estivermos
+  // exibindo uma execução como "executando".
+  const tempoSegundos = (progresso.status === 'executando' && tempoLocal > 0)
     ? tempoLocal
-    : (tempoLocal > 0 && (localCompleted || localCancelled))
+    : localRunActive
       ? tempoLocal
-      : (metadataDuracao > 0 ? metadataDuracao : 0);
+      : (tempoLocal > 0 && (localCompleted || localCancelled))
+        ? tempoLocal
+        : (metadataDuracao > 0 ? metadataDuracao : 0);
   
   const tempoFormatado = tempoSegundos > 0 
     ? formatDuration(tempoSegundos) 
@@ -766,6 +771,11 @@ export function DjenTermosDashboardCard({
             // Também buscar termoAtual do metadata do backend (persistido durante execução)
             const backendTermo = typeof md.termoAtual === 'string' ? md.termoAtual : undefined;
 
+            // Termo reidratado pelo hook na remontagem (quando há execução ativa no banco)
+            const rehydratedTermo = typeof progresso.termoAtual === 'string'
+              ? progresso.termoAtual
+              : undefined;
+
             const topTotal = localRunActive
               ? (progresso.totalMonitoramentos ?? 0)
               : (snapshotTotal || effectiveTotal || 0);
@@ -775,8 +785,10 @@ export function DjenTermosDashboardCard({
             const topMensagem = localRunActive
               ? (progresso.mensagem || 'Processando...')
               : (snapshotMensagem || (topTotal > 0 ? `Processando: ${topCurrent} de ${topTotal}` : 'Processando...'));
-            // Prioridade: loop local > snapshot > backend
-            const topTermo = localRunActive ? progresso.termoAtual : (snapshotTermo || backendTermo);
+            // Prioridade: loop local > rehydrated (hook) > snapshot > backend
+            const topTermo = localRunActive
+              ? progresso.termoAtual
+              : (rehydratedTermo || snapshotTermo || backendTermo);
 
             const topPercent = topTotal > 0
               ? Math.min(100, Math.round((topCurrent / topTotal) * 100))

@@ -246,19 +246,30 @@ export function useBuscaDjenDireta() {
       const saved = carregarEstado();
       
       try {
-        const { data } = await supabase
-          .from('execucoes_agendadas')
-          .select('id, status, finalizado_em, iniciado_em, detalhes')
-          .eq('tipo', 'djen')
-          .eq('status', 'executando')
-          .is('finalizado_em', null)
-          .order('iniciado_em', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        // Buscar execução ativa + metadata da configuração em paralelo.
+        // Isso é essencial para reidratar `termoAtual`/`current` mesmo quando o detalhe
+        // da execução (execucoes_agendadas.detalhes) não foi atualizado ainda.
+        const [{ data: execData }, { data: configData }] = await Promise.all([
+          supabase
+            .from('execucoes_agendadas')
+            .select('id, status, finalizado_em, iniciado_em, detalhes')
+            .eq('tipo', 'djen')
+            .eq('status', 'executando')
+            .is('finalizado_em', null)
+            .order('iniciado_em', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from('configuracoes_monitoramento')
+            .select('metadata')
+            .eq('tipo', 'djen')
+            .is('coordenacao_id', null)
+            .maybeSingle(),
+        ]);
 
         if (!isMounted) return;
 
-        if (!data) {
+        if (!execData) {
           // Se NÃO há execução ativa no banco, resetar o status local para idle
           if (saved?.status === 'executando') {
             console.warn('[DJEN] Estado local "executando" sem execução ativa no banco - resetando para idle.');
@@ -270,23 +281,39 @@ export function useBuscaDjenDireta() {
           }
         } else {
           // HÁ execução ativa no banco - sincronizar estado local para mostrar progresso
-          const detalhes = data.detalhes as Record<string, any> | null;
-          const iniciado = new Date(data.iniciado_em).getTime();
-          const termoAtual = detalhes?.termoAtual ?? saved?.termoAtual;
-          const total = detalhes?.total ?? saved?.totalMonitoramentos ?? 0;
-          const current = detalhes?.processados ?? saved?.monitoramentoAtual ?? 0;
+          const detalhes = execData.detalhes as Record<string, any> | null;
+          const md = (configData?.metadata as Record<string, any> | null) || {};
+
+          const iniciado = new Date(execData.iniciado_em).getTime();
+
+          // Prioridade para reidratar: metadata (mais atual) > detalhes da execução > snapshot
+          const termoAtual = md.termoAtual ?? detalhes?.termoAtual ?? saved?.termoAtual;
+          const total = md.total ?? detalhes?.total ?? saved?.totalMonitoramentos ?? 0;
+          const current = md.current ?? detalhes?.processados ?? saved?.monitoramentoAtual ?? 0;
+          const duracao_s = md.duracao_s ?? Math.floor((Date.now() - iniciado) / 1000);
           
           // Reconectar ao estado de execução para que o timer funcione
           console.log('[DJEN] Execução ativa encontrada no banco, sincronizando estado local...');
+
+          // Importante: manter refs sincronizados para evitar que o hook perca a referência
+          // da execução ativa quando o componente é desmontado/remontado.
+          executionIdRef.current = execData.id;
+          if (typeof md.data_override === 'string') {
+            dataOverrideRef.current = md.data_override;
+          }
+
           setProgresso(prev => ({
             ...prev,
             status: 'executando',
             tempoInicio: iniciado,
-            tempoDecorrido: Math.floor((Date.now() - iniciado) / 1000),
+            tempoDecorrido: duracao_s,
             termoAtual: termoAtual ?? prev.termoAtual,
             totalMonitoramentos: total > 0 ? total : prev.totalMonitoramentos,
             monitoramentoAtual: current > 0 ? current : prev.monitoramentoAtual,
-            executionId: data.id,
+            executionId: execData.id,
+            dataOverrideYmd: md.data_override ?? prev.dataOverrideYmd,
+            dataInicioYmd: md.data_inicio ?? prev.dataInicioYmd,
+            dataFimYmd: md.data_fim ?? prev.dataFimYmd,
           }));
         }
       } catch (e) {
