@@ -462,11 +462,11 @@ async function processarTermo(
   // ================================================================
   // VALIDAÇÃO CRÍTICA: Filtrar publicações que NÃO contêm o termo
   // ================================================================
-  let descartadas = 0;
+  const pubsDescartadas: any[] = [];
   const pubsValidas = resultados.filter(pub => {
     const conteudo = pub.conteudo || pub.teor || pub.texto || '';
     if (!conteudo) {
-      descartadas++;
+      pubsDescartadas.push({ ...pub, motivo_descarte: 'conteudo_vazio' });
       return false;
     }
 
@@ -474,13 +474,13 @@ async function processarTermo(
     if (mon.exclusoes?.some(exc => 
       conteudo.toUpperCase().includes(String(exc).toUpperCase())
     )) {
-      descartadas++;
+      pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_excluido' });
       return false;
     }
 
     // 2. Verificar se o termo/OAB realmente está no conteúdo
     if (!conteudoContemTermo(conteudo, mon.termo_busca, mon.tipo, mon.oab)) {
-      descartadas++;
+      pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
       return false;
     }
 
@@ -533,10 +533,34 @@ async function processarTermo(
       .upsert(payload, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true });
   }
 
+  // Persistir descartadas no banco (para auditoria e métricas)
+  if (pubsDescartadas.length > 0) {
+    const payloadDescartadas = pubsDescartadas.slice(0, 50).map(pub => {
+      const conteudo = pub.conteudo || pub.teor || pub.texto || '';
+      const dataDisp = (pub.dataDisponibilizacao || pub.dataDJe || diaYmd).slice(0, 10);
+      const hash = gerarHash(conteudo + (pub.motivo_descarte || ''), dataDisp);
+      return {
+        monitoramento_id: mon.id,
+        hash_conteudo: hash,
+        processo_numero: pub.numeroProcesso || pub.processo || null,
+        conteudo: conteudo.slice(0, 10000), // Limitar tamanho
+        data_publicacao: `${dataDisp}T12:00:00.000Z`,
+        fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
+        motivo_descarte: pub.motivo_descarte || 'validacao_falhou',
+        lida: false,
+      };
+    });
+
+    await supabase
+      .from('publicacoes_djen_descartadas')
+      .upsert(payloadDescartadas, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true })
+      .then(() => {}); // Não bloquear se falhar
+  }
+
   return {
     novas: novas.length,
     duplicadas: duplicadasInternas + duplicadasBanco,
-    descartadas,
+    descartadas: pubsDescartadas.length,
   };
 }
 
@@ -702,31 +726,30 @@ async function runEngine(
           descartadas,
         });
 
-        // Atualizar metadata no Supabase (a cada 5 termos)
-        if ((termoIdx + 1) % 5 === 0) {
-          await supabase
-            .from('configuracoes_monitoramento')
-            .update({
-              metadata: {
-                status: 'executando',
-                current: globalCurrent,
-                total: globalTotal,
-                percentage,
-                novas,
-                duplicadas,
-                descartadas,
-                diaAtual: diaYmd,
-                diaIndice: diaIdx + 1,
-                totalDias,
-                termoAtual: mon.termo_busca,
-                run_key: runKey,
-                data_inicio: dataInicioYmd,
-                data_fim: dataFimYmd,
-              },
-            })
-            .eq('tipo', 'djen')
-            .is('coordenacao_id', null);
-        }
+        // Atualizar metadata no Supabase (a cada termo para manter UI sincronizada)
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: {
+              status: 'executando',
+              current: globalCurrent,
+              total: globalTotal,
+              percentage,
+              novas,
+              duplicadas,
+              descartadas,
+              diaAtual: diaYmd,
+              diaAtualYmd: diaYmd,
+              diaIndice: diaIdx + 1,
+              totalDias,
+              termoAtual: mon.termo_busca,
+              run_key: runKey,
+              data_inicio: dataInicioYmd,
+              data_fim: dataFimYmd,
+            },
+          })
+          .eq('tipo', 'djen')
+          .is('coordenacao_id', null);
 
         // Delay entre termos
         await delay(CONFIG.delay_between_terms);
@@ -764,6 +787,7 @@ async function runEngine(
             status: 'cancelado',
             current: singletonState.progress.globalCurrent,
             total: globalTotal,
+            percentage: singletonState.progress.percentage,
             novas,
             duplicadas,
             descartadas,
