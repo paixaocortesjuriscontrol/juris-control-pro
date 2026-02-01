@@ -79,18 +79,32 @@ export function useDjenTermos() {
   }, [queryClient]);
 
   /**
-   * Limpa estado + deleta publicações de HOJE (America/Sao_Paulo)
+   * Limpa estado + deleta publicações do intervalo informado (ou últimos 3 dias)
    * (tabelas: termos, processos e descartadas)
    */
-  const limparTudoComPublicacoes = useCallback(async () => {
-    toast.info('Limpando DJEN (hoje)...');
+  const limparTudoComPublicacoes = useCallback(async (dataInicioYmd?: string, dataFimYmd?: string) => {
+    // Se não informar datas, usar o que está no checkpoint/progresso ou últimos 3 dias
+    const hoje = new Date();
+    hoje.setHours(12, 0, 0, 0);
+    const tresDiasAtras = new Date(hoje);
+    tresDiasAtras.setDate(tresDiasAtras.getDate() - 2);
+
+    const inicio = dataInicioYmd || checkpoint?.dataInicioYmd || tresDiasAtras.toISOString().slice(0, 10);
+    const fim = dataFimYmd || checkpoint?.dataFimYmd || hoje.toISOString().slice(0, 10);
+
+    toast.info(`Limpando DJEN (${inicio} → ${fim})...`);
 
     try {
-      // Reaproveitar a rotina robusta já existente (edge function com service role + deletes em lote)
       const { data, error } = await withTimeout(
-        supabase.functions.invoke('limpar-djen-hoje'),
-        180_000,
-        'A limpeza demorou mais que 180s. Verifique o log da função e tente novamente.'
+        supabase.functions.invoke('limpar-djen-hoje', {
+          body: {
+            modo: 'intervalo',
+            dataInicio: inicio,
+            dataFim: fim,
+          },
+        }),
+        240_000,
+        'A limpeza demorou mais que 240s. Verifique o log da função e tente novamente.'
       );
       if (error) throw error;
 
@@ -123,7 +137,7 @@ export function useDjenTermos() {
       console.error('Erro ao limpar DJEN:', err);
       toast.error(`Erro ao limpar: ${err?.message ?? String(err)}`);
     }
-  }, [queryClient]);
+  }, [queryClient, checkpoint]);
 
   return {
     progress,
