@@ -389,7 +389,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
               </>
             )}
             
-            {/* Botões sempre visíveis: Limpar Tudo e Caveira */}
+            {/* Botões sempre visíveis: Limpar Tudo (intervalo) e Caveira */}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -397,7 +397,11 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                     variant="ghost"
                     size="sm"
                     onClick={async () => {
-                      await limparTudoComPublicacoes();
+                      // Usa datas selecionadas ou checkpoint ou últimos 3 dias
+                      await limparTudoComPublicacoes(
+                        getDataYmd(dataInicio),
+                        getDataYmd(dataFim)
+                      );
                       onAfterMutation();
                     }}
                   >
@@ -405,7 +409,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Limpar tudo (estado + publicações de hoje)</p>
+                  <p>Limpar tudo (intervalo selecionado)</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
