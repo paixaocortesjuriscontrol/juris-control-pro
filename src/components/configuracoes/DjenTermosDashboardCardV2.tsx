@@ -150,6 +150,28 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
   const effectiveTempoDecorrido = Math.max(progress.tempoDecorrido || 0, stats.elapsedSeconds || 0);
 
+  // Contadores: priorizar engine local quando ativo, senão usar backend (stats.todayStats / metadata)
+  const effectiveNovas: number =
+    (isRunning && progress.novas > 0)
+      ? progress.novas
+      : (typeof md.novas === 'number' ? md.novas : 0) ||
+        (typeof stats.todayStats?.novas === 'number' ? stats.todayStats.novas : 0) ||
+        (typeof stats.todayStats?.found === 'number' ? stats.todayStats.found : 0) ||
+        0;
+
+  const effectiveDuplicadas: number =
+    (isRunning && progress.duplicadas > 0)
+      ? progress.duplicadas
+      : (typeof md.duplicadas === 'number' ? md.duplicadas : 0) ||
+        0;
+
+  const effectiveDescartadas: number =
+    (isRunning && progress.descartadas > 0)
+      ? progress.descartadas
+      : (typeof md.descartadas === 'number' ? md.descartadas : 0) ||
+        (typeof stats.todayStats?.descartadas === 'number' ? stats.todayStats.descartadas : 0) ||
+        0;
+
   // Estado para seleção de datas
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
@@ -254,12 +276,12 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
           )}
 
           {/* Estatísticas */}
-          {(progress.novas > 0 || progress.duplicadas > 0 || progress.descartadas > 0) && (
+          {(effectiveNovas > 0 || effectiveDuplicadas > 0 || effectiveDescartadas > 0) && (
             <div className="flex gap-4 text-sm">
-              <span className="text-emerald-600">✓ {progress.novas} novas</span>
-              <span className="text-amber-600">↔ {progress.duplicadas} dup.</span>
-              {progress.descartadas > 0 && (
-                <span className="text-destructive">✗ {progress.descartadas} desc.</span>
+              <span className="text-emerald-600">✓ {effectiveNovas} novas</span>
+              <span className="text-amber-600">↔ {effectiveDuplicadas} dup.</span>
+              {effectiveDescartadas > 0 && (
+                <span className="text-destructive">✗ {effectiveDescartadas} desc.</span>
               )}
             </div>
           )}
