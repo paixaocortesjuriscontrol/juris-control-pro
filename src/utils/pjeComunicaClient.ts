@@ -308,15 +308,15 @@ export async function buscarPjeComunicaPaginado(
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = Math.max(options?.maxPages ?? 10, 1);
-  // Delay entre páginas: 3000ms (restaurado do 29/01 - conservador para evitar 429)
-  const delayMs = Math.max(options?.delayMs ?? 3000, 0);
-  // Retry com backoff exponencial conservador
-  const maxRetries = options?.maxRetries ?? 4;
-  const retryBaseDelay = options?.retryBaseDelay ?? 10000;  // 10s base para 429 (restaurado)
+  // Delay entre páginas: 1500ms (restaurado do 26/01 - balanceado velocidade/estabilidade)
+  const delayMs = Math.max(options?.delayMs ?? 1500, 0);
+  // Retry com backoff exponencial
+  const maxRetries = options?.maxRetries ?? 3;
+  const retryBaseDelay = options?.retryBaseDelay ?? 8000;  // 8s base para 429
 
   const startPage = Math.max(params.page ?? 0, 0);
-  // Keep payload small (consistent with buscar-djen hard cap)
-  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 10);
+  // PageSize 50: menos páginas = menos delays = ~2-3x mais rápido (restaurado do 26/01)
+  const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), 50);
 
   const all: any[] = [];
   const seen = new Set<string>();

@@ -78,11 +78,12 @@ interface Monitoramento {
 // CONFIGURAÇÃO
 // ============================================================================
 
+// Parâmetros restaurados do 26/01 (execução rápida ~5-6min)
 const CONFIG = {
-  delay_between_terms: 4000,     // 4s entre termos
-  delay_between_tribunals: 3000, // 3s entre tribunais
-  delay_between_variants: 1000,  // 1s entre variantes
-  delay_on_rate_limit: 15000,    // 15s no rate limit
+  delay_between_terms: 2000,     // 2s entre termos (era 4s)
+  delay_between_tribunals: 1500, // 1.5s entre tribunais (era 3s)
+  delay_between_variants: 500,   // 0.5s entre variantes (era 1s)
+  delay_on_rate_limit: 10000,    // 10s no rate limit (era 15s)
 };
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -427,7 +428,7 @@ async function processarTermo(
             {
               signal,
               maxPages: 10,
-              delayMs: 3000,
+              delayMs: 1500,  // 1.5s entre páginas (restaurado do 26/01)
             }
           );
 
