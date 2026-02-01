@@ -248,22 +248,6 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                   <StopCircle className="h-4 w-4 mr-2" />
                   Cancelar
                 </Button>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowKillDialog(true)}
-                      >
-                        <Skull className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Forçar cancelamento total</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
               </>
             ) : (
               <>
@@ -295,6 +279,44 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                 )}
               </>
             )}
+            
+            {/* Botões sempre visíveis: Limpar Tudo e Caveira */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      forceKill();
+                      onAfterMutation();
+                    }}
+                  >
+                    <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Limpar tudo (reset estado)</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowKillDialog(true)}
+                  >
+                    <Skull className="h-4 w-4 text-destructive" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Forçar cancelamento total</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
 
           {/* Indicador de execução em background */}

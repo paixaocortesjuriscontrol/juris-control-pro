@@ -310,7 +310,41 @@ function conteudoContemTermo(
 }
 
 // ============================================================================
-// PROCESSAMENTO DE TERMO
+// HELPERS PARA BUSCA
+// ============================================================================
+
+function gerarVariantes(termo: string): string[] {
+  const semAcento = termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const variantes = [termo];
+  if (semAcento !== termo) {
+    variantes.push(semAcento);
+  }
+  // Gerar variante curta (2 primeiras palavras significativas)
+  const palavras = termo.split(/\s+/).filter(p => p.length >= 2);
+  if (palavras.length >= 3) {
+    const curta = palavras.slice(0, 2).join(' ');
+    if (!variantes.includes(curta)) {
+      variantes.push(curta);
+    }
+  }
+  return variantes;
+}
+
+function parseUfs(ufValue: string): string[] {
+  if (!ufValue || ufValue === 'TODAS') return [];
+  if (ufValue.includes(',')) {
+    return ufValue.split(',')
+      .map(u => u.trim().toUpperCase())
+      .filter(u => u.length === 2);
+  }
+  if (ufValue.length === 2) {
+    return [ufValue];
+  }
+  return [];
+}
+
+// ============================================================================
+// PROCESSAMENTO DE TERMO (com filtros completos)
 // ============================================================================
 
 async function processarTermo(
@@ -322,62 +356,99 @@ async function processarTermo(
 
   const tipo = mon.tipo === 'parte' ? 'palavra-chave' : mon.tipo;
 
-  const params: any = {
+  // Configurar parâmetros base
+  const baseParams: any = {
     tipo,
     dataInicio: diaYmd,
     dataFim: diaYmd,
     pageSize: 50,
   };
 
+  // Configurar busca por tipo
+  let ufsParaBuscar: string[] = [];
+  let variantesParaBuscar: string[] = [];
+
   if (tipo === 'advogado' && mon.oab) {
-    params.oab = String(mon.oab).replace(/\D/g, '');
-    const uf = String(mon.uf || '').trim().toUpperCase();
-    if (uf && uf !== 'TODAS' && uf.length === 2) {
-      params.uf = uf;
+    baseParams.oab = String(mon.oab).replace(/\D/g, '');
+    const ufValue = String(mon.uf || '').trim().toUpperCase();
+    ufsParaBuscar = parseUfs(ufValue);
+    // Para advogado, variantes incluem nome (se existir) com/sem acento
+    if (mon.termo_busca) {
+      variantesParaBuscar = gerarVariantes(mon.termo_busca);
     }
   } else if (tipo === 'processo') {
-    params.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
+    baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
   } else {
-    params.palavraChave = mon.termo_busca;
+    // palavra-chave ou parte
+    variantesParaBuscar = gerarVariantes(mon.termo_busca);
   }
 
+  // Expandir tribunais configurados
   const tribunais = expandirTribunais(mon.tribunais);
   const tribunaisLoop = tribunais.length > 0 ? tribunais : [undefined];
+
+  // UFs: se configurado múltiplas, iterar; senão usar primeira ou undefined
+  const ufsLoop = ufsParaBuscar.length > 0 ? ufsParaBuscar : [undefined];
+
+  // Variantes: se tem, iterar; senão usar null
+  const variantesLoop = variantesParaBuscar.length > 0 
+    ? variantesParaBuscar 
+    : [null as unknown as string];
 
   const seen = new Set<string>();
   const resultados: any[] = [];
 
+  // ==================================================================
+  // LOOP TRIPLO: tribunal → UF → variante (igual à versão anterior)
+  // ==================================================================
   for (const trib of tribunaisLoop) {
     if (signal.aborted) break;
 
-    try {
-      const resp = await buscarPjeComunicaPaginado(
-        {
-          ...params,
-          siglaTribunal: trib,
-          page: 0,
-        },
-        {
-          signal,
-          maxPages: 10,
-          delayMs: 3000,
-        }
-      );
+    for (const uf of ufsLoop) {
+      if (signal.aborted) break;
 
-      for (const item of resp.items) {
-        const id = String(item?.id ?? '');
-        const key = id || JSON.stringify(item).slice(0, 400);
-        if (!seen.has(key)) {
-          seen.add(key);
-          resultados.push(item);
-        }
-      }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') break;
-      console.warn(`[DJEN] Erro ${trib ?? 'TODOS'}:`, e?.message);
+      for (const variante of variantesLoop) {
+        if (signal.aborted) break;
 
-      if (String(e?.message ?? '').includes('429')) {
-        await delay(CONFIG.delay_on_rate_limit);
+        try {
+          const resp = await buscarPjeComunicaPaginado(
+            {
+              tipo: baseParams.tipo,
+              oab: baseParams.oab,
+              uf: uf,
+              palavraChave: variante || undefined,
+              numeroProcesso: baseParams.numeroProcesso,
+              siglaTribunal: trib,
+              dataInicio: baseParams.dataInicio,
+              dataFim: baseParams.dataFim,
+              page: 0,
+              pageSize: baseParams.pageSize,
+            },
+            {
+              signal,
+              maxPages: 10,
+              delayMs: 3000,
+            }
+          );
+
+          for (const item of resp.items) {
+            const id = String(item?.id ?? '');
+            const key = id || JSON.stringify(item).slice(0, 400);
+            if (!seen.has(key)) {
+              seen.add(key);
+              resultados.push(item);
+            }
+          }
+        } catch (e: any) {
+          if (e?.name === 'AbortError') break;
+          console.warn(`[DJEN] Erro ${trib ?? 'TODOS'} ${uf ?? ''}:`, e?.message);
+
+          if (String(e?.message ?? '').includes('429')) {
+            await delay(CONFIG.delay_on_rate_limit);
+          }
+        }
+
+        await delay(CONFIG.delay_between_variants);
       }
     }
 
