@@ -286,21 +286,18 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="text-destructive hover:text-destructive"
                     onClick={async () => {
-                      if (!window.confirm('Isso irá deletar TODAS as publicações DJEN. Continuar?')) return;
                       await limparTudoComPublicacoes();
                       onAfterMutation();
                     }}
                   >
-                    <RotateCcw className="h-4 w-4 mr-1" />
-                    Limpar
+                    <RotateCcw className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Deletar todas publicações e resetar estado</p>
+                  <p>Limpar tudo (estado + publicações de hoje)</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
