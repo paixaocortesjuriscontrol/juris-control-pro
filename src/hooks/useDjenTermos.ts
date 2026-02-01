@@ -78,22 +78,17 @@ export function useDjenTermos() {
   }, [queryClient]);
 
   /**
-   * Limpa estado + deleta publicações de hoje do banco
+   * Limpa estado + deleta TODAS as publicações DJEN do banco
+   * (não apenas de hoje, mas todas encontradas via termos)
    */
   const limparTudoComPublicacoes = useCallback(async () => {
-    // Calcular início/fim do dia em Brasília
-    const agora = new Date();
-    const inicioDia = new Date(agora);
-    inicioDia.setHours(0, 0, 0, 0);
-    const fimDia = new Date(agora);
-    fimDia.setHours(23, 59, 59, 999);
+    toast.info('Deletando publicações...');
     
-    // Deletar publicações de hoje
-    const { error: errPub } = await supabase
+    // Deletar TODAS as publicações (não apenas de hoje)
+    const { error: errPub, count: countPub } = await supabase
       .from('publicacoes_djen')
       .delete()
-      .gte('created_at', inicioDia.toISOString())
-      .lte('created_at', fimDia.toISOString());
+      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
     
     if (errPub) {
       console.error('Erro ao deletar publicações:', errPub);
@@ -101,24 +96,25 @@ export function useDjenTermos() {
       return;
     }
     
-    // Deletar descartadas de hoje também
-    await supabase
+    // Deletar descartadas também
+    const { count: countDesc } = await supabase
       .from('publicacoes_djen_descartadas')
       .delete()
-      .gte('created_at', inicioDia.toISOString())
-      .lte('created_at', fimDia.toISOString());
+      .neq('id', '00000000-0000-0000-0000-000000000000');
     
     // Limpar estado do engine
     limparEstadoDjenTermos();
+    forceKillDjenTermos();
     
     // Invalidar queries
     queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
     queryClient.invalidateQueries({ queryKey: ['analise-djen'] });
     queryClient.invalidateQueries({ queryKey: ['djen-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['djen-stats-hoje'] });
     queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
     queryClient.invalidateQueries({ queryKey: ['monitoring-dashboard'] });
     
-    toast.success('Publicações de hoje removidas e estado limpo!');
+    toast.success(`Publicações removidas e estado limpo!`);
   }, [queryClient]);
 
   return {
