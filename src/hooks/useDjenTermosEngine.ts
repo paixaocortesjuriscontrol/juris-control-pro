@@ -202,7 +202,7 @@ function updateProgress(partial: Partial<DjenTermosProgress>) {
 }
 
 // ============================================================================
-// LÓGICA DE BUSCA (simplificada)
+// LÓGICA DE BUSCA (com validação completa)
 // ============================================================================
 
 const TODOS_CIVEIS = ['TJAC','TJAL','TJAM','TJAP','TJBA','TJCE','TJDFT','TJES','TJGO','TJMA','TJMG','TJMS','TJMT','TJPA','TJPB','TJPE','TJPI','TJPR','TJRJ','TJRN','TJRO','TJRR','TJRS','TJSC','TJSE','TJSP','TJTO'];
@@ -229,6 +229,90 @@ function gerarHash(conteudo: string, data: string): string {
   return Math.abs(hash).toString(16);
 }
 
+// ============================================================================
+// VALIDAÇÃO DE CONTEÚDO (crítico para qualidade)
+// ============================================================================
+
+function normalizar(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[&\/\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+/**
+ * Valida se o conteúdo realmente contém o termo buscado.
+ * 
+ * Para ADVOGADO:
+ *  - OAB deve estar presente (regex flexível)
+ *  - Nome deve ter 80% das palavras encontradas
+ * 
+ * Para PALAVRA-CHAVE/PARTE:
+ *  - 80% das palavras do termo devem estar no conteúdo
+ */
+function conteudoContemTermo(
+  conteudo: string,
+  termo: string,
+  tipo: string,
+  oab?: string
+): boolean {
+  if (!conteudo) return false;
+
+  const conteudoNorm = normalizar(conteudo);
+
+  // Para advogado: validar OAB + Nome
+  if (tipo === 'advogado') {
+    // 1. OAB DEVE estar presente
+    if (oab) {
+      const oabDigits = String(oab).replace(/\D/g, '');
+      if (oabDigits.length < 3) return false;
+      
+      // Regex flexível: aceita pontos/espaços entre dígitos (ex: 15.553 ou 15 553)
+      const oabPattern = new RegExp(oabDigits.split('').join('[.\\s-]?'), 'i');
+      if (!oabPattern.test(conteudo)) {
+        return false;
+      }
+    }
+
+    // 2. Nome do advogado (se informado) - 80% das palavras
+    if (termo) {
+      const termoNorm = normalizar(termo);
+      const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+
+      if (palavrasTermo.length > 0) {
+        const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
+        const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+
+        if (palavrasEncontradas.length < minPalavras) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  // Para palavra-chave/parte: 80% das palavras devem estar presentes
+  if (!termo) return true;
+
+  const termoNorm = normalizar(termo);
+  const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+
+  if (palavrasTermo.length === 0) return true;
+
+  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
+  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+
+  return palavrasEncontradas.length >= minPalavras;
+}
+
+// ============================================================================
+// PROCESSAMENTO DE TERMO
+// ============================================================================
+
 async function processarTermo(
   mon: Monitoramento,
   diaYmd: string,
@@ -237,7 +321,7 @@ async function processarTermo(
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0 };
 
   const tipo = mon.tipo === 'parte' ? 'palavra-chave' : mon.tipo;
-  
+
   const params: any = {
     tipo,
     dataInicio: diaYmd,
@@ -291,7 +375,7 @@ async function processarTermo(
     } catch (e: any) {
       if (e?.name === 'AbortError') break;
       console.warn(`[DJEN] Erro ${trib ?? 'TODOS'}:`, e?.message);
-      
+
       if (String(e?.message ?? '').includes('429')) {
         await delay(CONFIG.delay_on_rate_limit);
       }
@@ -304,14 +388,27 @@ async function processarTermo(
     return { novas: 0, duplicadas: 0, descartadas: 0 };
   }
 
-  // Validar e deduplicar
+  // ================================================================
+  // VALIDAÇÃO CRÍTICA: Filtrar publicações que NÃO contêm o termo
+  // ================================================================
   let descartadas = 0;
   const pubsValidas = resultados.filter(pub => {
     const conteudo = pub.conteudo || pub.teor || pub.texto || '';
-    if (!conteudo) return true;
+    if (!conteudo) {
+      descartadas++;
+      return false;
+    }
 
-    // Verificar exclusões
-    if (mon.exclusoes?.some(exc => conteudo.toUpperCase().includes(String(exc).toUpperCase()))) {
+    // 1. Verificar exclusões (termos bloqueados)
+    if (mon.exclusoes?.some(exc => 
+      conteudo.toUpperCase().includes(String(exc).toUpperCase())
+    )) {
+      descartadas++;
+      return false;
+    }
+
+    // 2. Verificar se o termo/OAB realmente está no conteúdo
+    if (!conteudoContemTermo(conteudo, mon.termo_busca, mon.tipo, mon.oab)) {
       descartadas++;
       return false;
     }
