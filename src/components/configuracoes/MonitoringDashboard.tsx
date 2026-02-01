@@ -31,7 +31,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getExecutionProgress } from "@/utils/executionProgress";
 import { supabase } from "@/integrations/supabase/client";
-import { DjenTermosDashboardCard } from "./DjenTermosDashboardCard";
+import { DjenTermosDashboardCard } from "./DjenTermosDashboardCardV2";
 
 const ICONS: Record<string, React.ElementType> = {
   RefreshCw,
@@ -671,9 +671,6 @@ export function MonitoringDashboard() {
               <DjenTermosDashboardCard
                 key={stats.tipo}
                 stats={stats}
-                isExecuting={executing[stats.tipo] || false}
-                isCancelling={cancelling[stats.tipo] || false}
-                onReativarConfig={reativarConfig}
                 onAfterMutation={refetch}
               />
             );
