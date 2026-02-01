@@ -73,6 +73,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     retomar,
     cancelar,
     forceKill,
+    limparTudoComPublicacoes,
   } = useDjenTermos();
 
   // Estado para seleção de datas
@@ -287,8 +288,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      forceKill();
+                    onClick={async () => {
+                      await limparTudoComPublicacoes();
                       onAfterMutation();
                     }}
                   >
@@ -296,7 +297,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Limpar tudo (reset estado)</p>
+                  <p>Limpar tudo (estado + publicações de hoje)</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
