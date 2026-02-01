@@ -8,6 +8,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { addDays, startOfDay } from 'date-fns';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import {
   DjenTermosProgress,
   executarDjenTermos,
@@ -78,43 +80,70 @@ export function useDjenTermos() {
   }, [queryClient]);
 
   /**
-   * Limpa estado + deleta TODAS as publicações DJEN do banco
-   * (não apenas de hoje, mas todas encontradas via termos)
+   * Limpa estado + deleta publicações de HOJE (America/Sao_Paulo)
+   * (tabelas: termos, processos e descartadas)
    */
   const limparTudoComPublicacoes = useCallback(async () => {
-    toast.info('Deletando publicações...');
-    
-    // Deletar TODAS as publicações (não apenas de hoje)
-    const { error: errPub, count: countPub } = await supabase
-      .from('publicacoes_djen')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
-    
-    if (errPub) {
-      console.error('Erro ao deletar publicações:', errPub);
-      toast.error('Erro ao limpar publicações');
+    const tz = 'America/Sao_Paulo';
+    toast.info('Limpando publicações de hoje...');
+
+    // Intervalo [início do dia, início do próximo dia) em São Paulo
+    const now = new Date();
+    const nowTz = toZonedTime(now, tz);
+    const startTz = startOfDay(nowTz);
+    const nextDayTz = addDays(startTz, 1);
+    const startUtc = fromZonedTime(startTz, tz);
+    const nextDayUtc = fromZonedTime(nextDayTz, tz);
+    const inicioIso = startUtc.toISOString();
+    const fimIso = nextDayUtc.toISOString();
+
+    const [pubRes, procRes, descRes] = await Promise.all([
+      supabase
+        .from('publicacoes_djen')
+        .delete({ count: 'exact' })
+        .gte('created_at', inicioIso)
+        .lt('created_at', fimIso),
+      supabase
+        .from('publicacoes_djen_processos')
+        .delete({ count: 'exact' })
+        .gte('created_at', inicioIso)
+        .lt('created_at', fimIso),
+      supabase
+        .from('publicacoes_djen_descartadas')
+        .delete({ count: 'exact' })
+        .gte('created_at', inicioIso)
+        .lt('created_at', fimIso),
+    ]);
+
+    const err = pubRes.error || procRes.error || descRes.error;
+    if (err) {
+      console.error('Erro ao limpar publicações DJEN:', {
+        termos: pubRes.error,
+        processos: procRes.error,
+        descartadas: descRes.error,
+      });
+      toast.error(`Erro ao limpar: ${err.message}`);
       return;
     }
-    
-    // Deletar descartadas também
-    const { count: countDesc } = await supabase
-      .from('publicacoes_djen_descartadas')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000');
-    
+
     // Limpar estado do engine
-    limparEstadoDjenTermos();
     forceKillDjenTermos();
-    
-    // Invalidar queries
+    limparEstadoDjenTermos();
+
+    // Invalidar queries (telas de análise + dashboards + processos)
     queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
     queryClient.invalidateQueries({ queryKey: ['analise-djen'] });
+    queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
+    queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['descartadas-djen'] });
+    queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-processo'] });
     queryClient.invalidateQueries({ queryKey: ['djen-stats'] });
     queryClient.invalidateQueries({ queryKey: ['djen-stats-hoje'] });
     queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
     queryClient.invalidateQueries({ queryKey: ['monitoring-dashboard'] });
-    
-    toast.success(`Publicações removidas e estado limpo!`);
+
+    const removidas = (pubRes.count ?? 0) + (procRes.count ?? 0) + (descRes.count ?? 0);
+    toast.success(`Limpeza concluída: ${removidas} registros de hoje removidos.`);
   }, [queryClient]);
 
   return {
