@@ -8,8 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { addDays, startOfDay } from 'date-fns';
-import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { withTimeout } from '@/utils/withTimeout';
 import {
   DjenTermosProgress,
   executarDjenTermos,
@@ -84,66 +83,46 @@ export function useDjenTermos() {
    * (tabelas: termos, processos e descartadas)
    */
   const limparTudoComPublicacoes = useCallback(async () => {
-    const tz = 'America/Sao_Paulo';
-    toast.info('Limpando publicações de hoje...');
+    toast.info('Limpando DJEN (hoje)...');
 
-    // Intervalo [início do dia, início do próximo dia) em São Paulo
-    const now = new Date();
-    const nowTz = toZonedTime(now, tz);
-    const startTz = startOfDay(nowTz);
-    const nextDayTz = addDays(startTz, 1);
-    const startUtc = fromZonedTime(startTz, tz);
-    const nextDayUtc = fromZonedTime(nextDayTz, tz);
-    const inicioIso = startUtc.toISOString();
-    const fimIso = nextDayUtc.toISOString();
+    try {
+      // Reaproveitar a rotina robusta já existente (edge function com service role + deletes em lote)
+      const { data, error } = await withTimeout(
+        supabase.functions.invoke('limpar-djen-hoje'),
+        180_000,
+        'A limpeza demorou mais que 180s. Verifique o log da função e tente novamente.'
+      );
+      if (error) throw error;
 
-    const [pubRes, procRes, descRes] = await Promise.all([
-      supabase
-        .from('publicacoes_djen')
-        .delete({ count: 'exact' })
-        .gte('created_at', inicioIso)
-        .lt('created_at', fimIso),
-      supabase
-        .from('publicacoes_djen_processos')
-        .delete({ count: 'exact' })
-        .gte('created_at', inicioIso)
-        .lt('created_at', fimIso),
-      supabase
-        .from('publicacoes_djen_descartadas')
-        .delete({ count: 'exact' })
-        .gte('created_at', inicioIso)
-        .lt('created_at', fimIso),
-    ]);
+      // Limpar estado do engine local (singleton)
+      forceKillDjenTermos();
+      limparEstadoDjenTermos();
 
-    const err = pubRes.error || procRes.error || descRes.error;
-    if (err) {
-      console.error('Erro ao limpar publicações DJEN:', {
-        termos: pubRes.error,
-        processos: procRes.error,
-        descartadas: descRes.error,
-      });
-      toast.error(`Erro ao limpar: ${err.message}`);
-      return;
+      // Refetch imediato das telas ativas (Análise / Dashboards)
+      const keys = [
+        ['publicacoes-djen'],
+        ['analise-djen'],
+        ['publicacoes-unificadas'],
+        ['publicacoes-unificadas-stats'],
+        ['descartadas-djen'],
+        ['publicacoes-djen-processo'],
+        ['djen-stats'],
+        ['djen-stats-hoje'],
+        ['notificacoes-counts'],
+        ['monitoring-dashboard'],
+      ] as const;
+
+      await Promise.all(
+        keys.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey: [...queryKey], refetchType: 'active' })
+        )
+      );
+
+      toast.success((data as any)?.message ?? 'Limpeza concluída!');
+    } catch (err: any) {
+      console.error('Erro ao limpar DJEN:', err);
+      toast.error(`Erro ao limpar: ${err?.message ?? String(err)}`);
     }
-
-    // Limpar estado do engine
-    forceKillDjenTermos();
-    limparEstadoDjenTermos();
-
-    // Invalidar queries (telas de análise + dashboards + processos)
-    queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
-    queryClient.invalidateQueries({ queryKey: ['analise-djen'] });
-    queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
-    queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
-    queryClient.invalidateQueries({ queryKey: ['descartadas-djen'] });
-    queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-processo'] });
-    queryClient.invalidateQueries({ queryKey: ['djen-stats'] });
-    queryClient.invalidateQueries({ queryKey: ['djen-stats-hoje'] });
-    queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
-    queryClient.invalidateQueries({ queryKey: ['monitoring-dashboard'] });
-
-    const removidas = (pubRes.count ?? 0) + (procRes.count ?? 0) + (descRes.count ?? 0);
-    toast.success(`Limpeza concluída: ${removidas} registros de hoje removidos.`);
   }, [queryClient]);
 
   return {
