@@ -150,11 +150,15 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
   const effectiveTempoDecorrido = Math.max(progress.tempoDecorrido || 0, stats.elapsedSeconds || 0);
 
-  // Contadores: priorizar engine local quando ativo, senão usar backend (stats.todayStats / metadata)
-  const effectiveNovas: number =
+  // Contadores: priorizar engine local quando ativo; senão usar backend (metadata/stats)
+  // Nota: a tela de Análise mostra apenas o que foi persistido no banco. Duplicadas podem ser >0
+  // mesmo com 0 novas, pois significam “já existia no banco”.
+  const effectiveEncontradas: number =
     (isRunning && progress.novas > 0)
       ? progress.novas
       : (typeof md.novas === 'number' ? md.novas : 0) ||
+        (typeof md.encontradas === 'number' ? md.encontradas : 0) ||
+        (typeof md.found === 'number' ? md.found : 0) ||
         (typeof stats.todayStats?.novas === 'number' ? stats.todayStats.novas : 0) ||
         (typeof stats.todayStats?.found === 'number' ? stats.todayStats.found : 0) ||
         0;
@@ -163,12 +167,15 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     (isRunning && progress.duplicadas > 0)
       ? progress.duplicadas
       : (typeof md.duplicadas === 'number' ? md.duplicadas : 0) ||
+        (typeof md.duplicatas === 'number' ? md.duplicatas : 0) ||
+        (typeof (stats.todayStats as any)?.duplicadas === 'number' ? (stats.todayStats as any).duplicadas : 0) ||
         0;
 
   const effectiveDescartadas: number =
     (isRunning && progress.descartadas > 0)
       ? progress.descartadas
       : (typeof md.descartadas === 'number' ? md.descartadas : 0) ||
+        (typeof md.discarded === 'number' ? md.discarded : 0) ||
         (typeof stats.todayStats?.descartadas === 'number' ? stats.todayStats.descartadas : 0) ||
         0;
 
@@ -275,16 +282,18 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
             </div>
           )}
 
-          {/* Estatísticas */}
-          {(effectiveNovas > 0 || effectiveDuplicadas > 0 || effectiveDescartadas > 0) && (
-            <div className="flex gap-4 text-sm">
-              <span className="text-emerald-600">✓ {effectiveNovas} novas</span>
-              <span className="text-amber-600">↔ {effectiveDuplicadas} dup.</span>
-              {effectiveDescartadas > 0 && (
-                <span className="text-destructive">✗ {effectiveDescartadas} desc.</span>
-              )}
-            </div>
-          )}
+          {/* Totalizadores */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <span className="text-primary">
+              ✓ {effectiveEncontradas} encontradas
+            </span>
+            <span className="text-muted-foreground">
+              ↔ {effectiveDuplicadas} duplicadas
+            </span>
+            <span className="text-destructive">
+              ✗ {effectiveDescartadas} descartadas
+            </span>
+          </div>
 
           {/* Tempo */}
           {effectiveTempoDecorrido > 0 && (
