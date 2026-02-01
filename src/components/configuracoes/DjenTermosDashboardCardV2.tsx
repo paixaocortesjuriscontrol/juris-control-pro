@@ -11,7 +11,7 @@
  */
 
 import { useMemo, useState, useCallback } from "react";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +54,7 @@ const STATUS_CONFIG: Record<string, {
   executando: { label: 'Executando', color: 'text-primary', bg: 'bg-primary/10', icon: Loader2, animate: true },
   concluido: { label: 'Concluído', color: 'text-emerald-600', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
   cancelado: { label: 'Cancelado', color: 'text-amber-600', bg: 'bg-amber-500/10', icon: StopCircle },
+  timeout: { label: 'Timeout', color: 'text-destructive', bg: 'bg-destructive/10', icon: XCircle },
   erro: { label: 'Erro', color: 'text-destructive', bg: 'bg-destructive/10', icon: XCircle },
 };
 
@@ -76,6 +77,79 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     limparTudoComPublicacoes,
   } = useDjenTermos();
 
+  // Snapshot do backend (evita “card desatualizado” ao sair/voltar da tela ou após reload)
+  const md = (stats.config?.metadata as Record<string, any> | null) || {};
+
+  // Fonte de verdade do status:
+  // - Se o engine local está rodando, confiar nele
+  // - Caso contrário, confiar no dashboard (execucoes_agendadas) e/ou metadata
+  const backendIsRunning =
+    stats.status === 'running' ||
+    stats.currentExecution?.status === 'executando' ||
+    md.status === 'executando';
+
+  const backendIsTimeout =
+    stats.status === 'timeout' ||
+    md.status === 'timeout' ||
+    md.status === 'stale' ||
+    md.last_stop_reason === 'stale';
+
+  const backendIsCancelled =
+    stats.status === 'cancelled' ||
+    md.status === 'cancelado' ||
+    md.cancelado === true;
+
+  const effectiveStatus: string = isRunning
+    ? 'executando'
+    : backendIsRunning
+      ? 'executando'
+      : backendIsTimeout
+        ? 'timeout'
+        : backendIsCancelled
+          ? 'cancelado'
+          : progress.status;
+
+  const effectiveIsRunning = effectiveStatus === 'executando';
+  const effectivePercentage =
+    (typeof progress.percentage === 'number' && progress.percentage > 0)
+      ? progress.percentage
+      : (typeof md.percentage === 'number')
+        ? md.percentage
+        : (typeof stats.progress === 'number')
+          ? stats.progress
+          : 0;
+
+  const effectiveDiaAtualYmd: string | null =
+    progress.diaAtualYmd ??
+    (typeof md.diaAtual === 'string' ? md.diaAtual : null) ??
+    (typeof md.diaAtualYmd === 'string' ? md.diaAtualYmd : null) ??
+    null;
+
+  const effectiveDiaAtualIndice: number =
+    progress.diaAtualIndice ||
+    (typeof md.diaIndice === 'number' ? md.diaIndice : 0) ||
+    (typeof md.diaAtualIndice === 'number' ? md.diaAtualIndice : 0) ||
+    0;
+
+  const effectiveTotalDias: number =
+    progress.totalDias ||
+    (typeof md.totalDias === 'number' ? md.totalDias : 0) ||
+    (typeof stats.currentExecution?.detalhes?.totalDias === 'number'
+      ? stats.currentExecution?.detalhes?.totalDias
+      : 0) ||
+    0;
+
+  const effectiveTermoAtual: string | null =
+    progress.termoAtual ?? (typeof md.termoAtual === 'string' ? md.termoAtual : null) ?? null;
+
+  const effectiveMensagem: string =
+    progress.mensagem ||
+    (typeof md.mensagem === 'string' ? md.mensagem : '') ||
+    (typeof md.message === 'string' ? md.message : '') ||
+    (effectiveIsRunning ? 'Executando...' : '');
+
+  const effectiveTempoDecorrido = Math.max(progress.tempoDecorrido || 0, stats.elapsedSeconds || 0);
+
   // Estado para seleção de datas
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
@@ -90,7 +164,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     return format(d, 'yyyy-MM-dd');
   }, []);
 
-  const statusConfig = STATUS_CONFIG[progress.status] || STATUS_CONFIG.idle;
+  const statusConfig = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.idle;
   const StatusIcon = statusConfig.icon;
 
   // Handlers
@@ -119,7 +193,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
   const handleCancelar = useCallback(() => {
     cancelar();
-  }, [cancelar]);
+    onAfterMutation();
+  }, [cancelar, onAfterMutation]);
 
   const handleForceKill = useCallback(() => {
     setShowKillDialog(false);
@@ -140,7 +215,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
   return (
     <>
-      <Card className={cn("relative overflow-hidden", isRunning && "ring-2 ring-primary/30")}>
+      <Card className={cn("relative overflow-hidden", effectiveIsRunning && "ring-2 ring-primary/30")}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -156,23 +231,25 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
         <CardContent className="space-y-4">
           {/* Progresso */}
-          {(isRunning || progress.status === 'concluido' || progress.status === 'cancelado') && (
+          {(effectiveIsRunning || effectiveStatus === 'concluido' || effectiveStatus === 'cancelado' || effectiveStatus === 'timeout') && (
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">
-                  {progress.diaAtualYmd && (
+                  {effectiveDiaAtualYmd && (
                     <span className="font-medium">
-                      📅 Dia {progress.diaAtualIndice}/{progress.totalDias} • 
+                      📅 Dia {effectiveDiaAtualIndice}/{effectiveTotalDias} •
                     </span>
                   )}
-                  {progress.termoAtual && (
-                    <span className="ml-1">{progress.termoAtual}</span>
+                  {effectiveTermoAtual && (
+                    <span className="ml-1">{effectiveTermoAtual}</span>
                   )}
                 </span>
-                <span className="font-mono font-medium">{progress.percentage}%</span>
+                <span className="font-mono font-medium">{Math.round(effectivePercentage)}%</span>
               </div>
-              <Progress value={progress.percentage} className="h-2" />
-              <p className="text-xs text-muted-foreground">{progress.mensagem}</p>
+              <Progress value={Math.round(effectivePercentage)} className="h-2" />
+              {!!effectiveMensagem && (
+                <p className="text-xs text-muted-foreground">{effectiveMensagem}</p>
+              )}
             </div>
           )}
 
@@ -188,15 +265,15 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
           )}
 
           {/* Tempo */}
-          {progress.tempoDecorrido > 0 && (
+          {effectiveTempoDecorrido > 0 && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
-              <span>{formatDuration(progress.tempoDecorrido)}</span>
+              <span>{formatDuration(effectiveTempoDecorrido)}</span>
             </div>
           )}
 
           {/* Seletor de datas (apenas quando não está executando) */}
-          {!isRunning && progress.status !== 'executando' && (
+          {!effectiveIsRunning && effectiveStatus !== 'executando' && (
             <div className="flex gap-2">
               <Popover>
                 <PopoverTrigger asChild>
@@ -238,7 +315,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
           {/* Botões de ação */}
           <div className="flex gap-2">
-            {isRunning ? (
+            {effectiveIsRunning ? (
               <>
                 <Button 
                   variant="destructive" 
@@ -322,7 +399,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
           </div>
 
           {/* Indicador de execução em background */}
-          {isRunning && (
+          {effectiveIsRunning && (
             <p className="text-xs text-center text-muted-foreground">
               💡 Execução continua em background mesmo ao sair desta tela
             </p>
