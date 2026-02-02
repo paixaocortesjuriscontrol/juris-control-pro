@@ -6,6 +6,8 @@
  * para evitar flutuações de percentual causadas por múltiplas fontes de dados.
  */
 
+import { useEffect, useRef, useState } from "react";
+
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Newspaper, Clock, CheckCircle2 } from "lucide-react";
@@ -51,17 +53,53 @@ export function DjenExecutionBanner() {
   // Usar APENAS o status do metadata como fonte de verdade
   const backendIsRunning = md.status === "em_andamento" || md.status === "executando";
 
+  // % base APENAS do metadata (fonte única)
+  const computedPercentage = (() => {
+    const direct = typeof md.percentage === "number" ? md.percentage : null;
+    if (typeof direct === "number" && Number.isFinite(direct)) {
+      return Math.max(0, Math.min(100, Math.round(direct)));
+    }
+
+    const current = typeof md.current === "number" ? md.current : Number(md.current);
+    const total = typeof md.total === "number" ? md.total : Number(md.total);
+    if (Number.isFinite(current) && Number.isFinite(total) && total > 0) {
+      // Mantém abaixo de 100 enquanto está executando para evitar “flash” de 100%.
+      return Math.max(0, Math.min(99, Math.round((current / total) * 100)));
+    }
+    return 0;
+  })();
+
+  // Para evitar sensação de “indo e voltando” por snapshots intermitentes,
+  // tornamos o percentual monotônico durante UMA MESMA execução.
+  const runId: string | null =
+    (typeof md?.djen_run?.run_id === "string" ? md.djen_run.run_id : null) ||
+    (typeof md?.execucaoId === "string" ? md.execucaoId : null) ||
+    (typeof md?.run_key === "string" ? md.run_key : null);
+
+  const [stablePercentage, setStablePercentage] = useState<number>(() => computedPercentage);
+  const lastRunIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!backendIsRunning) {
+      lastRunIdRef.current = null;
+      setStablePercentage(0);
+      return;
+    }
+
+    const key = runId ?? "unknown";
+    if (lastRunIdRef.current !== key) {
+      lastRunIdRef.current = key;
+      setStablePercentage(computedPercentage);
+      return;
+    }
+
+    setStablePercentage((prev) => Math.max(prev, computedPercentage));
+  }, [backendIsRunning, runId, computedPercentage]);
+
   // Não mostrar se não está executando
   if (!backendIsRunning) {
     return null;
   }
-
-  // Usar APENAS dados do metadata (fonte única) para evitar flutuações
-  const percentage = typeof md.percentage === "number"
-    ? md.percentage
-    : (typeof md.current === "number" && typeof md.total === "number" && md.total > 0)
-      ? Math.min(99, Math.round((md.current / md.total) * 100))
-      : 0;
 
   const termoAtual =
     (typeof md.termoAtual === "string" ? md.termoAtual : null) ||
@@ -101,7 +139,7 @@ export function DjenExecutionBanner() {
               <span className="font-medium text-sm">Monitoramento DJEN em execução</span>
               <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/30 gap-1">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                {percentage}%
+                {stablePercentage}%
               </Badge>
             </div>
             
@@ -120,7 +158,7 @@ export function DjenExecutionBanner() {
             </div>
           </div>
           
-          <Progress value={percentage} className="h-2" />
+          <Progress value={stablePercentage} className="h-2" />
           
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="truncate max-w-[60%]">
