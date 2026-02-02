@@ -103,7 +103,7 @@ const AnaliseDjen = () => {
   const [dataFim, setDataFim] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
-  const [apenasHoje, setApenasHoje] = useState(false); // Desativado por padrão para mostrar todas as não lidas
+  const [apenasHoje, setApenasHoje] = useState(true); // Sempre marcado por padrão
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
 
   // Quando carregar a coordenação do usuário, definir como padrão
