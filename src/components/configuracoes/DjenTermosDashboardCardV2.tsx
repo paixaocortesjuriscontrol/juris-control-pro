@@ -10,7 +10,7 @@
  * - Mostrar progresso global + indicador do dia atual
  */
 
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -147,7 +147,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     md.status === 'cancelado' ||
     md.cancelado === true;
 
-  const effectiveStatus: string = isRunning
+  const rawEffectiveStatus: string = isRunning
     ? 'executando'
     : isOrphanExecution
       ? 'timeout'
@@ -159,8 +159,46 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
             ? 'cancelado'
             : progress.status;
 
+  // Evita “flicker” de status (Executando → Aguardando → Executando)
+  // durante ciclos de polling/refetch.
+  const lastRunningAtRef = useRef<number | null>(null);
+  const [stableStatus, setStableStatus] = useState<string>(rawEffectiveStatus);
+
+  useEffect(() => {
+    // Status terminais: aplicar imediatamente
+    if (rawEffectiveStatus === 'concluido' || rawEffectiveStatus === 'cancelado' || rawEffectiveStatus === 'timeout' || rawEffectiveStatus === 'erro') {
+      lastRunningAtRef.current = null;
+      setStableStatus(rawEffectiveStatus);
+      return;
+    }
+
+    if (rawEffectiveStatus === 'executando') {
+      lastRunningAtRef.current = Date.now();
+      setStableStatus('executando');
+      return;
+    }
+
+    // Se acabou de “perder” o estado de executando, segurar por um curto período
+    // para não sumir a barra nem voltar para “Aguardando” por inconsistência momentânea.
+    if (rawEffectiveStatus === 'idle' && lastRunningAtRef.current && Date.now() - lastRunningAtRef.current < 15_000) {
+      setStableStatus('executando');
+      return;
+    }
+
+    lastRunningAtRef.current = null;
+    setStableStatus(rawEffectiveStatus);
+  }, [rawEffectiveStatus]);
+
+  const effectiveStatus = stableStatus;
   const effectiveIsRunning = effectiveStatus === 'executando';
-  const effectivePercentage =
+
+  const toSafePct = (value: unknown): number => {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, Math.min(100, Math.round(n)));
+  };
+
+  const computedPercentage =
     (typeof progress.percentage === 'number' && progress.percentage > 0)
       ? progress.percentage
       : (typeof md.percentage === 'number')
@@ -168,6 +206,37 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
         : (typeof stats.progress === 'number')
           ? stats.progress
           : 0;
+
+  // Travar percentual por execução (monotônico), usando a chave da execução.
+  const runKey: string | null =
+    (typeof md?.djen_run?.run_id === 'string' ? md.djen_run.run_id : null) ||
+    (typeof md?.execucaoId === 'string' ? md.execucaoId : null) ||
+    (typeof md?.run_key === 'string' ? md.run_key : null) ||
+    (typeof (stats.currentExecution as any)?.id === 'string' ? (stats.currentExecution as any).id : null);
+
+  const lastRunKeyRef = useRef<string | null>(null);
+  const [stablePercentage, setStablePercentage] = useState<number>(() => toSafePct(computedPercentage));
+
+  useEffect(() => {
+    const safe = toSafePct(computedPercentage);
+
+    if (!effectiveIsRunning) {
+      lastRunKeyRef.current = null;
+      setStablePercentage(safe);
+      return;
+    }
+
+    const key = runKey ?? 'unknown';
+    if (lastRunKeyRef.current !== key) {
+      lastRunKeyRef.current = key;
+      setStablePercentage(safe);
+      return;
+    }
+
+    setStablePercentage((prev) => Math.max(prev, safe));
+  }, [effectiveIsRunning, runKey, computedPercentage]);
+
+  const effectivePercentage = effectiveIsRunning ? stablePercentage : toSafePct(computedPercentage);
 
   const effectiveDiaAtualYmd: string | null =
     progress.diaAtualYmd ??
