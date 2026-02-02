@@ -1909,6 +1909,7 @@ serve(async (req) => {
     // Ler datas do período de consulta (query params ou body)
     const dataInicioParam = url.searchParams.get('dataInicio') ?? body?.dataInicio ?? null;
     const dataFimParam = url.searchParams.get('dataFim') ?? body?.dataFim ?? null;
+    const runKey = `${dataInicioParam ?? 'auto'}..${dataFimParam ?? 'auto'}|${indexMode ?? 'normal'}`;
     
     console.log(`[DJEN] Date params from URL: dataInicio=${dataInicioParam}, dataFim=${dataFimParam}`);
 
@@ -2013,7 +2014,10 @@ serve(async (req) => {
         ? Math.max(0, nextOffsetCfgRaw)
         : Math.max(0, Number(metaCfg.current ?? 0) || 0);
 
-      if (runningCfg && hasMoreCfg && expectedOffset > 0 && offset < expectedOffset) {
+      // Não depender de has_more (pode ficar inconsistente em alguns snapshots).
+      // Se já existe uma execução em andamento com checkpoint > 0, não permitir
+      // invocações com offset menor (evita reprocesso e regressão de %).
+      if (runningCfg && expectedOffset > 0 && offset < expectedOffset) {
         console.warn(
           `[DJEN] Stale invocation guard: offset=${offset} < expectedOffset=${expectedOffset}. Skipping to prevent reprocessing.`,
         );
@@ -2086,11 +2090,19 @@ serve(async (req) => {
         .maybeSingle();
       const metaInit = (cfgInit?.metadata as Record<string, any>) || {};
 
+      // Se é um run NOVO (offset=0 sem continued/parentRunId), não pode herdar
+      // current/total antigos (isso faz parecer que “concluiu 100%” e depois regrediu).
+      const hasParentRunForReset = !!parentRunId;
+      const isNewRunForReset = offset === 0 && !continued && !hasParentRunForReset;
+      const prevRunKey = (metaInit as any)?.run_key ?? (metaInit as any)?.runKey;
+      const isDifferentRunKey = typeof prevRunKey === 'string' && prevRunKey.length > 0 && prevRunKey !== runKey;
+      const shouldResetProgress = isNewRunForReset || isDifferentRunKey;
+
       // Anti-regressão: garantir que current/percentage não voltem em snapshots concorrentes
-      const prevCur = Number(metaInit.current ?? 0);
-      const prevTot = Number(metaInit.total ?? 0);
+      const prevCur = shouldResetProgress ? 0 : Number(metaInit.current ?? 0);
+      const prevTot = shouldResetProgress ? 0 : Number(metaInit.total ?? 0);
       const safeTotal = Math.max(total, Number.isFinite(prevTot) ? prevTot : 0);
-      const safeCurrent = Math.max(offset, Number.isFinite(prevCur) ? prevCur : 0);
+      const safeCurrent = shouldResetProgress ? 0 : Math.max(offset, Number.isFinite(prevCur) ? prevCur : 0);
       const safePercentage = safeTotal > 0 ? Math.min(100, Math.round((safeCurrent / safeTotal) * 100)) : 0;
 
       await supabase
@@ -2098,12 +2110,24 @@ serve(async (req) => {
         .update({
           metadata: {
             ...metaInit,
+            run_key: runKey,
             status: 'em_andamento',
             current: safeCurrent,
             total: safeTotal,
             percentage: safePercentage,
             mensagem: 'Processando monitoramentos...',
             termoAtual: metaInit.termoAtual ?? null,
+
+            ...(shouldResetProgress
+              ? {
+                  // limpar restos de execução anterior
+                  last_stop_reason: null,
+                  warning: null,
+                  has_more: true,
+                  next_offset: 0,
+                  djen_run: null,
+                }
+              : {}),
           },
         })
         .eq('tipo', 'djen')
@@ -2122,6 +2146,7 @@ serve(async (req) => {
               total: safeTotal,
               percentage: safePercentage,
             },
+            runKey,
           },
         });
       }

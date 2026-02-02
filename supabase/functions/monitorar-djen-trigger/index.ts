@@ -24,10 +24,24 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({} as any));
     const dataInicio = body?.dataInicio as string | undefined;
     const dataFim = body?.dataFim as string | undefined;
+	const manual = body?.manual === true;
     const conservative = body?.conservative === true;
     const indexMode = body?.indexMode as string | undefined;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+	// =====================================================================
+	// MODO MANUAL APENAS
+	// =====================================================================
+	// Requisito do produto: o DJEN Termos NÃO deve reiniciar sozinho.
+	// - UI envia { manual: true }
+	// - Chamadas automáticas (cron/rotinas) sem manual=true são ignoradas
+	if (!manual) {
+		return new Response(
+			JSON.stringify({ success: true, dispatched: false, ignored: true, reason: 'manual_required' }),
+			{ headers: { ...corsHeaders, "Content-Type": "application/json" } }
+		);
+	}
 
     // Se já existir execução ativa, não criar outra (evita duplicatas no dashboard)
     let execucaoId: string | undefined;
