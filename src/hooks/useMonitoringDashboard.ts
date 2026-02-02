@@ -366,9 +366,20 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     // IMPORTANTE: Em modo 100% background a Edge Function pode falhar ao enfileirar o próximo lote,
     // deixando "status=executando" mas com "finalizado_em" preenchido. Isso precisa ser tratado
     // como finalizado (NÃO exibir como running).
-    const activeExecutions = typeExecutions.filter(
-      (e) => e.status === 'executando' && e.finalizado_em === null
-    );
+    // DJEN (100% background): pode haver janela onde finalizado_em está preenchido por snapshot antigo
+    // e depois a execução continua. Tratamos como ativa se houver "heartbeat" recente.
+    const DJEN_ACTIVE_WINDOW_MS = 15 * 60 * 1000; // 15 min
+    const isDjenFresh = (e: MonitoringExecution) => {
+      if (e.finalizado_em == null) return true;
+      const ts = new Date(e.finalizado_em).getTime();
+      return Number.isFinite(ts) && (Date.now() - ts) < DJEN_ACTIVE_WINDOW_MS;
+    };
+
+    const activeExecutions = typeExecutions.filter((e) => {
+      if (e.status !== 'executando') return false;
+      if (tipo === 'djen') return isDjenFresh(e);
+      return e.finalizado_em === null;
+    });
     
     const currentExecution = (() => {
       if (activeExecutions.length === 0) return null;
@@ -389,7 +400,30 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       });
       
       if (withProgress.length > 0) {
-        // Usar a mais recente entre as que têm progresso
+        if (tipo === 'djen') {
+          // DJEN: escolher SEMPRE o maior progresso (evita % voltar ao alternar entre snapshots/execuções)
+          const score = (x: MonitoringExecution) => {
+            const cur = Number(x.detalhes?.progress?.current ?? 0);
+            const tot = Number(x.detalhes?.progress?.total ?? 0);
+            const pct = Number(x.detalhes?.progress?.percentage ?? 0);
+            const pctSafe = Number.isFinite(pct) && pct > 0 ? pct : (Number.isFinite(cur) && Number.isFinite(tot) && tot > 0 ? (cur / tot) * 100 : 0);
+            const curSafe = Number.isFinite(cur) ? cur : 0;
+            return { pct: pctSafe, cur: curSafe };
+          };
+
+          return withProgress.reduce((best, cur) => {
+            const a = score(best);
+            const b = score(cur);
+            if (b.pct !== a.pct) return b.pct > a.pct ? cur : best;
+            if (b.cur !== a.cur) return b.cur > a.cur ? cur : best;
+            // empate: mais recente
+            const bestTs = new Date(best.iniciado_em).getTime();
+            const curTs = new Date(cur.iniciado_em).getTime();
+            return curTs > bestTs ? cur : best;
+          });
+        }
+
+        // Outros tipos: usar a mais recente entre as que têm progresso
         return withProgress.reduce((best, cur) => {
           const bestTs = new Date(best.iniciado_em).getTime();
           const curTs = new Date(cur.iniciado_em).getTime();

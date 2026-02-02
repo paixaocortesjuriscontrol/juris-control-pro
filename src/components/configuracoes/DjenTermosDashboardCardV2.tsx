@@ -298,6 +298,16 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       return 0;
     }
 
+    // 1b) Modo 100% background: pode haver janela onde finalizado_em ficou preenchido por snapshot antigo,
+    // mas a execução continua (heartbeat do backend limpa depois). Nessa janela, ainda assim
+    // preferimos detalhes.progress da execução para evitar % "indo e voltando" por metadata.
+    if (stats.currentExecution?.status === 'executando') {
+      const p = getDjenTermosExecutionProgress({ detalhes: stats.currentExecution.detalhes });
+      if (typeof p.percentage === 'number' && Number.isFinite(p.percentage)) {
+        return Math.max(0, Math.min(99, Math.round(p.percentage)));
+      }
+    }
+
     // 2) Execução local (engine singleton)
     if (isRunning && typeof progress.percentage === 'number') {
       return progress.percentage;

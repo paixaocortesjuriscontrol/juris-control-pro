@@ -49,9 +49,10 @@ export function DjenExecutionBanner() {
           )
           .eq("tipo", "djen")
           .eq("status", "executando")
-          .is("finalizado_em", null)
           .order("iniciado_em", { ascending: false })
-          .limit(2),
+            // Pode haver janela onde finalizado_em está preenchido por snapshot antigo.
+            // Mantemos poucas linhas e filtramos localmente.
+            .limit(5),
         supabase
           .from("configuracoes_monitoramento")
           .select("metadata")
@@ -86,11 +87,30 @@ export function DjenExecutionBanner() {
   const execucaoAtiva = useMemo(() => {
     const rows = snapshot?.execucoes ?? [];
     if (!rows.length) return null;
-    // Se houver múltiplas, priorizar a que tem progresso real POR TERMOS (detalhes.progress)
-    const withProgress = rows
+
+    const DJEN_ACTIVE_WINDOW_MS = 15 * 60 * 1000;
+    const isFresh = (e: ExecucaoAtiva) => {
+      if (e.finalizado_em == null) return true;
+      const ts = new Date(e.finalizado_em).getTime();
+      return Number.isFinite(ts) && (Date.now() - ts) < DJEN_ACTIVE_WINDOW_MS;
+    };
+
+    // Se houver múltiplas, priorizar a com maior progresso POR TERMOS (detalhes.progress)
+    const candidates = rows.filter(isFresh);
+    const scored = (candidates.length ? candidates : rows)
       .map((e) => ({ e, p: getDjenTermosExecutionProgress({ detalhes: e.detalhes }) }))
       .filter((x) => x.p.current > 0 || (x.p.percentage ?? 0) > 0);
-    return (withProgress[0]?.e ?? rows[0]) as ExecucaoAtiva;
+
+    if (!scored.length) return (candidates[0] ?? rows[0]) as ExecucaoAtiva;
+
+    scored.sort((a, b) => {
+      const ap = a.p.percentage ?? 0;
+      const bp = b.p.percentage ?? 0;
+      if (bp !== ap) return bp - ap;
+      return b.p.current - a.p.current;
+    });
+
+    return scored[0].e as ExecucaoAtiva;
   }, [snapshot]);
 
   const md = snapshot?.md ?? {};
