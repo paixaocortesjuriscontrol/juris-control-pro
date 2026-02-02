@@ -527,21 +527,50 @@ function conteudoContemTermo(
 // HELPERS PARA BUSCA
 // ============================================================================
 
+/**
+ * Gera variantes de busca para melhor cobertura.
+ * 
+ * IMPORTANTE: Para termos com caracteres especiais como "&",
+ * gera variantes sem e com espaços para capturar diferentes indexações.
+ * Ex: "F & F Distribuidora" → ["F & F Distribuidora", "F F Distribuidora"]
+ */
 function gerarVariantes(termo: string): string[] {
+  const variantes = new Set<string>();
+  variantes.add(termo);
+  
+  // Variante sem acentos
   const semAcento = termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const variantes = [termo];
   if (semAcento !== termo) {
-    variantes.push(semAcento);
+    variantes.add(semAcento);
   }
-  // Gerar variante curta (2 primeiras palavras significativas)
-  const palavras = termo.split(/\s+/).filter(p => p.length >= 2);
-  if (palavras.length >= 3) {
-    const curta = palavras.slice(0, 2).join(' ');
-    if (!variantes.includes(curta)) {
-      variantes.push(curta);
+  
+  // Variante com & substituído por espaço (tribunais podem indexar diferente)
+  if (termo.includes('&')) {
+    const semAmpersand = termo.replace(/\s*&\s*/g, ' ').replace(/\s+/g, ' ').trim();
+    variantes.add(semAmpersand);
+    
+    // Também sem acentos
+    const semAmpersandSemAcento = semAmpersand.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (semAmpersandSemAcento !== semAmpersand) {
+      variantes.add(semAmpersandSemAcento);
     }
   }
-  return variantes;
+  
+  // Gerar variante curta (2 primeiras palavras significativas >= 2 caracteres)
+  // Filtrar &, /, etc. para encontrar palavras reais
+  const palavrasSignificativas = termo.split(/\s+/).filter(p => p.length >= 2 && !/^[&\/\\]+$/.test(p));
+  if (palavrasSignificativas.length >= 3) {
+    const curta = palavrasSignificativas.slice(0, 2).join(' ');
+    variantes.add(curta);
+    
+    // Curta sem acentos também
+    const curtaSemAcento = curta.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (curtaSemAcento !== curta) {
+      variantes.add(curtaSemAcento);
+    }
+  }
+  
+  return Array.from(variantes);
 }
 
 function parseUfs(ufValue: string): string[] {
