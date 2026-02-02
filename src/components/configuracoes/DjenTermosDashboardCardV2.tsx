@@ -198,21 +198,34 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     return Math.max(0, Math.min(100, Math.round(n)));
   };
 
-  const computedPercentage =
-    (typeof progress.percentage === 'number' && progress.percentage > 0)
-      ? progress.percentage
-      : (typeof md.percentage === 'number')
-        ? md.percentage
-        : (typeof stats.progress === 'number')
-          ? stats.progress
-          : 0;
+  // Percentual: evitar alternar fontes durante execução.
+  // - Se existe execução no backend (execucoes_agendadas), usar stats.progress (agora monotônico)
+  // - Se está rodando local (engine), usar progress.percentage
+  // - Senão, cair para metadata
+  const computedPercentage = (() => {
+    if (stats.currentExecution?.status === 'executando' && typeof stats.progress === 'number') {
+      return stats.progress;
+    }
+    if (isRunning && typeof progress.percentage === 'number') {
+      return progress.percentage;
+    }
+    if (typeof md.percentage === 'number') {
+      return md.percentage;
+    }
+    if (typeof stats.progress === 'number') {
+      return stats.progress;
+    }
+    return 0;
+  })();
 
   // Travar percentual por execução (monotônico), usando a chave da execução.
+  // Chave estável: preferir SEMPRE o executionId do execucoes_agendadas.
+  // (metadata pode aparecer/sumir entre polls e isso resetava o lock monotônico)
   const runKey: string | null =
-    (typeof md?.djen_run?.run_id === 'string' ? md.djen_run.run_id : null) ||
+    (typeof stats.currentExecution?.id === 'string' ? stats.currentExecution.id : null) ||
     (typeof md?.execucaoId === 'string' ? md.execucaoId : null) ||
-    (typeof md?.run_key === 'string' ? md.run_key : null) ||
-    (typeof (stats.currentExecution as any)?.id === 'string' ? (stats.currentExecution as any).id : null);
+    (typeof md?.djen_run?.run_id === 'string' ? md.djen_run.run_id : null) ||
+    (typeof md?.run_key === 'string' ? md.run_key : null);
 
   const lastRunKeyRef = useRef<string | null>(null);
   const [stablePercentage, setStablePercentage] = useState<number>(() => toSafePct(computedPercentage));

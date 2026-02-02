@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { getExecutionProgress } from "@/utils/executionProgress";
 
 export type MonitoringStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout';
@@ -103,6 +103,15 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
 export function useMonitoringDashboard(options: MonitoringDashboardOptions = {}) {
   const queryClient = useQueryClient();
   const [tick, setTick] = useState(0);
+
+  // Mantém progresso monotônico por execução para evitar "indo e voltando"
+  // quando snapshots do backend chegam fora de ordem (realtime/polling).
+  const stableProgressByTipoRef = useRef(
+    new Map<
+      string,
+      { execId: string; progress: number | null; processados: number; total: number }
+    >()
+  );
 
   const toNumber = (value: any): number | null => {
     if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -349,9 +358,17 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     const typeExecutions = executions.filter(e => e.tipo === tipo);
     
     // CORREÇÃO: Só considerar "ativo" se status=executando E finalizado_em=null
-    const currentExecution = typeExecutions.find(e => 
-      e.status === 'executando' && e.finalizado_em === null
-    ) || null;
+    // E, se houver múltiplas execuções ativas, usar SEMPRE a mais recente por iniciado_em
+    // (evita alternância de IDs e percentual “indo e voltando”).
+    const currentExecution =
+      typeExecutions
+        .filter((e) => e.status === 'executando' && e.finalizado_em === null)
+        .reduce<MonitoringExecution | null>((best, cur) => {
+          if (!best) return cur;
+          const bestTs = new Date(best.iniciado_em).getTime();
+          const curTs = new Date(cur.iniciado_em).getTime();
+          return curTs > bestTs ? cur : best;
+        }, null);
     
     // Considera também 'timeout' como execução finalizada
     const lastCompletedExecution = typeExecutions.find(e => 
@@ -590,6 +607,42 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
         total = processados;
         progress = 100;
       }
+    }
+
+    // Estabilização (monotônico) para status=running com executionId.
+    // - Não deixa % cair
+    // - Não deixa a barra sumir (progress null) durante execução
+    if (status === 'running' && currentExecution?.id) {
+      const key = currentExecution.id;
+      const prev = stableProgressByTipoRef.current.get(tipo);
+
+      if (prev && prev.execId === key) {
+        // current/total não podem “andar para trás”
+        processados = Math.max(processados, prev.processados);
+        if (prev.total > 0 && total === 0) total = prev.total;
+        if (total > 0 && prev.total > 0) total = Math.max(total, prev.total);
+
+        // % também não
+        if (typeof progress === 'number') {
+          progress = prev.progress === null ? progress : Math.max(progress, prev.progress);
+        } else {
+          progress = prev.progress;
+        }
+      }
+
+      // Clamp final
+      if (typeof progress === 'number' && Number.isFinite(progress)) {
+        progress = Math.max(0, Math.min(100, Math.round(progress)));
+      }
+
+      stableProgressByTipoRef.current.set(tipo, {
+        execId: key,
+        progress,
+        processados,
+        total,
+      });
+    } else {
+      stableProgressByTipoRef.current.delete(tipo);
     }
 
     return {
