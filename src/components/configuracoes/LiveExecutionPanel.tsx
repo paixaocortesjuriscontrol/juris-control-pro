@@ -83,8 +83,8 @@ export function LiveExecutionPanel({
       const lastRunMs = new Date(cfg.ultima_execucao).getTime();
       const ageMs = Date.now() - lastRunMs;
       
-      // Não consideramos execuções muito antigas
-      if (ageMs > 10 * 60 * 1000) return null;
+      // Não consideramos execuções muito antigas (30 min para DJEN que demora mais)
+      if (ageMs > 30 * 60 * 1000) return null;
 
       const nextOffset = typeof metadata.next_offset === 'number' ? metadata.next_offset : null;
       const currentTribunalOffset = typeof metadata.current_tribunal_offset === 'number' ? metadata.current_tribunal_offset : null;
