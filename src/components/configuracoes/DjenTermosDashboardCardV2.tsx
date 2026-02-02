@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { useDjenTermos } from "@/hooks/useDjenTermos";
 import type { MonitoringStats } from "@/hooks/useMonitoringDashboard";
 import { toast } from "sonner";
+import { getDjenTermosExecutionProgress } from "@/utils/djenTermosExecutionProgress";
 
 type Props = {
   stats: MonitoringStats;
@@ -200,19 +201,14 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     return Math.max(0, Math.min(100, Math.round(n)));
   };
 
-  // Percentual (solução definitiva): durante execução de BACKEND, usar APENAS metadata.
-  // Isso evita “indo e voltando” quando existem múltiplas execuções 'executando'
-  // em execucoes_agendadas ou quando snapshots chegam fora de ordem.
+  // Percentual (fonte única): DJEN Termos deve usar detalhes.progress da execução ativa.
+  // (registros_processados não representa “termos processados” e causava oscilação)
   const computedPercentage = (() => {
-    // 1) Execução no backend (modo híbrido/background)
-    if (!isRunning && mdIsRunning) {
-      if (typeof md.percentage === 'number' && Number.isFinite(md.percentage)) {
-        return md.percentage;
-      }
-      const current = typeof md.current === 'number' ? md.current : Number(md.current);
-      const total = typeof md.total === 'number' ? md.total : Number(md.total);
-      if (Number.isFinite(current) && Number.isFinite(total) && total > 0) {
-        return Math.max(0, Math.min(99, Math.round((current / total) * 100)));
+    // 1) Se houver execução ativa no banco, usar SEMPRE execucoes_agendadas
+    if (stats.currentExecution?.status === 'executando' && stats.currentExecution.finalizado_em == null) {
+      const p = getDjenTermosExecutionProgress({ detalhes: stats.currentExecution.detalhes });
+      if (typeof p.percentage === 'number' && Number.isFinite(p.percentage)) {
+        return Math.max(0, Math.min(99, Math.round(p.percentage)));
       }
       return 0;
     }
@@ -222,7 +218,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       return progress.percentage;
     }
 
-    // 3) Fallback (sem execução)
+    // 3) Fallback (sem execução): metadata/stats
     if (typeof md.percentage === 'number') {
       return md.percentage;
     }

@@ -15,7 +15,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getExecutionProgress } from "@/utils/executionProgress";
+import { getDjenTermosExecutionProgress } from "@/utils/djenTermosExecutionProgress";
 
 type ExecucaoAtiva = {
   id: string;
@@ -36,71 +36,57 @@ function formatDuration(seconds: number): string {
 }
 
 export function DjenExecutionBanner() {
-  // Execução ativa (fonte única para %). Evita divergência entre Análise e Card.
-  const { data: execucoesAtivas = [] } = useQuery({
-    queryKey: ["djen-termos-banner-execucao-ativa"],
+  // Um único polling leve (reduz re-render e evita lentidão na Análise)
+  const { data: snapshot } = useQuery({
+    queryKey: ["djen-termos-banner-snapshot"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("execucoes_agendadas")
-        .select(
-          "id, tipo, status, iniciado_em, finalizado_em, registros_processados, lotes_processados, total_lotes, detalhes"
-        )
-        .eq("tipo", "djen")
-        .eq("status", "executando")
-        .is("finalizado_em", null)
-        .order("iniciado_em", { ascending: false })
-        .limit(10);
+      const [execRes, cfgRes] = await Promise.all([
+        supabase
+          .from("execucoes_agendadas")
+          .select(
+            "id, tipo, status, iniciado_em, finalizado_em, registros_processados, lotes_processados, total_lotes, detalhes"
+          )
+          .eq("tipo", "djen")
+          .eq("status", "executando")
+          .is("finalizado_em", null)
+          .order("iniciado_em", { ascending: false })
+          .limit(10),
+        supabase
+          .from("configuracoes_monitoramento")
+          .select("metadata")
+          .eq("tipo", "djen")
+          .is("coordenacao_id", null)
+          .maybeSingle(),
+      ]);
 
-      if (error) throw error;
-      return (data || []) as ExecucaoAtiva[];
+      if (execRes.error) throw execRes.error;
+      if (cfgRes.error) throw cfgRes.error;
+
+      const execucoes = (execRes.data || []) as ExecucaoAtiva[];
+      const md = ((cfgRes.data as any)?.metadata as Record<string, any> | null) ?? null;
+
+      return { execucoes, md };
     },
     refetchInterval: (q) => {
-      const rows = (q.state.data as ExecucaoAtiva[] | undefined) ?? [];
-      return rows.length > 0 ? 2000 : 10000;
+      const data = q.state.data as { execucoes: ExecucaoAtiva[]; md: Record<string, any> | null } | undefined;
+      const hasExec = (data?.execucoes?.length ?? 0) > 0;
+      const mdStatus = data?.md?.status;
+      const mdRunning = mdStatus === "em_andamento" || mdStatus === "executando";
+      return hasExec || mdRunning ? 5000 : 15000;
     },
   });
 
   const execucaoAtiva = useMemo(() => {
-    if (!execucoesAtivas.length) return null;
-    // Se houver múltiplas, priorizar a que tem progresso real.
-    const withProgress = execucoesAtivas.filter((e) => {
-      const { current } = getExecutionProgress({
-        detalhes: e.detalhes,
-        registros_processados: e.registros_processados,
-        total_lotes: e.total_lotes,
-        lotes_processados: e.lotes_processados,
-      });
-      return current > 0;
-    });
-    return (withProgress[0] ?? execucoesAtivas[0]) as ExecucaoAtiva;
-  }, [execucoesAtivas]);
+    const rows = snapshot?.execucoes ?? [];
+    if (!rows.length) return null;
+    // Se houver múltiplas, priorizar a que tem progresso real POR TERMOS (detalhes.progress)
+    const withProgress = rows
+      .map((e) => ({ e, p: getDjenTermosExecutionProgress({ detalhes: e.detalhes }) }))
+      .filter((x) => x.p.current > 0 || (x.p.percentage ?? 0) > 0);
+    return (withProgress[0]?.e ?? rows[0]) as ExecucaoAtiva;
+  }, [snapshot]);
 
-  // Busca APENAS os metadados da configuração - fonte única de verdade
-  const { data: backendSnapshot } = useQuery({
-    queryKey: ["djen-termos-banner-backend"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("configuracoes_monitoramento")
-        .select("metadata, ultima_execucao")
-        .eq("tipo", "djen")
-        .is("coordenacao_id", null)
-        .maybeSingle();
-
-      if (error) throw error;
-      return {
-        metadata: (data?.metadata as Record<string, any> | null) ?? null,
-        ultima_execucao: (data as any)?.ultima_execucao as string | null,
-      };
-    },
-    refetchInterval: (q) => {
-      const md = (q.state.data as any)?.metadata as Record<string, any> | null;
-      const mdStatus = md?.status;
-      const backendRunning = mdStatus === "em_andamento" || mdStatus === "executando";
-      return backendRunning ? 2000 : 10000;
-    },
-  });
-
-  const md = backendSnapshot?.metadata ?? {};
+  const md = snapshot?.md ?? {};
 
   // Considerar execução ativa OU metadata
   const backendIsRunning =
@@ -109,12 +95,7 @@ export function DjenExecutionBanner() {
   // %: preferir execucoes_agendadas (evita divergência e regressão), fallback metadata
   const computedPercentage = (() => {
     if (execucaoAtiva) {
-      const { percentage } = getExecutionProgress({
-        detalhes: execucaoAtiva.detalhes,
-        registros_processados: execucaoAtiva.registros_processados,
-        total_lotes: execucaoAtiva.total_lotes,
-        lotes_processados: execucaoAtiva.lotes_processados,
-      });
+      const { percentage } = getDjenTermosExecutionProgress({ detalhes: execucaoAtiva.detalhes });
 
       if (typeof percentage === "number" && Number.isFinite(percentage)) {
         // Mantém abaixo de 100 enquanto está executando para evitar “flash” de 100%.
