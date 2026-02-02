@@ -113,9 +113,9 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
   // Detectar execução órfã: se backend diz "executando" mas:
   // 1. O engine local NÃO está rodando
-  // 2. A execução foi iniciada há mais de 10 minutos
+  // 2. A execução foi iniciada há mais de 30 minutos
   // Isso acontece quando a aba do navegador é fechada durante a execução
-  const ORPHAN_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutos
+  const ORPHAN_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutos
   const executionStartTime = stats.currentExecution?.iniciado_em
     ? new Date(stats.currentExecution.iniciado_em).getTime()
     : null;
