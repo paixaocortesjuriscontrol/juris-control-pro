@@ -1477,6 +1477,114 @@ export type Database = {
           },
         ]
       }
+      djen_diario_index: {
+        Row: {
+          atualizado_em: string | null
+          cancelado: boolean | null
+          diario_ymd: string
+          erro_mensagem: string | null
+          id: string
+          status: string
+          total_publicacoes: number | null
+          total_tribunais: number | null
+          tribunais_processados: number | null
+        }
+        Insert: {
+          atualizado_em?: string | null
+          cancelado?: boolean | null
+          diario_ymd: string
+          erro_mensagem?: string | null
+          id?: string
+          status?: string
+          total_publicacoes?: number | null
+          total_tribunais?: number | null
+          tribunais_processados?: number | null
+        }
+        Update: {
+          atualizado_em?: string | null
+          cancelado?: boolean | null
+          diario_ymd?: string
+          erro_mensagem?: string | null
+          id?: string
+          status?: string
+          total_publicacoes?: number | null
+          total_tribunais?: number | null
+          tribunais_processados?: number | null
+        }
+        Relationships: []
+      }
+      djen_diario_index_tribunais: {
+        Row: {
+          atualizado_em: string | null
+          diario_ymd: string
+          erro_mensagem: string | null
+          max_pages: number | null
+          paginas_processadas: number | null
+          status: string
+          tribunal: string
+        }
+        Insert: {
+          atualizado_em?: string | null
+          diario_ymd: string
+          erro_mensagem?: string | null
+          max_pages?: number | null
+          paginas_processadas?: number | null
+          status?: string
+          tribunal: string
+        }
+        Update: {
+          atualizado_em?: string | null
+          diario_ymd?: string
+          erro_mensagem?: string | null
+          max_pages?: number | null
+          paginas_processadas?: number | null
+          status?: string
+          tribunal?: string
+        }
+        Relationships: []
+      }
+      djen_diario_publicacoes: {
+        Row: {
+          conteudo: string
+          conteudo_tsv: unknown
+          created_at: string | null
+          data_disponibilizacao: string | null
+          data_publicacao: string | null
+          diario_ymd: string
+          hash_global: string
+          id: string
+          processo_numero: string | null
+          raw_json: Json | null
+          tribunal: string | null
+        }
+        Insert: {
+          conteudo: string
+          conteudo_tsv?: unknown
+          created_at?: string | null
+          data_disponibilizacao?: string | null
+          data_publicacao?: string | null
+          diario_ymd: string
+          hash_global: string
+          id?: string
+          processo_numero?: string | null
+          raw_json?: Json | null
+          tribunal?: string | null
+        }
+        Update: {
+          conteudo?: string
+          conteudo_tsv?: unknown
+          created_at?: string | null
+          data_disponibilizacao?: string | null
+          data_publicacao?: string | null
+          diario_ymd?: string
+          hash_global?: string
+          id?: string
+          processo_numero?: string | null
+          raw_json?: Json | null
+          tribunal?: string | null
+        }
+        Relationships: []
+      }
       djen_lotes: {
         Row: {
           created_at: string
@@ -2412,8 +2520,8 @@ export type Database = {
           exclusoes: string[] | null
           id: string
           oab: string | null
-          termos_or: string[] | null
           termo_busca: string
+          termos_or: string[] | null
           tipo: string
           tribunais: string[] | null
           uf: string | null
@@ -2429,8 +2537,8 @@ export type Database = {
           exclusoes?: string[] | null
           id?: string
           oab?: string | null
-          termos_or?: string[] | null
           termo_busca: string
+          termos_or?: string[] | null
           tipo: string
           tribunais?: string[] | null
           uf?: string | null
@@ -2446,8 +2554,8 @@ export type Database = {
           exclusoes?: string[] | null
           id?: string
           oab?: string | null
-          termos_or?: string[] | null
           termo_busca?: string
+          termos_or?: string[] | null
           tipo?: string
           tribunais?: string[] | null
           uf?: string | null
@@ -4458,6 +4566,27 @@ export type Database = {
           total_unicas: number
         }[]
       }
+      count_djen_publicacoes_deduplicadas_hoje_nao_lidas: {
+        Args: never
+        Returns: {
+          total_bruto: number
+          total_unicas: number
+        }[]
+      }
+      count_djen_publicacoes_deduplicadas_hoje_por_coordenacao: {
+        Args: { p_coordenacao_id: string }
+        Returns: {
+          total_bruto: number
+          total_unicas: number
+        }[]
+      }
+      count_djen_publicacoes_deduplicadas_hoje_por_coordenacao_nao_li: {
+        Args: { p_coordenacao_id: string }
+        Returns: {
+          total_bruto: number
+          total_unicas: number
+        }[]
+      }
       count_djen_publicacoes_unificadas: {
         Args: {
           p_apenas_nao_lidas?: boolean
@@ -4667,6 +4796,7 @@ export type Database = {
         Args: { data_base: string; dias_uteis_subtrair: number }
         Returns: string
       }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       app_role:

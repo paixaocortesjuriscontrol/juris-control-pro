@@ -183,13 +183,13 @@ export function useDjenTermos() {
   const limparIndiceDiario = useCallback(async (dataYmd: string) => {
     try {
       toast.info(`Limpando índice do dia ${dataYmd}...`);
-      const { error: errPublicacoes } = await supabase
+      const { error: errPublicacoes } = await (supabase as any)
         .from('djen_diario_publicacoes')
         .delete()
         .eq('diario_ymd', dataYmd);
       if (errPublicacoes) throw errPublicacoes;
 
-      const { error: errIndex } = await supabase
+      const { error: errIndex } = await (supabase as any)
         .from('djen_diario_index')
         .delete()
         .eq('diario_ymd', dataYmd);

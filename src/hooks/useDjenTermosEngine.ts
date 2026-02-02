@@ -74,6 +74,7 @@ interface Monitoramento {
   exclusoes?: string[];
   tribunais?: string[];
   descricao?: string | null;
+  condicao_concomitante?: string | null;
 }
 
 // ============================================================================
@@ -338,20 +339,21 @@ async function persistMetadata(
   }
 
   singletonState.lastMetadataPersistAt = now;
-  const promise = supabase
-    .from('configuracoes_monitoramento')
-    .update({ metadata })
-    .eq('tipo', 'djen')
-    .is('coordenacao_id', null)
-    .then(() => {})
-    .catch((err) => {
+  const promise = (async () => {
+    try {
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({ metadata })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+    } catch (err: any) {
       console.warn('[DJEN] Falha ao atualizar metadata:', err?.message || err);
-    })
-    .finally(() => {
+    } finally {
       if (singletonState.metadataPersistInFlight === promise) {
         singletonState.metadataPersistInFlight = null;
       }
-    });
+    }
+  })();
 
   singletonState.metadataPersistInFlight = promise;
   if (opts.force) {
@@ -736,7 +738,7 @@ async function processarTermo(
   }
 
   if (signal.aborted || resultados.length === 0) {
-    return { novas: 0, duplicadas: 0, descartadas: 0 };
+    return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
   }
 
   if (isAdvogadoComOab) {
