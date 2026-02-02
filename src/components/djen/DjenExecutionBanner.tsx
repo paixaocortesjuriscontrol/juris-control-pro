@@ -6,7 +6,7 @@
  * para evitar flutuações de percentual causadas por múltiplas fontes de dados.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,19 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getExecutionProgress } from "@/utils/executionProgress";
+
+type ExecucaoAtiva = {
+  id: string;
+  tipo: string;
+  status: string;
+  iniciado_em: string;
+  finalizado_em: string | null;
+  registros_processados: number;
+  lotes_processados: number;
+  total_lotes: number | null;
+  detalhes: Record<string, any> | null;
+};
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -23,6 +36,45 @@ function formatDuration(seconds: number): string {
 }
 
 export function DjenExecutionBanner() {
+  // Execução ativa (fonte única para %). Evita divergência entre Análise e Card.
+  const { data: execucoesAtivas = [] } = useQuery({
+    queryKey: ["djen-termos-banner-execucao-ativa"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("execucoes_agendadas")
+        .select(
+          "id, tipo, status, iniciado_em, finalizado_em, registros_processados, lotes_processados, total_lotes, detalhes"
+        )
+        .eq("tipo", "djen")
+        .eq("status", "executando")
+        .is("finalizado_em", null)
+        .order("iniciado_em", { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      return (data || []) as ExecucaoAtiva[];
+    },
+    refetchInterval: (q) => {
+      const rows = (q.state.data as ExecucaoAtiva[] | undefined) ?? [];
+      return rows.length > 0 ? 2000 : 10000;
+    },
+  });
+
+  const execucaoAtiva = useMemo(() => {
+    if (!execucoesAtivas.length) return null;
+    // Se houver múltiplas, priorizar a que tem progresso real.
+    const withProgress = execucoesAtivas.filter((e) => {
+      const { current } = getExecutionProgress({
+        detalhes: e.detalhes,
+        registros_processados: e.registros_processados,
+        total_lotes: e.total_lotes,
+        lotes_processados: e.lotes_processados,
+      });
+      return current > 0;
+    });
+    return (withProgress[0] ?? execucoesAtivas[0]) as ExecucaoAtiva;
+  }, [execucoesAtivas]);
+
   // Busca APENAS os metadados da configuração - fonte única de verdade
   const { data: backendSnapshot } = useQuery({
     queryKey: ["djen-termos-banner-backend"],
@@ -50,14 +102,30 @@ export function DjenExecutionBanner() {
 
   const md = backendSnapshot?.metadata ?? {};
 
-  // Usar APENAS o status do metadata como fonte de verdade
-  const backendIsRunning = md.status === "em_andamento" || md.status === "executando";
+  // Considerar execução ativa OU metadata
+  const backendIsRunning =
+    !!execucaoAtiva || md.status === "em_andamento" || md.status === "executando";
 
-  // % base APENAS do metadata (fonte única)
+  // %: preferir execucoes_agendadas (evita divergência e regressão), fallback metadata
   const computedPercentage = (() => {
+    if (execucaoAtiva) {
+      const { percentage } = getExecutionProgress({
+        detalhes: execucaoAtiva.detalhes,
+        registros_processados: execucaoAtiva.registros_processados,
+        total_lotes: execucaoAtiva.total_lotes,
+        lotes_processados: execucaoAtiva.lotes_processados,
+      });
+
+      if (typeof percentage === "number" && Number.isFinite(percentage)) {
+        // Mantém abaixo de 100 enquanto está executando para evitar “flash” de 100%.
+        return Math.max(0, Math.min(99, Math.round(percentage)));
+      }
+      return 0;
+    }
+
     const direct = typeof md.percentage === "number" ? md.percentage : null;
     if (typeof direct === "number" && Number.isFinite(direct)) {
-      return Math.max(0, Math.min(100, Math.round(direct)));
+      return Math.max(0, Math.min(99, Math.round(direct)));
     }
 
     const current = typeof md.current === "number" ? md.current : Number(md.current);
@@ -72,6 +140,8 @@ export function DjenExecutionBanner() {
   // Para evitar sensação de “indo e voltando” por snapshots intermitentes,
   // tornamos o percentual monotônico durante UMA MESMA execução.
   const runId: string | null =
+    (typeof execucaoAtiva?.detalhes?.runId === "string" ? execucaoAtiva?.detalhes?.runId : null) ||
+    (typeof execucaoAtiva?.id === "string" ? execucaoAtiva?.id : null) ||
     (typeof md?.djen_run?.run_id === "string" ? md.djen_run.run_id : null) ||
     (typeof md?.execucaoId === "string" ? md.execucaoId : null) ||
     (typeof md?.run_key === "string" ? md.run_key : null);
@@ -112,6 +182,12 @@ export function DjenExecutionBanner() {
 
   // Calcular tempo decorrido a partir do metadata
   const tempoDecorrido = (() => {
+    if (execucaoAtiva?.iniciado_em) {
+      const startedAt = new Date(execucaoAtiva.iniciado_em).getTime();
+      if (Number.isFinite(startedAt)) {
+        return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+      }
+    }
     if (typeof md.duracao_s === "number" && md.duracao_s > 0) return md.duracao_s;
     const startedAt = md.djen_run?.started_at ? new Date(md.djen_run.started_at).getTime() : null;
     if (startedAt && Number.isFinite(startedAt)) {
