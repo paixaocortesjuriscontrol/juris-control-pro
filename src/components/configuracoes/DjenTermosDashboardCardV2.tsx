@@ -571,17 +571,81 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Alerta de execução órfã */}
+          {/* Alerta de execução órfã com ações diretas */}
           {isOrphanExecution && (
             <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
               <div className="flex items-start gap-2">
                 <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <div>
+                <div className="flex-1">
                   <p className="font-medium">Execução travada detectada</p>
-                  <p className="text-xs mt-1">
+                  <p className="text-xs mt-1 mb-2">
                     A execução está parada há mais de 10 minutos (provavelmente a aba foi fechada).
-                    Clique no botão <Skull className="inline h-3 w-3" /> "Forçar Cancelamento" para limpar e poder reiniciar.
                   </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {canResume && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          // Limpar estado órfão e retomar de onde parou
+                          forceKill();
+                          setTimeout(() => retomar({ turbo: turboMode }), 500);
+                        }}
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1" />
+                        Continuar de {checkpointPercent}%
+                      </Button>
+                    )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleForceKill}
+                    >
+                      <Skull className="h-3 w-3 mr-1" />
+                      Limpar e Reiniciar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Alerta de checkpoint disponível após erro/cancelamento */}
+          {!isOrphanExecution && !effectiveIsRunning && canResume && 
+           (effectiveStatus === 'erro' || effectiveStatus === 'cancelado' || effectiveStatus === 'timeout') && (
+            <div className="rounded-md bg-accent p-3 text-sm text-accent-foreground border border-accent/50">
+              <div className="flex items-start gap-2">
+                <RotateCcw className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium">Execução interrompida em {checkpointPercent}%</p>
+                  <p className="text-xs mt-1 mb-2">
+                    Você pode continuar de onde parou ou reiniciar do zero.
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleRetomar}
+                    >
+                      <RotateCcw className="h-3 w-3 mr-1" />
+                      Continuar de {checkpointPercent}%
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        forceKill();
+                        setTimeout(() => {
+                          if (dataInicio && dataFim) {
+                            executar(getDataYmd(dataInicio), getDataYmd(dataFim), { turbo: turboMode });
+                          }
+                        }, 500);
+                      }}
+                    >
+                      <PlayCircle className="h-3 w-3 mr-1" />
+                      Reiniciar do Zero
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -926,13 +990,14 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
               Limpar índice
             </Button>
             
-            {/* Botões sempre visíveis: Limpar Tudo (intervalo) e Caveira */}
+            {/* Botão Limpar Tudo - sempre visível e claro */}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
+                    className="text-muted-foreground hover:text-foreground"
                     onClick={async () => {
                       // Garantir que nenhum modo dispare automaticamente após limpar
                       setHybridMode(false);
@@ -946,29 +1011,31 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                       onAfterMutation();
                     }}
                   >
-                    <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                    <RotateCcw className="h-4 w-4 mr-1" />
+                    Limpar
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Limpar tudo (intervalo selecionado)</p>
+                  <p>Limpar publicações do intervalo selecionado</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
             
+            {/* Botão Caveira - SEMPRE visível e destacado */}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
+                    variant="destructive"
+                    size="sm"
                     onClick={() => setShowKillDialog(true)}
                   >
-                    <Skull className="h-4 w-4 text-destructive" />
+                    <Skull className="h-4 w-4 mr-1" />
+                    Reset
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Forçar cancelamento total</p>
+                  <p>Forçar cancelamento e limpar todo estado</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
