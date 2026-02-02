@@ -3030,14 +3030,44 @@ serve(async (req) => {
 
             // Limpa a continuação para a próxima execução não somar em cima de um run quebrado
             try {
+               // IMPORTANTE: também encerrar a execução do dashboard.
+               // Caso contrário, a UI fica presa em 96-99% para sempre.
+               const progressPercentage = total > 0
+                 ? Math.min(100, Math.round(((offset + processedCount) / total) * 100))
+                 : 0;
+               await updateExecucaoProgress(supabase, execucaoId, {
+                 status: 'timeout',
+                 finalizado_em: nowIso,
+                 registros_processados: run?.totals?.processados || (offset + processedCount),
+                 registros_encontrados: run?.totals?.novas || totalNovas,
+                 total_lotes: total,
+                 detalhes: {
+                   progress: {
+                     current: offset + processedCount,
+                     total,
+                     percentage: progressPercentage,
+                   },
+                   descartadas: run?.totals?.descartadas || totalDescartadas,
+                   duplicatas: run?.totals?.duplicatas || totalDuplicatas,
+                   erros: run?.totals?.erros || errorCount,
+                   runId,
+                   stop_reason: 'failed_to_queue_next_batch',
+                 },
+               });
+
               await supabase
                 .from('configuracoes_monitoramento')
                 .update({
                   metadata: {
-                    ...updatedMeta,
-                    has_more: false,
-                    next_offset: null,
-                    djen_run: null,
+                     ...updatedMeta,
+                     // marcar explicitamente como timeout para destravar UI e permitir retomar/reiniciar
+                     status: 'timeout',
+                     last_stop_reason: 'failed_to_queue_next_batch',
+                     warning: 'Execução interrompida: falha ao enfileirar o próximo lote. Use Retomar ou Reiniciar.',
+                     has_more: false,
+                     next_offset: null,
+                     djen_run: null,
+                     continuingRun: false,
                   },
                 })
                 .eq('tipo', 'djen');

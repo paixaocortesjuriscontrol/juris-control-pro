@@ -112,6 +112,16 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   // Snapshot do backend (evita “card desatualizado” ao sair/voltar da tela ou após reload)
   const md = ((liveConfig?.metadata as Record<string, any> | null) || (stats.config?.metadata as Record<string, any> | null) || {});
 
+  // Metadata pode ficar “presa” em em_andamento em cenários de falha (ex.: continuação não enfileirada).
+  // Só considerar "rodando" via metadata quando houver sinais de progresso/continuação.
+  const mdStatus = typeof (md as any)?.status === 'string' ? ((md as any).status as string) : undefined;
+  const mdHasSignals =
+    (md as any)?.has_more === true ||
+    (md as any)?.djen_run != null ||
+    (md as any)?.next_offset != null ||
+    (typeof (md as any)?.current === 'number' && (md as any).current > 0);
+  const mdRunningMeaningful = (mdStatus === 'executando' || mdStatus === 'em_andamento') && mdHasSignals;
+
   // Detectar execução órfã (stale): banco diz "executando" mas NÃO há atividade
   // por um período (padrão: 10 min) e o engine local não está rodando.
   // Importante: NÃO usar apenas "tempo desde início" (senão qualquer execução longa vira timeout).
@@ -130,8 +140,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   const rawBackendIsRunning =
     stats.status === 'running' ||
     stats.currentExecution?.status === 'executando' ||
-    md.status === 'executando' ||
-    md.status === 'em_andamento';
+    mdRunningMeaningful;
 
   const backendExecId = typeof stats.currentExecution?.id === 'string' ? stats.currentExecution.id : null;
   const backendExecProgress = useMemo(() => {
@@ -295,9 +304,13 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     }
 
     // 3) Fallback (sem execução): metadata/stats
-    if (typeof md.percentage === 'number') {
-      return md.percentage;
+    if (mdStatus === 'concluido') return 100;
+
+    // Evitar “% fantasma” quando metadata ficou travada em um estado inválido.
+    if (mdRunningMeaningful && typeof md.percentage === 'number' && Number.isFinite(md.percentage)) {
+      return Math.max(0, Math.min(99, Math.round(md.percentage)));
     }
+
     if (typeof stats.progress === 'number') {
       return stats.progress;
     }
@@ -325,7 +338,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       return;
     }
 
-    const key = runKey ?? 'unknown';
+    // Se o backend “some” com a runKey em um snapshot, não resetar.
+    const key = runKey ?? lastRunKeyRef.current ?? 'unknown';
     if (lastRunKeyRef.current !== key) {
       lastRunKeyRef.current = key;
       setStablePercentage(safe);

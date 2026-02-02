@@ -44,13 +44,14 @@ export function DjenExecutionBanner() {
         supabase
           .from("execucoes_agendadas")
           .select(
-            "id, tipo, status, iniciado_em, finalizado_em, registros_processados, lotes_processados, total_lotes, detalhes"
+            // Campos mínimos para calcular % e tempo (evita pesar a tela /analise-djen)
+            "id, tipo, status, iniciado_em, finalizado_em, detalhes"
           )
           .eq("tipo", "djen")
           .eq("status", "executando")
           .is("finalizado_em", null)
           .order("iniciado_em", { ascending: false })
-          .limit(10),
+          .limit(2),
         supabase
           .from("configuracoes_monitoramento")
           .select("metadata")
@@ -71,7 +72,13 @@ export function DjenExecutionBanner() {
       const data = q.state.data as { execucoes: ExecucaoAtiva[]; md: Record<string, any> | null } | undefined;
       const hasExec = (data?.execucoes?.length ?? 0) > 0;
       const mdStatus = data?.md?.status;
-      const mdRunning = mdStatus === "em_andamento" || mdStatus === "executando";
+      // Evitar polling agressivo quando metadata ficou presa em "em_andamento" sem sinais de continuação.
+      const mdHasSignals =
+        data?.md?.has_more === true ||
+        data?.md?.djen_run != null ||
+        data?.md?.next_offset != null ||
+        (typeof data?.md?.current === 'number' && data.md.current > 0);
+      const mdRunning = (mdStatus === "em_andamento" || mdStatus === "executando") && mdHasSignals;
       return hasExec || mdRunning ? 5000 : 15000;
     },
   });
@@ -88,9 +95,17 @@ export function DjenExecutionBanner() {
 
   const md = snapshot?.md ?? {};
 
+  const mdStatus = typeof md.status === 'string' ? (md.status as string) : undefined;
+  const mdHasSignals =
+    md?.has_more === true ||
+    md?.djen_run != null ||
+    md?.next_offset != null ||
+    (typeof md?.current === 'number' && md.current > 0);
+  const mdRunningMeaningful = (mdStatus === 'em_andamento' || mdStatus === 'executando') && mdHasSignals;
+
   // Considerar execução ativa OU metadata
   const backendIsRunning =
-    !!execucaoAtiva || md.status === "em_andamento" || md.status === "executando";
+    !!execucaoAtiva || mdRunningMeaningful;
 
   // %: preferir execucoes_agendadas (evita divergência e regressão), fallback metadata
   const computedPercentage = (() => {
@@ -103,6 +118,9 @@ export function DjenExecutionBanner() {
       }
       return 0;
     }
+
+    // Se não há execução ativa e o metadata não tem sinais consistentes, não exibir “% fantasma”.
+    if (!mdRunningMeaningful) return 0;
 
     const direct = typeof md.percentage === "number" ? md.percentage : null;
     if (typeof direct === "number" && Number.isFinite(direct)) {
@@ -137,7 +155,8 @@ export function DjenExecutionBanner() {
       return;
     }
 
-    const key = runId ?? "unknown";
+    // Se o backend “some” com o runId por um snapshot, não resetar.
+    const key = runId ?? lastRunIdRef.current ?? "unknown";
     if (lastRunIdRef.current !== key) {
       lastRunIdRef.current = key;
       setStablePercentage(computedPercentage);
