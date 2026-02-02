@@ -31,6 +31,7 @@ serve(async (req) => {
 
     // Se já existir execução ativa, não criar outra (evita duplicatas no dashboard)
     let execucaoId: string | undefined;
+    let hadActiveExecution = false;
     try {
       const { data: active, error: activeErr } = await supabase
         .from('execucoes_agendadas')
@@ -52,6 +53,7 @@ serve(async (req) => {
         });
         const canonical = (withProgress[0] ?? rows[0])!;
         execucaoId = canonical.id;
+        hadActiveExecution = true;
 
         // Limpeza segura: se houver execuções "executando" sem progresso e bem antigas,
         // marcá-las como timeout para não poluir a UI.
@@ -154,6 +156,16 @@ serve(async (req) => {
       } catch (e) {
         console.warn("[DJEN Trigger] Falha ao criar execucao_agendada:", e);
       }
+    }
+
+    // Se já havia execução ativa, NÃO disparar novamente o worker.
+    // Isso evita reprocessar termos já pesquisados na mesma execução quando alguém clica novamente
+    // (ou quando um cron tenta iniciar enquanto ainda está rodando).
+    if (hadActiveExecution) {
+      return new Response(
+        JSON.stringify({ success: true, dispatched: false, alreadyRunning: true, execucaoId }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Disparar execução principal em background (fire-and-forget)
