@@ -53,7 +53,12 @@ export interface DjenTermosProgress {
 }
 
 interface Checkpoint {
-  runKey: string;            // identificador único da execução (dataFim)
+  /**
+   * Identificador único da execução.
+   * v2+: "{dataInicioYmd}..{dataFimYmd}" (evita conflito quando apenas dataFim coincide)
+   * legado: apenas dataFimYmd
+   */
+  runKey: string;
   diaIndice: number;         // índice do dia (0-based)
   termoIndice: number;       // índice do termo (0-based)
   novas: number;
@@ -62,6 +67,13 @@ interface Checkpoint {
   tempoInicio: number;
   dataInicioYmd: string;
   dataFimYmd: string;
+
+  // Para mostrar % exata e consistente na UI (sem aproximações)
+  globalCurrent?: number;
+  globalTotal?: number;
+  percentage?: number;
+  totalDias?: number;
+  totalTermos?: number;
 }
 
 interface Monitoramento {
@@ -938,14 +950,18 @@ async function runEngine(
   const signal = singletonState.abortController.signal;
   
   const tempoInicio = Date.now();
-  const runKey = dataFimYmd;
+  const runKey = `${dataInicioYmd}..${dataFimYmd}`;
+
+  const checkpointMatchesRun = (cp: Checkpoint, key: string) => {
+    if (!cp) return false;
+    if (cp.runKey === key) return true;
+    // compatibilidade legado: runKey era apenas dataFim
+    return cp.runKey === dataFimYmd && cp.dataInicioYmd === dataInicioYmd && cp.dataFimYmd === dataFimYmd;
+  };
 
   // Carregar checkpoint se retomando
   let checkpoint = retomar ? loadCheckpoint() : null;
-  if (checkpoint && checkpoint.runKey !== runKey) {
-    // Checkpoint é de outra execução, ignorar
-    checkpoint = null;
-  }
+  if (checkpoint && !checkpointMatchesRun(checkpoint, runKey)) checkpoint = null;
 
   // Buscar monitoramentos ativos
   const { data: monitoramentos, error } = await supabase
@@ -1125,6 +1141,11 @@ async function runEngine(
           tempoInicio: startTime,
           dataInicioYmd,
           dataFimYmd,
+          globalCurrent,
+          globalTotal,
+          percentage,
+          totalDias,
+          totalTermos,
         };
         saveCheckpoint(cp);
 
