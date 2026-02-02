@@ -113,9 +113,9 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
   // Detectar execução órfã: se backend diz "executando" mas:
   // 1. O engine local NÃO está rodando
-  // 2. A execução foi iniciada há mais de 30 minutos
+  // 2. A execução foi iniciada há mais de 1 hora
   // Isso acontece quando a aba do navegador é fechada durante a execução
-  const ORPHAN_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutos
+  const ORPHAN_THRESHOLD_MS = 60 * 60 * 1000; // 1 hora
   const executionStartTime = stats.currentExecution?.iniciado_em
     ? new Date(stats.currentExecution.iniciado_em).getTime()
     : null;
@@ -134,6 +134,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     stats.currentExecution?.status === 'executando' ||
     md.status === 'executando' ||
     md.status === 'em_andamento';
+
+  const mdIsRunning = md.status === 'executando' || md.status === 'em_andamento';
 
   const backendIsTimeout =
     stats.status === 'timeout' ||
@@ -198,17 +200,29 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     return Math.max(0, Math.min(100, Math.round(n)));
   };
 
-  // Percentual: evitar alternar fontes durante execução.
-  // - Se existe execução no backend (execucoes_agendadas), usar stats.progress (agora monotônico)
-  // - Se está rodando local (engine), usar progress.percentage
-  // - Senão, cair para metadata
+  // Percentual (solução definitiva): durante execução de BACKEND, usar APENAS metadata.
+  // Isso evita “indo e voltando” quando existem múltiplas execuções 'executando'
+  // em execucoes_agendadas ou quando snapshots chegam fora de ordem.
   const computedPercentage = (() => {
-    if (stats.currentExecution?.status === 'executando' && typeof stats.progress === 'number') {
-      return stats.progress;
+    // 1) Execução no backend (modo híbrido/background)
+    if (!isRunning && mdIsRunning) {
+      if (typeof md.percentage === 'number' && Number.isFinite(md.percentage)) {
+        return md.percentage;
+      }
+      const current = typeof md.current === 'number' ? md.current : Number(md.current);
+      const total = typeof md.total === 'number' ? md.total : Number(md.total);
+      if (Number.isFinite(current) && Number.isFinite(total) && total > 0) {
+        return Math.max(0, Math.min(99, Math.round((current / total) * 100)));
+      }
+      return 0;
     }
+
+    // 2) Execução local (engine singleton)
     if (isRunning && typeof progress.percentage === 'number') {
       return progress.percentage;
     }
+
+    // 3) Fallback (sem execução)
     if (typeof md.percentage === 'number') {
       return md.percentage;
     }
@@ -222,9 +236,9 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   // Chave estável: preferir SEMPRE o executionId do execucoes_agendadas.
   // (metadata pode aparecer/sumir entre polls e isso resetava o lock monotônico)
   const runKey: string | null =
+    (typeof md?.djen_run?.run_id === 'string' ? md.djen_run.run_id : null) ||
     (typeof stats.currentExecution?.id === 'string' ? stats.currentExecution.id : null) ||
     (typeof md?.execucaoId === 'string' ? md.execucaoId : null) ||
-    (typeof md?.djen_run?.run_id === 'string' ? md.djen_run.run_id : null) ||
     (typeof md?.run_key === 'string' ? md.run_key : null);
 
   const lastRunKeyRef = useRef<string | null>(null);
@@ -280,6 +294,9 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     (typeof md.message === 'string' ? md.message : '') ||
     (typeof md.warning === 'string' ? md.warning : '') ||
     (effectiveIsRunning ? 'Executando...' : '');
+
+  // Pedido: não exibir texto de “execução travada” (mantém a UI limpa; ações continuam disponíveis).
+  const effectiveMensagemSafe = /travada/i.test(effectiveMensagem) ? '' : effectiveMensagem;
 
   const effectiveTempoDecorrido = Math.max(progress.tempoDecorrido || 0, stats.elapsedSeconds || 0);
 
@@ -653,47 +670,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Alerta de execução órfã com ações diretas */}
-          {isOrphanExecution && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-              <div className="flex items-start gap-2">
-                <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="font-medium">Execução travada detectada</p>
-                  <p className="text-xs mt-1 mb-2">
-                    A execução está parada há mais de 10 minutos (provavelmente a aba foi fechada).
-                  </p>
-                  <div className="flex gap-2 flex-wrap">
-                    {canResume && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          // Limpar estado órfão e retomar de onde parou
-                          forceKill();
-                          setTimeout(() => retomar({ turbo: turboMode }), 500);
-                        }}
-                      >
-                        <RotateCcw className="h-3 w-3 mr-1" />
-                        Continuar de {checkpointPercent}%
-                      </Button>
-                    )}
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={handleForceKill}
-                    >
-                      <Skull className="h-3 w-3 mr-1" />
-                      Limpar e Reiniciar
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Alerta de checkpoint disponível após erro/cancelamento */}
-          {!isOrphanExecution && !effectiveIsRunning && canResume && 
+          {!effectiveIsRunning && canResume && 
            (effectiveStatus === 'erro' || effectiveStatus === 'cancelado' || effectiveStatus === 'timeout') && (
             <div className="rounded-md bg-accent p-3 text-sm text-accent-foreground border border-accent/50">
               <div className="flex items-start gap-2">
@@ -750,8 +728,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                 <span className="font-mono font-medium">{Math.round(effectivePercentage)}%</span>
               </div>
               <Progress value={Math.round(effectivePercentage)} className="h-2" />
-              {!!effectiveMensagem && (
-                <p className="text-xs text-muted-foreground">{effectiveMensagem}</p>
+              {!!effectiveMensagemSafe && (
+                <p className="text-xs text-muted-foreground">{effectiveMensagemSafe}</p>
               )}
             </div>
           )}
