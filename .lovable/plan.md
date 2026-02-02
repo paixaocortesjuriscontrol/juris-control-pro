@@ -1,110 +1,57 @@
 
-# Plano: Correção dos 8 Erros de Build (GitHub não corrigiu)
 
-## Situação Atual
-
-Os arquivos sincronizados do branch `main_v1.0.6` do GitHub **não corrigiram nenhum dos erros**. Todas as 8 correções que propus anteriormente precisam ser aplicadas.
-
----
-
-## Erros e Correções Necessárias
-
-### 1. useDjenTermosEngine.ts - Linha 67-77
-**Erro**: `condicao_concomitante` não existe em `Monitoramento`
-
-**Correção**: Adicionar o campo à interface:
-```typescript
-interface Monitoramento {
-  id: string;
-  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte';
-  termo_busca: string;
-  oab?: string;
-  uf?: string;
-  ativo: boolean;
-  exclusoes?: string[];
-  tribunais?: string[];
-  descricao?: string | null;
-  condicao_concomitante?: string | null;  // ADICIONAR
-}
-```
-
-### 2. useDjenTermosEngine.ts - Linha 341-356
-**Erro**: `.catch` não existe em `PromiseLike`
-
-**Correção**: Converter para async/await IIFE:
-```typescript
-const promise = (async () => {
-  try {
-    await supabase
-      .from('configuracoes_monitoramento')
-      .update({ metadata })
-      .eq('tipo', 'djen')
-      .is('coordenacao_id', null);
-  } catch (err: any) {
-    console.warn('[DJEN] Falha ao atualizar metadata:', err?.message || err);
-  } finally {
-    if (singletonState.metadataPersistInFlight === promise) {
-      singletonState.metadataPersistInFlight = null;
-    }
-  }
-})();
-```
-
-### 3. useDjenTermosEngine.ts - Linha 739
-**Erro**: Falta `descartadasTribunal` no retorno
-
-**Correção**: Adicionar a propriedade:
-```typescript
-return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
-```
-
-### 4. DjenTermosDashboardCardV2.tsx - Linha 105-108
-**Erro**: `metadata` não existe em `Query<...>`
-
-**Correção**: Acessar via `query.state.data`:
-```typescript
-refetchInterval: (query) => {
-  const md = (query?.state?.data?.metadata as Record<string, any> | null) || {};
-  return md?.status === 'em_andamento' ? 3000 : 8000;
-},
-```
-
-### 5. DjenTermosDashboardCardV2.tsx - Linha 333
-**Erro**: `status` não existe em `Query<...>`
-
-**Correção**: Acessar via `query.state.data`:
-```typescript
-refetchInterval: (query) => (query?.state?.data?.status === 'em_andamento' ? 3000 : false),
-```
-
-### 6. useDjenTermos.ts - Linhas 186-193
-**Erro**: Tabelas `djen_diario_publicacoes` e `djen_diario_index` não existem no schema tipado
-
-**Correção**: Usar type assertion:
-```typescript
-const { error: errPublicacoes } = await (supabase as any)
-  .from('djen_diario_publicacoes')
-  .delete()
-  .eq('diario_ymd', dataYmd);
-
-const { error: errIndex } = await (supabase as any)
-  .from('djen_diario_index')
-  .delete()
-  .eq('diario_ymd', dataYmd);
-```
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Alterações |
-|---------|------------|
-| `src/hooks/useDjenTermosEngine.ts` | 3 correções: interface, Promise API, return incompleto |
-| `src/components/configuracoes/DjenTermosDashboardCardV2.tsx` | 2 correções: refetchInterval (linhas 106 e 333) |
-| `src/hooks/useDjenTermos.ts` | 1 correção: type assertion para tabelas não tipadas |
-
----
+# Plano: Atualizar para Versão 1.0.7
 
 ## Resumo
 
-O branch do GitHub que você sincronizou **não incluiu as correções** para os erros de TypeScript. Precisarei aplicar todas as 8 correções aqui no Lovable para o build funcionar.
+Atualização do número de versão do sistema de `1.0.6` para `1.0.7` com registro das alterações feitas nesta release.
+
+---
+
+## O Que Será Feito
+
+### 1. Atualizar o arquivo de versão
+
+**Arquivo:** `src/constants/version.ts`
+
+- Alterar `APP_VERSION` de `"1.0.6"` para `"1.0.7"`
+- Adicionar nova entrada no `VERSION_HISTORY` com:
+  - Data: `2026-02-02` (data atual)
+  - Notas: Baseado no último diff, a alteração foi no filtro "Apenas Hoje" na página de Análise DJEN
+
+---
+
+## Nota Sugerida para o Changelog
+
+Com base na última alteração feita (filtro "Apenas Hoje" marcado por padrão na Análise DJEN):
+
+> **v1.0.7** - "Filtro 'Apenas Hoje' ativado por padrão na Análise DJEN"
+
+---
+
+## Após a Implementação: Como Fazer o Pull Request
+
+1. **No GitHub**, acesse: `https://github.com/paixaocortesjuriscontrol/juris-control-pro`
+2. Clique em **"Compare & pull request"** (aparecerá automaticamente após o commit na branch `main_v1.0.7`)
+3. Ou vá em **Pull requests** → **New pull request**:
+   - **base:** `main`
+   - **compare:** `main_v1.0.7`
+4. Adicione um título descritivo (ex: "Release v1.0.7 - Filtro Apenas Hoje ativado por padrão")
+5. Clique em **"Create pull request"**
+6. Após revisar, clique em **"Merge pull request"** para mesclar à `main`
+
+---
+
+## Detalhes Técnicos
+
+```typescript
+// Antes
+export const APP_VERSION = "1.0.6";
+
+// Depois
+export const APP_VERSION = "1.0.7";
+
+// Nova entrada no histórico
+{ version: "1.0.7", date: "2026-02-02", notes: "Filtro 'Apenas Hoje' ativado por padrão na Análise DJEN" }
+```
+
