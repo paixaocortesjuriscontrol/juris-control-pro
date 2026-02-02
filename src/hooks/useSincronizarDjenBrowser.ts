@@ -34,7 +34,13 @@ interface SincronizacaoResult {
   erros: string[];
 }
 
-// Gera variantes de busca para melhor cobertura
+/**
+ * Gera variantes de busca para melhor cobertura.
+ * 
+ * IMPORTANTE: Para termos com caracteres especiais como "&",
+ * gera variantes sem e com espaços para capturar diferentes indexações.
+ * Ex: "F & F Distribuidora" → ["F & F Distribuidora", "F F Distribuidora"]
+ */
 function gerarVariantesBusca(termo: string): string[] {
   const variantes = new Set<string>();
   variantes.add(termo);
@@ -51,8 +57,21 @@ function gerarVariantesBusca(termo: string): string[] {
     variantes.add(semAcento);
   }
   
-  // Prefixo curto (2 primeiras palavras) para termos empresariais
-  const palavras = semAcento.split(/\s+/).filter(p => p.length >= 2);
+  // Variante com & substituído por espaço (tribunais podem indexar diferente)
+  if (termo.includes('&')) {
+    const semAmpersand = termo.replace(/\s*&\s*/g, ' ').replace(/\s+/g, ' ').trim();
+    variantes.add(semAmpersand);
+    
+    // Também sem acentos
+    const semAmpersandSemAcento = semAmpersand.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (semAmpersandSemAcento !== semAmpersand) {
+      variantes.add(semAmpersandSemAcento);
+    }
+  }
+  
+  // Prefixo curto (2 primeiras palavras significativas) para termos empresariais
+  // Filtrar &, /, etc. para encontrar palavras reais
+  const palavras = semAcento.split(/\s+/).filter(p => p.length >= 2 && !/^[&\/\\]+$/.test(p));
   if (palavras.length >= 3) {
     const prefixo = palavras.slice(0, 2).join(' ').toUpperCase();
     if (prefixo.length >= 6) {
