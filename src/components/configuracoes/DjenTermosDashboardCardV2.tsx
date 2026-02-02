@@ -111,8 +111,23 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   // Snapshot do backend (evita “card desatualizado” ao sair/voltar da tela ou após reload)
   const md = ((liveConfig?.metadata as Record<string, any> | null) || (stats.config?.metadata as Record<string, any> | null) || {});
 
+  // Detectar execução órfã: se backend diz "executando" mas:
+  // 1. O engine local NÃO está rodando
+  // 2. A execução foi iniciada há mais de 10 minutos
+  // Isso acontece quando a aba do navegador é fechada durante a execução
+  const ORPHAN_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutos
+  const executionStartTime = stats.currentExecution?.iniciado_em
+    ? new Date(stats.currentExecution.iniciado_em).getTime()
+    : null;
+  const executionRunningTime = executionStartTime ? Date.now() - executionStartTime : 0;
+  
+  const isOrphanExecution = !isRunning && 
+    stats.currentExecution?.status === 'executando' &&
+    executionRunningTime > ORPHAN_THRESHOLD_MS;
+
   // Fonte de verdade do status:
   // - Se o engine local está rodando, confiar nele
+  // - Se é execução órfã, mostrar como timeout
   // - Caso contrário, confiar no dashboard (execucoes_agendadas) e/ou metadata
   const backendIsRunning =
     stats.status === 'running' ||
@@ -124,7 +139,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     stats.status === 'timeout' ||
     md.status === 'timeout' ||
     md.status === 'stale' ||
-    md.last_stop_reason === 'stale';
+    md.last_stop_reason === 'stale' ||
+    isOrphanExecution;
 
   const backendIsCancelled =
     stats.status === 'cancelled' ||
@@ -133,13 +149,15 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
   const effectiveStatus: string = isRunning
     ? 'executando'
-    : backendIsRunning
-      ? 'executando'
-      : backendIsTimeout
-        ? 'timeout'
-        : backendIsCancelled
-          ? 'cancelado'
-          : progress.status;
+    : isOrphanExecution
+      ? 'timeout'
+      : backendIsRunning && !isOrphanExecution
+        ? 'executando'
+        : backendIsTimeout
+          ? 'timeout'
+          : backendIsCancelled
+            ? 'cancelado'
+            : progress.status;
 
   const effectiveIsRunning = effectiveStatus === 'executando';
   const effectivePercentage =
@@ -553,6 +571,22 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
         </CardHeader>
 
         <CardContent className="space-y-4">
+          {/* Alerta de execução órfã */}
+          {isOrphanExecution && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              <div className="flex items-start gap-2">
+                <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">Execução travada detectada</p>
+                  <p className="text-xs mt-1">
+                    A execução está parada há mais de 10 minutos (provavelmente a aba foi fechada).
+                    Clique no botão <Skull className="inline h-3 w-3" /> "Forçar Cancelamento" para limpar e poder reiniciar.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Progresso */}
           {(effectiveIsRunning || effectiveStatus === 'concluido' || effectiveStatus === 'cancelado' || effectiveStatus === 'timeout') && (
             <div className="space-y-2">
