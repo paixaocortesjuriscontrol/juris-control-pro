@@ -357,18 +357,42 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     const metadata = config?.metadata as Record<string, any> | null;
     const typeExecutions = executions.filter(e => e.tipo === tipo);
     
-    // CORREÇÃO: Só considerar "ativo" se status=executando E finalizado_em=null
-    // E, se houver múltiplas execuções ativas, usar SEMPRE a mais recente por iniciado_em
-    // (evita alternância de IDs e percentual “indo e voltando”).
-    const currentExecution =
-      typeExecutions
-        .filter((e) => e.status === 'executando' && e.finalizado_em === null)
-        .reduce<MonitoringExecution | null>((best, cur) => {
-          if (!best) return cur;
+    // CORREÇÃO DEFINITIVA: Quando há múltiplas execuções "executando":
+    // 1. Filtrar apenas as não finalizadas
+    // 2. Priorizar a que TEM progresso real (registros_processados > 0 ou detalhes.progress)
+    // 3. Se nenhuma tem progresso, usar a mais recente
+    // Isso resolve o conflito quando uma execução órfã sem progresso existe ao lado da real.
+    const activeExecutions = typeExecutions.filter(
+      (e) => e.status === 'executando' && e.finalizado_em === null
+    );
+    
+    const currentExecution = (() => {
+      if (activeExecutions.length === 0) return null;
+      if (activeExecutions.length === 1) return activeExecutions[0];
+      
+      // Múltiplas execuções ativas: priorizar a que tem progresso real
+      const withProgress = activeExecutions.filter((e) => {
+        const hasProcessed = (e.registros_processados ?? 0) > 0;
+        const hasDetailProgress = (e.detalhes?.progress?.current ?? 0) > 0;
+        return hasProcessed || hasDetailProgress;
+      });
+      
+      if (withProgress.length > 0) {
+        // Usar a mais recente entre as que têm progresso
+        return withProgress.reduce((best, cur) => {
           const bestTs = new Date(best.iniciado_em).getTime();
           const curTs = new Date(cur.iniciado_em).getTime();
           return curTs > bestTs ? cur : best;
-        }, null);
+        });
+      }
+      
+      // Nenhuma tem progresso: usar a mais recente
+      return activeExecutions.reduce((best, cur) => {
+        const bestTs = new Date(best.iniciado_em).getTime();
+        const curTs = new Date(cur.iniciado_em).getTime();
+        return curTs > bestTs ? cur : best;
+      });
+    })();
     
     // Considera também 'timeout' como execução finalizada
     const lastCompletedExecution = typeExecutions.find(e => 
