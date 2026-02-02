@@ -62,6 +62,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
+import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'processo' | 'descartada';
@@ -448,6 +449,9 @@ const AnaliseDjen = () => {
   return (
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
+        {/* Banner de execução DJEN */}
+        <DjenExecutionBanner />
+
         {/* Stats Cards - Mobile optimized */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
