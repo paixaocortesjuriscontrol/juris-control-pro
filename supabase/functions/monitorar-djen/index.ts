@@ -1838,7 +1838,9 @@ async function updateExecucaoProgress(
     registros_encontrados?: number;
     total_lotes?: number;
     detalhes?: Record<string, any>;
-    finalizado_em?: string;
+    // Permite limpar o campo quando um snapshot antigo marcou como finalizado,
+    // mas a execução continuou (evita status executando + finalizado_em preenchido).
+    finalizado_em?: string | null;
   }
 ) {
   if (!execucaoId) return;
@@ -2050,15 +2052,23 @@ serve(async (req) => {
         .is('coordenacao_id', null)
         .maybeSingle();
       const metaInit = (cfgInit?.metadata as Record<string, any>) || {};
+
+      // Anti-regressão: garantir que current/percentage não voltem em snapshots concorrentes
+      const prevCur = Number(metaInit.current ?? 0);
+      const prevTot = Number(metaInit.total ?? 0);
+      const safeTotal = Math.max(total, Number.isFinite(prevTot) ? prevTot : 0);
+      const safeCurrent = Math.max(offset, Number.isFinite(prevCur) ? prevCur : 0);
+      const safePercentage = safeTotal > 0 ? Math.min(100, Math.round((safeCurrent / safeTotal) * 100)) : 0;
+
       await supabase
         .from('configuracoes_monitoramento')
         .update({
           metadata: {
             ...metaInit,
             status: 'em_andamento',
-            current: offset,
-            total: total,
-            percentage: total > 0 ? Math.min(100, Math.round((offset / total) * 100)) : 0,
+            current: safeCurrent,
+            total: safeTotal,
+            percentage: safePercentage,
             mensagem: 'Processando monitoramentos...',
             termoAtual: metaInit.termoAtual ?? null,
           },
@@ -2069,13 +2079,15 @@ serve(async (req) => {
       if (execucaoId) {
         await updateExecucaoProgress(supabase, execucaoId, {
           status: 'executando',
-          registros_processados: offset,
-          total_lotes: total,
+          // Limpar finalizado_em se algum snapshot antigo marcou como finalizado
+          finalizado_em: null,
+          registros_processados: safeCurrent,
+          total_lotes: safeTotal,
           detalhes: {
             progress: {
-              current: offset,
-              total,
-              percentage: total > 0 ? Math.min(100, Math.round((offset / total) * 100)) : 0,
+              current: safeCurrent,
+              total: safeTotal,
+              percentage: safePercentage,
             },
           },
         });
@@ -2281,15 +2293,28 @@ serve(async (req) => {
           .is('coordenacao_id', null)
           .maybeSingle();
         const meta = (cfg?.metadata as Record<string, any>) || {};
+
+        // PROTEÇÃO ANTI-REGRESSÃO:
+        // Em execuções 100% background pode haver concorrência/retentativas.
+        // Se um snapshot atrasado sobrescrever o metadata, o % "volta".
+        // Aqui garantimos que current/percentage no metadata e na execução só aumentam.
+        const prevCur = Number(meta.current ?? 0);
+        const prevTot = Number(meta.total ?? 0);
+        const safeTotal = Math.max(total, Number.isFinite(prevTot) ? prevTot : 0);
+        const safeCurrent = Math.max(current, Number.isFinite(prevCur) ? prevCur : 0);
+        const safePercentage = safeTotal > 0
+          ? Math.min(100, Math.round((safeCurrent / safeTotal) * 100))
+          : (Number.isFinite(Number(meta.percentage)) ? Number(meta.percentage) : percentage);
+
         await supabase
           .from('configuracoes_monitoramento')
           .update({
             metadata: {
               ...meta,
               status: 'em_andamento',
-              current,
-              total,
-              percentage,
+              current: safeCurrent,
+              total: safeTotal,
+              percentage: safePercentage,
               termoAtual: lastTermoLabel ?? meta.termoAtual ?? null,
               mensagem: lastTermoLabel ? `Processando: ${lastTermoLabel}` : 'Processando monitoramentos...',
             },
@@ -2300,10 +2325,13 @@ serve(async (req) => {
         if (execucaoId) {
           await updateExecucaoProgress(supabase, execucaoId, {
             status: 'executando',
-            registros_processados: current,
-            total_lotes: total,
+            // "finalizado_em" pode ter sido preenchido por um snapshot antigo; limpamos ao continuar.
+            finalizado_em: null,
+            registros_processados: safeCurrent,
+            total_lotes: safeTotal,
             detalhes: {
-              progress: { current, total, percentage },
+              progress: { current: safeCurrent, total: safeTotal, percentage: safePercentage },
+              runId,
             },
           });
         }
@@ -2697,6 +2725,15 @@ serve(async (req) => {
           tribunais_stats: allTribunaisStats.slice(0, 20),
         };
 
+    // Anti-regressão: em concorrência, evitar que current/percentage do metadata retrocedam
+    const prevMetaCur = Number((currentMeta as any)?.current ?? 0);
+    const prevMetaTot = Number((currentMeta as any)?.total ?? 0);
+    const safeTotalFinal = Math.max(total, Number.isFinite(prevMetaTot) ? prevMetaTot : 0);
+    const safeCurrentFinal = Math.max(offset + processedCount, Number.isFinite(prevMetaCur) ? prevMetaCur : 0);
+    const safePercentageFinal = safeTotalFinal > 0
+      ? Math.min(100, Math.round((safeCurrentFinal / safeTotalFinal) * 100))
+      : 0;
+
     const updatedMeta: Record<string, any> = {
       ...currentMeta,
       cancelado: false,
@@ -2719,8 +2756,9 @@ serve(async (req) => {
       status: hasMore ? 'em_andamento' : 'concluido',
       continuingRun: hasMore,
       // Campos para sincronização realtime (como monitorar-djen-processos)
-      current: offset + processedCount,
-      total: total,
+      current: safeCurrentFinal,
+      total: safeTotalFinal,
+      percentage: safePercentageFinal,
       termoAtual: lastTermoLabel ?? null,
     };
 
@@ -2737,7 +2775,9 @@ serve(async (req) => {
       .eq('tipo', 'djen');
 
     // Atualizar progresso em tempo real na tabela execucoes_agendadas
-    const progressPercentage = total > 0 ? Math.min(100, Math.round(((offset + processedCount) / total) * 100)) : 0;
+    const progressPercentage = safeTotalFinal > 0
+      ? Math.min(100, Math.round((safeCurrentFinal / safeTotalFinal) * 100))
+      : 0;
     await updateExecucaoProgress(supabase, execucaoId, {
       status: hasMore ? 'executando' : 'concluido',
       registros_processados: run?.totals?.processados || processedCount,
@@ -2745,8 +2785,8 @@ serve(async (req) => {
       total_lotes: total,
       detalhes: {
         progress: {
-          current: offset + processedCount,
-          total: total,
+          current: safeCurrentFinal,
+          total: safeTotalFinal,
           percentage: progressPercentage,
         },
         descartadas: run?.totals?.descartadas || totalDescartadas,
@@ -2754,7 +2794,8 @@ serve(async (req) => {
         erros: run?.totals?.erros || errorCount,
         runId,
       },
-      ...(hasMore ? {} : { finalizado_em: nowIso }),
+      // Se houver continuação, garantir que finalizado_em não fique "preso".
+      finalizado_em: hasMore ? null : nowIso,
     });
 
     // Atualiza o progresso do run a cada lote (evita ficar "preso" sem números quando a continuação falha)
