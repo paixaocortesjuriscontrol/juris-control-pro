@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getExecutionProgress } from '@/utils/executionProgress';
+import { getDjenTermosExecutionProgress } from '@/utils/djenTermosExecutionProgress';
 
 interface ExecucaoAtiva {
   id: string;
@@ -178,6 +179,40 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
     };
   }, [refetch]);
 
+  // Deduplicar por tipo (evita múltiplas execuções da mesma rotina poluindo a UI)
+  const execucoesDeduped = useMemo(() => {
+    const byTipo = new Map<string, ExecucaoAtiva[]>();
+    for (const e of execucoesAtivas) {
+      byTipo.set(e.tipo, [...(byTipo.get(e.tipo) ?? []), e]);
+    }
+
+    const pickBest = (list: ExecucaoAtiva[]) => {
+      if (list.length === 1) return list[0];
+      const scored = list
+        .map((e) => {
+          // Para DJEN Termos, progresso vem de detalhes.progress (não usar registros_processados)
+          const p =
+            e.tipo === 'djen'
+              ? getDjenTermosExecutionProgress({ detalhes: e.detalhes })
+              : getExecutionProgress({
+                  detalhes: e.detalhes,
+                  registros_processados: e.registros_processados,
+                  total_lotes: e.total_lotes,
+                  lotes_processados: e.lotes_processados,
+                });
+          const score = (p.current ?? 0) + ((p.percentage ?? 0) / 100);
+          const ts = new Date(e.iniciado_em).getTime();
+          return { e, score, ts };
+        })
+        .sort((a, b) => (b.score - a.score) || (b.ts - a.ts));
+      return scored[0].e;
+    };
+
+    return Array.from(byTipo.values())
+      .map(pickBest)
+      .sort((a, b) => new Date(b.iniciado_em).getTime() - new Date(a.iniciado_em).getTime());
+  }, [execucoesAtivas]);
+
   const handleCancelar = async (execucao: ExecucaoAtiva) => {
     setCancelando(prev => ({ ...prev, [execucao.id]: true }));
     
@@ -219,10 +254,10 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
   };
 
   const handleCancelarTodos = async () => {
-    if (execucoesAtivas.length === 0) return;
+    if (execucoesDeduped.length === 0) return;
     
-    const ids = execucoesAtivas.map(e => e.id);
-    const tipos = Array.from(new Set(execucoesAtivas.map(e => e.tipo)));
+    const ids = execucoesDeduped.map(e => e.id);
+    const tipos = Array.from(new Set(execucoesDeduped.map(e => e.tipo)));
     
     try {
       // Cancel all executions
@@ -249,7 +284,7 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
           .is('coordenacao_id', null);
       }
 
-      toast.success(`${execucoesAtivas.length} monitoramento(s) cancelado(s)`);
+      toast.success(`${execucoesDeduped.length} monitoramento(s) cancelado(s)`);
       queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
       queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
       refetch();
@@ -259,7 +294,7 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
     }
   };
 
-  if (execucoesAtivas.length === 0) {
+  if (execucoesDeduped.length === 0) {
     return (
       <Card className={className}>
         <CardHeader className="pb-3">
@@ -286,10 +321,10 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
             <Activity className="h-4 w-4" />
             Monitoramentos Ativos
             <Badge variant="secondary" className="ml-1">
-              {execucoesAtivas.length}
+              {execucoesDeduped.length}
             </Badge>
           </CardTitle>
-          {execucoesAtivas.length > 1 && (
+          {execucoesDeduped.length > 1 && (
             <Button 
               variant="outline" 
               size="sm"
@@ -305,7 +340,7 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
       <CardContent>
         <ScrollArea className="max-h-[400px]">
           <div className="space-y-3">
-            {execucoesAtivas.map((execucao) => (
+            {execucoesDeduped.map((execucao) => (
               <ExecucaoCard
                 key={execucao.id}
                 execucao={execucao}

@@ -372,6 +372,13 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       
       // Múltiplas execuções ativas: priorizar a que tem progresso real
       const withProgress = activeExecutions.filter((e) => {
+        // DJEN Termos: progresso por termo vem de detalhes.progress (registros_processados pode ser outra métrica)
+        if (tipo === 'djen') {
+          const cur = Number(e.detalhes?.progress?.current ?? 0);
+          const pct = Number(e.detalhes?.progress?.percentage ?? 0);
+          return (Number.isFinite(cur) && cur > 0) || (Number.isFinite(pct) && pct > 0);
+        }
+
         const hasProcessed = (e.registros_processados ?? 0) > 0;
         const hasDetailProgress = (e.detalhes?.progress?.current ?? 0) > 0;
         return hasProcessed || hasDetailProgress;
