@@ -1993,6 +1993,39 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // ========================================================================
+    // STALE INVOCATION GUARD (anti-reexecução)
+    // ========================================================================
+    // Problema: em modo 100% background, um novo disparo (manual/cron) pode iniciar
+    // em offset=0 enquanto já existe uma execução em andamento com next_offset>0.
+    // Isso reprocessa monitoramentos já concluídos na MESMA execução e pode causar
+    // regressão aparente de percentual.
+    // Solução: se o banco indica uma continuação em andamento (has_more + next_offset),
+    // ignorar invocações com offset menor que o checkpoint do banco.
+    try {
+      const metaCfg = (cancelConfig?.metadata as Record<string, any>) || {};
+      const statusCfg = typeof metaCfg.status === 'string' ? metaCfg.status : null;
+      const runningCfg = statusCfg === 'em_andamento' || statusCfg === 'executando';
+      const hasMoreCfg = metaCfg.has_more === true;
+      const nextOffsetCfgRaw = Number(metaCfg.next_offset);
+      const expectedOffset = Number.isFinite(nextOffsetCfgRaw)
+        ? Math.max(0, nextOffsetCfgRaw)
+        : Math.max(0, Number(metaCfg.current ?? 0) || 0);
+
+      if (runningCfg && hasMoreCfg && expectedOffset > 0 && offset < expectedOffset) {
+        console.warn(
+          `[DJEN] Stale invocation guard: offset=${offset} < expectedOffset=${expectedOffset}. Skipping to prevent reprocessing.`,
+        );
+        return new Response(
+          JSON.stringify({ success: true, skipped: true, reason: 'stale_invocation', expectedOffset }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    } catch (e) {
+      console.warn('[DJEN] Falha no stale invocation guard (seguindo execução):', e);
+    }
+
     if (conservative) {
       CONFIG = {
         ...CONFIG,
