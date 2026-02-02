@@ -362,6 +362,10 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     // 2. Priorizar a que TEM progresso real (registros_processados > 0 ou detalhes.progress)
     // 3. Se nenhuma tem progresso, usar a mais recente
     // Isso resolve o conflito quando uma execução órfã sem progresso existe ao lado da real.
+    // CORREÇÃO DEFINITIVA: filtrar apenas as não finalizadas.
+    // IMPORTANTE: Em modo 100% background a Edge Function pode falhar ao enfileirar o próximo lote,
+    // deixando "status=executando" mas com "finalizado_em" preenchido. Isso precisa ser tratado
+    // como finalizado (NÃO exibir como running).
     const activeExecutions = typeExecutions.filter(
       (e) => e.status === 'executando' && e.finalizado_em === null
     );
@@ -465,17 +469,18 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       // CORREÇÃO: não exibir TIMEOUT se o progresso já chegou em 100%.
       // Alguns workers podem demorar para marcar finalizado_em no banco; nesse caso,
       // a UI deve refletir que o trabalho (processamento) já concluiu.
-      const { percentage } = getExecutionProgress({
+      const execProgress = getExecutionProgress({
         detalhes: currentExecution.detalhes,
         registros_processados: currentExecution.registros_processados,
         total_lotes: currentExecution.total_lotes,
         lotes_processados: currentExecution.lotes_processados,
       });
-      const isCompletedByProgress = percentage === 100;
+      const isCompletedByProgress = execProgress.percentage === 100;
 
       if (isCompletedByProgress) {
         status = 'completed';
       } else if (elapsedSeconds > 3600) {
+        // Mais de 1h e ainda está "executando" sem finalizado_em → timeout
         status = 'timeout';
       } else {
         status = 'running';
