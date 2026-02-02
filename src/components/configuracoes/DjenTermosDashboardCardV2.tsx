@@ -112,29 +112,111 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   // Snapshot do backend (evita “card desatualizado” ao sair/voltar da tela ou após reload)
   const md = ((liveConfig?.metadata as Record<string, any> | null) || (stats.config?.metadata as Record<string, any> | null) || {});
 
-  // Detectar execução órfã: se backend diz "executando" mas:
-  // 1. O engine local NÃO está rodando
-  // 2. A execução foi iniciada há mais de 1 hora
-  // Isso acontece quando a aba do navegador é fechada durante a execução
-  const ORPHAN_THRESHOLD_MS = 60 * 60 * 1000; // 1 hora
+  // Detectar execução órfã (stale): banco diz "executando" mas NÃO há atividade
+  // por um período (padrão: 10 min) e o engine local não está rodando.
+  // Importante: NÃO usar apenas "tempo desde início" (senão qualquer execução longa vira timeout).
+  const ORPHAN_THRESHOLD_MS = 10 * 60 * 1000; // 10 min
   const executionStartTime = stats.currentExecution?.iniciado_em
     ? new Date(stats.currentExecution.iniciado_em).getTime()
     : null;
-  const executionRunningTime = executionStartTime ? Date.now() - executionStartTime : 0;
-  
-  const isOrphanExecution = !isRunning && 
+
+  const toSafePct = (value: unknown): number => {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, Math.min(100, Math.round(n)));
+  };
+
+  // Status bruto do backend (sem heurística de órfão)
+  const rawBackendIsRunning =
+    stats.status === 'running' ||
+    stats.currentExecution?.status === 'executando' ||
+    md.status === 'executando' ||
+    md.status === 'em_andamento';
+
+  const backendExecId = typeof stats.currentExecution?.id === 'string' ? stats.currentExecution.id : null;
+  const backendExecProgress = useMemo(() => {
+    if (!stats.currentExecution) return null;
+    return getDjenTermosExecutionProgress({ detalhes: stats.currentExecution.detalhes });
+  }, [stats.currentExecution]);
+
+  const backendCurrentCandidate = (() => {
+    const curExec = backendExecProgress?.current;
+    if (typeof curExec === 'number' && Number.isFinite(curExec)) return Math.max(0, Math.round(curExec));
+    const curMd = typeof md.current === 'number' ? md.current : Number(md.current);
+    if (Number.isFinite(curMd)) return Math.max(0, Math.round(curMd));
+    return null as number | null;
+  })();
+
+  const backendPctCandidate = (() => {
+    const p = backendExecProgress?.percentage;
+    if (typeof p === 'number' && Number.isFinite(p)) return toSafePct(p);
+    if (typeof md.percentage === 'number' && Number.isFinite(md.percentage)) return toSafePct(md.percentage);
+
+    const cur = typeof md.current === 'number' ? md.current : Number(md.current);
+    const tot = typeof md.total === 'number' ? md.total : Number(md.total);
+    if (Number.isFinite(cur) && Number.isFinite(tot) && tot > 0) return toSafePct((cur / tot) * 100);
+    return null as number | null;
+  })();
+
+  // Guard de atividade: se o progresso do backend sobe, consideramos "ativo" (mesmo em outra aba)
+  const lastBackendActivityAtRef = useRef<number | null>(null);
+  const lastBackendPctRef = useRef<number>(0);
+  const lastBackendCurrentRef = useRef<number>(0);
+  const lastBackendExecIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!rawBackendIsRunning) {
+      lastBackendActivityAtRef.current = null;
+      lastBackendPctRef.current = 0;
+      lastBackendExecIdRef.current = null;
+      return;
+    }
+
+    // Troca de execução: resetar baseline e marcar atividade agora
+    const key = backendExecId ?? 'no-exec';
+    if (lastBackendExecIdRef.current !== key) {
+      lastBackendExecIdRef.current = key;
+      lastBackendPctRef.current = Math.max(0, backendPctCandidate ?? 0);
+      lastBackendCurrentRef.current = Math.max(0, backendCurrentCandidate ?? 0);
+      lastBackendActivityAtRef.current = Date.now();
+      return;
+    }
+
+    const hasPct = backendPctCandidate != null;
+    const hasCur = backendCurrentCandidate != null;
+
+    if (!hasPct && !hasCur) {
+      // Sem sinais legíveis: não marcar stale agressivamente
+      if (lastBackendActivityAtRef.current == null) lastBackendActivityAtRef.current = Date.now();
+      return;
+    }
+
+    const pctIncreased = hasPct && backendPctCandidate! > lastBackendPctRef.current;
+    const curIncreased = hasCur && backendCurrentCandidate! > lastBackendCurrentRef.current;
+
+    if (pctIncreased) lastBackendPctRef.current = backendPctCandidate!;
+    if (curIncreased) lastBackendCurrentRef.current = backendCurrentCandidate!;
+
+    if (pctIncreased || curIncreased) {
+      lastBackendActivityAtRef.current = Date.now();
+    } else if (lastBackendActivityAtRef.current == null) {
+      lastBackendActivityAtRef.current = Date.now();
+    }
+  }, [rawBackendIsRunning, backendExecId, backendPctCandidate, backendCurrentCandidate]);
+
+  const lastBackendActivityAt = lastBackendActivityAtRef.current ?? executionStartTime ?? null;
+  const isOrphanExecution =
+    !isRunning &&
     stats.currentExecution?.status === 'executando' &&
-    executionRunningTime > ORPHAN_THRESHOLD_MS;
+    !!lastBackendActivityAt &&
+    Date.now() - lastBackendActivityAt > ORPHAN_THRESHOLD_MS;
 
   // Fonte de verdade do status:
   // - Se o engine local está rodando, confiar nele
   // - Se é execução órfã, mostrar como timeout
   // - Caso contrário, confiar no dashboard (execucoes_agendadas) e/ou metadata
-  const backendIsRunning =
-    stats.status === 'running' ||
-    stats.currentExecution?.status === 'executando' ||
-    md.status === 'executando' ||
-    md.status === 'em_andamento';
+  // Considerar "rodando" apenas se não estiver stale
+  const backendIsRunning = rawBackendIsRunning && !isOrphanExecution;
 
   const mdIsRunning = md.status === 'executando' || md.status === 'em_andamento';
 
@@ -195,12 +277,6 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   const effectiveStatus = stableStatus;
   const effectiveIsRunning = effectiveStatus === 'executando';
 
-  const toSafePct = (value: unknown): number => {
-    const n = typeof value === 'number' ? value : Number(value);
-    if (!Number.isFinite(n)) return 0;
-    return Math.max(0, Math.min(100, Math.round(n)));
-  };
-
   // Percentual (fonte única): DJEN Termos deve usar detalhes.progress da execução ativa.
   // (registros_processados não representa “termos processados” e causava oscilação)
   const computedPercentage = (() => {
@@ -232,8 +308,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   // Chave estável: preferir SEMPRE o executionId do execucoes_agendadas.
   // (metadata pode aparecer/sumir entre polls e isso resetava o lock monotônico)
   const runKey: string | null =
-    (typeof md?.djen_run?.run_id === 'string' ? md.djen_run.run_id : null) ||
     (typeof stats.currentExecution?.id === 'string' ? stats.currentExecution.id : null) ||
+    (typeof md?.djen_run?.run_id === 'string' ? md.djen_run.run_id : null) ||
     (typeof md?.execucaoId === 'string' ? md.execucaoId : null) ||
     (typeof md?.run_key === 'string' ? md.run_key : null);
 
@@ -641,11 +717,24 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   // Calcular percentual do checkpoint para exibição
   const checkpointPercent = useMemo(() => {
     if (!checkpoint) return 0;
-    const totalDias = Math.max(1, Math.ceil(
-      (new Date(checkpoint.dataFimYmd).getTime() - new Date(checkpoint.dataInicioYmd).getTime()) / (24 * 60 * 60 * 1000)
-    ) + 1);
-    // Precisamos saber quantos termos, mas não temos acesso aqui - usar aproximação
-    // O checkpoint tem diaIndice e termoIndice
+    // Preferir % exata persistida pelo engine
+    const pct = (checkpoint as any).percentage;
+    if (typeof pct === 'number' && Number.isFinite(pct)) return Math.min(99, toSafePct(pct));
+
+    const gc = (checkpoint as any).globalCurrent;
+    const gt = (checkpoint as any).globalTotal;
+    if (typeof gc === 'number' && typeof gt === 'number' && gt > 0) {
+      return Math.min(99, toSafePct((gc / gt) * 100));
+    }
+
+    // Fallback legado (aproximação) — mantém compatibilidade, mas pode divergir
+    const totalDias = Math.max(
+      1,
+      Math.ceil(
+        (new Date(checkpoint.dataFimYmd).getTime() - new Date(checkpoint.dataInicioYmd).getTime()) /
+          (24 * 60 * 60 * 1000)
+      ) + 1
+    );
     return Math.min(99, Math.round(((checkpoint.diaIndice * 100 + checkpoint.termoIndice) / (totalDias * 100)) * 100));
   }, [checkpoint]);
 
