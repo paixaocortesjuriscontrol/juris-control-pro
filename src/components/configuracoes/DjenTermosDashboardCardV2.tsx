@@ -102,8 +102,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       return data as { metadata: Record<string, any> | null } | null;
     },
     enabled: true,
-    refetchInterval: (data) => {
-      const md = (data?.metadata as Record<string, any> | null) || {};
+    refetchInterval: (query) => {
+      const md = (query?.state?.data?.metadata as Record<string, any> | null) || {};
       return md?.status === 'em_andamento' ? 3000 : 8000;
     },
   });
@@ -330,7 +330,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       } | null;
     },
     enabled: true,
-    refetchInterval: (data) => (data?.status === 'em_andamento' ? 3000 : false),
+    refetchInterval: (query) => (query?.state?.data?.status === 'em_andamento' ? 3000 : false),
   });
 
   const { data: indexTribunais = [] } = useQuery({
