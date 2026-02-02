@@ -1,206 +1,110 @@
 
-# Plano: Correção da Inconsistência de Contagem DJEN (99 vs 43)
+# Plano: Correção dos 8 Erros de Build (GitHub não corrigiu)
 
-## Diagnóstico
+## Situação Atual
 
-### Problema Identificado
-Existem **dois problemas distintos** causando confusão:
-
-| Local | Valor Exibido | Fonte do Dado | Motivo |
-|-------|---------------|---------------|--------|
-| Card Dashboard | 99 | `publicacoes_djen` bruto | Conta registros sem deduplicação |
-| Tela Análise | 43 | `dedupePublicacoesDjen()` | Aplica deduplicação por coord+processo+data+conteúdo |
-
-**Causa raiz:** O hook `useMonitoringDashboard.ts` conta registros brutos do banco:
-```typescript
-// Linhas 150-154 - Conta TODOS os registros sem dedup
-const { count: djenNovas } = await supabase
-  .from('publicacoes_djen')
-  .select('*', { count: 'exact', head: true })
-  .gte('created_at', inicioDia)
-  .lte('created_at', fimDia);
-```
-
-A tela de Análise usa `usePublicacoesDjenUnificadas.ts` que aplica `dedupePublicacoesDjen()`:
-```typescript
-// Linha 576 - Aplica deduplicação
-let deduped = dedupePublicacoesDjen(resultados);
-```
-
-### Por que existem duplicatas?
-A query no banco mostra que existem **múltiplos monitoramentos com o mesmo termo** (ex: 14 monitoramentos "OSMAR MENDES PAIXAO"). Cada um pode capturar a mesma publicação, gerando duplicatas.
-
-```text
-Banco hoje:
-- Total bruto: 99 registros
-- Após dedup: 43 publicações únicas
-```
+Os arquivos sincronizados do branch `main_v1.0.6` do GitHub **não corrigiram nenhum dos erros**. Todas as 8 correções que propus anteriormente precisam ser aplicadas.
 
 ---
 
-## Solução Proposta
+## Erros e Correções Necessárias
 
-### Estratégia
-Fazer o card do dashboard mostrar o **valor deduplicado** (43) em vez do bruto (99), para consistência com a tela de Análise.
+### 1. useDjenTermosEngine.ts - Linha 67-77
+**Erro**: `condicao_concomitante` não existe em `Monitoramento`
 
-### Opção Implementada: RPC de Contagem Deduplicada
-Criar uma função RPC que conta publicações únicas usando a mesma lógica de deduplicação do frontend.
+**Correção**: Adicionar o campo à interface:
+```typescript
+interface Monitoramento {
+  id: string;
+  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte';
+  termo_busca: string;
+  oab?: string;
+  uf?: string;
+  ativo: boolean;
+  exclusoes?: string[];
+  tribunais?: string[];
+  descricao?: string | null;
+  condicao_concomitante?: string | null;  // ADICIONAR
+}
+```
+
+### 2. useDjenTermosEngine.ts - Linha 341-356
+**Erro**: `.catch` não existe em `PromiseLike`
+
+**Correção**: Converter para async/await IIFE:
+```typescript
+const promise = (async () => {
+  try {
+    await supabase
+      .from('configuracoes_monitoramento')
+      .update({ metadata })
+      .eq('tipo', 'djen')
+      .is('coordenacao_id', null);
+  } catch (err: any) {
+    console.warn('[DJEN] Falha ao atualizar metadata:', err?.message || err);
+  } finally {
+    if (singletonState.metadataPersistInFlight === promise) {
+      singletonState.metadataPersistInFlight = null;
+    }
+  }
+})();
+```
+
+### 3. useDjenTermosEngine.ts - Linha 739
+**Erro**: Falta `descartadasTribunal` no retorno
+
+**Correção**: Adicionar a propriedade:
+```typescript
+return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
+```
+
+### 4. DjenTermosDashboardCardV2.tsx - Linha 105-108
+**Erro**: `metadata` não existe em `Query<...>`
+
+**Correção**: Acessar via `query.state.data`:
+```typescript
+refetchInterval: (query) => {
+  const md = (query?.state?.data?.metadata as Record<string, any> | null) || {};
+  return md?.status === 'em_andamento' ? 3000 : 8000;
+},
+```
+
+### 5. DjenTermosDashboardCardV2.tsx - Linha 333
+**Erro**: `status` não existe em `Query<...>`
+
+**Correção**: Acessar via `query.state.data`:
+```typescript
+refetchInterval: (query) => (query?.state?.data?.status === 'em_andamento' ? 3000 : false),
+```
+
+### 6. useDjenTermos.ts - Linhas 186-193
+**Erro**: Tabelas `djen_diario_publicacoes` e `djen_diario_index` não existem no schema tipado
+
+**Correção**: Usar type assertion:
+```typescript
+const { error: errPublicacoes } = await (supabase as any)
+  .from('djen_diario_publicacoes')
+  .delete()
+  .eq('diario_ymd', dataYmd);
+
+const { error: errIndex } = await (supabase as any)
+  .from('djen_diario_index')
+  .delete()
+  .eq('diario_ymd', dataYmd);
+```
 
 ---
 
 ## Arquivos a Modificar
 
-### 1. Nova Migração SQL - RPC de Contagem Deduplicada
-
-Criar função `count_djen_publicacoes_deduplicadas_hoje` que:
-- Aplica a mesma lógica de hash: `coordenacao_id || processo_digits || data || head`
-- Retorna contagem de combinações únicas
-
-```sql
-CREATE OR REPLACE FUNCTION count_djen_publicacoes_deduplicadas_hoje()
-RETURNS TABLE(total_unicas bigint, total_bruto bigint)
-LANGUAGE plpgsql STABLE AS $$
-DECLARE
-  v_inicio timestamptz;
-  v_fim timestamptz;
-BEGIN
-  v_inicio := date_trunc('day', now() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo';
-  v_fim := v_inicio + interval '1 day';
-  
-  RETURN QUERY
-  WITH pub_base AS (
-    SELECT
-      m.coordenacao_id,
-      regexp_replace(COALESCE(p.processo_numero, ''), '[^0-9]', '', 'g') AS processo_digits,
-      COALESCE(
-        to_char(p.data_disponibilizacao::date, 'YYYY-MM-DD'),
-        to_char(p.data_publicacao::date, 'YYYY-MM-DD'),
-        to_char(p.created_at::date, 'YYYY-MM-DD')
-      ) AS data_ref,
-      left(
-        lower(regexp_replace(regexp_replace(
-          COALESCE(p.conteudo, ''), '<[^>]*>', ' ', 'g'
-        ), '\s+', ' ', 'g')),
-        300
-      ) AS head_norm
-    FROM publicacoes_djen p
-    JOIN monitoramentos_djen m ON m.id = p.monitoramento_id
-    WHERE p.created_at >= v_inicio AND p.created_at < v_fim
-  )
-  SELECT
-    COUNT(DISTINCT (
-      COALESCE(coordenacao_id::text, 'sem_coord') || '|' ||
-      processo_digits || '|' ||
-      data_ref || '|' ||
-      head_norm
-    ))::bigint AS total_unicas,
-    COUNT(*)::bigint AS total_bruto
-  FROM pub_base;
-END;
-$$;
-```
-
-### 2. `src/hooks/useMonitoringDashboard.ts`
-
-Modificar a query `monitoring-real-db-stats` para usar a RPC deduplicada:
-
-**Antes:**
-```typescript
-const { count: djenNovas } = await supabase
-  .from('publicacoes_djen')
-  .select('*', { count: 'exact', head: true })
-  .gte('created_at', inicioDia)
-  .lte('created_at', fimDia);
-```
-
-**Depois:**
-```typescript
-// Usar RPC para contagem deduplicada (consistente com tela de Análise)
-const { data: djenStats } = await supabase
-  .rpc('count_djen_publicacoes_deduplicadas_hoje');
-
-const djenNovasDedup = djenStats?.[0]?.total_unicas ?? 0;
-```
-
-### 3. `src/components/configuracoes/DjenTermosDashboardCard.tsx`
-
-Adicionar label esclarecendo que o valor é deduplicado:
-
-**Linha 665-668 - Alterar label "Encontrados" para "Publicações":**
-```typescript
-<div className="bg-background/60 rounded-lg p-2.5 text-center border">
-  <div className="text-xs text-muted-foreground mb-0.5">Publicações</div>
-  <div className="text-lg font-bold font-mono text-green-600">
-    {encontrados.toLocaleString('pt-BR')}
-  </div>
-</div>
-```
-
-### 4. `src/constants/version.ts`
-
-Atualizar versão para refletir a correção:
-```typescript
-export const VERSION = "1.0.6";
-```
+| Arquivo | Alterações |
+|---------|------------|
+| `src/hooks/useDjenTermosEngine.ts` | 3 correções: interface, Promise API, return incompleto |
+| `src/components/configuracoes/DjenTermosDashboardCardV2.tsx` | 2 correções: refetchInterval (linhas 106 e 333) |
+| `src/hooks/useDjenTermos.ts` | 1 correção: type assertion para tabelas não tipadas |
 
 ---
 
-## Fluxo de Dados Após Correção
+## Resumo
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    Banco de Dados                               │
-│  publicacoes_djen: 99 registros brutos hoje                     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                    ┌─────────┴─────────┐
-                    │    RPC count      │
-                    │  (deduplicação)   │
-                    └─────────┬─────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │  43 únicas        │
-                    └─────────┬─────────┘
-                              │
-          ┌───────────────────┴───────────────────┐
-          │                                       │
-          ▼                                       ▼
-┌─────────────────┐                   ┌─────────────────┐
-│  Card Dashboard │                   │  Tela Análise   │
-│      43         │                   │      43         │
-│   (consistente) │                   │   (consistente) │
-└─────────────────┘                   └─────────────────┘
-```
-
----
-
-## Benefícios
-
-1. **Consistência:** Card e Tela de Análise mostram o mesmo número
-2. **Transparência:** Usuário entende que 43 são publicações únicas
-3. **Performance:** RPC executa a contagem no servidor (mais eficiente)
-4. **Manutenibilidade:** Lógica de dedup centralizada no banco
-
----
-
-## Considerações Técnicas
-
-### Sobre o Status 93% "Concluído"
-O banco mostra `metadata.status = 'timeout'`, que está correto. A UI já deveria exibir "Timeout" se a lógica de status estiver funcionando. Se ainda mostrar "Concluído", pode ser cache do React Query. A invalidação de queries após a correção deve resolver.
-
-### Validação da Correção
-Após a implementação:
-- Card mostrará **43** em vez de 99
-- Tela de Análise continuará mostrando **43**
-- Os números serão **idênticos**
-
----
-
-## Resumo das Alterações
-
-| Arquivo | Tipo | Descrição |
-|---------|------|-----------|
-| `migrations/xxx_count_djen_dedup.sql` | NOVO | RPC para contagem deduplicada |
-| `src/hooks/useMonitoringDashboard.ts` | MODIFICAR | Usar RPC em vez de COUNT bruto |
-| `src/components/configuracoes/DjenTermosDashboardCard.tsx` | MODIFICAR | Alterar label para "Publicações" |
-| `src/constants/version.ts` | MODIFICAR | Atualizar para 1.0.6 |
+O branch do GitHub que você sincronizou **não incluiu as correções** para os erros de TypeScript. Precisarei aplicar todas as 8 correções aqui no Lovable para o build funcionar.
