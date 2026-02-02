@@ -928,20 +928,18 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
             </div>
           )}
 
-          {/* Botões de ação */}
-          <div className="flex gap-2">
+          {/* Linha 1: Botões principais de ação */}
+          <div className="flex gap-2 flex-wrap">
             {effectiveIsRunning ? (
-              <>
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  className="flex-1"
-                  onClick={handleCancelar}
-                >
-                  <StopCircle className="h-4 w-4 mr-2" />
-                  Cancelar
-                </Button>
-              </>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                className="flex-1"
+                onClick={handleCancelar}
+              >
+                <StopCircle className="h-4 w-4 mr-2" />
+                Cancelar
+              </Button>
             ) : (
               <>
                 <Button 
@@ -989,21 +987,21 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
             >
               Limpar índice
             </Button>
-            
-            {/* Botão Limpar Tudo - sempre visível e claro */}
+          </div>
+
+          {/* Linha 2: Botões de limpeza e reset */}
+          <div className="flex gap-2">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-muted-foreground hover:text-foreground"
+                    className="flex-1 text-muted-foreground hover:text-foreground"
                     onClick={async () => {
-                      // Garantir que nenhum modo dispare automaticamente após limpar
                       setHybridMode(false);
                       setBackgroundOnly(false);
                       setTurboMode(false);
-                      // Usa datas selecionadas ou checkpoint ou últimos 3 dias
                       await limparTudoComPublicacoes(
                         getDataYmd(dataInicio),
                         getDataYmd(dataFim)
@@ -1012,7 +1010,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                     }}
                   >
                     <RotateCcw className="h-4 w-4 mr-1" />
-                    Limpar
+                    Limpar Publicações
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -1021,17 +1019,17 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
               </Tooltip>
             </TooltipProvider>
             
-            {/* Botão Caveira - SEMPRE visível e destacado */}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="destructive"
                     size="sm"
+                    className="flex-1"
                     onClick={() => setShowKillDialog(true)}
                   >
                     <Skull className="h-4 w-4 mr-1" />
-                    Reset
+                    Reset Total
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -1041,17 +1039,16 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
             </TooltipProvider>
           </div>
 
-          <div className="flex">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleCancelarIndexacao}
-              disabled={!indexStatus || indexStatus.status === 'concluido'}
-              className="w-full"
-            >
-              Forçar cancelar indexação
-            </Button>
-          </div>
+          {/* Linha 3: Cancelar indexação */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCancelarIndexacao}
+            disabled={!indexStatus || indexStatus.status === 'concluido'}
+            className="w-full text-destructive hover:text-destructive"
+          >
+            Forçar cancelar indexação
+          </Button>
 
           {/* Indicador de execução em background */}
           {effectiveIsRunning && (
