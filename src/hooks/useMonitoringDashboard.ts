@@ -403,15 +403,10 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     const metaCancelado = metadata?.cancelado === true;
     const metaPausedGlobally = metadata?.paused_globally === true;
 
-    // Detectar execução travada/stale (status pode ficar em_andamento mesmo após o backend parar)
+    // Detectar execução stale (backend marcou last_stop_reason='stale')
     const metaStopReason = (metadata?.last_stop_reason as string | undefined) ?? undefined;
-    const metaLastError =
-      (metadata?.last_error as string | undefined) ??
-      (metadata?.last_error_message as string | undefined) ??
-      undefined;
-    const metaIsStale =
-      metaStopReason === 'stale' ||
-      (!!metaLastError && /travada|stale|sem\s+progresso|heartbeat/i.test(metaLastError));
+    // Não inferir "stale" por texto livre (isso causava alternância de status/% em cenários reais).
+    const metaIsStale = metaStopReason === 'stale';
     
     // CORREÇÃO CRÍTICA: Para DJEN, verificar se a última execução já foi finalizada
     // O metadata pode ficar com status='em_andamento' mesmo após finalizar

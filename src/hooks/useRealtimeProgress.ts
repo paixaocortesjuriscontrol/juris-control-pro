@@ -62,15 +62,10 @@ export function useRealtimeProgress({
     const metaStatus = metadata?.status as string | undefined;
     const cancelado = metadata?.cancelado === true;
 
-    // Detectar execuções “travadas/stale” (status fica em_andamento, mas o backend já marcou como parado)
+    // Detectar execuções stale (backend marcou last_stop_reason='stale')
     const metaStopReason = (metadata?.last_stop_reason as string | undefined) ?? undefined;
-    const metaLastError =
-      (metadata?.last_error as string | undefined) ??
-      (metadata?.last_error_message as string | undefined) ??
-      undefined;
-    const metaIsStale =
-      metaStopReason === 'stale' ||
-      (!!metaLastError && /travada|stale|sem\s+progresso|heartbeat/i.test(metaLastError));
+    // Não inferir "stale" por texto livre (evita UI alternando status/% por mensagens transitórias).
+    const metaIsStale = metaStopReason === 'stale';
     
     // Determina se está rodando com base nas duas fontes
     const execStatus = execucao?.status;
