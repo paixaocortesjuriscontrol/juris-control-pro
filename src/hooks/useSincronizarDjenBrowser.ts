@@ -65,6 +65,7 @@ function gerarVariantesBusca(termo: string): string[] {
 
 // IMPORTANTE: Validar que o TERMO COMPLETO está presente na publicação
 // A API do PJE Comunica faz busca por substring, então pode retornar resultados parciais
+// VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
 function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boolean {
   if (!conteudo || !termo) return false;
   
@@ -83,17 +84,17 @@ function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boo
   const conteudoNorm = normalizar(conteudo);
   const termoNorm = normalizar(termo);
   
-  // Verificar se o termo completo está presente
+  // Verificar se o termo completo está presente (match exato)
   if (conteudoNorm.includes(termoNorm)) return true;
   
-  // Fallback: verificar se todas as palavras significativas do termo estão presentes
+  // VALIDAÇÃO ESTRITA: 100% das palavras significativas devem estar presentes
+  // Isso evita capturas parciais como "Distribuidora" quando o termo é 
+  // "F & F Distribuidora de Produtos Farmacêuticos LTDA"
   const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
   if (palavrasTermo.length === 0) return true;
   
-  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
-  
-  return palavrasEncontradas.length >= minPalavras;
+  // Todas as palavras devem estar presentes (não mais 80%)
+  return palavrasTermo.every(p => conteudoNorm.includes(p));
 }
 
 // Gera hash global para deduplicação (igual ao backend)

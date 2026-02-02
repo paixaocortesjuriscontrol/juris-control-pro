@@ -423,12 +423,12 @@ function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean 
   if (!termoNorm) return true;
   if (conteudoNorm.includes(termoNorm)) return true;
 
+  // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
   const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
   if (palavrasTermo.length === 0) return true;
 
-  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
-  return palavrasEncontradas.length >= minPalavras;
+  // Todas as palavras significativas devem estar no conteúdo
+  return palavrasTermo.every(p => conteudoNorm.includes(p));
 }
 
 function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
@@ -458,7 +458,9 @@ function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): bool
  *  - Nome deve ter 80% das palavras encontradas
  * 
  * Para PALAVRA-CHAVE/PARTE:
- *  - 80% das palavras do termo devem estar no conteúdo
+ *  - 100% das palavras do termo devem estar no conteúdo (validação estrita)
+ *  - Isso evita capturas parciais como "Distribuidora" quando o termo é 
+ *    "F & F Distribuidora de Produtos Farmacêuticos LTDA"
  */
 function conteudoContemTermo(
   conteudo: string,
@@ -502,18 +504,23 @@ function conteudoContemTermo(
     return true;
   }
 
-  // Para palavra-chave/parte: 80% das palavras devem estar presentes
+  // Para palavra-chave/parte: 100% das palavras devem estar presentes
+  // Isso garante que "F & F Distribuidora de Produtos Farmacêuticos LTDA"
+  // NÃO seja encontrado se apenas "Distribuidora" estiver no conteúdo
   if (!termo) return true;
 
   const termoNorm = normalizar(termo);
+  
+  // Primeiro tenta match exato do termo completo (mais rápido)
+  if (conteudoNorm.includes(termoNorm)) return true;
+  
+  // Se não encontrou exato, verifica se TODAS as palavras significativas estão presentes
   const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
-
   if (palavrasTermo.length === 0) return true;
 
-  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
-
-  return palavrasEncontradas.length >= minPalavras;
+  // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
+  const todasPresentes = palavrasTermo.every(p => conteudoNorm.includes(p));
+  return todasPresentes;
 }
 
 // ============================================================================
