@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { useEnviarResumoManual } from "@/hooks/useEnviarResumoManual";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 import { 
   useMonitoringDashboard, 
   formatDuration, 
@@ -420,13 +422,37 @@ function MonitoringCard({
 }
 
 export function MonitoringDashboard() {
+  const { user } = useAuth();
+  const { data: userCoordenacao, isLoading: loadingUserCoord } = useQuery({
+    queryKey: ['user-coordenacao', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('membros_coordenacao')
+        .select('coordenacao_id')
+        .eq('usuario_id', user.id);
+
+      if (error) throw error;
+
+      const ids = (data || []).map((r: any) => r.coordenacao_id).filter(Boolean);
+      if (ids.length !== 1) return "";
+      return ids[0];
+    },
+    enabled: !!user?.id,
+  });
+
+  const coordenacaoFiltro =
+    !loadingUserCoord && userCoordenacao && userCoordenacao !== ""
+      ? userCoordenacao
+      : undefined;
+
   const { 
     monitoringStats, 
     hasRunningJobs, 
     executeMonitoring, 
     cancelMonitoring,
     refetch 
-  } = useMonitoringDashboard();
+  } = useMonitoringDashboard({ coordenacaoId: coordenacaoFiltro });
   
   const { enviando, enviarResumo } = useEnviarResumoManual();
   
@@ -668,11 +694,12 @@ export function MonitoringDashboard() {
         {monitoringStats.map((stats) => {
           if (stats.tipo === 'djen') {
             return (
-              <DjenTermosDashboardCard
-                key={stats.tipo}
-                stats={stats}
-                onAfterMutation={refetch}
-              />
+              <div key={stats.tipo} className="space-y-4">
+                <DjenTermosDashboardCard
+                  stats={stats}
+                  onAfterMutation={refetch}
+                />
+              </div>
             );
           }
 

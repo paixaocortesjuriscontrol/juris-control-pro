@@ -21,6 +21,7 @@ interface MonitoramentoDjen {
   ativo: boolean;
   exclusoes?: string[];
   condicao_concomitante?: string;
+  termos_or?: string[];
   tribunais?: string[];
 }
 
@@ -505,18 +506,43 @@ export function useBuscaDjenDireta() {
     return new Set((data || []).map(d => d.hash_conteudo));
   };
 
+  const normalizar = (t: string) => t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[&\/\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+
+  const termoAtendidoPorPalavras = (conteudoNorm: string, termo: string): boolean => {
+    const termoNorm = normalizar(termo);
+    if (!termoNorm) return true;
+    return conteudoNorm.includes(termoNorm);
+  };
+
+  const condicaoConcomitanteAtendida = (conteudo: string, condicao?: string): boolean => {
+    if (!condicao) return true;
+    const gruposOr = String(condicao)
+      .split('|')
+      .map(g => g.trim())
+      .filter(Boolean);
+    if (gruposOr.length === 0) return true;
+
+    const conteudoNorm = normalizar(conteudo);
+    return gruposOr.some(grupo => {
+      const termosAnd = grupo
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean);
+      if (termosAnd.length === 0) return true;
+      return termosAnd.every(t => termoAtendidoPorPalavras(conteudoNorm, t));
+    });
+  };
+
   // Validar conteúdo contém termo
   const conteudoContemTermo = (conteudo: string, termo: string, tipo: string, oab?: string): boolean => {
     if (!conteudo) return false;
-    
-    const normalizar = (t: string) => t
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[&\/\\]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toUpperCase();
-    
+
     const conteudoNorm = normalizar(conteudo);
     
     // Para advogado: validar OAB + Nome
@@ -531,15 +557,8 @@ export function useBuscaDjenDireta() {
       
       if (termo) {
         const termoNorm = normalizar(termo);
-        const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
-        
-        if (palavrasTermo.length > 0) {
-          const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-          const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
-          
-          if (palavrasEncontradas.length < minPalavras) {
-            return false;
-          }
+        if (termoNorm && !conteudoNorm.includes(termoNorm)) {
+          return false;
         }
       }
       
@@ -551,15 +570,82 @@ export function useBuscaDjenDireta() {
     
     const termoNorm = normalizar(termo);
     
-    if (conteudoNorm.includes(termoNorm)) return true;
-    
-    const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
-    if (palavrasTermo.length === 0) return true;
-    
-    const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-    const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
-    
-    return palavrasEncontradas.length >= minPalavras;
+    return termoNorm ? conteudoNorm.includes(termoNorm) : false;
+  };
+
+  const parseAdvogadoTermo = (raw: string): { nome?: string; oab?: string; uf?: string } => {
+    const trimmed = String(raw || '').trim();
+    if (!trimmed) return {};
+    const digits = trimmed.replace(/\D/g, '');
+    const prefixUf = trimmed.match(/([A-Za-z]{2})\s*\d/);
+    const suffixUf = trimmed.match(/\d\s*\/\s*([A-Za-z]{2})/);
+    const uf = (prefixUf?.[1] || suffixUf?.[1])?.toUpperCase();
+    const hasLetters = /[A-Za-zÀ-ÿ]/.test(trimmed);
+
+    if (digits.length >= 3 && (uf || !hasLetters)) {
+      return { oab: digits, uf };
+    }
+
+    return { nome: trimmed };
+  };
+
+  const buildAdvogadoTargets = (
+    termo: string,
+    termosOr: string[] | undefined,
+    oab?: string,
+    uf?: string
+  ): Array<{ nome?: string; oab?: string; uf?: string }> => {
+    const targets: Array<{ nome?: string; oab?: string; uf?: string }> = [];
+    const baseNome = String(termo || '').trim();
+    const baseOab = String(oab || '').replace(/\D/g, '');
+    const baseUf = String(uf || '').trim().toUpperCase();
+
+    if (baseNome || baseOab) {
+      targets.push({
+        nome: baseNome || undefined,
+        oab: baseOab || undefined,
+        uf: baseUf || undefined,
+      });
+    }
+
+    for (const t of termosOr || []) {
+      const parsed = parseAdvogadoTermo(t);
+      if (parsed.nome || parsed.oab) {
+        targets.push(parsed);
+      }
+    }
+
+    return targets;
+  };
+
+  const conteudoContemTermoOuOr = (
+    conteudo: string,
+    termo: string,
+    termosOr: string[] | undefined,
+    tipo: string,
+    oab?: string
+  ): boolean => {
+    if (!conteudo) return false;
+    const orList = (termosOr || []).map((t) => t.trim()).filter(Boolean);
+
+    if (tipo === 'advogado') {
+      const targets = buildAdvogadoTargets(termo, termosOr, oab);
+      if (targets.length === 0) {
+        return conteudoContemTermo(conteudo, termo, tipo, oab);
+      }
+      return targets.some((t) =>
+        conteudoContemTermo(conteudo, t.nome || '', 'advogado', t.oab)
+      );
+    }
+
+    if (orList.length === 0) {
+      return conteudoContemTermo(conteudo, termo, tipo, oab);
+    }
+
+    return (
+      conteudoContemTermo(conteudo, termo, tipo, oab) ||
+      orList.some((t) => conteudoContemTermo(conteudo, t, tipo, oab))
+    );
   };
 
   // Registrar execução no banco
@@ -664,12 +750,10 @@ export function useBuscaDjenDireta() {
 
     let palavrasChaveVariantes: string[] = [];
     let ufsParaBuscar: string[] = [];
+    let advogadoTargets: Array<{ nome?: string; oab?: string; uf?: string }> = [];
 
-    if (tipoMapeado === 'advogado' && monitoramento.oab) {
-      const oabDigits = String(monitoramento.oab).replace(/\D/g, '');
+    if (tipoMapeado === 'advogado') {
       const ufValue = String(monitoramento.uf || '').trim().toUpperCase();
-
-      params.oab = oabDigits;
 
       if (!ufValue || ufValue === 'TODAS') {
         params.uf = undefined;
@@ -689,8 +773,20 @@ export function useBuscaDjenDireta() {
         params.uf = undefined;
         ufsParaBuscar = [];
       }
+
+      advogadoTargets = buildAdvogadoTargets(
+        monitoramento.termo_busca,
+        monitoramento.termos_or,
+        monitoramento.oab,
+        ufValue
+      );
     } else if (tipoMapeado === 'palavra-chave' || monitoramento.tipo === 'parte') {
       palavrasChaveVariantes = gerarVariantes(monitoramento.termo_busca);
+      if (monitoramento.termos_or?.length) {
+        for (const t of monitoramento.termos_or) {
+          palavrasChaveVariantes.push(...gerarVariantes(t));
+        }
+      }
     } else if (tipoMapeado === 'processo') {
       params.numeroProcesso = monitoramento.termo_busca.replace(/\D/g, '');
     }
@@ -741,11 +837,15 @@ export function useBuscaDjenDireta() {
       // Sem timeout artificial, sem loop extra de UF
       // ==================================================================
       const ufParaBusca = ufsParaBuscar.length > 0 ? ufsParaBuscar[0] : params.uf;
+      type RequestVariant = { palavraChave?: string; nome?: string; oab?: string; uf?: string };
+      const requestVariants: RequestVariant[] = tipoMapeado === 'advogado'
+        ? (advogadoTargets.length > 0 ? advogadoTargets : [{ nome: monitoramento.termo_busca || undefined }])
+        : variantesLoop.map((v) => ({ palavraChave: typeof v === 'string' ? v : undefined }));
       
       for (const trib of tribunais) {
         if (cancelarRef.current) break;
 
-        for (const variante of variantesLoop) {
+        for (const variante of requestVariants) {
           if (cancelarRef.current) break;
 
           const reqController = createLinkedController();
@@ -754,9 +854,11 @@ export function useBuscaDjenDireta() {
             const resp = await buscarPjeComunicaPaginado(
               {
                 tipo: params.tipo,
-                oab: params.oab,
-                uf: ufParaBusca,
-                palavraChave: variante || undefined,
+                oab: tipoMapeado === 'advogado' ? variante.oab : params.oab,
+                uf: tipoMapeado === 'advogado' ? (variante.uf || ufParaBusca) : ufParaBusca,
+                palavraChave: tipoMapeado === 'advogado'
+                  ? (variante.nome || undefined)
+                  : (variante.palavraChave || undefined),
                 numeroProcesso: params.numeroProcesso,
                 siglaTribunal: trib,
                 dataInicio: params.dataInicio,
@@ -874,10 +976,16 @@ export function useBuscaDjenDireta() {
         return false;
       }
       
+      // Condição concomitante (AND)
+      if (!condicaoConcomitanteAtendida(pub.conteudo, mon.condicao_concomitante)) {
+        descartadasParaPersistir.push({ pub, motivo: 'Condição concomitante não encontrada' });
+        return false;
+      }
+
       // Validar termo completo presente
-      if (!conteudoContemTermo(pub.conteudo, mon.termo_busca, mon.tipo, mon.oab)) {
+      if (!conteudoContemTermoOuOr(pub.conteudo, mon.termo_busca, mon.termos_or, mon.tipo, mon.oab)) {
         publicacoesIgnoradas++;
-        descartadasParaPersistir.push({ pub, motivo: 'Termo não encontrado integralmente' });
+        descartadasParaPersistir.push({ pub, motivo: 'Termo/OR não encontrado integralmente' });
         return false;
       }
       

@@ -57,6 +57,16 @@ let INTER_TRIBUNAL_DELAY_MS = 200;
 let INTER_PAGE_DELAY_MS = 300;
 let JINA_MIN_INTERVAL_MS = 2000;
 
+function applyConfigToLegacy() {
+  MAX_PER_INVOCATION = CONFIG.max_por_invocacao;
+  SOFT_TIMEOUT_MS = CONFIG.soft_timeout_ms;
+  FINALIZATION_BUFFER_MS = CONFIG.finalization_buffer_ms;
+  INTER_MONITORAMENTO_DELAY_MS = CONFIG.delay_entre_monitoramentos;
+  INTER_TRIBUNAL_DELAY_MS = CONFIG.delay_entre_tribunais;
+  INTER_PAGE_DELAY_MS = CONFIG.delay_entre_paginas;
+  JINA_MIN_INTERVAL_MS = CONFIG.delay_jina_api;
+}
+
 // Retry config: if first batch at 09:00 is empty, retry after this delay
 const RETRY_DELAY_MINUTES = 15;
 const MAX_RETRIES = 4;
@@ -76,6 +86,7 @@ interface Monitoramento {
   coordenacao_id?: string;
   exclusoes?: string[];
   condicao_concomitante?: string;
+  termos_or?: string[];
   tribunais?: string[];
   descricao?: string;
 }
@@ -164,13 +175,7 @@ async function loadConfigFromDatabase(supabase: any): Promise<void> {
       };
 
       // Atualizar variáveis legacy
-      MAX_PER_INVOCATION = CONFIG.max_por_invocacao;
-      SOFT_TIMEOUT_MS = CONFIG.soft_timeout_ms;
-      FINALIZATION_BUFFER_MS = CONFIG.finalization_buffer_ms;
-      INTER_MONITORAMENTO_DELAY_MS = CONFIG.delay_entre_monitoramentos;
-      INTER_TRIBUNAL_DELAY_MS = CONFIG.delay_entre_tribunais;
-      INTER_PAGE_DELAY_MS = CONFIG.delay_entre_paginas;
-      JINA_MIN_INTERVAL_MS = CONFIG.delay_jina_api;
+      applyConfigToLegacy();
 
       console.log(`[DJEN] Parâmetros carregados: modo=${CONFIG.modo_processamento}, paralelo=${CONFIG.max_paralelo}, por_invocacao=${CONFIG.max_por_invocacao}`);
     }
@@ -309,6 +314,52 @@ async function fetchViaProxy(url: string): Promise<any | null> {
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function createStopChecker(supabase: any, execucaoId?: string, throttleMs = 2000) {
+  let lastCheck = 0;
+  let cached: { stop: boolean; reason?: string } = { stop: false };
+
+  return async () => {
+    if (cached.stop) return cached;
+    const now = Date.now();
+    if (now - lastCheck < throttleMs) return cached;
+    lastCheck = now;
+
+    try {
+      if (execucaoId) {
+        const { data: exec } = await supabase
+          .from('execucoes_agendadas')
+          .select('status')
+          .eq('id', execucaoId)
+          .maybeSingle();
+        if (exec?.status === 'cancelado') {
+          cached = { stop: true, reason: 'cancelado_execucao' };
+          return cached;
+        }
+      }
+
+      const { data } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+      const meta = (data?.metadata as any) || {};
+      if (meta?.cancelado === true) {
+        cached = { stop: true, reason: 'cancelado' };
+        return cached;
+      }
+      if (meta?.paused_globally === true) {
+        cached = { stop: true, reason: 'paused_globally' };
+        return cached;
+      }
+    } catch (e) {
+      console.warn('[DJEN] stop checker error:', e);
+    }
+
+    return cached;
+  };
 }
 
 
@@ -638,9 +689,168 @@ function generateGlobalHash(conteudo: string, dataDisponibilizacao: string): str
   return generateHash(normalized);
 }
 
+function normalizar(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[&\/\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+function normalizarParaBusca(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[&\/\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean {
+  const termoNorm = normalizar(termo);
+  if (!termoNorm) return true;
+  if (conteudoNorm.includes(termoNorm)) return true;
+
+  const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+  if (palavrasTermo.length === 0) return true;
+
+  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+  return palavrasEncontradas.length === palavrasTermo.length;
+}
+
+function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
+  if (!condicao) return true;
+  const gruposOr = String(condicao)
+    .split('|')
+    .map(g => g.trim())
+    .filter(Boolean);
+  if (gruposOr.length === 0) return true;
+
+  const conteudoNorm = normalizar(conteudo);
+  return gruposOr.some(grupo => {
+    const termosAnd = grupo
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+    if (termosAnd.length === 0) return true;
+    return termosAnd.every(t => termoAtendidoPorPalavras(conteudoNorm, t));
+  });
+}
+
+function conteudoContemTermo(
+  conteudo: string,
+  termo: string,
+  tipo: string,
+  oab?: string
+): boolean {
+  if (!conteudo) return false;
+
+  const conteudoNorm = normalizar(conteudo);
+
+  if (tipo === 'advogado') {
+    if (oab) {
+      const oabDigits = String(oab).replace(/\D/g, '');
+      if (oabDigits.length >= 3) {
+        const oabPattern = new RegExp(oabDigits.split('').join('[.\\s-]?'), 'i');
+        if (!oabPattern.test(conteudo)) return false;
+      }
+    }
+
+    if (termo) {
+      const termoNorm = normalizar(termo);
+      if (termoNorm && !conteudoNorm.includes(termoNorm)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  if (tipo === 'processo') {
+    const numero = String(termo || '').replace(/\D/g, '');
+    if (!numero) return true;
+    return conteudoNorm.includes(numero);
+  }
+
+  // Para palavra-chave/parte: exigir frase completa (ordem e sequência)
+  const termoNorm = normalizar(termo);
+  if (!termoNorm) return true;
+  return conteudoNorm.includes(termoNorm);
+}
+
+function parseAdvogadoTermo(raw: string): { nome?: string; oabDigits?: string; uf?: string } {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return {};
+  const digits = trimmed.replace(/\D/g, '');
+  const prefixUf = trimmed.match(/([A-Za-z]{2})\s*\d/);
+  const suffixUf = trimmed.match(/\d\s*\/\s*([A-Za-z]{2})/);
+  const uf = (prefixUf?.[1] || suffixUf?.[1])?.toUpperCase();
+  const hasLetters = /[A-Za-zÀ-ÿ]/.test(trimmed);
+
+  if (digits.length >= 3 && (uf || !hasLetters)) {
+    return { oabDigits: digits, uf };
+  }
+
+  return { nome: trimmed };
+}
+
+function buildAdvogadoTargets(
+  termo: string,
+  termosOr: string[] | undefined,
+  oab?: string,
+  uf?: string
+): Array<{ nome?: string; oabDigits?: string; uf?: string }> {
+  const targets: Array<{ nome?: string; oabDigits?: string; uf?: string }> = [];
+  const baseNome = String(termo || '').trim();
+  const baseOab = String(oab || '').replace(/\D/g, '');
+  const baseUf = String(uf || '').trim().toUpperCase();
+
+  if (baseNome || baseOab) {
+    targets.push({
+      nome: baseNome || undefined,
+      oabDigits: baseOab || undefined,
+      uf: baseUf || undefined,
+    });
+  }
+
+  for (const t of termosOr || []) {
+    const parsed = parseAdvogadoTermo(t);
+    if (parsed.nome || parsed.oabDigits) {
+      targets.push(parsed);
+    }
+  }
+
+  return targets;
+}
+
+function conteudoContemTermoOuOr(
+  conteudo: string,
+  monitoramento: Monitoramento
+): boolean {
+  if (monitoramento.tipo !== 'advogado') {
+    return conteudoContemTermo(conteudo, monitoramento.termo_busca, monitoramento.tipo, monitoramento.oab);
+  }
+
+  const targets = buildAdvogadoTargets(
+    monitoramento.termo_busca,
+    monitoramento.termos_or,
+    monitoramento.oab,
+    monitoramento.uf
+  );
+  if (targets.length === 0) {
+    return conteudoContemTermo(conteudo, monitoramento.termo_busca, monitoramento.tipo, monitoramento.oab);
+  }
+  return targets.some((t) =>
+    conteudoContemTermo(conteudo, t.nome || '', 'advogado', t.oabDigits)
+  );
+}
+
 function shouldExclude(conteudo: string, exclusoes: string[]): string | null {
   if (!exclusoes || exclusoes.length === 0) return null;
-  
+
   const conteudoUpper = conteudo.toUpperCase();
   for (const termo of exclusoes) {
     if (conteudoUpper.includes(termo.toUpperCase())) {
@@ -648,15 +858,6 @@ function shouldExclude(conteudo: string, exclusoes: string[]): string | null {
     }
   }
   return null;
-}
-
-function matchesCondicaoConcomitante(conteudo: string, condicao: string | undefined): boolean {
-  if (!condicao) return true;
-  
-  const conteudoUpper = conteudo.toUpperCase();
-  const termos = condicao.split(',').map(t => t.trim().toUpperCase());
-  
-  return termos.every(termo => conteudoUpper.includes(termo));
 }
 
 interface AudienciaInfo {
@@ -777,38 +978,310 @@ interface SearchParams {
   dataFim?: string;
 }
 
+async function processPublicationFromIndex(
+  supabase: any,
+  pub: any,
+  monitoramento: Monitoramento,
+  tribunalStat: TribunalStats,
+  stats: { novas: number; descartadas: number; duplicatas: number },
+  tribunal: string | null,
+  dataAtual: string
+) {
+  const conteudo = pub.conteudo || JSON.stringify(pub);
+  const hashConteudo = generateHash(conteudo + (pub.data_disponibilizacao || pub.data_publicacao || pub.data || ''));
+
+  const rawDataDisponibilizacao = pub.data_disponibilizacao || pub.dataDisponibilizacao || null;
+  const rawDataPublicacao = pub.data_publicacao || pub.dataPublicacao || null;
+
+  let dataDisponibilizacao = rawDataDisponibilizacao;
+  let dataPublicacao = rawDataPublicacao;
+
+  if (dataDisponibilizacao && !rawDataPublicacao) {
+    try {
+      const dispDate = new Date(dataDisponibilizacao);
+      if (!isNaN(dispDate.getTime())) {
+        dispDate.setDate(dispDate.getDate() + 1);
+        const proximoDiaUtil = calcularPrimeiroDiaUtil(dispDate);
+        dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!dataDisponibilizacao && !dataPublicacao) {
+    dataDisponibilizacao = dataAtual;
+    const hoje = new Date(dataAtual);
+    hoje.setDate(hoje.getDate() + 1);
+    const proximoDiaUtil = calcularPrimeiroDiaUtil(hoje);
+    dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+  } else if (!dataDisponibilizacao && dataPublicacao) {
+    dataDisponibilizacao = dataPublicacao;
+  }
+
+  const globalHash = generateGlobalHash(conteudo, dataDisponibilizacao);
+
+  const { data: existingGlobal } = await supabase
+    .from('publicacoes_djen_global_hash')
+    .select('id')
+    .eq('hash_global', globalHash)
+    .maybeSingle();
+
+  if (existingGlobal) {
+    stats.duplicatas++;
+    tribunalStat.duplicatas++;
+    return;
+  }
+
+  if (!conteudoContemTermoOuOr(conteudo, monitoramento)) {
+    stats.descartadas++;
+    tribunalStat.descartadas++;
+    return;
+  }
+
+  if (!condicaoConcomitanteAtendida(conteudo, monitoramento.condicao_concomitante)) {
+    return;
+  }
+
+  const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
+  const processoNumero = extractProcessoNumero(conteudo, pub.processo_numero || pub.numeroProcesso || pub.processo);
+
+  if (motivoExclusao) {
+    await supabase.from('publicacoes_djen_descartadas').insert({
+      monitoramento_id: monitoramento.id,
+      hash_conteudo: hashConteudo,
+      conteudo,
+      data_publicacao: dataPublicacao,
+      data_disponibilizacao: dataDisponibilizacao,
+      processo_numero: processoNumero,
+      tribunal: tribunal || null,
+      motivo_descarte: `Termo de exclusão: ${motivoExclusao}`,
+    });
+
+    await supabase.from('publicacoes_djen_global_hash').insert({
+      hash_global: globalHash,
+      primeiro_monitoramento_id: monitoramento.id,
+    });
+
+    stats.descartadas++;
+    tribunalStat.descartadas++;
+    return;
+  }
+
+  const { data: existing } = await supabase
+    .from('publicacoes_djen')
+    .select('id')
+    .eq('hash_conteudo', hashConteudo)
+    .eq('monitoramento_id', monitoramento.id)
+    .maybeSingle();
+
+  if (existing) {
+    stats.duplicatas++;
+    tribunalStat.duplicatas++;
+    return;
+  }
+
+  const { data: publicacao, error: insertError } = await supabase.from('publicacoes_djen').insert({
+    monitoramento_id: monitoramento.id,
+    hash_conteudo: hashConteudo,
+    conteudo,
+    data_publicacao: dataPublicacao,
+    data_disponibilizacao: dataDisponibilizacao,
+    processo_numero: processoNumero,
+    tribunal: tribunal || null,
+    polo_ativo: null,
+    polo_passivo: null,
+  }).select('id').single();
+
+  if (insertError) {
+    console.error(`Insert error:`, insertError);
+    return;
+  }
+
+  await supabase.from('publicacoes_djen_global_hash').insert({
+    hash_global: globalHash,
+    primeiro_monitoramento_id: monitoramento.id,
+    publicacao_id: publicacao.id,
+  });
+
+  stats.novas++;
+  tribunalStat.novas++;
+}
+
+async function buscarNoIndiceDiario(
+  supabase: any,
+  diarioYmd: string,
+  tribunal: string | null,
+  termo: string
+): Promise<any[]> {
+  const termoBusca = normalizarParaBusca(termo);
+  if (!termoBusca) return [];
+
+  const pageSize = 500;
+  let from = 0;
+  let results: any[] = [];
+  let done = false;
+
+  while (!done) {
+    let query = supabase
+      .from('djen_diario_publicacoes')
+      .select('id, conteudo, data_disponibilizacao, data_publicacao, processo_numero, tribunal')
+      .eq('diario_ymd', diarioYmd)
+      .textSearch('conteudo_tsv', termoBusca, { type: 'phrase', config: 'portuguese' })
+      .range(from, from + pageSize - 1);
+
+    if (tribunal) {
+      query = query.eq('tribunal', tribunal);
+    }
+
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) {
+      done = true;
+      break;
+    }
+    results.push(...data);
+    if (data.length < pageSize) done = true;
+    from += pageSize;
+  }
+
+  return results;
+}
+
+async function buscarNoIndiceOab(
+  supabase: any,
+  diarioYmd: string,
+  tribunal: string | null,
+  oabDigits: string
+): Promise<any[]> {
+  if (!oabDigits) return [];
+  const pageSize = 500;
+  let from = 0;
+  let results: any[] = [];
+  let done = false;
+
+  while (!done) {
+    let query = supabase
+      .from('djen_diario_publicacoes')
+      .select('id, conteudo, data_disponibilizacao, data_publicacao, processo_numero, tribunal')
+      .eq('diario_ymd', diarioYmd)
+      .ilike('conteudo', `%${oabDigits}%`)
+      .range(from, from + pageSize - 1);
+
+    if (tribunal) {
+      query = query.eq('tribunal', tribunal);
+    }
+
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) {
+      done = true;
+      break;
+    }
+    results.push(...data);
+    if (data.length < pageSize) done = true;
+    from += pageSize;
+  }
+
+  return results;
+}
+
 async function processMonitoramento(
   supabase: any,
   monitoramento: Monitoramento,
-  options: { scheduled?: boolean; dataInicio?: string; dataFim?: string } = {}
+  options: { scheduled?: boolean; dataInicio?: string; dataFim?: string; indexed?: boolean; diarioYmd?: string } = {}
 ): Promise<{ novas: number; descartadas: number; duplicatas: number; tribunaisStats: TribunalStats[] }> {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
   const tribunaisStats: TribunalStats[] = [];
   const dataAtual = new Date().toISOString().split('T')[0];
+
+  if (options.indexed && options.diarioYmd) {
+    const tribunaisExpandidos = expandirTribunais(monitoramento.tribunais);
+    const tribunais = tribunaisExpandidos && tribunaisExpandidos.length > 0
+      ? tribunaisExpandidos
+      : [null];
+
+    for (const tribunal of tribunais) {
+      const tribunalStat: TribunalStats = {
+        tribunal,
+        paginas: 0,
+        resultados: 0,
+        novas: 0,
+        descartadas: 0,
+        duplicatas: 0,
+      };
+
+      const candidatos = new Map<string, any>();
+      const termosBase = [
+        monitoramento.termo_busca,
+        ...(monitoramento.termos_or || []),
+      ].filter(Boolean) as string[];
+
+      if (monitoramento.tipo === 'advogado') {
+        const targets = buildAdvogadoTargets(
+          monitoramento.termo_busca,
+          monitoramento.termos_or,
+          monitoramento.oab,
+          monitoramento.uf
+        );
+        for (const target of targets) {
+          if (target.oabDigits) {
+            const items = await buscarNoIndiceOab(supabase, options.diarioYmd, tribunal, target.oabDigits);
+            for (const item of items) candidatos.set(item.id, item);
+          }
+          if (target.nome) {
+            const items = await buscarNoIndiceDiario(supabase, options.diarioYmd, tribunal, target.nome);
+            for (const item of items) candidatos.set(item.id, item);
+          }
+        }
+      } else if (monitoramento.tipo === 'processo') {
+        const numero = String(monitoramento.termo_busca || '').replace(/\D/g, '');
+        const items = await buscarNoIndiceOab(supabase, options.diarioYmd, tribunal, numero);
+        for (const item of items) candidatos.set(item.id, item);
+      } else {
+        for (const termo of termosBase) {
+          const items = await buscarNoIndiceDiario(supabase, options.diarioYmd, tribunal, termo);
+          for (const item of items) candidatos.set(item.id, item);
+        }
+      }
+
+      tribunalStat.resultados = candidatos.size;
+
+      for (const pub of candidatos.values()) {
+        await processPublicationFromIndex(supabase, pub, monitoramento, tribunalStat, stats, tribunal || pub.tribunal, dataAtual);
+      }
+
+      tribunaisStats.push(tribunalStat);
+    }
+
+    console.log(`Monitoramento ${monitoramento.id} (indexado): novas=${stats.novas}, descartadas=${stats.descartadas}, duplicatas=${stats.duplicatas}`);
+    return { ...stats, tribunaisStats };
+  }
   
   const searchCandidates: Array<Omit<SearchParams, 'siglaTribunal'>> = [];
 
   if (monitoramento.tipo === "advogado") {
-    const termo = (monitoramento.termo_busca || "").trim();
-    const hasNome = termo.length >= 3 && /[A-Za-zÀ-ÿ]/.test(termo);
+    const targets = buildAdvogadoTargets(
+      monitoramento.termo_busca,
+      monitoramento.termos_or,
+      monitoramento.oab,
+      monitoramento.uf
+    );
+    const defaultUf = (monitoramento.uf || "DF").toUpperCase();
 
-    if (monitoramento.oab) {
-      const uf = (monitoramento.uf || "DF").toUpperCase();
-      const numeroOab = monitoramento.oab.replace(/\D/g, "");
-
-      searchCandidates.push({ numeroOab, ufOab: uf });
-      searchCandidates.push({ texto: `OAB ${uf}-${numeroOab}` });
-      searchCandidates.push({ texto: `OAB ${numeroOab} ${uf}` });
-      searchCandidates.push({ texto: numeroOab });
-    }
-
-    if (hasNome) {
-      searchCandidates.push({ nomeAdvogado: termo });
-      searchCandidates.push({ texto: termo });
+    for (const target of targets) {
+      if (target.oabDigits) {
+        searchCandidates.push({ numeroOab: target.oabDigits, ufOab: target.uf || defaultUf });
+      }
+      if (target.nome) {
+        const nomeTrim = target.nome.trim();
+        const hasNome = nomeTrim.length >= 3 && /[A-Za-zÀ-ÿ]/.test(nomeTrim);
+        if (hasNome) {
+          searchCandidates.push({ nomeAdvogado: nomeTrim });
+        }
+      }
     }
 
     console.log(
-      `Advogado search candidates: oab=${monitoramento.oab || "(none)"}, uf=${(monitoramento.uf || "DF").toUpperCase()}, nome=${hasNome ? termo : "(none)"}`
+      `[DJEN] Advogado search candidates: total=${searchCandidates.length}`
     );
   } else if (monitoramento.tipo === "palavra-chave") {
     const termo = monitoramento.termo_busca;
@@ -828,27 +1301,7 @@ async function processMonitoramento(
       console.log(`[DJEN] Variante sem acento adicionada: "${termoSemAcento}"`);
     }
     
-    // ================== NOVA LÓGICA: PREFIXO CURTO ==================
-    // Para termos empresariais (ex: "União Química Farmacêutica Nacional"),
-    // gerar variante com apenas as 2 primeiras palavras (ex: "UNIAO QUIMICA").
-    // Isso captura variações como "UNIAO QUIMICA FARMACEUTICA NACIONAL S A",
-    // "União Química Farmacêutica Nacional S/A", etc.
-    const palavras = termoSemAcento.split(/\s+/).filter(p => p.length >= 2);
-    if (palavras.length >= 3) {
-      // Prefixo curto = 2 primeiras palavras significativas (min 2 chars cada)
-      const prefixoCurto = palavras.slice(0, 2).join(' ').toUpperCase();
-      
-      // Só adicionar se for diferente das variantes já existentes
-      const jaExiste = searchCandidates.some(c => 
-        c.texto?.toUpperCase() === prefixoCurto
-      );
-      
-      if (!jaExiste && prefixoCurto.length >= 6) {
-        searchCandidates.push({ texto: prefixoCurto });
-        console.log(`[DJEN] Prefixo curto adicionado para maior cobertura: "${prefixoCurto}"`);
-      }
-    }
-    // ================== FIM NOVA LÓGICA ==================
+    // Sem prefixo curto: evitar falsos positivos (filtro 100% por palavras)
     
   } else if (monitoramento.tipo === "processo") {
     searchCandidates.push({ texto: monitoramento.termo_busca.replace(/\D/g, "") });
@@ -870,18 +1323,7 @@ async function processMonitoramento(
         console.log(`[DJEN] Parte variante sem acento: "${termoSemAcento}"`);
       }
       
-      // NOVA LÓGICA: Prefixo curto para partes também
-      const palavras = termoSemAcento.split(/\s+/).filter(p => p.length >= 2);
-      if (palavras.length >= 3) {
-        const prefixoCurto = palavras.slice(0, 2).join(' ').toUpperCase();
-        const jaExiste = searchCandidates.some(c => 
-          c.texto?.toUpperCase() === prefixoCurto
-        );
-        if (!jaExiste && prefixoCurto.length >= 6) {
-          searchCandidates.push({ texto: prefixoCurto });
-          console.log(`[DJEN] Parte prefixo curto: "${prefixoCurto}"`);
-        }
-      }
+      // Sem prefixo curto: evitar falsos positivos (filtro 100% por palavras)
       
       console.log(`Parte search: "${termo}"`);
     }
@@ -910,54 +1352,10 @@ async function processMonitoramento(
       duplicatas: 0,
     };
 
-    let publications: any[] = [];
     let totalPages = 0;
-    const seenPublicationIds = new Set<string>();
+    let totalResultados = 0;
 
-    // IMPORTANTE: Buscar TODAS as variantes (com e sem acento) e acumular resultados
-    // Não fazer break no primeiro resultado - algumas publicações só aparecem
-    // na variante sem acento (ex: TJRJ usa "UNIAO QUIMICA" sem acentos)
-    for (const candidate of searchCandidates) {
-      const candidateLabel = candidate.numeroOab
-        ? `numeroOab=${candidate.numeroOab}/${candidate.ufOab || ''}`
-        : candidate.nomeAdvogado
-          ? `nomeAdvogado="${candidate.nomeAdvogado}"`
-          : candidate.texto
-            ? `texto="${candidate.texto}"`
-            : 'unknown';
-
-      console.log(`[DJEN] Trying candidate ${candidateLabel} | tribunal=${tribunal || 'TODOS'} | período=${options.dataInicio || '-'}→${options.dataFim || '-'}`);
-
-      const searchParams: SearchParams = { 
-        ...candidate, 
-        siglaTribunal: tribunal,
-        dataInicio: options.dataInicio,
-        dataFim: options.dataFim,
-      };
-      const result = await fetchDJENResultsWithStats(searchParams, { scheduled: options.scheduled === true });
-      
-      // Acumular resultados únicos de todas as variantes
-      for (const item of result.items) {
-        const itemId = item.id || generateHash(JSON.stringify(item).slice(0, 500));
-        if (!seenPublicationIds.has(itemId)) {
-          seenPublicationIds.add(itemId);
-          publications.push(item);
-        }
-      }
-      totalPages += result.pages;
-      
-      console.log(`[DJEN] Candidate ${candidateLabel}: ${result.items.length} resultados (acumulado: ${publications.length})`);
-      
-      // Delay entre candidatos de busca para evitar rate limit
-      await delay(INTER_CANDIDATE_DELAY_MS);
-    }
-    const pages = totalPages;
-    tribunalStat.paginas = pages;
-    tribunalStat.resultados = publications.length;
-
-    console.log(`Found ${publications.length} publications for tribunal ${tribunal} (${pages} pages)`);
-
-    for (const pub of publications) {
+    const processPublication = async (pub: any) => {
       const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
       // Priorizar data_disponibilizacao para consistência com globalHash
       const hashConteudo = generateHash(conteudo + (pub.dataDisponibilizacao || pub.dataPublicacao || pub.data || ''));
@@ -1034,11 +1432,17 @@ async function processMonitoramento(
       if (existingGlobal) {
         stats.duplicatas++;
         tribunalStat.duplicatas++;
-        continue;
+        return;
       }
 
-      if (!matchesCondicaoConcomitante(conteudo, monitoramento.condicao_concomitante)) {
-        continue;
+      if (!conteudoContemTermoOuOr(conteudo, monitoramento)) {
+        stats.descartadas++;
+        tribunalStat.descartadas++;
+        return;
+      }
+
+      if (!condicaoConcomitanteAtendida(conteudo, monitoramento.condicao_concomitante)) {
+        return;
       }
 
       const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
@@ -1064,7 +1468,7 @@ async function processMonitoramento(
         
         stats.descartadas++;
         tribunalStat.descartadas++;
-        continue;
+        return;
       }
 
       const { data: existing } = await supabase
@@ -1077,7 +1481,7 @@ async function processMonitoramento(
       if (existing) {
         stats.duplicatas++;
         tribunalStat.duplicatas++;
-        continue;
+        return;
       }
 
       const { data: publicacao, error: insertError } = await supabase.from('publicacoes_djen').insert({
@@ -1094,7 +1498,7 @@ async function processMonitoramento(
 
       if (insertError) {
         console.error(`Insert error:`, insertError);
-        continue;
+        return;
       }
 
       await supabase.from('publicacoes_djen_global_hash').insert({
@@ -1147,7 +1551,51 @@ async function processMonitoramento(
           }
         }
       }
+    };
+
+    // IMPORTANTE: Buscar TODAS as variantes (com e sem acento) e acumular resultados
+    // Não fazer break no primeiro resultado - algumas publicações só aparecem
+    // na variante sem acento (ex: TJRJ usa "UNIAO QUIMICA" sem acentos)
+    for (const candidate of searchCandidates) {
+      const candidateLabel = candidate.numeroOab
+        ? `numeroOab=${candidate.numeroOab}/${candidate.ufOab || ''}`
+        : candidate.nomeAdvogado
+          ? `nomeAdvogado="${candidate.nomeAdvogado}"`
+          : candidate.texto
+            ? `texto="${candidate.texto}"`
+            : 'unknown';
+
+      console.log(`[DJEN] Trying candidate ${candidateLabel} | tribunal=${tribunal || 'TODOS'} | período=${options.dataInicio || '-'}→${options.dataFim || '-'}`);
+
+      const searchParams: SearchParams = { 
+        ...candidate, 
+        siglaTribunal: tribunal,
+        dataInicio: options.dataInicio,
+        dataFim: options.dataFim,
+      };
+      const result = await fetchDJENResultsWithStats(
+        searchParams,
+        { scheduled: options.scheduled === true },
+        async (items) => {
+          for (const item of items) {
+            await processPublication(item);
+          }
+        }
+      );
+
+      totalPages += result.pages;
+      totalResultados += result.itemsCount;
+
+      console.log(`[DJEN] Candidate ${candidateLabel}: ${result.itemsCount} resultados (acumulado: ${totalResultados})`);
+
+      // Delay entre candidatos de busca para evitar rate limit
+      await delay(INTER_CANDIDATE_DELAY_MS);
     }
+    const pages = totalPages;
+    tribunalStat.paginas = pages;
+    tribunalStat.resultados = totalResultados;
+
+    console.log(`Found ${totalResultados} publications for tribunal ${tribunal} (${pages} pages)`);
 
     tribunaisStats.push(tribunalStat);
     
@@ -1163,10 +1611,11 @@ async function processMonitoramento(
 
 async function fetchDJENResultsWithStats(
   params: SearchParams,
-  options: { scheduled?: boolean } = {}
-): Promise<{ items: any[]; pages: number }> {
-  const allResults: any[] = [];
+  options: { scheduled?: boolean } = {},
+  onItems?: (items: any[]) => Promise<void> | void
+): Promise<{ itemsCount: number; pages: number }> {
   let page = 0;
+  let itemsCount = 0;
   const maxPages = 10;
 
   const now = new Date();
@@ -1214,7 +1663,7 @@ async function fetchDJENResultsWithStats(
     queryParams.set('dataDisponibilizacaoInicio', dataInicio);
     queryParams.set('dataDisponibilizacaoFim', dataFim);
     queryParams.set('pagina', page.toString());
-    queryParams.set('itensPorPagina', '100');
+    queryParams.set('itensPorPagina', '50');
 
     const url = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
     console.log(`Fetching: ${url}`);
@@ -1239,7 +1688,10 @@ async function fetchDJENResultsWithStats(
       const items = data?.comunicacoes || data?.items || data || [];
 
       if (Array.isArray(items) && items.length > 0) {
-        allResults.push(...items);
+        itemsCount += items.length;
+        if (onItems) {
+          await onItems(items);
+        }
         page++;
         // Delay entre páginas para evitar rate limit (alinhado com processos)
         await delay(INTER_PAGE_DELAY_MS);
@@ -1252,7 +1704,7 @@ async function fetchDJENResultsWithStats(
     }
   }
 
-  return { items: allResults, pages: page };
+  return { itemsCount, pages: page };
 }
 
 
@@ -1446,13 +1898,15 @@ serve(async (req) => {
     const parentRunId = body?.parentRunId as string | undefined;
     const retryCount = (body?.retryCount as number) || 0;
     const execucaoId = body?.execucaoId as string | undefined;
+    const conservative = body?.conservative === true;
+    const indexMode = body?.indexMode as string | undefined;
 
     const urlOffsetRaw = url.searchParams.get('offset');
     const urlOffset = urlOffsetRaw !== null ? Number.parseInt(urlOffsetRaw, 10) : NaN;
 
-    // Ler datas do período de consulta (passadas via query params do frontend)
-    const dataInicioParam = url.searchParams.get('dataInicio');
-    const dataFimParam = url.searchParams.get('dataFim');
+    // Ler datas do período de consulta (query params ou body)
+    const dataInicioParam = url.searchParams.get('dataInicio') ?? body?.dataInicio ?? null;
+    const dataFimParam = url.searchParams.get('dataFim') ?? body?.dataFim ?? null;
     
     console.log(`[DJEN] Date params from URL: dataInicio=${dataInicioParam}, dataFim=${dataFimParam}`);
 
@@ -1463,6 +1917,95 @@ serve(async (req) => {
     }
 
     console.log(`=== DJEN Monitor START ===`);
+    // Se o usuário pediu cancelamento, não iniciar nem continuar
+    const { data: cancelConfig } = await supabase
+      .from('configuracoes_monitoramento')
+      .select('metadata')
+      .eq('tipo', 'djen')
+      .is('coordenacao_id', null)
+      .maybeSingle();
+
+    const wasCancelled = (cancelConfig?.metadata as any)?.cancelado === true;
+    if (wasCancelled) {
+      const nowIso = new Date().toISOString();
+      const currentMeta = (cancelConfig?.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...currentMeta,
+            cancelado: false,
+            status: 'cancelado',
+            has_more: false,
+            next_offset: null,
+            djen_run: null,
+            last_stop_reason: 'user_cancel',
+          },
+        })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+
+      if (execucaoId) {
+        await updateExecucaoProgress(supabase, execucaoId, {
+          status: 'cancelado',
+          finalizado_em: nowIso,
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, cancelled: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const isPausedGlobally = (cancelConfig?.metadata as any)?.paused_globally === true;
+    const isManual = body?.manual === true;
+    if (isPausedGlobally && !isManual) {
+      const nowIso = new Date().toISOString();
+      const currentMeta = (cancelConfig?.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...currentMeta,
+            cancelado: false,
+            status: 'cancelado',
+            has_more: false,
+            next_offset: null,
+            djen_run: null,
+            last_stop_reason: 'paused_globally',
+          },
+        })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+
+      if (execucaoId) {
+        await updateExecucaoProgress(supabase, execucaoId, {
+          status: 'cancelado',
+          finalizado_em: nowIso,
+          detalhes: { paused_globally: true },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, paused: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (conservative) {
+      CONFIG = {
+        ...CONFIG,
+        modo_processamento: 'sequencial',
+        max_paralelo: 1,
+        max_por_invocacao: Math.min(CONFIG.max_por_invocacao, 5),
+        delay_entre_monitoramentos: Math.max(CONFIG.delay_entre_monitoramentos, 1500),
+        delay_entre_paginas: Math.max(CONFIG.delay_entre_paginas, 1200),
+        delay_entre_tribunais: Math.max(CONFIG.delay_entre_tribunais, 1000),
+        max_retries: Math.max(CONFIG.max_retries, 4),
+        retry_base_delay_ms: Math.max(CONFIG.retry_base_delay_ms, 8000),
+      };
+      applyConfigToLegacy();
+      console.log('[DJEN] Modo conservador ativo (reduz 429)');
+    }
     console.log(`  Params: offset=${offset} | scheduled=${scheduled} | completeRun=${completeRun} | continued=${continued} | retryCount=${retryCount} | execucaoId=${execucaoId}`);
     console.log(`  URL offset param: ${urlOffsetRaw}`);
     console.log(`  Date range: ${dataInicioParam || 'hoje'} to ${dataFimParam || 'hoje'}`);
@@ -1497,6 +2040,49 @@ serve(async (req) => {
     const count = monitoramentos?.length || 0;
     const total = totalActive || 0;
     console.log(`Fetched ${count} monitoramentos (total active: ${total})`);
+
+    // Atualizar metadata logo no início para o card refletir progresso
+    try {
+      const { data: cfgInit } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+      const metaInit = (cfgInit?.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...metaInit,
+            status: 'em_andamento',
+            current: offset,
+            total: total,
+            percentage: total > 0 ? Math.min(100, Math.round((offset / total) * 100)) : 0,
+            mensagem: 'Processando monitoramentos...',
+            termoAtual: metaInit.termoAtual ?? null,
+          },
+        })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+
+      if (execucaoId) {
+        await updateExecucaoProgress(supabase, execucaoId, {
+          status: 'executando',
+          registros_processados: offset,
+          total_lotes: total,
+          detalhes: {
+            progress: {
+              current: offset,
+              total,
+              percentage: total > 0 ? Math.min(100, Math.round((offset / total) * 100)) : 0,
+            },
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('[DJEN] Falha ao publicar progresso inicial:', e);
+    }
 
     // Determine or create run_id
     // Se parentRunId foi passado, SEMPRE usa ele (mesmo sem flag continued)
@@ -1676,16 +2262,148 @@ serve(async (req) => {
     let totalPaginas = 0;
     let totalResultados = 0;
     const allTribunaisStats: TribunalStats[] = [];
+    let lastTermoLabel: string | null = null;
+    let stopReason: string | null = null;
+    const shouldStop = createStopChecker(supabase, execucaoId);
+    let lastHeartbeatAt = 0;
+
+    const heartbeat = async () => {
+      const now = Date.now();
+      if (now - lastHeartbeatAt < 5000) return;
+      lastHeartbeatAt = now;
+      const current = offset + processedCount;
+      const percentage = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+      try {
+        const { data: cfg } = await supabase
+          .from('configuracoes_monitoramento')
+          .select('metadata')
+          .eq('tipo', 'djen')
+          .is('coordenacao_id', null)
+          .maybeSingle();
+        const meta = (cfg?.metadata as Record<string, any>) || {};
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: {
+              ...meta,
+              status: 'em_andamento',
+              current,
+              total,
+              percentage,
+              termoAtual: lastTermoLabel ?? meta.termoAtual ?? null,
+              mensagem: lastTermoLabel ? `Processando: ${lastTermoLabel}` : 'Processando monitoramentos...',
+            },
+          })
+          .eq('tipo', 'djen')
+          .is('coordenacao_id', null);
+
+        if (execucaoId) {
+          await updateExecucaoProgress(supabase, execucaoId, {
+            status: 'executando',
+            registros_processados: current,
+            total_lotes: total,
+            detalhes: {
+              progress: { current, total, percentage },
+            },
+          });
+        }
+      } catch (e) {
+        console.warn('[DJEN] Falha ao publicar heartbeat:', e);
+      }
+    };
+
+    const diarioYmd =
+      dataInicioParam && dataFimParam && dataInicioParam === dataFimParam
+        ? dataInicioParam
+        : null;
+    let usarIndice = false;
+    if (indexMode === 'normal') {
+      usarIndice = false;
+    } else if (indexMode === 'indexado' && !diarioYmd) {
+      const msg = '[DJEN] Consulta indexada exige seleção de apenas um dia.';
+      console.warn(msg);
+      const { data: cfg } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+      const meta = (cfg?.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...meta,
+            status: 'erro',
+            mensagem: 'Consulta indexada exige seleção de apenas um dia.',
+            last_stop_reason: 'index_requires_single_day',
+          },
+        })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Consulta indexada exige um único dia.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else if (diarioYmd) {
+      const { data: idx } = await supabase
+        .from('djen_diario_index')
+        .select('status')
+        .eq('diario_ymd', diarioYmd)
+        .maybeSingle();
+      const indexOk = idx?.status === 'concluido';
+
+      if (indexMode === 'indexado' && !indexOk) {
+        const msg = `[DJEN] Índice diário indisponível para ${diarioYmd}`;
+        console.warn(msg);
+        const { data: cfg } = await supabase
+          .from('configuracoes_monitoramento')
+          .select('metadata')
+          .eq('tipo', 'djen')
+          .is('coordenacao_id', null)
+          .maybeSingle();
+        const meta = (cfg?.metadata as Record<string, any>) || {};
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: {
+              ...meta,
+              status: 'erro',
+              mensagem: 'Índice diário não disponível para a data selecionada.',
+              last_stop_reason: 'index_unavailable',
+            },
+          })
+          .eq('tipo', 'djen')
+          .is('coordenacao_id', null);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Índice diário não disponível.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      usarIndice = indexOk;
+      if (usarIndice) {
+        console.log(`[DJEN] Usando índice diário para ${diarioYmd}`);
+      }
+    }
 
     // Função auxiliar para processar um monitoramento e agregar resultados
     const processAndAggregate = async (mon: Monitoramento, index: number): Promise<void> => {
       try {
-        console.log(`[${index + 1}/${count}] ${mon.descricao || mon.termo_busca}`);
+        const stop = await shouldStop();
+        if (stop.stop) {
+          stopReason = stop.reason || 'cancelado';
+          return;
+        }
+        lastTermoLabel = (mon.descricao || mon.termo_busca || '').trim() || null;
+        console.log(`[${index + 1}/${count}] ${lastTermoLabel || mon.termo_busca}`);
 
-        const stats = await processMonitoramento(supabase, mon, { 
+        const stats = await processMonitoramento(supabase, mon, {
           scheduled,
           dataInicio: dataInicioParam || undefined,
           dataFim: dataFimParam || undefined,
+          indexed: usarIndice,
+          diarioYmd: diarioYmd || undefined,
         });
         
         // Agregar resultados (thread-safe para leituras/escritas simples em JS)
@@ -1710,10 +2428,12 @@ serve(async (req) => {
         }
         
         processedCount++;
+        await heartbeat();
       } catch (error) {
         errorCount++;
         processedCount++;
         console.error(`Error on ${mon.id}:`, error);
+        await heartbeat();
       }
     };
 
@@ -1736,6 +2456,7 @@ serve(async (req) => {
           console.log(`Soft timeout reached at ${Math.round((Date.now() - startTime) / 1000)}s. Stopping batch early.`);
           break;
         }
+        if (stopReason) break;
         
         const chunk = monsToProcess.slice(i, i + chunkSize);
         console.log(`[DJEN] Processando chunk ${Math.floor(i/chunkSize) + 1}: ${chunk.length} monitoramentos`);
@@ -1761,6 +2482,7 @@ serve(async (req) => {
           console.log(`Soft timeout reached at ${Math.round((Date.now() - startTime) / 1000)}s. Stopping batch early.`);
           break;
         }
+        if (stopReason) break;
         
         await processAndAggregate(mon, i);
         
@@ -1773,6 +2495,46 @@ serve(async (req) => {
 
     const nowIso = new Date().toISOString();
     const duration = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+
+    if (stopReason) {
+      const nowIso = new Date().toISOString();
+      const { data: cfg } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+      const currentMeta = (cfg?.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...currentMeta,
+            cancelado: false,
+            paused_globally: stopReason === 'paused_globally' ? true : currentMeta.paused_globally,
+            status: 'cancelado',
+            has_more: false,
+            next_offset: null,
+            djen_run: null,
+            last_stop_reason: stopReason,
+          },
+        })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+
+      if (execucaoId) {
+        await updateExecucaoProgress(supabase, execucaoId, {
+          status: 'cancelado',
+          finalizado_em: nowIso,
+          detalhes: { stopped_reason: stopReason },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, cancelled: true, reason: stopReason }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const hasMore = (offset + processedCount) < total;
     const nextOffset = hasMore ? offset + processedCount : null;
@@ -1813,6 +2575,37 @@ serve(async (req) => {
     }
 
     const currentMeta = (configRow?.metadata ?? {}) as Record<string, any>;
+
+    // Se foi cancelado durante a execução, parar imediatamente
+    if (currentMeta?.cancelado === true) {
+      const nowIso = new Date().toISOString();
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: {
+            ...currentMeta,
+            cancelado: false,
+            status: 'cancelado',
+            has_more: false,
+            next_offset: null,
+            djen_run: null,
+            last_stop_reason: 'user_cancel',
+          },
+        })
+        .eq('tipo', 'djen');
+
+      if (execucaoId) {
+        await updateExecucaoProgress(supabase, execucaoId, {
+          status: 'cancelado',
+          finalizado_em: nowIso,
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, cancelled: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     type DjenRun = {
       run_id: string;
@@ -1906,6 +2699,7 @@ serve(async (req) => {
 
     const updatedMeta: Record<string, any> = {
       ...currentMeta,
+      cancelado: false,
       last_run: nowIso,
       offset_processado: offset,
       processados: metaTotals.processados,
@@ -1927,6 +2721,7 @@ serve(async (req) => {
       // Campos para sincronização realtime (como monitorar-djen-processos)
       current: offset + processedCount,
       total: total,
+      termoAtual: lastTermoLabel ?? null,
     };
 
     const updatePayload: Record<string, any> = {
@@ -2132,16 +2927,25 @@ serve(async (req) => {
         .maybeSingle();
 
       const wasCancelled = (freshConfig?.metadata as any)?.cancelado === true;
+      const pausedGlobally = (freshConfig?.metadata as any)?.paused_globally === true;
 
-      if (wasCancelled) {
-        console.log('[DJEN] Cancelamento detectado, parando auto-continuação');
+      if (wasCancelled || pausedGlobally) {
+        console.log('[DJEN] Cancelamento/pausa global detectado, parando auto-continuação');
         const currentFreshMeta = (freshConfig?.metadata as Record<string, any>) || {};
         
         // Limpa flag e atualiza status
         await supabase
           .from('configuracoes_monitoramento')
           .update({
-            metadata: { ...currentFreshMeta, cancelado: false, status: 'cancelado', next_offset: null, has_more: false, djen_run: null },
+            metadata: {
+              ...currentFreshMeta,
+              cancelado: false,
+              status: 'cancelado',
+              next_offset: null,
+              has_more: false,
+              djen_run: null,
+              last_stop_reason: pausedGlobally ? 'paused_globally' : 'cancelado',
+            },
           })
           .eq('tipo', 'djen');
 

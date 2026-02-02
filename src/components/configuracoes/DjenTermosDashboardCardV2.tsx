@@ -10,7 +10,7 @@
  * - Mostrar progresso global + indicador do dia atual
  */
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,11 @@ import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,11 +37,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { 
   Loader2, Newspaper, PlayCircle, StopCircle,
-  CheckCircle2, XCircle, Clock, CalendarIcon, RotateCcw, Skull
+  CheckCircle2, XCircle, Clock, CalendarIcon, RotateCcw, Skull, Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDjenTermos } from "@/hooks/useDjenTermos";
 import type { MonitoringStats } from "@/hooks/useMonitoringDashboard";
+import { toast } from "sonner";
 
 type Props = {
   stats: MonitoringStats;
@@ -72,13 +78,38 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     checkpoint,
     executar,
     retomar,
+    executarHibrido,
     cancelar,
+    cancelarHibrido,
     forceKill,
+    forceKillHibrido,
     limparTudoComPublicacoes,
+    limparIndiceDiario,
+    indexarDiario,
+    cancelarIndexacao,
   } = useDjenTermos();
 
+  const { data: liveConfig } = useQuery({
+    queryKey: ['djen-config-live'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { metadata: Record<string, any> | null } | null;
+    },
+    enabled: true,
+    refetchInterval: (data) => {
+      const md = (data?.metadata as Record<string, any> | null) || {};
+      return md?.status === 'em_andamento' ? 3000 : 8000;
+    },
+  });
+
   // Snapshot do backend (evita “card desatualizado” ao sair/voltar da tela ou após reload)
-  const md = (stats.config?.metadata as Record<string, any> | null) || {};
+  const md = ((liveConfig?.metadata as Record<string, any> | null) || (stats.config?.metadata as Record<string, any> | null) || {});
 
   // Fonte de verdade do status:
   // - Se o engine local está rodando, confiar nele
@@ -86,7 +117,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   const backendIsRunning =
     stats.status === 'running' ||
     stats.currentExecution?.status === 'executando' ||
-    md.status === 'executando';
+    md.status === 'executando' ||
+    md.status === 'em_andamento';
 
   const backendIsTimeout =
     stats.status === 'timeout' ||
@@ -146,6 +178,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     progress.mensagem ||
     (typeof md.mensagem === 'string' ? md.mensagem : '') ||
     (typeof md.message === 'string' ? md.message : '') ||
+    (typeof md.warning === 'string' ? md.warning : '') ||
     (effectiveIsRunning ? 'Executando...' : '');
 
   const effectiveTempoDecorrido = Math.max(progress.tempoDecorrido || 0, stats.elapsedSeconds || 0);
@@ -156,12 +189,20 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   const effectiveEncontradas: number =
     (isRunning && progress.novas > 0)
       ? progress.novas
-      : (typeof md.novas === 'number' ? md.novas : 0) ||
+      : (typeof md.novas_nao_lidas === 'number' ? md.novas_nao_lidas : 0) ||
+        (typeof md.novas === 'number' ? md.novas : 0) ||
         (typeof md.encontradas === 'number' ? md.encontradas : 0) ||
         (typeof md.found === 'number' ? md.found : 0) ||
+        (typeof stats.todayStats?.novas_nao_lidas === 'number' ? stats.todayStats.novas_nao_lidas : 0) ||
         (typeof stats.todayStats?.novas === 'number' ? stats.todayStats.novas : 0) ||
         (typeof stats.todayStats?.found === 'number' ? stats.todayStats.found : 0) ||
         0;
+
+  const effectiveEncontradasTotal: number =
+    (typeof md.novas === 'number' ? md.novas : 0) ||
+    (typeof stats.todayStats?.novas === 'number' ? stats.todayStats.novas : 0) ||
+    (typeof stats.todayStats?.found === 'number' ? stats.todayStats.found : 0) ||
+    0;
 
   const effectiveDuplicadas: number =
     (isRunning && progress.duplicadas > 0)
@@ -179,11 +220,74 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
         (typeof stats.todayStats?.descartadas === 'number' ? stats.todayStats.descartadas : 0) ||
         0;
 
+  const effectiveDescartadasTribunal: number =
+    (isRunning && progress.descartadasTribunal > 0)
+      ? progress.descartadasTribunal
+      : (typeof md.descartadas_tribunal === 'number' ? md.descartadas_tribunal : 0) ||
+        0;
+
   // Estado para seleção de datas
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [showKillDialog, setShowKillDialog] = useState(false);
+  const [turboMode, setTurboMode] = useState(false);
+  const [hybridMode, setHybridMode] = useState(false);
+  const [backgroundOnly, setBackgroundOnly] = useState(false);
+  const [indexMode, setIndexMode] = useState<'normal' | 'indexado'>('normal');
+
+  useEffect(() => {
+    const savedHybrid = localStorage.getItem('djen-hybrid-mode');
+    const savedBg = localStorage.getItem('djen-background-only');
+    const savedIndexMode = localStorage.getItem('djen-index-mode');
+    if (savedBg === 'true') {
+      setBackgroundOnly(true);
+      setHybridMode(false);
+    } else if (savedHybrid === 'true') {
+      setHybridMode(true);
+    }
+    if (savedIndexMode === 'indexado' || savedIndexMode === 'normal') {
+      setIndexMode(savedIndexMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('djen-hybrid-mode', hybridMode ? 'true' : 'false');
+  }, [hybridMode]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('djen-background-only');
+    if (saved === 'true') {
+      setBackgroundOnly(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('djen-background-only', backgroundOnly ? 'true' : 'false');
+    if (backgroundOnly) {
+      setHybridMode(false);
+    }
+  }, [backgroundOnly]);
+
+  useEffect(() => {
+    localStorage.setItem('djen-index-mode', indexMode);
+  }, [indexMode]);
+
+  useEffect(() => {
+    if (backendIsRunning && !backgroundOnly) {
+      setHybridMode(true);
+    }
+  }, [backendIsRunning, backgroundOnly]);
+
+  const handleToggleHybrid = useCallback((checked: boolean) => {
+    setHybridMode(checked);
+    if (checked) setBackgroundOnly(false);
+  }, []);
+
+  const handleToggleBackground = useCallback((checked: boolean) => {
+    setBackgroundOnly(checked);
+    if (checked) setHybridMode(false);
+  }, []);
 
   // Helpers
   const getDataYmd = useCallback((date?: Date): string | undefined => {
@@ -193,43 +297,233 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     return format(d, 'yyyy-MM-dd');
   }, []);
 
+  const dataIndexYmd = useMemo(() => {
+    const inicio = getDataYmd(dataInicio);
+    const fim = getDataYmd(dataFim);
+    if (inicio && fim && inicio === fim) return inicio;
+    if (inicio && !fim) return inicio;
+    if (fim && !inicio) return fim;
+    if (inicio && fim && inicio !== fim) return null;
+    return null;
+  }, [dataInicio, dataFim, getDataYmd]);
+
+  const { data: indexStatus, refetch: refetchIndexStatus } = useQuery({
+    queryKey: ['djen-diario-index', dataIndexYmd],
+    queryFn: async () => {
+      const baseQuery = (supabase as any)
+        .from('djen_diario_index')
+        .select('diario_ymd, status, total_publicacoes, total_tribunais, tribunais_processados, atualizado_em, erro_mensagem')
+        .order('atualizado_em', { ascending: false })
+        .limit(1);
+      const { data, error } = dataIndexYmd
+        ? await baseQuery.eq('diario_ymd', dataIndexYmd).maybeSingle()
+        : await baseQuery.maybeSingle();
+      if (error) throw error;
+      return data as {
+        diario_ymd: string;
+        status: string;
+        total_publicacoes: number | null;
+        total_tribunais: number | null;
+        tribunais_processados: number | null;
+        atualizado_em: string | null;
+        erro_mensagem: string | null;
+      } | null;
+    },
+    enabled: true,
+    refetchInterval: (data) => (data?.status === 'em_andamento' ? 3000 : false),
+  });
+
+  const { data: indexTribunais = [] } = useQuery({
+    queryKey: ['djen-diario-index-tribunais', indexStatus?.diario_ymd],
+    queryFn: async () => {
+      if (!indexStatus?.diario_ymd) return [];
+      const { data, error } = await (supabase as any)
+        .from('djen_diario_index_tribunais')
+        .select('tribunal, status, paginas_processadas, max_pages, atualizado_em, erro_mensagem')
+        .eq('diario_ymd', indexStatus.diario_ymd)
+        .order('tribunal', { ascending: true });
+      if (error) throw error;
+      return data as Array<{
+        tribunal: string;
+        status: string;
+        paginas_processadas: number | null;
+        max_pages: number | null;
+        atualizado_em: string | null;
+        erro_mensagem: string | null;
+      }>;
+    },
+    enabled: !!indexStatus?.diario_ymd,
+    refetchInterval: (data) => (indexStatus?.status === 'em_andamento' ? 3000 : false),
+  });
+
   const statusConfig = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.idle;
   const StatusIcon = statusConfig.icon;
+  const [indexActionPending, setIndexActionPending] = useState(false);
+  const indexErroTribunais = useMemo(
+    () => indexTribunais.filter((t) => t.status === 'erro'),
+    [indexTribunais]
+  );
+  const indexErrosCount = indexErroTribunais.length;
+  const indexStatusLabel = indexStatus?.status === 'concluido'
+    ? 'Concluído'
+    : indexStatus?.status === 'em_andamento'
+      ? 'Em andamento'
+      : indexStatus?.status === 'cancelado'
+        ? 'Cancelado'
+        : indexStatus?.status === 'erro'
+        ? 'Erro'
+        : 'Pendente';
+  const indexProgress = (() => {
+    if (!indexStatus) return 0;
+    if (indexStatus.status === 'cancelado') return 0;
+    if (indexStatus.status === 'concluido') return 100;
+    const total = Number(indexStatus.total_tribunais || 0);
+    const done = Number(indexStatus.tribunais_processados || 0);
+    if (total > 0) return Math.min(99, Math.round((done / total) * 100));
+    return indexStatus.status === 'em_andamento' ? 10 : 0;
+  })();
 
   // Handlers
-  const handleExecutar = useCallback(() => {
+  const handleExecutar = useCallback(async () => {
     // Se há checkpoint, perguntar se quer retomar ou começar do zero
-    if (canResume) {
+    if (canResume && !hybridMode && !backendIsRunning && !backgroundOnly) {
       setShowResumeDialog(true);
       return;
     }
     
-    executar(getDataYmd(dataInicio), getDataYmd(dataFim));
+    if (!dataInicio || !dataFim) {
+      toast.error('Selecione data de início e fim antes de executar');
+      return;
+    }
+
+    if (indexMode === 'indexado') {
+      if (!dataIndexYmd) {
+        toast.error('Consulta indexada exige seleção de apenas um dia.');
+        return;
+      }
+      if (indexStatus?.status !== 'concluido') {
+        toast.error('Índice diário não concluído para a data selecionada.');
+        return;
+      }
+      if (!hybridMode && !backgroundOnly) {
+        toast.error('Consulta indexada só funciona no backend. Ative modo híbrido ou 100% background.');
+        return;
+      }
+    }
+
+    if (backgroundOnly) {
+      await executarHibrido(getDataYmd(dataInicio), getDataYmd(dataFim), { backgroundOnly: true, indexMode });
+    } else if (hybridMode) {
+      await executarHibrido(getDataYmd(dataInicio), getDataYmd(dataFim), { indexMode });
+    } else {
+      executar(getDataYmd(dataInicio), getDataYmd(dataFim), { turbo: turboMode });
+    }
     onAfterMutation();
-  }, [canResume, executar, getDataYmd, dataInicio, dataFim, onAfterMutation]);
+  }, [canResume, executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus]);
+
+  const handleIndexarDiario = useCallback(async () => {
+    const inicio = getDataYmd(dataInicio);
+    const fim = getDataYmd(dataFim);
+
+    if (inicio && fim && inicio !== fim) {
+      toast.error('Para indexar, selecione apenas um dia');
+      return;
+    }
+
+    const dataYmd = inicio || fim || getDataYmd(new Date());
+    if (!dataYmd) {
+      toast.error('Selecione um dia para indexar');
+      return;
+    }
+
+    setIndexActionPending(true);
+    try {
+      await indexarDiario(dataYmd);
+      await refetchIndexStatus();
+      onAfterMutation();
+    } finally {
+      setIndexActionPending(false);
+    }
+  }, [dataInicio, dataFim, getDataYmd, indexarDiario, onAfterMutation, refetchIndexStatus]);
 
   const handleRetomar = useCallback(() => {
     setShowResumeDialog(false);
-    retomar();
+    if (indexMode === 'indexado') {
+      toast.error('Consulta indexada não permite retomar execução local.');
+      return;
+    }
+    if (backgroundOnly) {
+      toast.error('Modo 100% background não permite retomar execução local.');
+      return;
+    }
+    retomar({ turbo: turboMode });
     onAfterMutation();
-  }, [retomar, onAfterMutation]);
+  }, [retomar, onAfterMutation, turboMode, backgroundOnly, indexMode]);
 
   const handleNovaExecucao = useCallback(() => {
     setShowResumeDialog(false);
-    executar(getDataYmd(dataInicio), getDataYmd(dataFim));
+    if (indexMode === 'indexado') {
+      if (!dataIndexYmd) {
+        toast.error('Consulta indexada exige seleção de apenas um dia.');
+        return;
+      }
+      if (indexStatus?.status !== 'concluido') {
+        toast.error('Índice diário não concluído para a data selecionada.');
+        return;
+      }
+      if (!hybridMode && !backgroundOnly) {
+        toast.error('Consulta indexada só funciona no backend. Ative modo híbrido ou 100% background.');
+        return;
+      }
+    }
+    if (backgroundOnly) {
+      executarHibrido(getDataYmd(dataInicio), getDataYmd(dataFim), { backgroundOnly: true, indexMode });
+    } else if (hybridMode) {
+      executarHibrido(getDataYmd(dataInicio), getDataYmd(dataFim), { indexMode });
+    } else {
+      executar(getDataYmd(dataInicio), getDataYmd(dataFim), { turbo: turboMode });
+    }
     onAfterMutation();
-  }, [executar, getDataYmd, dataInicio, dataFim, onAfterMutation]);
+  }, [executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus]);
 
   const handleCancelar = useCallback(() => {
-    cancelar();
+    if (hybridMode) {
+      cancelarHibrido();
+    } else {
+      cancelar();
+    }
     onAfterMutation();
-  }, [cancelar, onAfterMutation]);
+  }, [cancelar, cancelarHibrido, onAfterMutation, hybridMode]);
 
   const handleForceKill = useCallback(() => {
     setShowKillDialog(false);
+    // Sempre tentar parar ambos os modos para evitar ficar preso
+    forceKillHibrido();
     forceKill();
+    setHybridMode(false);
+    setTurboMode(false);
+    setBackgroundOnly(false);
     onAfterMutation();
-  }, [forceKill, onAfterMutation]);
+  }, [forceKill, forceKillHibrido, onAfterMutation]);
+
+  const handleLimparIndice = useCallback(async () => {
+    const dataYmd = getDataYmd(dataInicio) || getDataYmd(dataFim) || getDataYmd(new Date());
+    if (!dataYmd) {
+      toast.error('Selecione um dia para limpar o índice');
+      return;
+    }
+    await limparIndiceDiario(dataYmd);
+    onAfterMutation();
+  }, [dataInicio, dataFim, getDataYmd, limparIndiceDiario, onAfterMutation]);
+
+  const handleCancelarIndexacao = useCallback(async () => {
+    if (!dataIndexYmd) {
+      toast.error('Selecione um dia para cancelar a indexação');
+      return;
+    }
+    await cancelarIndexacao(dataIndexYmd);
+    onAfterMutation();
+  }, [cancelarIndexacao, dataIndexYmd, onAfterMutation]);
 
   // Calcular percentual do checkpoint para exibição
   const checkpointPercent = useMemo(() => {
@@ -270,7 +564,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                     </span>
                   )}
                   {effectiveTermoAtual && (
-                    <span className="ml-1">{effectiveTermoAtual}</span>
+                    <span className="ml-1 break-words">{effectiveTermoAtual}</span>
                   )}
                 </span>
                 <span className="font-mono font-medium">{Math.round(effectivePercentage)}%</span>
@@ -282,17 +576,209 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
             </div>
           )}
 
+          {/* Índice diário */}
+          {indexStatus ? (
+            <div className="space-y-2 rounded-md border px-3 py-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Índice diário ({indexStatus.diario_ymd})</span>
+                <Badge variant="secondary">{indexStatusLabel}</Badge>
+              </div>
+              <Progress value={indexProgress} className="h-2" />
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>
+                  {indexStatus?.total_tribunais
+                    ? `Tribunais: ${indexStatus.tribunais_processados || 0}/${indexStatus.total_tribunais}`
+                    : 'Sem estimativa'}
+                </span>
+                <span>{indexProgress}%</span>
+              </div>
+              {indexActionPending && indexStatus?.status !== 'em_andamento' && (
+                <div className="text-[11px] text-muted-foreground">
+                  Iniciando indexação...
+                </div>
+              )}
+              {indexStatus.status === 'em_andamento' && indexErrosCount > 0 && (
+                <div className="text-[11px] text-destructive">
+                  Tribunais com erro: {indexErrosCount}
+                </div>
+              )}
+              {indexStatus.status === 'em_andamento' && indexTribunais.length > 0 && (
+                <ScrollArea className="h-40 rounded border bg-muted/20 p-2">
+                  <div className="space-y-2">
+                    {indexTribunais.map((t) => {
+                      const max = Number(t.max_pages || 0);
+                      const done = Number(t.paginas_processadas || 0);
+                      const pct = max > 0 ? Math.min(99, Math.round((done / max) * 100)) : (t.status === 'concluido' ? 100 : 0);
+                      return (
+                        <div key={t.tribunal} className="space-y-1">
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                            <span className="font-medium">{t.tribunal}</span>
+                            <span className={t.status === 'erro' ? 'text-destructive' : undefined}>{t.status}</span>
+                          </div>
+                          <Progress value={pct} className="h-1.5" />
+                          {t.status === 'erro' && t.erro_mensagem && (
+                            <div className="text-[10px] text-destructive">
+                              {t.erro_mensagem}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+              {indexStatus.status === 'concluido' && indexErrosCount > 0 && (
+                <div className="text-[11px] text-destructive">
+                  Tribunais com erro: {indexErrosCount}
+                </div>
+              )}
+              {indexStatus.status === 'erro' && indexStatus.erro_mensagem && (
+                <div className="text-[11px] text-destructive">
+                  {indexStatus.erro_mensagem}
+                </div>
+              )}
+              {indexStatus.status === 'cancelado' && (
+                <div className="text-[11px] text-muted-foreground">
+                  Indexação cancelada. Clique em “Indexar diário” para reiniciar.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-md border px-3 py-2 text-xs text-muted-foreground">
+              Nenhum índice encontrado para exibir.
+            </div>
+          )}
+
           {/* Totalizadores */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <span className="text-primary">
-              ✓ {effectiveEncontradas} encontradas
+              ✓ {effectiveEncontradas} encontradas (não lidas)
             </span>
+            {effectiveEncontradasTotal > 0 && effectiveEncontradasTotal !== effectiveEncontradas && (
+              <span className="text-muted-foreground">
+                • {effectiveEncontradasTotal} total hoje
+              </span>
+            )}
             <span className="text-muted-foreground">
               ↔ {effectiveDuplicadas} duplicadas
             </span>
             <span className="text-destructive">
               ✗ {effectiveDescartadas} descartadas
             </span>
+            {effectiveDescartadasTribunal > 0 && (
+              <span className="text-muted-foreground">
+                • {effectiveDescartadasTribunal} fora do tribunal
+              </span>
+            )}
+          </div>
+
+          {/* Indicadores de estratégia */}
+          <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+            <Badge variant="secondary">Prioridade: Advogado/OAB</Badge>
+            <Badge variant="secondary">Agrupamento por OAB ativo</Badge>
+            {backgroundOnly && <Badge variant="secondary">Modo 100% background</Badge>}
+            {!backgroundOnly && hybridMode && <Badge variant="secondary">Modo híbrido</Badge>}
+            {!backgroundOnly && !hybridMode && <Badge variant="secondary">Modo navegador</Badge>}
+          </div>
+
+          {/* Modo turbo */}
+          <div className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="djen-turbo" className="text-xs text-muted-foreground">
+                Modo turbo
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Aumenta a velocidade com mais paralelismo e menos delays. Se houver muitos 429, o sistema reduz automaticamente.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Switch
+              id="djen-turbo"
+              checked={turboMode}
+              onCheckedChange={setTurboMode}
+              disabled={effectiveIsRunning || hybridMode}
+            />
+          </div>
+
+          {/* Modo híbrido */}
+          <div className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="djen-hybrid" className="text-xs text-muted-foreground">
+                Modo híbrido (backend)
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Executa a busca no backend com controle global de rate limit. Se falhar, cai no modo navegador.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Switch
+              id="djen-hybrid"
+              checked={hybridMode}
+              onCheckedChange={handleToggleHybrid}
+              disabled={effectiveIsRunning || backgroundOnly}
+            />
+          </div>
+
+          {/* 100% background */}
+          <div className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="djen-background" className="text-xs text-muted-foreground">
+                100% background
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Executa apenas no backend. Se o backend estiver indisponível, não cai no navegador.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Switch
+              id="djen-background"
+              checked={backgroundOnly}
+              onCheckedChange={handleToggleBackground}
+              disabled={effectiveIsRunning}
+            />
+          </div>
+
+          {/* Consulta indexada */}
+          <div className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="djen-indexed" className="text-xs text-muted-foreground">
+                Consulta indexada
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Usa o índice diário (apenas 1 dia selecionado). Requer índice concluído.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Switch
+              id="djen-indexed"
+              checked={indexMode === 'indexado'}
+              onCheckedChange={(checked) => setIndexMode(checked ? 'indexado' : 'normal')}
+              disabled={effectiveIsRunning}
+            />
           </div>
 
           {/* Tempo */}
@@ -368,7 +854,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                   <PlayCircle className="h-4 w-4 mr-2" />
                   Executar
                 </Button>
-                {canResume && (
+                {canResume && !hybridMode && !backendIsRunning && !backgroundOnly && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -388,6 +874,23 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                 )}
               </>
             )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleIndexarDiario}
+              disabled={effectiveIsRunning}
+            >
+              Indexar diário
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLimparIndice}
+              disabled={effectiveIsRunning}
+            >
+              Limpar índice
+            </Button>
             
             {/* Botões sempre visíveis: Limpar Tudo (intervalo) e Caveira */}
             <TooltipProvider>
@@ -397,6 +900,10 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                     variant="ghost"
                     size="sm"
                     onClick={async () => {
+                      // Garantir que nenhum modo dispare automaticamente após limpar
+                      setHybridMode(false);
+                      setBackgroundOnly(false);
+                      setTurboMode(false);
                       // Usa datas selecionadas ou checkpoint ou últimos 3 dias
                       await limparTudoComPublicacoes(
                         getDataYmd(dataInicio),
@@ -431,6 +938,18 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+          </div>
+
+          <div className="flex">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleCancelarIndexacao}
+              disabled={!indexStatus || indexStatus.status === 'concluido'}
+              className="w-full"
+            >
+              Forçar cancelar indexação
+            </Button>
           </div>
 
           {/* Indicador de execução em background */}

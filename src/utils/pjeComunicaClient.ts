@@ -67,6 +67,36 @@ const MAX_TEXT_LENGTH = 100000;
 const requestHeaders: HeadersInit = {
   Accept: "application/json, text/plain, */*",
 };
+
+// Backoff global para evitar tempestade de 429 entre chamadas concorrentes
+let globalCooldownUntil = 0;
+const jitterMs = (base: number) => {
+  const factor = 0.8 + Math.random() * 0.5; // 0.8x..1.3x
+  return Math.round(base * factor);
+};
+const parseRetryAfterMs = (resp: Response): number | null => {
+  const ra = resp.headers.get("retry-after");
+  if (!ra) return null;
+  const seconds = Number(ra);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.round(seconds * 1000);
+  }
+  const date = Date.parse(ra);
+  if (!Number.isNaN(date)) {
+    return Math.max(0, date - Date.now());
+  }
+  return null;
+};
+const setGlobalCooldown = (ms: number) => {
+  const until = Date.now() + ms;
+  globalCooldownUntil = Math.max(globalCooldownUntil, until);
+};
+const awaitGlobalCooldown = async () => {
+  const wait = globalCooldownUntil - Date.now();
+  if (wait > 0) {
+    await new Promise(r => setTimeout(r, wait));
+  }
+};
 function optimizeItem(item: any) {
   return {
     id: item?.id,
@@ -179,6 +209,7 @@ export async function buscarPjeComunicaNoBrowser(
   const REQUEST_TIMEOUT_MS = 30000;
 
   const doRequest = async (queryParams: URLSearchParams): Promise<PjeComunicaResponse> => {
+    await awaitGlobalCooldown();
     const url = `${endpoint}?${queryParams.toString()}`;
     
     // Criar AbortController com timeout automático
@@ -213,6 +244,11 @@ export async function buscarPjeComunicaNoBrowser(
             pageSize,
             hasMore: false,
           };
+        }
+        if (resp.status === 429) {
+          const retryAfterMs = parseRetryAfterMs(resp);
+          const baseWait = retryAfterMs ?? 8000;
+          setGlobalCooldown(jitterMs(baseWait));
         }
         throw new Error(`HTTP ${resp.status} ${t.slice(0, 120)}`);
       }
@@ -305,6 +341,7 @@ export async function buscarPjeComunicaPaginado(
     delayMs?: number;
     maxRetries?: number;
     retryBaseDelay?: number;
+    onRateLimit?: (waitMs: number, attempt: number, page: number) => void;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = Math.max(options?.maxPages ?? 10, 1);
@@ -348,7 +385,11 @@ export async function buscarPjeComunicaPaginado(
           const is429 = msg.includes('HTTP 429') || msg.includes('Too Many');
           // 429 precisa de backoff maior para evitar “loop de bloqueio”.
           const baseDelay = is429 ? Math.max(retryBaseDelay, 8000) : retryBaseDelay;
-          const waitTime = baseDelay * Math.pow(2, attempt);
+          const waitTime = jitterMs(baseDelay * Math.pow(2, attempt));
+          if (is429) {
+            setGlobalCooldown(waitTime);
+            options?.onRateLimit?.(waitTime, attempt + 1, page);
+          }
           console.log(
             `[PJE Comunica] ${is429 ? 'Rate limit (429)' : 'Erro'} na página ${page}. ` +
               `Aguardando ${waitTime}ms antes de retry ${attempt + 1}/${maxRetries}`

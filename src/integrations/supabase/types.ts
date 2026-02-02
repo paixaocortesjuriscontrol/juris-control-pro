@@ -2412,6 +2412,7 @@ export type Database = {
           exclusoes: string[] | null
           id: string
           oab: string | null
+          termos_or: string[] | null
           termo_busca: string
           tipo: string
           tribunais: string[] | null
@@ -2428,6 +2429,7 @@ export type Database = {
           exclusoes?: string[] | null
           id?: string
           oab?: string | null
+          termos_or?: string[] | null
           termo_busca: string
           tipo: string
           tribunais?: string[] | null
@@ -2444,6 +2446,7 @@ export type Database = {
           exclusoes?: string[] | null
           id?: string
           oab?: string | null
+          termos_or?: string[] | null
           termo_busca?: string
           tipo?: string
           tribunais?: string[] | null

@@ -43,6 +43,48 @@ const DEFAULTS: Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo'> = {
   retry_base_delay_ms: 2000,
 };
 
+const PRESETS: Record<string, Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo'>> = {
+  conservador: {
+    modo_processamento: 'sequencial',
+    max_paralelo: 1,
+    max_por_invocacao: 3,
+    delay_entre_monitoramentos: 2000,
+    delay_entre_paginas: 1500,
+    delay_entre_tribunais: 1200,
+    delay_jina_api: 2000,
+    soft_timeout_ms: 50000,
+    finalization_buffer_ms: 10000,
+    max_retries: 4,
+    retry_base_delay_ms: 8000,
+  },
+  equilibrado: {
+    modo_processamento: 'semi_paralelo',
+    max_paralelo: 2,
+    max_por_invocacao: 5,
+    delay_entre_monitoramentos: 800,
+    delay_entre_paginas: 600,
+    delay_entre_tribunais: 600,
+    delay_jina_api: 2000,
+    soft_timeout_ms: 50000,
+    finalization_buffer_ms: 10000,
+    max_retries: 3,
+    retry_base_delay_ms: 4000,
+  },
+  turbo: {
+    modo_processamento: 'semi_paralelo',
+    max_paralelo: 4,
+    max_por_invocacao: 8,
+    delay_entre_monitoramentos: 400,
+    delay_entre_paginas: 300,
+    delay_entre_tribunais: 300,
+    delay_jina_api: 1500,
+    soft_timeout_ms: 50000,
+    finalization_buffer_ms: 10000,
+    max_retries: 2,
+    retry_base_delay_ms: 2000,
+  },
+};
+
 async function fetchParametros(): Promise<ParametrosDjen | null> {
   // Usar PostgrestBuilder genérico para evitar problemas de tipo
   const { data, error } = await (supabase as any)
@@ -108,6 +150,11 @@ export function ParametrosDjenCard() {
   const handleReset = () => {
     setLocalParams(DEFAULTS);
     toast.info('Valores padrão carregados. Clique em Salvar para aplicar.');
+  };
+
+  const handleApplyPreset = (presetKey: keyof typeof PRESETS) => {
+    const preset = PRESETS[presetKey];
+    updateMutation.mutate(preset);
   };
 
   if (isLoading) {
@@ -178,6 +225,40 @@ export function ParametrosDjenCard() {
 
         <CollapsibleContent>
           <CardContent className="space-y-6">
+            {/* Presets rápidos */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-primary" />
+                <Label className="text-sm font-medium">Presets rápidos</Label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleApplyPreset('conservador')}
+                >
+                  🛡️ Conservador
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleApplyPreset('equilibrado')}
+                >
+                  ⚖️ Equilibrado
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleApplyPreset('turbo')}
+                >
+                  ⚡ Turbo
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Presets aplicam imediatamente. Se houver rate limit, use o Conservador.
+              </p>
+            </div>
+
             {/* Modo de Processamento */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">

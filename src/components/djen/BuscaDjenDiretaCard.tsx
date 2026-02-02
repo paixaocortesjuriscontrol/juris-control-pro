@@ -2,9 +2,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Play, Square, RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
+import { Play, Square, RefreshCw, AlertCircle, CheckCircle, Calendar as CalendarIcon, Skull, Trash2 } from "lucide-react";
 import { useBuscaDjenDireta } from "@/hooks/useBuscaDjenDireta";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useState } from "react";
 
 interface BuscaDjenDiretaCardProps {
   monitoramentosIds?: string[];
@@ -12,7 +17,9 @@ interface BuscaDjenDiretaCardProps {
 }
 
 export function BuscaDjenDiretaCard({ monitoramentosIds, className }: BuscaDjenDiretaCardProps) {
-  const { progresso, isExecutando, executarMonitoramento, cancelar } = useBuscaDjenDireta();
+  const { progresso, isExecutando, executarMonitoramento, cancelar, limparEstado } = useBuscaDjenDireta();
+  const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
+  const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
 
   const porcentagem = progresso.totalMonitoramentos > 0
     ? Math.round((progresso.monitoramentoAtual / progresso.totalMonitoramentos) * 100)
@@ -64,7 +71,17 @@ export function BuscaDjenDiretaCard({ monitoramentosIds, className }: BuscaDjenD
   };
 
   const handleExecutar = () => {
-    executarMonitoramento(monitoramentosIds, false);
+    const toYmd = (d?: Date) => (d ? format(d, "yyyy-MM-dd") : undefined);
+    executarMonitoramento(monitoramentosIds, false, toYmd(dataInicio), toYmd(dataFim));
+  };
+
+  const handleCaveira = () => {
+    cancelar();
+    limparEstado();
+  };
+
+  const handleLimparTudo = () => {
+    limparEstado();
   };
 
   return (
@@ -88,6 +105,44 @@ export function BuscaDjenDiretaCard({ monitoramentosIds, className }: BuscaDjenD
           Evita travamentos e timeouts.
         </p>
 
+        <div className="flex gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="flex-1 justify-start text-left font-normal">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dataInicio ? format(dataInicio, "dd/MM", { locale: ptBR }) : "Início"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={dataInicio}
+                onSelect={setDataInicio}
+                disabled={(date) => date > new Date()}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="flex-1 justify-start text-left font-normal">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dataFim ? format(dataFim, "dd/MM", { locale: ptBR }) : "Fim"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={dataFim}
+                onSelect={setDataFim}
+                disabled={(date) => date > new Date()}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
         {progresso.status === 'executando' && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
@@ -110,27 +165,47 @@ export function BuscaDjenDiretaCard({ monitoramentosIds, className }: BuscaDjenD
         )}
 
         <div className="flex gap-2">
-          {isExecutando ? (
-            <Button 
-              variant="destructive" 
-              size="sm" 
-              onClick={cancelar}
-              className="w-full"
-            >
-              <Square className="w-4 h-4 mr-2" />
-              Cancelar
-            </Button>
-          ) : (
-            <Button 
-              variant="default" 
-              size="sm" 
-              onClick={handleExecutar}
-              className="w-full"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              Executar Busca DJEN
-            </Button>
-          )}
+          <Button 
+            variant="default" 
+            size="sm" 
+            onClick={handleExecutar}
+            className="w-full"
+            disabled={isExecutando}
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Executar Busca DJEN
+          </Button>
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            onClick={cancelar}
+            className="w-full"
+            disabled={!isExecutando}
+          >
+            <Square className="w-4 h-4 mr-2" />
+            Cancelar
+          </Button>
+        </div>
+
+        <div className="flex gap-2">
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            onClick={handleCaveira}
+            className="w-full"
+          >
+            <Skull className="w-4 h-4 mr-2" />
+            Caveira
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleLimparTudo}
+            className="w-full"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Limpar tudo
+          </Button>
         </div>
 
         <p className="text-xs text-muted-foreground text-center">

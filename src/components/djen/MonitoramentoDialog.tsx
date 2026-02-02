@@ -123,6 +123,8 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
   const [exclusoes, setExclusoes] = useState<string[]>(monitoramento?.exclusoes || []);
   const [novaExclusao, setNovaExclusao] = useState('');
   const [condicaoConcomitante, setCondicaoConcomitante] = useState(monitoramento?.condicao_concomitante || '');
+  const [termosOr, setTermosOr] = useState<string[]>(monitoramento?.termos_or || []);
+  const [novoTermoOr, setNovoTermoOr] = useState('');
   const [tribunaisSelecionados, setTribunaisSelecionados] = useState<string[]>(monitoramento?.tribunais || []);
 
   useEffect(() => {
@@ -134,6 +136,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       setDescricao(monitoramento.descricao || '');
       setExclusoes(monitoramento.exclusoes || []);
       setCondicaoConcomitante(monitoramento.condicao_concomitante || '');
+      setTermosOr(monitoramento.termos_or || []);
       
       // Expandir IDs sintéticos ao carregar
       let tribunaisCarregados = monitoramento.tribunais || [];
@@ -167,6 +170,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       setDescricao('');
       setExclusoes([]);
       setCondicaoConcomitante('');
+      setTermosOr([]);
       setTribunaisSelecionados([]);
       setSelectedUfs([]);
       setTodasRegioes(false);
@@ -197,6 +201,18 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
 
   const handleRemoveExclusao = (termo: string) => {
     setExclusoes(exclusoes.filter(e => e !== termo));
+  };
+
+  const handleAddTermoOr = () => {
+    const val = novoTermoOr.trim().toUpperCase();
+    if (val && !termosOr.includes(val)) {
+      setTermosOr([...termosOr, val]);
+      setNovoTermoOr('');
+    }
+  };
+
+  const handleRemoveTermoOr = (termo: string) => {
+    setTermosOr(termosOr.filter(t => t !== termo));
   };
 
   const handleToggleTribunal = (tribunalId: string) => {
@@ -276,6 +292,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       descricao: descricao || undefined,
       exclusoes: exclusoes.length > 0 ? exclusoes : undefined,
       condicao_concomitante: condicaoConcomitante || undefined,
+      termos_or: termosOr.length > 0 ? termosOr : undefined,
       // IMPORTANT: ao limpar seleção, precisamos atualizar o campo no DB (undefined não atualiza)
       tribunais: tribunaisSelecionados.length > 0 ? tribunaisSelecionados : null,
     };
@@ -433,6 +450,61 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
             </TabsContent>
 
             <TabsContent value="filtros" className="space-y-4 mt-4">
+              {/* Palavras/OAB com OR */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{tipo === 'advogado' ? 'OAB/Advogado (OR)' : 'Palavras-chave (OR)'}</Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        {tipo === 'advogado' ? (
+                          <p>Adicione várias OABs ou nomes de advogados. Qualquer um pode aparecer no texto (lógica OR).</p>
+                        ) : (
+                          <p>Qualquer uma dessas palavras/frases pode aparecer no texto (lógica OR). Útil para combinar com Advogado/OAB.</p>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+
+                <div className="flex gap-2">
+                  <Input
+                    value={novoTermoOr}
+                    onChange={(e) => setNovoTermoOr(e.target.value)}
+                    placeholder={tipo === 'advogado' ? 'Ex: RS023805 ou Maria Silva' : 'Ex: SERVIÇO DE APOIO'}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTermoOr();
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="icon" onClick={handleAddTermoOr}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {termosOr.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {termosOr.map((termo) => (
+                      <Badge key={termo} variant="secondary" className="gap-1">
+                        {termo}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTermoOr(termo)}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Condição concomitante */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">

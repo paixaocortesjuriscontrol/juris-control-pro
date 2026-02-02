@@ -55,6 +55,7 @@ export interface MonitoringStats {
     found: number;
     processed: number;
     novas?: number;
+    novas_nao_lidas?: number;
     descartadas?: number;
   };
   status: MonitoringStatus;
@@ -72,7 +73,34 @@ const MONITORING_TYPES = [
   { tipo: 'termos', nome: 'Monitoração 360', icon: 'Radar', funcao: 'monitorar-termos' },
 ] as const;
 
-export function useMonitoringDashboard() {
+type MonitoringDashboardOptions = {
+  coordenacaoId?: string | null;
+};
+
+const getHojeBrtYmd = (): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year')?.value ?? '1970';
+  const m = parts.find(p => p.type === 'month')?.value ?? '01';
+  const d = parts.find(p => p.type === 'day')?.value ?? '01';
+  return `${y}-${m}-${d}`;
+};
+
+const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (isEnd) {
+    const nextDay = new Date(year, month - 1, day);
+    nextDay.setDate(nextDay.getDate() + 1);
+    return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}T02:59:59.999Z`;
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T03:00:00Z`;
+};
+
+export function useMonitoringDashboard(options: MonitoringDashboardOptions = {}) {
   const queryClient = useQueryClient();
   const [tick, setTick] = useState(0);
 
@@ -140,41 +168,79 @@ export function useMonitoringDashboard() {
 
   // CONTADORES REAIS DO BANCO (publicações persistidas hoje)
   const { data: realDbStats = {} as Record<string, any> } = useQuery({
-    queryKey: ['monitoring-real-db-stats'],
+    queryKey: ['monitoring-real-db-stats', options.coordenacaoId ?? 'all'],
     queryFn: async () => {
-      const hoje = new Date();
-      const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0).toISOString();
-      const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59).toISOString();
+      const hojeBrt = getHojeBrtYmd();
+      const inicioDia = dateLocalToUTCRange(hojeBrt, false);
+      const fimDia = dateLocalToUTCRange(hojeBrt, true);
+      const coordenacaoId = options.coordenacaoId ?? null;
 
       // DJEN Termos - publicações novas hoje (DEDUPLICADAS para consistência com tela de Análise)
       // OBS: não podemos depender de tipos gerados para RPCs; usar cast para evitar bloqueio de build.
-      const { data: djenStats, error: djenRpcError } = await (supabase as any)
-        .rpc('count_djen_publicacoes_deduplicadas_hoje');
+      const { data: djenStats, error: djenRpcError } = coordenacaoId
+        ? await (supabase as any).rpc('count_djen_publicacoes_deduplicadas_hoje_por_coordenacao', {
+            p_coordenacao_id: coordenacaoId,
+          })
+        : await (supabase as any).rpc('count_djen_publicacoes_deduplicadas_hoje');
+
+      // DJEN Termos - publicações novas NÃO LIDAS hoje (DEDUPLICADAS)
+      const { data: djenNaoLidasStats, error: djenNaoLidasRpcError } = coordenacaoId
+        ? await (supabase as any).rpc('count_djen_publicacoes_deduplicadas_hoje_por_coordenacao_nao_lidas', {
+            p_coordenacao_id: coordenacaoId,
+          })
+        : await (supabase as any).rpc('count_djen_publicacoes_deduplicadas_hoje_nao_lidas');
 
       // Fallback: se RPC falhar, manter o app funcional (mas pode voltar a contar bruto).
       let djenNovas = djenStats?.[0]?.total_unicas ?? 0;
       if (djenRpcError) {
-        const { count } = await supabase
-          .from('publicacoes_djen')
-          .select('*', { count: 'exact', head: true })
+        let q = (supabase
+          .from('publicacoes_djen') as any)
+          .select('id, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact', head: true })
           .gte('created_at', inicioDia)
           .lte('created_at', fimDia);
+        if (coordenacaoId) {
+          q = q.eq('monitoramento.coordenacao_id', coordenacaoId);
+        }
+        const { count } = await q;
         djenNovas = count ?? 0;
       }
 
+      let djenNovasNaoLidas = djenNaoLidasStats?.[0]?.total_unicas ?? 0;
+      if (djenNaoLidasRpcError) {
+        let q = (supabase
+          .from('publicacoes_djen') as any)
+          .select('id, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact', head: true })
+          .gte('created_at', inicioDia)
+          .lte('created_at', fimDia)
+          .eq('lida', false);
+        if (coordenacaoId) {
+          q = q.eq('monitoramento.coordenacao_id', coordenacaoId);
+        }
+        const { count } = await q;
+        djenNovasNaoLidas = count ?? 0;
+      }
+
       // DJEN Termos - descartadas hoje
-      const { count: djenDescartadas } = await supabase
-        .from('publicacoes_djen_descartadas')
-        .select('*', { count: 'exact', head: true })
+      let qDescartadas = (supabase
+        .from('publicacoes_djen_descartadas') as any)
+        .select('id, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact', head: true })
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
+      if (coordenacaoId) {
+        qDescartadas = qDescartadas.eq('monitoramento.coordenacao_id', coordenacaoId);
+      }
+      const { count: djenDescartadas } = await qDescartadas;
 
       // DJEN Processos - publicações novas hoje
-      const { count: djenProcessosNovas } = await supabase
-        .from('publicacoes_djen_processos')
-        .select('*', { count: 'exact', head: true })
+      let qProcessos = (supabase
+        .from('publicacoes_djen_processos') as any)
+        .select('id, processos:processos!inner(coordenacao_id)', { count: 'exact', head: true })
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
+      if (coordenacaoId) {
+        qProcessos = qProcessos.eq('processos.coordenacao_id', coordenacaoId);
+      }
+      const { count: djenProcessosNovas } = await qProcessos;
 
       // Alertas de termos (Monitoração 360) hoje
       const { count: termosAlertas } = await supabase
@@ -207,7 +273,7 @@ export function useMonitoringDashboard() {
         .lte('created_at', fimDia);
 
       return {
-        djen: { novas: djenNovas ?? 0, descartadas: djenDescartadas ?? 0 },
+        djen: { novas: djenNovas ?? 0, novas_nao_lidas: djenNovasNaoLidas ?? 0, descartadas: djenDescartadas ?? 0 },
         djen_processos: { novas: djenProcessosNovas ?? 0, descartadas: 0 },
         termos: { novas: termosAlertas ?? 0, descartadas: 0 },
         redistribuicoes: { novas: redistribuicoesNovas, descartadas: 0 },
@@ -301,6 +367,7 @@ export function useMonitoringDashboard() {
     const dbStatsForType = (realDbStats as Record<string, any>)[tipo];
     const novas = dbStatsForType?.novas ?? 0;
     const descartadas = dbStatsForType?.descartadas ?? 0;
+    const novasNaoLidas = dbStatsForType?.novas_nao_lidas ?? 0;
     
     const todayStats = {
       executions: todayTypeExecs.length,
@@ -309,6 +376,7 @@ export function useMonitoringDashboard() {
       found: novas, // USAR DADOS REAIS DO BANCO
       processed: todayTypeExecs.reduce((acc: number, e: any) => acc + (e.registros_processados || 0), 0),
       novas,
+      novas_nao_lidas: novasNaoLidas,
       descartadas,
     };
 

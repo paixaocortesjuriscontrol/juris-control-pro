@@ -18,6 +18,7 @@ export interface MonitoramentoDjen {
   descricao?: string;
   exclusoes?: string[];
   condicao_concomitante?: string;
+  termos_or?: string[];
   tribunais?: string[];
 }
 

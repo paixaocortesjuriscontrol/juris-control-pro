@@ -23,6 +23,15 @@ import {
 
 export type { DjenTermosProgress };
 
+type ExecutarOptions = {
+  turbo?: boolean;
+};
+
+type ExecutarHibridoOptions = {
+  backgroundOnly?: boolean;
+  indexMode?: 'normal' | 'indexado';
+};
+
 export function useDjenTermos() {
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<DjenTermosProgress>(getDjenTermosProgress);
@@ -38,6 +47,9 @@ export function useDjenTermos() {
       if (p.status === 'concluido') {
         queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
         queryClient.invalidateQueries({ queryKey: ['djen-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
         queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
         
         if (p.novas > 0) {
@@ -53,29 +65,203 @@ export function useDjenTermos() {
   const checkpoint = getCheckpoint();
   const canResume = !!checkpoint && progress.status !== 'executando';
 
-  const executar = useCallback((dataInicioYmd?: string, dataFimYmd?: string) => {
-    executarDjenTermos(dataInicioYmd, dataFimYmd, false);
+  const executar = useCallback((dataInicioYmd?: string, dataFimYmd?: string, options?: ExecutarOptions) => {
+    executarDjenTermos(dataInicioYmd, dataFimYmd, false, !!options?.turbo);
     toast.info('DJEN Termos iniciado');
   }, []);
 
-  const retomar = useCallback(() => {
+  const retomar = useCallback((options?: ExecutarOptions) => {
     if (!checkpoint) return;
-    executarDjenTermos(checkpoint.dataInicioYmd, checkpoint.dataFimYmd, true);
+    executarDjenTermos(checkpoint.dataInicioYmd, checkpoint.dataFimYmd, true, !!options?.turbo);
     toast.info('DJEN Termos retomando de onde parou...');
   }, [checkpoint]);
+
+  const executarHibrido = useCallback(async (
+    dataInicioYmd?: string,
+    dataFimYmd?: string,
+    options?: ExecutarHibridoOptions
+  ) => {
+    try {
+      toast.info(
+        options?.backgroundOnly
+          ? 'Iniciando DJEN Termos no backend (100% background)...'
+          : 'Iniciando DJEN Termos no backend...'
+      );
+      const { error } = await withTimeout(
+        supabase.functions.invoke('monitorar-djen-trigger', {
+          body: {
+            dataInicio: dataInicioYmd,
+            dataFim: dataFimYmd,
+            conservative: true,
+            manual: true,
+            indexMode: options?.indexMode,
+          },
+        }),
+        60_000,
+        'Tempo limite ao iniciar no backend (60s)'
+      );
+
+      if (error) throw error;
+      toast.info(
+        options?.backgroundOnly
+          ? 'DJEN Termos iniciado no backend (100% background)'
+          : 'DJEN Termos iniciado no backend (modo híbrido)'
+      );
+      queryClient.invalidateQueries({ queryKey: ['monitoring-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
+      return true;
+    } catch (err: any) {
+      console.warn('[DJEN] Falha ao iniciar backend, usando modo local:', err?.message || err);
+      if (options?.backgroundOnly) {
+        toast.error('Backend indisponível. Modo 100% background não iniciado.');
+        return false;
+      }
+      try {
+        const { data } = await supabase
+          .from('configuracoes_monitoramento')
+          .select('metadata')
+          .eq('tipo', 'djen')
+          .is('coordenacao_id', null)
+          .maybeSingle();
+        const meta = (data?.metadata as Record<string, any>) || {};
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: {
+              ...meta,
+              cancelado: true,
+              paused_globally: true,
+              status: 'cancelado',
+              has_more: false,
+              next_offset: null,
+              djen_run: null,
+            },
+          })
+          .eq('tipo', 'djen')
+          .is('coordenacao_id', null);
+      } catch (e) {
+        console.warn('[DJEN] Falha ao limpar metadata após erro:', (e as any)?.message || e);
+      }
+      executar(dataInicioYmd, dataFimYmd, { turbo: false });
+      toast.warning('Backend indisponível. Executando no navegador.');
+      return false;
+    }
+  }, [executar, queryClient]);
 
   const cancelar = useCallback(() => {
     cancelarDjenTermos();
   }, []);
 
+  const cancelarHibrido = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+      const meta = (data?.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: { ...meta, cancelado: true, paused_globally: true },
+        })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+      toast.info('Cancelamento solicitado no backend');
+      queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
+    } catch (err: any) {
+      console.error('Erro ao cancelar backend DJEN:', err);
+      toast.error(`Erro ao cancelar: ${err?.message ?? String(err)}`);
+    }
+  }, [queryClient]);
+
   const limpar = useCallback(() => {
     limparEstadoDjenTermos();
   }, []);
+
+  const limparIndiceDiario = useCallback(async (dataYmd: string) => {
+    try {
+      toast.info(`Limpando índice do dia ${dataYmd}...`);
+      const { error: errPublicacoes } = await supabase
+        .from('djen_diario_publicacoes')
+        .delete()
+        .eq('diario_ymd', dataYmd);
+      if (errPublicacoes) throw errPublicacoes;
+
+      const { error: errIndex } = await supabase
+        .from('djen_diario_index')
+        .delete()
+        .eq('diario_ymd', dataYmd);
+      if (errIndex) throw errIndex;
+
+      toast.success('Índice diário removido');
+      queryClient.invalidateQueries({ queryKey: ['djen-diario-index'] });
+    } catch (err: any) {
+      console.error('Erro ao limpar índice diário:', err);
+      toast.error(`Erro ao limpar índice: ${err?.message ?? String(err)}`);
+    }
+  }, [queryClient]);
+
+  const indexarDiario = useCallback(async (dataYmd: string) => {
+    try {
+      toast.info(`Indexando diário ${dataYmd}...`);
+      const { error } = await withTimeout(
+        supabase.functions.invoke('indexar-djen-diario', { body: { dataYmd, force: true } }),
+        120_000,
+        'Indexação demorou mais que 120s. Verifique o log da função.'
+      );
+      if (error) throw error;
+      toast.success('Indexação concluída!');
+      queryClient.invalidateQueries({ queryKey: ['monitoring-dashboard'] });
+    } catch (err: any) {
+      console.error('Erro ao indexar diário:', err);
+      toast.error(`Erro ao indexar: ${err?.message ?? String(err)}`);
+    }
+  }, [queryClient]);
+
+  const cancelarIndexacao = useCallback(async (dataYmd: string) => {
+    try {
+      const { error } = await supabase.functions.invoke('cancelar-indexacao-djen', {
+        body: { dataYmd },
+      });
+      if (error) throw error;
+      toast.success('Indexação cancelada');
+      queryClient.invalidateQueries({ queryKey: ['djen-diario-index'] });
+    } catch (err: any) {
+      console.error('Erro ao cancelar indexação:', err);
+      toast.error(`Erro ao cancelar: ${err?.message ?? String(err)}`);
+    }
+  }, [queryClient]);
 
   const forceKill = useCallback(async () => {
     forceKillDjenTermos();
     toast.success('DJEN Termos finalizado forçadamente');
     queryClient.invalidateQueries({ queryKey: ['monitoring-dashboard'] });
+  }, [queryClient]);
+
+  const forceKillHibrido = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null)
+        .maybeSingle();
+      const meta = (data?.metadata as Record<string, any>) || {};
+      await supabase
+        .from('configuracoes_monitoramento')
+        .update({
+          metadata: { ...meta, cancelado: true, paused_globally: true, status: 'cancelado', has_more: false, next_offset: null, djen_run: null },
+        })
+        .eq('tipo', 'djen')
+        .is('coordenacao_id', null);
+      toast.success('DJEN Termos finalizado forçadamente (backend)');
+      queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
+    } catch (err: any) {
+      console.error('Erro ao finalizar backend DJEN:', err);
+      toast.error(`Erro ao finalizar: ${err?.message ?? String(err)}`);
+    }
   }, [queryClient]);
 
   /**
@@ -95,6 +281,27 @@ export function useDjenTermos() {
     toast.info(`Limpando DJEN (${inicio} → ${fim})...`);
 
     try {
+      // Parar qualquer execução (backend/local) antes de limpar
+      forceKillDjenTermos();
+      try {
+        const { data } = await supabase
+          .from('configuracoes_monitoramento')
+          .select('metadata')
+          .eq('tipo', 'djen')
+          .is('coordenacao_id', null)
+          .maybeSingle();
+        const meta = (data?.metadata as Record<string, any>) || {};
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            metadata: { ...meta, cancelado: true, paused_globally: true, status: 'cancelado', has_more: false, next_offset: null, djen_run: null },
+          })
+          .eq('tipo', 'djen')
+          .is('coordenacao_id', null);
+      } catch (e) {
+        console.warn('[DJEN] Falha ao cancelar backend antes da limpeza:', (e as any)?.message || e);
+      }
+
       const { data, error } = await withTimeout(
         supabase.functions.invoke('limpar-djen-hoje', {
           body: {
@@ -146,9 +353,15 @@ export function useDjenTermos() {
     checkpoint,
     executar,
     retomar,
+    executarHibrido,
     cancelar,
+    cancelarHibrido,
     limpar,
     forceKill,
+    forceKillHibrido,
     limparTudoComPublicacoes,
+    limparIndiceDiario,
+    indexarDiario,
+    cancelarIndexacao,
   };
 }

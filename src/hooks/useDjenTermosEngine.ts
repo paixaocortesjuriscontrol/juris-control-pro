@@ -40,6 +40,7 @@ export interface DjenTermosProgress {
   novas: number;
   duplicadas: number;
   descartadas: number;
+  descartadasTribunal: number;
   
   // UI
   mensagem: string;
@@ -72,19 +73,25 @@ interface Monitoramento {
   ativo: boolean;
   exclusoes?: string[];
   tribunais?: string[];
+  descricao?: string | null;
 }
 
 // ============================================================================
 // CONFIGURAÇÃO
 // ============================================================================
 
-// Parâmetros restaurados do 26/01 (execução rápida ~5-6min)
+// Parâmetros ajustados para acelerar execução sem perder estabilidade
 const CONFIG = {
-  delay_between_terms: 2000,     // 2s entre termos (era 4s)
-  delay_between_tribunals: 1500, // 1.5s entre tribunais (era 3s)
-  delay_between_variants: 500,   // 0.5s entre variantes (era 1s)
-  delay_on_rate_limit: 10000,    // 10s no rate limit (era 15s)
+  delay_between_terms: 1500,     // 1.5s entre termos (mais conservador)
+  delay_between_tribunals: 1200, // 1.2s entre tribunais
+  delay_between_variants: 600,   // 0.6s entre variantes
+  delay_on_rate_limit: 15000,    // 15s no rate limit
+  concurrent_variants: 1,        // paralelismo conservador
+  page_delay_ms: 1500,           // delay entre páginas
+  max_retries: 4,                // mais tentativas antes de desistir
+  retry_base_delay: 10000,       // base maior para 429
 };
+const METADATA_PERSIST_MIN_INTERVAL_MS = 3000;
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -100,6 +107,10 @@ let singletonState: {
   executionId: string | null;
   listeners: Set<(p: DjenTermosProgress) => void>;
   timerInterval: ReturnType<typeof setInterval> | null;
+  lastMetadataPersistAt: number;
+  metadataPersistInFlight: Promise<void> | null;
+  turboDisabled: boolean;
+  sharedAdvogadoCache: Map<string, any[]>;
 } = {
   isRunning: false,
   progress: createDefaultProgress(),
@@ -108,9 +119,14 @@ let singletonState: {
   executionId: null,
   listeners: new Set(),
   timerInterval: null,
+  lastMetadataPersistAt: 0,
+  metadataPersistInFlight: null,
+  turboDisabled: false,
+  sharedAdvogadoCache: new Map(),
 };
 
 const STORAGE_KEY = 'djen-termos-checkpoint-v2';
+const TERM_STATS_KEY = 'djen-termos-stats-v1';
 const BR_TZ = 'America/Sao_Paulo';
 
 // ============================================================================
@@ -131,6 +147,7 @@ function createDefaultProgress(): DjenTermosProgress {
     novas: 0,
     duplicadas: 0,
     descartadas: 0,
+    descartadasTribunal: 0,
     mensagem: '',
     termoAtual: null,
     tempoDecorrido: 0,
@@ -191,6 +208,65 @@ function loadCheckpoint(): Checkpoint | null {
   }
 }
 
+type TermStats = Record<string, { foundTotal: number; lastFoundAt: number }>;
+
+function loadTermStats(): TermStats {
+  try {
+    const raw = localStorage.getItem(TERM_STATS_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as TermStats;
+  } catch {
+    return {};
+  }
+}
+
+function saveTermStats(stats: TermStats) {
+  try {
+    localStorage.setItem(TERM_STATS_KEY, JSON.stringify(stats));
+  } catch {
+    // ignore
+  }
+}
+
+function ordenarTermosPorRelevancia(
+  termos: Monitoramento[],
+  contagensMap?: Map<string, number>
+): Monitoramento[] {
+  const stats = loadTermStats();
+  return termos
+    .map((t, idx) => ({
+      t,
+      idx,
+      s: stats[t.id],
+      total: contagensMap?.get(t.id) ?? null,
+    }))
+    .sort((a, b) => {
+      if (a.t.tipo === 'advogado' && b.t.tipo !== 'advogado') return -1;
+      if (a.t.tipo !== 'advogado' && b.t.tipo === 'advogado') return 1;
+      if (typeof a.total === 'number' && typeof b.total === 'number' && a.total !== b.total) {
+        return b.total - a.total;
+      } else if (typeof a.total === 'number' && typeof b.total !== 'number') {
+        return -1;
+      } else if (typeof a.total !== 'number' && typeof b.total === 'number') {
+        return 1;
+      }
+      if (a.s && b.s) {
+        if (a.s.lastFoundAt !== b.s.lastFoundAt) {
+          return b.s.lastFoundAt - a.s.lastFoundAt;
+        }
+        if (a.s.foundTotal !== b.s.foundTotal) {
+          return b.s.foundTotal - a.s.foundTotal;
+        }
+      } else if (a.s && !b.s) {
+        return -1;
+      } else if (!a.s && b.s) {
+        return 1;
+      }
+      return a.idx - b.idx;
+    })
+    .map((x) => x.t);
+}
+
 function notifyListeners() {
   for (const listener of singletonState.listeners) {
     listener(singletonState.progress);
@@ -200,6 +276,87 @@ function notifyListeners() {
 function updateProgress(partial: Partial<DjenTermosProgress>) {
   singletonState.progress = { ...singletonState.progress, ...partial };
   notifyListeners();
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>
+) {
+  if (items.length === 0) return;
+  const poolSize = Math.max(1, Math.min(limit, items.length));
+  let index = 0;
+
+  const workers = Array.from({ length: poolSize }, async () => {
+    while (true) {
+      const current = index++;
+      if (current >= items.length) break;
+      await worker(items[current]);
+    }
+  });
+
+  await Promise.all(workers);
+}
+
+type RuntimeConfig = {
+  delay_between_terms: number;
+  delay_between_tribunals: number;
+  delay_between_variants: number;
+  delay_on_rate_limit: number;
+  concurrent_variants: number;
+  page_delay_ms: number;
+  max_retries: number;
+  retry_base_delay: number;
+};
+
+function getRuntimeConfig(turbo: boolean): RuntimeConfig {
+  if (!turbo) return { ...CONFIG };
+  return {
+    delay_between_terms: 500,
+    delay_between_tribunals: 400,
+    delay_between_variants: 150,
+    delay_on_rate_limit: CONFIG.delay_on_rate_limit,
+    concurrent_variants: 3,
+    page_delay_ms: 700,
+    max_retries: 3,
+    retry_base_delay: 8000,
+  };
+}
+
+async function persistMetadata(
+  metadata: Record<string, any>,
+  opts: { force?: boolean } = {}
+) {
+  const now = Date.now();
+  if (!opts.force && now - singletonState.lastMetadataPersistAt < METADATA_PERSIST_MIN_INTERVAL_MS) {
+    return;
+  }
+
+  if (singletonState.metadataPersistInFlight) {
+    if (!opts.force) return;
+    await singletonState.metadataPersistInFlight;
+  }
+
+  singletonState.lastMetadataPersistAt = now;
+  const promise = supabase
+    .from('configuracoes_monitoramento')
+    .update({ metadata })
+    .eq('tipo', 'djen')
+    .is('coordenacao_id', null)
+    .then(() => {})
+    .catch((err) => {
+      console.warn('[DJEN] Falha ao atualizar metadata:', err?.message || err);
+    })
+    .finally(() => {
+      if (singletonState.metadataPersistInFlight === promise) {
+        singletonState.metadataPersistInFlight = null;
+      }
+    });
+
+  singletonState.metadataPersistInFlight = promise;
+  if (opts.force) {
+    await promise;
+  }
 }
 
 // ============================================================================
@@ -218,6 +375,21 @@ function expandirTribunais(tribunais?: string[]): string[] {
     else set.add(t.toUpperCase());
   }
   return Array.from(set);
+}
+
+function getSiglaTribunal(item: any): string | null {
+  const raw =
+    item?.siglaTribunal ||
+    item?.tribunal ||
+    item?.orgao ||
+    item?.nomeOrgao ||
+    item?.nome_orgao ||
+    null;
+  if (!raw || typeof raw !== 'string') return null;
+  const up = raw.toUpperCase();
+  // Tenta extrair siglas comuns do início
+  const m = up.match(/\b(TJ\w+|TRT\d+|TRF\d+|TST|STJ|STF)\b/);
+  return m?.[1] ?? up.trim();
 }
 
 function gerarHash(conteudo: string, data: string): string {
@@ -242,6 +414,38 @@ function normalizar(texto: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase();
+}
+
+function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean {
+  const termoNorm = normalizar(termo);
+  if (!termoNorm) return true;
+  if (conteudoNorm.includes(termoNorm)) return true;
+
+  const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+  if (palavrasTermo.length === 0) return true;
+
+  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
+  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+  return palavrasEncontradas.length >= minPalavras;
+}
+
+function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
+  if (!condicao) return true;
+  const gruposOr = String(condicao)
+    .split('|')
+    .map(g => g.trim())
+    .filter(Boolean);
+  if (gruposOr.length === 0) return true;
+
+  const conteudoNorm = normalizar(conteudo);
+  return gruposOr.some(grupo => {
+    const termosAnd = grupo
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+    if (termosAnd.length === 0) return true;
+    return termosAnd.every(t => termoAtendidoPorPalavras(conteudoNorm, t));
+  });
 }
 
 /**
@@ -344,6 +548,39 @@ function parseUfs(ufValue: string): string[] {
   return [];
 }
 
+function calcularProximoDiaUtil(dataBase: Date): Date {
+  const resultado = new Date(dataBase);
+  const estaNoRecesso = (d: Date): boolean => {
+    const mes = d.getMonth();
+    const dia = d.getDate();
+    return (mes === 11 && dia >= 20) || (mes === 0 && dia <= 6);
+  };
+  const proximoDiaUtil = (d: Date): void => {
+    while (d.getDay() === 0 || d.getDay() === 6) {
+      d.setDate(d.getDate() + 1);
+    }
+    if (estaNoRecesso(d)) {
+      if (d.getMonth() === 11) {
+        d.setFullYear(d.getFullYear() + 1);
+      }
+      d.setMonth(0);
+      d.setDate(7);
+      while (d.getDay() === 0 || d.getDay() === 6) {
+        d.setDate(d.getDate() + 1);
+      }
+    }
+  };
+  proximoDiaUtil(resultado);
+  return resultado;
+}
+
+function calcularDataPublicacaoYmd(dataDispYmd: string): string {
+  const base = new Date(`${dataDispYmd}T12:00:00`);
+  base.setDate(base.getDate() + 1);
+  const proximo = calcularProximoDiaUtil(base);
+  return proximo.toISOString().slice(0, 10);
+}
+
 // ============================================================================
 // PROCESSAMENTO DE TERMO (com filtros completos)
 // ============================================================================
@@ -351,13 +588,24 @@ function parseUfs(ufValue: string): string[] {
 async function processarTermo(
   mon: Monitoramento,
   diaYmd: string,
-  signal: AbortSignal
-): Promise<{ novas: number; duplicadas: number; descartadas: number }> {
-  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0 };
+  signal: AbortSignal,
+  runtimeConfig: RuntimeConfig,
+  onRateLimit?: (waitMs: number) => void
+): Promise<{ novas: number; duplicadas: number; descartadas: number; descartadasTribunal: number }> {
+  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
 
   const tipo = mon.tipo === 'parte' ? 'palavra-chave' : mon.tipo;
+  const isRateLimitError = (msg?: string) =>
+    !!msg && (msg.includes('429') || msg.includes('Too Many'));
+  const isAdvogadoComOab = tipo === 'advogado' && !!mon.oab;
 
-  // Configurar parâmetros base
+  // Ajustes dinâmicos (reduzem agressividade quando ocorre 429)
+  let dynamicVariantConcurrency = runtimeConfig.concurrent_variants;
+  let dynamicVariantDelay = runtimeConfig.delay_between_variants;
+  let dynamicPageDelay = runtimeConfig.page_delay_ms;
+  let dynamicTribunalDelay = runtimeConfig.delay_between_tribunals;
+
+  // Configurar parâmetros base (data de disponibilização)
   const baseParams: any = {
     tipo,
     dataInicio: diaYmd,
@@ -373,10 +621,8 @@ async function processarTermo(
     baseParams.oab = String(mon.oab).replace(/\D/g, '');
     const ufValue = String(mon.uf || '').trim().toUpperCase();
     ufsParaBuscar = parseUfs(ufValue);
-    // Para advogado, variantes incluem nome (se existir) com/sem acento
-    if (mon.termo_busca) {
-      variantesParaBuscar = gerarVariantes(mon.termo_busca);
-    }
+    // Para advogado com OAB: buscar por OAB (sem palavra-chave) e filtrar por nome depois
+    variantesParaBuscar = [];
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
   } else {
@@ -384,9 +630,10 @@ async function processarTermo(
     variantesParaBuscar = gerarVariantes(mon.termo_busca);
   }
 
-  // Expandir tribunais configurados
+  // Expandir tribunais configurados (usados para filtro pós-busca)
   const tribunais = expandirTribunais(mon.tribunais);
-  const tribunaisLoop = tribunais.length > 0 ? tribunais : [undefined];
+  const tribunaisLoop = (isAdvogadoComOab ? [] : tribunais);
+  const tribLoop = tribunaisLoop.length > 0 ? tribunaisLoop : [undefined];
 
   // UFs: se configurado múltiplas, iterar; senão usar primeira ou undefined
   const ufsLoop = ufsParaBuscar.length > 0 ? ufsParaBuscar : [undefined];
@@ -402,37 +649,61 @@ async function processarTermo(
   // ==================================================================
   // LOOP TRIPLO: tribunal → UF → variante (igual à versão anterior)
   // ==================================================================
-  for (const trib of tribunaisLoop) {
+  for (const trib of tribLoop) {
     if (signal.aborted) break;
 
     for (const uf of ufsLoop) {
       if (signal.aborted) break;
 
-      for (const variante of variantesLoop) {
-        if (signal.aborted) break;
+      const currentConcurrency = dynamicVariantConcurrency;
+      await runWithConcurrency(variantesLoop, currentConcurrency, async (variante) => {
+        if (signal.aborted) return;
 
         try {
-          const resp = await buscarPjeComunicaPaginado(
-            {
-              tipo: baseParams.tipo,
-              oab: baseParams.oab,
-              uf: uf,
-              palavraChave: variante || undefined,
-              numeroProcesso: baseParams.numeroProcesso,
-              siglaTribunal: trib,
-              dataInicio: baseParams.dataInicio,
-              dataFim: baseParams.dataFim,
-              page: 0,
-              pageSize: baseParams.pageSize,
-            },
-            {
-              signal,
-              maxPages: 10,
-              delayMs: 1500,  // 1.5s entre páginas (restaurado do 26/01)
-            }
-          );
+          const cacheKey = isAdvogadoComOab
+            ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}`
+            : null;
 
-          for (const item of resp.items) {
+          let respItems: any[] | null = null;
+          if (cacheKey && singletonState.sharedAdvogadoCache.has(cacheKey)) {
+            respItems = singletonState.sharedAdvogadoCache.get(cacheKey) || [];
+          } else {
+            if (isAdvogadoComOab) {
+              updateProgress({
+                mensagem: `🧩 Fase 1/2: coleta OAB ${baseParams.oab}${uf ? `/${uf}` : ''}...`,
+              });
+            }
+            const resp = await buscarPjeComunicaPaginado(
+              {
+                tipo: baseParams.tipo,
+                oab: baseParams.oab,
+                uf: uf,
+                palavraChave: variante || undefined,
+                numeroProcesso: baseParams.numeroProcesso,
+                siglaTribunal: isAdvogadoComOab ? undefined : trib,
+                dataInicio: baseParams.dataInicio,
+                dataFim: baseParams.dataFim,
+                page: 0,
+                pageSize: baseParams.pageSize,
+              },
+              {
+                signal,
+                maxPages: 10,
+                delayMs: dynamicPageDelay,
+                maxRetries: runtimeConfig.max_retries,
+                retryBaseDelay: runtimeConfig.retry_base_delay,
+                onRateLimit: (waitMs) => {
+                  onRateLimit?.(waitMs);
+                },
+              }
+            );
+            respItems = resp.items;
+            if (cacheKey) {
+              singletonState.sharedAdvogadoCache.set(cacheKey, respItems);
+            }
+          }
+
+          for (const item of respItems || []) {
             const id = String(item?.id ?? '');
             const key = id || JSON.stringify(item).slice(0, 400);
             if (!seen.has(key)) {
@@ -441,30 +712,53 @@ async function processarTermo(
             }
           }
         } catch (e: any) {
-          if (e?.name === 'AbortError') break;
+          if (e?.name === 'AbortError') return;
           console.warn(`[DJEN] Erro ${trib ?? 'TODOS'} ${uf ?? ''}:`, e?.message);
 
-          if (String(e?.message ?? '').includes('429')) {
-            await delay(CONFIG.delay_on_rate_limit);
+          const msg = String(e?.message ?? '');
+          if (isRateLimitError(msg)) {
+            // Reduz agressividade para próximas iterações
+            dynamicVariantConcurrency = 1;
+            dynamicVariantDelay = Math.max(dynamicVariantDelay, 800);
+            dynamicPageDelay = Math.max(dynamicPageDelay, 1200);
+            dynamicTribunalDelay = Math.max(dynamicTribunalDelay, 1200);
+            await delay(runtimeConfig.delay_on_rate_limit);
           }
         }
 
-        await delay(CONFIG.delay_between_variants);
-      }
+        if (dynamicVariantDelay > 0) {
+          await delay(dynamicVariantDelay);
+        }
+      });
     }
 
-    await delay(CONFIG.delay_between_tribunals);
+    await delay(dynamicTribunalDelay);
   }
 
   if (signal.aborted || resultados.length === 0) {
     return { novas: 0, duplicadas: 0, descartadas: 0 };
   }
 
+  if (isAdvogadoComOab) {
+    updateProgress({
+      mensagem: `🧩 Fase 2/2: distribuindo ${mon.termo_busca || mon.oab}...`,
+    });
+  }
+
   // ================================================================
   // VALIDAÇÃO CRÍTICA: Filtrar publicações que NÃO contêm o termo
   // ================================================================
   const pubsDescartadas: any[] = [];
+  let descartadasTribunal = 0;
   const pubsValidas = resultados.filter(pub => {
+    if (isAdvogadoComOab && tribunais.length > 0) {
+      const sigla = getSiglaTribunal(pub);
+      if (sigla && !tribunais.includes(sigla)) {
+        descartadasTribunal += 1;
+        pubsDescartadas.push({ ...pub, motivo_descarte: 'tribunal_nao_permitido' });
+        return false;
+      }
+    }
     const conteudo = pub.conteudo || pub.teor || pub.texto || '';
     if (!conteudo) {
       pubsDescartadas.push({ ...pub, motivo_descarte: 'conteudo_vazio' });
@@ -479,7 +773,13 @@ async function processarTermo(
       return false;
     }
 
-    // 2. Verificar se o termo/OAB realmente está no conteúdo
+    // 2. Condição concomitante (AND)
+    if (!condicaoConcomitanteAtendida(conteudo, mon.condicao_concomitante)) {
+      pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
+      return false;
+    }
+
+    // 3. Verificar se o termo/OAB realmente está no conteúdo
     if (!conteudoContemTermo(conteudo, mon.termo_busca, mon.tipo, mon.oab)) {
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
       return false;
@@ -498,7 +798,14 @@ async function processarTermo(
       hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao: dataDisp });
     }
   }
-  const pubsUnicas = Array.from(hashMap.values());
+  const pubsUnicas = Array.from(hashMap.values()).map((pub) => {
+    const dataDisp = pub.data_disponibilizacao;
+    const dataPub = dataDisp ? calcularDataPublicacaoYmd(dataDisp) : dataDisp;
+    return {
+      ...pub,
+      data_publicacao: dataPub,
+    };
+  });
   const duplicadasInternas = pubsValidas.length - pubsUnicas.length;
 
   // Verificar duplicatas no banco
@@ -516,6 +823,12 @@ async function processarTermo(
   const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
   const duplicadasBanco = pubsUnicas.length - novas.length;
 
+  if (isAdvogadoComOab) {
+    updateProgress({
+      mensagem: `🧩 Fase 2/2: distribuindo ${mon.termo_busca || mon.oab} • ${novas.length} novas • ${descartadasTribunal} fora do tribunal`,
+    });
+  }
+
   // Inserir novas
   if (novas.length > 0) {
     const payload = novas.map(pub => ({
@@ -524,7 +837,7 @@ async function processarTermo(
       processo_numero: pub.numeroProcesso || pub.processo || null,
       conteudo: pub.conteudo || pub.teor || pub.texto || null,
       data_disponibilizacao: `${pub.data_disponibilizacao}T12:00:00.000Z`,
-      data_publicacao: null,
+      data_publicacao: pub.data_publicacao ? `${pub.data_publicacao}T12:00:00.000Z` : null,
       fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
       lida: false,
     }));
@@ -539,13 +852,14 @@ async function processarTermo(
     const payloadDescartadas = pubsDescartadas.slice(0, 50).map(pub => {
       const conteudo = pub.conteudo || pub.teor || pub.texto || '';
       const dataDisp = (pub.dataDisponibilizacao || pub.dataDJe || diaYmd).slice(0, 10);
+      const dataPub = calcularDataPublicacaoYmd(dataDisp);
       const hash = gerarHash(conteudo + (pub.motivo_descarte || ''), dataDisp);
       return {
         monitoramento_id: mon.id,
         hash_conteudo: hash,
         processo_numero: pub.numeroProcesso || pub.processo || null,
         conteudo: conteudo.slice(0, 10000), // Limitar tamanho
-        data_publicacao: `${dataDisp}T12:00:00.000Z`,
+        data_publicacao: `${dataPub}T12:00:00.000Z`,
         fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
         motivo_descarte: pub.motivo_descarte || 'validacao_falhou',
         lida: false,
@@ -562,6 +876,7 @@ async function processarTermo(
     novas: novas.length,
     duplicadas: duplicadasInternas + duplicadasBanco,
     descartadas: pubsDescartadas.length,
+    descartadasTribunal,
   };
 }
 
@@ -572,7 +887,8 @@ async function processarTermo(
 async function runEngine(
   dataInicioYmd: string,
   dataFimYmd: string,
-  retomar: boolean
+  retomar: boolean,
+  turbo: boolean
 ) {
   if (singletonState.isRunning) {
     console.warn('[DJEN] Já existe uma execução em andamento');
@@ -608,7 +924,22 @@ async function runEngine(
     return;
   }
 
-  const termos = monitoramentos as unknown as Monitoramento[];
+  let contagensMap: Map<string, number> | undefined = undefined;
+  try {
+    const { data: contagens } = await supabase.rpc('get_publicacoes_contagens_por_monitoramento');
+    if (Array.isArray(contagens)) {
+      contagensMap = new Map(
+        contagens.map((c: any) => [String(c.monitoramento_id), Number(c.total ?? 0)])
+      );
+    }
+  } catch (e) {
+    console.warn('[DJEN] Falha ao carregar contagens por monitoramento:', (e as any)?.message || e);
+  }
+
+  const termos = ordenarTermosPorRelevancia(
+    monitoramentos as unknown as Monitoramento[],
+    contagensMap
+  );
   const totalTermos = termos.length;
   const listaDatas = gerarListaDatas(dataInicioYmd, dataFimYmd);
   const totalDias = listaDatas.length;
@@ -620,7 +951,13 @@ async function runEngine(
   let novas = checkpoint?.novas ?? 0;
   let duplicadas = checkpoint?.duplicadas ?? 0;
   let descartadas = checkpoint?.descartadas ?? 0;
+  let descartadasTribunal = 0;
   const startTime = checkpoint?.tempoInicio ?? tempoInicio;
+
+  const runtimeConfig = getRuntimeConfig(turbo);
+  singletonState.turboDisabled = false;
+  singletonState.sharedAdvogadoCache = new Map();
+  singletonState.progress.mensagem = '🔎 Prioridade: Advogado/OAB';
 
   // Registrar execução no banco
   const { data: execData } = await supabase
@@ -692,20 +1029,52 @@ async function runEngine(
         const globalCurrent = (diaIdx * totalTermos) + termoIdx + 1;
         const percentage = Math.round((globalCurrent / globalTotal) * 100);
 
+        const termoLabel = (mon.descricao || '').trim() || mon.termo_busca;
         updateProgress({
           globalCurrent,
           percentage,
           termoAtualNoDia: termoIdx + 1,
-          termoAtual: mon.termo_busca,
-          mensagem: `📅 ${diaFmt} • (${termoIdx + 1}/${totalTermos}) ${mon.termo_busca}`,
+          termoAtual: termoLabel,
+          mensagem: `📅 ${diaFmt} • (${termoIdx + 1}/${totalTermos}) ${termoLabel}`,
         });
 
         // Processar termo
-        const result = await processarTermo(mon, diaYmd, signal);
+        const currentRuntime = singletonState.turboDisabled ? getRuntimeConfig(false) : runtimeConfig;
+        const result = await processarTermo(
+          mon,
+          diaYmd,
+          signal,
+          currentRuntime,
+          (waitMs) => {
+            if (turbo && !singletonState.turboDisabled) {
+              singletonState.turboDisabled = true;
+              updateProgress({
+                mensagem: `⚠️ Rate limit detectado. Modo turbo desativado. Aguardando ${Math.round(waitMs / 1000)}s...`,
+              });
+            } else {
+              updateProgress({
+                mensagem: `⚠️ Rate limit detectado. Aguardando ${Math.round(waitMs / 1000)}s...`,
+              });
+            }
+          }
+        );
         
         novas += result.novas;
         duplicadas += result.duplicadas;
         descartadas += result.descartadas;
+        descartadasTribunal += result.descartadasTribunal;
+
+        // Atualizar relevância do termo (prioriza termos que costumam achar resultados)
+        const foundNow = result.novas + result.duplicadas;
+        if (foundNow > 0) {
+          const stats = loadTermStats();
+          const prev = stats[mon.id] || { foundTotal: 0, lastFoundAt: 0 };
+          stats[mon.id] = {
+            foundTotal: prev.foundTotal + foundNow,
+            lastFoundAt: Date.now(),
+          };
+          saveTermStats(stats);
+        }
 
         // Atualizar e salvar checkpoint
         const cp: Checkpoint = {
@@ -725,35 +1094,30 @@ async function runEngine(
           novas,
           duplicadas,
           descartadas,
+          descartadasTribunal,
         });
 
-        // Atualizar metadata no Supabase (a cada termo para manter UI sincronizada)
-        await supabase
-          .from('configuracoes_monitoramento')
-          .update({
-            metadata: {
-              status: 'executando',
-              current: globalCurrent,
-              total: globalTotal,
-              percentage,
-              novas,
-              duplicadas,
-              descartadas,
-              diaAtual: diaYmd,
-              diaAtualYmd: diaYmd,
-              diaIndice: diaIdx + 1,
-              totalDias,
-              termoAtual: mon.termo_busca,
-              run_key: runKey,
-              data_inicio: dataInicioYmd,
-              data_fim: dataFimYmd,
-            },
-          })
-          .eq('tipo', 'djen')
-          .is('coordenacao_id', null);
+        // Atualizar metadata no Supabase (throttle para reduzir escritas)
+        void persistMetadata({
+          status: 'executando',
+          current: globalCurrent,
+          total: globalTotal,
+          percentage,
+          novas,
+          duplicadas,
+          descartadas,
+          diaAtual: diaYmd,
+          diaAtualYmd: diaYmd,
+          diaIndice: diaIdx + 1,
+          totalDias,
+          termoAtual: mon.termo_busca,
+          run_key: runKey,
+          data_inicio: dataInicioYmd,
+          data_fim: dataFimYmd,
+        });
 
         // Delay entre termos
-        await delay(CONFIG.delay_between_terms);
+        await delay(runtimeConfig.delay_between_terms);
       }
 
       // Dia concluído! Resetar índice de termo para próximo dia
@@ -781,22 +1145,17 @@ async function runEngine(
         termoAtual: null,
       });
 
-      await supabase
-        .from('configuracoes_monitoramento')
-        .update({
-          metadata: {
-            status: 'cancelado',
-            current: singletonState.progress.globalCurrent,
-            total: globalTotal,
-            percentage: singletonState.progress.percentage,
-            novas,
-            duplicadas,
-            descartadas,
-            run_key: runKey,
-          },
-        })
-        .eq('tipo', 'djen')
-        .is('coordenacao_id', null);
+      await persistMetadata({
+        status: 'cancelado',
+        current: singletonState.progress.globalCurrent,
+        total: globalTotal,
+        percentage: singletonState.progress.percentage,
+        novas,
+        duplicadas,
+        descartadas,
+        descartadas_tribunal: descartadasTribunal,
+        run_key: runKey,
+      }, { force: true });
     } else {
       // Limpar checkpoint ao concluir
       saveCheckpoint(null);
@@ -810,23 +1169,18 @@ async function runEngine(
         termoAtual: null,
       });
 
-      await supabase
-        .from('configuracoes_monitoramento')
-        .update({
-          metadata: {
-            status: 'concluido',
-            current: globalTotal,
-            total: globalTotal,
-            percentage: 100,
-            novas,
-            duplicadas,
-            descartadas,
-            run_key: runKey,
-            last_run: new Date().toISOString(),
-          },
-        })
-        .eq('tipo', 'djen')
-        .is('coordenacao_id', null);
+      await persistMetadata({
+        status: 'concluido',
+        current: globalTotal,
+        total: globalTotal,
+        percentage: 100,
+        novas,
+        duplicadas,
+        descartadas,
+        descartadas_tribunal: descartadasTribunal,
+        run_key: runKey,
+        last_run: new Date().toISOString(),
+      }, { force: true });
     }
 
     // Finalizar execução
@@ -847,6 +1201,31 @@ async function runEngine(
       mensagem: `Erro: ${error?.message || 'Falha'}`,
     });
   } finally {
+    if (!signal.aborted) {
+      try {
+        await supabase.from('historico_monitoramento').insert({
+          tipo: 'djen',
+          executado_em: new Date().toISOString(),
+          processos_verificados: singletonState.progress.globalCurrent || 0,
+          novos_andamentos: novas,
+          processos_com_novos: novas,
+          erros: 0,
+          detalhes: {
+            data_inicio: dataInicioYmd,
+            data_fim: dataFimYmd,
+            total_termos: totalTermos,
+            total_dias: totalDias,
+            duplicadas,
+            descartadas,
+            descartadas_tribunal: descartadasTribunal,
+            turbo: turbo,
+            agrupamento_oab: true,
+          },
+        });
+      } catch (e) {
+        console.warn('[DJEN] Falha ao registrar auditoria:', (e as any)?.message || e);
+      }
+    }
     if (singletonState.timerInterval) {
       clearInterval(singletonState.timerInterval);
       singletonState.timerInterval = null;
@@ -864,7 +1243,8 @@ async function runEngine(
 export function executarDjenTermos(
   dataInicioYmd?: string,
   dataFimYmd?: string,
-  retomar = false
+  retomar = false,
+  turbo = false
 ) {
   const hoje = getHojeBrasilia();
   
@@ -893,7 +1273,7 @@ export function executarDjenTermos(
     }
   }
 
-  runEngine(inicio!, fim!, retomar);
+  runEngine(inicio!, fim!, retomar, turbo);
 }
 
 export function cancelarDjenTermos() {
@@ -919,6 +1299,7 @@ export function forceKillDjenTermos() {
   singletonState.isRunning = false;
   singletonState.abortController = null;
   singletonState.executionId = null;
+  singletonState.turboDisabled = false;
   saveCheckpoint(null);
   singletonState.progress = createDefaultProgress();
   notifyListeners();
