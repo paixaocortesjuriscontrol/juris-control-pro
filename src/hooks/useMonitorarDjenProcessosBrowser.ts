@@ -210,9 +210,14 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           .order('numero', { ascending: true })
           .range(offset, offset + CONFIG.batchSize - 1);
 
-        if (procError || !processos?.length) {
-          if (procError) console.error('[DJEN Processos Browser] Erro ao buscar processos:', procError);
-          break;
+        if (procError) {
+          console.error('[DJEN Processos Browser] Erro ao buscar processos:', procError);
+          throw new Error(`Erro ao buscar processos: ${procError.message || 'erro desconhecido'}`);
+        }
+
+        if (!processos?.length) {
+          // Não deveria acontecer se total > 0; tratar como falha para evitar "Executando" eterno.
+          throw new Error('Nenhum processo retornado no lote. Tente Retomar ou Reiniciar.');
         }
 
         updateProgress({
@@ -221,8 +226,17 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
         });
 
         // Processar cada processo do lote
-        for (const processo of processos) {
+        for (let i = 0; i < processos.length; i++) {
+          const processo = processos[i];
           if (canceladoRef.current) break;
+
+          // Atualização contínua: evita o card ficar "parado" até terminar todo o lote.
+          // (Uma atualização por processo é aceitável pois já há delay de 500ms entre processos.)
+          const currentGlobal = Math.min(total, offset + i + 1);
+          updateProgress({
+            current: currentGlobal,
+            mensagem: `Processando ${currentGlobal}/${total} processos...`,
+          });
 
           try {
             // Buscar publicações via browser
