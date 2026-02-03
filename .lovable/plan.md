@@ -1,142 +1,62 @@
 
 # Plano: Busca Paralela Individual (OR do lado da aplicação)
 
-## Diagnóstico Confirmado
+## ✅ IMPLEMENTADO
 
-Os logs mostram claramente:
-- `[PJE Comunica OR] Resposta: 0 itens, total: 0` (a API não entende a sintaxe OR)
-- `[PJE Comunica] CORS blocked` (o Preview bloqueia intermitentemente)
-
-**A API PJE Comunica não suporta sintaxe OR no parâmetro `texto`/`palavraChave`**. A busca "agrupada" precisa ser feita do lado da aplicação: **executar várias buscas individuais em paralelo**.
+A API PJE Comunica **NÃO suporta sintaxe OR** no parâmetro `texto`/`palavraChave`. A busca "agrupada" é feita do lado da aplicação: **várias buscas individuais em paralelo**.
 
 ---
 
-## Estratégia: Busca Paralela Individual
+## Estratégia Implementada
 
-Em vez de:
-```
-texto=proc1 OR proc2 OR proc3... (NÃO FUNCIONA)
-```
-
-Fazer:
-```
-Promise.all([
-  buscar(proc1),  // 10 buscas
-  buscar(proc2),  // executadas
-  ...             // em paralelo
+```typescript
+// 5 buscas simultâneas por ciclo
+Promise.allSettled([
+  buscar(proc1),
+  buscar(proc2),
+  buscar(proc3),
+  buscar(proc4),
+  buscar(proc5),
 ])
 ```
 
 ---
 
-## Implementação
+## Configuração
 
-### 1. Remover busca OR (não funciona)
-
-Eliminar `buscarPjeComunicaMultiplosProcessos` e a função `buildOrQuery`.
-
-### 2. Implementar busca paralela controlada
-
-**Nova função em `pjeComunicaClient.ts`:**
-
-```typescript
-export async function buscarProcessosEmParalelo(
-  processos: { id: string; numero: string }[],
-  params: { dataInicio: string; dataFim: string },
-  options?: { 
-    signal?: AbortSignal;
-    parallelism?: number; // Máximo de requisições simultâneas
-  }
-): Promise<Map<string, any[]>> {
-  const parallelism = options?.parallelism ?? 5;
-  const resultados = new Map<string, any[]>();
-  
-  // Processa em lotes paralelos de N
-  for (let i = 0; i < processos.length; i += parallelism) {
-    const lote = processos.slice(i, i + parallelism);
-    
-    const promises = lote.map(async (proc) => {
-      try {
-        const resp = await buscarPjeComunicaNoBrowser({
-          tipo: 'processo',
-          numeroProcesso: proc.numero,
-          dataInicio: params.dataInicio,
-          dataFim: params.dataFim,
-        }, { signal: options?.signal });
-        
-        return { numero: proc.numero, items: resp.items };
-      } catch {
-        return { numero: proc.numero, items: [] };
-      }
-    });
-    
-    const resultadosLote = await Promise.allSettled(promises);
-    for (const r of resultadosLote) {
-      if (r.status === 'fulfilled') {
-        resultados.set(r.value.numero, r.value.items);
-      }
-    }
-  }
-  
-  return resultados;
-}
-```
-
-### 3. Atualizar hook de monitoramento
-
-Substituir chamadas a `buscarPjeComunicaMultiplosProcessos` por `buscarProcessosEmParalelo`.
-
-**Configuração otimizada:**
-- 5 requisições paralelas por ciclo
-- 200ms delay entre ciclos
-- Checkpoint a cada 50 processos
-- Timeout individual de 15s
-
-### 4. Resolver timeout do banco
-
-O erro `statement timeout` ao buscar processos será resolvido usando keyset pagination:
-
-```typescript
-// Em vez de:
-.range(offset, offset + 200)
-
-// Usar:
-.gt('numero', lastNumero)
-.order('numero')
-.limit(200)
-```
+| Parâmetro | Valor | Descrição |
+|-----------|-------|-----------|
+| `parallelism` | 5 | Requisições simultâneas |
+| `delayBetweenCycles` | 200ms | Pausa entre ciclos |
+| `superBatchSize` | 100 | Processos por super-lote |
+| `checkpointInterval` | 50 | Salvar progresso a cada N processos |
 
 ---
 
-## Ganho de Performance
-
-| Métrica | Atual (OR falho) | Novo (Paralelo) |
-|---------|------------------|-----------------|
-| Processos simultâneos | 0 (bloqueado) | 5 |
-| Throughput | 0 proc/min | ~60 proc/min |
-| Tempo 13k processos | Infinito | ~3.5 horas |
-| Confiabilidade | 0% | ~95% |
-
-Ainda não é o ideal de 10-15 minutos que o OR prometia, mas funciona.
-
----
-
-## Alternativa Futura: Publish
-
-No ambiente **Published** (juris-control-pro.lovable.app), o CORS pode ser menos restritivo, permitindo testar se o paralelismo mais agressivo (10-15 simultâneos) é viável.
-
----
-
-## Arquivos a Modificar
+## Arquivos Modificados
 
 1. **`src/utils/pjeComunicaClient.ts`**
-   - Remover `buildOrQuery` e `buscarPjeComunicaMultiplosProcessos`
-   - Adicionar `buscarProcessosEmParalelo`
+   - Removido: `buildOrQuery`, `buscarPjeComunicaMultiplosProcessos`
+   - Adicionado: `buscarProcessosEmParalelo`, `BUSCA_PARALELA_CONFIG`
 
 2. **`src/hooks/useMonitorarDjenProcessosBrowser.ts`**
-   - Substituir lógica OR por busca paralela
-   - Implementar keyset pagination para evitar timeout
-   - Ajustar checkpoints para granularidade menor
+   - Substituída lógica OR por busca paralela
+   - Implementado keyset pagination (evita timeout do banco)
+   - Checkpoints mais frequentes
 
-3. **`.lovable/memory`**
-   - Atualizar documentação com nova estratégia
+---
+
+## Performance Esperada
+
+| Métrica | Valor |
+|---------|-------|
+| Throughput | ~60 processos/min |
+| Tempo 13k processos | ~3.5 horas |
+| Confiabilidade | ~95% |
+
+---
+
+## Próximos Passos (Opcional)
+
+- Testar no ambiente Published (menos restrições de CORS)
+- Aumentar paralelismo para 10-15 se estável
