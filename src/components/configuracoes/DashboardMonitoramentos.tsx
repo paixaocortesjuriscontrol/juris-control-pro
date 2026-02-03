@@ -18,7 +18,7 @@ import {
   CheckCircle2, XCircle, Clock, AlertTriangle, Loader2, PlayCircle,
   ChevronDown, ChevronUp, History, StopCircle
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   useStatusMonitoramentos, 
   useExecucoesRecentes,
@@ -29,6 +29,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useMonitorarDjenProcessosBrowser } from "@/hooks/useMonitorarDjenProcessosBrowser";
+import { useSincronizarDjenBrowser } from "@/hooks/useSincronizarDjenBrowser";
 
 // DJEN Termos re-adicionado ao grid para visualização unificada
 const ICONS: Record<string, React.ElementType> = {
@@ -354,8 +356,23 @@ export function DashboardMonitoramentos() {
   const [confirmReativarOpen, setConfirmReativarOpen] = useState(false);
   const [confirmTipo, setConfirmTipo] = useState<string | null>(null);
   
+  // Hooks para execução BROWSER-ONLY (evita WORKER_LIMIT 546)
+  const { 
+    executar: executarDjenProcessos, 
+    cancelar: cancelarDjenProcessos,
+    isExecutando: executandoDjenProcessos 
+  } = useMonitorarDjenProcessosBrowser();
+  
+  const { 
+    sincronizar: executarDjenTermos, 
+    cancelar: cancelarDjenTermos,
+    isSyncing: executandoDjenTermos 
+  } = useSincronizarDjenBrowser();
+  
   // Auto-refresh quando há execuções em andamento
-  const temExecucaoAtiva = statusMonitoramentos.some(s => s.health_status === 'executando');
+  const temExecucaoAtiva = statusMonitoramentos.some(s => s.health_status === 'executando') 
+    || executandoDjenProcessos 
+    || executandoDjenTermos;
   
   useEffect(() => {
     if (!temExecucaoAtiva) return;
@@ -397,14 +414,28 @@ export function DashboardMonitoramentos() {
     if (updErr) throw updErr;
   };
 
+  // Executa diretamente no browser para tipos browser-only
+  const executarNoBrowser = useCallback(async (tipo: string) => {
+    if (tipo === 'djen_processos') {
+      toast.info('Iniciando DJEN Processos no navegador...');
+      await executarDjenProcessos();
+      refetch();
+      return true;
+    }
+    if (tipo === 'djen') {
+      toast.info('Iniciando DJEN Termos no navegador...');
+      await executarDjenTermos();
+      refetch();
+      return true;
+    }
+    return false;
+  }, [executarDjenProcessos, executarDjenTermos, refetch]);
+
   const executarAgora = async (tipo: string) => {
-    // BROWSER-ONLY: DJEN Termos e DJEN Processos não usam Edge Function
+    // BROWSER-ONLY: Executar diretamente no navegador
     const funcao = FUNCOES[tipo];
     if (funcao === null) {
-      toast.info(
-        `${NOMES[tipo]} executa apenas no navegador. ` +
-        `Acesse o card dedicado no painel de Configurações para executar.`
-      );
+      await executarNoBrowser(tipo);
       return;
     }
 
@@ -422,7 +453,8 @@ export function DashboardMonitoramentos() {
       } else if (data?.paused) {
         toast.warning('Monitoramento está pausado/desativado. Reative para executar.');
       } else if (data?.browserOnly) {
-        toast.info(data.message || `${NOMES[tipo]} executa apenas no navegador.`);
+        // Fallback: executar no browser mesmo se a Edge Function retornar browserOnly
+        await executarNoBrowser(tipo);
       } else if (data?.success) {
         toast.success(`${NOMES[tipo]} concluído: ${data.totalEncontrados || 0} encontrados`);
       } else if (data?.success === false && data?.error) {
