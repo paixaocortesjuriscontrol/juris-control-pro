@@ -304,14 +304,21 @@ function MonitoringCard({
   optimisticStartAt?: number;
 }) {
   const Icon = ICONS[stats.icon] || Activity;
-  const statusConfig = STATUS_CONFIG[stats.status];
+  const hasRealProgress =
+    (stats.progress ?? 0) > 0 ||
+    (stats.currentExecution?.registros_processados ?? 0) > 0 ||
+    (stats.currentExecution?.detalhes?.progress?.current ?? 0) > 0;
   const optimisticActive =
-    typeof optimisticStartAt === 'number' && (Date.now() - optimisticStartAt) < 20000;
-  const isRunning = stats.status === 'running' || optimisticActive;
+    typeof optimisticStartAt === 'number' &&
+    !hasRealProgress &&
+    (Date.now() - optimisticStartAt) < 120000;
+  const displayStatus: MonitoringStatus = optimisticActive ? 'running' : stats.status;
+  const statusConfig = STATUS_CONFIG[displayStatus];
+  const isRunning = displayStatus === 'running';
   // CORREÇÃO: Permitir executar quando status é 'timeout' (o usuário pode retomar ou reiniciar)
-  const canExecute = !isExecuting && !optimisticActive && stats.status !== 'running';
+  const canExecute = !isExecuting && !optimisticActive && displayStatus !== 'running';
   const metaStatus = stats.config?.metadata?.status;
-  const canCancel = stats.status === 'running' || metaStatus === 'em_andamento' || optimisticActive;
+  const canCancel = displayStatus === 'running' || metaStatus === 'em_andamento' || optimisticActive;
   
   // Verificar se há checkpoint para retomar (next_offset > 0 e status não é running/idle)
   const metadata = stats.config?.metadata;
@@ -356,7 +363,7 @@ function MonitoringCard({
               </div>
             </div>
           </div>
-          <StatusBadge status={stats.status} />
+          <StatusBadge status={displayStatus} />
         </div>
       </CardHeader>
 
