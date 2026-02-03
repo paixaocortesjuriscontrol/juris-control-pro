@@ -32,17 +32,11 @@ import { toast } from "sonner";
 
 // Configuração otimizada para busca agrupada
 const CONFIG = {
-  // Super-lote: processos por checkpoint
-  superBatchSize: BUSCA_AGRUPADA_CONFIG.superBatchSize, // 200
-  // Processos por requisição OR
-  processosPerRequest: BUSCA_AGRUPADA_CONFIG.processosPerRequest, // 10
-  // Requisições paralelas
-  parallelRequests: BUSCA_AGRUPADA_CONFIG.parallelRequests, // 3
-  // Delay entre grupos de requisições paralelas
-  delayBetweenGroups: BUSCA_AGRUPADA_CONFIG.delayBetweenGroups, // 300ms
-  // Delay entre super-lotes
-  delayBetweenSuperBatches: BUSCA_AGRUPADA_CONFIG.delayBetweenSuperBatches, // 1500ms
-  // Fallback para processos legados (individual)
+  superBatchSize: BUSCA_AGRUPADA_CONFIG.superBatchSize,
+  processosPerRequest: BUSCA_AGRUPADA_CONFIG.processosPerRequest,
+  parallelRequests: BUSCA_AGRUPADA_CONFIG.parallelRequests,
+  delayBetweenGroups: BUSCA_AGRUPADA_CONFIG.delayBetweenGroups,
+  delayBetweenSuperBatches: BUSCA_AGRUPADA_CONFIG.delayBetweenSuperBatches,
   legacyDelayBetweenProcesses: 500,
   maxRetries: 3,
   retryDelay: 5000,
@@ -67,6 +61,8 @@ interface MonitorarDjenProcessosBrowserReturn {
   executar: (dataInicio?: string, dataFim?: string, retomar?: boolean) => Promise<void>;
   cancelar: () => void;
 }
+
+// === Funções auxiliares fora do componente para evitar re-criação ===
 
 function getBrazilISODate(date: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -95,7 +91,6 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
-/** Divide array em chunks de tamanho N */
 function chunkArray<T>(array: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < array.length; i += size) {
@@ -103,6 +98,179 @@ function chunkArray<T>(array: T[], size: number): T[][] {
   }
   return chunks;
 }
+
+async function processarPublicacoes(
+  processo: { id: string; numero: string },
+  items: any[],
+  seenHashes: Set<string>,
+  hoje: string
+): Promise<{ novas: number; duplicadas: number }> {
+  let novas = 0;
+  let duplicadas = 0;
+
+  for (const pub of items) {
+    const conteudo = pub.texto || pub.teor || '';
+    if (!conteudo) continue;
+
+    const dataDisponibilizacao = pub.dataDisponibilizacao || hoje;
+    const dataPublicacao = pub.dataPublicacao || dataDisponibilizacao;
+    
+    const conteudoNorm = normalizeConteudo(conteudo);
+    const hashConteudo = generateHash(`${processo.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
+
+    if (seenHashes.has(hashConteudo)) {
+      duplicadas++;
+      continue;
+    }
+
+    const { data: existente } = await supabase
+      .from('publicacoes_djen_processos')
+      .select('id')
+      .eq('hash_conteudo', hashConteudo)
+      .maybeSingle();
+
+    if (existente) {
+      seenHashes.add(hashConteudo);
+      duplicadas++;
+      continue;
+    }
+
+    const { error: insertError } = await supabase
+      .from('publicacoes_djen_processos')
+      .insert({
+        processo_id: processo.id,
+        processo_numero: processo.numero,
+        hash_conteudo: hashConteudo,
+        data_publicacao: dataPublicacao,
+        data_disponibilizacao: dataDisponibilizacao,
+        conteudo: conteudo.slice(0, 50000),
+        fonte: 'pje_comunica_browser',
+      });
+
+    if (!insertError) {
+      seenHashes.add(hashConteudo);
+      novas++;
+    }
+  }
+
+  return { novas, duplicadas };
+}
+
+async function processarChunkOR(
+  processos: { id: string; numero: string }[],
+  params: { dataInicio: string; dataFim: string },
+  seenHashes: Set<string>,
+  hoje: string,
+  signal?: AbortSignal
+): Promise<{ novas: number; duplicadas: number; processosComNovas: number }> {
+  let novasTotal = 0;
+  let duplicadasTotal = 0;
+  let processosComNovas = 0;
+
+  const numerosProcesso = processos.map(p => p.numero);
+  const processosPorNumero = new Map(processos.map(p => [p.numero, p]));
+  const processosPorDigitos = new Map(processos.map(p => [p.numero.replace(/\D/g, ''), p]));
+
+  try {
+    const resultado = await buscarPjeComunicaMultiplosProcessos(
+      numerosProcesso,
+      { dataInicio: params.dataInicio, dataFim: params.dataFim },
+      { signal }
+    );
+
+    for (const [numProc, items] of resultado.porProcesso) {
+      if (items.length === 0) continue;
+
+      const processo = processosPorNumero.get(numProc) || 
+                      processosPorDigitos.get(numProc.replace(/\D/g, ''));
+      if (!processo) continue;
+
+      const { novas, duplicadas } = await processarPublicacoes(processo, items, seenHashes, hoje);
+      novasTotal += novas;
+      duplicadasTotal += duplicadas;
+      if (novas > 0) processosComNovas++;
+    }
+
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw e;
+    
+    if (processos.length > 1) {
+      console.warn(`[DJEN OR] Falha com ${processos.length} processos, tentando metade...`);
+      const metade = Math.ceil(processos.length / 2);
+      const primeira = processos.slice(0, metade);
+      const segunda = processos.slice(metade);
+
+      const r1 = await processarChunkOR(primeira, params, seenHashes, hoje, signal);
+      const r2 = await processarChunkOR(segunda, params, seenHashes, hoje, signal);
+
+      return {
+        novas: r1.novas + r2.novas,
+        duplicadas: r1.duplicadas + r2.duplicadas,
+        processosComNovas: r1.processosComNovas + r2.processosComNovas,
+      };
+    } else {
+      console.warn(`[DJEN OR] Fallback individual para ${processos[0]?.numero}`);
+      try {
+        const resp = await buscarPjeComunicaNoBrowser({
+          tipo: 'processo',
+          numeroProcesso: processos[0].numero,
+          dataInicio: params.dataInicio,
+          dataFim: params.dataFim,
+        }, { signal });
+
+        const { novas, duplicadas } = await processarPublicacoes(processos[0], resp.items, seenHashes, hoje);
+        return { novas, duplicadas, processosComNovas: novas > 0 ? 1 : 0 };
+      } catch {
+        return { novas: 0, duplicadas: 0, processosComNovas: 0 };
+      }
+    }
+  }
+
+  return { novas: novasTotal, duplicadas: duplicadasTotal, processosComNovas };
+}
+
+async function processarLegadosIndividual(
+  processos: { id: string; numero: string }[],
+  params: { dataInicio: string; dataFim: string },
+  seenHashes: Set<string>,
+  hoje: string,
+  signal?: AbortSignal,
+  onProgress?: (processed: number) => void
+): Promise<{ novas: number; duplicadas: number; processosComNovas: number }> {
+  let novasTotal = 0;
+  let duplicadasTotal = 0;
+  let processosComNovas = 0;
+
+  for (let i = 0; i < processos.length; i++) {
+    if (signal?.aborted) break;
+
+    const processo = processos[i];
+    try {
+      const resp = await buscarPjeComunicaNoBrowser({
+        tipo: 'processo',
+        numeroProcesso: processo.numero,
+        dataInicio: params.dataInicio,
+        dataFim: params.dataFim,
+      }, { signal });
+
+      const { novas, duplicadas } = await processarPublicacoes(processo, resp.items, seenHashes, hoje);
+      novasTotal += novas;
+      duplicadasTotal += duplicadas;
+      if (novas > 0) processosComNovas++;
+
+      onProgress?.(i + 1);
+
+      await new Promise(r => setTimeout(r, CONFIG.legacyDelayBetweenProcesses));
+    } catch (e: any) {
+      if (e?.name === 'AbortError') break;
+      console.warn(`[DJEN Legado] Erro ${processo.numero}:`, e?.message);
+    }
+  }
+
+  return { novas: novasTotal, duplicadas: duplicadasTotal, processosComNovas };
+}
+
+// === Hook principal ===
 
 export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowserReturn {
   const queryClient = useQueryClient();
@@ -181,194 +349,6 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
     }
   }, []);
 
-  /**
-   * Processa publicações encontradas para um processo.
-   * Retorna { novas, duplicadas } para este processo.
-   */
-  const processarPublicacoes = useCallback(async (
-    processo: { id: string; numero: string },
-    items: any[],
-    seenHashes: Set<string>,
-    hoje: string
-  ): Promise<{ novas: number; duplicadas: number }> => {
-    let novas = 0;
-    let duplicadas = 0;
-
-    for (const pub of items) {
-      const conteudo = pub.texto || pub.teor || '';
-      if (!conteudo) continue;
-
-      const dataDisponibilizacao = pub.dataDisponibilizacao || hoje;
-      const dataPublicacao = pub.dataPublicacao || dataDisponibilizacao;
-      
-      const conteudoNorm = normalizeConteudo(conteudo);
-      const hashConteudo = generateHash(`${processo.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
-
-      if (seenHashes.has(hashConteudo)) {
-        duplicadas++;
-        continue;
-      }
-
-      // Verificar se já existe no banco
-      const { data: existente } = await supabase
-        .from('publicacoes_djen_processos')
-        .select('id')
-        .eq('hash_conteudo', hashConteudo)
-        .maybeSingle();
-
-      if (existente) {
-        seenHashes.add(hashConteudo);
-        duplicadas++;
-        continue;
-      }
-
-      // Inserir nova publicação
-      const { error: insertError } = await supabase
-        .from('publicacoes_djen_processos')
-        .insert({
-          processo_id: processo.id,
-          processo_numero: processo.numero,
-          hash_conteudo: hashConteudo,
-          data_publicacao: dataPublicacao,
-          data_disponibilizacao: dataDisponibilizacao,
-          conteudo: conteudo.slice(0, 50000),
-          fonte: 'pje_comunica_browser',
-        });
-
-      if (!insertError) {
-        seenHashes.add(hashConteudo);
-        novas++;
-      }
-    }
-
-    return { novas, duplicadas };
-  }, []);
-
-  /**
-   * Processa um chunk de processos CNJ usando busca OR agrupada.
-   */
-  const processarChunkOR = useCallback(async (
-    processos: { id: string; numero: string }[],
-    params: { dataInicio: string; dataFim: string },
-    seenHashes: Set<string>,
-    hoje: string,
-    signal?: AbortSignal
-  ): Promise<{ novas: number; duplicadas: number; processosComNovas: number }> => {
-    let novasTotal = 0;
-    let duplicadasTotal = 0;
-    let processosComNovas = 0;
-
-    const numerosProcesso = processos.map(p => p.numero);
-    const processosPorNumero = new Map(processos.map(p => [p.numero, p]));
-    // Mapa alternativo por dígitos para fallback
-    const processosPorDigitos = new Map(processos.map(p => [p.numero.replace(/\D/g, ''), p]));
-
-    try {
-      const resultado = await buscarPjeComunicaMultiplosProcessos(
-        numerosProcesso,
-        { dataInicio: params.dataInicio, dataFim: params.dataFim },
-        { signal }
-      );
-
-      // Processar resultados mapeados
-      for (const [numProc, items] of resultado.porProcesso) {
-        if (items.length === 0) continue;
-
-        const processo = processosPorNumero.get(numProc) || 
-                        processosPorDigitos.get(numProc.replace(/\D/g, ''));
-        if (!processo) continue;
-
-        const { novas, duplicadas } = await processarPublicacoes(processo, items, seenHashes, hoje);
-        novasTotal += novas;
-        duplicadasTotal += duplicadas;
-        if (novas > 0) processosComNovas++;
-      }
-
-    } catch (e: any) {
-      if (e?.name === 'AbortError') throw e;
-      
-      // Fallback: tentar com metade do grupo
-      if (processos.length > 1) {
-        console.warn(`[DJEN OR] Falha com ${processos.length} processos, tentando metade...`);
-        const metade = Math.ceil(processos.length / 2);
-        const primeira = processos.slice(0, metade);
-        const segunda = processos.slice(metade);
-
-        const r1 = await processarChunkOR(primeira, params, seenHashes, hoje, signal);
-        const r2 = await processarChunkOR(segunda, params, seenHashes, hoje, signal);
-
-        return {
-          novas: r1.novas + r2.novas,
-          duplicadas: r1.duplicadas + r2.duplicadas,
-          processosComNovas: r1.processosComNovas + r2.processosComNovas,
-        };
-      } else {
-        // Último recurso: busca individual
-        console.warn(`[DJEN OR] Fallback individual para ${processos[0]?.numero}`);
-        try {
-          const resp = await buscarPjeComunicaNoBrowser({
-            tipo: 'processo',
-            numeroProcesso: processos[0].numero,
-            dataInicio: params.dataInicio,
-            dataFim: params.dataFim,
-          }, { signal });
-
-          const { novas, duplicadas } = await processarPublicacoes(processos[0], resp.items, seenHashes, hoje);
-          return { novas, duplicadas, processosComNovas: novas > 0 ? 1 : 0 };
-        } catch {
-          return { novas: 0, duplicadas: 0, processosComNovas: 0 };
-        }
-      }
-    }
-
-    return { novas: novasTotal, duplicadas: duplicadasTotal, processosComNovas };
-  }, [processarPublicacoes]);
-
-  /**
-   * Processa processos legados (não-CNJ) individualmente.
-   */
-  const processarLegadosIndividual = useCallback(async (
-    processos: { id: string; numero: string }[],
-    params: { dataInicio: string; dataFim: string },
-    seenHashes: Set<string>,
-    hoje: string,
-    signal?: AbortSignal,
-    onProgress?: (processed: number) => void
-  ): Promise<{ novas: number; duplicadas: number; processosComNovas: number }> => {
-    let novasTotal = 0;
-    let duplicadasTotal = 0;
-    let processosComNovas = 0;
-
-    for (let i = 0; i < processos.length; i++) {
-      if (signal?.aborted) break;
-
-      const processo = processos[i];
-      try {
-        const resp = await buscarPjeComunicaNoBrowser({
-          tipo: 'processo',
-          numeroProcesso: processo.numero,
-          dataInicio: params.dataInicio,
-          dataFim: params.dataFim,
-        }, { signal });
-
-        const { novas, duplicadas } = await processarPublicacoes(processo, resp.items, seenHashes, hoje);
-        novasTotal += novas;
-        duplicadasTotal += duplicadas;
-        if (novas > 0) processosComNovas++;
-
-        onProgress?.(i + 1);
-
-        // Delay entre processos
-        await new Promise(r => setTimeout(r, CONFIG.legacyDelayBetweenProcesses));
-      } catch (e: any) {
-        if (e?.name === 'AbortError') break;
-        console.warn(`[DJEN Legado] Erro ${processo.numero}:`, e?.message);
-      }
-    }
-
-    return { novas: novasTotal, duplicadas: duplicadasTotal, processosComNovas };
-  }, [processarPublicacoes]);
-
   const executar = useCallback(async (
     dataInicio?: string,
     dataFim?: string,
@@ -385,7 +365,6 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
     const params = { dataInicio: dataInicioEfetiva, dataFim: dataFimEfetiva };
 
     try {
-      // Buscar offset e contadores salvos
       let startOffset = 0;
       let novasTotal = 0;
       let duplicadasTotal = 0;
@@ -415,7 +394,6 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
         toast.info('Nenhum checkpoint encontrado. Iniciando do zero.');
       }
 
-      // Contar total de processos
       const { count: totalProcessos } = await supabase
         .from('processos')
         .select('id', { count: 'exact', head: true })
@@ -445,7 +423,6 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       const seenHashes = new Set<string>();
       const superBatchNum = Math.ceil(total / CONFIG.superBatchSize);
 
-      // Processar em super-lotes (200 processos por checkpoint)
       while (offset < total && !canceladoRef.current) {
         const currentSuperBatch = Math.floor(offset / CONFIG.superBatchSize) + 1;
         
@@ -454,7 +431,6 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           current: offset,
         });
 
-        // Buscar super-lote de processos
         const { data: processos, error: procError } = await supabase
           .from('processos')
           .select('id, numero, status, coordenacao_id')
@@ -470,26 +446,21 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           throw new Error('Nenhum processo retornado no super-lote.');
         }
 
-        // Separar CNJ vs legado
         const processosCNJ = processos.filter(p => isCnjFormat(p.numero));
         const processosLegados = processos.filter(p => !isCnjFormat(p.numero));
 
         console.log(`[DJEN Browser] Super-lote ${currentSuperBatch}: ${processosCNJ.length} CNJ, ${processosLegados.length} legados`);
 
-        // === FASE 1: Processar CNJ com busca OR agrupada ===
+        // Processar CNJ com busca OR agrupada
         if (processosCNJ.length > 0 && !canceladoRef.current) {
           updateProgress({ mensagem: `Processando ${processosCNJ.length} processos CNJ (busca otimizada)...` });
 
-          // Dividir em chunks de 10 para busca OR
           const chunks = chunkArray(processosCNJ, CONFIG.processosPerRequest);
-          
-          // Processar chunks em grupos paralelos de 3
           const parallelGroups = chunkArray(chunks, CONFIG.parallelRequests);
           
           for (const group of parallelGroups) {
             if (canceladoRef.current) break;
 
-            // Executar grupo de requisições em paralelo
             const results = await Promise.allSettled(
               group.map(chunk => 
                 processarChunkOR(
@@ -502,7 +473,6 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
               )
             );
 
-            // Agregar resultados
             for (const result of results) {
               if (result.status === 'fulfilled') {
                 novasTotal += result.value.novas;
@@ -511,7 +481,6 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
               }
             }
 
-            // Atualizar progresso a cada grupo paralelo
             const processedInGroup = group.reduce((acc, chunk) => acc + chunk.length, 0);
             const newCurrent = Math.min(total, offset + processedInGroup);
             updateProgress({
@@ -522,14 +491,13 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
               mensagem: `${newCurrent}/${total} processos (${novasTotal} novas)`,
             });
 
-            // Delay entre grupos de requisições paralelas
             if (!canceladoRef.current) {
               await new Promise(r => setTimeout(r, CONFIG.delayBetweenGroups));
             }
           }
         }
 
-        // === FASE 2: Processar legados individualmente ===
+        // Processar legados individualmente
         if (processosLegados.length > 0 && !canceladoRef.current) {
           updateProgress({ mensagem: `Processando ${processosLegados.length} processos legados...` });
 
@@ -554,7 +522,6 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
 
         offset += processos.length;
 
-        // Checkpoint ao final do super-lote
         const currentStats = {
           current: offset,
           total,
@@ -573,13 +540,11 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
 
         await saveCheckpoint(offset, currentStats);
 
-        // Delay entre super-lotes
         if (offset < total && !canceladoRef.current) {
           await new Promise(r => setTimeout(r, CONFIG.delayBetweenSuperBatches));
         }
       }
 
-      // Finalização
       if (canceladoRef.current) {
         updateProgress({
           status: 'cancelado',
@@ -610,7 +575,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       });
       toast.error(`Erro no monitoramento: ${error.message}`);
     }
-  }, [isExecutando, updateProgress, saveCheckpoint, queryClient, processarChunkOR, processarLegadosIndividual]);
+  }, [isExecutando, updateProgress, saveCheckpoint, queryClient]);
 
   const cancelar = useCallback(() => {
     canceladoRef.current = true;
