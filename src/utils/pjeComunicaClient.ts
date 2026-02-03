@@ -460,3 +460,139 @@ export async function buscarPjeComunicaPaginado(
     truncated,
   };
 }
+
+// ============================================================================
+// BUSCA AGRUPADA COM OR - Otimização para 13k+ processos
+// ============================================================================
+
+/**
+ * Verifica se o número do processo está no formato CNJ válido (20+ dígitos).
+ * Processos legados como "NDFC. 20.209.805-2" não funcionam bem com OR.
+ */
+export function isCnjFormat(numero: string): boolean {
+  const digits = numero.replace(/\D/g, '');
+  return digits.length >= 15; // CNJ tem ~20 dígitos, mas alguns tribunais usam 15+
+}
+
+/**
+ * Constrói query OR para múltiplos processos.
+ * Exemplo: "0001234-56.2024.5.10.0001 OR 0007890-12.2024.5.10.0002"
+ */
+export function buildOrQuery(numerosProcesso: string[]): string {
+  // Usar apenas os números limpos para evitar problemas de encoding
+  return numerosProcesso
+    .filter(n => n && n.trim())
+    .join(' OR ');
+}
+
+/**
+ * Resultado de uma busca agrupada com mapeamento por processo.
+ */
+export interface BuscaAgrupadaResultado {
+  /** Publicações agrupadas por número do processo */
+  porProcesso: Map<string, any[]>;
+  /** Total de publicações encontradas */
+  totalItems: number;
+  /** Processos que retornaram resultados */
+  processosComResultados: string[];
+}
+
+/**
+ * Busca publicações para múltiplos processos em uma única requisição usando OR.
+ * 
+ * OTIMIZAÇÃO: Reduz ~10x o número de requisições HTTP.
+ * - 10 processos por requisição = 1.300 req (vs 13.000 individual)
+ * - Tempo: ~11 min (vs ~2h individual)
+ */
+export async function buscarPjeComunicaMultiplosProcessos(
+  numerosProcesso: string[],
+  params: { dataInicio?: string; dataFim?: string },
+  options?: { signal?: AbortSignal }
+): Promise<BuscaAgrupadaResultado> {
+  const resultado: BuscaAgrupadaResultado = {
+    porProcesso: new Map(),
+    totalItems: 0,
+    processosComResultados: [],
+  };
+
+  if (!numerosProcesso.length) return resultado;
+
+  // Inicializar mapa com arrays vazios
+  for (const num of numerosProcesso) {
+    resultado.porProcesso.set(num, []);
+  }
+
+  // Construir query OR
+  const orQuery = buildOrQuery(numerosProcesso);
+  if (!orQuery) return resultado;
+
+  try {
+    const resp = await buscarPjeComunicaNoBrowser(
+      {
+        tipo: 'processo',
+        numeroProcesso: orQuery,
+        dataInicio: params.dataInicio,
+        dataFim: params.dataFim,
+        pageSize: 50, // Mais itens por página para cobrir múltiplos processos
+      },
+      { signal: options?.signal }
+    );
+
+    // Mapear resultados de volta para cada processo
+    for (const item of resp.items) {
+      const numProc = item?.numeroProcesso;
+      if (!numProc) continue;
+
+      // Tentar match exato primeiro
+      if (resultado.porProcesso.has(numProc)) {
+        resultado.porProcesso.get(numProc)!.push(item);
+        resultado.totalItems++;
+        continue;
+      }
+
+      // Fallback: match por substring (alguns tribunais retornam formato diferente)
+      for (const numOriginal of numerosProcesso) {
+        const digitsOriginal = numOriginal.replace(/\D/g, '');
+        const digitsRetornado = numProc.replace(/\D/g, '');
+        
+        if (digitsOriginal === digitsRetornado || 
+            digitsOriginal.includes(digitsRetornado) || 
+            digitsRetornado.includes(digitsOriginal)) {
+          resultado.porProcesso.get(numOriginal)!.push(item);
+          resultado.totalItems++;
+          break;
+        }
+      }
+    }
+
+    // Identificar processos com resultados
+    for (const [num, items] of resultado.porProcesso) {
+      if (items.length > 0) {
+        resultado.processosComResultados.push(num);
+      }
+    }
+
+    return resultado;
+
+  } catch (e: any) {
+    // Se falhar, retornar resultado vazio (caller pode decidir fazer fallback individual)
+    console.warn('[PJE Comunica] Busca OR falhou:', e?.message);
+    throw e; // Re-throw para permitir retry ou fallback
+  }
+}
+
+/**
+ * Configuração otimizada para busca agrupada.
+ */
+export const BUSCA_AGRUPADA_CONFIG = {
+  /** Processos por requisição OR (limite seguro para URL ~2KB) */
+  processosPerRequest: 10,
+  /** Requisições paralelas simultâneas */
+  parallelRequests: 3,
+  /** Delay entre grupos de requisições paralelas */
+  delayBetweenGroups: 300,
+  /** Processos por super-lote (checkpoint) */
+  superBatchSize: 200,
+  /** Delay entre super-lotes */
+  delayBetweenSuperBatches: 1500,
+};
