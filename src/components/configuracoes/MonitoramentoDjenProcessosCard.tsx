@@ -7,7 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileSearch, Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play, StopCircle } from "lucide-react";
+import { FileSearch, Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play, StopCircle, Globe } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 import { useRealtimeProgress } from "@/hooks/useRealtimeProgress";
 import { BotaoRetomarLote } from "./BotaoRetomarLote";
+import { useMonitorarDjenProcessosBrowser } from "@/hooks/useMonitorarDjenProcessosBrowser";
 
 interface ExecutionResult {
   processados: number;
@@ -36,15 +37,20 @@ interface Props {
 }
 
 export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
-  const [executandoManual, setExecutandoManual] = useState(false);
-  const [progressoManual, setProgressoManual] = useState<{ processados: number; total: number; novas: number } | null>(null);
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [statsOpen, setStatsOpen] = useState(false);
-  const canceladoRef = useRef(false);
   const queryClient = useQueryClient();
 
-  // Hook de progresso realtime via Supabase
+  // Hook de execução no NAVEGADOR (evita WORKER_LIMIT das Edge Functions)
+  const {
+    progresso: browserProgress,
+    isExecutando: browserExecutando,
+    executar: browserExecutar,
+    cancelar: browserCancelar,
+  } = useMonitorarDjenProcessosBrowser();
+
+  // Hook de progresso realtime via Supabase (para detectar execuções externas/agendadas)
   const { progress: realtimeProgress } = useRealtimeProgress({
     tipo: 'djen_processos',
     enabled: true,
@@ -55,11 +61,15 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     },
   });
 
-  // Determina se está executando (manual ou detectado via realtime)
-  const executando = executandoManual || realtimeProgress.isRunning;
+  // Determina se está executando (browser local ou detectado via realtime)
+  const executando = browserExecutando || realtimeProgress.isRunning;
 
-  // Progresso combinado: manual tem prioridade, senão usa realtime
-  const progresso = progressoManual || (realtimeProgress.isRunning ? {
+  // Progresso combinado: browser local tem prioridade, senão usa realtime
+  const progresso = browserExecutando ? {
+    processados: browserProgress.current,
+    total: browserProgress.total,
+    novas: browserProgress.novas,
+  } : (realtimeProgress.isRunning ? {
     processados: realtimeProgress.current,
     total: realtimeProgress.total,
     novas: realtimeProgress.novas ?? 0,
@@ -168,160 +178,19 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     }
   });
 
-  const executarLote = useCallback(
-    async (
-      continuarDe: number,
-      dataInicioStr?: string,
-      dataFimStr?: string
-    ): Promise<{ novas: number; concluido: boolean; nextOffset: number; totalProcessos: number }> => {
-      const { data, error } = await supabase.functions.invoke('monitorar-djen-processos', {
-        body: {
-          dataInicio: dataInicioStr,
-          dataFim: dataFimStr,
-          continuarDe,
-        },
-      });
-
-      if (error) throw error;
-
-      const novas = (data?.novas ?? data?.novasPublicacoes ?? 0) as number;
-      const totalProcessos = (data?.totalProcessos ?? 0) as number;
-      const hasMore = (data?.hasMore ?? false) as boolean;
-      const concluido = (data?.concluido ?? !hasMore) as boolean;
-      const nextOffset = (data?.nextOffset ?? 0) as number;
-
-      return {
-        novas,
-        concluido,
-        nextOffset,
-        totalProcessos,
-      };
-    },
-    []
-  );
-
-  const handleExecutarManual = async (mode: 'novo' | 'retomar' = 'novo', overrideOffset?: number) => {
-    if (executando) return; // Prevenir duplo clique
-    setExecutandoManual(true);
-    canceladoRef.current = false;
+  // Execução no NAVEGADOR - evita completamente o WORKER_LIMIT das Edge Functions
+  const handleExecutarManual = useCallback(async (mode: 'novo' | 'retomar' = 'novo') => {
+    if (executando) return;
     
-    // Mostra progresso imediatamente com estado "iniciando"
-    setProgressoManual({ processados: 0, total: 0, novas: 0 });
-
-    // Limpa flag de cancelamento anterior
-    if (config?.id) {
-      const currentMetadata = (config.metadata as Record<string, any>) || {};
-      await supabase
-        .from('configuracoes_monitoramento')
-        .update({
-          metadata:
-            mode === 'retomar'
-              ? {
-                  ...currentMetadata,
-                  cancelado: false,
-                  status: 'em_andamento',
-                  // NÃO zerar o checkpoint ao retomar
-                }
-              : {
-                  ...currentMetadata,
-                  cancelado: false,
-                  status: 'em_andamento',
-                  next_offset: 0,
-                  current: 0,
-                  total: 0,
-                },
-        })
-        .eq('id', config.id);
-    }
-
     const dataInicioStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : undefined;
     const dataFimStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : undefined;
+    
+    await browserExecutar(dataInicioStr, dataFimStr, mode === 'retomar');
+  }, [executando, dataInicio, dataFim, browserExecutar]);
 
-    let totalNovas = 0;
-    let offset = 0;
-    let totalProcessos = 0;
-
-    if (mode === 'retomar') {
-      offset = typeof overrideOffset === 'number' && overrideOffset > 0
-        ? overrideOffset
-        : (nextOffset && nextOffset > 0 ? nextOffset : 0);
-    }
-
-    try {
-      // Loop para processar todos os lotes
-      while (!canceladoRef.current) {
-        const result = await executarLote(offset, dataInicioStr, dataFimStr);
-        
-        totalNovas += result.novas;
-        totalProcessos = result.totalProcessos;
-        offset = result.nextOffset;
-
-        setProgressoManual({
-          processados: result.concluido ? totalProcessos : offset,
-          total: totalProcessos,
-          novas: totalNovas
-        });
-
-        // Atualizar metadata para sincronização realtime
-        if (config?.id) {
-          const currentMetadata = (config.metadata as Record<string, any>) || {};
-          await supabase
-            .from('configuracoes_monitoramento')
-            .update({
-              metadata: { 
-                ...currentMetadata, 
-                current: result.concluido ? totalProcessos : offset,
-                total: totalProcessos,
-                novas: totalNovas,
-                // manter checkpoint para permitir retomada em caso de falha/timeout
-                next_offset: result.concluido ? 0 : offset,
-                status: result.concluido ? 'concluido' : 'em_andamento',
-              },
-            })
-            .eq('id', config.id);
-        }
-
-        if (result.concluido) {
-          break;
-        }
-
-        // Pequeno delay entre lotes
-        await new Promise(r => setTimeout(r, 1000));
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['djen-processos-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['djen-processos-historico'] });
-      queryClient.invalidateQueries({ queryKey: ['config-djen-processos'] });
-
-      if (canceladoRef.current) {
-        toast.info(`Busca cancelada. ${totalNovas} publicações encontradas até agora.`);
-      } else {
-        toast.success(`Busca concluída! ${totalNovas} novas publicações em ${totalProcessos} processos.`);
-      }
-    } catch (error: any) {
-      console.error('Erro:', error);
-      toast.error('Erro ao executar monitoramento');
-    } finally {
-      setExecutandoManual(false);
-      setProgressoManual(null);
-    }
-  };
-
-  const handleCancelar = async () => {
-    canceladoRef.current = true;
-    toast.info("Cancelando execução...");
-
-    // Cancelamento persistente para parar auto-continuação no backend
-    if (config?.id) {
-      const currentMetadata = (config.metadata as Record<string, any>) || {};
-      await supabase
-        .from('configuracoes_monitoramento')
-        .update({
-          metadata: { ...currentMetadata, cancelado: true, status: 'cancelando' },
-        })
-        .eq('id', config.id);
-    }
-  };
+  const handleCancelar = useCallback(() => {
+    browserCancelar();
+  }, [browserCancelar]);
 
   const handleFrequenciaChange = async (value: string) => {
     if (!config?.id) return;
@@ -557,7 +426,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {realtimeProgress.isRunning && !executandoManual ? 'Execução em andamento' : 'Executando...'}
+                {realtimeProgress.isRunning && !browserExecutando ? 'Execução em andamento' : 'Executando no navegador...'}
               </div>
               {executando && (
                 <Button
@@ -667,7 +536,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
           <BotaoRetomarLote
             nextOffset={shouldShowRetomar ? resumeFromOffset : undefined}
             total={stableTotalForResume > 0 ? stableTotalForResume : totalCheckpoint}
-            onRetomar={() => handleExecutarManual('retomar', resumeFromOffset)}
+            onRetomar={() => handleExecutarManual('retomar')}
             disabled={executando}
             wasCancelledByUser={wasCancelledByUser}
           />

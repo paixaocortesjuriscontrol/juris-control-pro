@@ -1484,6 +1484,7 @@ export type Database = {
           diario_ymd: string
           erro_mensagem: string | null
           id: string
+          started_at: string | null
           status: string
           total_publicacoes: number | null
           total_tribunais: number | null
@@ -1495,6 +1496,7 @@ export type Database = {
           diario_ymd: string
           erro_mensagem?: string | null
           id?: string
+          started_at?: string | null
           status?: string
           total_publicacoes?: number | null
           total_tribunais?: number | null
@@ -1506,10 +1508,47 @@ export type Database = {
           diario_ymd?: string
           erro_mensagem?: string | null
           id?: string
+          started_at?: string | null
           status?: string
           total_publicacoes?: number | null
           total_tribunais?: number | null
           tribunais_processados?: number | null
+        }
+        Relationships: []
+      }
+      djen_diario_index_requests: {
+        Row: {
+          data_ymd: string
+          erro_mensagem: string | null
+          finished_at: string | null
+          id: string
+          requested_at: string
+          requested_by: string | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          data_ymd: string
+          erro_mensagem?: string | null
+          finished_at?: string | null
+          id?: string
+          requested_at?: string
+          requested_by?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          data_ymd?: string
+          erro_mensagem?: string | null
+          finished_at?: string | null
+          id?: string
+          requested_at?: string
+          requested_by?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2805,7 +2844,7 @@ export type Database = {
           modo_processamento?: string
           retry_base_delay_ms?: number
           soft_timeout_ms?: number
-          tipo_monitoramento_id?: string
+          tipo_monitoramento_id: string
           updated_at?: string
         }
         Update: {
@@ -2839,33 +2878,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      tipo_monitoramento: {
-        Row: {
-          ativo: boolean
-          created_at: string
-          id: string
-          nome: string
-          slug: string
-          updated_at: string
-        }
-        Insert: {
-          ativo?: boolean
-          created_at?: string
-          id?: string
-          nome: string
-          slug: string
-          updated_at?: string
-        }
-        Update: {
-          ativo?: boolean
-          created_at?: string
-          id?: string
-          nome?: string
-          slug?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       parcelas_evento: {
         Row: {
@@ -4490,6 +4502,33 @@ export type Database = {
           id?: string
           prioridade?: string
           termo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tipo_monitoramento: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          slug?: string
           updated_at?: string
         }
         Relationships: []

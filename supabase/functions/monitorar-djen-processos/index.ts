@@ -1702,11 +1702,8 @@ serve(async (req) => {
         })
         .eq('tipo', 'djen_processos');
 
-      await updateExecucaoProgress(supabase, execucaoId, {
-        status: 'erro',
-        detalhes: { error: errorMessage },
-        finalizado_em: new Date().toISOString(),
-      });
+      // Nota: execucaoId não está disponível neste catch externo (escopo diferente)
+      // A atualização do status será feita apenas via configuracoes_monitoramento
       
       console.log(`[DJEN Processos] Offset ${currentOffset} salvo para retomada`);
     } catch (saveError) {
