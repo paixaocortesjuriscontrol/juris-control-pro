@@ -540,9 +540,17 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
         lotes_processados: currentExecution.lotes_processados,
       });
       const isCompletedByProgress = execProgress.percentage === 100;
+      const hasAnyProgress =
+        (currentExecution.registros_processados ?? 0) > 0 ||
+        (currentExecution.detalhes?.progress?.current ?? 0) > 0 ||
+        execProgress.percentage > 0;
+      const isStuckNoProgress = !hasAnyProgress && elapsedSeconds > 300; // 5 min sem progresso real
 
       if (isCompletedByProgress) {
         status = 'completed';
+      } else if (isStuckNoProgress) {
+        status = 'idle';
+        elapsedSeconds = 0;
       } else if (elapsedSeconds > 14400) {
         // Mais de 1h e ainda está "executando" sem finalizado_em → timeout
         status = 'timeout';
