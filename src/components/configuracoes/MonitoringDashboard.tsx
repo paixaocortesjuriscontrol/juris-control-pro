@@ -461,6 +461,7 @@ export function MonitoringDashboard() {
     executar: executarDjenProcessosNoBrowser,
     cancelar: cancelarDjenProcessosNoBrowser,
     isExecutando: isExecutandoDjenProcessosNoBrowser,
+    progresso: progressoDjenProcessosBrowser,
   } = useMonitorarDjenProcessosBrowser();
 
   const { data: userCoordenacao, isLoading: loadingUserCoord } = useQuery({
@@ -657,12 +658,41 @@ export function MonitoringDashboard() {
     }
   };
 
+  // Mesclar progresso browser-only do DJEN Processos nos stats
+  const monitoringStatsEnhanced = monitoringStats.map((s) => {
+    if (s.tipo !== 'djen_processos') return s;
+    // Se execução local ativa, sobrescrever status/progress
+    if (progressoDjenProcessosBrowser.status === 'executando') {
+      return {
+        ...s,
+        status: 'running' as const,
+        progress: progressoDjenProcessosBrowser.percentage,
+        currentExecution: s.currentExecution
+          ? {
+              ...s.currentExecution,
+              registros_processados: progressoDjenProcessosBrowser.current,
+              detalhes: {
+                ...s.currentExecution.detalhes,
+                progress: {
+                  current: progressoDjenProcessosBrowser.current,
+                  total: progressoDjenProcessosBrowser.total,
+                  percentage: progressoDjenProcessosBrowser.percentage,
+                },
+              },
+            }
+          : null,
+      };
+    }
+    return s;
+  });
+
   // Summary Stats
-  const totalToday = monitoringStats.reduce((acc, s) => acc + s.todayStats.executions, 0);
-  const successToday = monitoringStats.reduce((acc, s) => acc + s.todayStats.successful, 0);
-  const novasToday = monitoringStats.reduce((acc, s) => acc + (s.todayStats.novas ?? 0), 0);
-  const descartadasToday = monitoringStats.reduce((acc, s) => acc + (s.todayStats.descartadas ?? 0), 0);
-  const runningCount = monitoringStats.filter(s => s.status === 'running').length;
+  const totalToday = monitoringStatsEnhanced.reduce((acc, s) => acc + s.todayStats.executions, 0);
+  const successToday = monitoringStatsEnhanced.reduce((acc, s) => acc + s.todayStats.successful, 0);
+  const novasToday = monitoringStatsEnhanced.reduce((acc, s) => acc + (s.todayStats.novas ?? 0), 0);
+  const descartadasToday = monitoringStatsEnhanced.reduce((acc, s) => acc + (s.todayStats.descartadas ?? 0), 0);
+  const runningCount = monitoringStatsEnhanced.filter(s => s.status === 'running').length
+    + (isExecutandoDjenProcessosNoBrowser ? 1 : 0);
 
   return (
     <div className="space-y-6">
@@ -864,7 +894,7 @@ export function MonitoringDashboard() {
 
       {/* Monitoring Cards Grid */}
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {monitoringStats.map((stats) => {
+        {monitoringStatsEnhanced.map((stats) => {
           if (stats.tipo === 'djen') {
             return (
               <div key={stats.tipo} className="space-y-4">
