@@ -188,18 +188,28 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
 
   // Timer de tempo decorrido - usa ref para evitar cálculo baseado em startedAt antigo
   const startTimeRef = useRef<number | null>(null);
+  const lastElapsedRef = useRef<number>(0);
   
   useEffect(() => {
     if (isExecutando) {
       // Capturar o momento exato do início
       if (!startTimeRef.current) {
         startTimeRef.current = Date.now();
+        lastElapsedRef.current = 0;
       }
       
+      // Usar intervalo mais longo para evitar sobrecarga do React
       timerRef.current = setInterval(() => {
         if (startTimeRef.current) {
           const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-          setProgresso(prev => ({ ...prev, elapsedSeconds: elapsed }));
+          // Só atualizar se realmente mudou (evita re-renders desnecessários)
+          if (elapsed !== lastElapsedRef.current) {
+            lastElapsedRef.current = elapsed;
+            setProgresso(prev => {
+              if (prev.elapsedSeconds === elapsed) return prev; // Evita re-render
+              return { ...prev, elapsedSeconds: elapsed };
+            });
+          }
         }
       }, 1000);
     } else {
@@ -207,11 +217,13 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
-      startTimeRef.current = null; // Resetar quando parar
+      startTimeRef.current = null;
+      lastElapsedRef.current = 0;
     }
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = null;
       }
     };
   }, [isExecutando]);
@@ -322,20 +334,25 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       });
 
       // 3. Processar SEQUENCIALMENTE, um por um
+      const UPDATE_UI_INTERVAL = 50; // Atualizar UI a cada 50 processos (evita sobrecarga do React)
+      
       for (let i = 0; i < totalProcessos; i++) {
         if (canceladoRef.current) break;
 
         const processo = processosMonitorados[i];
         const numeroNormalizado = normalizeNumeroProcesso(processo.numero);
 
-        updateProgress({
-          currentPage: i + 1,
-          percentage: Math.round(((i + 1) / totalProcessos) * 100),
-          mensagem: `Processo ${i + 1}/${totalProcessos}: ${processo.numero.substring(0, 20)}...`,
-          novas: novasTotal,
-          duplicadas: duplicadasTotal,
-          totalPublicacoesAnalisadas: publicacoesAnalisadas,
-        });
+        // Atualizar UI apenas a cada N processos ou no primeiro/último
+        if (i === 0 || i === totalProcessos - 1 || (i + 1) % UPDATE_UI_INTERVAL === 0) {
+          updateProgress({
+            currentPage: i + 1,
+            percentage: Math.round(((i + 1) / totalProcessos) * 100),
+            mensagem: `Processo ${i + 1}/${totalProcessos}: ${processo.numero.substring(0, 20)}...`,
+            novas: novasTotal,
+            duplicadas: duplicadasTotal,
+            totalPublicacoesAnalisadas: publicacoesAnalisadas,
+          });
+        }
 
         let retryCount = 0;
         let success = false;
