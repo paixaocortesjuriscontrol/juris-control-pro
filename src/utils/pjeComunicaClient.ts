@@ -462,144 +462,154 @@ export async function buscarPjeComunicaPaginado(
 }
 
 // ============================================================================
-// BUSCA AGRUPADA COM OR - Otimização para 13k+ processos
+// BUSCA PARALELA INDIVIDUAL - Estratégia: OR do lado da aplicação
 // ============================================================================
 
 /**
- * Verifica se o número do processo está no formato CNJ válido (20+ dígitos).
- * Processos legados como "NDFC. 20.209.805-2" não funcionam bem com OR.
+ * Verifica se o número do processo está no formato CNJ válido (15+ dígitos).
+ * Processos legados como "NDFC. 20.209.805-2" serão processados individualmente.
  */
 export function isCnjFormat(numero: string): boolean {
   const digits = numero.replace(/\D/g, '');
-  return digits.length >= 15; // CNJ tem ~20 dígitos, mas alguns tribunais usam 15+
+  return digits.length >= 15;
 }
 
 /**
- * Constrói query OR para múltiplos processos.
- * Exemplo: "0001234-56.2024.5.10.0001 OR 0007890-12.2024.5.10.0002"
+ * Resultado de uma busca paralela com mapeamento por processo.
  */
-export function buildOrQuery(numerosProcesso: string[]): string {
-  // Usar apenas os números limpos para evitar problemas de encoding
-  return numerosProcesso
-    .filter(n => n && n.trim())
-    .join(' OR ');
-}
-
-/**
- * Resultado de uma busca agrupada com mapeamento por processo.
- */
-export interface BuscaAgrupadaResultado {
+export interface BuscaParalelaResultado {
   /** Publicações agrupadas por número do processo */
   porProcesso: Map<string, any[]>;
   /** Total de publicações encontradas */
   totalItems: number;
   /** Processos que retornaram resultados */
   processosComResultados: string[];
+  /** Processos que falharam (CORS, timeout, etc) */
+  processosFalharam: string[];
 }
 
 /**
- * Busca publicações para múltiplos processos em uma única requisição usando OR.
+ * Busca publicações para múltiplos processos em PARALELO.
  * 
- * OTIMIZAÇÃO: Reduz ~10x o número de requisições HTTP.
- * - 10 processos por requisição = 1.300 req (vs 13.000 individual)
- * - Tempo: ~11 min (vs ~2h individual)
+ * ESTRATÉGIA: OR do lado da aplicação (não da API)
+ * - A API PJE Comunica NÃO suporta sintaxe OR no parâmetro texto/palavraChave
+ * - Executamos N buscas individuais simultaneamente via Promise.allSettled
+ * 
+ * @param processos Lista de processos com id e numero
+ * @param params Datas de filtro
+ * @param options Opções de controle (parallelism, signal, delays)
  */
-export async function buscarPjeComunicaMultiplosProcessos(
-  numerosProcesso: string[],
-  params: { dataInicio?: string; dataFim?: string },
-  options?: { signal?: AbortSignal }
-): Promise<BuscaAgrupadaResultado> {
-  const resultado: BuscaAgrupadaResultado = {
+export async function buscarProcessosEmParalelo(
+  processos: { id: string; numero: string }[],
+  params: { dataInicio: string; dataFim: string },
+  options?: { 
+    signal?: AbortSignal;
+    /** Máximo de requisições simultâneas (default: 5) */
+    parallelism?: number;
+    /** Delay entre ciclos de requisições paralelas (default: 200ms) */
+    delayBetweenCycles?: number;
+    /** Callback de progresso */
+    onProgress?: (processed: number, total: number) => void;
+  }
+): Promise<BuscaParalelaResultado> {
+  const parallelism = options?.parallelism ?? 5;
+  const delayBetweenCycles = options?.delayBetweenCycles ?? 200;
+  
+  const resultado: BuscaParalelaResultado = {
     porProcesso: new Map(),
     totalItems: 0,
     processosComResultados: [],
+    processosFalharam: [],
   };
-
-  if (!numerosProcesso.length) return resultado;
+  
+  if (!processos.length) return resultado;
 
   // Inicializar mapa com arrays vazios
-  for (const num of numerosProcesso) {
-    resultado.porProcesso.set(num, []);
+  for (const proc of processos) {
+    resultado.porProcesso.set(proc.numero, []);
   }
 
-  // Construir query OR
-  const orQuery = buildOrQuery(numerosProcesso);
-  if (!orQuery) return resultado;
-
-  // Log para debug da query OR
-  console.log(`[PJE Comunica OR] Query com ${numerosProcesso.length} processos:`, orQuery.slice(0, 200) + '...');
-
-  try {
-    // IMPORTANTE: Usar tipo 'palavra-chave' para busca OR
-    // A API PJE Comunica usa Elasticsearch e o campo 'palavraChave' suporta operadores OR
-    const resp = await buscarPjeComunicaNoBrowser(
-      {
-        tipo: 'palavra-chave', // Busca por palavra-chave para suportar OR
-        palavraChave: orQuery, // Query com operador OR: "proc1 OR proc2 OR proc3"
-        dataInicio: params.dataInicio,
-        dataFim: params.dataFim,
-        pageSize: 50, // Mais itens por página para cobrir múltiplos processos
-      },
-      { signal: options?.signal }
-    );
+  let processedCount = 0;
+  
+  // Processa em ciclos de N requisições paralelas
+  for (let i = 0; i < processos.length; i += parallelism) {
+    // Verificar cancelamento
+    if (options?.signal?.aborted) break;
     
-    console.log(`[PJE Comunica OR] Resposta: ${resp.items.length} itens, total: ${resp.totalElements}`);
-
-    // Mapear resultados de volta para cada processo
-    for (const item of resp.items) {
-      const numProc = item?.numeroProcesso;
-      if (!numProc) continue;
-
-      // Tentar match exato primeiro
-      if (resultado.porProcesso.has(numProc)) {
-        resultado.porProcesso.get(numProc)!.push(item);
-        resultado.totalItems++;
-        continue;
-      }
-
-      // Fallback: match por substring (alguns tribunais retornam formato diferente)
-      for (const numOriginal of numerosProcesso) {
-        const digitsOriginal = numOriginal.replace(/\D/g, '');
-        const digitsRetornado = numProc.replace(/\D/g, '');
+    const lote = processos.slice(i, i + parallelism);
+    
+    const promises = lote.map(async (proc) => {
+      try {
+        const resp = await buscarPjeComunicaNoBrowser({
+          tipo: 'processo',
+          numeroProcesso: proc.numero,
+          dataInicio: params.dataInicio,
+          dataFim: params.dataFim,
+        }, { signal: options?.signal });
         
-        if (digitsOriginal === digitsRetornado || 
-            digitsOriginal.includes(digitsRetornado) || 
-            digitsRetornado.includes(digitsOriginal)) {
-          resultado.porProcesso.get(numOriginal)!.push(item);
-          resultado.totalItems++;
-          break;
+        return { 
+          numero: proc.numero, 
+          items: resp.items,
+          success: true,
+        };
+      } catch (e: any) {
+        // Se foi cancelamento, propagar
+        if (e?.name === 'AbortError') throw e;
+        
+        console.warn(`[Paralelo] Falha ${proc.numero}:`, e?.message?.slice(0, 80));
+        return { 
+          numero: proc.numero, 
+          items: [] as any[],
+          success: false,
+        };
+      }
+    });
+    
+    const resultadosLote = await Promise.allSettled(promises);
+    
+    for (const r of resultadosLote) {
+      if (r.status === 'fulfilled') {
+        const { numero, items, success } = r.value;
+        resultado.porProcesso.set(numero, items);
+        resultado.totalItems += items.length;
+        
+        if (items.length > 0) {
+          resultado.processosComResultados.push(numero);
+        }
+        if (!success) {
+          resultado.processosFalharam.push(numero);
         }
       }
     }
-
-    // Identificar processos com resultados
-    for (const [num, items] of resultado.porProcesso) {
-      if (items.length > 0) {
-        resultado.processosComResultados.push(num);
-      }
+    
+    processedCount += lote.length;
+    options?.onProgress?.(processedCount, processos.length);
+    
+    // Delay entre ciclos para evitar sobrecarregar a API
+    if (i + parallelism < processos.length && delayBetweenCycles > 0) {
+      await new Promise(r => setTimeout(r, delayBetweenCycles));
     }
-
-    return resultado;
-
-  } catch (e: any) {
-    // Se falhar, retornar resultado vazio (caller pode decidir fazer fallback individual)
-    console.warn('[PJE Comunica] Busca OR falhou:', e?.message);
-    throw e; // Re-throw para permitir retry ou fallback
   }
+
+  console.log(
+    `[Paralelo] Concluído: ${resultado.totalItems} publicações em ` +
+    `${resultado.processosComResultados.length}/${processos.length} processos ` +
+    `(${resultado.processosFalharam.length} falhas)`
+  );
+
+  return resultado;
 }
 
 /**
- * Configuração otimizada para busca agrupada.
+ * Configuração para busca paralela.
  */
-export const BUSCA_AGRUPADA_CONFIG = {
-  /** Processos por requisição OR (limite seguro para URL ~2KB) */
-  processosPerRequest: 10,
+export const BUSCA_PARALELA_CONFIG = {
   /** Requisições paralelas simultâneas */
-  parallelRequests: 3,
-  /** Delay entre grupos de requisições paralelas */
-  delayBetweenGroups: 300,
-  /** Processos por super-lote (checkpoint) */
-  superBatchSize: 200,
-  /** Delay entre super-lotes */
-  delayBetweenSuperBatches: 1500,
+  parallelism: 5,
+  /** Delay entre ciclos de requisições paralelas (ms) */
+  delayBetweenCycles: 200,
+  /** Processos por super-lote (checkpoint) - reduzido para checkpoints mais frequentes */
+  superBatchSize: 100,
+  /** Delay entre super-lotes (ms) */
+  delayBetweenSuperBatches: 500,
 };
