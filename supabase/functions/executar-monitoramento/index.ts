@@ -297,6 +297,28 @@ Deno.serve(async (req) => {
     // Para tipos pesados, disparamos o worker e retornamos rapidamente.
     // O próprio worker faz auto-continuação e atualiza execucoes_agendadas/configuracoes_monitoramento.
     if (tiposPesados.includes(tipo)) {
+      if (tipo === 'djen_processos' && !retomar) {
+        const freshMeta = await getFreshMetadata(supabase, tipo);
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            ultima_execucao: new Date().toISOString(),
+            metadata: {
+              ...(freshMeta || {}),
+              status: 'em_andamento',
+              cancelado: false,
+              pode_retomar: false,
+              current: 0,
+              next_offset: 0,
+              has_more: true,
+              last_error: null,
+              last_stop_reason: null,
+              last_stop_at: null,
+            },
+          })
+          .eq('tipo', tipo)
+          .is('coordenacao_id', null);
+      }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), WORKER_CALL_TIMEOUT_MS);
       try {
