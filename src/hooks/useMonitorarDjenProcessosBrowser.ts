@@ -115,6 +115,14 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
         .maybeSingle();
       
       const currentMeta = (config?.metadata as Record<string, any>) || {};
+
+      // Persistir o timestamp de início para o timer sobreviver a refresh/timeout.
+      // Não sobrescrever se já existir (mantém o início original da execução).
+      const runStartedAt =
+        currentMeta.run_started_at ||
+        (stats.startedAt as string | undefined) ||
+        currentMeta.startedAt ||
+        null;
       
       // Manter valores máximos para evitar regressão
       const novas = Math.max(stats.novas || 0, currentMeta.novas || 0);
@@ -136,6 +144,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
             percentage: Math.max(stats.percentage || 0, currentMeta.percentage || 0),
             status: stats.status || 'em_andamento',
             browser_execution: true,
+            run_started_at: runStartedAt,
             updated_at: new Date().toISOString(),
             // Limpar flags de erro ao salvar progresso ativo
             last_error: null,
@@ -176,6 +185,12 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
         .maybeSingle();
       
       const meta = config?.metadata as Record<string, any> | null;
+
+       // Timer estável (não reinicia ao retomar)
+       let startedAt = new Date().toISOString();
+       if (retomar && meta?.run_started_at) {
+         startedAt = meta.run_started_at;
+       }
       
       if (retomar && meta?.next_offset) {
         startOffset = meta.next_offset || 0;
@@ -203,7 +218,6 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
         return;
       }
 
-      const startedAt = new Date().toISOString();
       updateProgress({
         status: 'executando',
         current: startOffset,
@@ -332,6 +346,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
                 duplicadas: duplicadasTotal,
                 processosComNovas,
                 percentage: Math.round((currentGlobal / total) * 100),
+                 startedAt,
               };
               saveCheckpoint(currentGlobal, microCheckpoint); // fire-and-forget (sem await para não atrasar)
             }
@@ -352,6 +367,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           duplicadas: duplicadasTotal,
           processosComNovas,
           percentage: Math.round((offset / total) * 100),
+           startedAt,
         };
         
         updateProgress({
@@ -385,7 +401,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
         });
         
         // Limpar checkpoint
-        await saveCheckpoint(0, { status: 'concluido' as any, current: total, total, novas: novasTotal });
+        await saveCheckpoint(0, { status: 'concluido' as any, current: total, total, novas: novasTotal, startedAt });
         
         toast.success(`Monitoramento concluído: ${novasTotal} novas publicações`);
       }

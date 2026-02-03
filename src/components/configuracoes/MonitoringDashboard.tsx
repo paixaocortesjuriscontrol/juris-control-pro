@@ -170,25 +170,51 @@ function ExecutionDetails({
   const isRunning = forceRunning || (stats.status === 'running' && stats.currentExecution !== null);
   const statusConfig = STATUS_CONFIG[stats.status];
 
-  // Get total/progresso da execução atual (fonte única) - evita percentual travado
-  const { current: processados, total, percentage } = getExecutionProgress({
+  const metadata = (stats.config?.metadata as Record<string, any> | null) ?? null;
+  const checkpointTotal = Number(metadata?.total ?? 0);
+  const checkpointCurrent = Number((metadata?.next_offset ?? metadata?.current ?? 0) as any) || 0;
+  const checkpointPercent = checkpointTotal > 0
+    ? Math.min(100, Math.max(0, Math.round((checkpointCurrent / checkpointTotal) * 100)))
+    : 0;
+
+  // Progresso derivado da última execução (pode estar atrasado)
+  const { current: execCurrent, total: execTotal, percentage: execPct } = getExecutionProgress({
     detalhes: exec.detalhes,
     registros_processados: exec.registros_processados,
     total_lotes: exec.total_lotes,
     lotes_processados: exec.lotes_processados,
   });
 
-  // Preferir percentual calculado a partir de current/total durante execução.
-  // `stats.progress` pode ficar desatualizado (ex.: travar em 6%).
-  let progressPercent = total > 0 ? (percentage ?? 0) : (stats.progress ?? 0);
+  const execPercent = execTotal > 0 ? (execPct ?? 0) : (stats.progress ?? 0);
+  const hasCheckpoint = checkpointTotal > 0 && checkpointCurrent > 0;
+
+  // REGRA: nunca regredir por causa de snapshot antigo (ex.: voltar para 7%).
+  // - Se houver checkpoint persistido e ele estiver à frente, usar checkpoint.
+  // - Se estiver executando e houver currentExecution real, usar exec (mais vivo).
+  const preferCheckpoint = hasCheckpoint && (
+    execTotal === 0 ||
+    checkpointCurrent > execCurrent ||
+    checkpointPercent > execPercent
+  );
+
+  let progressPercent =
+    (isRunning && stats.currentExecution)
+      ? execPercent
+      : (preferCheckpoint ? checkpointPercent : execPercent);
 
   // Importante: registros_encontrados na tabela execucoes_agendadas nem sempre é atualizado
   // (principalmente em jobs assíncronos). Para confiabilidade, usamos a contagem persistida no banco
   // que já alimenta o resumo "Hoje" (todayStats.found).
   let encontradosBancoHoje = stats.todayStats.found ?? 0;
   let descartadasBancoHoje = stats.todayStats.descartadas ?? 0;
-  let processadosExibicao = processados;
-  let totalExibicao = total;
+  let processadosExibicao =
+    (isRunning && stats.currentExecution)
+      ? execCurrent
+      : (preferCheckpoint ? checkpointCurrent : execCurrent);
+  let totalExibicao =
+    (isRunning && stats.currentExecution)
+      ? execTotal
+      : (preferCheckpoint ? checkpointTotal : execTotal);
   let elapsedExibicao = stats.elapsedSeconds;
 
   if (forceReset) {
@@ -212,7 +238,7 @@ function ExecutionDetails({
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground font-medium">
               {isRunning ? (
-                total > 0 
+                totalExibicao > 0 
                   ? `Processando: ${processadosExibicao.toLocaleString('pt-BR')} de ${totalExibicao.toLocaleString('pt-BR')}`
                   : 'Processando...'
               ) : 'Progresso'}
