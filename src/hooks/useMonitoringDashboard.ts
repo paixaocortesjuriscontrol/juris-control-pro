@@ -608,6 +608,10 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       }
     } else if (metaStatus === 'concluido') {
       status = 'completed';
+    } else if (metaStatus === 'cancelado') {
+      status = 'cancelled';
+    } else if (metaStatus === 'erro') {
+      status = 'failed';
     } else if (metaStatus === 'timeout') {
       status = 'timeout';
     }

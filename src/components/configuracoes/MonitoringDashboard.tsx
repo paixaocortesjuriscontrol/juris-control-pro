@@ -295,7 +295,7 @@ function MonitoringCard({
   optimisticStartAt
 }: { 
   stats: MonitoringStats;
-  onExecute: (options?: { retomar?: boolean }) => void;
+  onExecute: () => void;
   onCancel: () => void;
   onSendSummary: () => void;
   isExecuting: boolean;
@@ -317,8 +317,7 @@ function MonitoringCard({
   const isRunning = displayStatus === 'running';
   // CORREÇÃO: Permitir executar quando status é 'timeout' (o usuário pode retomar ou reiniciar)
   const canExecute = !isExecuting && !optimisticActive && displayStatus !== 'running';
-  const metaStatus = stats.config?.metadata?.status;
-  const canCancel = displayStatus === 'running' || metaStatus === 'em_andamento' || optimisticActive;
+  const canCancel = displayStatus === 'running' || optimisticActive;
   
   // Verificar se há checkpoint para retomar (next_offset > 0 e status não é running/idle)
   const metadata = stats.config?.metadata;
@@ -395,7 +394,7 @@ function MonitoringCard({
           <Button 
             size="sm"
             className="flex-1"
-            onClick={() => onExecute(hasCheckpoint ? { retomar: true } : undefined)}
+            onClick={onExecute}
             disabled={!canExecute}
             variant={hasCheckpoint ? "outline" : "default"}
           >
@@ -403,11 +402,6 @@ function MonitoringCard({
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Iniciando...
-              </>
-            ) : hasCheckpoint ? (
-              <>
-                <PlayCircle className="h-4 w-4 mr-2" />
-                Retomar ({checkpointPercent}%)
               </>
             ) : (
               <>
@@ -496,6 +490,8 @@ export function MonitoringDashboard() {
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
   const [optimisticStartByTipo, setOptimisticStartByTipo] = useState<Record<string, number>>({});
   const [cancelling, setCancelling] = useState<Record<string, boolean>>({});
+  const [confirmResumeOpen, setConfirmResumeOpen] = useState(false);
+  const [confirmResumeTipo, setConfirmResumeTipo] = useState<string | null>(null);
   const [confirmReativarOpen, setConfirmReativarOpen] = useState(false);
   const [confirmTipo, setConfirmTipo] = useState<string | null>(null);
 
@@ -573,6 +569,20 @@ export function MonitoringDashboard() {
         return;
       }
 
+      if (!options?.retomar) {
+        const stats = monitoringStats.find(s => s.tipo === tipo);
+        const metadata = stats?.config?.metadata as Record<string, any> | undefined;
+        const nextOffset = Number(metadata?.next_offset || 0);
+        const total = Number(metadata?.total || 0);
+        const checkpointPercent = total > 0 ? Math.round((nextOffset / total) * 100) : 0;
+        const hasCheckpoint = nextOffset > 0 && checkpointPercent > 0 && checkpointPercent < 100;
+        if (hasCheckpoint) {
+          setConfirmResumeTipo(tipo);
+          setConfirmResumeOpen(true);
+          return;
+        }
+      }
+
       setExecuting(prev => ({ ...prev, [tipo]: true }));
       setOptimisticStartByTipo(prev => ({ ...prev, [tipo]: Date.now() }));
       setTimeout(() => {
@@ -612,6 +622,69 @@ export function MonitoringDashboard() {
 
   return (
     <div className="space-y-6">
+      <AlertDialog open={confirmResumeOpen} onOpenChange={setConfirmResumeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Execução anterior encontrada</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja continuar de onde parou ou reiniciar do zero?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmResumeTipo(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!confirmResumeTipo) return;
+                const tipo = confirmResumeTipo;
+                try {
+                  setExecuting(prev => ({ ...prev, [tipo]: true }));
+                  setOptimisticStartByTipo(prev => ({ ...prev, [tipo]: Date.now() }));
+                  setTimeout(() => {
+                    setOptimisticStartByTipo(prev => {
+                      if (!prev[tipo]) return prev;
+                      const next = { ...prev };
+                      delete next[tipo];
+                      return next;
+                    });
+                  }, 20000);
+                  setConfirmResumeOpen(false);
+                  setConfirmResumeTipo(null);
+                  await executarAgora(tipo, { retomar: true });
+                } finally {
+                  setExecuting(prev => ({ ...prev, [tipo]: false }));
+                }
+              }}
+            >
+              Continuar de onde parou
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!confirmResumeTipo) return;
+                const tipo = confirmResumeTipo;
+                try {
+                  setExecuting(prev => ({ ...prev, [tipo]: true }));
+                  setOptimisticStartByTipo(prev => ({ ...prev, [tipo]: Date.now() }));
+                  setTimeout(() => {
+                    setOptimisticStartByTipo(prev => {
+                      if (!prev[tipo]) return prev;
+                      const next = { ...prev };
+                      delete next[tipo];
+                      return next;
+                    });
+                  }, 20000);
+                  setConfirmResumeOpen(false);
+                  setConfirmResumeTipo(null);
+                  await executarAgora(tipo, { retomar: false });
+                } finally {
+                  setExecuting(prev => ({ ...prev, [tipo]: false }));
+                }
+              }}
+            >
+              Reiniciar do zero
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={confirmReativarOpen} onOpenChange={setConfirmReativarOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -763,7 +836,7 @@ export function MonitoringDashboard() {
             <MonitoringCard
               key={stats.tipo}
               stats={stats}
-              onExecute={(options) => handleExecute(stats.tipo, options)}
+              onExecute={() => handleExecute(stats.tipo)}
               onCancel={() => handleCancel(stats.tipo)}
               onSendSummary={() => enviarResumo(stats.tipo as any)}
               isExecuting={executing[stats.tipo] || false}
