@@ -1,160 +1,142 @@
 
-# Plano: Busca Agrupada com OR para Monitoramento DJEN Processos
+# Plano: Busca Paralela Individual (OR do lado da aplicação)
 
-## Resumo Executivo
+## Diagnóstico Confirmado
 
-Implementar busca agrupada de processos usando sintaxe "OR" no parâmetro `texto` da API PJE Comunica. Isso pode reduzir o tempo de execução de **~2 horas** para **~10-15 minutos** (ganho de 8-12x).
+Os logs mostram claramente:
+- `[PJE Comunica OR] Resposta: 0 itens, total: 0` (a API não entende a sintaxe OR)
+- `[PJE Comunica] CORS blocked` (o Preview bloqueia intermitentemente)
+
+**A API PJE Comunica não suporta sintaxe OR no parâmetro `texto`/`palavraChave`**. A busca "agrupada" precisa ser feita do lado da aplicação: **executar várias buscas individuais em paralelo**.
 
 ---
 
-## Análise Técnica
+## Estratégia: Busca Paralela Individual
 
-### Situação Atual
-- **13.000+ processos** monitorados individualmente
-- Cada processo = 1 requisição HTTP + 500ms delay
-- Tempo estimado: `13.000 × 0.5s = ~1h50min` (sem contar timeouts/retries)
-- Alta exposição a rate limiting (429) por volume de requisições
-
-### Proposta: Busca com OR
-A API PJE Comunica usa Elasticsearch que suporta queries compostas:
+Em vez de:
 ```
-texto=0001234-56.2024.5.10.0001 OR 0007890-12.2024.5.10.0002 OR ...
+texto=proc1 OR proc2 OR proc3... (NÃO FUNCIONA)
 ```
 
-**Ganho potencial:**
-- 10 processos por requisição = **1.300 requisições** (vs 13.000 atual)
-- Tempo estimado: `1.300 × 0.5s = ~11 minutos`
+Fazer:
+```
+Promise.all([
+  buscar(proc1),  // 10 buscas
+  buscar(proc2),  // executadas
+  ...             // em paralelo
+])
+```
 
 ---
 
 ## Implementação
 
-### Fase 1: Novo Método no Cliente PJE Comunica
+### 1. Remover busca OR (não funciona)
 
-**Arquivo:** `src/utils/pjeComunicaClient.ts`
+Eliminar `buscarPjeComunicaMultiplosProcessos` e a função `buildOrQuery`.
 
-Criar função `buscarPjeComunicaMultiplosProcessos`:
-```typescript
-export async function buscarPjeComunicaMultiplosProcessos(
-  numerosProcesso: string[],
-  params: { dataInicio?: string; dataFim?: string },
-  options?: { signal?: AbortSignal }
-): Promise<PjeComunicaResponse>
-```
+### 2. Implementar busca paralela controlada
 
-**Lógica:**
-1. Filtrar apenas processos com formato CNJ válido (20+ dígitos)
-2. Agrupar em lotes de **10 processos** (limite seguro para URL ~2KB)
-3. Construir query: `texto=proc1 OR proc2 OR proc3...`
-4. Executar requisição única
-5. Mapear resultados de volta para cada processo original
-
-### Fase 2: Atualizar Hook de Monitoramento
-
-**Arquivo:** `src/hooks/useMonitorarDjenProcessosBrowser.ts`
-
-**Mudanças:**
-1. Buscar processos em super-lotes de **200** (vs 20 atual)
-2. Agrupar em chunks de **10** para requisição OR
-3. Executar **3 requisições paralelas** (30 processos simultâneos)
-4. Distribuir resultados para cada processo do grupo
-5. Manter checkpoints por super-lote
-
-### Fase 3: Fallback para Processos Legados
-
-Processos com formato não-CNJ (ex: `NDFC. 20.209.805-2`) não funcionam bem com OR.
-
-**Estratégia:**
-1. Separar processos em 2 grupos no início
-2. Grupo CNJ → busca agrupada com OR (maioria)
-3. Grupo legado → busca individual (minoria, ~5%)
-4. Processar grupo CNJ primeiro, depois legado
-
----
-
-## Configuração Otimizada
-
-| Parâmetro | Atual | Novo |
-|-----------|-------|------|
-| Processos por requisição | 1 | 10 |
-| Requisições paralelas | 1 | 3 |
-| Delay entre requisições | 500ms | 300ms |
-| Super-lote (processos) | 20 | 200 |
-| Delay entre super-lotes | 2000ms | 1500ms |
-
-**Throughput estimado:**
-- Atual: ~2 processos/segundo
-- Novo: ~20-30 processos/segundo
-
----
-
-## Tratamento de Resultados
-
-Quando a API retorna publicações de uma busca OR, precisamos mapear cada resultado ao processo correto:
+**Nova função em `pjeComunicaClient.ts`:**
 
 ```typescript
-for (const item of resp.items) {
-  // A API retorna numeroProcesso em cada item
-  const numProc = item.numeroProcesso;
-  const processoOriginal = processosPorNumero.get(numProc);
-  if (processoOriginal) {
-    // Processar publicação para este processo
+export async function buscarProcessosEmParalelo(
+  processos: { id: string; numero: string }[],
+  params: { dataInicio: string; dataFim: string },
+  options?: { 
+    signal?: AbortSignal;
+    parallelism?: number; // Máximo de requisições simultâneas
   }
+): Promise<Map<string, any[]>> {
+  const parallelism = options?.parallelism ?? 5;
+  const resultados = new Map<string, any[]>();
+  
+  // Processa em lotes paralelos de N
+  for (let i = 0; i < processos.length; i += parallelism) {
+    const lote = processos.slice(i, i + parallelism);
+    
+    const promises = lote.map(async (proc) => {
+      try {
+        const resp = await buscarPjeComunicaNoBrowser({
+          tipo: 'processo',
+          numeroProcesso: proc.numero,
+          dataInicio: params.dataInicio,
+          dataFim: params.dataFim,
+        }, { signal: options?.signal });
+        
+        return { numero: proc.numero, items: resp.items };
+      } catch {
+        return { numero: proc.numero, items: [] };
+      }
+    });
+    
+    const resultadosLote = await Promise.allSettled(promises);
+    for (const r of resultadosLote) {
+      if (r.status === 'fulfilled') {
+        resultados.set(r.value.numero, r.value.items);
+      }
+    }
+  }
+  
+  return resultados;
 }
 ```
 
+### 3. Atualizar hook de monitoramento
+
+Substituir chamadas a `buscarPjeComunicaMultiplosProcessos` por `buscarProcessosEmParalelo`.
+
+**Configuração otimizada:**
+- 5 requisições paralelas por ciclo
+- 200ms delay entre ciclos
+- Checkpoint a cada 50 processos
+- Timeout individual de 15s
+
+### 4. Resolver timeout do banco
+
+O erro `statement timeout` ao buscar processos será resolvido usando keyset pagination:
+
+```typescript
+// Em vez de:
+.range(offset, offset + 200)
+
+// Usar:
+.gt('numero', lastNumero)
+.order('numero')
+.limit(200)
+```
+
 ---
 
-## Tratamento de Erros
+## Ganho de Performance
 
-1. **Se busca OR falhar:** Retry com metade do grupo (5 processos)
-2. **Se continuar falhando:** Fallback para busca individual
-3. **Rate limit (429):** Backoff exponencial (já implementado)
-4. **Processos sem match:** Registrar para auditoria
+| Métrica | Atual (OR falho) | Novo (Paralelo) |
+|---------|------------------|-----------------|
+| Processos simultâneos | 0 (bloqueado) | 5 |
+| Throughput | 0 proc/min | ~60 proc/min |
+| Tempo 13k processos | Infinito | ~3.5 horas |
+| Confiabilidade | 0% | ~95% |
+
+Ainda não é o ideal de 10-15 minutos que o OR prometia, mas funciona.
 
 ---
 
-## Riscos e Mitigações
+## Alternativa Futura: Publish
 
-| Risco | Mitigação |
-|-------|-----------|
-| API não suporta OR | Teste inicial validando sintaxe antes de implementar |
-| URL muito longa | Limite conservador de 10 processos (~2KB) |
-| Resultados misturados | Usar `numeroProcesso` do item para mapear |
-| Perda de publicações | Fallback individual se grupo retornar vazio suspeito |
+No ambiente **Published** (juris-control-pro.lovable.app), o CORS pode ser menos restritivo, permitindo testar se o paralelismo mais agressivo (10-15 simultâneos) é viável.
 
 ---
 
 ## Arquivos a Modificar
 
-1. `src/utils/pjeComunicaClient.ts`
-   - Adicionar `buscarPjeComunicaMultiplosProcessos()`
-   - Adicionar helper `buildOrQuery()`
+1. **`src/utils/pjeComunicaClient.ts`**
+   - Remover `buildOrQuery` e `buscarPjeComunicaMultiplosProcessos`
+   - Adicionar `buscarProcessosEmParalelo`
 
-2. `src/hooks/useMonitorarDjenProcessosBrowser.ts`
-   - Refatorar loop principal para usar busca agrupada
-   - Adicionar lógica de separação CNJ vs legado
-   - Implementar paralelismo controlado
+2. **`src/hooks/useMonitorarDjenProcessosBrowser.ts`**
+   - Substituir lógica OR por busca paralela
+   - Implementar keyset pagination para evitar timeout
+   - Ajustar checkpoints para granularidade menor
 
-3. `src/components/configuracoes/MonitoringDashboard.tsx`
-   - Ajustar mensagens de progresso (ex: "Lote 5/65 (200 processos)")
-
----
-
-## Métricas de Sucesso
-
-- Tempo total de execução: **< 20 minutos** (vs ~2h atual)
-- Taxa de erro por timeout: **< 1%** (vs ~5% atual)
-- Cobertura de publicações: **100%** (mesmo resultado que busca individual)
-
----
-
-## Próximos Passos
-
-1. Criar teste manual com 10 processos usando sintaxe OR
-2. Implementar função `buscarPjeComunicaMultiplosProcessos`
-3. Refatorar hook de monitoramento
-4. Testar com amostra de 500 processos
-5. Validar cobertura comparando com busca individual
-6. Deploy gradual
-
+3. **`.lovable/memory`**
+   - Atualizar documentação com nova estratégia
