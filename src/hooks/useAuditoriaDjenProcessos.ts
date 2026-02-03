@@ -43,96 +43,46 @@ export function useAuditoriaDjenProcessos() {
     },
   });
 
+  // REMOVIDO: reprocessarLote via Edge Function
+  // DJEN Processos agora é 100% browser-only para evitar WORKER_LIMIT (546).
+  // Use o hook useMonitorarDjenProcessosBrowser diretamente no componente.
   const reprocessarLote = useMutation({
-    mutationFn: async (lote: LoteDjenProcessos) => {
-      const { data, error } = await supabase.functions.invoke('monitorar-djen-processos', {
-        body: {
-          dataInicio: lote.detalhes?.dataInicio,
-          dataFim: lote.detalhes?.dataFim,
-          continuarDe: lote.detalhes?.offset,
-          completeRun: true,
-        },
-      });
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      const novas = (data?.novas ?? data?.novasPublicacoes ?? 0) as number;
-      toast.success(`Lote reprocessado: ${novas} novas publicações`);
-      queryClient.invalidateQueries({ queryKey: ['auditoria-djen-processos'] });
+    mutationFn: async (_lote: LoteDjenProcessos) => {
+      // Não chamar Edge Function - use o hook de browser no componente
+      throw new Error(
+        'Reprocessamento via Edge Function desabilitado. ' +
+        'Use o botão "Executar" no card DJEN Processos (execução local no navegador).'
+      );
     },
     onError: (error) => {
-      toast.error(`Erro ao reprocessar: ${error.message}`);
+      toast.error(error.message);
     },
   });
 
-  // Nova mutation para retomar de onde parou em caso de erro
+  // REMOVIDO: retomarDeOndeParou via Edge Function
+  // DJEN Processos agora é 100% browser-only para evitar WORKER_LIMIT (546).
   const retomarDeOndeParou = useMutation({
     mutationFn: async () => {
-      // Buscar configuração para obter o offset salvo
-      const { data: config, error: configError } = await supabase
-        .from('configuracoes_monitoramento')
-        .select('metadata')
-        .eq('tipo', 'djen_processos')
-        .maybeSingle();
-
-      if (configError) throw configError;
-
-      const metadata = config?.metadata as Record<string, any> | null;
-      const nextOffset = metadata?.next_offset || 0;
-      const status = metadata?.status;
-      const podeRetomar = metadata?.pode_retomar || status === 'erro' || status === 'em_andamento' || nextOffset > 0;
-
-      if (!podeRetomar && nextOffset === 0) {
-        throw new Error('Não há execução para retomar. Inicie uma nova execução.');
-      }
-
-      // Limpar flags de erro antes de retomar
-      await supabase
-        .from('configuracoes_monitoramento')
-        .update({
-          metadata: {
-            ...metadata,
-            status: 'em_andamento',
-            ultimo_erro: null,
-            erro_em: null,
-            pode_retomar: false,
-            cancelado: false,
-          },
-        })
-        .eq('tipo', 'djen_processos');
-
-      // Invocar com continuarDe = offset salvo
-      const { data, error } = await supabase.functions.invoke('monitorar-djen-processos', {
-        body: {
-          continuarDe: nextOffset,
-          completeRun: true,
-        },
-      });
-
-      if (error) throw error;
-      return { ...data, offsetRetomado: nextOffset };
-    },
-    onSuccess: (data) => {
-      toast.success(`Retomando do offset ${data.offsetRetomado}. Acompanhe o progresso.`);
-      queryClient.invalidateQueries({ queryKey: ['auditoria-djen-processos'] });
-      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+      throw new Error(
+        'Retomada via Edge Function desabilitada. ' +
+        'Use o botão "Retomar" no card DJEN Processos (execução local no navegador).'
+      );
     },
     onError: (error) => {
-      toast.error(`Erro ao retomar: ${error.message}`);
+      toast.error(error.message);
     },
   });
 
-  // Mutation para forçar reinício do zero (ignora checkpoint)
+  // REMOVIDO: reiniciarDoZero via Edge Function
+  // DJEN Processos agora é 100% browser-only para evitar WORKER_LIMIT (546).
   const reiniciarDoZero = useMutation({
     mutationFn: async () => {
-      // Limpar metadata e forçar offset 0
+      // Limpar metadata para permitir novo início
       await supabase
         .from('configuracoes_monitoramento')
         .update({
           metadata: {
-            status: 'em_andamento',
+            status: 'idle',
             next_offset: 0,
             current: 0,
             total: 0,
@@ -142,28 +92,20 @@ export function useAuditoriaDjenProcessos() {
             cancelado: false,
             ultimo_erro: null,
             erro_em: null,
+            browser_execution: true,
           },
         })
         .eq('tipo', 'djen_processos');
 
-      // Invocar com continuarDe = 0 explícito
-      const { data, error } = await supabase.functions.invoke('monitorar-djen-processos', {
-        body: {
-          continuarDe: 0,
-          completeRun: true,
-        },
-      });
-
-      if (error) throw error;
-      return data;
+      toast.info('Checkpoint limpo. Use o botão "Executar" no card DJEN Processos.');
+      return { cleared: true };
     },
     onSuccess: () => {
-      toast.success('Reiniciando monitoramento do zero. Acompanhe o progresso.');
       queryClient.invalidateQueries({ queryKey: ['auditoria-djen-processos'] });
       queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
     },
     onError: (error) => {
-      toast.error(`Erro ao reiniciar: ${error.message}`);
+      toast.error(`Erro ao limpar: ${error.message}`);
     },
   });
 

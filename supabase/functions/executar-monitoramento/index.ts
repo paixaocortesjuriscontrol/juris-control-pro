@@ -6,12 +6,12 @@ const corsHeaders = {
 };
 
 // Mapeamento de tipos para funções
-// NOTA: 'djen' foi removido - agora usa busca direta no frontend (useBuscaDjenDireta)
+// NOTA: 'djen' e 'djen_processos' removidos - agora usam busca direta no frontend (browser-only)
+// Isso evita o erro WORKER_LIMIT (546) que ocorria com Edge Functions em alto volume
 const FUNCOES_MAP: Record<string, string> = {
   redistribuicoes: 'monitorar-redistribuicoes',
   andamentos: 'monitorar-andamentos',
   distribuicoes: 'monitorar-distribuicoes',
-  djen_processos: 'monitorar-djen-processos',
   termos: 'monitorar-termos',
 };
 
@@ -47,6 +47,19 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const { tipo, scheduled = false, jobName, retomar = false } = body;
+
+    // DJEN Processos é agora browser-only para evitar WORKER_LIMIT (546)
+    if (tipo === 'djen_processos' || tipo === 'djen') {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          blocked: true,
+          message: `${tipo === 'djen_processos' ? 'DJEN Processos' : 'DJEN Termos'} agora executa apenas no navegador. Use o painel de Configurações para executar manualmente.`,
+          browserOnly: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!tipo || !FUNCOES_MAP[tipo]) {
       return new Response(
