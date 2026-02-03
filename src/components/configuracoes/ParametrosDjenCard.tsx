@@ -50,6 +50,18 @@ const DEFAULTS: Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo' | 'tipo_monito
   retry_base_delay_ms: 2000,
 };
 
+const PROCESSOS_DEFAULTS: Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo' | 'tipo_monitoramento_id'> = {
+  ...DEFAULTS,
+  max_paralelo: 1,
+  batch_size: 10,
+  group_search_size: 10,
+  delay_entre_lotes: 10000,
+  delay_entre_paginas: 2000,
+  soft_timeout_ms: 60000,
+  finalization_buffer_ms: 15000,
+  max_retries: 5,
+  retry_base_delay_ms: 10000,
+};
 const PRESETS: Record<string, Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo' | 'tipo_monitoramento_id'>> = {
   conservador: {
     modo_processamento: 'sequencial',
@@ -147,10 +159,10 @@ async function updateParametros(id: string, updates: Partial<ParametrosDjen>): P
   if (error) throw error;
 }
 
-async function createParametros(tipoId: string): Promise<void> {
+async function createParametros(tipoId: string, tipoSlug?: string | null): Promise<void> {
   const payload = {
     tipo_monitoramento_id: tipoId,
-    ...DEFAULTS,
+    ...(tipoSlug === 'djen_processos' ? PROCESSOS_DEFAULTS : DEFAULTS),
     ativo: true,
   };
 
@@ -215,7 +227,7 @@ export function ParametrosDjenCard() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!tipoAtual?.id) throw new Error('Tipo não selecionado');
-      await createParametros(tipoAtual.id);
+      await createParametros(tipoAtual.id, tipoAtual.slug);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parametros-djen', tipoAtual?.id] });
