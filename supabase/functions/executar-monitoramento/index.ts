@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { tipo, scheduled = false, jobName } = body;
+    const { tipo, scheduled = false, jobName, retomar = false } = body;
 
     if (!tipo || !FUNCOES_MAP[tipo]) {
       return new Response(
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
 
         // TIMEOUT INTELIGENTE: só aplicar timeout absoluto se TAMBÉM não houver progresso recente
         // Isso permite execuções longas quando a API DataJud está lenta mas o worker ainda está processando
-        if (minutosDecorridos > 60 && heartbeatStale) {
+        if (minutosDecorridos > 240 && heartbeatStale) {
           console.log(`[${tipo}] Timeout após ${Math.round(minutosDecorridos)}min SEM progresso recente (heartbeat stale)`);
           await supabase
             .from('execucoes_agendadas')
@@ -146,12 +146,23 @@ Deno.serve(async (req) => {
           continue;
         }
         // Se há progresso recente, NÃO aplicar timeout (log para visibilidade)
-        if (minutosDecorridos > 60) {
+        if (minutosDecorridos > 240) {
           console.log(`[${tipo}] Execução há ${Math.round(minutosDecorridos)}min, mas com heartbeat ativo - continuando`);
         }
 
         // Se é do mesmo tipo, bloquear
         if (execucao.tipo === tipo) {
+          if (retomar) {
+            return new Response(
+              JSON.stringify({
+                success: true,
+                resumed: true,
+                message: `Execução de ${tipo} já está em andamento. Retomando acompanhamento.`,
+                execucaoId: execucao.id,
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
           // Se aparenta travado (sem atualizar ultima_execucao há um tempo), liberar.
           // Isso evita ficar “preso” num estado executando quando a Edge Function foi interrompida.
           if (heartbeatStale) {

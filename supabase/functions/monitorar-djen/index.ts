@@ -67,6 +67,25 @@ function applyConfigToLegacy() {
   JINA_MIN_INTERVAL_MS = CONFIG.delay_jina_api;
 }
 
+function applyConservativeProfile(reason: string) {
+  CONFIG = {
+    ...CONFIG,
+    modo_processamento: 'sequencial',
+    max_paralelo: 1,
+    max_por_invocacao: 2,
+    delay_entre_monitoramentos: 1500,
+    delay_entre_paginas: 800,
+    delay_entre_tribunais: 800,
+    delay_jina_api: 3000,
+    soft_timeout_ms: 60000,
+    finalization_buffer_ms: 15000,
+    max_retries: 1,
+    retry_base_delay_ms: 2000,
+  };
+  applyConfigToLegacy();
+  console.log(`[DJEN] Modo conservador aplicado (${reason}).`);
+}
+
 // Retry config: if first batch at 09:00 is empty, retry after this delay
 const RETRY_DELAY_MINUTES = 15;
 const MAX_RETRIES = 4;
@@ -1902,6 +1921,10 @@ serve(async (req) => {
     const execucaoId = body?.execucaoId as string | undefined;
     const conservative = body?.conservative === true;
     const indexMode = body?.indexMode as string | undefined;
+
+    if (scheduled || conservative) {
+      applyConservativeProfile(scheduled ? 'scheduled' : 'manual_conservative');
+    }
 
     const urlOffsetRaw = url.searchParams.get('offset');
     const urlOffset = urlOffsetRaw !== null ? Number.parseInt(urlOffsetRaw, 10) : NaN;

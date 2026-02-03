@@ -205,15 +205,44 @@ export function useDjenTermos() {
 
   const indexarDiario = useCallback(async (dataYmd: string) => {
     try {
-      toast.info(`Indexando diário ${dataYmd}...`);
-      const { error } = await withTimeout(
-        supabase.functions.invoke('indexar-djen-diario', { body: { dataYmd, force: true } }),
-        120_000,
-        'Indexação demorou mais que 120s. Verifique o log da função.'
-      );
-      if (error) throw error;
-      toast.success('Indexação concluída!');
-      queryClient.invalidateQueries({ queryKey: ['monitoring-dashboard'] });
+      toast.info(`Solicitando indexação do diário ${dataYmd}...`);
+
+      const { data: pendingReq, error: pendingErr } = await (supabase as any)
+        .from('djen_diario_index_requests')
+        .select('id, status')
+        .eq('data_ymd', dataYmd)
+        .in('status', ['pendente', 'em_andamento'])
+        .order('requested_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (pendingErr) throw pendingErr;
+
+      if (pendingReq) {
+        const { error: resetErr } = await (supabase as any)
+          .from('djen_diario_index_requests')
+          .update({
+            status: 'pendente',
+            started_at: null,
+            finished_at: null,
+            erro_mensagem: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pendingReq.id);
+        if (resetErr) throw resetErr;
+        toast.success('Solicitação reativada. O servidor iniciará em seguida.');
+        return;
+      }
+
+      const { error: insertErr } = await (supabase as any)
+        .from('djen_diario_index_requests')
+        .insert({
+          data_ymd: dataYmd,
+          status: 'pendente',
+        });
+      if (insertErr) throw insertErr;
+
+      toast.success('Solicitação registrada. O servidor iniciará em seguida.');
+      queryClient.invalidateQueries({ queryKey: ['djen-diario-index'] });
     } catch (err: any) {
       console.error('Erro ao indexar diário:', err);
       toast.error(`Erro ao indexar: ${err?.message ?? String(err)}`);
