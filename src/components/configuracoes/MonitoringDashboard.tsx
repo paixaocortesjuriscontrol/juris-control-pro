@@ -27,7 +27,8 @@ import {
   formatDuration, 
   formatDateTime,
   type MonitoringStats,
-  type MonitoringStatus
+  type MonitoringStatus,
+  type MonitoringExecution,
 } from "@/hooks/useMonitoringDashboard";
 import { useMonitorarDjenProcessosBrowser } from "@/hooks/useMonitorarDjenProcessosBrowser";
 import { toast } from "sonner";
@@ -663,24 +664,53 @@ export function MonitoringDashboard() {
     if (s.tipo !== 'djen_processos') return s;
     // Se execução local ativa, sobrescrever status/progress
     if (progressoDjenProcessosBrowser.status === 'executando') {
+      const browserExec: MonitoringExecution = {
+        id: 'browser-djen-processos',
+        tipo: 'djen_processos',
+        status: 'executando',
+        job_name: 'browser-monitorar-djen-processos',
+        iniciado_em: (s.currentExecution?.iniciado_em || new Date().toISOString()),
+        finalizado_em: null,
+        lotes_processados: progressoDjenProcessosBrowser.current,
+        total_lotes: progressoDjenProcessosBrowser.total,
+        registros_processados: progressoDjenProcessosBrowser.current,
+        registros_encontrados: progressoDjenProcessosBrowser.novas,
+        erros: 0,
+        ultimo_erro: null,
+        retry_count: 0,
+        detalhes: {
+          ...(s.currentExecution?.detalhes || {}),
+          browser_execution: true,
+          progress: {
+            current: progressoDjenProcessosBrowser.current,
+            total: progressoDjenProcessosBrowser.total,
+            percentage: progressoDjenProcessosBrowser.percentage,
+          },
+        },
+      };
+
       return {
         ...s,
         status: 'running' as const,
         progress: progressoDjenProcessosBrowser.percentage,
-        currentExecution: s.currentExecution
-          ? {
-              ...s.currentExecution,
-              registros_processados: progressoDjenProcessosBrowser.current,
-              detalhes: {
-                ...s.currentExecution.detalhes,
-                progress: {
-                  current: progressoDjenProcessosBrowser.current,
-                  total: progressoDjenProcessosBrowser.total,
-                  percentage: progressoDjenProcessosBrowser.percentage,
-                },
-              },
-            }
-          : null,
+        // Importante: garantir currentExecution != null para o painel de detalhes
+        // calcular isRunning corretamente (evita card “Executando” sem progresso visível).
+        currentExecution: s.currentExecution ? {
+          ...s.currentExecution,
+          status: 'executando',
+          finalizado_em: null,
+          registros_processados: progressoDjenProcessosBrowser.current,
+          registros_encontrados: progressoDjenProcessosBrowser.novas,
+          detalhes: {
+            ...(s.currentExecution.detalhes || {}),
+            browser_execution: true,
+            progress: {
+              current: progressoDjenProcessosBrowser.current,
+              total: progressoDjenProcessosBrowser.total,
+              percentage: progressoDjenProcessosBrowser.percentage,
+            },
+          },
+        } : browserExec,
       };
     }
     return s;
