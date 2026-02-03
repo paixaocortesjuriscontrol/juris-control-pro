@@ -132,9 +132,12 @@ function normalizeAccents(text: string): string {
     .trim();
 }
 
-function buildTextoParam(params: PjeComunicaSearchParams): string {
+function buildTextoParam(params: PjeComunicaSearchParams): string | null {
   if (params.tipo === "palavra-chave") {
     const termo = (params.palavraChave || "").trim();
+    // Se termo é '*' ou vazio, significa busca geral (só por tribunal/data)
+    // Retornar null para não enviar parâmetro texto
+    if (!termo || termo === '*') return null;
     // Usar versão sem acentos para melhor cobertura
     // A API do PJE Comunica às vezes armazena sem acentos
     return normalizeAccents(termo);
@@ -155,19 +158,27 @@ export async function buscarPjeComunicaNoBrowser(
   options?: { signal?: AbortSignal }
 ): Promise<PjeComunicaResponse> {
   const texto = buildTextoParam(params);
-  if (!texto) throw new Error("Parâmetro de busca inválido");
+  
+  // Se não tem texto E também não tem tribunal/data, é inválido
+  const hasTribunal = !!params.siglaTribunal;
+  const hasData = !!(params.dataInicio || params.dataFim);
+  if (!texto && !hasTribunal && !hasData) {
+    throw new Error("Parâmetro de busca inválido (precisa de termo, tribunal ou data)");
+  }
 
   const page = Math.max(params.page ?? 0, 0);
-  // Keep payload small (consistent with buscar-djen hard cap)
-  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 10);
+  // Para busca geral por tribunal, permitir pageSize maior (50)
+  // Para buscas específicas, manter 10 para evitar sobrecarga
+  const maxPageSize = (hasTribunal && !texto) ? 50 : 10;
+  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), maxPageSize);
 
   const qp = new URLSearchParams();
 
-  // 1) Query principal por texto
+  // 1) Query principal por texto (se disponível)
   // IMPORTANTE: para busca por ADVOGADO/OAB, alguns tribunais retornam 0 quando `texto` vem junto
   // com `numeroOab/ufOab` (isso é exatamente o que o diagnóstico compara).
   // Estratégia: primeiro tentar SEM `texto` (só numeroOab/ufOab). Se vier vazio, tentamos COM `texto`.
-  const shouldSendTextoFirst = params.tipo !== "advogado";
+  const shouldSendTextoFirst = params.tipo !== "advogado" && texto !== null;
   if (shouldSendTextoFirst) {
     qp.set("texto", texto);
   }
@@ -205,8 +216,8 @@ export async function buscarPjeComunicaNoBrowser(
   // O endpoint /comunicacoes (plural) retorna 404 para vários tribunais
   const endpoint = ENDPOINTS[0]; // /comunicacao (singular)
 
-  // Timeout de 30s por requisição para evitar travamentos
-  const REQUEST_TIMEOUT_MS = 30000;
+  // Timeout de 60s por requisição - aumentado para buscas gerais por tribunal
+  const REQUEST_TIMEOUT_MS = 60000;
 
   const doRequest = async (queryParams: URLSearchParams): Promise<PjeComunicaResponse> => {
     await awaitGlobalCooldown();
@@ -297,7 +308,7 @@ export async function buscarPjeComunicaNoBrowser(
 
     // 2) Fallback específico p/ advogado: tentar com `texto` caso a API tenha retornado vazio
     // (sem erro HTTP) — mantém o comportamento do diagnóstico.
-    if (params.tipo === 'advogado' && first.items.length === 0) {
+    if (params.tipo === 'advogado' && first.items.length === 0 && texto) {
       const qp2 = new URLSearchParams(qp);
       qp2.set('texto', texto);
       return await doRequest(qp2);
