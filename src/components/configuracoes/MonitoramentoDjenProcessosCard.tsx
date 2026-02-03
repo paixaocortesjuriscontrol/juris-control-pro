@@ -64,16 +64,33 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   // Determina se está executando (browser local ou detectado via realtime)
   const executando = browserExecutando || realtimeProgress.isRunning;
 
-  // Progresso combinado: browser local tem prioridade, senão usa realtime
+  // Progresso combinado: browser local tem prioridade
   const progresso = browserExecutando ? {
-    processados: browserProgress.current,
-    total: browserProgress.total,
+    tribunalAtual: browserProgress.tribunalAtual || '',
+    currentTribunal: browserProgress.currentTribunal,
+    totalTribunais: browserProgress.totalTribunais,
     novas: browserProgress.novas,
+    analisadas: browserProgress.totalPublicacoesAnalisadas,
+    mensagem: browserProgress.mensagem,
+    percentage: browserProgress.percentage,
+    elapsedSeconds: browserProgress.elapsedSeconds,
   } : (realtimeProgress.isRunning ? {
-    processados: realtimeProgress.current,
-    total: realtimeProgress.total,
+    tribunalAtual: '',
+    currentTribunal: 0,
+    totalTribunais: 0,
     novas: realtimeProgress.novas ?? 0,
+    analisadas: realtimeProgress.current,
+    mensagem: `${realtimeProgress.current}/${realtimeProgress.total}`,
+    percentage: realtimeProgress.total > 0 ? Math.round((realtimeProgress.current / realtimeProgress.total) * 100) : 0,
+    elapsedSeconds: 0,
   } : null);
+
+  // Helper para formatar tempo
+  const formatElapsed = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // Buscar configuração
   const { data: config, isLoading } = useQuery({
@@ -237,9 +254,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     );
   }
 
-  const progressPercent = progresso && progresso.total > 0 
-    ? Math.round((progresso.processados / progresso.total) * 100) 
-    : 0;
+  const progressPercent = progresso?.percentage ?? 0;
 
   return (
     <Card>
@@ -426,42 +441,60 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {realtimeProgress.isRunning && !browserExecutando ? 'Execução em andamento' : 'Executando no navegador...'}
+                {realtimeProgress.isRunning && !browserExecutando ? 'Execução em andamento' : 'Buscando por tribunal...'}
               </div>
-              {executando && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCancelar}
-                  className="h-7 gap-1 text-destructive hover:text-destructive"
-                >
-                  <StopCircle className="h-3 w-3" />
-                  Cancelar
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {progresso && progresso.elapsedSeconds > 0 && (
+                  <Badge variant="outline" className="gap-1 font-mono">
+                    <Clock className="h-3 w-3" />
+                    {formatElapsed(progresso.elapsedSeconds)}
+                  </Badge>
+                )}
+                {executando && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelar}
+                    className="h-7 gap-1 text-destructive hover:text-destructive"
+                  >
+                    <StopCircle className="h-3 w-3" />
+                    Cancelar
+                  </Button>
+                )}
+              </div>
             </div>
             
-            <div className="flex items-center justify-between text-xs">
-              {progresso && progresso.total > 0 ? (
-                <>
+            {progresso && (
+              <div className="space-y-2">
+                {/* Tribunal atual */}
+                {progresso.tribunalAtual && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <Globe className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium">{progresso.tribunalAtual}</span>
+                    <span className="text-muted-foreground">
+                      ({progresso.currentTribunal + 1}/{progresso.totalTribunais} tribunais)
+                    </span>
+                  </div>
+                )}
+                
+                {/* Stats */}
+                <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">
-                    {progresso.processados.toLocaleString('pt-BR')} de {progresso.total.toLocaleString('pt-BR')} processos
+                    {progresso.analisadas?.toLocaleString('pt-BR') || 0} publicações analisadas
                   </span>
                   <span className="font-medium text-green-600">+{progresso.novas} novas</span>
-                </>
-              ) : (
-                <span className="text-muted-foreground">Iniciando busca...</span>
-              )}
-            </div>
+                </div>
+              </div>
+            )}
             
             <Progress 
-              value={progresso && progresso.total > 0 ? progressPercent : undefined} 
-              className={cn("h-2", (!progresso || progresso.total === 0) && "animate-pulse")} 
+              value={progresso?.percentage ?? 0} 
+              className={cn("h-2", (!progresso || progresso.percentage === 0) && "animate-pulse")} 
             />
             
-            {progresso && progresso.total > 0 && (
+            {progresso?.mensagem && (
               <div className="text-xs text-center text-muted-foreground">
-                {progressPercent}% concluído
+                {progresso.mensagem}
               </div>
             )}
           </div>

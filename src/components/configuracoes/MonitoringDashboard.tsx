@@ -700,9 +700,9 @@ export function MonitoringDashboard() {
         job_name: 'browser-monitorar-djen-processos',
         iniciado_em: browserStartedAt,
         finalizado_em: null,
-        lotes_processados: progressoDjenProcessosBrowser.current,
-        total_lotes: progressoDjenProcessosBrowser.total,
-        registros_processados: progressoDjenProcessosBrowser.current,
+        lotes_processados: progressoDjenProcessosBrowser.currentTribunal,
+        total_lotes: progressoDjenProcessosBrowser.totalTribunais,
+        registros_processados: progressoDjenProcessosBrowser.totalPublicacoesAnalisadas,
         registros_encontrados: progressoDjenProcessosBrowser.novas,
         erros: 0,
         ultimo_erro: null,
@@ -710,9 +710,10 @@ export function MonitoringDashboard() {
         detalhes: {
           ...(s.currentExecution?.detalhes || {}),
           browser_execution: true,
+          tribunal_atual: progressoDjenProcessosBrowser.tribunalAtual,
           progress: {
-            current: progressoDjenProcessosBrowser.current,
-            total: progressoDjenProcessosBrowser.total,
+            current: progressoDjenProcessosBrowser.currentTribunal,
+            total: progressoDjenProcessosBrowser.totalTribunais,
             percentage: progressoDjenProcessosBrowser.percentage,
           },
         },
@@ -727,16 +728,17 @@ export function MonitoringDashboard() {
         currentExecution: s.currentExecution ? {
           ...s.currentExecution,
           status: 'executando',
-          iniciado_em: browserStartedAt, // Garantir tempo correto
+          iniciado_em: browserStartedAt,
           finalizado_em: null,
-          registros_processados: progressoDjenProcessosBrowser.current,
+          registros_processados: progressoDjenProcessosBrowser.totalPublicacoesAnalisadas,
           registros_encontrados: progressoDjenProcessosBrowser.novas,
           detalhes: {
             ...(s.currentExecution.detalhes || {}),
             browser_execution: true,
+            tribunal_atual: progressoDjenProcessosBrowser.tribunalAtual,
             progress: {
-              current: progressoDjenProcessosBrowser.current,
-              total: progressoDjenProcessosBrowser.total,
+              current: progressoDjenProcessosBrowser.currentTribunal,
+              total: progressoDjenProcessosBrowser.totalTribunais,
               percentage: progressoDjenProcessosBrowser.percentage,
             },
           },
