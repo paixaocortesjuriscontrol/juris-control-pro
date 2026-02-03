@@ -147,6 +147,20 @@ async function updateParametros(id: string, updates: Partial<ParametrosDjen>): P
   if (error) throw error;
 }
 
+async function createParametros(tipoId: string): Promise<void> {
+  const payload = {
+    tipo_monitoramento_id: tipoId,
+    ...DEFAULTS,
+    ativo: true,
+  };
+
+  const { error } = await (supabase as any)
+    .from('parametros_monitoramento_djen')
+    .insert(payload);
+
+  if (error) throw error;
+}
+
 export function ParametrosDjenCard() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(true);
@@ -192,6 +206,20 @@ export function ParametrosDjenCard() {
     },
     onError: (error) => {
       toast.error(`Erro ao atualizar: ${error.message}`);
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      if (!tipoAtual?.id) throw new Error('Tipo não selecionado');
+      await createParametros(tipoAtual.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['parametros-djen', tipoAtual?.id] });
+      toast.success('Configuração criada com sucesso!');
+    },
+    onError: (error) => {
+      toast.error(`Erro ao criar configuração: ${error.message}`);
     },
   });
 
@@ -247,9 +275,35 @@ export function ParametrosDjenCard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Nenhuma configuração encontrada para o tipo selecionado.
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Nenhuma configuração encontrada para o tipo selecionado.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select
+                value={tipoAtual?.id}
+                onValueChange={(v) => setTipoSelecionado(v)}
+              >
+                <SelectTrigger className="h-8 w-[220px]">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(tipos || []).map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                onClick={() => createMutation.mutate()}
+                disabled={!tipoAtual?.id || createMutation.isPending}
+              >
+                Criar configuração
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
