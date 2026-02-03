@@ -57,7 +57,10 @@ export function useRealtimeProgress({
     metadata: Record<string, any> | null,
     execucao: Record<string, any> | null
   ): RealtimeProgress => {
-    // Primeiro verifica execucao (mais atualizado durante execução)
+    // Primeiro verifica execucao (pode ser mais atualizado durante execução)
+    // ATENÇÃO: para DJEN Processos, execucoes_agendadas pode ficar com um snapshot
+    // antigo (ex.: 7%) mesmo quando o checkpoint em metadata já está em 51%.
+    // Portanto, sempre consolidamos usando o MAIOR valor entre as fontes.
     const execProgress = execucao?.detalhes?.progress;
     const metaStatus = metadata?.status as string | undefined;
     const cancelado = metadata?.cancelado === true;
@@ -67,31 +70,51 @@ export function useRealtimeProgress({
     // Não inferir "stale" por texto livre (evita UI alternando status/% por mensagens transitórias).
     const metaIsStale = metaStopReason === 'stale';
     
+    // Heartbeat: evita ficar preso em "executando" quando o metadata não atualiza mais.
+    // Para execuções no browser, `metadata.updated_at` é atualizado com frequência.
+    const heartbeatBase =
+      (metadata?.updated_at as string | undefined) ||
+      (metadata?.last_run as string | undefined) ||
+      (metadata?.erro_em as string | undefined) ||
+      undefined;
+    const heartbeatMs = heartbeatBase ? new Date(heartbeatBase).getTime() : NaN;
+    const hasFreshHeartbeat = Number.isFinite(heartbeatMs) && (Date.now() - heartbeatMs) < 2 * 60 * 1000;
+
     // Determina se está rodando com base nas duas fontes
     const execStatus = execucao?.status;
     const hasActiveExec = execStatus === 'executando' && !execucao?.finalizado_em;
-    const metaRunning = metaStatus === 'em_andamento' && !cancelado && !metaIsStale;
+    const metaRunning = metaStatus === 'em_andamento' && !cancelado && !metaIsStale && hasFreshHeartbeat;
     const isRunning = hasActiveExec || metaRunning;
 
-    // Usa progresso da execução se disponível, senão do metadata
-    let current = 0;
-    let total = 0;
-    let novas = 0;
-    let source: RealtimeProgress['source'] = 'none';
+    // Consolida progresso: usa SEMPRE o maior current/total disponível entre fontes.
+    // Isso impede regressão quando a execução (execucoes_agendadas) está atrasada.
+    const execCurrent = typeof execProgress?.current === 'number' ? execProgress.current : 0;
+    const execTotal = typeof execProgress?.total === 'number' ? execProgress.total : 0;
+    const metaCurrentRaw = typeof metadata?.next_offset === 'number'
+      ? metadata.next_offset
+      : (typeof metadata?.current === 'number' ? metadata.current : 0);
+    const metaTotalRaw = typeof metadata?.total === 'number'
+      ? metadata.total
+      : (typeof metadata?.totalProcessos === 'number' ? metadata.totalProcessos : 0);
 
-    if (execProgress && typeof execProgress.current === 'number') {
-      current = execProgress.current;
-      total = execProgress.total ?? 0;
-      novas = execucao?.registros_encontrados ?? metadata?.novas ?? 0;
-      source = 'execucao';
-    } else if (metadata) {
-      current = metadata.current ?? metadata.next_offset ?? 0;
-      total = metadata.total ?? metadata.totalProcessos ?? 0;
-      novas = metadata.novas ?? metadata.last_batch_novas ?? 0;
-      source = 'metadata';
-    }
+    const total = Math.max(execTotal, metaTotalRaw, 0);
+    const current = Math.max(execCurrent, metaCurrentRaw, 0);
+
+    const source: RealtimeProgress['source'] = metaCurrentRaw >= execCurrent ? 'metadata' : (execCurrent > 0 ? 'execucao' : 'none');
+    const novas = source === 'metadata'
+      ? (metadata?.novas ?? metadata?.last_batch_novas ?? execucao?.registros_encontrados ?? 0)
+      : (execucao?.registros_encontrados ?? metadata?.novas ?? 0);
 
     const percentage = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+
+    const complete = total > 0 && current >= total;
+    const effectiveIsRunning = isRunning && !complete;
+
+    const startedAt =
+      (metadata?.run_started_at as string | undefined) ||
+      (metadata?.started_at as string | undefined) ||
+      (metadata?.startedAt as string | undefined) ||
+      execucao?.iniciado_em;
 
     return {
       current,
@@ -99,13 +122,13 @@ export function useRealtimeProgress({
       percentage,
       novas,
       descartadas: metadata?.descartadas,
-      status: isRunning
+      status: effectiveIsRunning
         ? 'em_andamento'
         : (metaIsStale ? 'timeout' : (metaStatus || execStatus)),
-      isRunning,
+      isRunning: effectiveIsRunning,
       lastUpdate: new Date(),
       executionId: execucao?.id,
-      startedAt: execucao?.iniciado_em,
+      startedAt,
       source,
     };
   }, []);

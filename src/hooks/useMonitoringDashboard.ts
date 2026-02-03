@@ -368,12 +368,26 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
   // CORREÇÃO: Continuar atualizando o tempo enquanto houver execuções não finalizadas
   // (mesmo que o status visual seja 'timeout' após 60 minutos)
   useEffect(() => {
-    const hasActiveExecution = executions.some((e) => {
-      if (e.status !== 'executando' || e.finalizado_em !== null) return false;
-      const cfg = configs.find((c) => c.tipo === e.tipo);
-      const metadata = (cfg?.metadata as Record<string, any>) || null;
-      return !isStaleExecutionByMeta(e, metadata);
-    });
+    const hasActiveExecution =
+      executions.some((e) => {
+        if (e.status !== 'executando' || e.finalizado_em !== null) return false;
+        const cfg = configs.find((c) => c.tipo === e.tipo);
+        const metadata = (cfg?.metadata as Record<string, any>) || null;
+        return !isStaleExecutionByMeta(e, metadata);
+      }) ||
+      // Execuções browser-only (ex.: djen_processos) podem NÃO ter linha ativa em execucoes_agendadas.
+      // Nesse caso, usamos o heartbeat do metadata para manter o timer rodando.
+      configs.some((cfg) => {
+        const md = (cfg?.metadata as Record<string, any>) || null;
+        if (!md) return false;
+        if (md.cancelado === true) return false;
+        if (md.paused_globally === true) return false;
+        if (md.last_stop_reason === 'stale') return false;
+        if (md.status !== 'em_andamento') return false;
+        const hb = (md.updated_at as string | undefined) || cfg.ultima_execucao || undefined;
+        const hbMs = hb ? new Date(hb).getTime() : NaN;
+        return Number.isFinite(hbMs) && (Date.now() - hbMs) < 2 * 60 * 1000;
+      });
     if (!hasActiveExecution) return;
 
     const interval = setInterval(() => setTick((t) => t + 1), 1000);
@@ -502,6 +516,10 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     const metaCancelado = metadata?.cancelado === true;
     const metaPausedGlobally = metadata?.paused_globally === true;
 
+    const metaHeartbeatBase = (metadata?.updated_at as string | undefined) || config?.ultima_execucao || undefined;
+    const metaHeartbeatMs = metaHeartbeatBase ? new Date(metaHeartbeatBase).getTime() : NaN;
+    const metaHasHeartbeat = Number.isFinite(metaHeartbeatMs) && (Date.now() - metaHeartbeatMs) < 2 * 60 * 1000;
+
     // Detectar execução stale (backend marcou last_stop_reason='stale')
     const metaStopReason = (metadata?.last_stop_reason as string | undefined) ?? undefined;
     // Não inferir "stale" por texto livre (isso causava alternância de status/% em cenários reais).
@@ -511,6 +529,10 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     // O metadata pode ficar com status='em_andamento' mesmo após finalizar
     const lastExec = typeExecutions[0]; // Execução mais recente
     const execJaFinalizada = lastExec?.finalizado_em !== null && lastExec?.finalizado_em !== undefined;
+
+    // DJEN Processos é browser-only: execucoes_agendadas pode estar finalizada/antiga,
+    // então não podemos travar metaIsRunning por execJaFinalizada.
+    const isBrowserOnlyDjenProcessos = tipo === 'djen_processos' && metadata?.browser_execution === true;
     
     // Só considera running se status for EXATAMENTE 'em_andamento' e não cancelado/pausado
     // E se a execução correspondente ainda não foi finalizada
@@ -518,8 +540,9 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       metaStatus === 'em_andamento' &&
       !metaCancelado &&
       !metaPausedGlobally &&
-      !execJaFinalizada &&
-      !metaIsStale;
+      metaHasHeartbeat &&
+      !metaIsStale &&
+      (isBrowserOnlyDjenProcessos || !execJaFinalizada);
 
     // Calculate progress - prioritize config metadata (real-time from edge function)
     // then fall back to execucoes_agendadas
@@ -652,8 +675,15 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       }
     } else if (metaIsRunning) {
       status = 'running';
-      if (config?.ultima_execucao) {
-        const started = new Date(config.ultima_execucao);
+      const startedAt =
+        (metadata?.run_started_at as string | undefined) ||
+        (metadata?.started_at as string | undefined) ||
+        (metadata?.startedAt as string | undefined) ||
+        config?.ultima_execucao ||
+        undefined;
+
+      if (startedAt) {
+        const started = new Date(startedAt);
         const now = new Date();
         elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
         if (elapsedSeconds > 14400) {
