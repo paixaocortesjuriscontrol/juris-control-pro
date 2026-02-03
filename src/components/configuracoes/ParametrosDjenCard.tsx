@@ -166,6 +166,7 @@ export function ParametrosDjenCard() {
   const [isOpen, setIsOpen] = useState(true);
   const [localParams, setLocalParams] = useState<Partial<ParametrosDjen> | null>(null);
   const [tipoSelecionado, setTipoSelecionado] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   const { data: tipos } = useQuery({
     queryKey: ['tipos-monitoramento'],
@@ -186,6 +187,7 @@ export function ParametrosDjenCard() {
 
   useEffect(() => {
     setLocalParams(null);
+    setIsDirty(false);
   }, [tipoSelecionado]);
 
   const { data: parametros, isLoading } = useQuery({
@@ -202,6 +204,7 @@ export function ParametrosDjenCard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parametros-djen', tipoAtual?.id] });
       setLocalParams(null);
+      setIsDirty(false);
       toast.success('Parâmetros atualizados com sucesso!');
     },
     onError: (error) => {
@@ -227,17 +230,21 @@ export function ParametrosDjenCard() {
   const isProcessos = tipoAtual?.slug === 'djen_processos';
 
   const handleChange = (field: keyof ParametrosDjen, value: any) => {
+    setIsDirty(true);
     setLocalParams(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSave = () => {
     if (localParams) {
       updateMutation.mutate(localParams);
+    } else {
+      toast.info('Nenhuma alteração para salvar.');
     }
   };
 
   const handleReset = () => {
     setLocalParams(DEFAULTS);
+    setIsDirty(true);
     toast.info('Valores padrão carregados. Clique em Salvar para aplicar.');
   };
 
@@ -309,7 +316,7 @@ export function ParametrosDjenCard() {
     );
   }
 
-  const hasChanges = localParams !== null;
+  const hasChanges = isDirty;
 
   return (
     <Card>
