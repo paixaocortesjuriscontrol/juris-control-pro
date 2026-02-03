@@ -1092,6 +1092,41 @@ serve(async (req) => {
       console.log(`[DJEN Processos] Iniciando novo ciclo do offset 0`);
     }
 
+    // Se for execução manual completa (sem continuação explícita) e o metadata já indica
+    // ciclo concluído, reiniciar do zero para permitir reprocessamento no mesmo dia.
+    if (
+      completeRun &&
+      !continued &&
+      typeof continuarDe !== 'number' &&
+      (meta?.status === 'concluido' ||
+        (Number(meta?.total || 0) > 0 && Number(meta?.current || 0) >= Number(meta?.total || 0)))
+    ) {
+      offset = 0;
+      console.log('[DJEN Processos] Reiniciando ciclo manual do offset 0 (metadata concluído)');
+      if (config) {
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            ultima_execucao: new Date().toISOString(),
+            metadata: {
+              ...(config.metadata || {}),
+              current: 0,
+              total: Number(totalProcessos || 0),
+              status: 'em_andamento',
+              next_offset: 0,
+              has_more: true,
+              last_stop_reason: null,
+              last_stop_at: null,
+              last_error: null,
+              cancelado: false,
+              pode_retomar: false,
+            },
+          })
+          .eq('tipo', 'djen_processos')
+          .is('coordenacao_id', null);
+      }
+    }
+
     // ============================================================
     // GUARDA CRÍTICA: ignora invocações atrasadas (offset antigo)
     // ============================================================
