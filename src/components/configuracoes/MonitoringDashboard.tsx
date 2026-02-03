@@ -151,13 +151,21 @@ function MetricBadge({
   );
 }
 
-function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
+function ExecutionDetails({
+  stats,
+  forceRunning = false,
+  forceReset = false,
+}: {
+  stats: MonitoringStats;
+  forceRunning?: boolean;
+  forceReset?: boolean;
+}) {
   // CORREÇÃO: Só mostrar currentExecution se realmente ativo (sem finalizado_em)
   const exec = stats.currentExecution || stats.lastCompletedExecution;
   if (!exec) return null;
 
   // isRunning agora é calculado com base no hook que já filtra fantasmas
-  const isRunning = stats.status === 'running' && stats.currentExecution !== null;
+  const isRunning = forceRunning || (stats.status === 'running' && stats.currentExecution !== null);
   const statusConfig = STATUS_CONFIG[stats.status];
 
   // Get total/progresso da execução atual (fonte única) - evita percentual travado
@@ -170,13 +178,24 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
 
   // Preferir percentual calculado a partir de current/total durante execução.
   // `stats.progress` pode ficar desatualizado (ex.: travar em 6%).
-  const progressPercent = total > 0 ? (percentage ?? 0) : (stats.progress ?? 0);
+  let progressPercent = total > 0 ? (percentage ?? 0) : (stats.progress ?? 0);
 
   // Importante: registros_encontrados na tabela execucoes_agendadas nem sempre é atualizado
   // (principalmente em jobs assíncronos). Para confiabilidade, usamos a contagem persistida no banco
   // que já alimenta o resumo "Hoje" (todayStats.found).
-  const encontradosBancoHoje = stats.todayStats.found ?? 0;
-  const descartadasBancoHoje = stats.todayStats.descartadas ?? 0;
+  let encontradosBancoHoje = stats.todayStats.found ?? 0;
+  let descartadasBancoHoje = stats.todayStats.descartadas ?? 0;
+  let processadosExibicao = processados;
+  let totalExibicao = total;
+  let elapsedExibicao = stats.elapsedSeconds;
+
+  if (forceReset) {
+    progressPercent = 0;
+    processadosExibicao = 0;
+    encontradosBancoHoje = 0;
+    descartadasBancoHoje = 0;
+    elapsedExibicao = 0;
+  }
 
   return (
     <div className={cn(
@@ -192,7 +211,7 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
             <span className="text-muted-foreground font-medium">
               {isRunning ? (
                 total > 0 
-                  ? `Processando: ${processados.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')}`
+                  ? `Processando: ${processadosExibicao.toLocaleString('pt-BR')} de ${totalExibicao.toLocaleString('pt-BR')}`
                   : 'Processando...'
               ) : 'Progresso'}
             </span>
@@ -201,7 +220,7 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
             </span>
           </div>
           <Progress 
-            value={progressPercent} 
+            value={progressPercent}
             className={cn("h-2.5", isRunning && "animate-pulse")}
           />
         </div>
@@ -212,7 +231,7 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
           <div className="text-xs text-muted-foreground mb-0.5">Processados</div>
           <div className="text-lg font-bold font-mono text-foreground">
-            {processados.toLocaleString('pt-BR')}
+            {processadosExibicao.toLocaleString('pt-BR')}
           </div>
         </div>
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
@@ -227,13 +246,13 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
           <div className="text-xs text-muted-foreground mb-0.5">Total</div>
           <div className="text-lg font-bold font-mono text-foreground">
-            {total > 0 ? total.toLocaleString('pt-BR') : '-'}
+            {totalExibicao > 0 ? totalExibicao.toLocaleString('pt-BR') : '-'}
           </div>
         </div>
         <div className="bg-background/60 rounded-lg p-2.5 text-center border">
           <div className="text-xs text-muted-foreground mb-0.5">Tempo</div>
           <div className={cn("text-lg font-bold font-mono", isRunning && "text-blue-600")}>
-            {formatDuration(stats.elapsedSeconds)}
+            {formatDuration(elapsedExibicao)}
           </div>
         </div>
       </div>
@@ -254,7 +273,7 @@ function ExecutionDetails({ stats }: { stats: MonitoringStats }) {
         );
       })()}
 
-      {/* Running Indicator */}
+        {/* Running Indicator */}
       {isRunning && (
         <div className="flex items-center justify-center gap-2 text-blue-600 py-1">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -272,7 +291,8 @@ function MonitoringCard({
   onSendSummary,
   isExecuting, 
   isCancelling,
-  isSendingSummary
+  isSendingSummary,
+  optimisticStartAt
 }: { 
   stats: MonitoringStats;
   onExecute: (options?: { retomar?: boolean }) => void;
@@ -281,14 +301,17 @@ function MonitoringCard({
   isExecuting: boolean;
   isCancelling: boolean;
   isSendingSummary: boolean;
+  optimisticStartAt?: number;
 }) {
   const Icon = ICONS[stats.icon] || Activity;
   const statusConfig = STATUS_CONFIG[stats.status];
-  const isRunning = stats.status === 'running';
+  const optimisticActive =
+    typeof optimisticStartAt === 'number' && (Date.now() - optimisticStartAt) < 20000;
+  const isRunning = stats.status === 'running' || optimisticActive;
   // CORREÇÃO: Permitir executar quando status é 'timeout' (o usuário pode retomar ou reiniciar)
-  const canExecute = !isExecuting && stats.status !== 'running';
+  const canExecute = !isExecuting && !optimisticActive && stats.status !== 'running';
   const metaStatus = stats.config?.metadata?.status;
-  const canCancel = stats.status === 'running' || metaStatus === 'em_andamento';
+  const canCancel = stats.status === 'running' || metaStatus === 'em_andamento' || optimisticActive;
   
   // Verificar se há checkpoint para retomar (next_offset > 0 e status não é running/idle)
   const metadata = stats.config?.metadata;
@@ -339,7 +362,11 @@ function MonitoringCard({
 
       <CardContent className="space-y-4">
         {/* Execution Details Panel */}
-        <ExecutionDetails stats={stats} />
+        <ExecutionDetails
+          stats={stats}
+          forceRunning={optimisticActive}
+          forceReset={optimisticActive}
+        />
 
         {/* Today's Stats Summary */}
         <div className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded-lg">
@@ -365,7 +392,7 @@ function MonitoringCard({
             disabled={!canExecute}
             variant={hasCheckpoint ? "outline" : "default"}
           >
-            {isExecuting ? (
+            {isExecuting || optimisticActive ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Iniciando...
@@ -460,6 +487,7 @@ export function MonitoringDashboard() {
   const { enviando, enviarResumo } = useEnviarResumoManual();
   
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
+  const [optimisticStartByTipo, setOptimisticStartByTipo] = useState<Record<string, number>>({});
   const [cancelling, setCancelling] = useState<Record<string, boolean>>({});
   const [confirmReativarOpen, setConfirmReativarOpen] = useState(false);
   const [confirmTipo, setConfirmTipo] = useState<string | null>(null);
@@ -539,6 +567,15 @@ export function MonitoringDashboard() {
       }
 
       setExecuting(prev => ({ ...prev, [tipo]: true }));
+      setOptimisticStartByTipo(prev => ({ ...prev, [tipo]: Date.now() }));
+      setTimeout(() => {
+        setOptimisticStartByTipo(prev => {
+          if (!prev[tipo]) return prev;
+          const next = { ...prev };
+          delete next[tipo];
+          return next;
+        });
+      }, 20000);
       await executarAgora(tipo, options);
     } catch (error: any) {
       toast.error(`Erro ao iniciar: ${error.message}`);
@@ -584,6 +621,15 @@ export function MonitoringDashboard() {
                 const tipo = confirmTipo;
                 try {
                   setExecuting(prev => ({ ...prev, [tipo]: true }));
+                  setOptimisticStartByTipo(prev => ({ ...prev, [tipo]: Date.now() }));
+                  setTimeout(() => {
+                    setOptimisticStartByTipo(prev => {
+                      if (!prev[tipo]) return prev;
+                      const next = { ...prev };
+                      delete next[tipo];
+                      return next;
+                    });
+                  }, 20000);
                   await reativarConfig(tipo);
                   setConfirmTipo(null);
                   toast.success('Reativado. Iniciando execução...');
@@ -716,6 +762,7 @@ export function MonitoringDashboard() {
               isExecuting={executing[stats.tipo] || false}
               isCancelling={cancelling[stats.tipo] || false}
               isSendingSummary={enviando[stats.tipo] || false}
+              optimisticStartAt={optimisticStartByTipo[stats.tipo]}
             />
           );
         })}
