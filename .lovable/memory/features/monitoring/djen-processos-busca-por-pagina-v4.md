@@ -34,8 +34,16 @@ O monitoramento "DJEN Processos" foi reimplementado para usar busca por página 
 - Progresso mostra tribunal atual + contagem
 - Publicações analisadas vs novas encontradas
 
+### Correções v4.1
+
+- `buildTextoParam` retorna `null` para busca geral (`*` ou vazia)
+- `pageSize` aumentado para 50 em buscas gerais por tribunal
+- `REQUEST_TIMEOUT_MS` aumentado para 60 segundos
+- Busca por tribunal funciona sem parâmetro `texto` (só `siglaTribunal` + `dataDisponibilizacao`)
+
 ### Arquivos Modificados
 
 - `src/hooks/useMonitorarDjenProcessosBrowser.ts` - Reescrito completamente
+- `src/utils/pjeComunicaClient.ts` - Suporte a busca geral sem texto
 - `src/components/configuracoes/MonitoramentoDjenProcessosCard.tsx` - UI com timer
 - `src/components/configuracoes/MonitoringDashboard.tsx` - Adaptado para novo tipo de progresso
