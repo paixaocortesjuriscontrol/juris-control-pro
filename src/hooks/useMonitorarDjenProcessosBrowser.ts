@@ -186,28 +186,35 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
 
   const isExecutando = progresso.status === 'executando';
 
-  // Timer de tempo decorrido
+  // Timer de tempo decorrido - usa ref para evitar cálculo baseado em startedAt antigo
+  const startTimeRef = useRef<number | null>(null);
+  
   useEffect(() => {
-    if (isExecutando && progresso.startedAt) {
+    if (isExecutando) {
+      // Capturar o momento exato do início
+      if (!startTimeRef.current) {
+        startTimeRef.current = Date.now();
+      }
+      
       timerRef.current = setInterval(() => {
-        setProgresso(prev => {
-          if (!prev.startedAt) return prev;
-          const elapsed = Math.floor((Date.now() - new Date(prev.startedAt).getTime()) / 1000);
-          return { ...prev, elapsedSeconds: elapsed };
-        });
+        if (startTimeRef.current) {
+          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          setProgresso(prev => ({ ...prev, elapsedSeconds: elapsed }));
+        }
       }, 1000);
     } else {
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      startTimeRef.current = null; // Resetar quando parar
     }
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
-  }, [isExecutando, progresso.startedAt]);
+  }, [isExecutando]);
 
   const updateProgress = useCallback((updates: Partial<DjenProcessosProgress>) => {
     setProgresso(prev => {
