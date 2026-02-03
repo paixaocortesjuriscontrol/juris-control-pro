@@ -292,11 +292,13 @@ function MonitoringCard({
   // Verificar se há checkpoint para retomar (next_offset > 0 e status não é running/idle)
   const metadata = stats.config?.metadata;
   const nextOffset = (metadata?.next_offset ?? 0) as number;
-  const hasCheckpoint = nextOffset > 0 && 
-    (stats.status === 'timeout' || stats.status === 'failed' || stats.status === 'cancelled' || stats.status === 'completed');
-  const checkpointPercent = metadata && metadata.total > 0 
+  const checkpointPercent = metadata && metadata.total > 0
     ? Math.round(((metadata.next_offset ?? 0) / metadata.total) * 100)
     : 0;
+  const hasCheckpoint = nextOffset > 0 &&
+    checkpointPercent > 0 &&
+    checkpointPercent < 100 &&
+    (stats.status === 'timeout' || stats.status === 'failed' || stats.status === 'cancelled');
 
   return (
     <Card className={cn(

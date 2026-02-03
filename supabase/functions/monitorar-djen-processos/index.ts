@@ -1114,6 +1114,62 @@ serve(async (req) => {
       );
     }
 
+    const total = Number(totalProcessos || 0);
+    if (total === 0 || offset >= total) {
+      // Complete cycle sem precisar buscar lote (evita timeout quando offset == total)
+      const doneAt = new Date().toISOString();
+      const finalCurrent = total > 0 ? total : Math.max(checkpointAtual, offset);
+
+      if (config) {
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            ultima_execucao: doneAt,
+            metadata: {
+              ...(config.metadata || {}),
+              current: finalCurrent,
+              total,
+              status: 'concluido',
+              last_complete_run: doneAt,
+              next_offset: 0,
+              has_more: false,
+              last_stop_reason: 'completed',
+              last_stop_at: doneAt,
+              last_error: null,
+            },
+          })
+          .eq('tipo', 'djen_processos')
+          .is('coordenacao_id', null);
+      }
+
+      const pct = total > 0 ? 100 : 0;
+      await updateExecucaoProgress(supabase, execucaoId, {
+        status: 'concluido',
+        registros_processados: finalCurrent,
+        total_lotes: total,
+        detalhes: {
+          progress: {
+            current: finalCurrent,
+            total,
+            percentage: pct,
+          },
+        },
+        finalizado_em: doneAt,
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Ciclo completo',
+          processados: 0,
+          totalProcessos: total,
+          concluido: true,
+          tempoMs: Date.now() - startTime,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Get batch - agora inclui todos os processos com monitorar_djen=true
     // Processos não-ativos com monitoramento ativo terão alerta especial
     const { data: processos, error: processosError } = await supabase
@@ -1540,7 +1596,7 @@ serve(async (req) => {
       const currentMeta = (config?.metadata as Record<string, any>) || {};
       const currentOffset = currentMeta.next_offset || 0;
       
-      // Marcar como falhou mas preservar next_offset para retomada
+      // Marcar como erro mas preservar next_offset para retomada
       await supabase
         .from('configuracoes_monitoramento')
         .update({
@@ -1551,9 +1607,17 @@ serve(async (req) => {
             erro_em: new Date().toISOString(),
             // Preservar next_offset para retomada automática
             pode_retomar: true,
+            last_stop_reason: 'error',
+            last_stop_at: new Date().toISOString(),
           },
         })
         .eq('tipo', 'djen_processos');
+
+      await updateExecucaoProgress(supabase, execucaoId, {
+        status: 'erro',
+        detalhes: { error: errorMessage },
+        finalizado_em: new Date().toISOString(),
+      });
       
       console.log(`[DJEN Processos] Offset ${currentOffset} salvo para retomada`);
     } catch (saveError) {
