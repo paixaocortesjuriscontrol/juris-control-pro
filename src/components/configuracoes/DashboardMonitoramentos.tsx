@@ -54,7 +54,7 @@ const FUNCOES: Record<string, string | null> = {
   andamentos: 'monitorar-andamentos',
   distribuicoes: 'monitorar-distribuicoes',
   djen: null, // Browser-only - não tem Edge Function
-  djen_processos: 'monitorar-djen-processos',
+  djen_processos: null, // Browser-only - evita WORKER_LIMIT (546)
   termos: 'monitorar-termos',
 };
 
@@ -398,6 +398,16 @@ export function DashboardMonitoramentos() {
   };
 
   const executarAgora = async (tipo: string) => {
+    // BROWSER-ONLY: DJEN Termos e DJEN Processos não usam Edge Function
+    const funcao = FUNCOES[tipo];
+    if (funcao === null) {
+      toast.info(
+        `${NOMES[tipo]} executa apenas no navegador. ` +
+        `Acesse o card dedicado no painel de Configurações para executar.`
+      );
+      return;
+    }
+
     setExecutando(prev => ({ ...prev, [tipo]: true }));
     
     try {
@@ -411,6 +421,8 @@ export function DashboardMonitoramentos() {
         toast.warning(data.message || 'Aguarde outra execução finalizar');
       } else if (data?.paused) {
         toast.warning('Monitoramento está pausado/desativado. Reative para executar.');
+      } else if (data?.browserOnly) {
+        toast.info(data.message || `${NOMES[tipo]} executa apenas no navegador.`);
       } else if (data?.success) {
         toast.success(`${NOMES[tipo]} concluído: ${data.totalEncontrados || 0} encontrados`);
       } else if (data?.success === false && data?.error) {
