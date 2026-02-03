@@ -526,6 +526,9 @@ export async function buscarPjeComunicaMultiplosProcessos(
   const orQuery = buildOrQuery(numerosProcesso);
   if (!orQuery) return resultado;
 
+  // Log para debug da query OR
+  console.log(`[PJE Comunica OR] Query com ${numerosProcesso.length} processos:`, orQuery.slice(0, 200) + '...');
+
   try {
     const resp = await buscarPjeComunicaNoBrowser(
       {
@@ -537,6 +540,8 @@ export async function buscarPjeComunicaMultiplosProcessos(
       },
       { signal: options?.signal }
     );
+    
+    console.log(`[PJE Comunica OR] Resposta: ${resp.items.length} itens, total: ${resp.totalElements}`);
 
     // Mapear resultados de volta para cada processo
     for (const item of resp.items) {
