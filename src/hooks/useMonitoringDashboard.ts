@@ -521,101 +521,6 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       !execJaFinalizada &&
       !metaIsStale;
 
-    // Determine status
-    let status: MonitoringStatus = 'idle';
-    let elapsedSeconds = 0;
-
-    if (currentExecution) {
-      const started = new Date(currentExecution.iniciado_em);
-      const now = new Date();
-      elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
-
-      // CORREÇÃO: não exibir TIMEOUT se o progresso já chegou em 100%.
-      // Alguns workers podem demorar para marcar finalizado_em no banco; nesse caso,
-      // a UI deve refletir que o trabalho (processamento) já concluiu.
-      const execProgress = getExecutionProgress({
-        detalhes: currentExecution.detalhes,
-        registros_processados: currentExecution.registros_processados,
-        total_lotes: currentExecution.total_lotes,
-        lotes_processados: currentExecution.lotes_processados,
-      });
-      const isCompletedByProgress = execProgress.percentage === 100;
-      const hasAnyProgress =
-        (currentExecution.registros_processados ?? 0) > 0 ||
-        (currentExecution.detalhes?.progress?.current ?? 0) > 0 ||
-        execProgress.percentage > 0;
-      const isStuckNoProgress = !hasAnyProgress && elapsedSeconds > 300; // 5 min sem progresso real
-
-      if (isCompletedByProgress) {
-        status = 'completed';
-      } else if (isStuckNoProgress) {
-        status = 'idle';
-        elapsedSeconds = 0;
-      } else if (elapsedSeconds > 14400) {
-        // Mais de 1h e ainda está "executando" sem finalizado_em → timeout
-        status = 'timeout';
-      } else {
-        status = 'running';
-      }
-    } else if (metaIsRunning) {
-      // Execução manual em andamento (detectada via metadata, sem registro em execucoes_agendadas)
-      status = 'running';
-      // Tentar calcular tempo decorrido desde ultima_execucao
-      if (config?.ultima_execucao) {
-        const started = new Date(config.ultima_execucao);
-        const now = new Date();
-        elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
-
-        // Se o metadata ficou travado em em_andamento por muito tempo, tratar como timeout
-        if (elapsedSeconds > 14400) {
-          status = 'timeout';
-        }
-      }
-    } else if (metaIsStale) {
-      // Backend sinalizou que a execução parou por staleness (sem heartbeat/progresso)
-      // => UI deve destravar e permitir retomar/reiniciar.
-      status = 'timeout';
-      // Tentar estimar duração (última atualização conhecida)
-      if (config?.ultima_execucao) {
-        const started = new Date(config.ultima_execucao);
-        const now = new Date();
-        elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
-      }
-    } else if (timeoutExecution) {
-      // Execução com timeout explícito no banco
-      status = 'timeout';
-      if (timeoutExecution.iniciado_em && timeoutExecution.finalizado_em) {
-        const started = new Date(timeoutExecution.iniciado_em);
-        const finished = new Date(timeoutExecution.finalizado_em);
-        elapsedSeconds = Math.round((finished.getTime() - started.getTime()) / 1000);
-      } else if (timeoutExecution.iniciado_em) {
-        // Se não tiver finalizado_em, calcular até agora
-        const started = new Date(timeoutExecution.iniciado_em);
-        const now = new Date();
-        elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
-      }
-    } else if (lastCompletedExecution) {
-      if (lastCompletedExecution.status === 'concluido') status = 'completed';
-      else if (lastCompletedExecution.status === 'falhou') status = 'failed';
-      else if (lastCompletedExecution.status === 'cancelado') status = 'cancelled';
-      else if (lastCompletedExecution.status === 'timeout') status = 'timeout';
-      
-      // Calcular tempo da última execução concluída
-      if (lastCompletedExecution.iniciado_em && lastCompletedExecution.finalizado_em) {
-        const started = new Date(lastCompletedExecution.iniciado_em);
-        const finished = new Date(lastCompletedExecution.finalizado_em);
-        elapsedSeconds = Math.round((finished.getTime() - started.getTime()) / 1000);
-      }
-    } else if (metaStatus === 'concluido') {
-      status = 'completed';
-    } else if (metaStatus === 'cancelado') {
-      status = 'cancelled';
-    } else if (metaStatus === 'erro') {
-      status = 'failed';
-    } else if (metaStatus === 'timeout') {
-      status = 'timeout';
-    }
-
     // Calculate progress - prioritize config metadata (real-time from edge function)
     // then fall back to execucoes_agendadas
     let progress: number | null = null;
@@ -698,6 +603,90 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     }
 
     const progressComplete = progress === 100 || (total > 0 && processados >= total);
+
+    // Determine status (após calcular progresso)
+    let status: MonitoringStatus = 'idle';
+    let elapsedSeconds = 0;
+
+    if (currentExecution) {
+      const started = new Date(currentExecution.iniciado_em);
+      const now = new Date();
+      elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
+
+      const execProgress = getExecutionProgress({
+        detalhes: currentExecution.detalhes,
+        registros_processados: currentExecution.registros_processados,
+        total_lotes: currentExecution.total_lotes,
+        lotes_processados: currentExecution.lotes_processados,
+      });
+      const hasAnyProgress =
+        (currentExecution.registros_processados ?? 0) > 0 ||
+        (currentExecution.detalhes?.progress?.current ?? 0) > 0 ||
+        execProgress.percentage > 0 ||
+        (progress ?? 0) > 0;
+      const isStuckNoProgress = !hasAnyProgress && elapsedSeconds > 300;
+
+      if (progressComplete) {
+        status = 'completed';
+      } else if (metaCancelado || metaStatus === 'cancelado') {
+        status = 'cancelled';
+      } else if (isStuckNoProgress) {
+        status = 'idle';
+        elapsedSeconds = 0;
+      } else if (elapsedSeconds > 14400) {
+        status = 'timeout';
+      } else {
+        status = 'running';
+      }
+    } else if (metaIsRunning) {
+      status = 'running';
+      if (config?.ultima_execucao) {
+        const started = new Date(config.ultima_execucao);
+        const now = new Date();
+        elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
+        if (elapsedSeconds > 14400) {
+          status = 'timeout';
+        }
+      }
+    } else if (metaIsStale) {
+      status = 'timeout';
+      if (config?.ultima_execucao) {
+        const started = new Date(config.ultima_execucao);
+        const now = new Date();
+        elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
+      }
+    } else if (timeoutExecution) {
+      status = 'timeout';
+      if (timeoutExecution.iniciado_em && timeoutExecution.finalizado_em) {
+        const started = new Date(timeoutExecution.iniciado_em);
+        const finished = new Date(timeoutExecution.finalizado_em);
+        elapsedSeconds = Math.round((finished.getTime() - started.getTime()) / 1000);
+      } else if (timeoutExecution.iniciado_em) {
+        const started = new Date(timeoutExecution.iniciado_em);
+        const now = new Date();
+        elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
+      }
+    } else if (lastCompletedExecution) {
+      if (lastCompletedExecution.status === 'falhou') status = 'failed';
+      else if (lastCompletedExecution.status === 'cancelado') status = 'cancelled';
+      else if (lastCompletedExecution.status === 'timeout') status = 'timeout';
+      else if (progressComplete) status = 'completed';
+
+      if (lastCompletedExecution.iniciado_em && lastCompletedExecution.finalizado_em) {
+        const started = new Date(lastCompletedExecution.iniciado_em);
+        const finished = new Date(lastCompletedExecution.finalizado_em);
+        elapsedSeconds = Math.round((finished.getTime() - started.getTime()) / 1000);
+      }
+    } else if (metaStatus === 'cancelado') {
+      status = 'cancelled';
+    } else if (metaStatus === 'erro') {
+      status = 'failed';
+    } else if (metaStatus === 'timeout') {
+      status = 'timeout';
+    } else if (progressComplete) {
+      status = 'completed';
+    }
+
     const hasActiveSignal = !!currentExecution || metaIsRunning;
 
     // Só marcar como concluído quando o progresso realmente chegou a 100%.
