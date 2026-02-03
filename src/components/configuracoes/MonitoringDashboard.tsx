@@ -29,6 +29,7 @@ import {
   type MonitoringStats,
   type MonitoringStatus
 } from "@/hooks/useMonitoringDashboard";
+import { useMonitorarDjenProcessosBrowser } from "@/hooks/useMonitorarDjenProcessosBrowser";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getExecutionProgress } from "@/utils/executionProgress";
@@ -454,6 +455,14 @@ function MonitoringCard({
 
 export function MonitoringDashboard() {
   const { user } = useAuth();
+
+  // DJEN Processos: execução 100% no navegador (evita WORKER_LIMIT 546)
+  const {
+    executar: executarDjenProcessosNoBrowser,
+    cancelar: cancelarDjenProcessosNoBrowser,
+    isExecutando: isExecutandoDjenProcessosNoBrowser,
+  } = useMonitorarDjenProcessosBrowser();
+
   const { data: userCoordenacao, isLoading: loadingUserCoord } = useQuery({
     queryKey: ['user-coordenacao', user?.id],
     queryFn: async () => {
@@ -526,6 +535,19 @@ export function MonitoringDashboard() {
   };
 
   const executarAgora = async (tipo: string, options?: { retomar?: boolean }) => {
+    // DJEN Processos: sempre browser-only
+    if (tipo === 'djen_processos') {
+      toast.info('Iniciando DJEN Processos no navegador...');
+      void executarDjenProcessosNoBrowser(undefined, undefined, options?.retomar === true)
+        .catch((e: any) => {
+          toast.error(`Erro no DJEN Processos (browser): ${e?.message || String(e)}`);
+        })
+        .finally(() => {
+          refetch();
+        });
+      return;
+    }
+
     const result = await executeMonitoring(tipo, options);
     const stats = monitoringStats.find(s => s.tipo === tipo);
 
@@ -593,6 +615,21 @@ export function MonitoringDashboard() {
           return next;
         });
       }, 20000);
+
+      // DJEN Processos: iniciar imediatamente no navegador (sem Edge Function)
+      if (tipo === 'djen_processos') {
+        toast.info('Iniciando DJEN Processos no navegador...');
+        void executarDjenProcessosNoBrowser(undefined, undefined, options?.retomar === true)
+          .catch((e: any) => {
+            toast.error(`Erro no DJEN Processos (browser): ${e?.message || String(e)}`);
+          })
+          .finally(() => {
+            // Garante refresh do painel assim que começarem a chegar checkpoints
+            refetch();
+          });
+        return;
+      }
+
       await executarAgora(tipo, options);
     } catch (error: any) {
       toast.error(`Erro ao iniciar: ${error.message}`);
@@ -604,6 +641,13 @@ export function MonitoringDashboard() {
   const handleCancel = async (tipo: string) => {
     setCancelling(prev => ({ ...prev, [tipo]: true }));
     try {
+      // Se for DJEN Processos browser-only, cancela local + marca no banco
+      if (tipo === 'djen_processos' && isExecutandoDjenProcessosNoBrowser) {
+        cancelarDjenProcessosNoBrowser();
+        await cancelMonitoring(tipo);
+        toast.success('Cancelamento solicitado!');
+        return;
+      }
       await cancelMonitoring(tipo);
       toast.success('Execução cancelada!');
     } catch (error: any) {
