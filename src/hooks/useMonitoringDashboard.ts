@@ -535,9 +535,18 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       const metaTotal = toNumber(metadata.total);
       const metaPercentage = toNumber(metadata.percentage);
 
-      // If the edge function provides a percentage, accept it (including 0).
+      // Se houver percentage do backend, validar coerência com current/total.
       if (metaPercentage !== null && metaPercentage >= 0) {
-        progress = metaPercentage;
+        const basis = nextOffset !== null ? nextOffset : currentOffset;
+        if (metaTotal !== null && metaTotal > 0 && basis !== null) {
+          const expected = Math.round((basis / metaTotal) * 100);
+          const delta = Math.abs(metaPercentage - expected);
+          if (delta <= 2) {
+            progress = metaPercentage;
+          }
+        } else if (metaTotal !== null && metaTotal > 0) {
+          progress = metaPercentage;
+        }
       }
 
       if (nextOffset !== null) processados = nextOffset;

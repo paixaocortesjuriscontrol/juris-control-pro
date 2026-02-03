@@ -1164,6 +1164,7 @@ serve(async (req) => {
               ...(config.metadata || {}),
               current: finalCurrent,
               total,
+              percentage: total > 0 ? 100 : 0,
               status: 'concluido',
               last_complete_run: doneAt,
               next_offset: 0,
@@ -1233,6 +1234,7 @@ serve(async (req) => {
               ...(config.metadata || {}),
               current: finalCurrent,
               total,
+              percentage: total > 0 ? 100 : 0,
               status: 'concluido',
               last_complete_run: doneAt,
               next_offset: 0,
@@ -1311,6 +1313,7 @@ serve(async (req) => {
             novas: totalNovas,
             status: hasMore ? 'em_andamento' : 'concluido',
             has_more: hasMore,
+            percentage: hasMore ? progressPercentage : 100,
 
             // Limpar marcações de erro/stale quando há progresso real
             last_stop_reason: hasMore ? null : 'completed',
