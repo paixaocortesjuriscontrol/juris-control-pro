@@ -38,7 +38,7 @@ const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao
 // PARÂMETROS CONSERVADORES - API PJE COMUNICA IMPÕE RATE LIMIT (429)
 // ============================================================================
 // A API bloqueia requisições em excesso. Precisamos ser conservadores.
-const CONFIG = {
+let CONFIG = {
   max_paralelo: 2,               // 2 requisições simultâneas - conservador
   batch_size: 50,                // 50 processos por lote
   group_search_size: 50,         // Agrupamento inicial (auto-desliga se não ajudar)
@@ -50,15 +50,24 @@ const CONFIG = {
   retry_base_delay_ms: 5000,     // Backoff: 5s, 10s, 20s, 40s, 80s
 };
 
-// Constantes derivadas - CONSERVADORAS
-const BATCH_SIZE = CONFIG.batch_size;           // 50
-const CONCURRENT_REQUESTS = CONFIG.max_paralelo; // 2
-const GROUP_SEARCH_SIZE = CONFIG.group_search_size; // 8
+// Constantes derivadas - CONSERVADORAS (atualizadas em applyConfigToDerived)
+let BATCH_SIZE = CONFIG.batch_size;           // 50
+let CONCURRENT_REQUESTS = CONFIG.max_paralelo; // 2
+let GROUP_SEARCH_SIZE = CONFIG.group_search_size; // 50
 const MIN_GROUP_HIT_RATE = 0.3; // 30% de processos com resultado para manter agrupamento
 const PAGE_SIZE = 100; // Max page size from API
 const MAX_PAGES = 1;   // 1 página só
-const BASE_DELAY = CONFIG.delay_entre_lotes;    // 3000
+let BASE_DELAY = CONFIG.delay_entre_lotes;    // 3000
 const STAGGER_DELAY = 1000; // 1s entre requisições paralelas
+
+function applyConfigToDerived() {
+  BATCH_SIZE = CONFIG.batch_size;
+  CONCURRENT_REQUESTS = CONFIG.max_paralelo;
+  GROUP_SEARCH_SIZE = CONFIG.group_search_size;
+  BASE_DELAY = CONFIG.delay_entre_lotes;
+}
+
+applyConfigToDerived();
 
 
 // Browser-like headers
@@ -74,9 +83,51 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// NOTA: A função loadConfigFromDatabase foi removida.
-// Os parâmetros agora são hardcoded e otimizados para 13k+ processos.
-// A tabela parametros_monitoramento_djen continua sendo usada pelo DJEN por Termos.
+// NOTA: Parâmetros de DJEN Processos agora podem ser carregados da tabela
+// parametros_monitoramento_djen (tipo djen_processos).
+
+async function loadConfigFromDatabase(supabase: any): Promise<void> {
+  try {
+    const { data: tipoRow } = await supabase
+      .from('tipo_monitoramento')
+      .select('id')
+      .eq('slug', 'djen_processos')
+      .maybeSingle();
+
+    if (!tipoRow?.id) return;
+
+    const { data, error } = await supabase
+      .from('parametros_monitoramento_djen')
+      .select('*')
+      .eq('tipo_monitoramento_id', tipoRow.id)
+      .eq('ativo', true)
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      console.log('[DJEN Processos] Erro ao carregar parâmetros da tabela, usando valores padrão');
+      return;
+    }
+
+    CONFIG = {
+      max_paralelo: data.max_paralelo ?? CONFIG.max_paralelo,
+      batch_size: data.batch_size ?? CONFIG.batch_size,
+      group_search_size: data.group_search_size ?? CONFIG.group_search_size,
+      delay_entre_lotes: data.delay_entre_lotes ?? CONFIG.delay_entre_lotes,
+      delay_entre_paginas: data.delay_entre_paginas ?? CONFIG.delay_entre_paginas,
+      soft_timeout_ms: data.soft_timeout_ms ?? CONFIG.soft_timeout_ms,
+      finalization_buffer_ms: data.finalization_buffer_ms ?? CONFIG.finalization_buffer_ms,
+      max_retries: data.max_retries ?? CONFIG.max_retries,
+      retry_base_delay_ms: data.retry_base_delay_ms ?? CONFIG.retry_base_delay_ms,
+    };
+
+    applyConfigToDerived();
+
+    console.log(`[DJEN Processos] Parâmetros carregados: paralelo=${CONFIG.max_paralelo}, batch=${CONFIG.batch_size}`);
+  } catch (e) {
+    console.log('[DJEN Processos] Erro ao carregar config:', e);
+  }
+}
 
 // Jina Reader proxy (only fallback - Bright Data removed as too expensive)
 const JINA_READER_URL = 'https://r.jina.ai';
@@ -996,8 +1047,8 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Parâmetros otimizados para 13k+ processos são hardcoded (não carrega da tabela)
-    console.log(`[DJEN Processos] Config otimizada: paralelo=${CONCURRENT_REQUESTS}, batch=${BATCH_SIZE}, delay=${BASE_DELAY}ms, stagger=${STAGGER_DELAY}ms`);
+    await loadConfigFromDatabase(supabase);
+    console.log(`[DJEN Processos] Config: paralelo=${CONCURRENT_REQUESTS}, batch=${BATCH_SIZE}, delay=${BASE_DELAY}ms, stagger=${STAGGER_DELAY}ms`);
 
     let dataInicio: string | undefined;
     let dataFim: string | undefined;

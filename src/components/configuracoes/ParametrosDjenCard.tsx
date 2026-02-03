@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,9 +14,13 @@ import { Settings, Save, RotateCcw, ChevronDown, Zap, Clock, Shield, AlertTriang
 
 interface ParametrosDjen {
   id: string;
+  tipo_monitoramento_id: string;
   modo_processamento: 'sequencial' | 'semi_paralelo' | 'paralelo_total';
   max_paralelo: number;
   max_por_invocacao: number;
+  batch_size: number;
+  group_search_size: number;
+  delay_entre_lotes: number;
   delay_entre_monitoramentos: number;
   delay_entre_paginas: number;
   delay_entre_tribunais: number;
@@ -29,10 +33,13 @@ interface ParametrosDjen {
   ativo: boolean;
 }
 
-const DEFAULTS: Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo'> = {
+const DEFAULTS: Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo' | 'tipo_monitoramento_id'> = {
   modo_processamento: 'semi_paralelo',
   max_paralelo: 5,
   max_por_invocacao: 10,
+  batch_size: 50,
+  group_search_size: 50,
+  delay_entre_lotes: 3000,
   delay_entre_monitoramentos: 500,
   delay_entre_paginas: 300,
   delay_entre_tribunais: 200,
@@ -43,11 +50,14 @@ const DEFAULTS: Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo'> = {
   retry_base_delay_ms: 2000,
 };
 
-const PRESETS: Record<string, Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo'>> = {
+const PRESETS: Record<string, Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo' | 'tipo_monitoramento_id'>> = {
   conservador: {
     modo_processamento: 'sequencial',
     max_paralelo: 1,
     max_por_invocacao: 3,
+    batch_size: 50,
+    group_search_size: 50,
+    delay_entre_lotes: 3000,
     delay_entre_monitoramentos: 2000,
     delay_entre_paginas: 1500,
     delay_entre_tribunais: 1200,
@@ -61,6 +71,9 @@ const PRESETS: Record<string, Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo'>
     modo_processamento: 'semi_paralelo',
     max_paralelo: 2,
     max_por_invocacao: 5,
+    batch_size: 50,
+    group_search_size: 50,
+    delay_entre_lotes: 3000,
     delay_entre_monitoramentos: 800,
     delay_entre_paginas: 600,
     delay_entre_tribunais: 600,
@@ -74,6 +87,9 @@ const PRESETS: Record<string, Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo'>
     modo_processamento: 'semi_paralelo',
     max_paralelo: 4,
     max_por_invocacao: 8,
+    batch_size: 50,
+    group_search_size: 50,
+    delay_entre_lotes: 3000,
     delay_entre_monitoramentos: 400,
     delay_entre_paginas: 300,
     delay_entre_tribunais: 300,
@@ -85,12 +101,19 @@ const PRESETS: Record<string, Omit<ParametrosDjen, 'id' | 'descricao' | 'ativo'>
   },
 };
 
-async function fetchParametros(): Promise<ParametrosDjen | null> {
+interface TipoMonitoramento {
+  id: string;
+  slug: string;
+  nome: string;
+  ativo: boolean;
+}
+
+async function fetchParametros(tipoId: string): Promise<ParametrosDjen | null> {
   // Usar PostgrestBuilder genérico para evitar problemas de tipo
   const { data, error } = await (supabase as any)
     .from('parametros_monitoramento_djen')
     .select('*')
-    .eq('ativo', true)
+    .eq('tipo_monitoramento_id', tipoId)
     .limit(1)
     .single();
 
@@ -99,6 +122,20 @@ async function fetchParametros(): Promise<ParametrosDjen | null> {
     return null;
   }
   return data as ParametrosDjen;
+}
+
+async function fetchTipos(): Promise<TipoMonitoramento[]> {
+  const { data, error } = await (supabase as any)
+    .from('tipo_monitoramento')
+    .select('id, slug, nome, ativo')
+    .eq('ativo', true)
+    .order('nome');
+
+  if (error) {
+    console.error('Erro ao buscar tipos:', error);
+    return [];
+  }
+  return data as TipoMonitoramento[];
 }
 
 async function updateParametros(id: string, updates: Partial<ParametrosDjen>): Promise<void> {
@@ -114,10 +151,33 @@ export function ParametrosDjenCard() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(true);
   const [localParams, setLocalParams] = useState<Partial<ParametrosDjen> | null>(null);
+  const [tipoSelecionado, setTipoSelecionado] = useState<string | null>(null);
+
+  const { data: tipos } = useQuery({
+    queryKey: ['tipos-monitoramento'],
+    queryFn: fetchTipos,
+  });
+
+  const tipoAtual =
+    tipos?.find((t) => t.id === tipoSelecionado) ||
+    tipos?.find((t) => t.slug === 'djen_termos') ||
+    tipos?.[0] ||
+    null;
+
+  useEffect(() => {
+    if (!tipoSelecionado && tipoAtual?.id) {
+      setTipoSelecionado(tipoAtual.id);
+    }
+  }, [tipoAtual, tipoSelecionado]);
+
+  useEffect(() => {
+    setLocalParams(null);
+  }, [tipoSelecionado]);
 
   const { data: parametros, isLoading } = useQuery({
-    queryKey: ['parametros-djen'],
-    queryFn: fetchParametros,
+    queryKey: ['parametros-djen', tipoAtual?.id],
+    queryFn: () => fetchParametros(tipoAtual!.id),
+    enabled: !!tipoAtual?.id,
   });
 
   const updateMutation = useMutation({
@@ -126,7 +186,7 @@ export function ParametrosDjenCard() {
       await updateParametros(parametros.id, updates);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['parametros-djen'] });
+      queryClient.invalidateQueries({ queryKey: ['parametros-djen', tipoAtual?.id] });
       setLocalParams(null);
       toast.success('Parâmetros atualizados com sucesso!');
     },
@@ -136,6 +196,7 @@ export function ParametrosDjenCard() {
   });
 
   const currentParams = localParams ? { ...parametros, ...localParams } : parametros;
+  const isProcessos = tipoAtual?.slug === 'djen_processos';
 
   const handleChange = (field: keyof ParametrosDjen, value: any) => {
     setLocalParams(prev => ({ ...prev, [field]: value }));
@@ -187,7 +248,7 @@ export function ParametrosDjenCard() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Nenhuma configuração encontrada. Execute a migration para criar a tabela.
+            Nenhuma configuração encontrada para o tipo selecionado.
           </p>
         </CardContent>
       </Card>
@@ -212,6 +273,21 @@ export function ParametrosDjenCard() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Select
+                  value={tipoAtual?.id}
+                  onValueChange={(v) => setTipoSelecionado(v)}
+                >
+                  <SelectTrigger className="h-8 w-[200px]">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(tipos || []).map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {hasChanges && (
                   <Badge variant="outline" className="bg-warning/10 text-warning-foreground border-warning">
                     Alterações não salvas
@@ -326,6 +402,46 @@ export function ParametrosDjenCard() {
                 </p>
               </div>
             </div>
+
+            {isProcessos && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">Parâmetros DJEN Processos</Label>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Batch size</Label>
+                    <Input
+                      type="number"
+                      value={currentParams?.batch_size || 50}
+                      onChange={(e) => handleChange('batch_size', parseInt(e.target.value))}
+                      min={1}
+                      max={200}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Group search size</Label>
+                    <Input
+                      type="number"
+                      value={currentParams?.group_search_size || 50}
+                      onChange={(e) => handleChange('group_search_size', parseInt(e.target.value))}
+                      min={1}
+                      max={200}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Delay entre lotes</Label>
+                    <Input
+                      type="number"
+                      value={currentParams?.delay_entre_lotes || 3000}
+                      onChange={(e) => handleChange('delay_entre_lotes', parseInt(e.target.value))}
+                      min={0}
+                      max={20000}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Delays */}
             <div className="space-y-3">

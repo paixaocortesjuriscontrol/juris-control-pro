@@ -166,12 +166,20 @@ let lastJinaRequestTime = 0;
 // Função para carregar parâmetros da tabela
 async function loadConfigFromDatabase(supabase: any): Promise<void> {
   try {
-    const { data, error } = await supabase
+    const { data: tipoRow } = await supabase
+      .from('tipo_monitoramento')
+      .select('id')
+      .eq('slug', 'djen_termos')
+      .maybeSingle();
+
+    const query = supabase
       .from('parametros_monitoramento_djen')
       .select('*')
-      .eq('ativo', true)
-      .limit(1)
-      .single();
+      .eq('ativo', true);
+
+    const { data, error } = tipoRow?.id
+      ? await query.eq('tipo_monitoramento_id', tipoRow.id).limit(1).single()
+      : await query.limit(1).single();
 
     if (error) {
       console.log('[DJEN] Erro ao carregar parâmetros da tabela, usando valores padrão:', error.message);

@@ -2766,13 +2766,16 @@ export type Database = {
       parametros_monitoramento_djen: {
         Row: {
           ativo: boolean
+          batch_size: number
           created_at: string
+          delay_entre_lotes: number
           delay_entre_monitoramentos: number
           delay_entre_paginas: number
           delay_entre_tribunais: number
           delay_jina_api: number
           descricao: string | null
           finalization_buffer_ms: number
+          group_search_size: number
           id: string
           max_paralelo: number
           max_por_invocacao: number
@@ -2780,42 +2783,86 @@ export type Database = {
           modo_processamento: string
           retry_base_delay_ms: number
           soft_timeout_ms: number
+          tipo_monitoramento_id: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          batch_size?: number
+          created_at?: string
+          delay_entre_lotes?: number
+          delay_entre_monitoramentos?: number
+          delay_entre_paginas?: number
+          delay_entre_tribunais?: number
+          delay_jina_api?: number
+          descricao?: string | null
+          finalization_buffer_ms?: number
+          group_search_size?: number
+          id?: string
+          max_paralelo?: number
+          max_por_invocacao?: number
+          max_retries?: number
+          modo_processamento?: string
+          retry_base_delay_ms?: number
+          soft_timeout_ms?: number
+          tipo_monitoramento_id?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          batch_size?: number
+          created_at?: string
+          delay_entre_lotes?: number
+          delay_entre_monitoramentos?: number
+          delay_entre_paginas?: number
+          delay_entre_tribunais?: number
+          delay_jina_api?: number
+          descricao?: string | null
+          finalization_buffer_ms?: number
+          group_search_size?: number
+          id?: string
+          max_paralelo?: number
+          max_por_invocacao?: number
+          max_retries?: number
+          modo_processamento?: string
+          retry_base_delay_ms?: number
+          soft_timeout_ms?: number
+          tipo_monitoramento_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parametros_monitoramento_djen_tipo_fk"
+            columns: ["tipo_monitoramento_id"]
+            isOneToOne: true
+            referencedRelation: "tipo_monitoramento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tipo_monitoramento: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          slug: string
           updated_at: string
         }
         Insert: {
           ativo?: boolean
           created_at?: string
-          delay_entre_monitoramentos?: number
-          delay_entre_paginas?: number
-          delay_entre_tribunais?: number
-          delay_jina_api?: number
-          descricao?: string | null
-          finalization_buffer_ms?: number
           id?: string
-          max_paralelo?: number
-          max_por_invocacao?: number
-          max_retries?: number
-          modo_processamento?: string
-          retry_base_delay_ms?: number
-          soft_timeout_ms?: number
+          nome: string
+          slug: string
           updated_at?: string
         }
         Update: {
           ativo?: boolean
           created_at?: string
-          delay_entre_monitoramentos?: number
-          delay_entre_paginas?: number
-          delay_entre_tribunais?: number
-          delay_jina_api?: number
-          descricao?: string | null
-          finalization_buffer_ms?: number
           id?: string
-          max_paralelo?: number
-          max_por_invocacao?: number
-          max_retries?: number
-          modo_processamento?: string
-          retry_base_delay_ms?: number
-          soft_timeout_ms?: number
+          nome?: string
+          slug?: string
           updated_at?: string
         }
         Relationships: []
