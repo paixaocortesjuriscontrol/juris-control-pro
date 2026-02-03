@@ -628,7 +628,8 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       const isStuckNoProgress = !hasAnyProgress && elapsedSeconds > 300;
 
       if (progressComplete) {
-        status = 'completed';
+        // Enquanto há execução ativa, mantém "running" mesmo em 100%
+        status = 'running';
       } else if (metaCancelado || metaStatus === 'cancelado') {
         status = 'cancelled';
       } else if (isStuckNoProgress) {
@@ -637,6 +638,7 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       } else if (elapsedSeconds > 14400) {
         status = 'timeout';
       } else {
+        // Se há execução ativa e não completou, sempre "running"
         status = 'running';
       }
     } else if (metaIsRunning) {
@@ -690,8 +692,9 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
 
     const hasActiveSignal = !!currentExecution || metaIsRunning;
 
-    // Só marcar como concluído quando o progresso realmente chegou a 100%.
-    if (progressComplete) {
+    // Só marcar como concluído quando o progresso realmente chegou a 100%
+    // e não há execução ativa sinalizada.
+    if (progressComplete && !currentExecution && !metaIsRunning) {
       status = 'completed';
     } else if (status === 'completed') {
       // Se o banco diz "concluído" mas o progresso não chegou a 100, tratar como running/idle.
