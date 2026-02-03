@@ -664,12 +664,15 @@ export function MonitoringDashboard() {
     if (s.tipo !== 'djen_processos') return s;
     // Se execução local ativa, sobrescrever status/progress
     if (progressoDjenProcessosBrowser.status === 'executando') {
+      // Usar startedAt do progresso local se disponível; senão, usar timestamp atual
+      const browserStartedAt = progressoDjenProcessosBrowser.startedAt || s.currentExecution?.iniciado_em || new Date().toISOString();
+      
       const browserExec: MonitoringExecution = {
         id: 'browser-djen-processos',
         tipo: 'djen_processos',
         status: 'executando',
         job_name: 'browser-monitorar-djen-processos',
-        iniciado_em: (s.currentExecution?.iniciado_em || new Date().toISOString()),
+        iniciado_em: browserStartedAt,
         finalizado_em: null,
         lotes_processados: progressoDjenProcessosBrowser.current,
         total_lotes: progressoDjenProcessosBrowser.total,
@@ -698,6 +701,7 @@ export function MonitoringDashboard() {
         currentExecution: s.currentExecution ? {
           ...s.currentExecution,
           status: 'executando',
+          iniciado_em: browserStartedAt, // Garantir tempo correto
           finalizado_em: null,
           registros_processados: progressoDjenProcessosBrowser.current,
           registros_encontrados: progressoDjenProcessosBrowser.novas,

@@ -38,6 +38,7 @@ export interface DjenProcessosProgress {
   processosComNovas: number;
   mensagem: string;
   offset: number;
+  startedAt: string | null; // ISO timestamp para calcular tempo decorrido
 }
 
 interface MonitorarDjenProcessosBrowserReturn {
@@ -89,6 +90,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
     processosComNovas: 0,
     mensagem: '',
     offset: 0,
+    startedAt: null,
   });
 
   const isExecutando = progresso.status === 'executando';
@@ -103,6 +105,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
     });
   }, []);
 
+  // Salvar checkpoint com mais frequência para evitar perda de progresso em timeout
   const saveCheckpoint = useCallback(async (offset: number, stats: Partial<DjenProcessosProgress>) => {
     try {
       const { data: config } = await supabase
@@ -113,20 +116,30 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       
       const currentMeta = (config?.metadata as Record<string, any>) || {};
       
+      // Manter valores máximos para evitar regressão
+      const novas = Math.max(stats.novas || 0, currentMeta.novas || 0);
+      const duplicadas = Math.max(stats.duplicadas || 0, currentMeta.duplicadas || 0);
+      const processosComNovas = Math.max(stats.processosComNovas || 0, currentMeta.processosComNovas || 0);
+      
       await supabase
         .from('configuracoes_monitoramento')
         .update({
+          ultima_execucao: new Date().toISOString(),
           metadata: {
             ...currentMeta,
-            next_offset: offset,
-            current: stats.current || 0,
-            total: stats.total || 0,
-            novas: stats.novas || 0,
-            duplicadas: stats.duplicadas || 0,
-            percentage: stats.percentage || 0,
+            next_offset: Math.max(offset, currentMeta.next_offset || 0),
+            current: Math.max(stats.current || 0, currentMeta.current || 0),
+            total: stats.total || currentMeta.total || 0,
+            novas,
+            duplicadas,
+            processosComNovas,
+            percentage: Math.max(stats.percentage || 0, currentMeta.percentage || 0),
             status: stats.status || 'em_andamento',
             browser_execution: true,
             updated_at: new Date().toISOString(),
+            // Limpar flags de erro ao salvar progresso ativo
+            last_error: null,
+            last_stop_reason: null,
           },
         })
         .eq('tipo', 'djen_processos');
@@ -150,23 +163,30 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
     const dataFimEfetiva = dataFim || hoje;
 
     try {
-      // Buscar offset salvo se for retomada
+      // Buscar offset e contadores salvos
       let startOffset = 0;
-      if (retomar) {
-        const { data: config } = await supabase
-          .from('configuracoes_monitoramento')
-          .select('metadata')
-          .eq('tipo', 'djen_processos')
-          .maybeSingle();
+      let novasTotal = 0;
+      let duplicadasTotal = 0;
+      let processosComNovas = 0;
+      
+      const { data: config } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('metadata')
+        .eq('tipo', 'djen_processos')
+        .maybeSingle();
+      
+      const meta = config?.metadata as Record<string, any> | null;
+      
+      if (retomar && meta?.next_offset) {
+        startOffset = meta.next_offset || 0;
+        // IMPORTANTE: Restaurar contadores do checkpoint para não perder progresso
+        novasTotal = meta.novas || 0;
+        duplicadasTotal = meta.duplicadas || 0;
+        processosComNovas = meta.processosComNovas || 0;
         
-        const meta = config?.metadata as Record<string, any> | null;
-        startOffset = meta?.next_offset || 0;
-        
-        if (startOffset === 0) {
-          toast.info('Nenhum checkpoint encontrado. Iniciando do zero.');
-        } else {
-          toast.info(`Retomando do offset ${startOffset}`);
-        }
+        toast.info(`Retomando do offset ${startOffset} (${novasTotal} novas já encontradas)`);
+      } else if (retomar) {
+        toast.info('Nenhum checkpoint encontrado. Iniciando do zero.');
       }
 
       // Contar total de processos
@@ -183,21 +203,20 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
         return;
       }
 
+      const startedAt = new Date().toISOString();
       updateProgress({
         status: 'executando',
         current: startOffset,
         total,
-        novas: 0,
-        duplicadas: 0,
-        processosComNovas: 0,
-        mensagem: 'Iniciando monitoramento...',
+        novas: novasTotal,
+        duplicadas: duplicadasTotal,
+        processosComNovas,
+        mensagem: retomar ? `Retomando de ${startOffset}/${total}...` : 'Iniciando monitoramento...',
         offset: startOffset,
+        startedAt,
       });
 
       let offset = startOffset;
-      let novasTotal = 0;
-      let duplicadasTotal = 0;
-      let processosComNovas = 0;
       const seenHashes = new Set<string>();
 
       // Processar em lotes
@@ -304,6 +323,19 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
             // Pequeno delay entre processos para evitar rate limit
             await new Promise(r => setTimeout(r, CONFIG.delayBetweenProcesses));
 
+            // Salvar checkpoint a cada 5 processos para minimizar perda em timeout
+            if ((i + 1) % 5 === 0) {
+              const microCheckpoint = {
+                current: currentGlobal,
+                total,
+                novas: novasTotal,
+                duplicadas: duplicadasTotal,
+                processosComNovas,
+                percentage: Math.round((currentGlobal / total) * 100),
+              };
+              saveCheckpoint(currentGlobal, microCheckpoint); // fire-and-forget (sem await para não atrasar)
+            }
+
           } catch (e: any) {
             if (e.name === 'AbortError') break;
             console.warn(`[DJEN Processos Browser] Erro no processo ${processo.numero}:`, e.message);
@@ -312,22 +344,23 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
 
         offset += processos.length;
 
-        // Atualizar progresso e salvar checkpoint
+        // Atualizar progresso e salvar checkpoint após cada lote
         const currentStats = {
           current: offset,
           total,
           novas: novasTotal,
           duplicadas: duplicadasTotal,
+          processosComNovas,
           percentage: Math.round((offset / total) * 100),
         };
         
         updateProgress({
           ...currentStats,
-          processosComNovas,
           mensagem: `${offset}/${total} processos (${novasTotal} novas)`,
           offset,
         });
 
+        // Checkpoint garantido ao final de cada lote
         await saveCheckpoint(offset, currentStats);
 
         // Delay entre lotes
