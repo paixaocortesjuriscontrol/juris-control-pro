@@ -602,7 +602,8 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       progress = 100;
     }
 
-    const progressComplete = progress === 100 || (total > 0 && processados >= total);
+    // Nunca considerar 100% se não há total conhecido
+    const progressComplete = total > 0 && (progress === 100 || processados >= total);
 
     // Determine status (após calcular progresso)
     let status: MonitoringStatus = 'idle';
@@ -707,6 +708,11 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
         total = processados;
         progress = 100;
       }
+    }
+
+    // Se não há total e não há progresso real, não mostre 100%
+    if (total === 0 && (processados ?? 0) === 0 && (progress ?? 0) === 100) {
+      progress = 0;
     }
 
     // Estabilização (monotônico) para status=running com executionId.
