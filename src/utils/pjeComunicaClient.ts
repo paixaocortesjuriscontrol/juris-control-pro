@@ -530,10 +530,12 @@ export async function buscarPjeComunicaMultiplosProcessos(
   console.log(`[PJE Comunica OR] Query com ${numerosProcesso.length} processos:`, orQuery.slice(0, 200) + '...');
 
   try {
+    // IMPORTANTE: Usar tipo 'palavra-chave' para busca OR
+    // A API PJE Comunica usa Elasticsearch e o campo 'palavraChave' suporta operadores OR
     const resp = await buscarPjeComunicaNoBrowser(
       {
-        tipo: 'processo',
-        numeroProcesso: orQuery,
+        tipo: 'palavra-chave', // Busca por palavra-chave para suportar OR
+        palavraChave: orQuery, // Query com operador OR: "proc1 OR proc2 OR proc3"
         dataInicio: params.dataInicio,
         dataFim: params.dataFim,
         pageSize: 50, // Mais itens por página para cobrir múltiplos processos
