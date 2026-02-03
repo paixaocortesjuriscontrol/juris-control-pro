@@ -697,16 +697,20 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       progress = 100;
     }
 
-    // CORREÇÃO CRÍTICA: Se o progresso é 100%, o status DEVE ser 'completed'
-    // independentemente do status no banco (que pode ter sido marcado como timeout
-    // antes de o progresso ser atualizado para 100%)
-    if (progress === 100) {
+    const progressComplete = progress === 100 || (total > 0 && processados >= total);
+    const hasActiveSignal = !!currentExecution || metaIsRunning;
+
+    // Só marcar como concluído quando o progresso realmente chegou a 100%.
+    if (progressComplete) {
       status = 'completed';
+    } else if (status === 'completed') {
+      // Se o banco diz "concluído" mas o progresso não chegou a 100, tratar como running/idle.
+      status = hasActiveSignal ? 'running' : 'idle';
     }
 
     // Se a execução está concluída, garantir 100% quando houver total conhecido.
     // Para tipos sem total estruturado (distribuições), mostrar 100% se concluído
-    if (status === 'completed') {
+    if (status === 'completed' && progressComplete) {
       if (total > 0) {
         progress = 100;
       } else if (processados > 0) {
