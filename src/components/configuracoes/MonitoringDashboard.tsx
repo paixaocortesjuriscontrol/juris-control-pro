@@ -275,7 +275,7 @@ function MonitoringCard({
   isSendingSummary
 }: { 
   stats: MonitoringStats;
-  onExecute: () => void;
+  onExecute: (options?: { retomar?: boolean }) => void;
   onCancel: () => void;
   onSendSummary: () => void;
   isExecuting: boolean;
@@ -358,7 +358,7 @@ function MonitoringCard({
           <Button 
             size="sm"
             className="flex-1"
-            onClick={onExecute}
+            onClick={() => onExecute(hasCheckpoint ? { retomar: true } : undefined)}
             disabled={!canExecute}
             variant={hasCheckpoint ? "outline" : "default"}
           >
@@ -491,8 +491,8 @@ export function MonitoringDashboard() {
     if (updErr) throw updErr;
   };
 
-  const executarAgora = async (tipo: string) => {
-    const result = await executeMonitoring(tipo);
+  const executarAgora = async (tipo: string, options?: { retomar?: boolean }) => {
+    const result = await executeMonitoring(tipo, options);
     const stats = monitoringStats.find(s => s.tipo === tipo);
 
     // DJEN Termos usa busca direta - mostrar info ao invés de executar
@@ -516,7 +516,7 @@ export function MonitoringDashboard() {
     toast.info(`${stats?.nome || tipo} iniciado! Acompanhe o progresso no painel.`);
   };
 
-  const handleExecute = async (tipo: string) => {
+  const handleExecute = async (tipo: string, options?: { retomar?: boolean }) => {
     // Se estiver desativado/pausado, pedir confirmação para reativar
     try {
       const { data: cfg, error } = await supabase
@@ -536,7 +536,7 @@ export function MonitoringDashboard() {
       }
 
       setExecuting(prev => ({ ...prev, [tipo]: true }));
-      await executarAgora(tipo);
+      await executarAgora(tipo, options);
     } catch (error: any) {
       toast.error(`Erro ao iniciar: ${error.message}`);
     } finally {
@@ -707,7 +707,7 @@ export function MonitoringDashboard() {
             <MonitoringCard
               key={stats.tipo}
               stats={stats}
-              onExecute={() => handleExecute(stats.tipo)}
+              onExecute={(options) => handleExecute(stats.tipo, options)}
               onCancel={() => handleCancel(stats.tipo)}
               onSendSummary={() => enviarResumo(stats.tipo as any)}
               isExecuting={executing[stats.tipo] || false}

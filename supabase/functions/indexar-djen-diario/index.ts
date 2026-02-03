@@ -46,6 +46,10 @@ const browserHeaders = {
   "Referer": "https://comunica.pje.jus.br/",
 };
 
+function delay(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 function generateHash(input: string): string {
   let hash = 0;
   for (let i = 0; i < input.length; i++) {
@@ -134,7 +138,7 @@ async function upsertTribunalStatus(
   tribunal: string,
   status: string,
   paginasProcessadas: number,
-  maxPages: number,
+  maxPages: number | null,
   erroMensagem?: string | null
 ) {
   await supabase
@@ -144,7 +148,7 @@ async function upsertTribunalStatus(
       tribunal,
       status,
       paginas_processadas: paginasProcessadas,
-      max_pages: maxPages,
+      max_pages: maxPages ?? null,
       erro_mensagem: erroMensagem || null,
       atualizado_em: new Date().toISOString(),
     }, { onConflict: "diario_ymd,tribunal" });
@@ -166,139 +170,245 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({} as any));
+    const asyncMode = body?.async === true;
     const dataYmd = (body?.dataYmd as string | undefined) || new Date().toISOString().slice(0, 10);
     let tribunais = (body?.tribunais as string[] | undefined) || null;
     const maxPages = Number.isFinite(body?.maxPages) ? Math.max(1, Number(body.maxPages)) : 200;
-    const concurrentTribunais = Number.isFinite(body?.concurrentTribunais)
-      ? Math.max(1, Math.min(5, Number(body.concurrentTribunais)))
-      : 1;
-    const pageDelayMs = Number.isFinite(body?.pageDelayMs) ? Math.max(0, Number(body.pageDelayMs)) : 400;
+    const concurrentTribunais = 1; // sempre sem paralelismo entre tribunais
+    const pageDelayMs = Number.isFinite(body?.pageDelayMs) ? Math.max(0, Number(body.pageDelayMs)) : 800;
+    const tribunalDelayMs = Number.isFinite(body?.tribunalDelayMs) ? Math.max(0, Number(body.tribunalDelayMs)) : 300;
+    const itemsPerPage = Number.isFinite(body?.itemsPerPage)
+      ? Math.max(10, Math.min(100, Number(body.itemsPerPage)))
+      : 10;
+    const insertBatchSize = Number.isFinite(body?.insertBatchSize)
+      ? Math.max(5, Math.min(100, Number(body.insertBatchSize)))
+      : 3;
+    const insertDelayMs = Number.isFinite(body?.insertDelayMs) ? Math.max(0, Number(body.insertDelayMs)) : 300;
+    const retryCount = Number.isFinite(body?.retryCount) ? Math.max(0, Number(body.retryCount)) : 4;
+    const retryDelayMs = Number.isFinite(body?.retryDelayMs) ? Math.max(0, Number(body.retryDelayMs)) : 8000;
+    const stjOverrides = {
+      itemsPerPage: 5,
+      insertBatchSize: 2,
+      insertDelayMs: 600,
+      pageDelayMs: 1500,
+    };
     const force = body?.force === true;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    if (!force) {
-      const { data: existing } = await supabase
+    const runIndexacao = async (): Promise<{ success: boolean; total?: number; status?: string }> => {
+      if (!force) {
+        const { data: existing } = await supabase
+          .from("djen_diario_index")
+          .select("status")
+          .eq("diario_ymd", dataYmd)
+          .maybeSingle();
+        if (existing?.status === 'concluido') {
+          return { success: true, status: 'ja_indexado' };
+        }
+      }
+
+      if (force) {
+        await supabase
+          .from("djen_diario_index_tribunais")
+          .delete()
+          .eq("diario_ymd", dataYmd);
+        await supabase
+          .from("djen_diario_index")
+          .upsert({
+            diario_ymd: dataYmd,
+            status: "pendente",
+            cancelado: false,
+            erro_mensagem: null,
+            total_publicacoes: 0,
+            total_tribunais: 0,
+            tribunais_processados: 0,
+            atualizado_em: new Date().toISOString(),
+          }, { onConflict: "diario_ymd" });
+      }
+
+      if (!tribunais) {
+        const { data: mons } = await supabase
+          .from("monitoramentos_djen")
+          .select("tribunais")
+          .eq("ativo", true);
+        const base: string[] = [];
+        (mons || []).forEach((m: any) => {
+          const ts = Array.isArray(m?.tribunais) ? m.tribunais : [];
+          base.push(...ts);
+        });
+        tribunais = base.length > 0 ? expandirTribunais(base) : TRIBUNAIS_TODOS;
+      }
+      tribunais = (tribunais.length > 0 ? tribunais : TRIBUNAIS_TODOS).map((t) => String(t).toUpperCase());
+
+      const { data: indexRow } = await supabase
         .from("djen_diario_index")
-        .select("status")
+        .select("started_at")
         .eq("diario_ymd", dataYmd)
         .maybeSingle();
-      if (existing?.status === 'concluido') {
-        return new Response(
-          JSON.stringify({ success: true, status: 'ja_indexado' }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    }
+      const startedAt = indexRow?.started_at || new Date().toISOString();
 
-    if (force) {
-      await supabase
-        .from("djen_diario_index_tribunais")
-        .delete()
-        .eq("diario_ymd", dataYmd);
       await supabase
         .from("djen_diario_index")
         .upsert({
           diario_ymd: dataYmd,
-          status: "pendente",
+          status: "em_andamento",
           cancelado: false,
-          erro_mensagem: null,
-          total_publicacoes: 0,
-          total_tribunais: 0,
+          total_tribunais: tribunais.length,
           tribunais_processados: 0,
+          started_at: startedAt,
           atualizado_em: new Date().toISOString(),
         }, { onConflict: "diario_ymd" });
-    }
 
-    if (!tribunais) {
-      const { data: mons } = await supabase
-        .from("monitoramentos_djen")
-        .select("tribunais")
-        .eq("ativo", true);
-      const base: string[] = [];
-      (mons || []).forEach((m: any) => {
-        const ts = Array.isArray(m?.tribunais) ? m.tribunais : [];
-        base.push(...ts);
-      });
-      tribunais = base.length > 0 ? expandirTribunais(base) : TRIBUNAIS_TODOS;
-    }
-    tribunais = tribunais.length > 0 ? tribunais : TRIBUNAIS_TODOS;
+      let totalInseridas = 0;
 
-    await supabase
-      .from("djen_diario_index")
-      .upsert({
-        diario_ymd: dataYmd,
-        status: "em_andamento",
-        cancelado: false,
-        total_tribunais: tribunais.length,
-        tribunais_processados: 0,
-        atualizado_em: new Date().toISOString(),
-      }, { onConflict: "diario_ymd" });
+      let tribunaisProcessados = 0;
+      const tribunaisComErro: string[] = [];
+      const shouldCancel = createCancelChecker(supabase, dataYmd);
 
-    let totalInseridas = 0;
+      const processTribunalPage = async (
+        tribunal: string,
+        page: number
+      ): Promise<{ done: boolean; nextPage: number; inserted: number }> => {
+        const isStj = tribunal === "STJ";
+        const effectiveItemsPerPage = isStj ? stjOverrides.itemsPerPage : itemsPerPage;
+        const effectiveInsertBatchSize = isStj ? stjOverrides.insertBatchSize : insertBatchSize;
+        const effectiveInsertDelayMs = isStj ? stjOverrides.insertDelayMs : insertDelayMs;
+        const effectivePageDelayMs = isStj ? stjOverrides.pageDelayMs : pageDelayMs;
+        if (isStj && page === 0) {
+          console.log(`[DJEN Index] STJ modo super conservador: itens=${effectiveItemsPerPage}, batch=${effectiveInsertBatchSize}, delay=${effectiveInsertDelayMs}ms`);
+        }
 
-    let tribunaisProcessados = 0;
-    const tribunaisComErro: string[] = [];
-    const shouldCancel = createCancelChecker(supabase, dataYmd);
+        const queryParams = new URLSearchParams();
+        queryParams.set('siglaTribunal', tribunal);
+        queryParams.set('dataDisponibilizacaoInicio', dataYmd);
+        queryParams.set('dataDisponibilizacaoFim', dataYmd);
+        queryParams.set('pagina', page.toString());
+        queryParams.set('itensPorPagina', String(effectiveItemsPerPage));
 
-    const processTribunal = async (tribunal: string) => {
-      if (await shouldCancel()) return;
-      await upsertTribunalStatus(supabase, dataYmd, tribunal, "em_andamento", 0, maxPages);
-      try {
-        let page = 0;
-        while (page < maxPages) {
-          if (await shouldCancel()) break;
-          const queryParams = new URLSearchParams();
-          queryParams.set('siglaTribunal', tribunal);
-          queryParams.set('dataDisponibilizacaoInicio', dataYmd);
-          queryParams.set('dataDisponibilizacaoFim', dataYmd);
-          queryParams.set('pagina', page.toString());
-          queryParams.set('itensPorPagina', '100');
+        const url = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
+        const data: any = await fetchJsonWithRetry(url);
+        const items = data?.comunicacoes || data?.items || data || [];
+        if (!Array.isArray(items) || items.length === 0) {
+          return { done: true, nextPage: page, inserted: 0 };
+        }
 
-          const url = `${PJE_COMUNICA_API}/comunicacao?${queryParams.toString()}`;
-          if (await shouldCancel()) break;
-          const data: any = await fetchJsonWithRetry(url);
-          if (await shouldCancel()) break;
+        const batch = items.map((pub: any) => {
+          const pubObj = pub.comunicacao || pub;
+          const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
+          const dataDisponibilizacao =
+            pub.dataDisponibilizacao || pubObj.dataDisponibilizacao ||
+            pub.dataDJe || pubObj.dataDJe ||
+            pub.dtDisponibilizacao || pubObj.dtDisponibilizacao ||
+            pub.dataDisp || pubObj.dataDisp ||
+            dataYmd;
+          const dataPublicacao =
+            pub.dataPublicacao || pubObj.dataPublicacao ||
+            pub.dataJornal || pubObj.dataJornal ||
+            pub.dtPublicacao || pubObj.dtPublicacao ||
+            pub.data || pubObj.data ||
+            null;
+          const processoNumero = pub.numeroProcesso || pub.processo || null;
 
-          const items = data?.comunicacoes || data?.items || data || [];
-          if (!Array.isArray(items) || items.length === 0) break;
+          return {
+            diario_ymd: dataYmd,
+            tribunal,
+            data_disponibilizacao: dataDisponibilizacao,
+            data_publicacao: dataPublicacao,
+            processo_numero: processoNumero,
+            conteudo,
+            hash_global: generateGlobalHash(conteudo, dataDisponibilizacao),
+            raw_json: pub,
+          };
+        });
 
-          const batch = items.map((pub: any) => {
-            const pubObj = pub.comunicacao || pub;
-            const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
-            const dataDisponibilizacao =
-              pub.dataDisponibilizacao || pubObj.dataDisponibilizacao ||
-              pub.dataDJe || pubObj.dataDJe ||
-              pub.dtDisponibilizacao || pubObj.dtDisponibilizacao ||
-              pub.dataDisp || pubObj.dataDisp ||
-              dataYmd;
-            const dataPublicacao =
-              pub.dataPublicacao || pubObj.dataPublicacao ||
-              pub.dataJornal || pubObj.dataJornal ||
-              pub.dtPublicacao || pubObj.dtPublicacao ||
-              pub.data || pubObj.data ||
-              null;
-            const processoNumero = pub.numeroProcesso || pub.processo || null;
-
-            return {
-              diario_ymd: dataYmd,
-              tribunal,
-              data_disponibilizacao: dataDisponibilizacao,
-              data_publicacao: dataPublicacao,
-              processo_numero: processoNumero,
-              conteudo,
-              hash_global: generateGlobalHash(conteudo, dataDisponibilizacao),
-              raw_json: pub,
-            };
-          });
-
+        let inserted = 0;
+        for (let i = 0; i < batch.length; i += effectiveInsertBatchSize) {
+          const slice = batch.slice(i, i + effectiveInsertBatchSize);
           const { error } = await supabase
             .from("djen_diario_publicacoes")
-            .upsert(batch, { onConflict: "hash_global", ignoreDuplicates: true });
+            .upsert(slice, { onConflict: "hash_global", ignoreDuplicates: true });
           if (error) throw error;
+          inserted += slice.length;
+          if (effectiveInsertDelayMs > 0) {
+            await delay(effectiveInsertDelayMs);
+          }
+        }
 
-          totalInseridas += batch.length;
-          await upsertTribunalStatus(supabase, dataYmd, tribunal, "em_andamento", page + 1, maxPages);
+        if (effectivePageDelayMs > 0) {
+          await delay(effectivePageDelayMs);
+        }
+
+        return { done: false, nextPage: page + 1, inserted };
+      };
+
+      const estados = tribunais.map((tribunal) => ({
+        tribunal,
+        page: 0,
+        done: false,
+        finalized: false,
+        retryAttempts: 0,
+        retryAt: 0,
+      }));
+
+      while (estados.some((t) => !t.done)) {
+        if (await shouldCancel()) {
+          for (const t of estados.filter((s) => !s.finalized)) {
+            const tribunalUpper = String(t.tribunal).toUpperCase();
+            await upsertTribunalStatus(supabase, dataYmd, tribunalUpper, "cancelado", t.page, null, "Cancelado pelo usuário");
+            t.finalized = true;
+            t.done = true;
+            tribunaisProcessados += 1;
+          }
+          break;
+        }
+
+        for (const state of estados) {
+          if (state.done) continue;
+          if (await shouldCancel()) break;
+        const nowMs = Date.now();
+        if (state.retryAt && state.retryAt > nowMs) {
+          continue;
+        }
+
+          const tribunalUpper = String(state.tribunal).toUpperCase();
+          await upsertTribunalStatus(supabase, dataYmd, tribunalUpper, "em_andamento", state.page, null);
+
+        try {
+          const result = await processTribunalPage(tribunalUpper, state.page);
+          totalInseridas += result.inserted;
+          state.page = result.nextPage;
+          state.retryAttempts = 0;
+          state.retryAt = 0;
+          if (result.done || state.page >= maxPages) {
+            await upsertTribunalStatus(
+              supabase,
+              dataYmd,
+              tribunalUpper,
+              "concluido",
+              state.page,
+              state.page === 0 ? 0 : null
+            );
+            state.done = true;
+            state.finalized = true;
+            tribunaisProcessados += 1;
+          } else {
+            await upsertTribunalStatus(supabase, dataYmd, tribunalUpper, "em_andamento", state.page, null);
+          }
+        } catch (e: any) {
+          state.retryAttempts += 1;
+          const msg = `${e?.message || 'erro'} (tentativa ${state.retryAttempts}/${retryCount + 1})`;
+          await upsertTribunalStatus(supabase, dataYmd, tribunalUpper, "erro", state.page, null, msg);
+          if (state.retryAttempts > retryCount) {
+            tribunaisComErro.push(`${tribunalUpper}:${e?.message || 'erro'}`);
+            state.done = true;
+            state.finalized = true;
+            tribunaisProcessados += 1;
+          } else {
+            state.retryAt = Date.now() + retryDelayMs * state.retryAttempts;
+          }
+        }
+
           const cancelNow = await shouldCancel();
           await supabase
             .from("djen_diario_index")
@@ -308,81 +418,67 @@ serve(async (req) => {
               total_publicacoes: totalInseridas,
               total_tribunais: tribunais.length,
               tribunais_processados: tribunaisProcessados,
+              started_at: startedAt,
               atualizado_em: new Date().toISOString(),
               erro_mensagem: cancelNow ? "Cancelado pelo usuário" : null,
             }, { onConflict: "diario_ymd" });
-          if (cancelNow) break;
-          page++;
-          if (pageDelayMs > 0) {
-            await new Promise((r) => setTimeout(r, pageDelayMs));
+
+          if (tribunalDelayMs > 0) {
+            await delay(tribunalDelayMs);
           }
         }
-        if (await shouldCancel()) {
-          await upsertTribunalStatus(supabase, dataYmd, tribunal, "cancelado", page, maxPages, "Cancelado pelo usuário");
-        } else {
-          await upsertTribunalStatus(supabase, dataYmd, tribunal, "concluido", page, maxPages);
-        }
-      } catch (e: any) {
-        tribunaisComErro.push(`${tribunal}:${e?.message || 'erro'}`);
-        await upsertTribunalStatus(supabase, dataYmd, tribunal, "erro", 0, maxPages, e?.message || 'erro');
-      } finally {
-        tribunaisProcessados += 1;
-        const cancelNow = await shouldCancel();
-        await supabase
-          .from("djen_diario_index")
-          .upsert({
-            diario_ymd: dataYmd,
-            status: cancelNow ? "cancelado" : "em_andamento",
-            total_publicacoes: totalInseridas,
-            total_tribunais: tribunais.length,
-            tribunais_processados: tribunaisProcessados,
-            atualizado_em: new Date().toISOString(),
-            erro_mensagem: cancelNow ? "Cancelado pelo usuário" : null,
-          }, { onConflict: "diario_ymd" });
       }
+
+      const foiCancelado = await shouldCancel();
+      const erroMsgBase = tribunaisComErro.length > 0
+        ? `Tribunais com erro: ${tribunaisComErro.slice(0, 15).join(', ')}${tribunaisComErro.length > 15 ? '...' : ''}`
+        : null;
+      const nenhumTribunal = tribunais.length === 0;
+      const nadaProcessado = tribunaisProcessados === 0;
+      const todosErro = tribunais.length > 0 && tribunaisComErro.length === tribunais.length;
+      const nenhumResultado = totalInseridas === 0 && (todosErro || nadaProcessado);
+      const statusFinal = foiCancelado
+        ? "cancelado"
+        : (nenhumTribunal || nenhumResultado)
+          ? "erro"
+          : "concluido";
+      const erroMsg = foiCancelado
+        ? "Cancelado pelo usuário"
+        : nenhumTribunal
+          ? "Nenhum tribunal configurado para indexação"
+          : nenhumResultado
+            ? "Indexação terminou sem processar tribunais válidos"
+            : erroMsgBase;
+
+      await supabase
+        .from("djen_diario_index")
+        .upsert({
+          diario_ymd: dataYmd,
+          status: statusFinal,
+          total_publicacoes: totalInseridas,
+          total_tribunais: tribunais.length,
+          tribunais_processados: tribunais.length,
+          started_at: startedAt,
+          atualizado_em: new Date().toISOString(),
+          erro_mensagem: erroMsg,
+        }, { onConflict: "diario_ymd" });
+
+      return { success: true, total: totalInseridas };
     };
 
-    for (let i = 0; i < tribunais.length; i += concurrentTribunais) {
-      if (await shouldCancel()) break;
-      const chunk = tribunais.slice(i, i + concurrentTribunais);
-      await Promise.all(chunk.map(processTribunal));
+    if (asyncMode) {
+      const p = runIndexacao().catch((e) => console.error("[DJEN Index] async error:", e));
+      const er = (globalThis as any).EdgeRuntime;
+      if (er?.waitUntil) er.waitUntil(p);
+      return new Response(
+        JSON.stringify({ success: true, queued: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const foiCancelado = await shouldCancel();
-    const erroMsgBase = tribunaisComErro.length > 0
-      ? `Tribunais com erro: ${tribunaisComErro.slice(0, 15).join(', ')}${tribunaisComErro.length > 15 ? '...' : ''}`
-      : null;
-    const nenhumTribunal = tribunais.length === 0;
-    const nadaProcessado = tribunaisProcessados === 0;
-    const todosErro = tribunais.length > 0 && tribunaisComErro.length === tribunais.length;
-    const nenhumResultado = totalInseridas === 0 && (todosErro || nadaProcessado);
-    const statusFinal = foiCancelado
-      ? "cancelado"
-      : (nenhumTribunal || nenhumResultado)
-        ? "erro"
-        : "concluido";
-    const erroMsg = foiCancelado
-      ? "Cancelado pelo usuário"
-      : nenhumTribunal
-        ? "Nenhum tribunal configurado para indexação"
-        : nenhumResultado
-          ? "Indexação terminou sem processar tribunais válidos"
-          : erroMsgBase;
-
-    await supabase
-      .from("djen_diario_index")
-      .upsert({
-        diario_ymd: dataYmd,
-        status: statusFinal,
-        total_publicacoes: totalInseridas,
-        total_tribunais: tribunais.length,
-        tribunais_processados: tribunais.length,
-        atualizado_em: new Date().toISOString(),
-        erro_mensagem: erroMsg,
-      }, { onConflict: "diario_ymd" });
-
+    const result = await runIndexacao();
     return new Response(
-      JSON.stringify({ success: true, total: totalInseridas }),
+      JSON.stringify(result),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e: any) {

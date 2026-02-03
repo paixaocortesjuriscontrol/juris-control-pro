@@ -15,6 +15,10 @@ export type ExecuteMonitoringResult = {
   [key: string]: any;
 };
 
+export type ExecuteMonitoringOptions = {
+  retomar?: boolean;
+};
+
 export interface MonitoringExecution {
   id: string;
   tipo: string;
@@ -513,7 +517,7 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
 
       if (isCompletedByProgress) {
         status = 'completed';
-      } else if (elapsedSeconds > 3600) {
+      } else if (elapsedSeconds > 14400) {
         // Mais de 1h e ainda está "executando" sem finalizado_em → timeout
         status = 'timeout';
       } else {
@@ -529,7 +533,7 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
         elapsedSeconds = Math.round((now.getTime() - started.getTime()) / 1000);
 
         // Se o metadata ficou travado em em_andamento por muito tempo, tratar como timeout
-        if (elapsedSeconds > 3600) {
+        if (elapsedSeconds > 14400) {
           status = 'timeout';
         }
       }
@@ -731,7 +735,10 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
   const hasRunningJobs = monitoringStats.some(s => s.status === 'running');
 
   // Execute monitoring via orchestrator
-  const executeMonitoring = useCallback(async (tipo: string): Promise<ExecuteMonitoringResult> => {
+  const executeMonitoring = useCallback(async (
+    tipo: string,
+    options?: ExecuteMonitoringOptions
+  ): Promise<ExecuteMonitoringResult> => {
     const monitoringType = MONITORING_TYPES.find(t => t.tipo === tipo);
     if (!monitoringType) throw new Error('Tipo inválido');
 
@@ -747,7 +754,7 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
 
     // Use orchestrator to prevent WORKER_LIMIT
     const { data, error } = await supabase.functions.invoke('executar-monitoramento', {
-      body: { tipo },
+      body: { tipo, retomar: options?.retomar === true },
     });
 
     if (error) throw error;

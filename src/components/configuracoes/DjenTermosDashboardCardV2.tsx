@@ -283,7 +283,14 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     setStableStatus(rawEffectiveStatus);
   }, [rawEffectiveStatus]);
 
-  const effectiveStatus = stableStatus;
+  const effectiveStatus = (() => {
+    if (backendIsRunning) return 'executando';
+    if (typeof md.percentage === 'number' && Number.isFinite(md.percentage) && md.percentage >= 100) {
+      return 'concluido';
+    }
+    if (mdStatus === 'concluido') return 'concluido';
+    return stableStatus;
+  })();
   const effectiveIsRunning = effectiveStatus === 'executando';
 
   // Percentual (fonte única): DJEN Termos deve usar detalhes.progress da execução ativa.
@@ -311,6 +318,11 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     // 2) Execução local (engine singleton)
     if (isRunning && typeof progress.percentage === 'number') {
       return progress.percentage;
+    }
+
+    // 2b) Metadata do backend (quando disponível)
+    if (typeof md.percentage === 'number' && Number.isFinite(md.percentage)) {
+      return toSafePct(md.percentage);
     }
 
     // 3) Fallback (sem execução): metadata/stats
@@ -442,6 +454,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   // Estado para seleção de datas
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
+  const [dataIndice, setDataIndice] = useState<Date | undefined>(undefined);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [showKillDialog, setShowKillDialog] = useState(false);
   const [turboMode, setTurboMode] = useState(false);
@@ -511,21 +524,30 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   }, []);
 
   const dataIndexYmd = useMemo(() => {
-    const inicio = getDataYmd(dataInicio);
-    const fim = getDataYmd(dataFim);
-    if (inicio && fim && inicio === fim) return inicio;
-    if (inicio && !fim) return inicio;
-    if (fim && !inicio) return fim;
-    if (inicio && fim && inicio !== fim) return null;
-    return null;
-  }, [dataInicio, dataFim, getDataYmd]);
+    const indice = getDataYmd(dataIndice);
+    return indice || null;
+  }, [dataIndice, getDataYmd]);
+
+  useEffect(() => {
+    if (!dataInicio && !dataFim) {
+      const hoje = new Date();
+      hoje.setHours(12, 0, 0, 0);
+      setDataInicio(hoje);
+      setDataFim(hoje);
+    }
+    if (!dataIndice) {
+      const hoje = new Date();
+      hoje.setHours(12, 0, 0, 0);
+      setDataIndice(hoje);
+    }
+  }, [dataInicio, dataFim, dataIndice]);
 
   const { data: indexStatus, refetch: refetchIndexStatus } = useQuery({
     queryKey: ['djen-diario-index', dataIndexYmd],
     queryFn: async () => {
       const baseQuery = (supabase as any)
         .from('djen_diario_index')
-        .select('diario_ymd, status, total_publicacoes, total_tribunais, tribunais_processados, atualizado_em, erro_mensagem')
+        .select('diario_ymd, status, total_publicacoes, total_tribunais, tribunais_processados, atualizado_em, erro_mensagem, started_at')
         .order('atualizado_em', { ascending: false })
         .limit(1);
       const { data, error } = dataIndexYmd
@@ -540,6 +562,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
         tribunais_processados: number | null;
         atualizado_em: string | null;
         erro_mensagem: string | null;
+        started_at: string | null;
       } | null;
     },
     enabled: true,
@@ -572,20 +595,62 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   const statusConfig = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.idle;
   const StatusIcon = statusConfig.icon;
   const [indexActionPending, setIndexActionPending] = useState(false);
-  const indexErroTribunais = useMemo(
-    () => indexTribunais.filter((t) => t.status === 'erro'),
-    [indexTribunais]
-  );
+  const indexErroTribunais = useMemo(() => {
+    if (!indexStatus) return [];
+    if (indexActionPending && indexStatus.status !== 'em_andamento') return [];
+    return indexTribunais.filter((t) => t.status === 'erro');
+  }, [indexActionPending, indexStatus, indexTribunais]);
   const indexErrosCount = indexErroTribunais.length;
-  const indexStatusLabel = indexStatus?.status === 'concluido'
-    ? 'Concluído'
-    : indexStatus?.status === 'em_andamento'
-      ? 'Em andamento'
-      : indexStatus?.status === 'cancelado'
-        ? 'Cancelado'
-        : indexStatus?.status === 'erro'
-        ? 'Erro'
-        : 'Pendente';
+  const shouldShowIndexErrors =
+    (indexStatus?.status === 'em_andamento' && Number(indexStatus.tribunais_processados || 0) > 0) ||
+    indexStatus?.status === 'concluido';
+  const indexStatusLabel = indexActionPending && indexStatus?.status !== 'em_andamento'
+    ? 'Iniciando'
+    : indexStatus?.status === 'concluido'
+      ? 'Concluído'
+      : indexStatus?.status === 'em_andamento'
+        ? 'Em andamento'
+        : indexStatus?.status === 'cancelado'
+          ? 'Cancelado'
+          : indexStatus?.status === 'erro'
+          ? 'Erro'
+          : 'Pendente';
+  const indexLastUpdateLabel = useMemo(() => {
+    if (!indexStatus?.atualizado_em) return null;
+    const dt = new Date(indexStatus.atualizado_em);
+    if (Number.isNaN(dt.getTime())) return null;
+    return format(dt, "dd/MM/yyyy HH:mm", { locale: ptBR });
+  }, [indexStatus?.atualizado_em]);
+  const indexElapsedLabel = useMemo(() => {
+    if (indexStatus?.status !== 'em_andamento') return null;
+    if (!indexStatus?.started_at) return null;
+    const started = new Date(indexStatus.started_at);
+    if (Number.isNaN(started.getTime())) return null;
+    const now = new Date();
+    const seconds = Math.max(0, Math.round((now.getTime() - started.getTime()) / 1000));
+    return formatDuration(seconds);
+  }, [indexStatus?.started_at, indexStatus?.status]);
+  const indexStatusMessage = useMemo(() => {
+    if (!indexStatus) return null;
+    if (indexActionPending && indexStatus.status !== 'em_andamento') {
+      return 'Solicitação enviada. Aguardando início do backend...';
+    }
+    if (indexStatus.status === 'em_andamento' && Number(indexStatus.tribunais_processados || 0) === 0) {
+      return 'Iniciando indexação...';
+    }
+    if (indexStatus.status === 'concluido') return 'Indexação concluída.';
+    if (indexStatus.status === 'cancelado') return 'Indexação cancelada.';
+    if (indexStatus.status === 'erro') return 'Indexação com erro.';
+    return 'Índice pendente.';
+  }, [indexActionPending, indexStatus]);
+
+  useEffect(() => {
+    if (!indexActionPending) return;
+    const t = setTimeout(() => {
+      refetchIndexStatus();
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [indexActionPending, refetchIndexStatus]);
   const indexProgress = (() => {
     if (!indexStatus) return 0;
     if (indexStatus.status === 'cancelado') return 0;
@@ -624,26 +689,21 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       }
     }
 
+    const inicioExec = indexMode === 'indexado' ? dataIndexYmd : getDataYmd(dataInicio);
+    const fimExec = indexMode === 'indexado' ? dataIndexYmd : getDataYmd(dataFim);
+
     if (backgroundOnly) {
-      await executarHibrido(getDataYmd(dataInicio), getDataYmd(dataFim), { backgroundOnly: true, indexMode });
+      await executarHibrido(inicioExec, fimExec, { backgroundOnly: true, indexMode });
     } else if (hybridMode) {
-      await executarHibrido(getDataYmd(dataInicio), getDataYmd(dataFim), { indexMode });
+      await executarHibrido(inicioExec, fimExec, { indexMode });
     } else {
-      executar(getDataYmd(dataInicio), getDataYmd(dataFim), { turbo: turboMode });
+      executar(inicioExec, fimExec, { turbo: turboMode });
     }
     onAfterMutation();
   }, [canResume, executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus]);
 
   const handleIndexarDiario = useCallback(async () => {
-    const inicio = getDataYmd(dataInicio);
-    const fim = getDataYmd(dataFim);
-
-    if (inicio && fim && inicio !== fim) {
-      toast.error('Para indexar, selecione apenas um dia');
-      return;
-    }
-
-    const dataYmd = inicio || fim || getDataYmd(new Date());
+    const dataYmd = getDataYmd(dataIndice) || getDataYmd(new Date());
     if (!dataYmd) {
       toast.error('Selecione um dia para indexar');
       return;
@@ -657,7 +717,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     } finally {
       setIndexActionPending(false);
     }
-  }, [dataInicio, dataFim, getDataYmd, indexarDiario, onAfterMutation, refetchIndexStatus]);
+  }, [dataIndice, getDataYmd, indexarDiario, onAfterMutation, refetchIndexStatus]);
 
   const handleRetomar = useCallback(() => {
     setShowResumeDialog(false);
@@ -689,12 +749,14 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
         return;
       }
     }
+    const inicioExec = indexMode === 'indexado' ? dataIndexYmd : getDataYmd(dataInicio);
+    const fimExec = indexMode === 'indexado' ? dataIndexYmd : getDataYmd(dataFim);
     if (backgroundOnly) {
-      executarHibrido(getDataYmd(dataInicio), getDataYmd(dataFim), { backgroundOnly: true, indexMode });
+      executarHibrido(inicioExec, fimExec, { backgroundOnly: true, indexMode });
     } else if (hybridMode) {
-      executarHibrido(getDataYmd(dataInicio), getDataYmd(dataFim), { indexMode });
+      executarHibrido(inicioExec, fimExec, { indexMode });
     } else {
-      executar(getDataYmd(dataInicio), getDataYmd(dataFim), { turbo: turboMode });
+      executar(inicioExec, fimExec, { turbo: turboMode });
     }
     onAfterMutation();
   }, [executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus]);
@@ -720,14 +782,14 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   }, [forceKill, forceKillHibrido, onAfterMutation]);
 
   const handleLimparIndice = useCallback(async () => {
-    const dataYmd = getDataYmd(dataInicio) || getDataYmd(dataFim) || getDataYmd(new Date());
+    const dataYmd = getDataYmd(dataIndice) || getDataYmd(new Date());
     if (!dataYmd) {
       toast.error('Selecione um dia para limpar o índice');
       return;
     }
     await limparIndiceDiario(dataYmd);
     onAfterMutation();
-  }, [dataInicio, dataFim, getDataYmd, limparIndiceDiario, onAfterMutation]);
+  }, [dataIndice, getDataYmd, limparIndiceDiario, onAfterMutation]);
 
   const handleCancelarIndexacao = useCallback(async () => {
     if (!dataIndexYmd) {
@@ -843,79 +905,6 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
             </div>
           )}
 
-          {/* Índice diário */}
-          {indexStatus ? (
-            <div className="space-y-2 rounded-md border px-3 py-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Índice diário ({indexStatus.diario_ymd})</span>
-                <Badge variant="secondary">{indexStatusLabel}</Badge>
-              </div>
-              <Progress value={indexProgress} className="h-2" />
-              <div className="flex justify-between text-[11px] text-muted-foreground">
-                <span>
-                  {indexStatus?.total_tribunais
-                    ? `Tribunais: ${indexStatus.tribunais_processados || 0}/${indexStatus.total_tribunais}`
-                    : 'Sem estimativa'}
-                </span>
-                <span>{indexProgress}%</span>
-              </div>
-              {indexActionPending && indexStatus?.status !== 'em_andamento' && (
-                <div className="text-[11px] text-muted-foreground">
-                  Iniciando indexação...
-                </div>
-              )}
-              {indexStatus.status === 'em_andamento' && indexErrosCount > 0 && (
-                <div className="text-[11px] text-destructive">
-                  Tribunais com erro: {indexErrosCount}
-                </div>
-              )}
-              {indexStatus.status === 'em_andamento' && indexTribunais.length > 0 && (
-                <ScrollArea className="h-40 rounded border bg-muted/20 p-2">
-                  <div className="space-y-2">
-                    {indexTribunais.map((t) => {
-                      const max = Number(t.max_pages || 0);
-                      const done = Number(t.paginas_processadas || 0);
-                      const pct = max > 0 ? Math.min(99, Math.round((done / max) * 100)) : (t.status === 'concluido' ? 100 : 0);
-                      return (
-                        <div key={t.tribunal} className="space-y-1">
-                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                            <span className="font-medium">{t.tribunal}</span>
-                            <span className={t.status === 'erro' ? 'text-destructive' : undefined}>{t.status}</span>
-                          </div>
-                          <Progress value={pct} className="h-1.5" />
-                          {t.status === 'erro' && t.erro_mensagem && (
-                            <div className="text-[10px] text-destructive">
-                              {t.erro_mensagem}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              )}
-              {indexStatus.status === 'concluido' && indexErrosCount > 0 && (
-                <div className="text-[11px] text-destructive">
-                  Tribunais com erro: {indexErrosCount}
-                </div>
-              )}
-              {indexStatus.status === 'erro' && indexStatus.erro_mensagem && (
-                <div className="text-[11px] text-destructive">
-                  {indexStatus.erro_mensagem}
-                </div>
-              )}
-              {indexStatus.status === 'cancelado' && (
-                <div className="text-[11px] text-muted-foreground">
-                  Indexação cancelada. Clique em “Indexar diário” para reiniciar.
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-md border px-3 py-2 text-xs text-muted-foreground">
-              Nenhum índice encontrado para exibir.
-            </div>
-          )}
-
           {/* Totalizadores */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <span className="text-primary">
@@ -943,6 +932,9 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
           <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
             <Badge variant="secondary">Prioridade: Advogado/OAB</Badge>
             <Badge variant="secondary">Agrupamento por OAB ativo</Badge>
+            {indexStatus?.status === 'em_andamento' && (
+              <Badge variant="secondary">Rodízio por tribunal ativo</Badge>
+            )}
             {backgroundOnly && <Badge variant="secondary">Modo 100% background</Badge>}
             {!backgroundOnly && hybridMode && <Badge variant="secondary">Modo híbrido</Badge>}
             {!backgroundOnly && !hybridMode && <Badge variant="secondary">Modo navegador</Badge>}
@@ -1019,31 +1011,6 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
               id="djen-background"
               checked={backgroundOnly}
               onCheckedChange={handleToggleBackground}
-              disabled={effectiveIsRunning}
-            />
-          </div>
-
-          {/* Consulta indexada */}
-          <div className="flex items-center justify-between rounded-md border px-3 py-2">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="djen-indexed" className="text-xs text-muted-foreground">
-                Consulta indexada
-              </Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>Usa o índice diário (apenas 1 dia selecionado). Requer índice concluído.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <Switch
-              id="djen-indexed"
-              checked={indexMode === 'indexado'}
-              onCheckedChange={(checked) => setIndexMode(checked ? 'indexado' : 'normal')}
               disabled={effectiveIsRunning}
             />
           </div>
@@ -1140,22 +1107,6 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
               </>
             )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleIndexarDiario}
-              disabled={effectiveIsRunning}
-            >
-              Indexar diário
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLimparIndice}
-              disabled={effectiveIsRunning}
-            >
-              Limpar índice
-            </Button>
           </div>
 
           {/* Linha 2: Botões de limpeza e reset */}
@@ -1208,22 +1159,183 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
             </TooltipProvider>
           </div>
 
-          {/* Linha 3: Cancelar indexação */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCancelarIndexacao}
-            disabled={!indexStatus || indexStatus.status === 'concluido'}
-            className="w-full text-destructive hover:text-destructive"
-          >
-            Forçar cancelar indexação
-          </Button>
-
           {/* Indicador de execução em background */}
           {effectiveIsRunning && (
             <p className="text-xs text-center text-muted-foreground">
               💡 Execução continua em background mesmo ao sair desta tela
             </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Índice diário (DJEN)</CardTitle>
+            </div>
+            {indexStatus && (
+              <Badge variant="secondary">{indexStatusLabel}</Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {indexStatus ? (
+            <div className="space-y-2 rounded-md border px-3 py-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Índice diário ({indexStatus.diario_ymd})</span>
+                <Badge variant="secondary">{indexStatusLabel}</Badge>
+              </div>
+              <div className="flex flex-wrap items-center justify-between text-[11px] text-muted-foreground">
+                <span>{indexStatusMessage}</span>
+                {indexElapsedLabel
+                  ? <span>Em execução há {indexElapsedLabel}</span>
+                  : (indexLastUpdateLabel && <span>Atualizado {indexLastUpdateLabel}</span>)}
+              </div>
+              <Progress value={indexProgress} className="h-2" />
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>
+                  {indexStatus?.total_tribunais
+                    ? `Tribunais: ${indexStatus.tribunais_processados || 0}/${indexStatus.total_tribunais}`
+                    : 'Sem estimativa'}
+                </span>
+                <span>{indexProgress}%</span>
+              </div>
+              {indexStatus.status === 'em_andamento' && shouldShowIndexErrors && indexErrosCount > 0 && (
+                <div className="text-[11px] text-destructive">
+                  Tribunais com erro: {indexErrosCount}
+                </div>
+              )}
+              {indexStatus.status === 'em_andamento' && indexTribunais.length > 0 && (
+                <ScrollArea className="h-40 rounded border bg-muted/20 p-2">
+                  <div className="space-y-2">
+                    {indexTribunais.map((t) => {
+                      const max = Number(t.max_pages || 0);
+                      const showTotalPages = max > 0 && max !== 200;
+                      const done = Number(t.paginas_processadas || 0);
+                      const pct = max > 0 ? Math.min(99, Math.round((done / max) * 100)) : (t.status === 'concluido' ? 100 : 0);
+                      const pagesLabel = showTotalPages ? `${done}/${max}` : `${done}`;
+                      return (
+                        <div key={t.tribunal} className="space-y-1">
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                            <span className="font-medium">{t.tribunal}</span>
+                            <span className={t.status === 'erro' ? 'text-destructive' : undefined}>
+                              {t.status} • {pagesLabel} • {pct}%
+                            </span>
+                          </div>
+                          <Progress value={pct} className="h-1.5" />
+                          {t.status === 'erro' && t.erro_mensagem && (
+                            <div className="text-[10px] text-destructive">
+                              {t.erro_mensagem}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+              {indexStatus.status === 'concluido' && shouldShowIndexErrors && indexErrosCount > 0 && (
+                <div className="text-[11px] text-destructive">
+                  Tribunais com erro: {indexErrosCount}
+                </div>
+              )}
+              {indexStatus.status === 'erro' && indexStatus.erro_mensagem && (
+                <div className="text-[11px] text-destructive">
+                  {indexStatus.erro_mensagem}
+                </div>
+              )}
+              {indexStatus.status === 'cancelado' && (
+                <div className="text-[11px] text-muted-foreground">
+                  Indexação cancelada. Clique em “Indexar diário” para reiniciar.
+                </div>
+              )}
+            </div>
+          ) : indexActionPending ? (
+            <div className="rounded-md border px-3 py-2 text-xs text-muted-foreground">
+              Indexação solicitada. Aguardando criação do índice...
+            </div>
+          ) : (
+            <div className="rounded-md border px-3 py-2 text-xs text-muted-foreground">
+              Nenhum índice encontrado para exibir.
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="flex-1 justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataIndice ? format(dataIndice, "dd/MM", { locale: ptBR }) : "Data do índice"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dataIndice}
+                  onSelect={setDataIndice}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="djen-indexed" className="text-xs text-muted-foreground">
+                Consulta indexada
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Usa o índice diário (apenas 1 dia selecionado). Requer índice concluído.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Switch
+              id="djen-indexed"
+              checked={indexMode === 'indexado'}
+              onCheckedChange={(checked) => setIndexMode(checked ? 'indexado' : 'normal')}
+              disabled={effectiveIsRunning}
+            />
+          </div>
+
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleIndexarDiario}
+              disabled={effectiveIsRunning}
+            >
+              Indexar diário
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLimparIndice}
+              disabled={effectiveIsRunning}
+            >
+              Limpar índice
+            </Button>
+          </div>
+
+          {indexStatus?.status === 'em_andamento' && (
+            <div className="flex">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 text-destructive hover:text-destructive"
+                onClick={handleCancelarIndexacao}
+              >
+                Forçar cancelar indexação
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

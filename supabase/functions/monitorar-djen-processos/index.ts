@@ -41,6 +41,7 @@ const PJE_COMUNICA_ENDPOINT = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao
 const CONFIG = {
   max_paralelo: 2,               // 2 requisições simultâneas - conservador
   batch_size: 50,                // 50 processos por lote
+  group_search_size: 50,         // Agrupamento inicial (auto-desliga se não ajudar)
   delay_entre_lotes: 3000,       // 3s entre lotes - respeitar rate limit
   delay_entre_paginas: 500,      // 500ms entre páginas
   soft_timeout_ms: 55000,        // 55s soft timeout
@@ -52,6 +53,8 @@ const CONFIG = {
 // Constantes derivadas - CONSERVADORAS
 const BATCH_SIZE = CONFIG.batch_size;           // 50
 const CONCURRENT_REQUESTS = CONFIG.max_paralelo; // 2
+const GROUP_SEARCH_SIZE = CONFIG.group_search_size; // 8
+const MIN_GROUP_HIT_RATE = 0.3; // 30% de processos com resultado para manter agrupamento
 const PAGE_SIZE = 100; // Max page size from API
 const MAX_PAGES = 1;   // 1 página só
 const BASE_DELAY = CONFIG.delay_entre_lotes;    // 3000
@@ -192,6 +195,30 @@ function normalizeConteudo(text: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+}
+
+function normalizeProcessoNumero(value: string | null | undefined): string {
+  if (!value) return '';
+  return value.replace(/\D/g, '');
+}
+
+function extractProcessoNumero(conteudo: string, explicitNumero?: string | null): string | null {
+  if (explicitNumero) return explicitNumero;
+  
+  const patterns = [
+    /(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/,
+    /Processo\s*(?:n[º°]?\.?\s*)?(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/i,
+    /(\d{7}\/\d{4})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = conteudo.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+  
+  return null;
 }
 
 // Verifica se já existe tarefa similar para evitar duplicatas
@@ -540,14 +567,14 @@ function detectIntimacao(conteudo: string, processoNumero: string): IntimacaoInf
   return { tipoIntimacao, prazoDias, contexto, hashDedup };
 }
 
-// Fast single-request search per process with retry
-async function searchDJENByProcesso(
-  numeroProcesso: string,
+// Fast single-request search per texto with retry
+async function searchDJENByTexto(
+  texto: string,
   dataInicio?: string,
   dataFim?: string,
 ): Promise<any[]> {
   const params = new URLSearchParams();
-  params.append('texto', numeroProcesso);
+  params.append('texto', texto);
   params.append('pagina', '0');
   params.append('tamanhoPagina', PAGE_SIZE.toString());
   if (dataInicio) params.append('dataDisponibilizacaoInicio', dataInicio);
@@ -613,9 +640,42 @@ async function searchDJENByProcesso(
     return Array.isArray(items) ? items : [];
   } catch (error) {
     // Timeout or network error - skip silently after retries exhausted
-    console.log(`[DJEN Processos] Failed to fetch for ${numeroProcesso}:`, error);
+    console.log(`[DJEN Processos] Failed to fetch for ${texto}:`, error);
     return [];
   }
+}
+
+async function searchDJENByProcesso(
+  numeroProcesso: string,
+  dataInicio?: string,
+  dataFim?: string,
+): Promise<any[]> {
+  return await searchDJENByTexto(numeroProcesso, dataInicio, dataFim);
+}
+
+async function searchDJENByProcessosBatch(
+  processos: Array<{ id: string; numero: string }>,
+  dataInicio?: string,
+  dataFim?: string,
+): Promise<Map<string, any[]>> {
+  const map = new Map<string, any[]>();
+  if (!processos.length) return map;
+
+  const query = processos.map(p => p.numero).join(' OR ');
+  const results = await searchDJENByTexto(query, dataInicio, dataFim);
+
+  for (const pub of results) {
+    const conteudo = pub.texto ?? pub.teor ?? pub.conteudo ?? pub.conteudoPublicacao ?? pub.resumo ?? '';
+    const explicitNumero =
+      pub.processo_numero || pub.numeroProcesso || pub.processo || pub.numero_processo || null;
+    const numeroExtraido = extractProcessoNumero(String(conteudo || ''), explicitNumero);
+    const key = normalizeProcessoNumero(numeroExtraido || explicitNumero || '');
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(pub);
+  }
+
+  return map;
 }
 
 // Process a batch of processes in parallel - OTIMIZADO PARA VELOCIDADE
@@ -642,103 +702,167 @@ async function processProcessosBatch(
   const publicacoesToInsert: any[] = [];
   const seenHashes = new Set<string>();
 
-  // FASE 1: Buscar todas as publicações em paralelo (RÁPIDO)
-  for (let i = 0; i < processos.length; i += CONCURRENT_REQUESTS) {
-    const chunk = processos.slice(i, i + CONCURRENT_REQUESTS);
-    
-    // Process chunk in parallel - SEM STAGGER interno para máxima velocidade
-    const results = await Promise.all(
-      chunk.map(async (processo) => {
-        const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
-        return { processo, publicacoes };
-      })
-    );
-
-    // Processar resultados e preparar para batch insert
-    for (const { processo, publicacoes } of results) {
-      if (publicacoes.length > 0) {
-        processosComResultados++;
-      }
-
-      let novasDoProcesso = 0;
-
-      for (const pub of publicacoes) {
-        const conteudo = pub.texto ?? pub.teor ?? pub.conteudo ?? pub.conteudoPublicacao ?? pub.resumo ?? '';
-        if (!conteudo || typeof conteudo !== 'string') continue;
-
-        const pubObj = pub.comunicacao || pub;
-        
-        const rawDataDisponibilizacao = 
-          pub.dataDisponibilizacao || pubObj.dataDisponibilizacao ||
-          pub.dataDJe || pubObj.dataDJe || 
-          pub.dtDisponibilizacao || pubObj.dtDisponibilizacao || 
-          pub.dataDisp || pubObj.dataDisp ||
-          pub.data_disponibilizacao || pubObj.data_disponibilizacao ||
-          null;
-          
-        const rawDataPublicacao = 
-          pub.dataPublicacao || pubObj.dataPublicacao ||
-          pub.dataJornal || pubObj.dataJornal || 
-          pub.dtPublicacao || pubObj.dtPublicacao || 
-          pub.data || pubObj.data || 
-          pub.data_publicacao || pubObj.data_publicacao ||
-          null;
-        
-        let dataDisponibilizacao = rawDataDisponibilizacao;
-        let dataPublicacao = rawDataPublicacao;
-        
-        if (dataDisponibilizacao && !rawDataPublicacao) {
-          try {
-            const dispDate = new Date(dataDisponibilizacao);
-            if (!isNaN(dispDate.getTime())) {
-              dispDate.setDate(dispDate.getDate() + 1);
-              const proximoDiaUtil = calcularPrimeiroDiaUtil(dispDate);
-              dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
-            }
-          } catch { /* ignore */ }
-        }
-        
-        if (!dataDisponibilizacao && !dataPublicacao) {
-          const hoje = getBrazilISODate();
-          dataDisponibilizacao = hoje;
-          const amanha = new Date();
-          amanha.setDate(amanha.getDate() + 1);
-          const proximoDiaUtil = calcularPrimeiroDiaUtil(amanha);
-          dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
-        } else if (!dataDisponibilizacao && dataPublicacao) {
-          dataDisponibilizacao = dataPublicacao;
-        }
-        
-        const conteudoNorm = normalizeConteudo(conteudo);
-        const dataKey = (dataPublicacao || dataDisponibilizacao || '').toString();
-        const hashConteudo = generateHash(`${processo.numero}|${dataKey}|${conteudoNorm.slice(0, 2000)}`);
-
-        if (seenHashes.has(hashConteudo)) {
-          totalDuplicadas++;
-          continue;
-        }
-        seenHashes.add(hashConteudo);
-        novasDoProcesso++;
-
-        publicacoesToInsert.push({
-          processo_id: processo.id,
-          processo_numero: processo.numero,
-          hash_conteudo: hashConteudo,
-          data_publicacao: dataPublicacao,
-          data_disponibilizacao: dataDisponibilizacao,
-          conteudo: conteudo,
-          fonte: 'pje_comunica',
-        });
-      }
-
-      if (novasDoProcesso > 0) {
-        processosComNovas++;
-      }
+  const processPublicacoes = (
+    processo: { id: string; numero: string; status?: string; coordenacao_id?: string },
+    publicacoes: any[],
+  ) => {
+    if (publicacoes.length > 0) {
+      processosComResultados++;
     }
 
-    // Pequeno delay entre chunks para evitar rate limit
-    if (i + CONCURRENT_REQUESTS < processos.length) {
-      await delay(50); // 50ms mínimo
+    let novasDoProcesso = 0;
+
+    for (const pub of publicacoes) {
+      const conteudo = pub.texto ?? pub.teor ?? pub.conteudo ?? pub.conteudoPublicacao ?? pub.resumo ?? '';
+      if (!conteudo || typeof conteudo !== 'string') continue;
+
+      const pubObj = pub.comunicacao || pub;
+      
+      const rawDataDisponibilizacao = 
+        pub.dataDisponibilizacao || pubObj.dataDisponibilizacao ||
+        pub.dataDJe || pubObj.dataDJe || 
+        pub.dtDisponibilizacao || pubObj.dtDisponibilizacao || 
+        pub.dataDisp || pubObj.dataDisp ||
+        pub.data_disponibilizacao || pubObj.data_disponibilizacao ||
+        null;
+        
+      const rawDataPublicacao = 
+        pub.dataPublicacao || pubObj.dataPublicacao ||
+        pub.dataJornal || pubObj.dataJornal || 
+        pub.dtPublicacao || pubObj.dtPublicacao || 
+        pub.data || pubObj.data || 
+        pub.data_publicacao || pubObj.data_publicacao ||
+        null;
+      
+      let dataDisponibilizacao = rawDataDisponibilizacao;
+      let dataPublicacao = rawDataPublicacao;
+      
+      if (dataDisponibilizacao && !rawDataPublicacao) {
+        try {
+          const dispDate = new Date(dataDisponibilizacao);
+          if (!isNaN(dispDate.getTime())) {
+            dispDate.setDate(dispDate.getDate() + 1);
+            const proximoDiaUtil = calcularPrimeiroDiaUtil(dispDate);
+            dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+          }
+        } catch { /* ignore */ }
+      }
+      
+      if (!dataDisponibilizacao && !dataPublicacao) {
+        const hoje = getBrazilISODate();
+        dataDisponibilizacao = hoje;
+        const amanha = new Date();
+        amanha.setDate(amanha.getDate() + 1);
+        const proximoDiaUtil = calcularPrimeiroDiaUtil(amanha);
+        dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+      } else if (!dataDisponibilizacao && dataPublicacao) {
+        dataDisponibilizacao = dataPublicacao;
+      }
+      
+      const conteudoNorm = normalizeConteudo(conteudo);
+      const dataKey = (dataPublicacao || dataDisponibilizacao || '').toString();
+      const hashConteudo = generateHash(`${processo.numero}|${dataKey}|${conteudoNorm.slice(0, 2000)}`);
+
+      if (seenHashes.has(hashConteudo)) {
+        totalDuplicadas++;
+        continue;
+      }
+      seenHashes.add(hashConteudo);
+      novasDoProcesso++;
+
+      publicacoesToInsert.push({
+        processo_id: processo.id,
+        processo_numero: processo.numero,
+        hash_conteudo: hashConteudo,
+        data_publicacao: dataPublicacao,
+        data_disponibilizacao: dataDisponibilizacao,
+        conteudo: conteudo,
+        fonte: 'pje_comunica',
+      });
+    }
+
+    if (novasDoProcesso > 0) {
+      processosComNovas++;
+    }
+  };
+
+  // FASE 1: Buscar publicações (modo agrupado ou individual)
+  let groupingEnabled = GROUP_SEARCH_SIZE > 1;
+  if (!groupingEnabled) {
+    // Modo individual em paralelo (conservador)
+    for (let i = 0; i < processos.length; i += CONCURRENT_REQUESTS) {
+      const chunk = processos.slice(i, i + CONCURRENT_REQUESTS);
+      const results = await Promise.all(
+        chunk.map(async (processo) => {
+          const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
+          return { processo, publicacoes };
+        })
+      );
+
+      for (const { processo, publicacoes } of results) {
+        processPublicacoes(processo, publicacoes);
+      }
+
+      if (i + CONCURRENT_REQUESTS < processos.length) {
+        await delay(50);
+      }
+    }
+  } else {
+    // Modo agrupado: reduz chamadas quando a API aceita OR (auto-desliga se não ajudar)
+    for (let i = 0; i < processos.length; i += GROUP_SEARCH_SIZE) {
+      const group = processos.slice(i, i + GROUP_SEARCH_SIZE);
+      const groupStart = Date.now();
+      const groupedMap = await searchDJENByProcessosBatch(group, dataInicio, dataFim);
+      const groupDurationMs = Date.now() - groupStart;
+      const matchedProcessCount = group.filter((p) => groupedMap.has(normalizeProcessoNumero(p.numero))).length;
+      const hitRate = group.length > 0 ? matchedProcessCount / group.length : 0;
+
+      if (groupedMap.size === 0 || (group.length >= 5 && hitRate < MIN_GROUP_HIT_RATE)) {
+        console.log(
+          `[DJEN Processos] Desligando agrupamento: hitRate=${(hitRate * 100).toFixed(1)}% ` +
+          `(${matchedProcessCount}/${group.length}), tempo=${groupDurationMs}ms`
+        );
+        groupingEnabled = false;
+      }
+
+      for (const processo of group) {
+        const key = normalizeProcessoNumero(processo.numero);
+        let publicacoes = groupedMap.get(key) || [];
+
+        // Fallback para busca individual quando o grupo não retornou nada
+        if (publicacoes.length === 0) {
+          publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
+        }
+
+        processPublicacoes(processo, publicacoes);
+      }
+
+      if (i + GROUP_SEARCH_SIZE < processos.length) {
+        await delay(100);
+      }
+
+      if (!groupingEnabled) {
+        // Completar o restante em modo individual
+        const remaining = processos.slice(i + GROUP_SEARCH_SIZE);
+        for (let j = 0; j < remaining.length; j += CONCURRENT_REQUESTS) {
+          const chunk = remaining.slice(j, j + CONCURRENT_REQUESTS);
+          const results = await Promise.all(
+            chunk.map(async (processo) => {
+              const publicacoes = await searchDJENByProcesso(processo.numero, dataInicio, dataFim);
+              return { processo, publicacoes };
+            })
+          );
+
+          for (const { processo, publicacoes } of results) {
+            processPublicacoes(processo, publicacoes);
+          }
+
+          if (j + CONCURRENT_REQUESTS < remaining.length) {
+            await delay(50);
+          }
+        }
+        break;
+      }
     }
   }
 
@@ -913,6 +1037,33 @@ serve(async (req) => {
       .is('coordenacao_id', null)
       .single();
 
+    const meta: any = config?.metadata || {};
+    const lastCompleteRun = meta?.last_complete_run ? new Date(meta.last_complete_run) : null;
+    const todayYmd = getBrazilISODate();
+    const lastCompleteYmd = lastCompleteRun ? getBrazilISODate(lastCompleteRun) : null;
+
+    // Evitar nova execução no mesmo dia após conclusão
+    if (completeRun && scheduled && !continued && meta?.status === 'concluido' && lastCompleteYmd === todayYmd) {
+      console.log(`[DJEN Processos] Execução já concluída hoje (${todayYmd}); ignorando nova execução.`);
+      const doneAt = new Date().toISOString();
+      await updateExecucaoProgress(supabase, execucaoId, {
+        status: 'concluido',
+        registros_processados: Number(meta?.current || 0),
+        total_lotes: Number(meta?.total || 0),
+        detalhes: { skipped: true, reason: 'already_completed_today' },
+        finalizado_em: doneAt,
+      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          skipped: true,
+          message: 'Execução já concluída hoje. Ignorando nova execução.',
+          dataYmd: todayYmd,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Count total - agora inclui todos os processos com monitorar_djen=true (mesmo não-ativos)
     const { count: totalProcessos } = await supabase
       .from('processos')
@@ -922,7 +1073,6 @@ serve(async (req) => {
     // Regra para execução completa:
     // - primeira chamada (cron/manual completeRun) começa do 0
     // - continuações sempre passam continuarDe
-    const meta: any = config?.metadata || {};
     const checkpointAtual = Math.max(Number(meta?.next_offset || 0), Number(meta?.current || 0));
 
     // Lógica de offset:
