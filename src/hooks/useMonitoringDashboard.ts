@@ -342,18 +342,43 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     };
   }, [queryClient, refetchConfigs]);
 
+  const isStaleExecutionByMeta = useCallback(
+    (e: MonitoringExecution, metadata?: Record<string, any> | null) => {
+      if (!metadata) return false;
+      const total = Number(metadata.total || 0);
+      const current = Number(metadata.current || 0);
+      const metaCompleted = total > 0 && current >= total;
+      const metaStatusDone = metadata.status === 'concluido';
+      if (!metaCompleted && !metaStatusDone) return false;
+
+      const execStarted = new Date(e.iniciado_em);
+      if (Number.isNaN(execStarted.getTime())) return true;
+
+      const lastComplete = metadata.last_complete_run ? new Date(metadata.last_complete_run) : null;
+      if (lastComplete && !Number.isNaN(lastComplete.getTime())) {
+        return execStarted <= lastComplete;
+      }
+
+      return true;
+    },
+    []
+  );
+
   // Tick for elapsed time updates
   // CORREÇÃO: Continuar atualizando o tempo enquanto houver execuções não finalizadas
   // (mesmo que o status visual seja 'timeout' após 60 minutos)
   useEffect(() => {
-    const hasActiveExecution = executions.some(e => 
-      e.status === 'executando' && e.finalizado_em === null
-    );
+    const hasActiveExecution = executions.some((e) => {
+      if (e.status !== 'executando' || e.finalizado_em !== null) return false;
+      const cfg = configs.find((c) => c.tipo === e.tipo);
+      const metadata = (cfg?.metadata as Record<string, any>) || null;
+      return !isStaleExecutionByMeta(e, metadata);
+    });
     if (!hasActiveExecution) return;
 
-    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    const interval = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(interval);
-  }, [executions]);
+  }, [configs, executions, isStaleExecutionByMeta]);
 
   // Build unified stats
   const monitoringStats: MonitoringStats[] = MONITORING_TYPES.map(({ tipo, nome, icon }) => {
@@ -381,6 +406,7 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
 
     const activeExecutions = typeExecutions.filter((e) => {
       if (e.status !== 'executando') return false;
+      if (isStaleExecutionByMeta(e, metadata)) return false;
       if (tipo === 'djen') return isDjenFresh(e);
       return e.finalizado_em === null;
     });
@@ -753,9 +779,24 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     }
 
     // Use orchestrator to prevent WORKER_LIMIT
-    const { data, error } = await supabase.functions.invoke('executar-monitoramento', {
+    const invokePromise = supabase.functions.invoke('executar-monitoramento', {
       body: { tipo, retomar: options?.retomar === true },
     });
+    const timeoutMs = 15000;
+    const timeoutPromise = new Promise<{ data: any; error: null }>((resolve) => {
+      setTimeout(() => {
+        resolve({
+          data: {
+            success: true,
+            timeout: true,
+            background: true,
+            message: 'Início em background. Acompanhe o progresso no painel.',
+          },
+          error: null,
+        });
+      }, timeoutMs);
+    });
+    const { data, error } = await Promise.race([invokePromise, timeoutPromise]);
 
     if (error) throw error;
     

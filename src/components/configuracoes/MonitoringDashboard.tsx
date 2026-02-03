@@ -287,7 +287,8 @@ function MonitoringCard({
   const isRunning = stats.status === 'running';
   // CORREÇÃO: Permitir executar quando status é 'timeout' (o usuário pode retomar ou reiniciar)
   const canExecute = !isExecuting && stats.status !== 'running';
-  const canCancel = stats.status === 'running';
+  const metaStatus = stats.config?.metadata?.status;
+  const canCancel = stats.status === 'running' || metaStatus === 'em_andamento';
   
   // Verificar se há checkpoint para retomar (next_offset > 0 e status não é running/idle)
   const metadata = stats.config?.metadata;

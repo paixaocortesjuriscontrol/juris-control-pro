@@ -150,8 +150,43 @@ Deno.serve(async (req) => {
           console.log(`[${tipo}] Execução há ${Math.round(minutosDecorridos)}min, mas com heartbeat ativo - continuando`);
         }
 
-        // Se é do mesmo tipo, bloquear
+        // Se é do mesmo tipo, bloquear (a menos que já esteja efetivamente concluído)
         if (execucao.tipo === tipo) {
+          const freshMeta = await getFreshMetadata(supabase, tipo);
+          const totalMeta = Number(freshMeta?.total || 0);
+          const currentMeta = Number(freshMeta?.current || 0);
+          const finishedByProgress = totalMeta > 0 && currentMeta >= totalMeta;
+          if (finishedByProgress) {
+            console.log(`[${tipo}] Execução em andamento mas já completou (${currentMeta}/${totalMeta}). Finalizando para liberar nova execução.`);
+            const doneAt = new Date().toISOString();
+            await supabase
+              .from('execucoes_agendadas')
+              .update({
+                status: 'concluido',
+                finalizado_em: doneAt,
+              })
+              .eq('id', execucao.id);
+
+            await supabase
+              .from('configuracoes_monitoramento')
+              .update({
+                metadata: {
+                  ...(freshMeta || {}),
+                  status: 'concluido',
+                  has_more: false,
+                  next_offset: 0,
+                  last_complete_run: freshMeta?.last_complete_run || doneAt,
+                  last_stop_reason: 'completed',
+                  last_stop_at: doneAt,
+                  last_error: null,
+                },
+              })
+              .eq('tipo', tipo)
+              .is('coordenacao_id', null);
+
+            continue;
+          }
+
           if (retomar) {
             return new Response(
               JSON.stringify({
