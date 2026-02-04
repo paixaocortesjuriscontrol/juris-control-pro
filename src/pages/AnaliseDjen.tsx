@@ -63,6 +63,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
+import { PublicacaoConteudoDjen } from "@/components/djen/PublicacaoConteudoDjen";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'processo' | 'descartada';
@@ -1124,32 +1125,23 @@ const AnaliseDjen = () => {
                                   )}
                                 </div>
 
-                                {/* Expanded inline content - now uses full width */}
+                                {/* Expanded inline content - formato oficial DJEN */}
                                 {isExpanded && (
-                                  <div className="mt-2 md:mt-3 space-y-2 md:space-y-3 border-t pt-2 md:pt-3">
-                                    {(pub.fonte || pub.tribunal) && (
-                                      <div className="flex flex-wrap gap-3 md:gap-4 text-[10px] md:text-xs">
-                                        {pub.fonte && (
-                                          <div>
-                                            <strong>Fonte:</strong>
-                                            <span className="text-muted-foreground ml-1">{pub.fonte}</span>
-                                          </div>
-                                        )}
-                                        {pub.tribunal && (
-                                          <div>
-                                            <strong>Tribunal:</strong>
-                                            <span className="text-muted-foreground ml-1">{pub.tribunal}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    <div>
-                                      <strong className="text-[10px] md:text-xs">Conteúdo:</strong>
-                                      <div className={cn("mt-1.5 md:mt-2 p-2 md:p-3 bg-muted/50 rounded-lg text-xs md:text-sm", conteudoDisplayClasses)}>
-                                        {formatConteudoParaExibicao(pub.conteudo)}
-                                      </div>
-                                    </div>
+                                  <div className="mt-2 md:mt-3 border-t pt-2 md:pt-3">
+                                    <PublicacaoConteudoDjen
+                                      processoNumero={pub.processo_numero}
+                                      tribunal={pub.tribunal}
+                                      fonte={pub.fonte}
+                                      dataDisponibilizacao={pub.data_disponibilizacao}
+                                      dataPublicacao={pub.data_publicacao}
+                                      conteudo={pub.conteudo}
+                                      poloAtivo={pub.polo_ativo}
+                                      poloPassivo={pub.polo_passivo}
+                                      monitoramentoOab={pub.monitoramento_oab}
+                                      monitoramentoUf={pub.monitoramento_uf}
+                                      monitoramentoTermo={pub.monitoramento_termo}
+                                      monitoramentoDescricao={pub.monitoramento_descricao}
+                                    />
                                   </div>
                                 )}
 
@@ -1172,110 +1164,58 @@ const AnaliseDjen = () => {
           </div>
         )}
 
-        {/* View Dialog - Mobile optimized */}
+        {/* View Dialog - formato oficial DJEN */}
         <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] w-[95vw] md:w-auto p-3 md:p-6">
+          <DialogContent className="max-w-5xl max-h-[90vh] w-[95vw] md:w-auto p-3 md:p-6">
             <DialogHeader className="pb-2">
               <DialogTitle className="flex items-center gap-2 text-sm md:text-base">
                 <FileText className="w-4 h-4 md:w-5 md:h-5" />
                 Detalhes da Publicação
               </DialogTitle>
-              <DialogDescription className="text-xs md:text-sm">
-                {selectedPublicacao?.tipo_origem === 'termo' ? 'Monitoramento por Termo/OAB' : 'Monitoramento por Processo'}
+              <DialogDescription className="flex flex-wrap items-center gap-2 text-xs md:text-sm">
+                {selectedPublicacao?.tipo_origem === 'termo' ? (
+                  <Badge className="bg-purple-100 text-purple-700 text-xs">
+                    <FileSearch className="w-3 h-3 mr-1" />
+                    {selectedPublicacao.monitoramento_tipo === 'advogado'
+                      ? `OAB ${selectedPublicacao.monitoramento_oab} ${selectedPublicacao.monitoramento_uf}`
+                      : selectedPublicacao.monitoramento_termo
+                    }
+                  </Badge>
+                ) : (
+                  <Badge className="bg-emerald-100 text-emerald-700 text-xs">
+                    <Gavel className="w-3 h-3 mr-1" />
+                    Processo Cadastrado
+                  </Badge>
+                )}
+                {selectedPublicacao?.coordenacao_nome && (
+                  <Badge variant="outline" className="text-xs">
+                    <Building2 className="w-3 h-3 mr-1" />
+                    {selectedPublicacao.coordenacao_nome}
+                  </Badge>
+                )}
+                {selectedPublicacao && !selectedPublicacao.lida && (
+                  <Badge className="bg-amber-500 text-xs">Nova</Badge>
+                )}
               </DialogDescription>
             </DialogHeader>
 
             {selectedPublicacao && (
               <ScrollArea className="max-h-[65vh] md:max-h-[60vh]">
-                <div className="space-y-3 md:space-y-4 pr-2 md:pr-4">
-                  <div className="flex flex-wrap gap-1.5 md:gap-2">
-                    {selectedPublicacao.tipo_origem === 'termo' ? (
-                      <Badge className="bg-purple-100 text-purple-700 text-xs">
-                        <FileSearch className="w-3 h-3 mr-1" />
-                        {selectedPublicacao.monitoramento_tipo === 'advogado'
-                          ? `OAB ${selectedPublicacao.monitoramento_oab} ${selectedPublicacao.monitoramento_uf}`
-                          : selectedPublicacao.monitoramento_termo
-                        }
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-emerald-100 text-emerald-700 text-xs">
-                        <Gavel className="w-3 h-3 mr-1" />
-                        Processo Cadastrado
-                      </Badge>
-                    )}
-                    {selectedPublicacao.coordenacao_nome && (
-                      <Badge variant="outline" className="text-xs">
-                        <Building2 className="w-3 h-3 mr-1" />
-                        {selectedPublicacao.coordenacao_nome}
-                      </Badge>
-                    )}
-                    {!selectedPublicacao.lida && (
-                      <Badge className="bg-amber-500 text-xs">Nova</Badge>
-                    )}
-                  </div>
-
-                  {selectedPublicacao.processo_numero && (
-                    <div className="flex flex-wrap items-start md:items-center gap-1 md:gap-2">
-                      <strong className="text-xs md:text-sm">Processo:</strong>
-                      <span className="text-xs md:text-sm font-mono break-all">{selectedPublicacao.processo_numero}</span>
-                      {selectedPublicacao.tipo_origem === 'processo' && selectedPublicacao.processo_id && (
-                        <Link 
-                          to={`/processos/${selectedPublicacao.processo_id}`}
-                          className="text-xs md:text-sm text-primary hover:underline flex items-center gap-1"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          Abrir
-                        </Link>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedPublicacao.tipo_origem === 'processo' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 text-xs md:text-sm">
-                      {selectedPublicacao.polo_ativo && (
-                        <div>
-                          <strong>Polo Ativo:</strong>
-                          <p className="text-muted-foreground break-words">{selectedPublicacao.polo_ativo}</p>
-                        </div>
-                      )}
-                      {selectedPublicacao.polo_passivo && (
-                        <div>
-                          <strong>Polo Passivo:</strong>
-                          <p className="text-muted-foreground break-words">{selectedPublicacao.polo_passivo}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2 md:gap-4 text-xs md:text-sm">
-                    <div>
-                      <strong>Disponibilização:</strong>
-                      <p className="text-muted-foreground">{formatDate(selectedPublicacao.data_disponibilizacao)}</p>
-                    </div>
-                    <div>
-                      <strong>Publicação:</strong>
-                      <p className="text-muted-foreground">{formatDate(selectedPublicacao.data_publicacao)}</p>
-                    </div>
-                    {selectedPublicacao.fonte && (
-                      <div>
-                        <strong>Fonte:</strong>
-                        <p className="text-muted-foreground break-words">{selectedPublicacao.fonte}</p>
-                      </div>
-                    )}
-                    {selectedPublicacao.tribunal && (
-                      <div>
-                        <strong>Tribunal:</strong>
-                        <p className="text-muted-foreground">{selectedPublicacao.tribunal}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <strong className="text-xs md:text-sm">Conteúdo:</strong>
-                    <div className={cn("mt-1.5 md:mt-2 p-2 md:p-4 bg-muted/50 rounded-lg text-xs md:text-sm", conteudoDisplayClasses)}>
-                      {formatConteudoParaExibicao(selectedPublicacao.conteudo)}
-                    </div>
-                  </div>
+                <div className="pr-2 md:pr-4">
+                  <PublicacaoConteudoDjen
+                    processoNumero={selectedPublicacao.processo_numero}
+                    tribunal={selectedPublicacao.tribunal}
+                    fonte={selectedPublicacao.fonte}
+                    dataDisponibilizacao={selectedPublicacao.data_disponibilizacao}
+                    dataPublicacao={selectedPublicacao.data_publicacao}
+                    conteudo={selectedPublicacao.conteudo}
+                    poloAtivo={selectedPublicacao.polo_ativo}
+                    poloPassivo={selectedPublicacao.polo_passivo}
+                    monitoramentoOab={selectedPublicacao.monitoramento_oab}
+                    monitoramentoUf={selectedPublicacao.monitoramento_uf}
+                    monitoramentoTermo={selectedPublicacao.monitoramento_termo}
+                    monitoramentoDescricao={selectedPublicacao.monitoramento_descricao}
+                  />
                 </div>
               </ScrollArea>
             )}
