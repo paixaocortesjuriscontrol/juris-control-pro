@@ -7,9 +7,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play, Globe, Skull, AlertTriangle, FileSearch, StopCircle } from "lucide-react";
+import { Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play, Globe, Skull, FileSearch, StopCircle, RotateCcw, Info } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -23,6 +23,16 @@ import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 import { useRealtimeProgress } from "@/hooks/useRealtimeProgress";
 import { useDjenProcessos } from "@/hooks/useDjenProcessos";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ExecutionResult {
   processados: number;
@@ -34,12 +44,19 @@ interface ExecutionResult {
 
 interface Props {
   coordenacaoId: string;
+  onOpenFullTab?: () => void;
+  /** Quando informado (ex: Dashboard), usa o fluxo do pai em vez do interno */
+  onExecute?: () => void | Promise<void>;
 }
 
-export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
+export function MonitoramentoDjenProcessosCard({ coordenacaoId, onOpenFullTab, onExecute }: Props) {
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [statsOpen, setStatsOpen] = useState(false);
+  const [showKillDialog, setShowKillDialog] = useState(false);
+  const [turboMode, setTurboMode] = useState(false);
+  const [hybridMode, setHybridMode] = useState(false);
+  const [backgroundOnly, setBackgroundOnly] = useState(false);
   const queryClient = useQueryClient();
 
   // Hook singleton para execução no NAVEGADOR (persiste ao sair da tela)
@@ -48,8 +65,12 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     isRunning: engineRunning,
     hasCheckpoint,
     executar: engineExecutar,
+    executarHibrido,
     cancelar: engineCancelar,
+    cancelarHibrido,
     forceKill,
+    forceKillHibrido,
+    limparPublicacoesProcesso,
   } = useDjenProcessos();
 
   // Hook de progresso realtime via Supabase (para detectar execuções externas/agendadas)
@@ -70,7 +91,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   const progresso = useMemo(() => {
     if (engineRunning) {
       return {
-        grupoAtual: `Grupo ${engineProgress.currentGroup}/${engineProgress.totalGroups}`,
+        grupoAtual: `Processo ${engineProgress.currentGroup}/${engineProgress.totalGroups}`,
         currentGroup: engineProgress.currentGroup,
         totalGroups: engineProgress.totalGroups,
         novas: engineProgress.novas,
@@ -82,9 +103,9 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     }
     if (realtimeProgress.isRunning) {
       return {
-        grupoAtual: '',
-        currentGroup: 0,
-        totalGroups: 0,
+        grupoAtual: `Processo ${realtimeProgress.current}/${realtimeProgress.total}`,
+        currentGroup: realtimeProgress.current,
+        totalGroups: realtimeProgress.total,
         novas: realtimeProgress.novas ?? 0,
         analisadas: realtimeProgress.current,
         mensagem: `${realtimeProgress.current}/${realtimeProgress.total}`,
@@ -94,6 +115,45 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     }
     return null;
   }, [engineRunning, engineProgress, realtimeProgress]);
+
+  useEffect(() => {
+    const savedTurbo = localStorage.getItem('djen-processos-turbo');
+    const savedHybrid = localStorage.getItem('djen-processos-hybrid');
+    const savedBg = localStorage.getItem('djen-processos-background-only');
+    setTurboMode(savedTurbo === 'true');
+    setHybridMode(savedHybrid === 'true');
+    setBackgroundOnly(savedBg === 'true');
+  }, []);
+
+  // Datas padrão (igual DJEN Termos) - essencial para Executar funcionar
+  useEffect(() => {
+    if (!dataInicio && !dataFim) {
+      const hoje = new Date();
+      hoje.setHours(12, 0, 0, 0);
+      setDataInicio(hoje);
+      setDataFim(hoje);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('djen-processos-turbo', turboMode ? 'true' : 'false');
+  }, [turboMode]);
+
+  useEffect(() => {
+    localStorage.setItem('djen-processos-hybrid', hybridMode ? 'true' : 'false');
+    if (hybridMode) {
+      setBackgroundOnly(false);
+      setTurboMode(false);
+    }
+  }, [hybridMode]);
+
+  useEffect(() => {
+    localStorage.setItem('djen-processos-background-only', backgroundOnly ? 'true' : 'false');
+    if (backgroundOnly) {
+      setHybridMode(false);
+      setTurboMode(false);
+    }
+  }, [backgroundOnly]);
 
   // Helper para formatar tempo
   const formatElapsed = (seconds: number) => {
@@ -142,7 +202,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   // Mostrar botão Retomar se tem checkpoint no engine
   const shouldShowRetomar = hasCheckpoint && !engineRunning;
 
-  // Buscar estatísticas (Santander já desabilitados no banco via monitorar_djen = false)
+  // Buscar estatísticas
   const { data: stats } = useQuery({
     queryKey: ['djen-processos-stats'],
     queryFn: async () => {
@@ -155,7 +215,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
         .select('*', { count: 'exact', head: true })
         .eq('lida', false);
 
-      // Conta apenas processos com monitorar_djen = true (Santander já excluídos no banco)
+      // Conta somente processos com monitorar_djen = true
       const { count: processosMonitorados } = await supabase
         .from('processos')
         .select('*', { count: 'exact', head: true })
@@ -199,27 +259,60 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     }
   });
 
-  // Execução via engine singleton
+  const handleExecutar = useCallback(async () => {
+    if (executando) {
+      toast.info('Execução já em andamento');
+      return;
+    }
+    const hoje = new Date();
+    hoje.setHours(12, 0, 0, 0);
+    const dataInicioStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : format(hoje, 'yyyy-MM-dd');
+    const dataFimStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : format(hoje, 'yyyy-MM-dd');
+    try {
+      toast.info('Iniciando busca DJEN Processos...');
+      if (backgroundOnly) {
+        await executarHibrido(dataInicioStr, dataFimStr, { backgroundOnly: true });
+        return;
+      }
+      if (hybridMode) {
+        await executarHibrido(dataInicioStr, dataFimStr);
+        return;
+      }
+      const iniciou = engineExecutar(dataInicioStr, dataFimStr, { retomar: false, turbo: turboMode });
+      if (!iniciou) toast.warning('Já existe uma execução em andamento');
+    } catch (err: any) {
+      console.error('[DJEN Processos] Erro ao iniciar:', err);
+      toast.error(`Erro: ${err?.message ?? 'Falha ao iniciar'}`);
+    }
+  }, [executando, dataInicio, dataFim, engineExecutar, turboMode, hybridMode, backgroundOnly, executarHibrido]);
+
   const handleExecutarManual = useCallback((mode: 'novo' | 'retomar' = 'novo') => {
-    if (executando) return;
-    
-    const dataInicioStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : undefined;
-    const dataFimStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : undefined;
-    
-    engineExecutar(dataInicioStr, dataFimStr, mode === 'retomar');
-    toast.info(mode === 'retomar' ? 'Retomando busca...' : 'Iniciando busca DJEN Processos...');
-  }, [executando, dataInicio, dataFim, engineExecutar]);
+    if (mode === 'retomar') {
+      if (executando) return;
+      const dataInicioStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : undefined;
+      const dataFimStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : undefined;
+      engineExecutar(dataInicioStr, dataFimStr, { retomar: true, turbo: turboMode });
+      toast.info('Retomando busca...');
+      return;
+    }
+    handleExecutar();
+  }, [executando, dataInicio, dataFim, engineExecutar, turboMode, handleExecutar]);
 
   const handleCancelar = useCallback(() => {
-    engineCancelar();
+    if (hybridMode || backgroundOnly) {
+      cancelarHibrido();
+    } else {
+      engineCancelar();
+    }
     toast.info('Cancelando...');
-  }, [engineCancelar]);
+  }, [engineCancelar, cancelarHibrido, hybridMode, backgroundOnly]);
 
   const handleForceKill = useCallback(async () => {
+    setShowKillDialog(false);
+    forceKillHibrido();
     await forceKill();
     queryClient.invalidateQueries({ queryKey: ['config-djen-processos'] });
-    toast.success('Estado limpo. Você pode iniciar uma nova execução.');
-  }, [forceKill, queryClient]);
+  }, [forceKill, forceKillHibrido, queryClient]);
 
   const handleFrequenciaChange = async (value: string) => {
     if (!config?.id) return;
@@ -269,6 +362,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   const progressPercent = progresso?.percentage ?? 0;
 
   return (
+    <>
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -277,24 +371,9 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
               <FileSearch className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                DJEN por Processo
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant="outline" className="text-xs gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      Excl. Santander
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs max-w-[200px]">
-                      Coordenações Santander Cível e Trabalhista excluídas por volume alto (~11k processos).
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </CardTitle>
+              <CardTitle className="text-base">DJEN por Processo</CardTitle>
               <CardDescription className="text-xs">
-                Busca publicações no DJEN para processos cadastrados (excl. Santander)
+                Busca publicações no DJEN para processos cadastrados
               </CardDescription>
             </div>
           </div>
@@ -306,6 +385,41 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Progresso em destaque quando executando - aparece no topo para visibilidade */}
+        {(executando || progresso) && (
+          <div className="space-y-3 p-3 rounded-lg bg-primary/10 border-2 border-primary/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Buscando por processos...
+              </div>
+              <div className="flex items-center gap-2">
+                {progresso && progresso.elapsedSeconds > 0 && (
+                  <Badge variant="outline" className="gap-1 font-mono">
+                    <Clock className="h-3 w-3" />
+                    {formatElapsed(progresso.elapsedSeconds)}
+                  </Badge>
+                )}
+                {executando && (
+                  <Button variant="outline" size="sm" onClick={handleCancelar} className="h-7 gap-1 text-destructive hover:text-destructive">
+                    <StopCircle className="h-3 w-3" />
+                    Cancelar
+                  </Button>
+                )}
+              </div>
+            </div>
+            {progresso && (
+              <>
+                <div className="flex items-center gap-2 text-xs">
+                  <Badge variant="secondary" className="font-mono">Processo {progresso.currentGroup}/{progresso.totalGroups}</Badge>
+                  <span className="text-muted-foreground">{progresso.analisadas?.toLocaleString('pt-BR') || 0} analisadas • +{progresso.novas} novas</span>
+                </div>
+                <Progress value={progresso?.percentage ?? 0} className="h-2" />
+              </>
+            )}
+          </div>
+        )}
+
         {/* Estatísticas */}
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="p-2 rounded-lg bg-muted/50">
@@ -391,6 +505,75 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
           </p>
         </div>
 
+        {/* Indicadores de modo */}
+        <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+          {backgroundOnly && <Badge variant="secondary">Modo 100% background</Badge>}
+          {!backgroundOnly && hybridMode && <Badge variant="secondary">Modo híbrido</Badge>}
+          {!backgroundOnly && !hybridMode && <Badge variant="secondary">Modo navegador</Badge>}
+          {turboMode && !hybridMode && !backgroundOnly && <Badge variant="secondary">Modo turbo</Badge>}
+        </div>
+
+        {/* Modo turbo */}
+        <div className="flex items-center justify-between rounded-md border px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="djen-processos-turbo" className="text-xs text-muted-foreground">
+              Modo turbo
+            </Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs">Aumenta a velocidade com mais paralelismo e menos delays.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <Switch
+            id="djen-processos-turbo"
+            checked={turboMode}
+            onCheckedChange={setTurboMode}
+            disabled={executando || hybridMode || backgroundOnly}
+          />
+        </div>
+
+        {/* Modo híbrido */}
+        <div className="flex items-center justify-between rounded-md border px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="djen-processos-hybrid" className="text-xs text-muted-foreground">
+              Modo híbrido (backend)
+            </Label>
+          </div>
+          <Switch
+            id="djen-processos-hybrid"
+            checked={hybridMode}
+            onCheckedChange={setHybridMode}
+            disabled={executando || backgroundOnly}
+          />
+        </div>
+
+        {/* 100% background */}
+        <div className="flex items-center justify-between rounded-md border px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="djen-processos-background" className="text-xs text-muted-foreground">
+              100% background
+            </Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs">Executa totalmente no backend. Pode fechar o navegador.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <Switch
+            id="djen-processos-background"
+            checked={backgroundOnly}
+            onCheckedChange={setBackgroundOnly}
+            disabled={executando}
+          />
+        </div>
+
         {/* Status e Última execução */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -461,73 +644,6 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
           horariosExecucao={config?.horarios_execucao as string[] | null}
           frequencia={config?.frequencia}
         />
-
-        {/* Progresso em Tempo Real */}
-        {(executando || progresso) && (
-          <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {realtimeProgress.isRunning && !engineRunning ? 'Execução em andamento' : 'Buscando por grupos...'}
-              </div>
-              <div className="flex items-center gap-2">
-                {progresso && progresso.elapsedSeconds > 0 && (
-                  <Badge variant="outline" className="gap-1 font-mono">
-                    <Clock className="h-3 w-3" />
-                    {formatElapsed(progresso.elapsedSeconds)}
-                  </Badge>
-                )}
-                {executando && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCancelar}
-                    className="h-7 gap-1 text-destructive hover:text-destructive"
-                  >
-                    <StopCircle className="h-3 w-3" />
-                    Cancelar
-                  </Button>
-                )}
-              </div>
-            </div>
-            
-            {progresso && (
-              <div className="space-y-2">
-                {/* Grupo atual */}
-                {progresso.grupoAtual && (
-                  <div className="flex items-center gap-2 text-xs">
-                    <Globe className="h-3 w-3 text-muted-foreground" />
-                    <Badge variant="secondary" className="font-mono text-xs">
-                      {progresso.grupoAtual}
-                    </Badge>
-                    <span className="text-muted-foreground">
-                      Grupo {progresso.currentGroup}/{progresso.totalGroups}
-                    </span>
-                  </div>
-                )}
-                
-                {/* Stats */}
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">
-                    {progresso.analisadas?.toLocaleString('pt-BR') || 0} publicações analisadas
-                  </span>
-                  <span className="font-medium text-green-600">+{progresso.novas} novas</span>
-                </div>
-              </div>
-            )}
-            
-            <Progress 
-              value={progresso?.percentage ?? 0} 
-              className={cn("h-2", (!progresso || progresso.percentage === 0) && "animate-pulse")} 
-            />
-            
-            {progresso?.mensagem && (
-              <div className="text-xs text-center text-muted-foreground truncate">
-                {progresso.mensagem}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Relatório de Execuções */}
         {historicoCompleto && historicoCompleto.length > 0 && (
@@ -615,14 +731,14 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handleForceKill}
+                  onClick={() => setShowKillDialog(true)}
                   className="text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
                   <Skull className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p className="text-xs">Forçar limpeza de estado (kill switch)</p>
+                <p className="text-xs">Reset Total - Forçar cancelamento e limpar todo estado</p>
               </TooltipContent>
             </Tooltip>
           )}
@@ -639,13 +755,58 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             </Button>
           ) : (
             <Button 
-              onClick={() => handleExecutarManual('novo')} 
+              type="button"
               className="flex-1"
+              onClick={() => (onExecute ? onExecute() : handleExecutar())}
             >
               <Play className="h-4 w-4 mr-2" />
-              Executar Agora
+              Executar
             </Button>
           )}
+        </div>
+
+        {/* Linha 2: Limpar Publicações e Reset Total (igual DJEN Termos) */}
+        <div className="flex gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 text-muted-foreground hover:text-foreground"
+                onClick={async () => {
+                  await limparPublicacoesProcesso(
+                    dataInicio ? format(dataInicio, 'yyyy-MM-dd') : undefined,
+                    dataFim ? format(dataFim, 'yyyy-MM-dd') : undefined
+                  );
+                  queryClient.invalidateQueries({ queryKey: ['djen-processos-stats'] });
+                }}
+                disabled={executando}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Limpar Publicações
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Limpar SOMENTE publicações encontradas por processo (não toca em termos)</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="flex-1"
+                onClick={() => setShowKillDialog(true)}
+                disabled={executando}
+              >
+                <Skull className="h-4 w-4 mr-1" />
+                Reset Total
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Forçar cancelamento e limpar todo estado</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Progresso quando executando */}
@@ -655,14 +816,47 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
           </div>
         )}
 
-        {/* Link para auditoria */}
-        <Link to="/auditoria-djen-processos" className="block">
-          <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground hover:text-foreground">
-            <ExternalLink className="h-3 w-3 mr-2" />
-            Ver auditoria de lotes
-          </Button>
-        </Link>
+        {/* Abrir aba completa + Link para auditoria */}
+        <div className="flex gap-2">
+          {onOpenFullTab && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={onOpenFullTab}
+            >
+              <ExternalLink className="h-3 w-3 mr-2" />
+              Abrir aba DJEN Processos
+            </Button>
+          )}
+          <Link to="/auditoria-djen-processos" className={onOpenFullTab ? "flex-1" : "block"}>
+            <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground hover:text-foreground">
+              <ExternalLink className="h-3 w-3 mr-2" />
+              Ver auditoria de lotes
+            </Button>
+          </Link>
+        </div>
       </CardContent>
+
+      {/* Dialog Reset Total */}
+      <AlertDialog open={showKillDialog} onOpenChange={setShowKillDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Total?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso irá interromper a execução imediatamente e limpar todo o estado.
+              O checkpoint será perdido e você precisará reiniciar do zero.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleForceKill}>
+              Forçar Cancelamento
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
+    </>
   );
 }

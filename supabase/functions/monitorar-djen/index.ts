@@ -760,21 +760,35 @@ function normalizarParaBusca(texto: string): string {
     .toLowerCase();
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Palavra-chave: usar SOMENTE o termo. Remove prefixos tribunal/Adv (filtros separados). */
+function extrairPalavraChavePura(termo: string): string {
+  if (!termo?.trim()) return termo;
+  let s = termo.trim();
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
+  s = s.replace(/^Adv\.?\s*/i, '');
+  return s.trim() || termo;
+}
+
+/** FRASE EXATA na ordem - "Super Quadra" só casa com "Super Quadra", não com "enquadramento". */
+function contemFraseExata(conteudoNorm: string, termoNorm: string): boolean {
+  if (!termoNorm) return true;
+  try {
+    const re = new RegExp(`(?:^|\\s)${escapeRegex(termoNorm)}(?:\\s|$)`, '');
+    return re.test(conteudoNorm);
+  } catch {
+    return false; // Fallback seguro se regex falhar
+  }
+}
+
 function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean {
   const termoNorm = normalizar(termo);
   if (!termoNorm) return true;
-  if (conteudoNorm.includes(termoNorm)) return true;
-
-  const tokens = termoNorm.split(/\s+/).filter(Boolean);
-  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
-  const termoOriginalTemAmpersand = /&/.test(termo);
-  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
-  const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
-  if (palavrasTermo.length === 0) return true;
-
-  // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
-  // Usar includes ao invés de regex para ser menos restritivo e mais rápido
-  return palavrasTermo.every(p => conteudoNorm.includes(p));
+  return contemFraseExata(conteudoNorm, termoNorm);
 }
 
 function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
@@ -806,8 +820,8 @@ function conteudoContemTermo(
 
   const conteudoNorm = normalizar(conteudo);
 
-  if (tipo === 'advogado') {
-    if (oab) {
+  if (tipo === 'advogado' || tipo === 'nome') {
+    if (tipo === 'advogado' && oab) {
       const oabDigits = String(oab).replace(/\D/g, '');
       if (oabDigits.length >= 3) {
         const oabPattern = new RegExp(oabDigits.split('').join('[.\\s-]?'), 'i');
@@ -817,7 +831,7 @@ function conteudoContemTermo(
 
     if (termo) {
       const termoNorm = normalizar(termo);
-      if (termoNorm && !conteudoNorm.includes(termoNorm)) {
+      if (termoNorm && !contemFraseExata(conteudoNorm, termoNorm)) {
         return false;
       }
     }
@@ -831,40 +845,10 @@ function conteudoContemTermo(
     return conteudoNorm.includes(numero);
   }
 
-  // Para palavra-chave/parte: 80% das palavras significativas devem estar presentes
-  // Termos jurídicos genéricos (LTDA, S/A, etc.) não contam na validação
+  // Para palavra-chave/parte: FRASE EXATA na ordem - "Super Quadra" só casa com "Super Quadra"
   const termoNorm = normalizar(termo);
   if (!termoNorm) return true;
-  
-  // Match exato primeiro (mais rápido)
-  if (conteudoNorm.includes(termoNorm)) return true;
-  
-  // Palavras jurídicas genéricas que não devem ser obrigatórias
-  const TERMOS_IGNORAR = new Set([
-    'LTDA', 'SA', 'ME', 'EPP', 'EIRELI', 'CIA', 
-    'SOCIEDADE', 'EMPRESA', 'COMERCIO', 'INDUSTRIA', 'SERVICOS',
-    'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM', 'COM', 'PARA', 'POR'
-  ]);
-  
-  const tokens = termoNorm.split(/\s+/).filter(Boolean);
-  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
-  const termoOriginalTemAmpersand = /&/.test(termo);
-  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
-  
-  // Filtrar palavras significativas (excluindo termos genéricos)
-  const palavrasTermo = tokens.filter(p => {
-    if (p.length < 2 && !(allowSingleLetters && p.length === 1)) return false;
-    if (TERMOS_IGNORAR.has(p)) return false;
-    return true;
-  });
-  
-  if (palavrasTermo.length === 0) return true;
-
-  // VALIDAÇÃO 80%: permite variações como "LTDA" vs "S.A." ou nomes abreviados
-  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
-  
-  return palavrasEncontradas.length >= minPalavras;
+  return contemFraseExata(conteudoNorm, termoNorm);
 }
 
 function parseAdvogadoTermo(raw: string): { nome?: string; oabDigits?: string; uf?: string } {
@@ -916,18 +900,26 @@ function conteudoContemTermoOuOr(
   conteudo: string,
   monitoramento: Monitoramento
 ): boolean {
+  const termoPuro = (monitoramento.tipo === 'palavra-chave' || monitoramento.tipo === 'parte' || monitoramento.tipo === 'advogado' || monitoramento.tipo === 'nome')
+    ? extrairPalavraChavePura(monitoramento.termo_busca)
+    : monitoramento.termo_busca;
+
+  if (monitoramento.tipo === 'nome') {
+    return conteudoContemTermo(conteudo, termoPuro, 'nome', undefined);
+  }
   if (monitoramento.tipo !== 'advogado') {
-    return conteudoContemTermo(conteudo, monitoramento.termo_busca, monitoramento.tipo, monitoramento.oab);
+    return conteudoContemTermo(conteudo, termoPuro, monitoramento.tipo, monitoramento.oab);
   }
 
+  const termosOrPuros = (monitoramento.termos_or || []).map((t) => extrairPalavraChavePura(t.trim())).filter(Boolean);
   const targets = buildAdvogadoTargets(
-    monitoramento.termo_busca,
-    monitoramento.termos_or,
+    termoPuro,
+    termosOrPuros.length > 0 ? termosOrPuros : undefined,
     monitoramento.oab,
     monitoramento.uf
   );
   if (targets.length === 0) {
-    return conteudoContemTermo(conteudo, monitoramento.termo_busca, monitoramento.tipo, monitoramento.oab);
+    return conteudoContemTermo(conteudo, termoPuro, monitoramento.tipo, monitoramento.oab);
   }
   return targets.some((t) =>
     conteudoContemTermo(conteudo, t.nome || '', 'advogado', t.oabDigits)
@@ -1106,6 +1098,15 @@ async function processPublicationFromIndex(
     dataDisponibilizacao = dataPublicacao;
   }
 
+  // IMPORTANTE: Validar termo ANTES de qualquer DB round-trip.
+  // Para "Super Quadra", a API retorna muitas publicações (substring). Filtrar em memória
+  // evita milhares de queries desnecessárias e previne travamento em 2%.
+  if (!conteudoContemTermoOuOr(conteudo, monitoramento)) {
+    stats.descartadas++;
+    tribunalStat.descartadas++;
+    return;
+  }
+
   const globalHash = generateGlobalHash(conteudo, dataDisponibilizacao);
 
   const { data: existingGlobal } = await supabase
@@ -1117,12 +1118,6 @@ async function processPublicationFromIndex(
   if (existingGlobal) {
     stats.duplicatas++;
     tribunalStat.duplicatas++;
-    return;
-  }
-
-  if (!conteudoContemTermoOuOr(conteudo, monitoramento)) {
-    stats.descartadas++;
-    tribunalStat.descartadas++;
     return;
   }
 
@@ -1302,13 +1297,12 @@ async function processMonitoramento(
         ...(monitoramento.termos_or || []),
       ].filter(Boolean) as string[];
 
-      if (monitoramento.tipo === 'advogado') {
-        const targets = buildAdvogadoTargets(
-          monitoramento.termo_busca,
-          monitoramento.termos_or,
-          monitoramento.oab,
-          monitoramento.uf
-        );
+      if (monitoramento.tipo === 'advogado' || monitoramento.tipo === 'nome') {
+        const termoPuro = extrairPalavraChavePura(monitoramento.termo_busca);
+        const termosOrPuros = (monitoramento.termos_or || []).map((t) => extrairPalavraChavePura(t.trim())).filter(Boolean);
+        const targets = monitoramento.tipo === 'advogado'
+          ? buildAdvogadoTargets(termoPuro, termosOrPuros.length > 0 ? termosOrPuros : undefined, monitoramento.oab, monitoramento.uf)
+          : [{ nome: termoPuro || undefined }];
         for (const target of targets) {
           if (target.oabDigits) {
             const items = await buscarNoIndiceOab(supabase, options.diarioYmd, tribunal, target.oabDigits);
@@ -1346,9 +1340,11 @@ async function processMonitoramento(
   const searchCandidates: Array<Omit<SearchParams, 'siglaTribunal'>> = [];
 
   if (monitoramento.tipo === "advogado") {
+    const termoPuro = extrairPalavraChavePura(monitoramento.termo_busca);
+    const termosOrPuros = (monitoramento.termos_or || []).map((t) => extrairPalavraChavePura(t.trim())).filter(Boolean);
     const targets = buildAdvogadoTargets(
-      monitoramento.termo_busca,
-      monitoramento.termos_or,
+      termoPuro,
+      termosOrPuros.length > 0 ? termosOrPuros : undefined,
       monitoramento.oab,
       monitoramento.uf
     );
@@ -1362,7 +1358,7 @@ async function processMonitoramento(
         const nomeTrim = target.nome.trim();
         const hasNome = nomeTrim.length >= 3 && /[A-Za-zÀ-ÿ]/.test(nomeTrim);
         if (hasNome) {
-          searchCandidates.push({ nomeAdvogado: nomeTrim });
+          searchCandidates.push({ texto: nomeTrim });
         }
       }
     }
@@ -1371,7 +1367,7 @@ async function processMonitoramento(
       `[DJEN] Advogado search candidates: total=${searchCandidates.length}`
     );
   } else if (monitoramento.tipo === "palavra-chave") {
-    const termo = monitoramento.termo_busca;
+    const termo = extrairPalavraChavePura(monitoramento.termo_busca);
     searchCandidates.push({ texto: termo });
     
     // Adicionar variante sem acentos para melhor cobertura
@@ -1393,7 +1389,7 @@ async function processMonitoramento(
   } else if (monitoramento.tipo === "processo") {
     searchCandidates.push({ texto: monitoramento.termo_busca.replace(/\D/g, "") });
   } else if (monitoramento.tipo === "parte") {
-    const termo = (monitoramento.termo_busca || "").trim();
+    const termo = extrairPalavraChavePura((monitoramento.termo_busca || "").trim());
     if (termo.length >= 3) {
       searchCandidates.push({ texto: termo });
       
@@ -1414,6 +1410,15 @@ async function processMonitoramento(
       
       console.log(`Parte search: "${termo}"`);
     }
+  } else if (monitoramento.tipo === "nome") {
+    // Tipo "nome" = busca por nome de advogado. A API PJE Comunica NÃO suporta nomeAdvogado;
+    // usar "texto" (palavra-chave) para buscar o nome.
+    const termo = extrairPalavraChavePura(monitoramento.termo_busca || "");
+    const nomeTrim = termo.trim();
+    if (nomeTrim.length >= 3 && /[A-Za-zÀ-ÿ]/.test(nomeTrim)) {
+      searchCandidates.push({ texto: nomeTrim });
+      console.log(`[DJEN] Nome search (via texto): "${nomeTrim}"`);
+    }
   }
 
   if (searchCandidates.length === 0) {
@@ -1421,7 +1426,8 @@ async function processMonitoramento(
     return { ...stats, tribunaisStats };
   }
 
-  // IMPORTANTE: Expandir IDs sintéticos (TODOS_CIVEIS, TODOS_TRT) para tribunais reais
+  // IMPORTANTE: Expandir IDs sintéticos (TODOS_CIVEIS, TODOS_TRT) para tribunais reais.
+  // Usar EXATAMENTE o que está no filtro - sem substituir por busca global.
   const tribunaisExpandidos = expandirTribunais(monitoramento.tribunais);
   const tribunais = tribunaisExpandidos && tribunaisExpandidos.length > 0
     ? tribunaisExpandidos
@@ -1725,7 +1731,9 @@ async function fetchDJENResultsWithStats(
 ): Promise<{ itemsCount: number; pages: number }> {
   let page = 0;
   let itemsCount = 0;
-  const maxPages = 10;
+  // Busca por texto retorna MUITOS falsos positivos (API faz substring). Limitar páginas
+  // para evitar timeout em termos como "Super Quadra" que retornam milhares de "enquadramento".
+  const maxPages = params.texto ? 3 : 10;
 
   const now = new Date();
   const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
@@ -2022,9 +2030,12 @@ serve(async (req) => {
     // Ler datas do período de consulta (query params ou body)
     const dataInicioParam = url.searchParams.get('dataInicio') ?? body?.dataInicio ?? null;
     const dataFimParam = url.searchParams.get('dataFim') ?? body?.dataFim ?? null;
-    const runKey = `${dataInicioParam ?? 'auto'}..${dataFimParam ?? 'auto'}|${indexMode ?? 'normal'}`;
+    const coordenacaoIdParam = url.searchParams.get('coordenacaoId') ?? body?.coordenacaoId ?? null;
+    const monitoramentoIdsParam = Array.isArray(body?.monitoramentoIds) ? body.monitoramentoIds as string[] : null;
+    const runKey = `${dataInicioParam ?? 'auto'}..${dataFimParam ?? 'auto'}|${indexMode ?? 'normal'}|coord=${coordenacaoIdParam ?? '-'}|ids=${(monitoramentoIdsParam?.length ?? 0) > 0 ? monitoramentoIdsParam!.join(',') : '-'}`;
     
-    console.log(`[DJEN] Date params from URL: dataInicio=${dataInicioParam}, dataFim=${dataFimParam}`);
+    console.log(`[DJEN] Date params: dataInicio=${dataInicioParam}, dataFim=${dataFimParam}`);
+    console.log(`[DJEN] Filtros recebidos: coordenacaoId=${coordenacaoIdParam ?? '(nenhum)'}, monitoramentoIds=${JSON.stringify(monitoramentoIdsParam ?? [])}`);
 
     let offset = Number.isFinite(urlOffset) ? urlOffset : 0;
 
@@ -2117,30 +2128,31 @@ serve(async (req) => {
     // regressão aparente de percentual.
     // Solução: se o banco indica uma continuação em andamento (has_more + next_offset),
     // ignorar invocações com offset menor que o checkpoint do banco.
-    try {
-      const metaCfg = (cancelConfig?.metadata as Record<string, any>) || {};
-      const statusCfg = typeof metaCfg.status === 'string' ? metaCfg.status : null;
-      const runningCfg = statusCfg === 'em_andamento' || statusCfg === 'executando';
-      const hasMoreCfg = metaCfg.has_more === true;
-      const nextOffsetCfgRaw = Number(metaCfg.next_offset);
-      const expectedOffset = Number.isFinite(nextOffsetCfgRaw)
-        ? Math.max(0, nextOffsetCfgRaw)
-        : Math.max(0, Number(metaCfg.current ?? 0) || 0);
+    // EXCEÇÃO: quando o usuário passou filtros (coordenacaoId/monitoramentoIds), é uma
+    // execução NOVA e intencional com escopo diferente — NÃO bloquear.
+    const hasUserFilters = !!(coordenacaoIdParam || (monitoramentoIdsParam?.length ?? 0) > 0);
+    if (!hasUserFilters) {
+      try {
+        const metaCfg = (cancelConfig?.metadata as Record<string, any>) || {};
+        const statusCfg = typeof metaCfg.status === 'string' ? metaCfg.status : null;
+        const runningCfg = statusCfg === 'em_andamento' || statusCfg === 'executando';
+        const nextOffsetCfgRaw = Number(metaCfg.next_offset);
+        const expectedOffset = Number.isFinite(nextOffsetCfgRaw)
+          ? Math.max(0, nextOffsetCfgRaw)
+          : Math.max(0, Number(metaCfg.current ?? 0) || 0);
 
-      // Não depender de has_more (pode ficar inconsistente em alguns snapshots).
-      // Se já existe uma execução em andamento com checkpoint > 0, não permitir
-      // invocações com offset menor (evita reprocesso e regressão de %).
-      if (runningCfg && expectedOffset > 0 && offset < expectedOffset) {
-        console.warn(
-          `[DJEN] Stale invocation guard: offset=${offset} < expectedOffset=${expectedOffset}. Skipping to prevent reprocessing.`,
-        );
-        return new Response(
-          JSON.stringify({ success: true, skipped: true, reason: 'stale_invocation', expectedOffset }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
+        if (runningCfg && expectedOffset > 0 && offset < expectedOffset) {
+          console.warn(
+            `[DJEN] Stale invocation guard: offset=${offset} < expectedOffset=${expectedOffset}. Skipping to prevent reprocessing.`,
+          );
+          return new Response(
+            JSON.stringify({ success: true, skipped: true, reason: 'stale_invocation', expectedOffset }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+      } catch (e) {
+        console.warn('[DJEN] Falha no stale invocation guard (seguindo execução):', e);
       }
-    } catch (e) {
-      console.warn('[DJEN] Falha no stale invocation guard (seguindo execução):', e);
     }
 
     if (conservative) {
@@ -2165,22 +2177,22 @@ serve(async (req) => {
     const startTime = Date.now();
 
     console.log(`Counting active monitoramentos...`);
-    const { count: totalActive, error: countError } = await supabase
-      .from('monitoramentos_djen')
-      .select('id', { count: 'exact', head: true })
-      .eq('ativo', true);
+    let countQuery = supabase.from('monitoramentos_djen').select('id', { count: 'exact', head: true }).eq('ativo', true);
+    if (coordenacaoIdParam) countQuery = countQuery.eq('coordenacao_id', coordenacaoIdParam);
+    if ((monitoramentoIdsParam?.length ?? 0) > 0) countQuery = countQuery.in('id', monitoramentoIdsParam!);
+    const { count: totalActive, error: countError } = await countQuery;
 
     if (countError) {
       console.error(`Error counting monitoramentos:`, countError);
       throw countError;
     }
-    console.log(`Total active monitoramentos: ${totalActive}`);
+    console.log(`Total active monitoramentos (filtered): ${totalActive}`);
 
     console.log(`Fetching monitoramentos: range ${offset} to ${offset + MAX_PER_INVOCATION - 1}`);
-    const { data: monitoramentos, error: fetchError } = await supabase
-      .from('monitoramentos_djen')
-      .select('*')
-      .eq('ativo', true)
+    let fetchQuery = supabase.from('monitoramentos_djen').select('*').eq('ativo', true);
+    if (coordenacaoIdParam) fetchQuery = fetchQuery.eq('coordenacao_id', coordenacaoIdParam);
+    if ((monitoramentoIdsParam?.length ?? 0) > 0) fetchQuery = fetchQuery.in('id', monitoramentoIdsParam!);
+    const { data: monitoramentos, error: fetchError } = await fetchQuery
       .order('created_at', { ascending: true })
       .range(offset, offset + MAX_PER_INVOCATION - 1);
 
@@ -2191,7 +2203,7 @@ serve(async (req) => {
 
     const count = monitoramentos?.length || 0;
     const total = totalActive || 0;
-    console.log(`Fetched ${count} monitoramentos (total active: ${total})`);
+    console.log(`[DJEN] Fetched ${count} monitoramentos (total filtered: ${total}). IDs: ${(monitoramentos || []).map((m: any) => m.id).join(", ") || "(nenhum)"}`);
 
     // Atualizar metadata logo no início para o card refletir progresso
     try {
@@ -2324,13 +2336,17 @@ serve(async (req) => {
 
         // Retry with delay - await delay then immediate fetch (setTimeout doesn't work in Edge Functions)
         const retryUrl = `${supabaseUrl}/functions/v1/monitorar-djen`;
-        const retryBody = {
+        const retryBody: Record<string, unknown> = {
           completeRun: true,
           scheduled: true,
           continued: false,
           parentRunId: runId,
           retryCount: retryCount + 1,
         };
+        if (coordenacaoIdParam) retryBody.coordenacaoId = coordenacaoIdParam;
+        if ((monitoramentoIdsParam?.length ?? 0) > 0) retryBody.monitoramentoIds = monitoramentoIdsParam;
+        if (dataInicioParam) retryBody.dataInicio = dataInicioParam;
+        if (dataFimParam) retryBody.dataFim = dataFimParam;
 
         // Usar authHeaderForContinuation já capturado no início (evita "Cannot read headers: request closed")
 
@@ -3179,13 +3195,17 @@ serve(async (req) => {
           .eq('run_id', runId);
       } else {
         const nextUrl = `${supabaseUrl}/functions/v1/monitorar-djen?offset=${nextOffset}`;
-        const nextBody = {
+        const nextBody: Record<string, unknown> = {
           completeRun: true,
           scheduled: true,
           continued: true,
           parentRunId: runId,
           execucaoId, // Propagar execucaoId para atualizar progresso
         };
+        if (coordenacaoIdParam) nextBody.coordenacaoId = coordenacaoIdParam;
+        if ((monitoramentoIdsParam?.length ?? 0) > 0) nextBody.monitoramentoIds = monitoramentoIdsParam;
+        if (dataInicioParam) nextBody.dataInicio = dataInicioParam;
+        if (dataFimParam) nextBody.dataFim = dataFimParam;
 
         // Usar authHeaderForContinuation capturado no início (evita "Cannot read headers: request closed")
         if (!authHeaderForContinuation) {

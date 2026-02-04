@@ -27,6 +27,8 @@ serve(async (req) => {
 	const manual = body?.manual === true;
     const conservative = body?.conservative === true;
     const indexMode = body?.indexMode as string | undefined;
+    const coordenacaoId = body?.coordenacaoId as string | undefined;
+    const monitoramentoIds = Array.isArray(body?.monitoramentoIds) ? body.monitoramentoIds as string[] : undefined;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -58,8 +60,10 @@ serve(async (req) => {
       if (activeErr) throw activeErr;
 
       const rows = (active || []) as Array<{ id: string; iniciado_em: string; detalhes: any }>;
-      if (rows.length > 0) {
-        // Preferir a que tem progresso real
+      const userWantsFilteredRun = !!(coordenacaoId || (monitoramentoIds?.length ?? 0) > 0);
+      if (rows.length > 0 && !userWantsFilteredRun) {
+        // Só reutilizar execução existente se o usuário NÃO escolheu filtros.
+        // Se escolheu coordenação/termo, cancelar a antiga e iniciar nova com os filtros.
         const withProgress = rows.filter((r) => {
           const cur = Number(r?.detalhes?.progress?.current ?? 0);
           const pct = Number(r?.detalhes?.progress?.percentage ?? 0);
@@ -134,6 +138,21 @@ serve(async (req) => {
             })
             .in('id', toTimeout.map((x) => x.id));
         }
+      } else if (rows.length > 0 && userWantsFilteredRun) {
+        // Usuário escolheu filtros: cancelar execuções ativas e permitir nova com filtros
+        const nowIso = new Date().toISOString();
+        await supabase
+          .from('execucoes_agendadas')
+          .update({
+            status: 'cancelado',
+            finalizado_em: nowIso,
+            detalhes: { reason: 'cancelado_para_nova_execucao_com_filtros' },
+          })
+          .eq('tipo', 'djen')
+          .eq('status', 'executando')
+          .is('finalizado_em', null);
+        execucaoId = undefined;
+        hadActiveExecution = false;
       }
     } catch (e) {
       console.warn('[DJEN Trigger] Falha ao verificar execuções ativas:', e);
@@ -187,7 +206,7 @@ serve(async (req) => {
         if (execucaoError) throw execucaoError;
         execucaoId = execucao?.id;
 
-        // Salvar execucaoId no metadata para referência
+        // Salvar execucaoId e ZERAR progresso (evita mostrar 100% de execução anterior)
         const { data } = await supabase
           .from("configuracoes_monitoramento")
           .select("metadata")
@@ -203,7 +222,10 @@ serve(async (req) => {
               execucaoId,
               paused_globally: false,
               status: "em_andamento",
-              // não zerar current/total aqui; o worker preenche via progresso
+              current: 0,
+              total: 0,
+              percentage: 0,
+              mensagem: "Iniciando processamento...",
             },
           })
           .eq("tipo", "djen")
@@ -235,7 +257,15 @@ serve(async (req) => {
       manual: true,
       indexMode,
       execucaoId,
+      coordenacaoId: coordenacaoId || undefined,
+      monitoramentoIds: (monitoramentoIds?.length ?? 0) > 0 ? monitoramentoIds : undefined,
     };
+    console.log("[DJEN Trigger] Disparando monitorar-djen com filtros:", {
+      coordenacaoId: payload.coordenacaoId ?? "(nenhum)",
+      monitoramentoIds: payload.monitoramentoIds ?? "(nenhum)",
+      dataInicio: payload.dataInicio,
+      dataFim: payload.dataFim,
+    });
 
     const dispatchPromise = fetch(url, {
       method: "POST",
@@ -249,10 +279,12 @@ serve(async (req) => {
       console.error("[DJEN Trigger] Failed to dispatch:", err);
     });
 
-    // Garantir que o background continue após resposta (quando suportado)
+    // Aguardar até 12s para o request ser enviado (evita processo morrer antes do fetch completar)
     const waitUntil = (globalThis as any)?.EdgeRuntime?.waitUntil;
     if (typeof waitUntil === "function") {
       waitUntil(dispatchPromise);
+    } else {
+      await Promise.race([dispatchPromise, new Promise((r) => setTimeout(r, 12000))]);
     }
 
     return new Response(

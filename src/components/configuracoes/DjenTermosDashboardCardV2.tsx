@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
@@ -90,6 +91,34 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     cancelarIndexacao,
   } = useDjenTermos();
 
+  const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>('');
+  const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>('');
+
+  const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
+
+  const { data: monitoramentos = [] } = useQuery({
+    queryKey: ['monitoramentos-djen-coord-exec', coordenacaoFiltroEfetivo],
+    queryFn: async () => {
+      if (!coordenacaoFiltroEfetivo) return [];
+      const { data, error } = await supabase
+        .from('monitoramentos_djen')
+        .select('id, termo_busca, descricao, tipo, oab, uf')
+        .eq('coordenacao_id', coordenacaoFiltroEfetivo)
+        .eq('ativo', true);
+      if (error) throw error;
+      const list = (data || []) as { id: string; termo_busca: string; descricao?: string; tipo?: string; oab?: string; uf?: string }[];
+      const getLabel = (m: typeof list[0]) =>
+        m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8);
+      return list.sort((a, b) => getLabel(a).localeCompare(getLabel(b), 'pt-BR', { sensitivity: 'base' }));
+    },
+    enabled: !!coordenacaoFiltroEfetivo,
+  });
+
+  useEffect(() => {
+    if (!filtroCoordenacaoId) setFiltroMonitoramentoId('');
+  }, [filtroCoordenacaoId]);
+
   const { data: liveConfig } = useQuery({
     queryKey: ['djen-config-live'],
     queryFn: async () => {
@@ -105,7 +134,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     enabled: true,
     refetchInterval: (query) => {
       const md = (query?.state?.data?.metadata as Record<string, any> | null) || {};
-      return md?.status === 'em_andamento' ? 3000 : 8000;
+      const rodando = md?.status === 'em_andamento' || md?.status === 'executando' || isRunning;
+      return rodando ? 2000 : 6000;
     },
   });
 
@@ -716,15 +746,19 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     const inicioExec = indexMode === 'indexado' ? dataIndexYmd : getDataYmd(dataInicio);
     const fimExec = indexMode === 'indexado' ? dataIndexYmd : getDataYmd(dataFim);
 
+    const filtros = {
+      coordenacaoId: filtroCoordenacaoId || undefined,
+      monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : undefined,
+    };
     if (backgroundOnly) {
-      await executarHibrido(inicioExec, fimExec, { backgroundOnly: true, indexMode });
+      await executarHibrido(inicioExec, fimExec, { backgroundOnly: true, indexMode, ...filtros });
     } else if (hybridMode) {
-      await executarHibrido(inicioExec, fimExec, { indexMode });
+      await executarHibrido(inicioExec, fimExec, { indexMode, ...filtros });
     } else {
-      executar(inicioExec, fimExec, { turbo: turboMode });
+      executar(inicioExec, fimExec, { turbo: turboMode, ...filtros });
     }
     onAfterMutation();
-  }, [canResume, executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus]);
+  }, [canResume, executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus, filtroCoordenacaoId, filtroMonitoramentoId]);
 
   const handleIndexarDiario = useCallback(async () => {
     const dataYmd = getDataYmd(dataIndice) || getDataYmd(new Date());
@@ -753,9 +787,13 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       toast.error('Modo 100% background não permite retomar execução local.');
       return;
     }
-    retomar({ turbo: turboMode });
+    const filtros = {
+      coordenacaoId: filtroCoordenacaoId || undefined,
+      monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : undefined,
+    };
+    retomar({ turbo: turboMode, ...filtros });
     onAfterMutation();
-  }, [retomar, onAfterMutation, turboMode, backgroundOnly, indexMode]);
+  }, [retomar, onAfterMutation, turboMode, backgroundOnly, indexMode, filtroCoordenacaoId, filtroMonitoramentoId]);
 
   const handleNovaExecucao = useCallback(() => {
     setShowResumeDialog(false);
@@ -775,15 +813,19 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     }
     const inicioExec = indexMode === 'indexado' ? dataIndexYmd : getDataYmd(dataInicio);
     const fimExec = indexMode === 'indexado' ? dataIndexYmd : getDataYmd(dataFim);
+    const filtros = {
+      coordenacaoId: filtroCoordenacaoId || undefined,
+      monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : undefined,
+    };
     if (backgroundOnly) {
-      executarHibrido(inicioExec, fimExec, { backgroundOnly: true, indexMode });
+      executarHibrido(inicioExec, fimExec, { backgroundOnly: true, indexMode, ...filtros });
     } else if (hybridMode) {
-      executarHibrido(inicioExec, fimExec, { indexMode });
+      executarHibrido(inicioExec, fimExec, { indexMode, ...filtros });
     } else {
-      executar(inicioExec, fimExec, { turbo: turboMode });
+      executar(inicioExec, fimExec, { turbo: turboMode, ...filtros });
     }
     onAfterMutation();
-  }, [executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus]);
+  }, [executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus, filtroCoordenacaoId, filtroMonitoramentoId]);
 
   const handleCancelar = useCallback(() => {
     if (hybridMode) {
@@ -865,6 +907,50 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
         </CardHeader>
 
         <CardContent className="space-y-4">
+          {/* Filtros: Coordenação e Termos — SEMPRE visíveis no topo (disabled quando rodando) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Coordenação</label>
+              <select
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                value={filtroCoordenacaoId}
+                onChange={(e) => setFiltroCoordenacaoId(e.target.value)}
+                disabled={effectiveIsRunning}
+              >
+                <option value="">Todos</option>
+                {coordenacoes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nome}</option>
+                ))}
+              </select>
+            </div>
+            {coordenacaoFiltroEfetivo && (
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Termo</label>
+                <select
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                  value={filtroMonitoramentoId}
+                  onChange={(e) => setFiltroMonitoramentoId(e.target.value)}
+                  disabled={effectiveIsRunning}
+                >
+                  <option value="">Todos</option>
+                  {monitoramentos.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          {effectiveIsRunning && (filtroCoordenacaoId || filtroMonitoramentoId) && (
+            <div className="rounded-md bg-primary/10 border border-primary/20 px-2 py-1.5 text-xs text-primary font-medium">
+              Executando: {coordenacoes.find((c) => c.id === filtroCoordenacaoId)?.nome ?? 'Coord.'}
+              {filtroMonitoramentoId && (
+                <> • {monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.descricao || monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.termo_busca || 'Termo'}</>
+              )}
+            </div>
+          )}
+
           {/* Alerta de checkpoint disponível após erro/cancelamento */}
           {!effectiveIsRunning && canResume && 
            (effectiveStatus === 'erro' || effectiveStatus === 'cancelado' || effectiveStatus === 'timeout') && (
@@ -892,7 +978,11 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                         forceKill();
                         setTimeout(() => {
                           if (dataInicio && dataFim) {
-                            executar(getDataYmd(dataInicio), getDataYmd(dataFim), { turbo: turboMode });
+                            const filtros = {
+                              coordenacaoId: filtroCoordenacaoId || undefined,
+                              monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : undefined,
+                            };
+                            executar(getDataYmd(dataInicio), getDataYmd(dataFim), { turbo: turboMode, ...filtros });
                           }
                         }, 500);
                       }}

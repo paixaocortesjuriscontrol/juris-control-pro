@@ -32,6 +32,7 @@ import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useRedistribuicoes } from "@/hooks/useRedistribuicoes";
 // useNotificacoes removido - agora buscamos prazos diretamente da coordenação
 import { cn } from "@/lib/utils";
+import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 import { startOfDay, parseISO, isBefore, isAfter, format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
@@ -286,11 +287,11 @@ export function CoordenacaoDetalhesView({
     };
   }, [periodoInicio, periodoFim]);
 
-  // Helper para busca
+  // Helper para busca: FRASE EXATA (evita "Super" casar com "SUPERIOR")
   const matchesSearch = useMemo(() => {
     return (text: string | null | undefined) => {
-      if (!searchQuery) return true;
-      return text?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+      if (!searchQuery?.trim()) return true;
+      return conteudoContemFraseExata(text, searchQuery);
     };
   }, [searchQuery]);
 
@@ -298,7 +299,7 @@ export function CoordenacaoDetalhesView({
   // Aplicar apenas filtros adicionais de busca textual
   const publicacoesFiltradas = useMemo(() => {
     return publicacoesDjenUnificadas.filter((p: PublicacaoUnificada) => {
-      if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero)) return false;
+      if (!matchesSearch(p.conteudo) && !matchesSearch(p.processo_numero, true)) return false;
       return true;
     });
   }, [publicacoesDjenUnificadas, matchesSearch]);
@@ -308,7 +309,7 @@ export function CoordenacaoDetalhesView({
       if ((d as any).monitoramento?.coordenacao_id !== coordenacaoId) return false;
       if (statusFilter !== "todas" && d.status !== 'pendente') return false;
       if (!matchesPeriodo(d.data_distribuicao)) return false;
-      if (!matchesSearch(d.numero_processo)) return false;
+      if (!matchesSearch(d.numero_processo, true)) return false;
       return true;
     });
   }, [distribuicoesEncontradas, coordenacaoId, statusFilter, matchesPeriodo, matchesSearch]);
@@ -326,7 +327,7 @@ export function CoordenacaoDetalhesView({
   const redistribuicoesFiltradas = useMemo(() => {
     return redistribuicoesData.filter(r => {
       if (r.coordenacao_nome !== coordenacao?.nome) return false;
-      if (!matchesSearch(r.processo_numero)) return false;
+      if (!matchesSearch(r.processo_numero, true)) return false;
       return true;
     });
   }, [redistribuicoesData, coordenacao?.nome, matchesSearch]);
@@ -352,7 +353,7 @@ export function CoordenacaoDetalhesView({
     return audienciasPendentesData.filter(a => {
       if ((a.processo as any)?.coordenacao_id !== coordenacaoId) return false;
       if (!matchesPeriodo(a.data_audiencia)) return false;
-      if (!matchesSearch(a.processo_numero)) return false;
+      if (!matchesSearch(a.processo_numero, true)) return false;
       return true;
     });
   }, [audienciasPendentesData, coordenacaoId, matchesPeriodo, matchesSearch]);
@@ -361,7 +362,7 @@ export function CoordenacaoDetalhesView({
     return intimacoesPendentesData.filter(i => {
       if ((i.processo as any)?.coordenacao_id !== coordenacaoId) return false;
       if (!matchesPeriodo(i.data_intimacao)) return false;
-      if (!matchesSearch(i.processo_numero)) return false;
+      if (!matchesSearch(i.processo_numero, true)) return false;
       return true;
     });
   }, [intimacoesPendentesData, coordenacaoId, matchesPeriodo, matchesSearch]);

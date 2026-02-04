@@ -103,11 +103,40 @@ function shouldExclude(conteudo: string, exclusoes: string[]): string | null {
 
 function matchesCondicaoConcomitante(conteudo: string, condicao: string | undefined): boolean {
   if (!condicao) return true;
-  
   const conteudoUpper = conteudo.toUpperCase();
   const termos = condicao.split(',').map(t => t.trim().toUpperCase());
-  
   return termos.every(termo => conteudoUpper.includes(termo));
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[&\/\\]/g, ' ')
+    .replace(/[^0-9A-Za-z\s]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+/** Palavra-chave: usar SOMENTE o termo. Remove prefixos tribunal/Adv (filtros separados). */
+function extrairPalavraChavePura(termo: string): string {
+  if (!termo?.trim()) return termo;
+  let s = termo.trim();
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
+  s = s.replace(/^Adv\.?\s*/i, '');
+  return s.trim() || termo;
+}
+
+/** FRASE EXATA - "Super Quadra" só casa com "Super Quadra", não com "enquadramento". */
+function conteudoContemTermoExato(conteudo: string, termo: string, tipo: string): boolean {
+  if (!conteudo || !termo) return false;
+  const termoPuro = (tipo === 'palavra-chave' || tipo === 'parte' || tipo === 'advogado' || tipo === 'nome') ? extrairPalavraChavePura(termo) : termo;
+  const conteudoNorm = normalizar(conteudo);
+  const termoNorm = normalizar(termoPuro);
+  if (!termoNorm) return true;
+  if (tipo === 'processo') return conteudoNorm.includes(termoNorm.replace(/\D/g, ''));
+  const re = new RegExp(`(?:^|\\s)${escapeRegex(termoNorm)}(?:\\s|$)`);
+  return re.test(conteudoNorm);
 }
 
 // Get dates between start and end (limited)
@@ -196,7 +225,9 @@ async function processMonitoramentoForDateRange(
 ): Promise<{ novas: number; descartadas: number; duplicatas: number }> {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
   
-  let searchTerm = monitoramento.termo_busca;
+  let searchTerm = (monitoramento.tipo === "palavra-chave" || monitoramento.tipo === "parte" || monitoramento.tipo === "advogado" || monitoramento.tipo === "nome")
+    ? extrairPalavraChavePura(monitoramento.termo_busca)
+    : monitoramento.termo_busca;
   
   if (monitoramento.tipo === "processo") {
     searchTerm = monitoramento.termo_busca.replace(/\D/g, '');
@@ -223,7 +254,14 @@ async function processMonitoramentoForDateRange(
     }
 
     // Check concomitant condition
-    if (!matchesCondicaoConcomitante(conteudo, monitoramento.condicao_concomitante)) {
+    if (!matchesCondicaoConcomitante(conteudo, monitoramento.condicao_concomitante)) continue;
+
+    // FRASE EXATA - descartar se o termo não está no conteúdo
+    const termoParaValidar = (monitoramento.tipo === 'palavra-chave' || monitoramento.tipo === 'parte' || monitoramento.tipo === 'advogado' || monitoramento.tipo === 'nome')
+      ? extrairPalavraChavePura(monitoramento.termo_busca)
+      : monitoramento.termo_busca;
+    if (!conteudoContemTermoExato(conteudo, termoParaValidar, monitoramento.tipo)) {
+      stats.descartadas++;
       continue;
     }
 

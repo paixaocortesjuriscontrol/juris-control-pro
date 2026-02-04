@@ -1115,7 +1115,7 @@ serve(async (req) => {
       );
     }
 
-    // Count total - agora inclui todos os processos com monitorar_djen=true (mesmo não-ativos)
+    // Count total - SOMENTE monitorar_djen = true
     const { count: totalProcessos } = await supabase
       .from('processos')
       .select('*', { count: 'exact', head: true })
@@ -1257,8 +1257,7 @@ serve(async (req) => {
       );
     }
 
-    // Get batch - agora inclui todos os processos com monitorar_djen=true
-    // Processos não-ativos com monitoramento ativo terão alerta especial
+    // Get batch - SOMENTE monitorar_djen = true
     const { data: processos, error: processosError } = await supabase
       .from('processos')
       .select('id, numero, status, coordenacao_id')

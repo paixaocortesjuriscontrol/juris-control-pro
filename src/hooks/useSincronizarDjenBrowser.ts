@@ -82,27 +82,33 @@ function gerarVariantesBusca(termo: string): string[] {
   return Array.from(variantes);
 }
 
-// IMPORTANTE: Validar que o termo está presente na publicação
-// Usa validação de 80% das palavras significativas (excluindo termos jurídicos genéricos)
+/** Palavra-chave: usar SOMENTE o termo. Remove prefixos tribunal/Adv (filtros separados). */
+function extrairPalavraChavePura(termo: string): string {
+  if (!termo?.trim()) return termo;
+  let s = termo.trim();
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
+  s = s.replace(/^Adv\.?\s*/i, '');
+  return s.trim() || termo;
+}
+
+// IMPORTANTE: FRASE EXATA na ordem - "Super Quadra" só casa se o texto tiver exatamente "Super Quadra".
 function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boolean {
   if (!conteudo || !termo) return false;
-  
-  // Para advogado, a validação é diferente (OAB)
   if (tipo === 'advogado') return true;
-  
-  // Palavras jurídicas genéricas que não devem ser obrigatórias
-  const TERMOS_IGNORAR = new Set([
-    'LTDA', 'SA', 'ME', 'EPP', 'EIRELI', 'CIA', 
-    'SOCIEDADE', 'EMPRESA', 'COMERCIO', 'INDUSTRIA', 'SERVICOS',
-    'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM', 'COM', 'PARA', 'POR'
-  ]);
-  
-  // Normalizar ambos para comparação
+  const termoPuro = extrairPalavraChavePura(termo);
+  if (!termoPuro) return true;
+
+  const escapeRegex = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const contemFraseExata = (txt: string, fraseNorm: string) => {
+    if (!fraseNorm) return true;
+    return new RegExp(`(?:^|\\s)${escapeRegex(fraseNorm)}(?:\\s|$)`).test(txt);
+  };
+
   const normalizar = (t: string) => t
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[&\/\\]/g, ' ')
-    // Remove pontuação geral para permitir match por palavra (ex: "LTDA." -> "LTDA")
     .replace(/[^0-9A-Za-z\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -110,30 +116,7 @@ function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boo
 
   const conteudoNorm = normalizar(conteudo);
   const termoNorm = normalizar(termo);
-  
-  // Verificar se o termo completo está presente (match exato)
-  if (conteudoNorm.includes(termoNorm)) return true;
-  
-  // VALIDAÇÃO 80%: permite variações como "LTDA" vs "S.A." ou nomes abreviados
-  const tokens = termoNorm.split(/\s+/).filter(Boolean);
-  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
-  const termoOriginalTemAmpersand = /&/.test(termo);
-  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
-  
-  // Filtrar palavras significativas (excluindo termos genéricos)
-  const palavrasTermo = tokens.filter(p => {
-    if (p.length < 2 && !(allowSingleLetters && p.length === 1)) return false;
-    if (TERMOS_IGNORAR.has(p)) return false;
-    return true;
-  });
-  
-  if (palavrasTermo.length === 0) return true;
-  
-  // 80% das palavras devem estar presentes
-  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
-  
-  return palavrasEncontradas.length >= minPalavras;
+  return contemFraseExata(conteudoNorm, termoNorm);
 }
 
 // Gera hash global para deduplicação (igual ao backend)
@@ -232,8 +215,9 @@ export function useSincronizarDjenBrowser() {
         }));
 
         try {
-          // Gerar variantes de busca
-          const variantes = gerarVariantesBusca(mon.termo_busca);
+          // Gerar variantes de busca (só palavra-chave pura; tribunal vem de mon.tribunais)
+          const termoPuro = extrairPalavraChavePura(mon.termo_busca);
+          const variantes = gerarVariantesBusca(termoPuro);
           
           // Tribunais a processar
           const tribunais = mon.tribunais && mon.tribunais.length > 0 

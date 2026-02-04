@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import { getExecutionProgress } from '@/utils/executionProgress';
 import { getDjenTermosExecutionProgress } from '@/utils/djenTermosExecutionProgress';
+import { useDjenProcessos } from '@/hooks/useDjenProcessos';
 
 interface ExecucaoAtiva {
   id: string;
@@ -144,6 +145,8 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
   const queryClient = useQueryClient();
   const [cancelando, setCancelando] = useState<Record<string, boolean>>({});
 
+  const { isRunning: djenProcessosRunning, progress: djenProcessosProgress, cancelar: cancelarDjenProcessos, cancelarHibrido } = useDjenProcessos();
+
   const { data: execucoesAtivas = [], refetch } = useQuery({
     queryKey: ['execucoes-ativas-panel'],
     queryFn: async () => {
@@ -179,11 +182,33 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
     };
   }, [refetch]);
 
+  // Incluir execução browser de DJEN Processos (não está em execucoes_agendadas)
+  const execucaoBrowserDjenProcessos: ExecucaoAtiva | null = useMemo(() => {
+    if (!djenProcessosRunning || !djenProcessosProgress) return null;
+    const p = djenProcessosProgress;
+    const iniciadoEm = new Date(Date.now() - (p.tempoDecorrido || 0) * 1000).toISOString();
+    return {
+      id: 'browser-djen-processos',
+      tipo: 'djen_processos',
+      status: 'executando',
+      iniciado_em: iniciadoEm,
+      finalizado_em: null,
+      registros_processados: p.totalPublicacoesAnalisadas ?? 0,
+      registros_encontrados: p.novas ?? 0,
+      lotes_processados: p.currentGroup ?? 0,
+      total_lotes: p.totalGroups ?? null,
+      detalhes: { progress: { current: p.currentGroup, total: p.totalGroups, percentage: p.percentage } },
+    };
+  }, [djenProcessosRunning, djenProcessosProgress]);
+
   // Deduplicar por tipo (evita múltiplas execuções da mesma rotina poluindo a UI)
   const execucoesDeduped = useMemo(() => {
     const byTipo = new Map<string, ExecucaoAtiva[]>();
     for (const e of execucoesAtivas) {
       byTipo.set(e.tipo, [...(byTipo.get(e.tipo) ?? []), e]);
+    }
+    if (execucaoBrowserDjenProcessos) {
+      byTipo.set('djen_processos', [execucaoBrowserDjenProcessos]);
     }
 
     const pickBest = (list: ExecucaoAtiva[]) => {
@@ -211,12 +236,20 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
     return Array.from(byTipo.values())
       .map(pickBest)
       .sort((a, b) => new Date(b.iniciado_em).getTime() - new Date(a.iniciado_em).getTime());
-  }, [execucoesAtivas]);
+  }, [execucoesAtivas, execucaoBrowserDjenProcessos]);
 
   const handleCancelar = async (execucao: ExecucaoAtiva) => {
     setCancelando(prev => ({ ...prev, [execucao.id]: true }));
     
     try {
+      if (execucao.id === 'browser-djen-processos') {
+        await cancelarHibrido();
+        cancelarDjenProcessos();
+        toast.success('DJEN Processos cancelado');
+        refetch();
+        return;
+      }
+
       // 1. Update execution status
       await supabase
         .from('execucoes_agendadas')
@@ -256,20 +289,26 @@ export function MonitoramentosAtivosPanel({ className }: { className?: string })
   const handleCancelarTodos = async () => {
     if (execucoesDeduped.length === 0) return;
     
-    const ids = execucoesDeduped.map(e => e.id);
+    const ids = execucoesDeduped.filter(e => e.id !== 'browser-djen-processos').map(e => e.id);
     const tipos = Array.from(new Set(execucoesDeduped.map(e => e.tipo)));
+    const hasBrowserDjenProcessos = execucoesDeduped.some(e => e.id === 'browser-djen-processos');
     
     try {
-      // Cancel all executions
-      await supabase
-        .from('execucoes_agendadas')
-        .update({ 
-          status: 'cancelado', 
-          finalizado_em: new Date().toISOString() 
-        })
-        .in('id', ids);
+      if (hasBrowserDjenProcessos) {
+        await cancelarHibrido();
+        cancelarDjenProcessos();
+      }
+      if (ids.length > 0) {
+        await supabase
+          .from('execucoes_agendadas')
+          .update({ 
+            status: 'cancelado', 
+            finalizado_em: new Date().toISOString() 
+          })
+          .in('id', ids);
+      }
 
-      // Set cancellation flags for all types
+      // Set cancellation flags for all types (skip djen_processos if only browser - já cancelado)
       for (const tipo of tipos) {
         await supabase
           .from('configuracoes_monitoramento')

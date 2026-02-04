@@ -24,10 +24,11 @@ import WorkersDjenVpsPanel from "@/components/configuracoes/WorkersDjenVpsPanel"
 
 export default function Configuracoes() {
   const [showDiagnostico, setShowDiagnostico] = useState(false);
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   return (
     <MainLayout title="Configurações" subtitle="Gerencie as configurações do sistema">
-      <Tabs defaultValue="dashboard" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <LayoutDashboard className="h-4 w-4" />
@@ -89,7 +90,7 @@ export default function Configuracoes() {
 
         {/* Aba Dashboard - Profissional */}
         <TabsContent value="dashboard" className="space-y-4">
-          <MonitoringDashboard />
+          <MonitoringDashboard onNavigateToTab={setActiveTab} />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
             <MonitoramentosAtivosPanel />
             <FilaExecucoesPanel />

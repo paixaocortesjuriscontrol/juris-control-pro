@@ -136,8 +136,8 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Parse body for optional date range
-    let body: { dataInicio?: string; dataFim?: string; modo?: 'hoje' | 'intervalo' } = {};
+    // Parse body for optional date range e tipo (termos | processos | todos)
+    let body: { dataInicio?: string; dataFim?: string; modo?: 'hoje' | 'intervalo'; tipo?: 'termos' | 'processos' | 'todos' } = {};
     try {
       body = await req.json();
     } catch {
@@ -145,6 +145,7 @@ Deno.serve(async (req) => {
     }
 
     const modo = body.modo ?? 'hoje';
+    const tipoLimpeza = body.tipo ?? 'todos'; // termos= só publicacoes_djen | processos= só publicacoes_djen_processos | todos
     const today = new Date().toISOString().split('T')[0];
 
     // Determine date range
@@ -164,64 +165,73 @@ Deno.serve(async (req) => {
     const dayEnd = `${endYmd}T23:59:59.999Z`;
     const results: Record<string, string> = {};
 
-    console.log(`[limpar-djen] Modo: ${modo}, Intervalo: ${startYmd} → ${endYmd}`);
+    console.log(`[limpar-djen] Modo: ${modo}, Tipo: ${tipoLimpeza}, Intervalo: ${startYmd} → ${endYmd}`);
 
-    // 1. djen_tribunais_lote (by created_at)
-    console.log('[limpar-djen] Limpando djen_tribunais_lote...');
-    const r1 = await deleteBatched(supabase, 'djen_tribunais_lote', 'created_at', dayStart, dayEnd, 500);
-    results['djen_tribunais_lote'] = r1.error || `ok (${r1.deleted})`;
+    const limparTermos = tipoLimpeza === 'termos' || tipoLimpeza === 'todos';
+    const limparProcessos = tipoLimpeza === 'processos' || tipoLimpeza === 'todos';
 
-    // 2. djen_lotes (by created_at)
-    console.log('[limpar-djen] Limpando djen_lotes...');
-    const r2 = await deleteBatched(supabase, 'djen_lotes', 'created_at', dayStart, dayEnd, 500);
-    results['djen_lotes'] = r2.error || `ok (${r2.deleted})`;
+    if (limparTermos) {
+      // 1. djen_tribunais_lote (by created_at)
+      console.log('[limpar-djen] Limpando djen_tribunais_lote...');
+      const r1 = await deleteBatched(supabase, 'djen_tribunais_lote', 'created_at', dayStart, dayEnd, 500);
+      results['djen_tribunais_lote'] = r1.error || `ok (${r1.deleted})`;
 
-    // 3. djen_runs (by created_at)
-    console.log('[limpar-djen] Limpando djen_runs...');
-    const r3 = await supabase
-      .from('djen_runs')
-      .delete()
-      .gte('created_at', dayStart)
-      .lte('created_at', dayEnd);
-    results['djen_runs'] = r3.error ? r3.error.message : 'ok';
+      // 2. djen_lotes (by created_at)
+      console.log('[limpar-djen] Limpando djen_lotes...');
+      const r2 = await deleteBatched(supabase, 'djen_lotes', 'created_at', dayStart, dayEnd, 500);
+      results['djen_lotes'] = r2.error || `ok (${r2.deleted})`;
 
-    // 4. publicacoes_djen - delete by created_at AND by data_disponibilizacao/data_publicacao
-    console.log('[limpar-djen] Limpando publicacoes_djen...');
-    const r4a = await deleteBatched(supabase, 'publicacoes_djen', 'created_at', dayStart, dayEnd, 500);
-    const r4b = await deleteByDateRange(supabase, 'publicacoes_djen', ['data_disponibilizacao', 'data_publicacao'], startYmd, endYmd, 500);
-    const r4Total = r4a.deleted + r4b.deleted;
-    results['publicacoes_djen'] = (r4a.error || r4b.error) || `ok (${r4Total})`;
+      // 3. djen_runs (by created_at)
+      console.log('[limpar-djen] Limpando djen_runs...');
+      const r3 = await supabase
+        .from('djen_runs')
+        .delete()
+        .gte('created_at', dayStart)
+        .lte('created_at', dayEnd);
+      results['djen_runs'] = r3.error ? r3.error.message : 'ok';
 
-    // 5. publicacoes_djen_processos
-    console.log('[limpar-djen] Limpando publicacoes_djen_processos...');
-    const r5a = await deleteBatched(supabase, 'publicacoes_djen_processos', 'created_at', dayStart, dayEnd, 500);
-    const r5b = await deleteByDateRange(supabase, 'publicacoes_djen_processos', ['data_disponibilizacao', 'data_publicacao'], startYmd, endYmd, 500);
-    const r5Total = r5a.deleted + r5b.deleted;
-    results['publicacoes_djen_processos'] = (r5a.error || r5b.error) || `ok (${r5Total})`;
+      // 4. publicacoes_djen (termos)
+      console.log('[limpar-djen] Limpando publicacoes_djen...');
+      const r4a = await deleteBatched(supabase, 'publicacoes_djen', 'created_at', dayStart, dayEnd, 500);
+      const r4b = await deleteByDateRange(supabase, 'publicacoes_djen', ['data_disponibilizacao', 'data_publicacao'], startYmd, endYmd, 500);
+      const r4Total = r4a.deleted + r4b.deleted;
+      results['publicacoes_djen'] = (r4a.error || r4b.error) || `ok (${r4Total})`;
 
-    // 6. publicacoes_djen_descartadas
-    console.log('[limpar-djen] Limpando publicacoes_djen_descartadas...');
-    const r6a = await deleteBatched(supabase, 'publicacoes_djen_descartadas', 'created_at', dayStart, dayEnd, 500);
-    const r6b = await deleteByDateRange(supabase, 'publicacoes_djen_descartadas', ['data_publicacao'], startYmd, endYmd, 500);
-    const r6Total = r6a.deleted + r6b.deleted;
-    results['publicacoes_djen_descartadas'] = (r6a.error || r6b.error) || `ok (${r6Total})`;
+      // 6. publicacoes_djen_descartadas
+      console.log('[limpar-djen] Limpando publicacoes_djen_descartadas...');
+      const r6a = await deleteBatched(supabase, 'publicacoes_djen_descartadas', 'created_at', dayStart, dayEnd, 500);
+      const r6b = await deleteByDateRange(supabase, 'publicacoes_djen_descartadas', ['data_publicacao'], startYmd, endYmd, 500);
+      const r6Total = r6a.deleted + r6b.deleted;
+      results['publicacoes_djen_descartadas'] = (r6a.error || r6b.error) || `ok (${r6Total})`;
 
-    // 7. publicacoes_djen_global_hash
-    console.log('[limpar-djen] Limpando publicacoes_djen_global_hash...');
-    const r7 = await deleteBatched(supabase, 'publicacoes_djen_global_hash', 'created_at', dayStart, dayEnd, 500);
-    results['publicacoes_djen_global_hash'] = r7.error || `ok (${r7.deleted})`;
+      // 7. publicacoes_djen_global_hash (apenas quando limpar termos - compartilhado)
+      console.log('[limpar-djen] Limpando publicacoes_djen_global_hash...');
+      const r7 = await deleteBatched(supabase, 'publicacoes_djen_global_hash', 'created_at', dayStart, dayEnd, 500);
+      results['publicacoes_djen_global_hash'] = r7.error || `ok (${r7.deleted})`;
+    }
 
-    // 8. historico_monitoramento (filter by tipo)
+    if (limparProcessos) {
+      // 5. publicacoes_djen_processos (APENAS publicações por processo - não toca em termos)
+      console.log('[limpar-djen] Limpando publicacoes_djen_processos...');
+      const r5a = await deleteBatched(supabase, 'publicacoes_djen_processos', 'created_at', dayStart, dayEnd, 500);
+      const r5b = await deleteByDateRange(supabase, 'publicacoes_djen_processos', ['data_disponibilizacao', 'data_publicacao'], startYmd, endYmd, 500);
+      const r5Total = r5a.deleted + r5b.deleted;
+      results['publicacoes_djen_processos'] = (r5a.error || r5b.error) || `ok (${r5Total})`;
+    }
+
+    // 8. historico_monitoramento (filter by tipo conforme tipoLimpeza)
+    const tiposHistorico = tipoLimpeza === 'termos' ? ['djen'] : tipoLimpeza === 'processos' ? ['djen_processos'] : ['djen', 'djen_processos'];
     console.log('[limpar-djen] Limpando historico_monitoramento...');
     const r8 = await supabase
       .from('historico_monitoramento')
       .delete()
-      .in('tipo', ['djen', 'djen_processos'])
+      .in('tipo', tiposHistorico)
       .gte('executado_em', dayStart)
       .lte('executado_em', dayEnd);
     results['historico_monitoramento'] = r8.error ? r8.error.message : 'ok';
 
     // 9. Cancel any running executions
+    const tiposExec = tipoLimpeza === 'termos' ? ['djen'] : tipoLimpeza === 'processos' ? ['djen_processos'] : ['djen', 'djen_processos'];
     console.log('[limpar-djen] Cancelando execuções em andamento...');
     const r9 = await supabase
       .from('execucoes_agendadas')
@@ -230,17 +240,18 @@ Deno.serve(async (req) => {
         finalizado_em: new Date().toISOString(),
         ultimo_erro: 'Cancelado automaticamente pela limpeza do DJEN',
       })
-      .in('tipo', ['djen', 'djen_processos'])
+      .in('tipo', tiposExec)
       .eq('status', 'executando')
       .is('finalizado_em', null);
     results['cancel_execucoes'] = r9.error ? r9.error.message : 'ok';
 
-    // 10. Reset metadata
+    // 10. Reset metadata (apenas para o tipo afetado)
+    const tiposCfg = tipoLimpeza === 'termos' ? ['djen'] : tipoLimpeza === 'processos' ? ['djen_processos'] : ['djen', 'djen_processos'];
     console.log('[limpar-djen] Resetando metadata...');
     const { data: cfgs, error: cfgErr } = await supabase
       .from('configuracoes_monitoramento')
       .select('id, tipo, metadata')
-      .in('tipo', ['djen', 'djen_processos'])
+      .in('tipo', tiposCfg)
       .is('coordenacao_id', null);
 
     if (cfgErr) {

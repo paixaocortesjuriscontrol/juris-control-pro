@@ -55,6 +55,37 @@ function matchesCondicaoConcomitante(conteudo: string, condicao: string | null |
   return termos.every((t) => conteudoUpper.includes(t));
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizar(texto: string): string {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[&\/\\]/g, " ")
+    .replace(/[^0-9A-Za-z\s]/g, " ").replace(/\s+/g, " ").trim().toUpperCase();
+}
+
+/** Palavra-chave: usar SOMENTE o termo. Remove prefixos tribunal/Adv (filtros separados). */
+function extrairPalavraChavePura(termo: string): string {
+  if (!termo?.trim()) return termo;
+  let s = termo.trim();
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
+  s = s.replace(/^Adv\.?\s*/i, '');
+  return s.trim() || termo;
+}
+
+/** FRASE EXATA - "Super Quadra" só casa com "Super Quadra", não com "enquadramento". */
+function conteudoContemTermoExato(conteudo: string, termo: string, tipo: string): boolean {
+  if (!conteudo || !termo) return false;
+  const termoPuro = (tipo === 'palavra-chave' || tipo === 'parte' || tipo === 'advogado') ? extrairPalavraChavePura(termo) : termo;
+  const conteudoNorm = normalizar(conteudo);
+  const termoNorm = normalizar(termoPuro);
+  if (!termoNorm) return true;
+  if (tipo === "processo") return conteudoNorm.includes(termoNorm.replace(/\D/g, ""));
+  const re = new RegExp(`(?:^|\\s)${escapeRegex(termoNorm)}(?:\\s|$)`);
+  return re.test(conteudoNorm);
+}
+
 function getDateRange(startDate: string, endDate: string, maxDays: number): { dates: string[]; hasMore: boolean; nextStart: string | null } {
   const dates: string[] = [];
   const start = new Date(startDate);
@@ -106,9 +137,10 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
   const stats = { novas: 0, descartadas: 0, duplicatas: 0, erros: 0 };
 
   const tipoBuscar = mon.tipo === "advogado" ? "advogado" : "palavra-chave";
+  const termoPuro = mon.tipo !== "advogado" ? extrairPalavraChavePura(mon.termo_busca) : undefined;
   const body: any = {
     tipo: tipoBuscar,
-    palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
+    palavraChave: mon.tipo !== "advogado" ? termoPuro : undefined,
     oab: mon.tipo === "advogado" ? mon.oab : undefined,
     uf: mon.tipo === "advogado" ? mon.uf : undefined,
     dataInicio,
@@ -201,6 +233,14 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
       });
       if (error) stats.erros++;
       else stats.descartadas++;
+      continue;
+    }
+
+    const termoParaValidar = (mon.tipo === 'palavra-chave' || mon.tipo === 'parte' || mon.tipo === 'advogado')
+      ? extrairPalavraChavePura(mon.termo_busca)
+      : mon.termo_busca;
+    if (!conteudoContemTermoExato(p.conteudo, termoParaValidar, mon.tipo)) {
+      stats.descartadas++;
       continue;
     }
 

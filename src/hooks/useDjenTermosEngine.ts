@@ -445,39 +445,17 @@ function contemTokenInteiro(conteudoNorm: string, token: string): boolean {
   return re.test(conteudoNorm);
 }
 
+/** Frase exata na ordem - "Super Quadra" só casa com "Super Quadra", não com "enquadramento". */
+function contemFraseExata(conteudoNorm: string, termoNorm: string): boolean {
+  if (!termoNorm) return true;
+  const re = new RegExp(`(?:^|\\s)${escapeRegex(termoNorm)}(?:\\s|$)`);
+  return re.test(conteudoNorm);
+}
+
 function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean {
   const termoNorm = normalizar(termo);
   if (!termoNorm) return true;
-  if (conteudoNorm.includes(termoNorm)) return true;
-
-  // Palavras jurídicas genéricas que não devem ser obrigatórias
-  const TERMOS_IGNORAR = new Set([
-    'LTDA', 'SA', 'ME', 'EPP', 'EIRELI', 'CIA', 
-    'SOCIEDADE', 'EMPRESA', 'COMERCIO', 'INDUSTRIA', 'SERVICOS',
-    'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM', 'COM', 'PARA', 'POR'
-  ]);
-
-  const tokens = termoNorm.split(/\s+/).filter(Boolean);
-  
-  // Em termos com "&" (ex.: "F & F"), letras isoladas são relevantes. 
-  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
-  const termoOriginalTemAmpersand = /&/.test(termo);
-  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
-  
-  // Filtrar palavras significativas (excluindo termos genéricos)
-  const palavrasTermo = tokens.filter(p => {
-    if (p.length < 2 && !(allowSingleLetters && p.length === 1)) return false;
-    if (TERMOS_IGNORAR.has(p)) return false;
-    return true;
-  });
-  
-  if (palavrasTermo.length === 0) return true;
-
-  // VALIDAÇÃO 80%: permite variações
-  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
-  
-  return palavrasEncontradas.length >= minPalavras;
+  return contemFraseExata(conteudoNorm, termoNorm);
 }
 
 function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
@@ -521,6 +499,13 @@ function conteudoContemTermo(
 
   const conteudoNorm = normalizar(conteudo);
 
+  // Para nome: validar frase exata do nome (como advogado sem OAB)
+  if (tipo === 'nome') {
+    if (!termo) return true;
+    const termoNorm = normalizar(termo);
+    return contemFraseExata(conteudoNorm, termoNorm);
+  }
+
   // Para advogado: validar OAB + Nome
   if (tipo === 'advogado') {
     // 1. OAB DEVE estar presente
@@ -542,7 +527,7 @@ function conteudoContemTermo(
 
       if (palavrasTermo.length > 0) {
         const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-        const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+        const palavrasEncontradas = palavrasTermo.filter(p => contemTokenInteiro(conteudoNorm, p));
 
         if (palavrasEncontradas.length < minPalavras) {
           return false;
@@ -553,47 +538,31 @@ function conteudoContemTermo(
     return true;
   }
 
-  // Para palavra-chave/parte: 80% das palavras significativas devem estar presentes
-  // Termos jurídicos genéricos (LTDA, S/A, ME, etc.) não contam na validação
+  // Para palavra-chave/parte: FRASE EXATA na ordem - "Super Quadra" só casa com "Super Quadra"
   if (!termo) return true;
-
   const termoNorm = normalizar(termo);
-  
-  // Primeiro tenta match exato do termo completo (mais rápido)
-  if (conteudoNorm.includes(termoNorm)) return true;
-  
-  // Palavras jurídicas genéricas que não devem ser obrigatórias
-  const TERMOS_IGNORAR = new Set([
-    'LTDA', 'SA', 'ME', 'EPP', 'EIRELI', 'LTDA', 'CIA', 
-    'SOCIEDADE', 'EMPRESA', 'COMERCIO', 'INDUSTRIA', 'SERVICOS',
-    'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM', 'COM', 'PARA', 'POR'
-  ]);
-  
-  // Se não encontrou exato, verifica se 80% das palavras significativas estão presentes
-  const tokens = termoNorm.split(/\s+/).filter(Boolean);
-  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
-  const termoOriginalTemAmpersand = /&/.test(termo);
-  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
-  
-  // Filtrar palavras significativas (excluindo termos genéricos)
-  const palavrasTermo = tokens.filter(p => {
-    if (p.length < 2 && !(allowSingleLetters && p.length === 1)) return false;
-    if (TERMOS_IGNORAR.has(p)) return false;
-    return true;
-  });
-  
-  if (palavrasTermo.length === 0) return true;
-
-  // VALIDAÇÃO 80%: permite variações como "LTDA" vs "S.A." ou nomes abreviados
-  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
-  
-  return palavrasEncontradas.length >= minPalavras;
+  return contemFraseExata(conteudoNorm, termoNorm);
 }
 
 // ============================================================================
 // HELPERS PARA BUSCA
 // ============================================================================
+
+/**
+ * Para PALAVRA-CHAVE: usa SOMENTE a palavra-chave pura.
+ * Remove prefixos de tribunal/tipo (filtros separados - mon.tribunais).
+ * Ex: "TJDFT - Adv. Osmar Mendes" → "Osmar Mendes"
+ * Regra: palavra-chave = só o termo; tribunais/filtros = quando selecionados.
+ */
+function extrairPalavraChavePura(termo: string): string {
+  if (!termo?.trim()) return termo;
+  let s = termo.trim();
+  // Tribunais (TJxx, TRTxx, TRFxx, STJ, STF, TST) + " - Adv." ou " - "
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
+  s = s.replace(/^Adv\.?\s*/i, '');
+  return s.trim() || termo;
+}
 
 /**
  * Gera variantes de busca para melhor cobertura.
@@ -700,7 +669,7 @@ async function processarTermo(
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; descartadasTribunal: number }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
 
-  const tipo = mon.tipo === 'parte' ? 'palavra-chave' : mon.tipo;
+  const tipo = mon.tipo === 'parte' ? 'palavra-chave' : (mon.tipo === 'nome' ? 'palavra-chave' : mon.tipo);
   const isRateLimitError = (msg?: string) =>
     !!msg && (msg.includes('429') || msg.includes('Too Many'));
   const isAdvogadoComOab = tipo === 'advogado' && !!mon.oab;
@@ -732,8 +701,9 @@ async function processarTermo(
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
   } else {
-    // palavra-chave ou parte
-    variantesParaBuscar = gerarVariantes(mon.termo_busca);
+    // palavra-chave ou parte: usar SOMENTE a palavra-chave + tribunal (mon.tribunais)
+    const termoPuro = extrairPalavraChavePura(mon.termo_busca);
+    variantesParaBuscar = gerarVariantes(termoPuro);
   }
 
   // Expandir tribunais configurados (usados para filtro pós-busca)
@@ -886,7 +856,10 @@ async function processarTermo(
     }
 
     // 3. Verificar se o termo/OAB realmente está no conteúdo
-    if (!conteudoContemTermo(conteudo, mon.termo_busca, mon.tipo, mon.oab)) {
+    const termoParaValidar = (mon.tipo === 'palavra-chave' || mon.tipo === 'parte' || mon.tipo === 'advogado' || mon.tipo === 'nome')
+      ? extrairPalavraChavePura(mon.termo_busca)
+      : mon.termo_busca;
+    if (!conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab)) {
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
       return false;
     }
@@ -955,7 +928,7 @@ async function processarTermo(
 
   // Persistir descartadas no banco (para auditoria e métricas)
   if (pubsDescartadas.length > 0) {
-    const payloadDescartadas = pubsDescartadas.slice(0, 50).map(pub => {
+    const payloadDescartadas = pubsDescartadas.slice(0, 200).map(pub => {
       const conteudo = pub.conteudo || pub.teor || pub.texto || '';
       const dataDisp = (pub.dataDisponibilizacao || pub.dataDJe || diaYmd).slice(0, 10);
       const dataPub = calcularDataPublicacaoYmd(dataDisp);
@@ -994,7 +967,9 @@ async function runEngine(
   dataInicioYmd: string,
   dataFimYmd: string,
   retomar: boolean,
-  turbo: boolean
+  turbo: boolean,
+  coordenacaoId?: string,
+  monitoramentoIds?: string[]
 ) {
   if (singletonState.isRunning) {
     console.warn('[DJEN] Já existe uma execução em andamento');
@@ -1019,11 +994,20 @@ async function runEngine(
   let checkpoint = retomar ? loadCheckpoint() : null;
   if (checkpoint && !checkpointMatchesRun(checkpoint, runKey)) checkpoint = null;
 
-  // Buscar monitoramentos ativos
-  const { data: monitoramentos, error } = await supabase
+  // Buscar monitoramentos ativos (com filtros opcionais)
+  console.log("[DJEN Engine] Filtros aplicados:", {
+    coordenacaoId: coordenacaoId ?? "(nenhum)",
+    monitoramentoIds: monitoramentoIds ?? [],
+  });
+  let query = supabase
     .from('monitoramentos_djen')
     .select('*')
     .eq('ativo', true);
+  if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
+  if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);
+  const { data: monitoramentos, error } = await query;
+
+  console.log("[DJEN Engine] Monitoramentos obtidos:", monitoramentos?.length ?? 0, "IDs:", (monitoramentos || []).map((m: any) => m.id).join(", ") || "(nenhum)");
 
   if (error || !monitoramentos?.length) {
     updateProgress({
@@ -1386,7 +1370,9 @@ export function executarDjenTermos(
   dataInicioYmd?: string,
   dataFimYmd?: string,
   retomar = false,
-  turbo = false
+  turbo = false,
+  coordenacaoId?: string,
+  monitoramentoIds?: string[]
 ) {
   const hoje = getHojeBrasilia();
   
@@ -1415,7 +1401,7 @@ export function executarDjenTermos(
     }
   }
 
-  runEngine(inicio!, fim!, retomar, turbo);
+  runEngine(inicio!, fim!, retomar, turbo, coordenacaoId, monitoramentoIds);
 }
 
 export function cancelarDjenTermos() {

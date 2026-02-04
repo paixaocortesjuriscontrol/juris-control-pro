@@ -30,6 +30,7 @@ import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao";
 import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
+import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 import { startOfDay, parseISO, isBefore, isAfter } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -140,11 +141,11 @@ export function DashboardCoordenacoes({
     };
   }, [periodoInicio, periodoFim]);
 
-  // Helper para filtrar por busca (usado nos breakdowns de membro)
+  // Helper para filtrar por busca: FRASE EXATA (evita "Super" casar com "SUPERIOR")
   const matchesSearch = useMemo(() => {
     return (text: string | null | undefined) => {
-      if (!searchQuery) return true;
-      return text?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+      if (!searchQuery?.trim()) return true;
+      return conteudoContemFraseExata(text, searchQuery);
     };
   }, [searchQuery]);
 

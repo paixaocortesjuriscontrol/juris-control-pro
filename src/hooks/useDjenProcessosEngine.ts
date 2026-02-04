@@ -1,18 +1,18 @@
 /**
- * DJEN Processos Engine v1.0
+ * DJEN Processos Engine v2.0
  * 
  * Arquitetura singleton com execução em background:
  * - Continua rodando mesmo ao sair da tela
- * - Processa grupos de processos com OR query
- * - Exclui coordenações Santander (volume alto)
- * - Checkpoints salvos a cada 5 grupos
+ * - Busca 1 processo por vez com número inteiro (tipo 'processo')
+ * - A API PJE Comunica NÃO suporta OR em palavra-chave - usa busca por processo
+ * - Usa processos com monitorar_djen=true (exclusões via banco)
+ * - Checkpoints salvos a cada 5 processos
  * - Retomada somente manual
- * 
- * Baseado no padrão useDjenTermosEngine.ts
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { buscarPjeComunicaNoBrowser, isCnjFormat } from "@/utils/pjeComunicaClient";
+import { buscarPjeComunicaNoBrowser } from "@/utils/pjeComunicaClient";
+import { toast } from "sonner";
 
 // ============================================================================
 // TIPOS
@@ -21,7 +21,7 @@ import { buscarPjeComunicaNoBrowser, isCnjFormat } from "@/utils/pjeComunicaClie
 export interface DjenProcessosProgress {
   status: 'idle' | 'executando' | 'concluido' | 'cancelado' | 'erro';
   
-  // Progresso de grupos
+  // Progresso por processo
   currentGroup: number;
   totalGroups: number;
   currentPage: number;
@@ -43,7 +43,7 @@ export interface DjenProcessosProgress {
 
 interface Checkpoint {
   runKey: string;
-  grupoIdx: number;
+  processoIdx: number;
   novas: number;
   duplicadas: number;
   totalAnalisadas: number;
@@ -69,12 +69,10 @@ interface ParametrosDjen {
 // NOTA: Coordenações Santander foram desabilitadas diretamente no banco
 // (processos.monitorar_djen = false), portanto não há mais filtro hardcoded aqui.
 
-// Tamanho do grupo de processos para busca OR
-const GROUP_SIZE = 10;
-const MAX_PAGES_PER_GROUP = 5;
+const MAX_PAGES_PER_PROCESS = 10;
 
 const DEFAULT_PARAMS: ParametrosDjen = {
-  group_search_size: GROUP_SIZE,
+  group_search_size: 1,
   delay_entre_lotes: 3000,
   delay_entre_paginas: 1500,
   max_retries: 4,
@@ -165,11 +163,6 @@ function generateHash(content: string): string {
   return Math.abs(hash).toString(16);
 }
 
-function buildOrQuery(numeros: string[]): string {
-  const digits = numeros.map(n => normalizeNumeroProcesso(n));
-  return digits.join(' OR ');
-}
-
 function saveCheckpoint(cp: Checkpoint | null) {
   if (cp) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...cp, savedAt: Date.now() }));
@@ -243,6 +236,15 @@ async function persistMetadata(
   }
 }
 
+function getRuntimeParams(base: ParametrosDjen, turbo: boolean): ParametrosDjen {
+  if (!turbo) return base;
+  return {
+    ...base,
+    delay_entre_lotes: Math.max(800, Math.round(base.delay_entre_lotes * 0.5)),
+    delay_entre_paginas: Math.max(500, Math.round(base.delay_entre_paginas * 0.5)),
+  };
+}
+
 async function fetchParametrosDjen(): Promise<ParametrosDjen> {
   try {
     const { data: tipoData } = await (supabase as any)
@@ -266,7 +268,7 @@ async function fetchParametrosDjen(): Promise<ParametrosDjen> {
     }
 
     return {
-      group_search_size: Math.min(params.group_search_size || GROUP_SIZE, 10),
+      group_search_size: 1,
       delay_entre_lotes: params.delay_entre_lotes || DEFAULT_PARAMS.delay_entre_lotes,
       delay_entre_paginas: params.delay_entre_paginas || DEFAULT_PARAMS.delay_entre_paginas,
       max_retries: params.max_retries || DEFAULT_PARAMS.max_retries,
@@ -284,7 +286,8 @@ async function fetchParametrosDjen(): Promise<ParametrosDjen> {
 async function runEngine(
   dataInicioYmd: string,
   dataFimYmd: string,
-  retomar: boolean
+  retomar: boolean,
+  turbo: boolean
 ) {
   if (singletonState.isRunning) {
     console.warn('[DJEN Processos] Já existe uma execução em andamento');
@@ -304,7 +307,7 @@ async function runEngine(
     checkpoint = null;
   }
 
-  const startGroupIdx = checkpoint?.grupoIdx ?? 0;
+  const startProcessoIdx = checkpoint?.processoIdx ?? (checkpoint as any)?.grupoIdx ?? 0;
   let novasTotal = checkpoint?.novas ?? 0;
   let duplicadasTotal = checkpoint?.duplicadas ?? 0;
   let publicacoesAnalisadas = checkpoint?.totalAnalisadas ?? 0;
@@ -331,91 +334,76 @@ async function runEngine(
     });
 
     // Carregar parâmetros
-    const params = await fetchParametrosDjen();
-    console.log('[DJEN Processos] Parâmetros:', params);
+    const baseParams = await fetchParametrosDjen();
+    const params = getRuntimeParams(baseParams, turbo);
+    console.log('[DJEN Processos] Parâmetros:', params, turbo ? '(turbo)' : '');
 
-    // Buscar processos monitorados (Santander já desabilitados no banco)
+    // Buscar SOMENTE processos com busca DJEN ativada (monitorar_djen = true)
     updateProgress({ mensagem: 'Carregando processos monitorados...' });
 
-    const { data: processosMonitorados, error: procError } = await supabase
+    const { data: rawProcessos, error: procError } = await supabase
       .from('processos')
-      .select('id, numero, coordenacao_id')
+      .select('id, numero, coordenacao_id, monitorar_djen')
       .eq('monitorar_djen', true);
 
     if (procError) throw new Error(`Erro ao buscar processos: ${procError.message}`);
 
+    // Garantir: somente processos com monitorar_djen = true
+    const processosMonitorados = (rawProcessos || [])
+      .filter((p) => p.monitorar_djen === true)
+      .map(({ id, numero, coordenacao_id }) => ({ id, numero, coordenacao_id }));
+
     if (!processosMonitorados?.length) {
+      toast.warning('Nenhum processo com monitoramento DJEN ativo. Cadastre processos e marque monitorar_djen.');
       updateProgress({ 
         status: 'concluido', 
-        mensagem: 'Nenhum processo para monitorar (excl. Santander)' 
+        mensagem: 'Nenhum processo para monitorar' 
       });
       singletonState.isRunning = false;
       if (singletonState.timerInterval) clearInterval(singletonState.timerInterval);
       return;
     }
 
-    console.log(`[DJEN Processos] ${processosMonitorados.length} processos (excl. Santander)`);
+    console.log(`[DJEN Processos] ${processosMonitorados.length} processos (busca individual com número inteiro)`);
 
-    // Separar processos CNJ de legados
-    const processosCnj = processosMonitorados.filter(p => isCnjFormat(p.numero));
-    const processosLegados = processosMonitorados.filter(p => !isCnjFormat(p.numero));
-
-    // Criar índice para lookup O(1)
-    const processosMap = new Map<string, { id: string; numero: string }>();
-    for (const p of processosMonitorados) {
-      const numeroNorm = normalizeNumeroProcesso(p.numero);
-      processosMap.set(numeroNorm, p);
-    }
-
-    // Dividir em grupos
-    const grupos: { id: string; numero: string }[][] = [];
-    for (let i = 0; i < processosCnj.length; i += params.group_search_size) {
-      grupos.push(processosCnj.slice(i, i + params.group_search_size));
-    }
-    for (const p of processosLegados) {
-      grupos.push([p]);
-    }
-
-    const totalGrupos = grupos.length;
-    console.log(`[DJEN Processos] ${totalGrupos} grupos (iniciando de ${startGroupIdx})`);
+    const totalProcessos = processosMonitorados.length;
+    const processosLista = processosMonitorados;
 
     updateProgress({
-      totalGroups: totalGrupos,
-      currentGroup: startGroupIdx,
-      mensagem: `${processosMonitorados.length} processos em ${totalGrupos} grupos`,
+      totalGroups: totalProcessos,
+      currentGroup: startProcessoIdx,
+      mensagem: `${totalProcessos} processos (1 por vez, número inteiro)`,
     });
 
-    // Persistir metadata inicial
     await persistMetadata({
       status: 'executando',
-      total_grupos: totalGrupos,
-      grupo_atual: startGroupIdx,
+      total_grupos: totalProcessos,
+      grupo_atual: startProcessoIdx,
       novas: novasTotal,
       duplicadas: duplicadasTotal,
       run_key: runKey,
       browser_execution: true,
-      estrategia: 'singleton_engine_v1',
+      estrategia: 'singleton_engine_v2_processo_inteiro',
+      turbo: turbo,
     }, { force: true });
 
-    // Loop de grupos
-    for (let g = startGroupIdx; g < grupos.length; g++) {
+    // Loop: 1 processo por vez com tipo 'processo' e número inteiro
+    for (let idx = startProcessoIdx; idx < processosLista.length; idx++) {
       if (signal.aborted) break;
 
-      const grupo = grupos[g];
-      const query = buildOrQuery(grupo.map(p => p.numero));
+      const processo = processosLista[idx];
+      const numeroCompleto = processo.numero.trim();
       let page = 0;
       let hasMore = true;
-      let grupoAnalisadas = 0;
 
       updateProgress({
-        currentGroup: g + 1,
+        currentGroup: idx + 1,
         currentPage: page,
-        percentage: Math.round(((g + 1) / totalGrupos) * 100),
-        mensagem: `Grupo ${g + 1}/${totalGrupos} (${grupo.length} processos)`,
+        percentage: Math.round(((idx + 1) / totalProcessos) * 100),
+        mensagem: `Processo ${idx + 1}/${totalProcessos}: ${numeroCompleto.slice(0, 25)}...`,
       });
 
-      // Paginar dentro do grupo
-      while (hasMore && page < MAX_PAGES_PER_GROUP) {
+      while (hasMore && page < MAX_PAGES_PER_PROCESS) {
         if (signal.aborted) break;
 
         let retryCount = 0;
@@ -426,8 +414,8 @@ async function runEngine(
         while (!success && retryCount < params.max_retries) {
           try {
             resp = await buscarPjeComunicaNoBrowser({
-              tipo: 'palavra-chave',
-              palavraChave: query,
+              tipo: 'processo',
+              numeroProcesso: numeroCompleto,
               dataInicio: dataInicioYmd,
               dataFim: dataFimYmd,
               page,
@@ -443,7 +431,7 @@ async function runEngine(
             isBlockedError = errMsg.includes('blocked') || errMsg.includes('bloqueada') || errMsg.includes('429');
             
             retryCount++;
-            console.warn(`[DJEN Processos] Erro grupo ${g + 1} página ${page}, tentativa ${retryCount}:`, e?.message?.slice(0, 100));
+            console.warn(`[DJEN Processos] Erro processo ${idx + 1} pág ${page}, tentativa ${retryCount}:`, e?.message?.slice(0, 100));
             
             if (retryCount < params.max_retries) {
               const backoffMs = params.retry_base_delay_ms * Math.pow(2, retryCount - 1);
@@ -460,25 +448,24 @@ async function runEngine(
             if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) {
               console.error('[DJEN Processos] Circuit breaker ativado');
               
-              // Salvar checkpoint para retomada
               saveCheckpoint({
                 runKey,
-                grupoIdx: g,
+                processoIdx: idx,
                 novas: novasTotal,
                 duplicadas: duplicadasTotal,
                 totalAnalisadas: publicacoesAnalisadas,
                 tempoInicio,
                 dataInicioYmd,
                 dataFimYmd,
-                percentage: Math.round((g / totalGrupos) * 100),
-                totalGroups: totalGrupos,
+                percentage: Math.round((idx / totalProcessos) * 100),
+                totalGroups: totalProcessos,
               });
 
               await persistMetadata({
                 status: 'erro',
                 erro: 'API bloqueada - circuit breaker',
-                grupo_atual: g,
-                total_grupos: totalGrupos,
+                grupo_atual: idx,
+                total_grupos: totalProcessos,
                 novas: novasTotal,
                 duplicadas: duplicadasTotal,
               }, { force: true });
@@ -496,16 +483,8 @@ async function runEngine(
           break;
         }
 
-        // Processar publicações
         for (const pub of resp.items) {
           publicacoesAnalisadas++;
-          grupoAnalisadas++;
-
-          const numeroProcessoPub = pub.numeroProcesso || '';
-          const numeroNorm = normalizeNumeroProcesso(numeroProcessoPub);
-
-          const processoMonitorado = processosMap.get(numeroNorm);
-          if (!processoMonitorado) continue;
 
           const conteudo = pub.texto || pub.teor || '';
           if (!conteudo) continue;
@@ -515,14 +494,13 @@ async function runEngine(
           const dataPublicacao = pub.dataPublicacao || dataDisponibilizacao;
           
           const conteudoNorm = normalizeConteudo(conteudo);
-          const hashConteudo = generateHash(`${processoMonitorado.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
+          const hashConteudo = generateHash(`${processo.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
 
           if (seenHashes.has(hashConteudo)) {
             duplicadasTotal++;
             continue;
           }
 
-          // Verificar no banco
           const { data: existente } = await supabase
             .from('publicacoes_djen_processos')
             .select('id')
@@ -535,17 +513,16 @@ async function runEngine(
             continue;
           }
 
-          // Inserir nova
           const { error: insertError } = await supabase
             .from('publicacoes_djen_processos')
             .insert({
-              processo_id: processoMonitorado.id,
-              processo_numero: processoMonitorado.numero,
+              processo_id: processo.id,
+              processo_numero: processo.numero,
               hash_conteudo: hashConteudo,
               data_publicacao: dataPublicacao,
               data_disponibilizacao: dataDisponibilizacao,
               conteudo: conteudo.slice(0, 50000),
-              fonte: 'singleton_engine_v1',
+              fonte: 'singleton_engine_v2_processo_inteiro',
             });
 
           if (!insertError) {
@@ -562,7 +539,7 @@ async function runEngine(
           novas: novasTotal,
           duplicadas: duplicadasTotal,
           totalPublicacoesAnalisadas: publicacoesAnalisadas,
-          mensagem: `Grupo ${g + 1}/${totalGrupos} | Pág ${page} | +${novasTotal} novas`,
+          mensagem: `Processo ${idx + 1}/${totalProcessos} | Pág ${page} | +${novasTotal} novas`,
         });
 
         if (hasMore && !signal.aborted) {
@@ -570,34 +547,32 @@ async function runEngine(
         }
       }
 
-      // Salvar checkpoint a cada 5 grupos
-      if ((g + 1) % 5 === 0 || g === grupos.length - 1) {
+      if ((idx + 1) % 5 === 0 || idx === processosLista.length - 1) {
         saveCheckpoint({
           runKey,
-          grupoIdx: g + 1,
+          processoIdx: idx + 1,
           novas: novasTotal,
           duplicadas: duplicadasTotal,
           totalAnalisadas: publicacoesAnalisadas,
           tempoInicio,
           dataInicioYmd,
           dataFimYmd,
-          percentage: Math.round(((g + 1) / totalGrupos) * 100),
-          totalGroups: totalGrupos,
+          percentage: Math.round(((idx + 1) / totalProcessos) * 100),
+          totalGroups: totalProcessos,
         });
 
         await persistMetadata({
           status: 'executando',
-          grupo_atual: g + 1,
-          total_grupos: totalGrupos,
+          grupo_atual: idx + 1,
+          total_grupos: totalProcessos,
           novas: novasTotal,
           duplicadas: duplicadasTotal,
-          percentage: Math.round(((g + 1) / totalGrupos) * 100),
+          percentage: Math.round(((idx + 1) / totalProcessos) * 100),
           run_key: runKey,
         });
       }
 
-      // Delay entre grupos
-      if (!signal.aborted && g < grupos.length - 1) {
+      if (!signal.aborted && idx < processosLista.length - 1) {
         await delay(params.delay_entre_lotes);
       }
     }
@@ -611,7 +586,7 @@ async function runEngine(
     if (signal.aborted) {
       saveCheckpoint({
         runKey,
-        grupoIdx: singletonState.progress.currentGroup,
+        processoIdx: singletonState.progress.currentGroup,
         novas: novasTotal,
         duplicadas: duplicadasTotal,
         totalAnalisadas: publicacoesAnalisadas,
@@ -625,7 +600,7 @@ async function runEngine(
       await persistMetadata({
         status: 'cancelado',
         grupo_atual: singletonState.progress.currentGroup,
-        total_grupos: totalGrupos,
+        total_grupos: totalProcessos,
         novas: novasTotal,
         duplicadas: duplicadasTotal,
       }, { force: true });
@@ -635,13 +610,12 @@ async function runEngine(
         mensagem: `Cancelado. ${novasTotal} novas encontradas.`,
       });
     } else {
-      // Limpar checkpoint ao concluir
       saveCheckpoint(null);
 
       await persistMetadata({
         status: 'concluido',
-        grupo_atual: totalGrupos,
-        total_grupos: totalGrupos,
+        grupo_atual: totalProcessos,
+        total_grupos: totalProcessos,
         novas: novasTotal,
         duplicadas: duplicadasTotal,
         percentage: 100,
@@ -657,12 +631,12 @@ async function runEngine(
 
       updateProgress({
         status: 'concluido',
-        currentGroup: totalGrupos,
+        currentGroup: totalProcessos,
         percentage: 100,
         novas: novasTotal,
         duplicadas: duplicadasTotal,
         totalPublicacoesAnalisadas: publicacoesAnalisadas,
-        mensagem: `Concluído! ${novasTotal} novas em ${totalGrupos} grupos.`,
+        mensagem: `Concluído! ${novasTotal} novas em ${totalProcessos} processos.`,
       });
     }
 
@@ -701,13 +675,18 @@ async function runEngine(
 export function executarDjenProcessos(
   dataInicio?: string,
   dataFim?: string,
-  retomar = false
-): void {
+  retomar = false,
+  turbo = false
+): boolean {
+  if (singletonState.isRunning) {
+    console.warn('[DJEN Processos] Já existe uma execução em andamento');
+    return false;
+  }
   const hoje = getBrazilISODate();
   const dataInicioYmd = dataInicio || hoje;
   const dataFimYmd = dataFim || hoje;
-  
-  runEngine(dataInicioYmd, dataFimYmd, retomar);
+  runEngine(dataInicioYmd, dataFimYmd, retomar, turbo);
+  return true;
 }
 
 export function cancelarDjenProcessos(): void {

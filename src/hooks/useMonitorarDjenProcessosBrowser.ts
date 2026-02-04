@@ -1,24 +1,19 @@
 /**
  * Hook para monitorar processos DJEN diretamente no navegador.
  * 
- * ESTRATÉGIA v6: Busca por GRUPOS de processos com OR do Elasticsearch
+ * ESTRATÉGIA v7: Busca 1 processo por vez com número inteiro (tipo 'processo')
  * 
- * Em vez de buscar 13k+ processos individualmente ou por tribunal sem filtro,
- * agrupa ~10 processos por requisição usando "OR" syntax do Elasticsearch.
- * 
- * ~1300 requisições vs ~13.000 = ~20-30 minutos vs 7+ horas
+ * A API PJE Comunica NÃO suporta OR em palavra-chave. Usa tipo 'processo'
+ * com numeroProcesso completo para cada processo.
  */
 
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { buscarPjeComunicaNoBrowser, isCnjFormat } from "@/utils/pjeComunicaClient";
+import { buscarPjeComunicaNoBrowser } from "@/utils/pjeComunicaClient";
 import { toast } from "sonner";
 
-// Quantos processos agrupar por requisição (Elasticsearch OR syntax)
-const GROUP_SIZE = 10;
-// Máximo de páginas por grupo
-const MAX_PAGES_PER_GROUP = 5;
+const MAX_PAGES_PER_PROCESS = 10;
 
 export interface DjenProcessosProgress {
   status: 'idle' | 'executando' | 'pausado' | 'concluido' | 'erro' | 'cancelado';
@@ -158,16 +153,6 @@ async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Cria uma query OR para Elasticsearch com múltiplos números de processo.
- * Ex: "1234567890 OR 0987654321 OR 1111222233"
- */
-function buildOrQuery(numeros: string[]): string {
-  // Usar apenas os dígitos do processo
-  const digits = numeros.map(n => normalizeNumeroProcesso(n));
-  return digits.join(' OR ');
-}
-
 // === Hook principal ===
 
 export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowserReturn {
@@ -266,7 +251,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
             percentage: Math.max(stats.percentage || 0, currentMeta.percentage || 0),
             status: stats.status || 'em_andamento',
             browser_execution: true,
-            estrategia: 'grupos_or_v6',
+            estrategia: 'processo_inteiro_v7',
             run_started_at: stats.startedAt || currentMeta.run_started_at,
             updated_at: new Date().toISOString(),
           },
@@ -307,7 +292,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       let consecutiveBlocks = 0;
 
       // 1. Carregar parâmetros
-      console.log('[DJEN v6] Carregando parâmetros...');
+      console.log('[DJEN v7] Carregando parâmetros...');
       updateProgress({
         status: 'executando',
         mensagem: 'Carregando parâmetros...',
@@ -316,20 +301,22 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       });
 
       const params = await fetchParametrosDjen();
-      // Forçar group_size máximo de 10 para evitar queries OR muito longas
-      const groupSize = Math.min(params.group_search_size || GROUP_SIZE, 10);
-      console.log('[DJEN v6] Parâmetros carregados, group_size:', groupSize);
+      console.log('[DJEN v7] Parâmetros carregados (busca 1 processo por vez, número inteiro)');
 
       // 2. Buscar todos os processos monitorados
-      console.log('[DJEN v6] Carregando processos monitorados...');
+      console.log('[DJEN v7] Carregando processos monitorados...');
       updateProgress({ mensagem: 'Carregando processos monitorados...' });
 
-      const { data: processosMonitorados, error: procError } = await supabase
+      const { data: rawProcessos, error: procError } = await supabase
         .from('processos')
-        .select('id, numero')
+        .select('id, numero, monitorar_djen')
         .eq('monitorar_djen', true);
 
       if (procError) throw new Error(`Erro ao buscar processos: ${procError.message}`);
+
+      const processosMonitorados = (rawProcessos || [])
+        .filter((p) => p.monitorar_djen === true)
+        .map(({ id, numero }) => ({ id, numero }));
 
       if (!processosMonitorados?.length) {
         toast.info('Nenhum processo com monitoramento DJEN ativo.');
@@ -337,56 +324,31 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
         return;
       }
 
-      // Separar processos CNJ (podem ser agrupados) de legados (individuais)
-      const processosCnj = processosMonitorados.filter(p => isCnjFormat(p.numero));
-      const processosLegados = processosMonitorados.filter(p => !isCnjFormat(p.numero));
-
-      // Criar índice Map<numero_normalizado, processo> para lookup O(1)
-      const processosMap = new Map<string, { id: string; numero: string }>();
-      for (const p of processosMonitorados) {
-        const numeroNorm = normalizeNumeroProcesso(p.numero);
-        processosMap.set(numeroNorm, p);
-      }
-
-      // Dividir processos CNJ em grupos
-      const grupos: { id: string; numero: string }[][] = [];
-      for (let i = 0; i < processosCnj.length; i += groupSize) {
-        grupos.push(processosCnj.slice(i, i + groupSize));
-      }
-      // Processos legados são buscados individualmente
-      for (const p of processosLegados) {
-        grupos.push([p]);
-      }
-
-      const totalGrupos = grupos.length;
-      console.log(`[DJEN v6] ${processosCnj.length} CNJ em ${Math.ceil(processosCnj.length / groupSize)} grupos + ${processosLegados.length} legados = ${totalGrupos} grupos total`);
-      
+      const totalProcessos = processosMonitorados.length;
       updateProgress({
-        totalGroups: totalGrupos,
-        mensagem: `${processosMonitorados.length} processos em ${totalGrupos} grupos. Iniciando busca...`,
+        totalGroups: totalProcessos,
+        mensagem: `${totalProcessos} processos (1 por vez, número inteiro). Iniciando...`,
       });
 
-      // 3. Iterar por GRUPOS de processos
-      for (let g = 0; g < grupos.length; g++) {
+      // 3. Iterar 1 processo por vez com tipo 'processo' e número completo
+      for (let idx = 0; idx < processosMonitorados.length; idx++) {
         if (canceladoRef.current) break;
 
-        const grupo = grupos[g];
-        const query = buildOrQuery(grupo.map(p => p.numero));
+        const processo = processosMonitorados[idx];
+        const numeroCompleto = processo.numero.trim();
         let page = 0;
         let hasMore = true;
-        let grupoPublicacoesAnalisadas = 0;
 
         updateProgress({
-          currentGroup: g + 1,
+          currentGroup: idx + 1,
           currentPage: page,
-          mensagem: `Grupo ${g + 1}/${totalGrupos} (${grupo.length} processos)`,
+          mensagem: `Processo ${idx + 1}/${totalProcessos}: ${numeroCompleto.slice(0, 25)}...`,
           novas: novasTotal,
           duplicadas: duplicadasTotal,
           totalPublicacoesAnalisadas: publicacoesAnalisadas,
         });
 
-        // Paginar dentro do grupo
-        while (hasMore && page < MAX_PAGES_PER_GROUP) {
+        while (hasMore && page < MAX_PAGES_PER_PROCESS) {
           if (canceladoRef.current) break;
 
           let retryCount = 0;
@@ -396,10 +358,9 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
 
           while (!success && retryCount < params.max_retries) {
             try {
-              // Buscar usando OR query com os números do grupo
               resp = await buscarPjeComunicaNoBrowser({
-                tipo: 'palavra-chave',
-                palavraChave: query,
+                tipo: 'processo',
+                numeroProcesso: numeroCompleto,
                 dataInicio: dataInicioEfetiva,
                 dataFim: dataFimEfetiva,
                 page,
@@ -407,17 +368,15 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
               }, { signal: abortControllerRef.current?.signal });
 
               success = true;
-              // Sucesso: resetar contador de bloqueios consecutivos
               consecutiveBlocks = 0;
             } catch (e: any) {
               if (e?.name === 'AbortError') break;
               
-              // Detectar erro de bloqueio
               const errMsg = String(e?.message ?? '').toLowerCase();
               isBlockedError = errMsg.includes('blocked') || errMsg.includes('bloqueada');
               
               retryCount++;
-              console.warn(`[DJEN v6] Erro grupo ${g + 1} página ${page}, tentativa ${retryCount}:`, e?.message?.slice(0, 100));
+              console.warn(`[DJEN v7] Erro processo ${idx + 1} pág ${page}, tentativa ${retryCount}:`, e?.message?.slice(0, 100));
               
               if (retryCount < params.max_retries) {
                 const backoffMs = params.retry_base_delay_ms * Math.pow(2, retryCount - 1);
@@ -427,14 +386,12 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           }
 
           if (!success || !resp) {
-            // Se foi erro de bloqueio, incrementar contador
             if (isBlockedError) {
               consecutiveBlocks++;
-              console.warn(`[DJEN v6] Bloqueio consecutivo ${consecutiveBlocks}/${MAX_CONSECUTIVE_BLOCKS}`);
+              console.warn(`[DJEN v7] Bloqueio consecutivo ${consecutiveBlocks}/${MAX_CONSECUTIVE_BLOCKS}`);
               
-              // Circuit breaker: abortar se muitos bloqueios consecutivos
               if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) {
-                console.error('[DJEN v6] Circuit breaker ativado: API bloqueada');
+                console.error('[DJEN v7] Circuit breaker ativado: API bloqueada');
                 updateProgress({
                   status: 'erro',
                   mensagem: `API bloqueada após ${consecutiveBlocks} tentativas. Aguarde e tente novamente.`,
@@ -444,23 +401,12 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
               }
             }
             
-            console.warn(`[DJEN v6] Falha permanente grupo ${g + 1} página ${page}, pulando...`);
+            console.warn(`[DJEN v7] Falha permanente processo ${idx + 1} página ${page}, pulando...`);
             break;
           }
 
-          // Processar publicações
           for (const pub of resp.items) {
             publicacoesAnalisadas++;
-            grupoPublicacoesAnalisadas++;
-
-            const numeroProcessoPub = pub.numeroProcesso || '';
-            const numeroNorm = normalizeNumeroProcesso(numeroProcessoPub);
-
-            // Verificar se este processo está no nosso grupo
-            const processoMonitorado = processosMap.get(numeroNorm);
-            if (!processoMonitorado) {
-              continue; // Não é um dos nossos processos
-            }
 
             const conteudo = pub.texto || pub.teor || '';
             if (!conteudo) continue;
@@ -469,14 +415,13 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
             const dataPublicacao = pub.dataPublicacao || dataDisponibilizacao;
             
             const conteudoNorm = normalizeConteudo(conteudo);
-            const hashConteudo = generateHash(`${processoMonitorado.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
+            const hashConteudo = generateHash(`${processo.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
 
             if (seenHashes.has(hashConteudo)) {
               duplicadasTotal++;
               continue;
             }
 
-            // Verificar no banco
             const { data: existente } = await supabase
               .from('publicacoes_djen_processos')
               .select('id')
@@ -489,17 +434,16 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
               continue;
             }
 
-            // Inserir nova publicação
             const { error: insertError } = await supabase
               .from('publicacoes_djen_processos')
               .insert({
-                processo_id: processoMonitorado.id,
-                processo_numero: processoMonitorado.numero,
+                processo_id: processo.id,
+                processo_numero: processo.numero,
                 hash_conteudo: hashConteudo,
                 data_publicacao: dataPublicacao,
                 data_disponibilizacao: dataDisponibilizacao,
                 conteudo: conteudo.slice(0, 50000),
-                fonte: 'pje_comunica_browser_or_v6',
+                fonte: 'pje_comunica_browser_v7_processo_inteiro',
               });
 
             if (!insertError) {
@@ -511,38 +455,32 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           hasMore = resp.hasMore && resp.items.length > 0;
           page++;
 
-          // Atualizar UI a cada página
           updateProgress({
             currentPage: page,
             novas: novasTotal,
             duplicadas: duplicadasTotal,
             totalPublicacoesAnalisadas: publicacoesAnalisadas,
-            mensagem: `Grupo ${g + 1}/${totalGrupos} | Página ${page} | +${novasTotal} novas`,
+            mensagem: `Processo ${idx + 1}/${totalProcessos} | Pág ${page} | +${novasTotal} novas`,
           });
 
-          // Delay entre páginas
           if (hasMore && !canceladoRef.current) {
             await sleep(params.delay_entre_paginas);
           }
         }
 
-        console.log(`[DJEN v6] Grupo ${g + 1}: ${grupoPublicacoesAnalisadas} analisadas, ${novasTotal} novas total`);
-
-        // Salvar checkpoint a cada 5 grupos para heartbeat mais frequente
-        if ((g + 1) % 5 === 0 || g === grupos.length - 1) {
+        if ((idx + 1) % 5 === 0 || idx === processosMonitorados.length - 1) {
           await saveCheckpoint({
-            currentGroup: g + 1,
-            totalGroups: totalGrupos,
+            currentGroup: idx + 1,
+            totalGroups: totalProcessos,
             novas: novasTotal,
             duplicadas: duplicadasTotal,
             totalPublicacoesAnalisadas: publicacoesAnalisadas,
-            percentage: Math.round(((g + 1) / totalGrupos) * 100),
+            percentage: Math.round(((idx + 1) / totalProcessos) * 100),
             startedAt,
           });
         }
 
-        // Delay entre grupos
-        if (!canceladoRef.current && g < grupos.length - 1) {
+        if (!canceladoRef.current && idx < processosMonitorados.length - 1) {
           await sleep(params.delay_entre_lotes);
         }
       }
@@ -557,12 +495,12 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       } else {
         updateProgress({
           status: 'concluido',
-          currentGroup: totalGrupos,
+          currentGroup: totalProcessos,
           percentage: 100,
           novas: novasTotal,
           duplicadas: duplicadasTotal,
           totalPublicacoesAnalisadas: publicacoesAnalisadas,
-          mensagem: `Concluído! ${novasTotal} novas em ${totalGrupos} grupos.`,
+          mensagem: `Concluído! ${novasTotal} novas em ${totalProcessos} processos.`,
         });
         
         await saveCheckpoint({
@@ -570,8 +508,8 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           novas: novasTotal,
           duplicadas: duplicadasTotal,
           totalPublicacoesAnalisadas: publicacoesAnalisadas,
-          currentGroup: totalGrupos,
-          totalGroups: totalGrupos,
+          currentGroup: totalProcessos,
+          totalGroups: totalProcessos,
           startedAt,
         });
         
@@ -592,7 +530,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       queryClient.invalidateQueries({ queryKey: ['djen-processos-historico'] });
 
     } catch (error: any) {
-      console.error('[DJEN v6] Erro:', error);
+      console.error('[DJEN v7] Erro:', error);
       updateProgress({
         status: 'erro',
         mensagem: `Erro: ${error.message}`,

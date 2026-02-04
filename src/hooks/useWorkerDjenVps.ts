@@ -66,10 +66,22 @@ function gerarVariantesBusca(termo: string): string[] {
   return Array.from(variantes);
 }
 
+/** Palavra-chave: usar SOMENTE o termo. Remove prefixos tribunal/Adv (filtros separados). */
+function extrairPalavraChavePura(termo: string): string {
+  if (!termo?.trim()) return termo;
+  let s = termo.trim();
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
+  s = s.replace(/^Adv\.?\s*/i, '');
+  return s.trim() || termo;
+}
+
 // Validar termo completo no conteúdo
 function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boolean {
   if (!conteudo || !termo) return false;
   if (tipo === 'advogado') return true;
+  const termoPuro = extrairPalavraChavePura(termo);
+  if (!termoPuro) return true;
   
   const normalizar = (t: string) => t
     .normalize('NFD')
@@ -80,7 +92,7 @@ function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boo
     .toUpperCase();
   
   const conteudoNorm = normalizar(conteudo);
-  const termoNorm = normalizar(termo);
+  const termoNorm = normalizar(termoPuro);
   
   if (conteudoNorm.includes(termoNorm)) return true;
   
@@ -256,7 +268,8 @@ export function useWorkerDjenVps({ coordenacaoId, autoStart = false }: UseWorker
     let novas = 0;
     let duplicadas = 0;
     
-    const variantes = gerarVariantesBusca(mon.termo_busca);
+    const termoPuro = extrairPalavraChavePura(mon.termo_busca);
+    const variantes = gerarVariantesBusca(termoPuro);
     const tribunais = mon.tribunais && mon.tribunais.length > 0 ? mon.tribunais : [undefined];
     
     for (const tribunal of tribunais) {

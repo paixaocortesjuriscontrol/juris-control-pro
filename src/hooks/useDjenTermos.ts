@@ -25,11 +25,15 @@ export type { DjenTermosProgress };
 
 type ExecutarOptions = {
   turbo?: boolean;
+  coordenacaoId?: string;
+  monitoramentoIds?: string[];
 };
 
 type ExecutarHibridoOptions = {
   backgroundOnly?: boolean;
   indexMode?: 'normal' | 'indexado';
+  coordenacaoId?: string;
+  monitoramentoIds?: string[];
 };
 
 export function useDjenTermos() {
@@ -66,13 +70,13 @@ export function useDjenTermos() {
   const canResume = !!checkpoint && progress.status !== 'executando';
 
   const executar = useCallback((dataInicioYmd?: string, dataFimYmd?: string, options?: ExecutarOptions) => {
-    executarDjenTermos(dataInicioYmd, dataFimYmd, false, !!options?.turbo);
+    executarDjenTermos(dataInicioYmd, dataFimYmd, false, !!options?.turbo, options?.coordenacaoId, options?.monitoramentoIds);
     toast.info('DJEN Termos iniciado');
   }, []);
 
   const retomar = useCallback((options?: ExecutarOptions) => {
     if (!checkpoint) return;
-    executarDjenTermos(checkpoint.dataInicioYmd, checkpoint.dataFimYmd, true, !!options?.turbo);
+    executarDjenTermos(checkpoint.dataInicioYmd, checkpoint.dataFimYmd, true, !!options?.turbo, options?.coordenacaoId, options?.monitoramentoIds);
     toast.info('DJEN Termos retomando de onde parou...');
   }, [checkpoint]);
 
@@ -87,16 +91,21 @@ export function useDjenTermos() {
           ? 'Iniciando DJEN Termos no backend (100% background)...'
           : 'Iniciando DJEN Termos no backend...'
       );
+      const body = {
+        dataInicio: dataInicioYmd,
+        dataFim: dataFimYmd,
+        conservative: true,
+        manual: true,
+        indexMode: options?.indexMode,
+        coordenacaoId: options?.coordenacaoId || undefined,
+        monitoramentoIds: (options?.monitoramentoIds?.length ?? 0) > 0 ? options.monitoramentoIds : undefined,
+      };
+      console.log("[DJEN Frontend] Invocando trigger com filtros:", {
+        coordenacaoId: body.coordenacaoId ?? "(nenhum)",
+        monitoramentoIds: body.monitoramentoIds ?? "(nenhum)",
+      });
       const { error } = await withTimeout(
-        supabase.functions.invoke('monitorar-djen-trigger', {
-          body: {
-            dataInicio: dataInicioYmd,
-            dataFim: dataFimYmd,
-            conservative: true,
-            manual: true,
-            indexMode: options?.indexMode,
-          },
-        }),
+        supabase.functions.invoke('monitorar-djen-trigger', { body }),
         60_000,
         'Tempo limite ao iniciar no backend (60s)'
       );
@@ -107,8 +116,9 @@ export function useDjenTermos() {
           ? 'DJEN Termos iniciado no backend (100% background)'
           : 'DJEN Termos iniciado no backend (modo híbrido)'
       );
-      queryClient.invalidateQueries({ queryKey: ['monitoring-dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
+      queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
+      queryClient.invalidateQueries({ queryKey: ['djen-config-live'] });
       return true;
     } catch (err: any) {
       console.warn('[DJEN] Falha ao iniciar backend, usando modo local:', err?.message || err);
@@ -142,7 +152,7 @@ export function useDjenTermos() {
       } catch (e) {
         console.warn('[DJEN] Falha ao limpar metadata após erro:', (e as any)?.message || e);
       }
-      executar(dataInicioYmd, dataFimYmd, { turbo: false });
+      executar(dataInicioYmd, dataFimYmd, { turbo: false, coordenacaoId: options?.coordenacaoId, monitoramentoIds: options?.monitoramentoIds });
       toast.warning('Backend indisponível. Executando no navegador.');
       return false;
     }
@@ -170,6 +180,8 @@ export function useDjenTermos() {
         .is('coordenacao_id', null);
       toast.info('Cancelamento solicitado no backend');
       queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
+      queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
+      queryClient.invalidateQueries({ queryKey: ['djen-config-live'] });
     } catch (err: any) {
       console.error('Erro ao cancelar backend DJEN:', err);
       toast.error(`Erro ao cancelar: ${err?.message ?? String(err)}`);
@@ -266,7 +278,9 @@ export function useDjenTermos() {
   const forceKill = useCallback(async () => {
     forceKillDjenTermos();
     toast.success('DJEN Termos finalizado forçadamente');
-    queryClient.invalidateQueries({ queryKey: ['monitoring-dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
+    queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
+    queryClient.invalidateQueries({ queryKey: ['djen-config-live'] });
   }, [queryClient]);
 
   const forceKillHibrido = useCallback(async () => {
@@ -287,6 +301,8 @@ export function useDjenTermos() {
         .is('coordenacao_id', null);
       toast.success('DJEN Termos finalizado forçadamente (backend)');
       queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
+      queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
+      queryClient.invalidateQueries({ queryKey: ['djen-config-live'] });
     } catch (err: any) {
       console.error('Erro ao finalizar backend DJEN:', err);
       toast.error(`Erro ao finalizar: ${err?.message ?? String(err)}`);
@@ -337,6 +353,7 @@ export function useDjenTermos() {
             modo: 'intervalo',
             dataInicio: inicio,
             dataFim: fim,
+            tipo: 'termos', // Só limpa publicações de TERMOS, nunca de processos
           },
         }),
         240_000,

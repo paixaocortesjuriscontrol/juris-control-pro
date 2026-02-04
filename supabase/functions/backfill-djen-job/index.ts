@@ -79,6 +79,37 @@ function matchesCondicaoConcomitante(conteudo: string, condicao: string | undefi
   return termos.every(termo => conteudoUpper.includes(termo));
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[&\/\\]/g, ' ')
+    .replace(/[^0-9A-Za-z\s]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+/** Palavra-chave: usar SOMENTE o termo. Remove prefixos tribunal/Adv (filtros separados). */
+function extrairPalavraChavePura(termo: string): string {
+  if (!termo?.trim()) return termo;
+  let s = termo.trim();
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
+  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
+  s = s.replace(/^Adv\.?\s*/i, '');
+  return s.trim() || termo;
+}
+
+/** FRASE EXATA - "Super Quadra" só casa com "Super Quadra", não com "enquadramento". */
+function conteudoContemTermoExato(conteudo: string, termo: string, tipo: string): boolean {
+  if (!conteudo || !termo) return false;
+  const termoPuro = (tipo === 'palavra-chave' || tipo === 'parte' || tipo === 'advogado') ? extrairPalavraChavePura(termo) : termo;
+  const conteudoNorm = normalizar(conteudo);
+  const termoNorm = normalizar(termoPuro);
+  if (!termoNorm) return true;
+  if (tipo === 'processo') return conteudoNorm.includes(termoNorm.replace(/\D/g, ''));
+  const re = new RegExp(`(?:^|\\s)${escapeRegex(termoNorm)}(?:\\s|$)`);
+  return re.test(conteudoNorm);
+}
+
 async function fetchDJENResults(searchText: string, dataInicio: string, dataFim: string): Promise<any[]> {
   const queryParams = new URLSearchParams();
   queryParams.append("texto", searchText);
@@ -150,6 +181,14 @@ async function processMonitoramento(
     }
 
     if (!matchesCondicaoConcomitante(conteudo, monitoramento.condicao_concomitante)) continue;
+
+    const termoParaValidar = (monitoramento.tipo === 'palavra-chave' || monitoramento.tipo === 'parte' || monitoramento.tipo === 'advogado')
+      ? extrairPalavraChavePura(monitoramento.termo_busca)
+      : monitoramento.termo_busca;
+    if (!conteudoContemTermoExato(conteudo, termoParaValidar, monitoramento.tipo)) {
+      stats.descartadas++;
+      continue;
+    }
 
     const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
     

@@ -30,12 +30,13 @@ import {
   type MonitoringStatus,
   type MonitoringExecution,
 } from "@/hooks/useMonitoringDashboard";
-import { useMonitorarDjenProcessosBrowser } from "@/hooks/useMonitorarDjenProcessosBrowser";
+import { useDjenProcessos } from "@/hooks/useDjenProcessos";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getExecutionProgress } from "@/utils/executionProgress";
 import { supabase } from "@/integrations/supabase/client";
 import { DjenTermosDashboardCard } from "./DjenTermosDashboardCardV2";
+import { MonitoramentoDjenProcessosCard } from "./MonitoramentoDjenProcessosCard";
 
 const ICONS: Record<string, React.ElementType> = {
   RefreshCw,
@@ -480,16 +481,20 @@ function MonitoringCard({
   );
 }
 
-export function MonitoringDashboard() {
+interface MonitoringDashboardProps {
+  onNavigateToTab?: (tab: string) => void;
+}
+
+export function MonitoringDashboard({ onNavigateToTab }: MonitoringDashboardProps = {}) {
   const { user } = useAuth();
 
-  // DJEN Processos: execução 100% no navegador (evita WORKER_LIMIT 546)
+  // DJEN Processos: mesmo engine do card (useDjenProcessos)
   const {
-    executar: executarDjenProcessosNoBrowser,
-    cancelar: cancelarDjenProcessosNoBrowser,
-    isExecutando: isExecutandoDjenProcessosNoBrowser,
-    progresso: progressoDjenProcessosBrowser,
-  } = useMonitorarDjenProcessosBrowser();
+    executar: executarDjenProcessos,
+    cancelar: cancelarDjenProcessos,
+    isRunning: isExecutandoDjenProcessosNoBrowser,
+    progress: progressoDjenProcessosBrowser,
+  } = useDjenProcessos();
 
   const { data: userCoordenacao, isLoading: loadingUserCoord } = useQuery({
     queryKey: ['user-coordenacao', user?.id],
@@ -565,14 +570,10 @@ export function MonitoringDashboard() {
   const executarAgora = async (tipo: string, options?: { retomar?: boolean }) => {
     // DJEN Processos: sempre browser-only
     if (tipo === 'djen_processos') {
-      toast.info('Iniciando DJEN Processos no navegador...');
-      void executarDjenProcessosNoBrowser(undefined, undefined, options?.retomar === true)
-        .catch((e: any) => {
-          toast.error(`Erro no DJEN Processos (browser): ${e?.message || String(e)}`);
-        })
-        .finally(() => {
-          refetch();
-        });
+      const hoje = new Date().toISOString().slice(0, 10);
+      toast.info('Iniciando DJEN Processos...');
+      executarDjenProcessos(hoje, hoje, { retomar: options?.retomar === true });
+      refetch();
       return;
     }
 
@@ -644,17 +645,12 @@ export function MonitoringDashboard() {
         });
       }, 20000);
 
-      // DJEN Processos: iniciar imediatamente no navegador (sem Edge Function)
+      // DJEN Processos: mesmo engine do card
       if (tipo === 'djen_processos') {
-        toast.info('Iniciando DJEN Processos no navegador...');
-        void executarDjenProcessosNoBrowser(undefined, undefined, options?.retomar === true)
-          .catch((e: any) => {
-            toast.error(`Erro no DJEN Processos (browser): ${e?.message || String(e)}`);
-          })
-          .finally(() => {
-            // Garante refresh do painel assim que começarem a chegar checkpoints
-            refetch();
-          });
+        const hoje = new Date().toISOString().slice(0, 10);
+        toast.info('Iniciando DJEN Processos...');
+        executarDjenProcessos(hoje, hoje, { retomar: options?.retomar === true });
+        refetch();
         return;
       }
 
@@ -671,7 +667,7 @@ export function MonitoringDashboard() {
     try {
       // Se for DJEN Processos browser-only, cancela local + marca no banco
       if (tipo === 'djen_processos' && isExecutandoDjenProcessosNoBrowser) {
-        cancelarDjenProcessosNoBrowser();
+        cancelarDjenProcessos();
         await cancelMonitoring(tipo);
         toast.success('Cancelamento solicitado!');
         return;
@@ -690,8 +686,7 @@ export function MonitoringDashboard() {
     if (s.tipo !== 'djen_processos') return s;
     // Se execução local ativa, sobrescrever status/progress
     if (progressoDjenProcessosBrowser.status === 'executando') {
-      // Usar startedAt do progresso local se disponível; senão, usar timestamp atual
-      const browserStartedAt = progressoDjenProcessosBrowser.startedAt || s.currentExecution?.iniciado_em || new Date().toISOString();
+      const browserStartedAt = s.currentExecution?.iniciado_em || new Date(Date.now() - (progressoDjenProcessosBrowser.tempoDecorrido || 0) * 1000).toISOString();
       
       const browserExec: MonitoringExecution = {
         id: 'browser-djen-processos',
@@ -963,6 +958,18 @@ export function MonitoringDashboard() {
                 <DjenTermosDashboardCard
                   stats={stats}
                   onAfterMutation={refetch}
+                />
+              </div>
+            );
+          }
+
+          if (stats.tipo === 'djen_processos') {
+            return (
+              <div key={stats.tipo} className="space-y-4">
+                <MonitoramentoDjenProcessosCard 
+                  coordenacaoId="" 
+                  onOpenFullTab={onNavigateToTab ? () => onNavigateToTab('djen-processos') : undefined}
+                  onExecute={() => handleExecute('djen_processos')}
                 />
               </div>
             );

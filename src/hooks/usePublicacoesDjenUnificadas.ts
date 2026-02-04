@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { startOfDay, endOfDay } from "date-fns";
 import { dedupePublicacoesDjen } from "@/utils/djenDedup";
-import { conteudoContemTodasPalavrasDoTermo } from "@/utils/djenTermoMatch";
+import { conteudoContemTodasPalavrasDoTermo, conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 import { addDays, parse } from "date-fns";
 
 // Helper para formatar data em ISO com timezone UTC
@@ -63,6 +63,7 @@ export interface FiltrosUnificados {
   dataInicio?: string;
   dataFim?: string;
   termoBusca?: string;
+  monitoramentoId?: string;
   apenasNaoLidas?: boolean;
   apenasHoje?: boolean;
   tipoOrigem?: 'termo' | 'processo' | 'descartada' | 'todos';
@@ -92,6 +93,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       user?.id,
       {
         coordenacaoId: filtros.coordenacaoId ?? null,
+        monitoramentoId: filtros.monitoramentoId ?? null,
         apenasHoje: filtros.apenasHoje ?? null,
         dataInicio: filtros.dataInicio ?? null,
         dataFim: filtros.dataFim ?? null,
@@ -131,6 +133,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (dataInicioFiltro) q = q.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) q = q.lte('created_at', dataFimFiltro);
         if (filtros.apenasNaoLidas) q = q.eq('lida', false);
+        if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
 
         // Respeita o filtro de coordenação
         if (filtros.coordenacaoId) {
@@ -265,12 +268,15 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           tribunal: r.tribunal,
         }));
 
-        // 4) aplicar filtro de tipo (termo/processo) quando selecionado
-        const filteredByType = filtros.tipoOrigem === 'termo'
+        // 4) aplicar filtro de tipo e monitoramento (termo) quando selecionado
+        let filteredByType = filtros.tipoOrigem === 'termo'
           ? mapped.filter((p) => p.tipo_origem === 'termo')
           : filtros.tipoOrigem === 'processo'
             ? mapped.filter((p) => p.tipo_origem === 'processo')
             : mapped;
+        if (filtros.monitoramentoId) {
+          filteredByType = filteredByType.filter((p) => p.monitoramento_id === filtros.monitoramentoId);
+        }
 
         // 5) Resolver processo_id para publicações de termo (mesma lógica antiga)
         const termoSemId = filteredByType.filter(
@@ -321,6 +327,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           if (dataFimFiltro) queryDescartadas = queryDescartadas.lte('created_at', dataFimFiltro);
           if (filtros.apenasNaoLidas) queryDescartadas = queryDescartadas.eq('lida', false);
           queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
+          if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
           const { data: descartadasData } = await queryDescartadas.limit(200);
           (descartadasData || []).forEach((pub: any) => {
@@ -398,6 +405,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (filtros.coordenacaoId) {
           queryTermos = queryTermos.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
         }
+        if (filtros.monitoramentoId) {
+          queryTermos = queryTermos.eq('monitoramento_id', filtros.monitoramentoId);
+        }
 
         // Limitar a 500 registros para performance (contagem precisa é feita pelo RPC)
         const { data: termosData } = await queryTermos.limit(500);
@@ -427,14 +437,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           // Com !inner + filtro no banco, essa checagem vira redundante; manter apenas como guarda.
           if (filtros.coordenacaoId && pub.monitoramento?.coordenacao_id !== filtros.coordenacaoId) return;
 
-          // Filtrar por termo de busca
+          // Filtrar por termo de busca: FRASE EXATA no conteúdo (evita "Super" casar com "SUPERIOR")
           if (filtros.termoBusca) {
-            const termo = filtros.termoBusca.toLowerCase();
-            const match = 
-              pub.conteudo?.toLowerCase().includes(termo) ||
-              pub.processo_numero?.toLowerCase().includes(termo) ||
-              pub.monitoramento?.termo_busca?.toLowerCase().includes(termo);
-            if (!match) return;
+            const matchConteudo = conteudoContemFraseExata(pub.conteudo, filtros.termoBusca);
+            const matchProcesso = pub.processo_numero?.toLowerCase().includes(filtros.termoBusca.toLowerCase());
+            const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(filtros.termoBusca.toLowerCase());
+            if (!matchConteudo && !matchProcesso && !matchTermoMonitor) return;
           }
 
           // Verificar se o processo já existe no banco
@@ -567,8 +575,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (dataInicioFiltro) queryDescartadas = queryDescartadas.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) queryDescartadas = queryDescartadas.lte('created_at', dataFimFiltro);
+        if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
+        if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
-        const { data: descartadasData } = await queryDescartadas.limit(200);
+        const { data: descartadasData } = await queryDescartadas.limit(500);
 
         (descartadasData || []).forEach((pub: any) => {
           // Filtrar por coordenação se especificado

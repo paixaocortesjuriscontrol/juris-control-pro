@@ -317,7 +317,9 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
   }, [refetchExecutions]);
 
   // Real-time subscription for configuracoes_monitoramento.metadata
-  // This is the primary progress source for long-running edge functions.
+  // Só invalida djen-config-live quando a linha alterada é tipo='djen' (DJEN Termos).
+  // Isso evita que atualizações do DJEN Processos (tipo='djen_processos') disparem
+  // refetch desnecessário no card DJEN Termos e possível conflito entre cards.
   useEffect(() => {
     const channel = supabase
       .channel('monitoring-configs-realtime')
@@ -329,10 +331,13 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
           table: 'configuracoes_monitoramento',
           filter: 'coordenacao_id=is.null',
         },
-        () => {
-          // Ensure progress updates are reflected quickly across the dashboard.
+        (payload: { new?: Record<string, unknown> }) => {
+          const tipo = (payload?.new as Record<string, unknown>)?.tipo as string | undefined;
           queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
           refetchConfigs();
+          if (tipo === 'djen') {
+            queryClient.invalidateQueries({ queryKey: ['djen-config-live'] });
+          }
         }
       )
       .subscribe();
@@ -896,20 +901,20 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     refetchExecutions();
   }, [configs, queryClient, refetchExecutions]);
 
-  // Refetch "global" usado pelo dashboard (inclui contadores deduplicados)
+  // Refetch "global" usado pelo dashboard (inclui contadores deduplicados e DJEN Termos live)
   const refetchAll = useCallback(async () => {
-    // Invalidate
     queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
     queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
     queryClient.invalidateQueries({ queryKey: ['monitoring-today-stats'] });
     queryClient.invalidateQueries({ queryKey: ['monitoring-real-db-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['djen-config-live'] });
 
-    // Refetch ativo (força atualização imediata do que está montado)
     await Promise.all([
       refetchConfigs(),
       refetchExecutions(),
       queryClient.refetchQueries({ queryKey: ['monitoring-today-stats'], type: 'active' }),
       queryClient.refetchQueries({ queryKey: ['monitoring-real-db-stats'], type: 'active' }),
+      queryClient.refetchQueries({ queryKey: ['djen-config-live'], type: 'active' }),
     ]);
   }, [queryClient, refetchConfigs, refetchExecutions]);
 

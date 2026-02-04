@@ -102,6 +102,7 @@ const AnaliseDjen = () => {
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
+  const [monitoramentoId, setMonitoramentoId] = useState<string>("");
   const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
   const [apenasHoje, setApenasHoje] = useState(true); // Sempre marcado por padrão
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
@@ -113,6 +114,11 @@ const AnaliseDjen = () => {
       setCoordenacaoId(userCoordenacao || "");
     }
   }, [userCoordenacao, loadingUserCoord, coordenacaoId]);
+
+  // Limpar termo ao trocar coordenação
+  useEffect(() => {
+    setMonitoramentoId("");
+  }, [coordenacaoId]);
   
   // States
   const [selectedIds, setSelectedIds] = useState<Map<string, TipoOrigemPublicacao>>(
@@ -149,6 +155,7 @@ const AnaliseDjen = () => {
     dataInicio: apenasHoje ? undefined : dataInicio || undefined,
     dataFim: apenasHoje ? undefined : dataFim || undefined,
     termoBusca: termoBusca || undefined,
+    monitoramentoId: monitoramentoId || undefined,
     apenasNaoLidas,
     apenasHoje,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
@@ -160,6 +167,25 @@ const AnaliseDjen = () => {
   const isLoading = loadingUserCoord || coordenacaoId === null || isLoadingPublicacoes;
 
   const { data: coordenacoes } = useCoordenacoes();
+
+  // Buscar termos (monitoramentos) da coordenação selecionada (ordem alfabética)
+  const { data: monitoramentos = [] } = useQuery({
+    queryKey: ['monitoramentos-djen-coord', coordenacaoFiltroEfetivo],
+    queryFn: async () => {
+      if (!coordenacaoFiltroEfetivo) return [];
+      const { data, error } = await supabase
+        .from('monitoramentos_djen')
+        .select('id, termo_busca, descricao, tipo, oab, uf')
+        .eq('coordenacao_id', coordenacaoFiltroEfetivo)
+        .eq('ativo', true);
+      if (error) throw error;
+      const list = (data || []) as { id: string; termo_busca: string; descricao?: string; tipo?: string; oab?: string; uf?: string }[];
+      const getLabel = (m: typeof list[0]) =>
+        m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8);
+      return list.sort((a, b) => getLabel(a).localeCompare(getLabel(b), 'pt-BR', { sensitivity: 'base' }));
+    },
+    enabled: !!coordenacaoFiltroEfetivo,
+  });
 
   const toggleSelect = (id: string, tipo: TipoOrigemPublicacao) => {
     const newSelected = new Map<string, TipoOrigemPublicacao>(selectedIds);
@@ -565,13 +591,32 @@ const AnaliseDjen = () => {
                   <option value="todos">Todos</option>
                   <option value="termo">Por Termos/OAB</option>
                   <option value="processo">Por Processos</option>
+                  <option value="descartada">Descartadas (auditoria)</option>
                 </select>
               </div>
+
+              {coordenacaoFiltroEfetivo && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs md:text-sm">Termo</Label>
+                  <select
+                    className="w-full h-9 md:h-10 px-3 rounded-md border border-input bg-background text-sm"
+                    value={monitoramentoId}
+                    onChange={(e) => setMonitoramentoId(e.target.value)}
+                  >
+                    <option value="">Todos os termos</option>
+                    {monitoramentos.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {!apenasHoje && (
                 <>
                   <div className="space-y-1.5">
-                    <Label className="text-xs md:text-sm">Data Início</Label>
+                    <Label className="text-xs md:text-sm" title="Data em que a publicação foi capturada no sistema">Data Início (captura)</Label>
                     <Input
                       type="date"
                       value={dataInicio}
@@ -581,7 +626,7 @@ const AnaliseDjen = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs md:text-sm">Data Fim</Label>
+                    <Label className="text-xs md:text-sm" title="Data em que a publicação foi capturada no sistema">Data Fim (captura)</Label>
                     <Input
                       type="date"
                       value={dataFim}

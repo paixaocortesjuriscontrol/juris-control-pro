@@ -26,6 +26,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useNotificacoesCountsByCoordenacao, type NotificacoesCounts } from "@/hooks/useNotificacoesCounts";
 import { toast } from "sonner";
@@ -154,7 +155,7 @@ export function GerarRelatorioPdfDialog({
       
       const { data } = await query.limit(500);
       return (data || []).filter(p => 
-        !searchQuery || matchesSearch(p.conteudo) || matchesSearch(p.processo_numero)
+        !searchQuery || matchesSearch(p.conteudo) || matchesSearch(p.processo_numero, true)
       );
     },
   });
@@ -182,7 +183,7 @@ export function GerarRelatorioPdfDialog({
       
       const { data } = await query.limit(500);
       return (data || []).filter(r => 
-        !searchQuery || matchesSearch(r.processo?.numero) || matchesSearch(r.descricao)
+        !searchQuery || matchesSearch(r.processo?.numero, true) || matchesSearch(r.descricao)
       );
     },
   });
@@ -210,7 +211,7 @@ export function GerarRelatorioPdfDialog({
       
       const { data } = await query.limit(500);
       return (data || []).filter(a => 
-        !searchQuery || matchesSearch(a.processo?.numero) || matchesSearch(a.descricao)
+        !searchQuery || matchesSearch(a.processo?.numero, true) || matchesSearch(a.descricao)
       );
     },
   });
@@ -237,7 +238,7 @@ export function GerarRelatorioPdfDialog({
       
       const { data } = await query.limit(300);
       return (data || []).filter(a => 
-        !searchQuery || matchesSearch(a.processo_numero) || matchesSearch(a.tipo_audiencia)
+        !searchQuery || matchesSearch(a.processo_numero, true) || matchesSearch(a.tipo_audiencia)
       );
     },
   });
@@ -263,7 +264,7 @@ export function GerarRelatorioPdfDialog({
       
       const { data } = await query.limit(300);
       return (data || []).filter(i => 
-        !searchQuery || matchesSearch(i.processo_numero) || matchesSearch(i.tipo_intimacao)
+        !searchQuery || matchesSearch(i.processo_numero, true) || matchesSearch(i.tipo_intimacao)
       );
     },
   });
@@ -287,7 +288,7 @@ export function GerarRelatorioPdfDialog({
       
       const { data } = await query.limit(300);
       return (data || []).filter(d => 
-        !searchQuery || matchesSearch(d.numero_processo) || matchesSearch(d.polo_ativo)
+        !searchQuery || matchesSearch(d.numero_processo, true) || matchesSearch(d.polo_ativo)
       );
     },
   });
@@ -317,7 +318,7 @@ export function GerarRelatorioPdfDialog({
       
       const { data } = await query.limit(300);
       return (data || []).filter(a => 
-        !searchQuery || matchesSearch(a.termo_encontrado) || matchesSearch(a.processo?.numero)
+        !searchQuery || matchesSearch(a.termo_encontrado) || matchesSearch(a.processo?.numero, true)
       );
     },
   });
