@@ -470,9 +470,11 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
                 {progresso.tribunalAtual && (
                   <div className="flex items-center gap-2 text-xs">
                     <Globe className="h-3 w-3 text-muted-foreground" />
-                    <span className="font-medium">{progresso.tribunalAtual}</span>
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      {progresso.tribunalAtual}
+                    </Badge>
                     <span className="text-muted-foreground">
-                      ({progresso.currentTribunal + 1}/{progresso.totalTribunais} tribunais)
+                      Tribunal {progresso.currentTribunal}/{progresso.totalTribunais}
                     </span>
                   </div>
                 )}
@@ -493,7 +495,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             />
             
             {progresso?.mensagem && (
-              <div className="text-xs text-center text-muted-foreground">
+              <div className="text-xs text-center text-muted-foreground truncate">
                 {progresso.mensagem}
               </div>
             )}
