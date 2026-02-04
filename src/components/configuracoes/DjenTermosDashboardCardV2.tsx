@@ -584,9 +584,13 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
   useEffect(() => {
     if (!dataInicio && !dataFim) {
+      // IMPORTANTE: A API PJE Comunica usa dataDisponibilizacao (geralmente 1 dia antes da publicação).
+      // Para capturar publicações de "hoje", precisamos buscar de ontem → hoje.
       const hoje = new Date();
       hoje.setHours(12, 0, 0, 0);
-      setDataInicio(hoje);
+      const ontem = new Date(hoje);
+      ontem.setDate(ontem.getDate() - 1);
+      setDataInicio(ontem);
       setDataFim(hoje);
     }
     if (!dataIndice) {
