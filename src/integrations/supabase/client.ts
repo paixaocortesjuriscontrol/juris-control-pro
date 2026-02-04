@@ -24,6 +24,8 @@ const client = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 // That function can hit WORKER_LIMIT (546) under load. When invoked from the
 // browser, we can run the same search directly via the user's IP.
 const originalInvoke = client.functions.invoke.bind(client.functions);
+// Expor a função original para uso direto quando necessário (bypass do shim)
+(client.functions as any).__originalInvoke = originalInvoke;
 (client.functions as any).invoke = async (functionName: string, options?: any) => {
   if (functionName === 'buscar-djen') {
     try {
