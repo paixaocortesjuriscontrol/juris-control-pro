@@ -739,27 +739,21 @@ function normalizarParaBusca(texto: string): string {
     .toLowerCase();
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function contemTokenInteiro(conteudoNorm: string, token: string): boolean {
-  if (!token) return true;
-  const re = new RegExp(`(?:^|\\s)${escapeRegex(token)}(?:\\s|$)`);
-  return re.test(conteudoNorm);
-}
-
 function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean {
   const termoNorm = normalizar(termo);
   if (!termoNorm) return true;
   if (conteudoNorm.includes(termoNorm)) return true;
 
   const tokens = termoNorm.split(/\s+/).filter(Boolean);
-  const allowSingleLetters = /&/.test(termo) && tokens.filter(t => t.length === 1).length >= 2;
+  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
+  const termoOriginalTemAmpersand = /&/.test(termo);
+  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
   const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
   if (palavrasTermo.length === 0) return true;
 
-  return palavrasTermo.every(p => contemTokenInteiro(conteudoNorm, p));
+  // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
+  // Usar includes ao invés de regex para ser menos restritivo e mais rápido
+  return palavrasTermo.every(p => conteudoNorm.includes(p));
 }
 
 function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {

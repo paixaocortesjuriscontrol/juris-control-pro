@@ -452,14 +452,17 @@ function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean 
 
   // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
   const tokens = termoNorm.split(/\s+/).filter(Boolean);
-  // Em termos com "&" (ex.: "F & F"), letras isoladas são relevantes. Sem isso,
-  // o termo vira só "DISTRIBUIDORA" e gera falso positivo.
-  const allowSingleLetters = /&/.test(termo) && tokens.filter(t => t.length === 1).length >= 2;
+  
+  // Em termos com "&" (ex.: "F & F"), letras isoladas são relevantes. 
+  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
+  const termoOriginalTemAmpersand = /&/.test(termo);
+  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
   const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
   if (palavrasTermo.length === 0) return true;
 
   // Todas as palavras significativas devem estar no conteúdo
-  return palavrasTermo.every(p => contemTokenInteiro(conteudoNorm, p));
+  // Usar includes ao invés de regex para ser menos restritivo
+  return palavrasTermo.every(p => conteudoNorm.includes(p));
 }
 
 function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
@@ -547,13 +550,15 @@ function conteudoContemTermo(
   
   // Se não encontrou exato, verifica se TODAS as palavras significativas estão presentes
   const tokens = termoNorm.split(/\s+/).filter(Boolean);
-  const allowSingleLetters = /&/.test(termo) && tokens.filter(t => t.length === 1).length >= 2;
+  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
+  const termoOriginalTemAmpersand = /&/.test(termo);
+  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
   const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
   if (palavrasTermo.length === 0) return true;
 
   // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
-  const todasPresentes = palavrasTermo.every(p => contemTokenInteiro(conteudoNorm, p));
-  return todasPresentes;
+  // Usar includes ao invés de regex para ser menos restritivo e mais rápido
+  return palavrasTermo.every(p => conteudoNorm.includes(p));
 }
 
 // ============================================================================
