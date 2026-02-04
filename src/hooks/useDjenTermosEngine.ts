@@ -427,9 +427,22 @@ function normalizar(texto: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[&\/\\]/g, ' ')
+    // Remove pontuação geral para permitir match por palavra (ex: "LTDA." -> "LTDA")
+    .replace(/[^0-9A-Za-z\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase();
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function contemTokenInteiro(conteudoNorm: string, token: string): boolean {
+  if (!token) return true;
+  // conteudoNorm já está normalizado e com espaços colapsados
+  const re = new RegExp(`(?:^|\\s)${escapeRegex(token)}(?:\\s|$)`);
+  return re.test(conteudoNorm);
 }
 
 function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean {
@@ -438,11 +451,15 @@ function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean 
   if (conteudoNorm.includes(termoNorm)) return true;
 
   // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
-  const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+  const tokens = termoNorm.split(/\s+/).filter(Boolean);
+  // Em termos com "&" (ex.: "F & F"), letras isoladas são relevantes. Sem isso,
+  // o termo vira só "DISTRIBUIDORA" e gera falso positivo.
+  const allowSingleLetters = /&/.test(termo) && tokens.filter(t => t.length === 1).length >= 2;
+  const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
   if (palavrasTermo.length === 0) return true;
 
   // Todas as palavras significativas devem estar no conteúdo
-  return palavrasTermo.every(p => conteudoNorm.includes(p));
+  return palavrasTermo.every(p => contemTokenInteiro(conteudoNorm, p));
 }
 
 function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
@@ -529,11 +546,13 @@ function conteudoContemTermo(
   if (conteudoNorm.includes(termoNorm)) return true;
   
   // Se não encontrou exato, verifica se TODAS as palavras significativas estão presentes
-  const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+  const tokens = termoNorm.split(/\s+/).filter(Boolean);
+  const allowSingleLetters = /&/.test(termo) && tokens.filter(t => t.length === 1).length >= 2;
+  const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
   if (palavrasTermo.length === 0) return true;
 
   // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
-  const todasPresentes = palavrasTermo.every(p => conteudoNorm.includes(p));
+  const todasPresentes = palavrasTermo.every(p => contemTokenInteiro(conteudoNorm, p));
   return todasPresentes;
 }
 
