@@ -109,7 +109,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
   const { criarMonitoramento, atualizarMonitoramento } = useMonitoramentosDjen();
   const { data: coordenacoes = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
   
-  const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo'>(
+  const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo' | 'parte'>(
     monitoramento?.tipo || 'palavra-chave'
   );
   const [termoBusca, setTermoBusca] = useState(monitoramento?.termo_busca || '');
@@ -126,7 +126,6 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
   const [termosOr, setTermosOr] = useState<string[]>(monitoramento?.termos_or || []);
   const [novoTermoOr, setNovoTermoOr] = useState('');
   const [tribunaisSelecionados, setTribunaisSelecionados] = useState<string[]>(monitoramento?.tribunais || []);
-  const [buscarParte, setBuscarParte] = useState(monitoramento?.buscar_parte || false);
 
   useEffect(() => {
     if (monitoramento) {
@@ -138,7 +137,6 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       setExclusoes(monitoramento.exclusoes || []);
       setCondicaoConcomitante(monitoramento.condicao_concomitante || '');
       setTermosOr(monitoramento.termos_or || []);
-      setBuscarParte(monitoramento.buscar_parte || false);
       
       // Expandir IDs sintéticos ao carregar
       let tribunaisCarregados = monitoramento.tribunais || [];
@@ -176,7 +174,6 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       setTribunaisSelecionados([]);
       setSelectedUfs([]);
       setTodasRegioes(false);
-      setBuscarParte(false);
     }
   }, [monitoramento, open]);
 
@@ -298,7 +295,6 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
       termos_or: termosOr.length > 0 ? termosOr : undefined,
       // IMPORTANT: ao limpar seleção, precisamos atualizar o campo no DB (undefined não atualiza)
       tribunais: tribunaisSelecionados.length > 0 ? tribunaisSelecionados : null,
-      buscar_parte: tipo === 'palavra-chave' ? buscarParte : false,
     };
 
     if (monitoramento) {
@@ -363,6 +359,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
                     <SelectItem value="palavra-chave">Palavra-chave / Razão Social</SelectItem>
                     <SelectItem value="advogado">Advogado (OAB ou Nome)</SelectItem>
                     <SelectItem value="processo">Número do Processo</SelectItem>
+                    <SelectItem value="parte">Polo passivo ou ativo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -423,6 +420,21 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
                       </ScrollArea>
                     )}
                   </div>
+                </div>
+              ) : tipo === 'parte' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="termo">Nome da Parte (Polo Ativo/Passivo) *</Label>
+                  <Input
+                    id="termo"
+                    value={termoBusca}
+                    onChange={(e) => setTermoBusca(e.target.value)}
+                    placeholder="Ex: UNIAO QUIMICA FARMACEUTICA NACIONAL S A"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Busca publicações onde este nome aparece como parte no processo (reclamante/reclamado).
+                    Busca exata, sem variantes.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -583,27 +595,6 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
                 )}
               </div>
 
-              {/* Buscar também no nome das partes - apenas para palavra-chave */}
-              {tipo === 'palavra-chave' && (
-                <div className="p-3 bg-muted/30 rounded-lg space-y-2">
-                  <div className="flex items-start gap-3">
-                    <Checkbox 
-                      id="buscar-parte"
-                      checked={buscarParte}
-                      onCheckedChange={(checked) => setBuscarParte(checked === true)}
-                    />
-                    <div className="space-y-1">
-                      <label htmlFor="buscar-parte" className="text-sm font-medium cursor-pointer">
-                        Buscar também no nome das partes
-                      </label>
-                      <p className="text-xs text-muted-foreground">
-                        Quando ativo, realiza uma segunda busca usando o termo como nome de parte (reclamante/reclamado). 
-                        Útil para razões sociais de empresas que podem aparecer apenas nos metadados da publicação.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </TabsContent>
 
             <TabsContent value="tribunais" className="space-y-4 mt-4">

@@ -3,7 +3,7 @@
 // IMPORTANTE: evitamos fallback para Edge Function `buscar-djen` porque ela pode estourar
 // WORKER_LIMIT (546) sob carga/termos com alto volume.
 
-export type PjeSearchType = "advogado" | "palavra-chave" | "processo";
+export type PjeSearchType = "advogado" | "palavra-chave" | "processo" | "parte";
 
 export interface PjeComunicaSearchParams {
   tipo: PjeSearchType;
@@ -11,6 +11,8 @@ export interface PjeComunicaSearchParams {
   uf?: string;
   /** Nome do advogado (quando a busca por OAB não retorna resultados). */
   nomeAdvogado?: string;
+  /** Nome da parte (polo ativo/passivo) - usado quando tipo='parte' */
+  nomeParte?: string;
   palavraChave?: string;
   numeroProcesso?: string;
   /** Filtro opcional (ex: TJRJ, TJSP, TRF2...) */
@@ -162,6 +164,10 @@ function normalizeAccents(text: string): string {
 }
 
 function buildTextoParam(params: PjeComunicaSearchParams): string | null {
+  // Tipo 'parte': não usa texto, usa nomeParte separadamente
+  if (params.tipo === "parte") {
+    return null;
+  }
   if (params.tipo === "palavra-chave") {
     const termo = (params.palavraChave || "").trim();
     // Se termo é '*' ou vazio, significa busca geral (só por tribunal/data)
@@ -235,6 +241,14 @@ export async function buscarPjeComunicaNoBrowser(
     // mas se não houver OAB já podemos consultar direto por nome.
     if (!oab && nomeAdvogado) {
       qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado));
+    }
+  }
+
+  // 2a) Busca por nome de parte (polo ativo/passivo)
+  if (params.tipo === "parte") {
+    const nomeParte = (params.nomeParte || "").trim();
+    if (nomeParte) {
+      qp.set("nomeParte", normalizeAccents(nomeParte));
     }
   }
 

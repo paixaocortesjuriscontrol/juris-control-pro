@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 export interface MonitoramentoDjen {
   id: string;
-  tipo: 'palavra-chave' | 'advogado' | 'processo';
+  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte';
   termo_busca: string;
   oab?: string;
   uf?: string;
@@ -20,7 +20,6 @@ export interface MonitoramentoDjen {
   condicao_concomitante?: string;
   termos_or?: string[];
   tribunais?: string[];
-  buscar_parte?: boolean;
 }
 
 export interface PublicacaoDjen {

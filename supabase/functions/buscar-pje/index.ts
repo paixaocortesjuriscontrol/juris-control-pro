@@ -28,7 +28,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const PJE_API_BASE = "https://comunicaapi.pje.jus.br/api/v1";
 
 // Types of searches available
-type SearchType = "advogado" | "palavra-chave" | "processo";
+type SearchType = "advogado" | "palavra-chave" | "processo" | "parte";
 
 interface SearchParams {
   tipo: SearchType;
@@ -36,6 +36,9 @@ interface SearchParams {
   uf?: string;
   palavraChave?: string;
   numeroProcesso?: string;
+  /** Nome da parte para busca tipo='parte' */
+  nomeParte?: string;
+  siglaTribunal?: string;
   dataInicio?: string;
   dataFim?: string;
   pagina?: number;
@@ -49,6 +52,8 @@ async function searchPJE(params: SearchParams): Promise<any> {
     uf,
     palavraChave,
     numeroProcesso,
+    nomeParte,
+    siglaTribunal,
     dataInicio,
     dataFim,
     pagina = 0,
@@ -81,6 +86,15 @@ async function searchPJE(params: SearchParams): Promise<any> {
       const cleanedNumber = numeroProcesso.replace(/\D/g, '');
       url = `${PJE_API_BASE}/comunicacao/processo/${cleanedNumber}`;
       break;
+    
+    case "parte":
+      // Busca por nome de parte (polo ativo/passivo)
+      // Usa endpoint genérico /comunicacao com parâmetro nomeParte
+      if (!nomeParte) {
+        throw new Error("Nome da parte é obrigatório para busca por parte");
+      }
+      url = `${PJE_API_BASE}/comunicacao`;
+      break;
       
     default:
       throw new Error("Tipo de busca inválido");
@@ -92,10 +106,20 @@ async function searchPJE(params: SearchParams): Promise<any> {
   queryParams.append("tamanhoPagina", tamanhoPagina.toString());
   
   if (dataInicio) {
-    queryParams.append("dataInicio", dataInicio);
+    queryParams.append("dataDisponibilizacaoInicio", dataInicio);
   }
   if (dataFim) {
-    queryParams.append("dataFim", dataFim);
+    queryParams.append("dataDisponibilizacaoFim", dataFim);
+  }
+  
+  // Adicionar filtro de tribunal
+  if (siglaTribunal) {
+    queryParams.append("siglaTribunal", siglaTribunal);
+  }
+  
+  // Adicionar nomeParte para busca tipo='parte'
+  if (tipo === "parte" && nomeParte) {
+    queryParams.append("nomeParte", nomeParte);
   }
   
   const separator = url.includes("?") ? "&" : "?";
@@ -289,6 +313,8 @@ serve(async (req) => {
       uf,
       palavraChave,
       numeroProcesso,
+      nomeParte,
+      siglaTribunal,
       dataInicio,
       dataFim,
       pagina = 0,
@@ -301,7 +327,7 @@ serve(async (req) => {
     const validationErrors: string[] = [];
 
     // Validate tipo
-    const validTipos = ["advogado", "palavra-chave", "processo"];
+    const validTipos = ["advogado", "palavra-chave", "processo", "parte"];
     if (!validTipos.includes(tipo)) {
       validationErrors.push(`Tipo de busca inválido. Use: ${validTipos.join(", ")}`);
     }
@@ -376,6 +402,13 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+    } else if (tipo === "parte") {
+      if (!nomeParte || nomeParte.length < 3) {
+        return new Response(
+          JSON.stringify({ error: "Nome da parte deve ter pelo menos 3 caracteres", success: false }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     const result = await searchPJE({
@@ -384,6 +417,8 @@ serve(async (req) => {
       uf,
       palavraChave,
       numeroProcesso,
+      nomeParte,
+      siglaTribunal,
       dataInicio,
       dataFim,
       pagina: validatedPagina,

@@ -23,7 +23,6 @@ interface MonitoramentoDjen {
   condicao_concomitante?: string;
   termos_or?: string[];
   tribunais?: string[];
-  buscar_parte?: boolean;
 }
 
 interface PublicacaoResultado {
