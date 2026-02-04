@@ -810,10 +810,40 @@ function conteudoContemTermo(
     return conteudoNorm.includes(numero);
   }
 
-  // Para palavra-chave/parte: exigir frase completa (ordem e sequência)
+  // Para palavra-chave/parte: 80% das palavras significativas devem estar presentes
+  // Termos jurídicos genéricos (LTDA, S/A, etc.) não contam na validação
   const termoNorm = normalizar(termo);
   if (!termoNorm) return true;
-  return conteudoNorm.includes(termoNorm);
+  
+  // Match exato primeiro (mais rápido)
+  if (conteudoNorm.includes(termoNorm)) return true;
+  
+  // Palavras jurídicas genéricas que não devem ser obrigatórias
+  const TERMOS_IGNORAR = new Set([
+    'LTDA', 'SA', 'ME', 'EPP', 'EIRELI', 'CIA', 
+    'SOCIEDADE', 'EMPRESA', 'COMERCIO', 'INDUSTRIA', 'SERVICOS',
+    'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM', 'COM', 'PARA', 'POR'
+  ]);
+  
+  const tokens = termoNorm.split(/\s+/).filter(Boolean);
+  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
+  const termoOriginalTemAmpersand = /&/.test(termo);
+  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
+  
+  // Filtrar palavras significativas (excluindo termos genéricos)
+  const palavrasTermo = tokens.filter(p => {
+    if (p.length < 2 && !(allowSingleLetters && p.length === 1)) return false;
+    if (TERMOS_IGNORAR.has(p)) return false;
+    return true;
+  });
+  
+  if (palavrasTermo.length === 0) return true;
+
+  // VALIDAÇÃO 80%: permite variações como "LTDA" vs "S.A." ou nomes abreviados
+  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
+  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+  
+  return palavrasEncontradas.length >= minPalavras;
 }
 
 function parseAdvogadoTermo(raw: string): { nome?: string; oabDigits?: string; uf?: string } {

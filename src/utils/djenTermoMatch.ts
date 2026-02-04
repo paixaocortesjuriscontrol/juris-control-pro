@@ -29,14 +29,30 @@ export function conteudoContemTodasPalavrasDoTermo(conteudo: string, termo: stri
   // Match rápido: frase completa (já normalizada)
   if (conteudoNorm.includes(termoNorm)) return true;
 
+  // Palavras jurídicas genéricas que não devem ser obrigatórias
+  const TERMOS_IGNORAR = new Set([
+    'LTDA', 'SA', 'ME', 'EPP', 'EIRELI', 'CIA', 
+    'SOCIEDADE', 'EMPRESA', 'COMERCIO', 'INDUSTRIA', 'SERVICOS',
+    'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM', 'COM', 'PARA', 'POR'
+  ]);
+
   const tokens = termoNorm.split(/\s+/).filter(Boolean);
   // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
   const termoOriginalTemAmpersand = /&/.test(termoRaw);
   const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter((t) => t.length === 1).length >= 2;
-  const palavras = tokens.filter((t) => t.length >= 2 || (allowSingleLetters && t.length === 1));
+  
+  // Filtrar palavras significativas (excluindo termos genéricos)
+  const palavras = tokens.filter((t) => {
+    if (t.length < 2 && !(allowSingleLetters && t.length === 1)) return false;
+    if (TERMOS_IGNORAR.has(t)) return false;
+    return true;
+  });
+  
   if (palavras.length === 0) return true;
 
-  // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
-  // Usar includes ao invés de regex para ser menos restritivo e mais rápido
-  return palavras.every((t) => conteudoNorm.includes(t));
+  // VALIDAÇÃO 80%: permite variações como "LTDA" vs "S.A." ou nomes abreviados
+  const minPalavras = Math.ceil(palavras.length * 0.8);
+  const palavrasEncontradas = palavras.filter((t) => conteudoNorm.includes(t));
+  
+  return palavrasEncontradas.length >= minPalavras;
 }

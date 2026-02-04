@@ -450,19 +450,34 @@ function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean 
   if (!termoNorm) return true;
   if (conteudoNorm.includes(termoNorm)) return true;
 
-  // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
+  // Palavras jurídicas genéricas que não devem ser obrigatórias
+  const TERMOS_IGNORAR = new Set([
+    'LTDA', 'SA', 'ME', 'EPP', 'EIRELI', 'CIA', 
+    'SOCIEDADE', 'EMPRESA', 'COMERCIO', 'INDUSTRIA', 'SERVICOS',
+    'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM', 'COM', 'PARA', 'POR'
+  ]);
+
   const tokens = termoNorm.split(/\s+/).filter(Boolean);
   
   // Em termos com "&" (ex.: "F & F"), letras isoladas são relevantes. 
   // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
   const termoOriginalTemAmpersand = /&/.test(termo);
   const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
-  const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
+  
+  // Filtrar palavras significativas (excluindo termos genéricos)
+  const palavrasTermo = tokens.filter(p => {
+    if (p.length < 2 && !(allowSingleLetters && p.length === 1)) return false;
+    if (TERMOS_IGNORAR.has(p)) return false;
+    return true;
+  });
+  
   if (palavrasTermo.length === 0) return true;
 
-  // Todas as palavras significativas devem estar no conteúdo
-  // Usar includes ao invés de regex para ser menos restritivo
-  return palavrasTermo.every(p => conteudoNorm.includes(p));
+  // VALIDAÇÃO 80%: permite variações
+  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
+  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+  
+  return palavrasEncontradas.length >= minPalavras;
 }
 
 function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
@@ -538,9 +553,8 @@ function conteudoContemTermo(
     return true;
   }
 
-  // Para palavra-chave/parte: 100% das palavras devem estar presentes
-  // Isso garante que "F & F Distribuidora de Produtos Farmacêuticos LTDA"
-  // NÃO seja encontrado se apenas "Distribuidora" estiver no conteúdo
+  // Para palavra-chave/parte: 80% das palavras significativas devem estar presentes
+  // Termos jurídicos genéricos (LTDA, S/A, ME, etc.) não contam na validação
   if (!termo) return true;
 
   const termoNorm = normalizar(termo);
@@ -548,17 +562,33 @@ function conteudoContemTermo(
   // Primeiro tenta match exato do termo completo (mais rápido)
   if (conteudoNorm.includes(termoNorm)) return true;
   
-  // Se não encontrou exato, verifica se TODAS as palavras significativas estão presentes
+  // Palavras jurídicas genéricas que não devem ser obrigatórias
+  const TERMOS_IGNORAR = new Set([
+    'LTDA', 'SA', 'ME', 'EPP', 'EIRELI', 'LTDA', 'CIA', 
+    'SOCIEDADE', 'EMPRESA', 'COMERCIO', 'INDUSTRIA', 'SERVICOS',
+    'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM', 'COM', 'PARA', 'POR'
+  ]);
+  
+  // Se não encontrou exato, verifica se 80% das palavras significativas estão presentes
   const tokens = termoNorm.split(/\s+/).filter(Boolean);
   // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
   const termoOriginalTemAmpersand = /&/.test(termo);
   const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
-  const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
+  
+  // Filtrar palavras significativas (excluindo termos genéricos)
+  const palavrasTermo = tokens.filter(p => {
+    if (p.length < 2 && !(allowSingleLetters && p.length === 1)) return false;
+    if (TERMOS_IGNORAR.has(p)) return false;
+    return true;
+  });
+  
   if (palavrasTermo.length === 0) return true;
 
-  // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
-  // Usar includes ao invés de regex para ser menos restritivo e mais rápido
-  return palavrasTermo.every(p => conteudoNorm.includes(p));
+  // VALIDAÇÃO 80%: permite variações como "LTDA" vs "S.A." ou nomes abreviados
+  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
+  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+  
+  return palavrasEncontradas.length >= minPalavras;
 }
 
 // ============================================================================
