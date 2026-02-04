@@ -349,33 +349,42 @@ export async function buscarPjeComunicaNoBrowser(
     const first = await doRequest(qp);
 
     // 2) Fallback específico p/ advogado quando retornar vazio (sem erro HTTP).
+    //    IMPORTANTE: nunca remover os parâmetros de OAB - eles são o filtro principal!
+    //    Se removemos, a API pode retornar qualquer publicação.
     if (params.tipo === 'advogado' && first.items.length === 0) {
-      // 2a) Se estávamos buscando por OAB, tentar com `texto` (alguns tribunais aceitam melhor).
-      const hadOabParams = qp.has('numeroOab') || qp.has('ufOab');
-      if (hadOabParams && texto) {
+      const oab = String(params.oab || "").replace(/\D/g, "").trim();
+      const uf = String(params.uf || "").trim().toUpperCase();
+      const nome = nomeAdvogado;
+
+      // 2a) Tentar adicionar `nomeAdvogado` junto com OAB (portal oficial usa isso)
+      if (nome && (oab || uf)) {
         const qp2 = new URLSearchParams(qp);
-        qp2.set('texto', texto);
+        qp2.set('nomeAdvogado', normalizeAccents(nome));
         const second = await doRequest(qp2);
         if (second.items.length > 0) return second;
       }
 
-      // 2b) Portal oficial usa `nomeAdvogado` e, na prática, pode retornar resultados
-      // quando a busca por OAB retorna 0.
-      const nome = nomeAdvogado;
-      if (nome) {
+      // 2b) Tentar adicionar `texto` junto com OAB (alguns tribunais aceitam melhor assim)
+      if (texto && (oab || uf)) {
         const qp3 = new URLSearchParams(qp);
-        qp3.delete('texto');
-        qp3.delete('numeroOab');
-        qp3.delete('ufOab');
-        qp3.set('nomeAdvogado', normalizeAccents(nome));
-
+        qp3.set('texto', texto);
         const third = await doRequest(qp3);
         if (third.items.length > 0) return third;
+      }
 
-        // 2c) Último recurso: alguns tribunais só respeitam busca via `texto`
-        // mesmo quando o usuário fornece nome.
-        const qp4 = new URLSearchParams(qp3);
-        qp4.set('texto', normalizeAccents(nome));
+      // 2c) ÚLTIMO RECURSO (SEM OAB): Se realmente não encontrou nada com OAB,
+      //     tentar só pelo nome - mas só se não temos OAB válida.
+      //     NUNCA fazer isso se temos OAB, pois pode retornar publicações erradas.
+      if (nome && !oab) {
+        const qp4 = new URLSearchParams();
+        if (params.siglaTribunal) qp4.set('siglaTribunal', params.siglaTribunal);
+        if (params.dataInicio) qp4.set('dataDisponibilizacaoInicio', params.dataInicio);
+        if (params.dataFim) qp4.set('dataDisponibilizacaoFim', params.dataFim);
+        qp4.set('pagina', String(page));
+        qp4.set('tamanhoPagina', String(pageSize));
+        qp4.set('page', String(page));
+        qp4.set('size', String(pageSize));
+        qp4.set('nomeAdvogado', normalizeAccents(nome));
         return await doRequest(qp4);
       }
     }
