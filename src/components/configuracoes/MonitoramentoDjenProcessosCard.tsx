@@ -21,7 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 import { useRealtimeProgress } from "@/hooks/useRealtimeProgress";
-import { useDjenProcessos, COORDENACOES_EXCLUIDAS } from "@/hooks/useDjenProcessos";
+import { useDjenProcessos } from "@/hooks/useDjenProcessos";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ExecutionResult {
@@ -142,7 +142,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   // Mostrar botão Retomar se tem checkpoint no engine
   const shouldShowRetomar = hasCheckpoint && !engineRunning;
 
-  // Buscar estatísticas (excluindo Santander)
+  // Buscar estatísticas (Santander já desabilitados no banco via monitorar_djen = false)
   const { data: stats } = useQuery({
     queryKey: ['djen-processos-stats'],
     queryFn: async () => {
@@ -155,12 +155,11 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
         .select('*', { count: 'exact', head: true })
         .eq('lida', false);
 
-      // Contar processos EXCLUINDO coordenações Santander
+      // Conta apenas processos com monitorar_djen = true (Santander já excluídos no banco)
       const { count: processosMonitorados } = await supabase
         .from('processos')
         .select('*', { count: 'exact', head: true })
-        .eq('monitorar_djen', true)
-        .not('coordenacao_id', 'in', `(${COORDENACOES_EXCLUIDAS.join(',')})`);
+        .eq('monitorar_djen', true);
 
       return {
         totalPublicacoes: totalPublicacoes || 0,

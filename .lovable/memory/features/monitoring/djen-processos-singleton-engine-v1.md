@@ -7,17 +7,20 @@ O sistema de monitoramento DJEN Processos foi completamente refatorado para usar
 
 ### Características Principais:
 1. **Execução em Background**: Continua rodando mesmo ao sair da tela de Configurações
-2. **Exclusão Santander**: Coordenações Santander Cível e Trabalhista excluídas (~11k processos)
+2. **Exclusão Santander via Banco**: Coordenações Santander Cível e Trabalhista têm `monitorar_djen = false` diretamente no banco (não há mais filtro hardcoded)
 3. **Grupos de 10**: Processos agrupados com sintaxe OR do Elasticsearch
 4. **Checkpoints a cada 5 grupos**: Para retomada exata em caso de falha
 5. **Retomada Manual**: Usuário decide quando continuar via botão "Continuar"
 
-### Coordenações Excluídas:
-```typescript
-const COORDENACOES_EXCLUIDAS = [
-  '968631d0-6659-46f1-b45d-899892cb0121', // Santander Cível (~10.736 processos)
-  '70d3e1ba-70ff-46d0-a6cf-4d4b553d324a', // Santander Trabalhista (~998 processos)
-];
+### Exclusão Santander (via banco de dados):
+Os processos das coordenações Santander foram desabilitados via UPDATE no banco:
+```sql
+UPDATE processos 
+SET monitorar_djen = false 
+WHERE coordenacao_id IN (
+  '968631d0-6659-46f1-b45d-899892cb0121', -- Santander Cível (~10.736 processos)
+  '70d3e1ba-70ff-46d0-a6cf-4d4b553d324a'  -- Santander Trabalhista (~998 processos)
+);
 ```
 
 **Impacto:** De ~13.210 processos para ~2.474 (redução de 81%)

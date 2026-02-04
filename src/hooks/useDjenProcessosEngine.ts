@@ -66,11 +66,8 @@ interface ParametrosDjen {
 // CONFIGURAÇÃO
 // ============================================================================
 
-// Coordenações excluídas do DJEN Processos (volume muito alto)
-export const COORDENACOES_EXCLUIDAS = [
-  '968631d0-6659-46f1-b45d-899892cb0121', // Santander Cível
-  '70d3e1ba-70ff-46d0-a6cf-4d4b553d324a', // Santander Trabalhista
-];
+// NOTA: Coordenações Santander foram desabilitadas diretamente no banco
+// (processos.monitorar_djen = false), portanto não há mais filtro hardcoded aqui.
 
 // Tamanho do grupo de processos para busca OR
 const GROUP_SIZE = 10;
@@ -337,14 +334,13 @@ async function runEngine(
     const params = await fetchParametrosDjen();
     console.log('[DJEN Processos] Parâmetros:', params);
 
-    // Buscar processos monitorados EXCLUINDO Santander
-    updateProgress({ mensagem: 'Carregando processos (excl. Santander)...' });
+    // Buscar processos monitorados (Santander já desabilitados no banco)
+    updateProgress({ mensagem: 'Carregando processos monitorados...' });
 
     const { data: processosMonitorados, error: procError } = await supabase
       .from('processos')
       .select('id, numero, coordenacao_id')
-      .eq('monitorar_djen', true)
-      .not('coordenacao_id', 'in', `(${COORDENACOES_EXCLUIDAS.join(',')})`);
+      .eq('monitorar_djen', true);
 
     if (procError) throw new Error(`Erro ao buscar processos: ${procError.message}`);
 
