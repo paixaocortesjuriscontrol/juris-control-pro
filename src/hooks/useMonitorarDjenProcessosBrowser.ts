@@ -1,15 +1,12 @@
 /**
  * Hook para monitorar processos DJEN diretamente no navegador.
  * 
- * ESTRATÉGIA: Busca SEQUENCIAL processo por processo (estável)
+ * ESTRATÉGIA v5: Busca por TRIBUNAL + Filtro Local
  * 
- * Busca cada processo individualmente com delays configuráveis
- * da tabela parametros_monitoramento_djen.
+ * Em vez de buscar 13k+ processos individualmente, itera pelos ~54 tribunais
+ * e filtra localmente quais publicações são de processos monitorados.
  * 
- * Vantagens:
- * - Sem rate limit (429)
- * - Estabilidade máxima
- * - Usa configurações do painel Parâmetros DJEN
+ * ~500-800 requisições vs ~13.000 = 10-20 minutos vs 7+ horas
  */
 
 import { useCallback, useRef, useState, useEffect } from "react";
@@ -17,6 +14,22 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaNoBrowser } from "@/utils/pjeComunicaClient";
 import { toast } from "sonner";
+
+// Lista completa de tribunais para busca
+const TRIBUNAIS_DJEN = [
+  // Trabalhistas (maioria dos processos monitorados)
+  'TST','TRT1','TRT2','TRT3','TRT4','TRT5','TRT6','TRT7','TRT8','TRT9',
+  'TRT10','TRT11','TRT12','TRT13','TRT14','TRT15','TRT16','TRT17','TRT18',
+  'TRT19','TRT20','TRT21','TRT22','TRT23','TRT24',
+  // Federais
+  'TRF1','TRF2','TRF3','TRF4','TRF5','TRF6',
+  // Estaduais (principais)
+  'TJSP','TJRJ','TJMG','TJRS','TJPR','TJSC','TJBA','TJPE','TJCE',
+  'TJGO','TJDF','TJMT','TJMS','TJPA','TJAM','TJES','TJMA','TJPB',
+  'TJRN','TJAL','TJSE','TJPI','TJTO','TJRO','TJAC','TJAP','TJRR',
+  // Superiores
+  'STJ','STF'
+];
 
 export interface DjenProcessosProgress {
   status: 'idle' | 'executando' | 'pausado' | 'concluido' | 'erro' | 'cancelado';
@@ -60,13 +73,16 @@ const DEFAULT_PARAMS: ParametrosDjen = {
   delay_entre_lotes: 3000,
   delay_entre_monitoramentos: 2000,
   delay_entre_paginas: 1500,
-  delay_entre_tribunais: 1200,
+  delay_entre_tribunais: 2000,
   delay_jina_api: 2000,
   soft_timeout_ms: 50000,
   finalization_buffer_ms: 10000,
   max_retries: 4,
   retry_base_delay_ms: 8000,
 };
+
+// Limite de páginas por tribunal (evita loops infinitos)
+const MAX_PAGES_PER_TRIBUNAL = 20;
 
 interface MonitorarDjenProcessosBrowserReturn {
   progresso: DjenProcessosProgress;
@@ -110,7 +126,6 @@ function generateHash(content: string): string {
 
 async function fetchParametrosDjen(): Promise<ParametrosDjen> {
   try {
-    // Buscar tipo_monitoramento_id do djen_processos
     const { data: tipoData } = await (supabase as any)
       .from('tipo_monitoramento')
       .select('id')
@@ -122,7 +137,6 @@ async function fetchParametrosDjen(): Promise<ParametrosDjen> {
       return DEFAULT_PARAMS;
     }
 
-    // Buscar parâmetros
     const { data: params } = await (supabase as any)
       .from('parametros_monitoramento_djen')
       .select('*')
@@ -173,7 +187,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
     currentPage: 0,
     totalPages: 0,
     currentTribunal: 0,
-    totalTribunais: 0,
+    totalTribunais: TRIBUNAIS_DJEN.length,
     tribunalAtual: '',
     percentage: 0,
     novas: 0,
@@ -186,27 +200,24 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
 
   const isExecutando = progresso.status === 'executando';
 
-  // Timer de tempo decorrido - usa ref para evitar cálculo baseado em startedAt antigo
+  // Timer de tempo decorrido
   const startTimeRef = useRef<number | null>(null);
   const lastElapsedRef = useRef<number>(0);
   
   useEffect(() => {
     if (isExecutando) {
-      // Capturar o momento exato do início
       if (!startTimeRef.current) {
         startTimeRef.current = Date.now();
         lastElapsedRef.current = 0;
       }
       
-      // Usar intervalo mais longo para evitar sobrecarga do React
       timerRef.current = setInterval(() => {
         if (startTimeRef.current) {
           const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-          // Só atualizar se realmente mudou (evita re-renders desnecessários)
           if (elapsed !== lastElapsedRef.current) {
             lastElapsedRef.current = elapsed;
             setProgresso(prev => {
-              if (prev.elapsedSeconds === elapsed) return prev; // Evita re-render
+              if (prev.elapsedSeconds === elapsed) return prev;
               return { ...prev, elapsedSeconds: elapsed };
             });
           }
@@ -231,9 +242,9 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
   const updateProgress = useCallback((updates: Partial<DjenProcessosProgress>) => {
     setProgresso(prev => {
       const next = { ...prev, ...updates };
-      // Calcular porcentagem baseado no progresso
-      if (next.totalPages > 0) {
-        next.percentage = Math.min(100, Math.round((next.currentPage / next.totalPages) * 100));
+      // Calcular porcentagem baseado no progresso de tribunais
+      if (next.totalTribunais > 0) {
+        next.percentage = Math.min(100, Math.round((next.currentTribunal / next.totalTribunais) * 100));
       }
       return next;
     });
@@ -255,14 +266,15 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           ultima_execucao: new Date().toISOString(),
           metadata: {
             ...currentMeta,
-            current_process: stats.currentPage ?? currentMeta.current_process ?? 0,
-            total_processes: stats.totalPages ?? currentMeta.total_processes ?? 0,
+            tribunal_atual: stats.currentTribunal ?? currentMeta.tribunal_atual ?? 0,
+            total_tribunais: stats.totalTribunais ?? TRIBUNAIS_DJEN.length,
             novas: Math.max(stats.novas || 0, currentMeta.novas || 0),
             duplicadas: Math.max(stats.duplicadas || 0, currentMeta.duplicadas || 0),
             total_analisadas: Math.max(stats.totalPublicacoesAnalisadas || 0, currentMeta.total_analisadas || 0),
             percentage: Math.max(stats.percentage || 0, currentMeta.percentage || 0),
             status: stats.status || 'em_andamento',
             browser_execution: true,
+            estrategia: 'por_tribunal_v5',
             run_started_at: stats.startedAt || currentMeta.run_started_at,
             updated_at: new Date().toISOString(),
           },
@@ -294,23 +306,22 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       let publicacoesAnalisadas = 0;
       const seenHashes = new Set<string>();
 
-      // 1. Buscar parâmetros da tabela
-      console.log('[DJEN Seq] Carregando parâmetros da tabela...');
+      // 1. Carregar parâmetros
+      console.log('[DJEN v5] Carregando parâmetros...');
       updateProgress({
         status: 'executando',
         mensagem: 'Carregando parâmetros...',
         startedAt,
         elapsedSeconds: 0,
+        totalTribunais: TRIBUNAIS_DJEN.length,
       });
 
       const params = await fetchParametrosDjen();
-      console.log('[DJEN Seq] Parâmetros carregados:', params);
+      console.log('[DJEN v5] Parâmetros carregados:', params);
 
-      // 2. Buscar todos os processos monitorados
-      console.log('[DJEN Seq] Carregando processos monitorados...');
-      updateProgress({
-        mensagem: 'Carregando processos monitorados...',
-      });
+      // 2. Buscar todos os processos monitorados e criar índice
+      console.log('[DJEN v5] Carregando processos monitorados...');
+      updateProgress({ mensagem: 'Indexando processos monitorados...' });
 
       const { data: processosMonitorados, error: procError } = await supabase
         .from('processos')
@@ -325,131 +336,170 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
         return;
       }
 
-      const totalProcessos = processosMonitorados.length;
-      console.log(`[DJEN Seq] ${totalProcessos} processos para verificar`);
-      
+      // Criar índice Map<numero_normalizado, processo> para lookup O(1)
+      const processosMap = new Map<string, { id: string; numero: string }>();
+      for (const p of processosMonitorados) {
+        const numeroNorm = normalizeNumeroProcesso(p.numero);
+        processosMap.set(numeroNorm, p);
+      }
+
+      console.log(`[DJEN v5] ${processosMap.size} processos indexados`);
       updateProgress({
-        totalPages: totalProcessos,
-        mensagem: `${totalProcessos} processos para verificar...`,
+        mensagem: `${processosMap.size} processos indexados. Iniciando busca por tribunal...`,
       });
 
-      // 3. Processar SEQUENCIALMENTE, um por um
-      const UPDATE_UI_INTERVAL = 50; // Atualizar UI a cada 50 processos (evita sobrecarga do React)
-      
-      for (let i = 0; i < totalProcessos; i++) {
+      // 3. Iterar por TRIBUNAIS em vez de processos
+      for (let t = 0; t < TRIBUNAIS_DJEN.length; t++) {
         if (canceladoRef.current) break;
 
-        const processo = processosMonitorados[i];
-        const numeroNormalizado = normalizeNumeroProcesso(processo.numero);
+        const tribunal = TRIBUNAIS_DJEN[t];
+        let page = 0;
+        let hasMore = true;
+        let tribunalPublicacoesAnalisadas = 0;
 
-        // Atualizar UI apenas a cada N processos ou no primeiro/último
-        if (i === 0 || i === totalProcessos - 1 || (i + 1) % UPDATE_UI_INTERVAL === 0) {
+        updateProgress({
+          currentTribunal: t + 1,
+          tribunalAtual: tribunal,
+          currentPage: page,
+          mensagem: `Tribunal ${t + 1}/${TRIBUNAIS_DJEN.length}: ${tribunal}`,
+          novas: novasTotal,
+          duplicadas: duplicadasTotal,
+          totalPublicacoesAnalisadas: publicacoesAnalisadas,
+        });
+
+        // Paginar dentro do tribunal
+        while (hasMore && page < MAX_PAGES_PER_TRIBUNAL) {
+          if (canceladoRef.current) break;
+
+          let retryCount = 0;
+          let success = false;
+          let resp: any = null;
+
+          while (!success && retryCount < params.max_retries) {
+            try {
+              // Buscar publicações do tribunal no período
+              resp = await buscarPjeComunicaNoBrowser({
+                tipo: 'palavra-chave',
+                siglaTribunal: tribunal,
+                dataInicio: dataInicioEfetiva,
+                dataFim: dataFimEfetiva,
+                page,
+                pageSize: 50,
+              }, { signal: abortControllerRef.current?.signal });
+
+              success = true;
+            } catch (e: any) {
+              if (e?.name === 'AbortError') break;
+              
+              retryCount++;
+              console.warn(`[DJEN v5] Erro ${tribunal} página ${page}, tentativa ${retryCount}:`, e?.message?.slice(0, 100));
+              
+              if (retryCount < params.max_retries) {
+                const backoffMs = params.retry_base_delay_ms * Math.pow(2, retryCount - 1);
+                await sleep(Math.min(backoffMs, 30000));
+              }
+            }
+          }
+
+          if (!success || !resp) {
+            console.warn(`[DJEN v5] Falha permanente ${tribunal} página ${page}, pulando...`);
+            break;
+          }
+
+          // Processar publicações e filtrar localmente
+          for (const pub of resp.items) {
+            publicacoesAnalisadas++;
+            tribunalPublicacoesAnalisadas++;
+
+            const numeroProcessoPub = pub.numeroProcesso || '';
+            const numeroNorm = normalizeNumeroProcesso(numeroProcessoPub);
+
+            // FILTRO LOCAL: verificar se este processo está no nosso índice
+            const processoMonitorado = processosMap.get(numeroNorm);
+            if (!processoMonitorado) {
+              continue; // Não é um dos nossos processos
+            }
+
+            const conteudo = pub.texto || pub.teor || '';
+            if (!conteudo) continue;
+
+            const dataDisponibilizacao = pub.dataDisponibilizacao || hoje;
+            const dataPublicacao = pub.dataPublicacao || dataDisponibilizacao;
+            
+            const conteudoNorm = normalizeConteudo(conteudo);
+            const hashConteudo = generateHash(`${processoMonitorado.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
+
+            if (seenHashes.has(hashConteudo)) {
+              duplicadasTotal++;
+              continue;
+            }
+
+            // Verificar no banco
+            const { data: existente } = await supabase
+              .from('publicacoes_djen_processos')
+              .select('id')
+              .eq('hash_conteudo', hashConteudo)
+              .maybeSingle();
+
+            if (existente) {
+              seenHashes.add(hashConteudo);
+              duplicadasTotal++;
+              continue;
+            }
+
+            // Inserir nova publicação
+            const { error: insertError } = await supabase
+              .from('publicacoes_djen_processos')
+              .insert({
+                processo_id: processoMonitorado.id,
+                processo_numero: processoMonitorado.numero,
+                hash_conteudo: hashConteudo,
+                data_publicacao: dataPublicacao,
+                data_disponibilizacao: dataDisponibilizacao,
+                conteudo: conteudo.slice(0, 50000),
+                fonte: 'pje_comunica_browser_tribunal_v5',
+              });
+
+            if (!insertError) {
+              seenHashes.add(hashConteudo);
+              novasTotal++;
+            }
+          }
+
+          hasMore = resp.hasMore && resp.items.length > 0;
+          page++;
+
+          // Atualizar UI a cada página
           updateProgress({
-            currentPage: i + 1,
-            percentage: Math.round(((i + 1) / totalProcessos) * 100),
-            mensagem: `Processo ${i + 1}/${totalProcessos}: ${processo.numero.substring(0, 20)}...`,
+            currentPage: page,
             novas: novasTotal,
             duplicadas: duplicadasTotal,
             totalPublicacoesAnalisadas: publicacoesAnalisadas,
+            mensagem: `${tribunal} | Página ${page} | +${novasTotal} novas`,
           });
-        }
 
-        let retryCount = 0;
-        let success = false;
-
-        while (!success && retryCount < params.max_retries) {
-          try {
-            // Buscar publicações para este processo específico
-            const resp = await buscarPjeComunicaNoBrowser({
-              tipo: 'processo',
-              numeroProcesso: processo.numero,
-              dataInicio: dataInicioEfetiva,
-              dataFim: dataFimEfetiva,
-              page: 0,
-              pageSize: 10,
-            }, { signal: abortControllerRef.current?.signal });
-
-            publicacoesAnalisadas += resp.items.length;
-
-            // Processar publicações encontradas
-            for (const pub of resp.items) {
-              const conteudo = pub.texto || pub.teor || '';
-              if (!conteudo) continue;
-
-              const dataDisponibilizacao = pub.dataDisponibilizacao || hoje;
-              const dataPublicacao = pub.dataPublicacao || dataDisponibilizacao;
-              
-              const conteudoNorm = normalizeConteudo(conteudo);
-              const hashConteudo = generateHash(`${processo.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
-
-              if (seenHashes.has(hashConteudo)) {
-                duplicadasTotal++;
-                continue;
-              }
-
-              // Verificar no banco
-              const { data: existente } = await supabase
-                .from('publicacoes_djen_processos')
-                .select('id')
-                .eq('hash_conteudo', hashConteudo)
-                .maybeSingle();
-
-              if (existente) {
-                seenHashes.add(hashConteudo);
-                duplicadasTotal++;
-                continue;
-              }
-
-              // Inserir nova publicação
-              const { error: insertError } = await supabase
-                .from('publicacoes_djen_processos')
-                .insert({
-                  processo_id: processo.id,
-                  processo_numero: processo.numero,
-                  hash_conteudo: hashConteudo,
-                  data_publicacao: dataPublicacao,
-                  data_disponibilizacao: dataDisponibilizacao,
-                  conteudo: conteudo.slice(0, 50000),
-                  fonte: 'pje_comunica_browser_seq',
-                });
-
-              if (!insertError) {
-                seenHashes.add(hashConteudo);
-                novasTotal++;
-              }
-            }
-
-            success = true;
-          } catch (e: any) {
-            if (e?.name === 'AbortError') break;
-            
-            retryCount++;
-            console.warn(`[DJEN Seq] Erro processo ${processo.numero}, tentativa ${retryCount}:`, e?.message);
-            
-            if (retryCount < params.max_retries) {
-              // Esperar com backoff exponencial
-              const backoffMs = params.retry_base_delay_ms * Math.pow(2, retryCount - 1);
-              await sleep(Math.min(backoffMs, 30000));
-            }
+          // Delay entre páginas
+          if (hasMore && !canceladoRef.current) {
+            await sleep(params.delay_entre_paginas);
           }
         }
 
-        // Salvar checkpoint a cada 10 processos
-        if ((i + 1) % 10 === 0) {
-          await saveCheckpoint({
-            currentPage: i + 1,
-            totalPages: totalProcessos,
-            novas: novasTotal,
-            duplicadas: duplicadasTotal,
-            totalPublicacoesAnalisadas: publicacoesAnalisadas,
-            percentage: Math.round(((i + 1) / totalProcessos) * 100),
-            startedAt,
-          });
-        }
+        console.log(`[DJEN v5] ${tribunal}: ${tribunalPublicacoesAnalisadas} analisadas, ${novasTotal} novas total`);
 
-        // Delay entre processos (delay_entre_monitoramentos)
-        if (!canceladoRef.current && i < totalProcessos - 1) {
-          await sleep(params.delay_entre_monitoramentos);
+        // Salvar checkpoint após cada tribunal
+        await saveCheckpoint({
+          currentTribunal: t + 1,
+          totalTribunais: TRIBUNAIS_DJEN.length,
+          novas: novasTotal,
+          duplicadas: duplicadasTotal,
+          totalPublicacoesAnalisadas: publicacoesAnalisadas,
+          percentage: Math.round(((t + 1) / TRIBUNAIS_DJEN.length) * 100),
+          startedAt,
+        });
+
+        // Delay entre tribunais
+        if (!canceladoRef.current && t < TRIBUNAIS_DJEN.length - 1) {
+          await sleep(params.delay_entre_tribunais);
         }
       }
 
@@ -457,18 +507,18 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       if (canceladoRef.current) {
         updateProgress({
           status: 'cancelado',
-          mensagem: `Cancelado. ${novasTotal} novas encontradas até agora.`,
+          mensagem: `Cancelado. ${novasTotal} novas encontradas.`,
         });
         toast.warning('Monitoramento cancelado.');
       } else {
         updateProgress({
           status: 'concluido',
-          currentPage: totalProcessos,
+          currentTribunal: TRIBUNAIS_DJEN.length,
           percentage: 100,
           novas: novasTotal,
           duplicadas: duplicadasTotal,
           totalPublicacoesAnalisadas: publicacoesAnalisadas,
-          mensagem: `Concluído! ${novasTotal} novas em ${totalProcessos} processos verificados.`,
+          mensagem: `Concluído! ${novasTotal} novas em ${TRIBUNAIS_DJEN.length} tribunais.`,
         });
         
         await saveCheckpoint({
@@ -476,8 +526,8 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           novas: novasTotal,
           duplicadas: duplicadasTotal,
           totalPublicacoesAnalisadas: publicacoesAnalisadas,
-          currentPage: totalProcessos,
-          totalPages: totalProcessos,
+          currentTribunal: TRIBUNAIS_DJEN.length,
+          totalTribunais: TRIBUNAIS_DJEN.length,
           startedAt,
         });
         
@@ -487,7 +537,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       // Salvar histórico
       await supabase.from('historico_monitoramento').insert({
         tipo: 'djen_processos',
-        processos_verificados: totalProcessos,
+        processos_verificados: processosMap.size,
         novos_andamentos: novasTotal,
         erros: 0,
       });
@@ -498,7 +548,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       queryClient.invalidateQueries({ queryKey: ['djen-processos-historico'] });
 
     } catch (error: any) {
-      console.error('[DJEN Seq] Erro:', error);
+      console.error('[DJEN v5] Erro:', error);
       updateProgress({
         status: 'erro',
         mensagem: `Erro: ${error.message}`,
