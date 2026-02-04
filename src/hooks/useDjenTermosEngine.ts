@@ -122,6 +122,7 @@ let singletonState: {
   timerInterval: ReturnType<typeof setInterval> | null;
   lastMetadataPersistAt: number;
   metadataPersistInFlight: Promise<void> | null;
+  lastDetalhesPersistAt: number;
   turboDisabled: boolean;
   sharedAdvogadoCache: Map<string, any[]>;
 } = {
@@ -134,6 +135,7 @@ let singletonState: {
   timerInterval: null,
   lastMetadataPersistAt: 0,
   metadataPersistInFlight: null,
+  lastDetalhesPersistAt: 0,
   turboDisabled: false,
   sharedAdvogadoCache: new Map(),
 };
@@ -1174,6 +1176,33 @@ async function runEngine(
           data_inicio: dataInicioYmd,
           data_fim: dataFimYmd,
         });
+
+        // Atualizar detalhes.progress na execução (para Banner e Card lerem % correto)
+        // Throttle: no mínimo 3s entre atualizações
+        const nowMs = Date.now();
+        if (singletonState.executionId && nowMs - singletonState.lastDetalhesPersistAt >= METADATA_PERSIST_MIN_INTERVAL_MS) {
+          singletonState.lastDetalhesPersistAt = nowMs;
+          void supabase
+            .from('execucoes_agendadas')
+            .update({
+              detalhes: {
+                runKey,
+                dataInicioYmd,
+                dataFimYmd,
+                totalDias,
+                totalTermos,
+                progress: {
+                  current: globalCurrent,
+                  total: globalTotal,
+                  percentage,
+                },
+                novas,
+                duplicadas,
+                descartadas,
+              },
+            })
+            .eq('id', singletonState.executionId);
+        }
 
         // Delay entre termos
         await delay(runtimeConfig.delay_between_terms);
