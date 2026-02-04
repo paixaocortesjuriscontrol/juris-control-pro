@@ -323,20 +323,56 @@ export async function buscarPjeComunicaNoBrowser(
     }
   }
 
-  // ESTRATÉGIA BROWSER-ONLY: Se CORS bloqueou, retornar vazio em vez de chamar Edge Function
-  // Isso evita o erro 546 (WORKER_LIMIT) que ocorre quando a Edge Function esgota memória
+// ESTRATÉGIA HÍBRIDA: Se CORS bloqueou, usar Edge Function como proxy
+  // Com a estratégia v6 (grupos OR), temos ~200-400 requisições ao invés de 13.000+
+  // Isso torna o risco de WORKER_LIMIT (546) baixo e aceitável
   if (corsBlocked) {
-    console.warn('[PJE Comunica] CORS blocked - retornando resultado vazio (browser-only strategy)');
-    return {
-      success: true,
-      items: [],
-      comunicacoes: [],
-      count: 0,
-      totalElements: 0,
-      page,
-      pageSize,
-      hasMore: false,
-    };
+    console.log('[PJE Comunica] CORS blocked, usando Edge Function como proxy...');
+    
+    try {
+      // Import dinâmico para evitar dependência circular
+      const { supabase } = await import('@/integrations/supabase/client');
+      
+      // Chamar Edge Function diretamente (bypass do shim do client.ts)
+      const originalInvoke = (supabase.functions as any).__originalInvoke || supabase.functions.invoke.bind(supabase.functions);
+      
+      const { data, error } = await originalInvoke('buscar-djen', {
+        body: {
+          tipo: params.tipo,
+          palavraChave: params.palavraChave,
+          oab: params.oab,
+          uf: params.uf,
+          numeroProcesso: params.numeroProcesso,
+          siglaTribunal: params.siglaTribunal,
+          dataInicio: params.dataInicio,
+          dataFim: params.dataFim,
+          page: params.page ?? 0,
+          pageSize: params.pageSize ?? 50,
+        },
+      });
+      
+      if (error) {
+        console.error('[PJE Comunica] Edge Function error:', error);
+        throw error;
+      }
+      
+      const items = (data?.items ?? []).map(optimizeItem);
+      
+      return {
+        success: true,
+        items,
+        comunicacoes: items,
+        count: data?.totalElements ?? items.length,
+        totalElements: data?.totalElements ?? items.length,
+        page: data?.page ?? page,
+        pageSize: data?.pageSize ?? pageSize,
+        hasMore: data?.hasMore ?? false,
+      };
+    } catch (proxyError: any) {
+      console.error('[PJE Comunica] Proxy fallback failed:', proxyError?.message);
+      // Se o proxy também falhar, propagar o erro original
+      throw lastErr || proxyError;
+    }
   }
 
   throw lastErr || new Error("Falha ao buscar no PJE Comunica");
