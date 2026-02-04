@@ -721,6 +721,8 @@ function normalizar(texto: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[&\/\\]/g, ' ')
+    // Remove pontuação geral para permitir match por palavra (ex: "LTDA." -> "LTDA")
+    .replace(/[^0-9A-Za-z\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase();
@@ -731,9 +733,20 @@ function normalizarParaBusca(texto: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[&\/\\]/g, ' ')
+    .replace(/[^0-9A-Za-z\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function contemTokenInteiro(conteudoNorm: string, token: string): boolean {
+  if (!token) return true;
+  const re = new RegExp(`(?:^|\\s)${escapeRegex(token)}(?:\\s|$)`);
+  return re.test(conteudoNorm);
 }
 
 function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean {
@@ -741,11 +754,12 @@ function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean 
   if (!termoNorm) return true;
   if (conteudoNorm.includes(termoNorm)) return true;
 
-  const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+  const tokens = termoNorm.split(/\s+/).filter(Boolean);
+  const allowSingleLetters = /&/.test(termo) && tokens.filter(t => t.length === 1).length >= 2;
+  const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
   if (palavrasTermo.length === 0) return true;
 
-  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
-  return palavrasEncontradas.length === palavrasTermo.length;
+  return palavrasTermo.every(p => contemTokenInteiro(conteudoNorm, p));
 }
 
 function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {

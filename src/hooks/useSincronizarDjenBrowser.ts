@@ -96,9 +96,18 @@ function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boo
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[&\/\\]/g, ' ')
+    // Remove pontuação geral para permitir match por palavra (ex: "LTDA." -> "LTDA")
+    .replace(/[^0-9A-Za-z\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase();
+
+  const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const contemTokenInteiro = (conteudoNorm: string, token: string): boolean => {
+    if (!token) return true;
+    const re = new RegExp(`(?:^|\\s)${escapeRegex(token)}(?:\\s|$)`);
+    return re.test(conteudoNorm);
+  };
   
   const conteudoNorm = normalizar(conteudo);
   const termoNorm = normalizar(termo);
@@ -109,11 +118,13 @@ function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boo
   // VALIDAÇÃO ESTRITA: 100% das palavras significativas devem estar presentes
   // Isso evita capturas parciais como "Distribuidora" quando o termo é 
   // "F & F Distribuidora de Produtos Farmacêuticos LTDA"
-  const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
+  const tokens = termoNorm.split(/\s+/).filter(Boolean);
+  const allowSingleLetters = /&/.test(termo) && tokens.filter(t => t.length === 1).length >= 2;
+  const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
   if (palavrasTermo.length === 0) return true;
   
   // Todas as palavras devem estar presentes (não mais 80%)
-  return palavrasTermo.every(p => conteudoNorm.includes(p));
+  return palavrasTermo.every(p => contemTokenInteiro(conteudoNorm, p));
 }
 
 // Gera hash global para deduplicação (igual ao backend)

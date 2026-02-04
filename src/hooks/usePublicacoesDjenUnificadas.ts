@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { startOfDay, endOfDay } from "date-fns";
 import { dedupePublicacoesDjen } from "@/utils/djenDedup";
+import { conteudoContemTodasPalavrasDoTermo } from "@/utils/djenTermoMatch";
 import { addDays, parse } from "date-fns";
 
 // Helper para formatar data em ISO com timezone UTC
@@ -350,8 +351,15 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           });
         }
 
-        // 7) juntar e ordenar
-        const merged = [...filteredByType, ...resultados];
+        // 7) filtrar falsos positivos de TERMO (ex.: "F & F" não pode virar só "DISTRIBUIDORA")
+        const merged = [...filteredByType, ...resultados].filter((p) => {
+          if (p.tipo_origem !== 'termo') return true;
+          const tipo = (p.monitoramento_tipo || '').toLowerCase();
+          // Só aplicar estrito para parte/palavra-chave (advogado/processo têm validações próprias)
+          if (tipo === 'advogado' || tipo === 'processo') return true;
+          return conteudoContemTodasPalavrasDoTermo(p.conteudo || '', p.monitoramento_termo || '');
+        });
+
         const deduped = dedupePublicacoesDjen(merged);
         return deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       }
@@ -606,7 +614,15 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         });
       }
 
-      let deduped = dedupePublicacoesDjen(resultados);
+      // Filtrar falsos positivos de TERMO (sem precisar "recomeçar" execução)
+      const resultadosFiltrados = resultados.filter((p) => {
+        if (p.tipo_origem !== 'termo') return true;
+        const tipo = (p.monitoramento_tipo || '').toLowerCase();
+        if (tipo === 'advogado' || tipo === 'processo') return true;
+        return conteudoContemTodasPalavrasDoTermo(p.conteudo || '', p.monitoramento_termo || '');
+      });
+
+      let deduped = dedupePublicacoesDjen(resultadosFiltrados);
 
       // Se estamos filtrando apenas descartadas, garantir que só venham descartadas
       if (filtros.tipoOrigem === 'descartada') {
