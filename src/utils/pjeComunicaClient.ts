@@ -356,7 +356,21 @@ export async function buscarPjeComunicaNoBrowser(
         throw error;
       }
       
-      const items = (data?.items ?? []).map(optimizeItem);
+      // Detectar erro de bloqueio na resposta (mesmo com success: true)
+      if (data?.success === false) {
+        console.error('[PJE Comunica] Proxy returned success: false:', data?.error || data?.message);
+        throw new Error(data?.error || data?.message || 'API bloqueada');
+      }
+      
+      // Detectar "Blocked (HTML)" no campo error
+      if (data?.error && String(data.error).toLowerCase().includes('blocked')) {
+        console.error('[PJE Comunica] Proxy retornou bloqueio:', data.error);
+        throw new Error(`API bloqueada: ${data.error}`);
+      }
+      
+      // Mapear items corretamente (pode vir como comunicacoes/publicacoes)
+      const rawItems = data?.items ?? data?.comunicacoes ?? data?.publicacoes ?? [];
+      const items = rawItems.map(optimizeItem);
       
       return {
         success: true,

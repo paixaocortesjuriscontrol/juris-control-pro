@@ -301,6 +301,10 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       let duplicadasTotal = 0;
       let publicacoesAnalisadas = 0;
       const seenHashes = new Set<string>();
+      
+      // Circuit breaker: abortar após N falhas consecutivas por bloqueio
+      const MAX_CONSECUTIVE_BLOCKS = 3;
+      let consecutiveBlocks = 0;
 
       // 1. Carregar parâmetros
       console.log('[DJEN v6] Carregando parâmetros...');
@@ -388,6 +392,7 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           let retryCount = 0;
           let success = false;
           let resp: any = null;
+          let isBlockedError = false;
 
           while (!success && retryCount < params.max_retries) {
             try {
@@ -402,8 +407,14 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
               }, { signal: abortControllerRef.current?.signal });
 
               success = true;
+              // Sucesso: resetar contador de bloqueios consecutivos
+              consecutiveBlocks = 0;
             } catch (e: any) {
               if (e?.name === 'AbortError') break;
+              
+              // Detectar erro de bloqueio
+              const errMsg = String(e?.message ?? '').toLowerCase();
+              isBlockedError = errMsg.includes('blocked') || errMsg.includes('bloqueada');
               
               retryCount++;
               console.warn(`[DJEN v6] Erro grupo ${g + 1} página ${page}, tentativa ${retryCount}:`, e?.message?.slice(0, 100));
@@ -416,6 +427,23 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           }
 
           if (!success || !resp) {
+            // Se foi erro de bloqueio, incrementar contador
+            if (isBlockedError) {
+              consecutiveBlocks++;
+              console.warn(`[DJEN v6] Bloqueio consecutivo ${consecutiveBlocks}/${MAX_CONSECUTIVE_BLOCKS}`);
+              
+              // Circuit breaker: abortar se muitos bloqueios consecutivos
+              if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) {
+                console.error('[DJEN v6] Circuit breaker ativado: API bloqueada');
+                updateProgress({
+                  status: 'erro',
+                  mensagem: `API bloqueada após ${consecutiveBlocks} tentativas. Aguarde e tente novamente.`,
+                });
+                toast.error('API PJE Comunica bloqueada. Tente novamente em alguns minutos.');
+                return;
+              }
+            }
+            
             console.warn(`[DJEN v6] Falha permanente grupo ${g + 1} página ${page}, pulando...`);
             break;
           }

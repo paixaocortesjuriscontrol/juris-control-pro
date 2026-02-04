@@ -79,6 +79,9 @@ const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 // Jina Reader proxy (fallback when API is blocked)
 const JINA_READER_URL = "https://r.jina.ai";
 
+// Browserless API (fallback with real Chrome when Deno fetch is blocked by anti-bot)
+const BROWSERLESS_API_URL = "https://chrome.browserless.io";
+
 // Types of searches available
 type SearchType = "advogado" | "palavra-chave" | "processo";
 
@@ -268,6 +271,67 @@ async function fetchJsonViaJina(url: string, jinaApiKey: string): Promise<any | 
   }
 }
 
+/**
+ * Fetches JSON from a URL using Browserless (real Chrome browser).
+ * This bypasses anti-bot measures that block Deno's native fetch.
+ */
+async function fetchViaBrowserless(url: string, browserlessApiKey: string): Promise<any | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15_000); // 15s timeout
+
+  try {
+    // Use Browserless /content endpoint which returns the page content
+    const browserlessUrl = `${BROWSERLESS_API_URL}/content?token=${browserlessApiKey}`;
+    
+    console.log("[Browserless] Fetching:", url);
+    
+    const resp = await fetch(browserlessUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        waitFor: 2000, // Wait 2s for JS to render
+        gotoOptions: {
+          waitUntil: "networkidle0",
+          timeout: 10000,
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      const errorText = await resp.text().catch(() => "");
+      console.log(`[Browserless] Error ${resp.status}:`, errorText.slice(0, 200));
+      return null;
+    }
+
+    const content = await resp.text();
+    
+    // Try to parse as JSON directly
+    try {
+      return JSON.parse(content);
+    } catch {
+      // Content might be wrapped in HTML, try to extract JSON
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch {
+          // Not valid JSON
+        }
+      }
+      
+      console.log("[Browserless] Response not JSON:", content.slice(0, 200));
+      return null;
+    }
+  } catch (e) {
+    console.log("[Browserless] Fetch failed:", e);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // Normaliza texto removendo acentos para melhor cobertura de busca
 function normalizeAccents(text: string): string {
   return text
@@ -278,7 +342,7 @@ function normalizeAccents(text: string): string {
     .trim();
 }
 
-async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Promise<any> {
+async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, browserlessApiKey?: string): Promise<any> {
   const { tipo, oab, uf, palavraChave, numeroProcesso, dataInicio, dataFim } = params;
 
   const baseParams = new URLSearchParams();
@@ -380,9 +444,8 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
 
   let lastError: any = null;
 
-  // ESTRATÉGIA: API direta apenas (Jina proxy DESABILITADO para evitar WORKER_LIMIT 546)
-  // O Jina proxy consome muita memória ao processar respostas HTML/não-JSON.
-  // A estratégia preferencial é usar busca via browser (IP do usuário).
+  // ESTRATÉGIA: API direta com fallback Browserless quando bloqueado
+  // O Browserless usa Chrome real que não é bloqueado por anti-bot
   const fetchPage = async (endpoint: string, pageNumber: number) => {
     const qp = new URLSearchParams(baseParams);
     qp.set("pagina", String(pageNumber));
@@ -393,44 +456,77 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
     const fullUrl = `${endpoint}?${qp.toString()}`;
     console.log(`Trying endpoint (page ${pageNumber}):`, fullUrl);
 
-    // JINA PROXY DESABILITADO - causava Memory limit exceeded (546)
-    // A busca agora é feita preferencialmente via browser (pjeComunicaClient).
-    // Esta Edge Function só é usada como fallback para casos específicos.
-
-    // API direta apenas
-    const response = await fetchWithRetry(fullUrl, {
-      method: "GET",
-      headers: browserHeaders,
-    });
-
-    const contentType = response.headers.get("content-type") || "";
-    console.log("Response status:", response.status, "Content-Type:", contentType);
-
     let data: any | null = null;
+    let source: "direct" | "browserless" | "jina" | "blocked" = "blocked";
 
-    if (contentType.includes("text/html")) {
-      console.log("Got HTML response (blocked)");
-      throw new Error("Blocked (HTML)");
-    } else if (response.ok) {
-      data = await response.json();
-    } else if (response.status === 422) {
-      const errorText = await readTextLimited(response);
-      console.log("422 response:", errorText);
-      return {
-        data: {
-          publicacoes: [],
-          comunicacoes: [],
-          totalElements: 0,
-          message: "Nenhuma comunicação encontrada",
-        },
-        ok: true,
-      };
-    } else {
-      const t = await readTextLimited(response);
-      throw new Error(`Status ${response.status} ${t.slice(0, 120)}`);
+    // 1) Tentar fetch direto (mais rápido)
+    try {
+      const response = await fetchWithRetry(fullUrl, {
+        method: "GET",
+        headers: browserHeaders,
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      console.log("Response status:", response.status, "Content-Type:", contentType);
+
+      if (contentType.includes("text/html")) {
+        console.log("Got HTML response (blocked by anti-bot)");
+        // Fall through to Browserless fallback
+      } else if (response.ok) {
+        data = await response.json();
+        source = "direct";
+      } else if (response.status === 422) {
+        const errorText = await readTextLimited(response);
+        console.log("422 response:", errorText);
+        return {
+          data: {
+            items: [],
+            publicacoes: [],
+            comunicacoes: [],
+            totalElements: 0,
+            message: "Nenhuma comunicação encontrada",
+          },
+          ok: true,
+          source: "direct",
+        };
+      } else {
+        const t = await readTextLimited(response);
+        console.log(`Error response ${response.status}:`, t.slice(0, 200));
+        // Fall through to fallback
+      }
+    } catch (directErr) {
+      console.log("Direct fetch failed:", directErr);
+      // Fall through to fallback
     }
 
-    return { data, ok: true };
+    // 2) Se não obteve dados, tentar Browserless (Chrome real)
+    if (!data && browserlessApiKey) {
+      console.log("[Browserless] Trying fallback...");
+      const browserlessData = await fetchViaBrowserless(fullUrl, browserlessApiKey);
+      if (browserlessData) {
+        data = browserlessData;
+        source = "browserless";
+        console.log("[Browserless] Success! Got data.");
+      }
+    }
+
+    // 3) Se ainda não obteve dados, tentar Jina (última tentativa)
+    if (!data && jinaApiKey) {
+      console.log("[Jina] Trying fallback...");
+      const jinaData = await fetchJsonViaJina(fullUrl, jinaApiKey);
+      if (jinaData) {
+        data = jinaData;
+        source = "jina";
+        console.log("[Jina] Success! Got data.");
+      }
+    }
+
+    // 4) Se nenhum método funcionou, retornar erro de bloqueio
+    if (!data) {
+      throw new Error("Blocked (HTML) - all fallbacks failed");
+    }
+
+    return { data, ok: true, source };
   };
 
   // Default: fetch ONE page only (prevents WORKER_LIMIT memory issues)
@@ -674,6 +770,7 @@ serve(async (req) => {
 
   try {
     const jinaApiKey = Deno.env.get("JINA_API_KEY") || undefined;
+    const browserlessApiKey = Deno.env.get("BROWSERLESS_API_KEY") || undefined;
 
     const body = await req.json();
     const {
@@ -795,7 +892,7 @@ serve(async (req) => {
     // Cache is DISABLED to prevent memory exhaustion (WORKER_LIMIT 546)
     // Each request fetches fresh data to avoid memory accumulation
     console.log("Fetching from API (cache disabled for memory safety)...");
-    const result = await searchPJEComunica(searchParams, jinaApiKey);
+    const result = await searchPJEComunica(searchParams, jinaApiKey, browserlessApiKey);
 
     return new Response(JSON.stringify({ success: true, cached: false, ...result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
