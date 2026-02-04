@@ -85,6 +85,19 @@ export function useDjenTermos() {
     dataFimYmd?: string,
     options?: ExecutarHibridoOptions
   ) => {
+    // IMPORTANTE: "Híbrido (browser→backend)" = executar no navegador e usar backend apenas como proxy
+    // quando houver bloqueio (CORS/WAF). O fallback já é feito em `buscarPjeComunicaNoBrowser`.
+    // O modo "100% background" é o único que realmente dispara a execução no backend.
+    if (!options?.backgroundOnly) {
+      executar(dataInicioYmd, dataFimYmd, {
+        turbo: false,
+        coordenacaoId: options?.coordenacaoId,
+        monitoramentoIds: options?.monitoramentoIds,
+      });
+      toast.info('DJEN Termos iniciado (modo híbrido: navegador → backend)');
+      return true;
+    }
+
     try {
       toast.info(
         options?.backgroundOnly
@@ -164,6 +177,9 @@ export function useDjenTermos() {
 
   const cancelarHibrido = useCallback(async () => {
     try {
+      // Sempre cancelar o engine local também (se estiver rodando)
+      cancelarDjenTermos();
+
       const { data } = await supabase
         .from('configuracoes_monitoramento')
         .select('metadata')
@@ -285,6 +301,9 @@ export function useDjenTermos() {
 
   const forceKillHibrido = useCallback(async () => {
     try {
+      // Sempre matar o engine local também (se estiver rodando)
+      forceKillDjenTermos();
+
       const { data } = await supabase
         .from('configuracoes_monitoramento')
         .select('metadata')
