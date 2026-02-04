@@ -108,6 +108,7 @@ interface Monitoramento {
   termos_or?: string[];
   tribunais?: string[];
   descricao?: string;
+  buscar_parte?: boolean;
 }
 
 // IDs sintéticos de tribunais que precisam ser expandidos
@@ -1465,6 +1466,16 @@ async function processMonitoramento(
     if (termoSemAcento.toLowerCase() !== termo.toLowerCase()) {
       searchCandidates.push({ texto: termoSemAcento });
       console.log(`[DJEN] Variante sem acento adicionada: "${termoSemAcento}"`);
+    }
+    
+    // Busca adicional por nome de parte quando buscar_parte=true
+    // Usa nomeAdvogado como proxy (a API não tem nomeParte específico)
+    if (monitoramento.buscar_parte) {
+      searchCandidates.push({ nomeAdvogado: termo });
+      if (termoSemAcento.toLowerCase() !== termo.toLowerCase()) {
+        searchCandidates.push({ nomeAdvogado: termoSemAcento });
+      }
+      console.log(`[DJEN] Busca adicional por nome de parte ativada para: "${termo}"`);
     }
     
     // Sem prefixo curto: evitar falsos positivos (filtro 100% por palavras)

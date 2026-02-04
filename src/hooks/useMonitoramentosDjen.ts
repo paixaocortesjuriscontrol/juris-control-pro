@@ -20,6 +20,7 @@ export interface MonitoramentoDjen {
   condicao_concomitante?: string;
   termos_or?: string[];
   tribunais?: string[];
+  buscar_parte?: boolean;
 }
 
 export interface PublicacaoDjen {

@@ -2551,6 +2551,7 @@ export type Database = {
       monitoramentos_djen: {
         Row: {
           ativo: boolean
+          buscar_parte: boolean | null
           condicao_concomitante: string | null
           coordenacao_id: string | null
           created_at: string
@@ -2568,6 +2569,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          buscar_parte?: boolean | null
           condicao_concomitante?: string | null
           coordenacao_id?: string | null
           created_at?: string
@@ -2585,6 +2587,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          buscar_parte?: boolean | null
           condicao_concomitante?: string | null
           coordenacao_id?: string | null
           created_at?: string
