@@ -17,16 +17,6 @@ function normalizarParaMatch(texto: string): string {
     .toUpperCase();
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function contemTokenInteiro(conteudoNorm: string, token: string): boolean {
-  if (!token) return true;
-  const re = new RegExp(`(?:^|\\s)${escapeRegex(token)}(?:\\s|$)`);
-  return re.test(conteudoNorm);
-}
-
 export function conteudoContemTodasPalavrasDoTermo(conteudo: string, termo: string): boolean {
   if (!conteudo) return false;
   const termoRaw = String(termo || "").trim();
@@ -40,9 +30,13 @@ export function conteudoContemTodasPalavrasDoTermo(conteudo: string, termo: stri
   if (conteudoNorm.includes(termoNorm)) return true;
 
   const tokens = termoNorm.split(/\s+/).filter(Boolean);
-  const allowSingleLetters = /&/.test(termoRaw) && tokens.filter((t) => t.length === 1).length >= 2;
+  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
+  const termoOriginalTemAmpersand = /&/.test(termoRaw);
+  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter((t) => t.length === 1).length >= 2;
   const palavras = tokens.filter((t) => t.length >= 2 || (allowSingleLetters && t.length === 1));
   if (palavras.length === 0) return true;
 
-  return palavras.every((t) => contemTokenInteiro(conteudoNorm, t));
+  // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
+  // Usar includes ao invés de regex para ser menos restritivo e mais rápido
+  return palavras.every((t) => conteudoNorm.includes(t));
 }

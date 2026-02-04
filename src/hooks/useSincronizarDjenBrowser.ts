@@ -102,13 +102,6 @@ function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boo
     .trim()
     .toUpperCase();
 
-  const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const contemTokenInteiro = (conteudoNorm: string, token: string): boolean => {
-    if (!token) return true;
-    const re = new RegExp(`(?:^|\\s)${escapeRegex(token)}(?:\\s|$)`);
-    return re.test(conteudoNorm);
-  };
-  
   const conteudoNorm = normalizar(conteudo);
   const termoNorm = normalizar(termo);
   
@@ -119,12 +112,15 @@ function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boo
   // Isso evita capturas parciais como "Distribuidora" quando o termo é 
   // "F & F Distribuidora de Produtos Farmacêuticos LTDA"
   const tokens = termoNorm.split(/\s+/).filter(Boolean);
-  const allowSingleLetters = /&/.test(termo) && tokens.filter(t => t.length === 1).length >= 2;
+  // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
+  const termoOriginalTemAmpersand = /&/.test(termo);
+  const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
   const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
   if (palavrasTermo.length === 0) return true;
   
-  // Todas as palavras devem estar presentes (não mais 80%)
-  return palavrasTermo.every(p => contemTokenInteiro(conteudoNorm, p));
+  // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
+  // Usar includes ao invés de regex para ser menos restritivo e mais rápido
+  return palavrasTermo.every(p => conteudoNorm.includes(p));
 }
 
 // Gera hash global para deduplicação (igual ao backend)
