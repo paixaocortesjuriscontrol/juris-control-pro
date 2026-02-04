@@ -288,8 +288,9 @@ export function CoordenacaoDetalhesView({
   }, [periodoInicio, periodoFim]);
 
   // Helper para busca: FRASE EXATA (evita "Super" casar com "SUPERIOR")
+  // O segundo parâmetro (isProcessNumber) é ignorado - mantido para compatibilidade
   const matchesSearch = useMemo(() => {
-    return (text: string | null | undefined) => {
+    return (text: string | null | undefined, _isProcessNumber?: boolean) => {
       if (!searchQuery?.trim()) return true;
       return conteudoContemFraseExata(text, searchQuery);
     };

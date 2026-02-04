@@ -132,7 +132,7 @@ async function fetchParametrosDjen(): Promise<ParametrosDjen> {
       max_paralelo: params.max_paralelo || DEFAULT_PARAMS.max_paralelo,
       max_por_invocacao: params.max_por_invocacao || DEFAULT_PARAMS.max_por_invocacao,
       batch_size: params.batch_size || DEFAULT_PARAMS.batch_size,
-      group_search_size: params.group_search_size || GROUP_SIZE,
+      group_search_size: params.group_search_size || DEFAULT_PARAMS.group_search_size,
       delay_entre_lotes: params.delay_entre_lotes || DEFAULT_PARAMS.delay_entre_lotes,
       delay_entre_monitoramentos: params.delay_entre_monitoramentos || DEFAULT_PARAMS.delay_entre_monitoramentos,
       delay_entre_paginas: params.delay_entre_paginas || DEFAULT_PARAMS.delay_entre_paginas,

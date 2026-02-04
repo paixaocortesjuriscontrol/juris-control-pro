@@ -594,7 +594,7 @@ async function runEngine(
         dataInicioYmd,
         dataFimYmd,
         percentage: singletonState.progress.percentage,
-        totalGroups: totalGrupos,
+        totalGroups: totalProcessos,
       });
 
       await persistMetadata({
