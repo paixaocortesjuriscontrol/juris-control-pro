@@ -1,104 +1,148 @@
 
-# Plano: Correção do DJEN Processos - Estabilidade e Timer
+## Situação atual (o que está acontecendo de verdade)
 
-## Diagnóstico Raiz
+Pelos logs de rede do seu próprio Preview, **quase todas as chamadas do DJEN Processos estão batendo no fallback da Edge Function** (`/functions/v1/buscar-djen`) — e a Edge Function está respondendo 200, porém com:
 
-### 1. PageSize Hardcoded na Edge Function (Bug Crítico)
-A Edge Function `buscar-djen` tem `pageSize` limitado a **10** (linha 303):
-```typescript
-const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 10);
-```
-Mesmo pedindo `pageSize: 50`, a função ignora e retorna apenas 10 itens.
+- `error: "Error: Blocked (HTML)"`
+- `message: "Não foi possível conectar à API do PJE Comunica..."`  
+- e **0 itens**.
 
-### 2. Group Size de 50 é Muito Agressivo
-- 50 processos = query OR com ~1100 caracteres
-- API retorna no máximo 10 itens, então a chance de achar publicações de 50 processos específicos em 10 resultados é baixíssima
+Ou seja: não é que “não existem publicações”; é que **o PJE Comunica está bloqueando requisições server-to-server (Edge Function/Deno fetch)** com uma página HTML (anti-bot/WAF).  
+Como o browser não consegue acessar por CORS, e o proxy (Edge) é bloqueado, o monitoramento fica “rodando” e encontra quase nada (os 7 que você viu são resquícios do modo antigo `pje_comunica_browser_seq`, não do OR atual).
 
-### 3. Timer Travado
-- O timer usa `startTimeRef` que só reseta quando `isExecutando` muda para `true`
-- Se o hook encerra por erro, o timer congela no último valor
-- O valor "10m 2s" é residual de execução anterior
-
-### 4. Heartbeat/Checkpoint Espaçado
-- Checkpoint salvo apenas a cada 10 grupos
-- Com delay de 3s entre grupos + paginação, pode demorar 30-60s para atualizar
-- O detector de timeout considera "stale" após 2 minutos sem heartbeat
+Também há um detalhe técnico importante: quando o proxy falha, a Edge Function devolve `publicacoes/comunicacoes` (sem `items`), e o frontend interpreta como “nenhum resultado” (silenciosamente), então ele continua varrendo grupos e termina com quase zero.
 
 ---
 
-## Alterações Necessárias
-
-### 1. Edge Function: Aumentar PageSize para 50
-
-**Arquivo:** `supabase/functions/buscar-djen/index.ts`
-**Linha ~303:**
-```typescript
-// ANTES:
-const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 10);
-
-// DEPOIS: Permitir até 50 para buscas OR de DJEN Processos
-const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 50);
-```
-
-### 2. Hook: Reduzir Group Size para 10
-
-**Arquivo:** `src/hooks/useMonitorarDjenProcessosBrowser.ts`
-**Linha ~19:** Alterar `GROUP_SIZE = 10` (já é 10, mas o banco sobrescreve)
-**Linha ~311:** Usar o menor entre config e 10:
-```typescript
-const groupSize = Math.min(params.group_search_size || GROUP_SIZE, 10);
-```
-
-### 3. Timer: Reset Correto ao Iniciar
-
-**Arquivo:** `src/hooks/useMonitorarDjenProcessosBrowser.ts`
-**Na função `executar`:** Resetar o timer corretamente no início:
-```typescript
-// Resetar estado do timer ao iniciar nova execução
-startTimeRef.current = Date.now();
-lastElapsedRef.current = 0;
-setProgresso(prev => ({ ...prev, elapsedSeconds: 0 }));
-```
-
-### 4. Checkpoint Mais Frequente
-
-**Arquivo:** `src/hooks/useMonitorarDjenProcessosBrowser.ts`
-**Linha ~498:** Salvar checkpoint a cada 5 grupos (era 10):
-```typescript
-// Salvar checkpoint a cada 5 grupos para heartbeat mais frequente
-if ((g + 1) % 5 === 0 || g === grupos.length - 1) {
-```
+## Objetivo do ajuste
+1) Fazer o proxy **realmente conseguir obter JSON** do PJE Comunica (mesmo quando o fetch direto for bloqueado).  
+2) Quando não conseguir, **não “fingir sucesso”**; devolver erro claro para o frontend abortar ou alertar.  
+3) Garantir que a resposta do proxy seja sempre compatível com o frontend (`items`, `hasMore`, etc).
 
 ---
 
-## Resumo das Mudanças
+## Causa raiz confirmada com evidências
+### Evidência 1 (rede)
+Requisições `POST /buscar-djen` respondem:
+```json
+{
+  "success": true,
+  "message": "... busca por palavra-chave pode estar indisponível ...",
+  "error": "Error: Blocked (HTML)",
+  "totalElements": 0,
+  "publicacoes": [],
+  "comunicacoes": []
+}
+```
+Sem `items`, e com bloqueio (HTML).
 
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| PageSize Edge Function | 10 (hardcoded) | 50 (dinâmico) |
-| Group Size | 50 (do banco) | 10 (forçado no código) |
-| Checkpoint interval | 10 grupos | 5 grupos |
-| Timer reset | Condicional | Explícito ao iniciar |
-| Grupos totais (13k processos) | ~264 | ~1321 |
-| Tempo estimado | Travava | ~40-60 min |
+### Evidência 2 (banco)
+Últimos 2 dias em `publicacoes_djen_processos` = **7 registros** e todos com `fonte = pje_comunica_browser_seq` (fluxo antigo), não do grouped OR.
 
 ---
 
-## Detalhes Técnicos
+## Estratégia de correção (a que deve destravar)
 
-### Por que 10 processos por grupo é melhor
-- Query OR menor (~250 chars vs 1100)
-- PageSize 50 = maior chance de encontrar match
-- API responde mais rápido com queries menores
-- Menos risco de timeout da API
+### A) Edge Function `buscar-djen`: adicionar fallback “browser-real” via Browserless
+Como já existe `BROWSERLESS_API_KEY` no projeto, vamos usar Browserless como fallback quando o fetch direto retornar HTML bloqueado.
 
-### Por que checkpoint a cada 5 grupos
-- Heartbeat atualizado a cada ~15-20s
-- Detector de stale usa 2 minutos
-- Margem de segurança de 6x
+Fluxo dentro da Edge Function para `tipo = "palavra-chave"`:
+1. Tenta fetch direto (rápido).
+2. Se detectar `text/html` ou erro “Blocked (HTML)”:
+   - Tenta **Browserless** (`/content` ou `/scrape`) para buscar o mesmo URL como Chrome real.
+   - Faz `JSON.parse()` do corpo retornado.
+3. Se Browserless falhar:
+   - (Opcional) tentar `fetchJsonViaJina()` como fallback secundário (já existe código pronto).
+4. Se tudo falhar:
+   - **retornar HTTP 502** com `success:false` e `details` do bloqueio (não retornar “success true vazio”).
 
-### Implantação
-1. Atualizar código do hook e Edge Function
-2. Deploy da Edge Function
-3. Usuário faz refresh (Ctrl+F5)
-4. Executar DJEN Processos
+Por que isso deve funcionar:
+- o PJE Comunica está bloqueando o “fetch comum” do Deno (Edge), mas frequentemente **não bloqueia um Chrome real** (Browserless), pois o fingerprint é diferente.
+
+### B) Edge Function: padronizar resposta SEMPRE com `items`
+Hoje, quando falha, retorna `{ publicacoes: [], comunicacoes: [] }`. O frontend espera `items`.
+
+Vamos padronizar:
+- sempre retornar pelo menos:
+  - `items: []`
+  - `totalElements: 0`
+  - `page`, `pageSize`, `hasMore`
+
+E incluir um campo de debug:
+- `source: "direct" | "browserless" | "jina" | "blocked"`
+
+### C) Frontend `pjeComunicaClient.ts`: não aceitar “sucesso vazio com erro embutido”
+Hoje, o fallback para Edge Function faz:
+- `if (error) throw error;`
+- caso contrário, considera sucesso e retorna `items = data?.items ?? []`
+
+Problema: quando a Edge Function retorna `success:true` + `error:"Blocked (HTML)"`, o frontend não “explode”, só segue adiante com 0 itens.
+
+Vamos ajustar para:
+- Se `data?.success === false` → lançar erro (com mensagem amigável).
+- Se existir `data?.error` ou `data?.message` indicando bloqueio → lançar erro também.
+- Se por compatibilidade vier `comunicacoes/publicacoes` sem `items`, mapear para `items` (fallback defensivo).
+
+### D) Hook `useMonitorarDjenProcessosBrowser`: “circuit breaker” para bloquear loop infinito
+Mesmo com retries, se a API estiver bloqueada globalmente, não faz sentido continuar varrendo 1321 grupos para terminar com 0.
+
+Implementar:
+- contador de “falhas por bloqueio” consecutivas
+- se bater, por exemplo, **3 grupos seguidos** com erro de bloqueio:
+  - abortar execução
+  - status `erro`
+  - mensagem clara: “PJE Comunica bloqueou o proxy; tentando Browserless/sem acesso agora”
+
+Isso evita “timeout em 7%” e evita que pareça que está “rodando mas não acha nada”.
+
+---
+
+## Sequência de implementação (ordem exata)
+
+1) **Editar** `supabase/functions/buscar-djen/index.ts`
+   - Introduzir `fetchViaBrowserless(url)` (padrão já usado em outras Edge Functions do projeto).
+   - No `fetchPage`, ao detectar HTML bloqueado, tentar Browserless e parsear JSON.
+   - Ao final, se não conseguir nenhuma via:
+     - retornar **HTTP 502** com `success:false`, `details`, `blocked:true`.
+   - Garantir saída com `items` sempre que `success:true`.
+
+2) **Deploy** da Edge Function `buscar-djen` para o ambiente Preview.
+
+3) **Editar** `src/utils/pjeComunicaClient.ts`
+   - No bloco `if (corsBlocked)`, após receber `data`:
+     - se `data.success === false` ou `data.error` indicando bloqueio → `throw new Error(...)`
+     - mapear `items` corretamente e preencher `hasMore`, `totalElements`.
+
+4) **Editar** `src/hooks/useMonitorarDjenProcessosBrowser.ts`
+   - Adicionar circuit breaker por bloqueio.
+   - Melhorar mensagem de status quando a falha for “Blocked/HTML/sem conexão”.
+
+5) **Teste guiado**
+   - Hard refresh (Ctrl+F5).
+   - Rodar DJEN Processos para um dia onde você sabe que existe volume.
+   - Confirmar no Network:
+     - respostas do `buscar-djen` contendo `items` e `source:"browserless"` (ou `direct`).
+   - Confirmar no card:
+     - “total analisadas” sobe continuamente
+     - “novas” não fica travado em 7
+     - sem timeout em 7%
+
+---
+
+## Riscos e como mitigaremos
+
+- Browserless pode ser mais lento/caro:
+  - só será usado **quando detectarmos bloqueio**, não sempre.
+- Respostas grandes podem aumentar risco 546:
+  - manter `pageSize <= 50`
+  - manter truncamento controlado no Edge (podemos ajustar depois se precisar mais texto)
+  - evitar buscar múltiplas páginas no Edge (continuar 1 página por chamada)
+
+---
+
+## Critério de sucesso
+
+1) `buscar-djen` deixa de responder com `Blocked (HTML)` na maioria das chamadas.
+2) O monitoramento passa de “7 e para” para **crescimento contínuo** de `totalPublicacoesAnalisadas` e/ou `novas`.
+3) Sem “timeout em 7%” por falta de heartbeat/resultado.
+
