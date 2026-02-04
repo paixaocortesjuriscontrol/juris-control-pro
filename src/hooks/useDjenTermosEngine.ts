@@ -1102,17 +1102,47 @@ async function runEngine(
   singletonState.progress.mensagem = '🔎 Prioridade: Advogado/OAB';
 
   // Registrar execução no banco
-  const { data: execData } = await supabase
-    .from('execucoes_agendadas')
-    .insert({
-      tipo: 'djen',
-      status: 'executando',
-      iniciado_em: new Date(startTime).toISOString(),
-      detalhes: { runKey, dataInicioYmd, dataFimYmd, totalDias, totalTermos },
-    })
-    .select('id')
-    .single();
+  let execData: { id: string } | null = null;
+  try {
+    const result = await supabase
+      .from('execucoes_agendadas')
+      .insert({
+        tipo: 'djen',
+        status: 'executando',
+        iniciado_em: new Date(startTime).toISOString(),
+        detalhes: { runKey, dataInicioYmd, dataFimYmd, totalDias, totalTermos },
+      })
+      .select('id')
+      .single();
+    execData = result.data;
+    if (!execData?.id) {
+      console.warn('[DJEN] Insert execução retornou sem ID:', result);
+    }
+  } catch (err: any) {
+    console.error('[DJEN] Erro ao inserir execução:', err?.message || err);
+    // Fallback: tentar encontrar uma execução recente em estado "executando"
+    try {
+      const { data: existingExec } = await supabase
+        .from('execucoes_agendadas')
+        .select('id')
+        .eq('tipo', 'djen')
+        .eq('status', 'executando')
+        .is('finalizado_em', null)
+        .order('iniciado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingExec?.id) {
+        execData = existingExec;
+        console.log('[DJEN] Usando execução existente:', execData.id);
+      }
+    } catch (fallbackErr: any) {
+      console.error('[DJEN] Fallback também falhou:', fallbackErr?.message || fallbackErr);
+    }
+  }
   singletonState.executionId = execData?.id ?? null;
+  if (!singletonState.executionId) {
+    console.warn('[DJEN] CRÍTICO: Não foi possível obter execution ID. Progresso não será sincronizado!');
+  }
 
   // Iniciar timer
   singletonState.timerInterval = setInterval(() => {
@@ -1268,7 +1298,7 @@ async function runEngine(
         const nowMs = Date.now();
         if (singletonState.executionId && nowMs - singletonState.lastDetalhesPersistAt >= METADATA_PERSIST_MIN_INTERVAL_MS) {
           singletonState.lastDetalhesPersistAt = nowMs;
-          void supabase
+          supabase
             .from('execucoes_agendadas')
             .update({
               detalhes: {
@@ -1287,7 +1317,17 @@ async function runEngine(
                 descartadas,
               },
             })
-            .eq('id', singletonState.executionId);
+            .eq('id', singletonState.executionId)
+            .then((result) => {
+              if (result.error) {
+                console.warn('[DJEN] Erro ao sincronizar detalhes.progress:', result.error.message);
+              }
+            }, (err) => {
+              console.error('[DJEN] Erro ao sincronizar detalhes.progress:', err?.message || err);
+            });
+        } else if (!singletonState.executionId && termoIdx === 0) {
+          // Avisar uma vez por dia que executionId está nulo
+          console.warn('[DJEN] Executar CRÍTICO durante loop: executionId é null. Card não será atualizado!');
         }
 
         // Delay entre termos
