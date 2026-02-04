@@ -343,6 +343,27 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function withTimeoutPromise<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string
+): Promise<T> {
+  let timeoutId: number | undefined;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label}_timeout_${timeoutMs}ms`));
+    }, timeoutMs) as unknown as number;
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 function createStopChecker(supabase: any, execucaoId?: string, throttleMs = 2000) {
   let lastCheck = 0;
   let cached: { stop: boolean; reason?: string } = { stop: false };
@@ -2576,13 +2597,21 @@ serve(async (req) => {
         lastTermoLabel = (mon.descricao || mon.termo_busca || '').trim() || null;
         console.log(`[${index + 1}/${count}] ${lastTermoLabel || mon.termo_busca}`);
 
-        const stats = await processMonitoramento(supabase, mon, {
-          scheduled,
-          dataInicio: dataInicioParam || undefined,
-          dataFim: dataFimParam || undefined,
-          indexed: usarIndice,
-          diarioYmd: diarioYmd || undefined,
-        });
+        const monitorTimeoutMs = Math.max(
+          15_000,
+          Math.min(45_000, SOFT_TIMEOUT_MS - FINALIZATION_BUFFER_MS - 2000)
+        );
+        const stats = await withTimeoutPromise(
+          processMonitoramento(supabase, mon, {
+            scheduled,
+            dataInicio: dataInicioParam || undefined,
+            dataFim: dataFimParam || undefined,
+            indexed: usarIndice,
+            diarioYmd: diarioYmd || undefined,
+          }),
+          monitorTimeoutMs,
+          'monitoramento'
+        );
         
         // Agregar resultados (thread-safe para leituras/escritas simples em JS)
         totalNovas += stats.novas;
