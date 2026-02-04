@@ -299,8 +299,8 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string): Pro
   if (dataFim) baseParams.append("dataDisponibilizacaoFim", dataFim);
 
   const page = Math.max(params.page ?? 0, 0);
-  // CRITICAL: cap to 10 to keep response.json() within memory limits
-  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 10);
+  // Allow up to 50 for OR-based searches (DJEN Processos uses grouped queries)
+  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), 50);
 
   const extractItems = (data: any): any[] => {
     const items = data?.items ?? data?.content ?? data?.comunicacoes ?? data?.publicacoes ?? [];
