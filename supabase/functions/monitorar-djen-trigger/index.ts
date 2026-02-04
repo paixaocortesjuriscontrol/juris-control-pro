@@ -67,7 +67,48 @@ serve(async (req) => {
         });
         const canonical = (withProgress[0] ?? rows[0])!;
         execucaoId = canonical.id;
-        hadActiveExecution = true;
+
+        // Se a execução ficou travada (ex.: worker morreu e não atualizou metadata),
+        // liberamos o disparo marcando-a como timeout.
+        // Critério: nenhuma atualização em `configuracoes_monitoramento.updated_at` por um período.
+        try {
+          const staleThresholdMs = 4 * 60 * 1000; // 4 min
+          const now = Date.now();
+          const { data: cfg } = await supabase
+            .from('configuracoes_monitoramento')
+            .select('updated_at, metadata')
+            .eq('tipo', 'djen')
+            .is('coordenacao_id', null)
+            .maybeSingle();
+
+          const updatedAtMs = cfg?.updated_at ? new Date(cfg.updated_at).getTime() : NaN;
+          const meta = (cfg?.metadata as Record<string, any>) || {};
+          const metaExecId = String(meta?.execucaoId || '');
+          const metaStatus = String(meta?.status || '');
+
+          // Só considerar stale se o metadata estiver apontando para essa execução
+          // (ou se não houver execucaoId no metadata, mas o status estiver em andamento)
+          const pointsToCanonical = metaExecId ? metaExecId === canonical.id : (metaStatus === 'em_andamento');
+
+          if (pointsToCanonical && Number.isFinite(updatedAtMs) && now - updatedAtMs > staleThresholdMs) {
+            console.warn('[DJEN Trigger] Execução ativa parece travada. Marcando como timeout:', canonical.id);
+            await supabase
+              .from('execucoes_agendadas')
+              .update({
+                status: 'timeout',
+                finalizado_em: new Date().toISOString(),
+                detalhes: { ...(canonical.detalhes || {}), reason: 'stale_no_metadata_updates' },
+              })
+              .eq('id', canonical.id);
+            execucaoId = undefined;
+            hadActiveExecution = false;
+          } else {
+            hadActiveExecution = true;
+          }
+        } catch (staleErr) {
+          console.warn('[DJEN Trigger] Falha ao checar execução travada:', staleErr);
+          hadActiveExecution = true;
+        }
 
         // Limpeza segura: se houver execuções "executando" sem progresso e bem antigas,
         // marcá-las como timeout para não poluir a UI.

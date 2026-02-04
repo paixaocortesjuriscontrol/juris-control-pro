@@ -1022,7 +1022,8 @@ async function processPublicationFromIndex(
   tribunal: string | null,
   dataAtual: string
 ) {
-  const conteudo = pub.conteudo || JSON.stringify(pub);
+  // Evitar JSON.stringify(pub) em hot path (muito caro e pode estourar CPU/memória)
+  const conteudo = String(pub?.conteudo || pub?.texto || pub?.teor || pub?.descricao || "");
   const hashConteudo = generateHash(conteudo + (pub.data_disponibilizacao || pub.data_publicacao || pub.data || ''));
 
   const rawDataDisponibilizacao = pub.data_disponibilizacao || pub.dataDisponibilizacao || null;
@@ -1387,13 +1388,28 @@ async function processMonitoramento(
       duplicatas: 0,
     };
 
+    // Evitar spam de logs (isso estoura CPU facilmente em edge)
+    let warnedNoDateForTribunal = false;
+
     let totalPages = 0;
     let totalResultados = 0;
 
     const processPublication = async (pub: any) => {
-      const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
+      // Evitar JSON.stringify(pub) em hot path (muito caro e pode estourar CPU/memória)
+      const conteudo = String(pub?.conteudo || pub?.texto || pub?.teor || pub?.descricao || "");
+
       // Priorizar data_disponibilizacao para consistência com globalHash
-      const hashConteudo = generateHash(conteudo + (pub.dataDisponibilizacao || pub.dataPublicacao || pub.data || ''));
+      const hashConteudo = generateHash(
+        conteudo +
+          (
+            pub?.data_disponibilizacao ||
+            pub?.data_publicacao ||
+            pub?.dataDisponibilizacao ||
+            pub?.dataPublicacao ||
+            pub?.data ||
+            ''
+          )
+      );
       
       // A API pode retornar datas em diferentes campos dependendo do tribunal
       // Buscar em níveis raiz e aninhado (pub.comunicacao)
@@ -1412,12 +1428,14 @@ async function processMonitoramento(
       // dataDisponibilizacao = data em que foi disponibilizado no DJe (exatamente como vem da API)
       // dataPublicacao = próximo dia útil após a disponibilização (contagem de prazo começa aqui)
       const rawDataDisponibilizacao = 
+        pub?.data_disponibilizacao || pubObj?.data_disponibilizacao ||
         pub.dataDisponibilizacao || pubObj.dataDisponibilizacao ||
         pub.dataDJe || pubObj.dataDJe || 
         pub.dtDisponibilizacao || pubObj.dtDisponibilizacao || 
         pub.dataDisp || pubObj.dataDisp || 
         null;
       const rawDataPublicacao = 
+        pub?.data_publicacao || pubObj?.data_publicacao ||
         pub.dataPublicacao || pubObj.dataPublicacao ||
         pub.dataJornal || pubObj.dataJornal || 
         pub.dtPublicacao || pubObj.dtPublicacao || 
@@ -1445,7 +1463,12 @@ async function processMonitoramento(
       // Se só temos data_publicacao da API, manter como está (caso raro)
       // Fallback: usar data atual se nenhuma data disponível (último recurso)
       if (!dataDisponibilizacao && !dataPublicacao) {
-        console.log(`[DJEN Termos] WARNING: No dates found for pub in ${tribunal}. Using today as fallback.`);
+        if (!warnedNoDateForTribunal) {
+          warnedNoDateForTribunal = true;
+          console.log(
+            `[DJEN Termos] WARNING: No dates found for pub in ${tribunal}. Using today as fallback (logging only once per tribunal).`
+          );
+        }
         dataDisponibilizacao = dataAtual;
         const hoje = new Date(dataAtual);
         hoje.setDate(hoje.getDate() + 1);
