@@ -700,8 +700,8 @@ export function MonitoringDashboard() {
         job_name: 'browser-monitorar-djen-processos',
         iniciado_em: browserStartedAt,
         finalizado_em: null,
-        lotes_processados: progressoDjenProcessosBrowser.currentTribunal,
-        total_lotes: progressoDjenProcessosBrowser.totalTribunais,
+        lotes_processados: progressoDjenProcessosBrowser.currentGroup,
+        total_lotes: progressoDjenProcessosBrowser.totalGroups,
         registros_processados: progressoDjenProcessosBrowser.totalPublicacoesAnalisadas,
         registros_encontrados: progressoDjenProcessosBrowser.novas,
         erros: 0,
@@ -710,10 +710,10 @@ export function MonitoringDashboard() {
         detalhes: {
           ...(s.currentExecution?.detalhes || {}),
           browser_execution: true,
-          tribunal_atual: progressoDjenProcessosBrowser.tribunalAtual,
+          grupo_atual: `Grupo ${progressoDjenProcessosBrowser.currentGroup}/${progressoDjenProcessosBrowser.totalGroups}`,
           progress: {
-            current: progressoDjenProcessosBrowser.currentTribunal,
-            total: progressoDjenProcessosBrowser.totalTribunais,
+            current: progressoDjenProcessosBrowser.currentGroup,
+            total: progressoDjenProcessosBrowser.totalGroups,
             percentage: progressoDjenProcessosBrowser.percentage,
           },
         },
@@ -735,10 +735,10 @@ export function MonitoringDashboard() {
           detalhes: {
             ...(s.currentExecution.detalhes || {}),
             browser_execution: true,
-            tribunal_atual: progressoDjenProcessosBrowser.tribunalAtual,
+            grupo_atual: `Grupo ${progressoDjenProcessosBrowser.currentGroup}/${progressoDjenProcessosBrowser.totalGroups}`,
             progress: {
-              current: progressoDjenProcessosBrowser.currentTribunal,
-              total: progressoDjenProcessosBrowser.totalTribunais,
+              current: progressoDjenProcessosBrowser.currentGroup,
+              total: progressoDjenProcessosBrowser.totalGroups,
               percentage: progressoDjenProcessosBrowser.percentage,
             },
           },

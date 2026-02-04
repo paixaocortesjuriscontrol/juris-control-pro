@@ -66,18 +66,18 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
 
   // Progresso combinado: browser local tem prioridade
   const progresso = browserExecutando ? {
-    tribunalAtual: browserProgress.tribunalAtual || '',
-    currentTribunal: browserProgress.currentTribunal,
-    totalTribunais: browserProgress.totalTribunais,
+    grupoAtual: `Grupo ${browserProgress.currentGroup}/${browserProgress.totalGroups}`,
+    currentGroup: browserProgress.currentGroup,
+    totalGroups: browserProgress.totalGroups,
     novas: browserProgress.novas,
     analisadas: browserProgress.totalPublicacoesAnalisadas,
     mensagem: browserProgress.mensagem,
     percentage: browserProgress.percentage,
     elapsedSeconds: browserProgress.elapsedSeconds,
   } : (realtimeProgress.isRunning ? {
-    tribunalAtual: '',
-    currentTribunal: 0,
-    totalTribunais: 0,
+    grupoAtual: '',
+    currentGroup: 0,
+    totalGroups: 0,
     novas: realtimeProgress.novas ?? 0,
     analisadas: realtimeProgress.current,
     mensagem: `${realtimeProgress.current}/${realtimeProgress.total}`,
@@ -441,7 +441,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {realtimeProgress.isRunning && !browserExecutando ? 'Execução em andamento' : 'Buscando por tribunal...'}
+                {realtimeProgress.isRunning && !browserExecutando ? 'Execução em andamento' : 'Buscando por grupos...'}
               </div>
               <div className="flex items-center gap-2">
                 {progresso && progresso.elapsedSeconds > 0 && (
@@ -466,15 +466,15 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             
             {progresso && (
               <div className="space-y-2">
-                {/* Tribunal atual */}
-                {progresso.tribunalAtual && (
+                {/* Grupo atual */}
+                {progresso.grupoAtual && (
                   <div className="flex items-center gap-2 text-xs">
                     <Globe className="h-3 w-3 text-muted-foreground" />
                     <Badge variant="secondary" className="font-mono text-xs">
-                      {progresso.tribunalAtual}
+                      {progresso.grupoAtual}
                     </Badge>
                     <span className="text-muted-foreground">
-                      Tribunal {progresso.currentTribunal}/{progresso.totalTribunais}
+                      Grupo {progresso.currentGroup}/{progresso.totalGroups}
                     </span>
                   </div>
                 )}
