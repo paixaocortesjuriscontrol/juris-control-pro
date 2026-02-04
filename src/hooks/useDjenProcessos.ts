@@ -15,10 +15,7 @@ import {
   forceKillDjenProcessos,
   getCheckpointProcessos,
   DjenProcessosProgress,
-  COORDENACOES_EXCLUIDAS,
 } from "./useDjenProcessosEngine";
-
-export { COORDENACOES_EXCLUIDAS };
 
 export interface UseDjenProcessosReturn {
   progress: DjenProcessosProgress;
