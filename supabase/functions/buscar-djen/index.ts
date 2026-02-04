@@ -725,8 +725,10 @@ serve(async (req) => {
     }
 
     // Validate palavraChave length
-    if (palavraChave && (typeof palavraChave !== 'string' || palavraChave.length > 200)) {
-      validationErrors.push("Palavra-chave deve ter no máximo 200 caracteres");
+    // Limite aumentado para 3000 para suportar queries OR com múltiplos processos
+    // (ex: "proc1 OR proc2 OR proc3..." para monitoramento DJEN Processos v6)
+    if (palavraChave && (typeof palavraChave !== 'string' || palavraChave.length > 3000)) {
+      validationErrors.push("Palavra-chave deve ter no máximo 3000 caracteres");
     }
 
     // Validate numeroProcesso
