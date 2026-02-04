@@ -278,8 +278,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId, onOpenFullTab, o
         await executarHibrido(dataInicioStr, dataFimStr);
         return;
       }
-      const iniciou = engineExecutar(dataInicioStr, dataFimStr, { retomar: false, turbo: turboMode });
-      if (!iniciou) toast.warning('Já existe uma execução em andamento');
+      engineExecutar(dataInicioStr, dataFimStr, { retomar: false, turbo: turboMode });
     } catch (err: any) {
       console.error('[DJEN Processos] Erro ao iniciar:', err);
       toast.error(`Erro: ${err?.message ?? 'Falha ao iniciar'}`);

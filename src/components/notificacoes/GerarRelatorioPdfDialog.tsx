@@ -105,8 +105,9 @@ export function GerarRelatorioPdfDialog({
   });
 
   // Helper para filtrar por busca
+  // O segundo parâmetro (isProcessNumber) é ignorado - mantido para compatibilidade
   const matchesSearch = useMemo(() => {
-    return (text: string | null | undefined) => {
+    return (text: string | null | undefined, _isProcessNumber?: boolean) => {
       if (!searchQuery) return true;
       return text?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
     };

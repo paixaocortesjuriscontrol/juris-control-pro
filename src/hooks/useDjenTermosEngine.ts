@@ -669,7 +669,7 @@ async function processarTermo(
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; descartadasTribunal: number }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
 
-  const tipo = mon.tipo === 'parte' ? 'palavra-chave' : (mon.tipo === 'nome' ? 'palavra-chave' : mon.tipo);
+  const tipo = (mon.tipo === 'parte' || (mon.tipo as string) === 'nome') ? 'palavra-chave' : mon.tipo;
   const isRateLimitError = (msg?: string) =>
     !!msg && (msg.includes('429') || msg.includes('Too Many'));
   const isAdvogadoComOab = tipo === 'advogado' && !!mon.oab;
@@ -856,7 +856,7 @@ async function processarTermo(
     }
 
     // 3. Verificar se o termo/OAB realmente está no conteúdo
-    const termoParaValidar = (mon.tipo === 'palavra-chave' || mon.tipo === 'parte' || mon.tipo === 'advogado' || mon.tipo === 'nome')
+    const termoParaValidar = (mon.tipo === 'palavra-chave' || mon.tipo === 'parte' || mon.tipo === 'advogado' || (mon.tipo as string) === 'nome')
       ? extrairPalavraChavePura(mon.termo_busca)
       : mon.termo_busca;
     if (!conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab)) {
