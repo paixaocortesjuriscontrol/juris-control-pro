@@ -160,6 +160,10 @@ const browserHeaders = {
 const JINA_READER_URL = "https://r.jina.ai";
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
 
+// Browserless API (real Chrome browser - bypasses anti-bot)
+const BROWSERLESS_API_URL = "https://chrome.browserless.io";
+const BROWSERLESS_API_KEY = Deno.env.get('BROWSERLESS_API_KEY') || '';
+
 // Rate limiting para Jina - MUITO conservador para evitar 429 e bloqueios
 let lastJinaRequestTime = 0;
 
@@ -248,7 +252,75 @@ function tryParseDjenJson(text: string): any | null {
   return null;
 }
 
-// Bright Data removed - too expensive. Using only Jina as fallback.
+// Browserless fallback (real Chrome browser - bypasses anti-bot more reliably)
+async function fetchViaBrowserless(url: string): Promise<any | null> {
+  if (!BROWSERLESS_API_KEY) {
+    console.log('[DJEN] BROWSERLESS_API_KEY not configured');
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000); // 20s timeout
+
+  try {
+    // Use Browserless /function endpoint which runs Puppeteer
+    const browserlessUrl = `${BROWSERLESS_API_URL}/function?token=${BROWSERLESS_API_KEY}`;
+    
+    console.log('[DJEN] [Browserless] Fetching:', url);
+    
+    // Puppeteer script to fetch JSON from the API
+    const puppeteerCode = `
+      module.exports = async ({ page }) => {
+        try {
+          const response = await page.goto('${url}', { 
+            waitUntil: 'networkidle0', 
+            timeout: 15000 
+          });
+          const text = await page.evaluate(() => document.body.innerText);
+          return { data: text, type: 'success' };
+        } catch (error) {
+          return { data: null, type: 'error', error: error.message };
+        }
+      };
+    `;
+
+    const resp = await fetch(browserlessUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: puppeteerCode }),
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      const errorText = await resp.text().catch(() => '');
+      console.log(`[DJEN] [Browserless] Error ${resp.status}:`, errorText.slice(0, 200));
+      return null;
+    }
+
+    const result = await resp.json();
+    
+    if (result?.type === 'error') {
+      console.log('[DJEN] [Browserless] Script error:', result.error);
+      return null;
+    }
+
+    if (result?.data) {
+      const parsed = tryParseDjenJson(result.data);
+      if (parsed) {
+        console.log('[DJEN] [Browserless] ✓ Success!');
+        return parsed;
+      }
+      console.log('[DJEN] [Browserless] Response not JSON:', result.data.slice(0, 200));
+    }
+    
+    return null;
+  } catch (e) {
+    console.log('[DJEN] [Browserless] Fetch failed:', e);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 // Fast Jina proxy fallback (cheap and fast - ~$0.001/request)
 // Com rate limiting para evitar 429
@@ -331,11 +403,22 @@ async function fetchJsonViaJina(url: string): Promise<any | null> {
   }
 }
 
-// Unified proxy fetch: uses Jina as only fallback (Bright Data removed - too expensive)
+// Unified proxy fetch: Browserless (real Chrome) > Jina (fast but may return HTML)
 async function fetchViaProxy(url: string): Promise<any | null> {
+  // 1. Try Browserless first (real Chrome bypasses anti-bot more reliably)
+  if (BROWSERLESS_API_KEY) {
+    const browserlessData = await fetchViaBrowserless(url);
+    if (browserlessData) {
+      return browserlessData;
+    }
+    console.log('[DJEN] Browserless failed, trying Jina fallback...');
+  }
+  
+  // 2. Fallback to Jina
   if (JINA_API_KEY) {
     return await fetchJsonViaJina(url);
   }
+  
   return null;
 }
 
