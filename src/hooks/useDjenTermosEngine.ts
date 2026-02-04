@@ -889,13 +889,18 @@ async function processarTermo(
       return false;
     }
 
-    // 3. Verificar se o termo/OAB realmente está no conteúdo
-    const termoParaValidar = (mon.tipo === 'palavra-chave' || mon.tipo === 'parte' || mon.tipo === 'advogado' || (mon.tipo as string) === 'nome')
-      ? extrairPalavraChavePura(mon.termo_busca)
-      : mon.termo_busca;
-    if (!conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab)) {
-      pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
-      return false;
+    // 3. Verificar termo/OAB
+    // Para ADVOGADO: a API pode retornar itens pelo filtro (OAB/nomeAdvogado) mesmo quando o nome/OAB
+    // não aparece dentro do texto da publicação. Nesses casos, validar estritamente pelo conteúdo gera
+    // falso descarte — então não aplicamos essa validação para advogado.
+    if (mon.tipo !== 'advogado') {
+      const termoParaValidar = (mon.tipo === 'palavra-chave' || mon.tipo === 'parte' || (mon.tipo as string) === 'nome')
+        ? extrairPalavraChavePura(mon.termo_busca)
+        : mon.termo_busca;
+      if (!conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab)) {
+        pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
+        return false;
+      }
     }
 
     return true;
