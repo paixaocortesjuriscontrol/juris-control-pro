@@ -706,9 +706,20 @@ async function processarTermo(
     variantesParaBuscar = gerarVariantes(termoPuro);
   }
 
-  // Expandir tribunais configurados (usados para filtro pós-busca)
+  // Expandir tribunais configurados
   const tribunais = expandirTribunais(mon.tribunais);
-  const tribunaisLoop = (isAdvogadoComOab ? [] : tribunais);
+
+  // ADVOGADO + OAB:
+  // - Para respeitar filtros como "TJDFT" e evitar falso descarte por sigla ausente,
+  //   quando o usuário seleciona poucos tribunais específicos, buscamos já com siglaTribunal.
+  // - Mantemos o modo antigo (coleta ampla e filtro pós-busca) quando não há tribunal
+  //   ou quando há muitos tribunais (para não explodir o número de requisições).
+  const advogadoForcarTribunalNaBusca =
+    isAdvogadoComOab && tribunais.length > 0 && tribunais.length <= 3;
+
+  const tribunaisLoop = isAdvogadoComOab
+    ? (advogadoForcarTribunalNaBusca ? tribunais : [])
+    : tribunais;
   const tribLoop = tribunaisLoop.length > 0 ? tribunaisLoop : [undefined];
 
   // UFs: se configurado múltiplas, iterar; senão usar primeira ou undefined
@@ -725,7 +736,7 @@ async function processarTermo(
   // ==================================================================
   // LOOP TRIPLO: tribunal → UF → variante (igual à versão anterior)
   // ==================================================================
-  for (const trib of tribLoop) {
+   for (const trib of tribLoop) {
     if (signal.aborted) break;
 
     for (const uf of ufsLoop) {
@@ -756,7 +767,9 @@ async function processarTermo(
                 uf: uf,
                 palavraChave: variante || undefined,
                 numeroProcesso: baseParams.numeroProcesso,
-                siglaTribunal: isAdvogadoComOab ? undefined : trib,
+                siglaTribunal: isAdvogadoComOab
+                  ? (advogadoForcarTribunalNaBusca ? trib : undefined)
+                  : trib,
                 dataInicio: baseParams.dataInicio,
                 dataFim: baseParams.dataFim,
                 page: 0,
@@ -784,7 +797,12 @@ async function processarTermo(
             const key = id || JSON.stringify(item).slice(0, 400);
             if (!seen.has(key)) {
               seen.add(key);
-              resultados.push(item);
+              // Se buscamos com siglaTribunal, alguns tribunais não retornam a sigla no payload.
+              // Enriquecemos para garantir persistência + filtros consistentes.
+              const enriched = trib
+                ? { ...item, siglaTribunal: item?.siglaTribunal ?? trib }
+                : item;
+              resultados.push(enriched);
             }
           }
         } catch (e: any) {
@@ -827,7 +845,8 @@ async function processarTermo(
   const pubsDescartadas: any[] = [];
   let descartadasTribunal = 0;
   const pubsValidas = resultados.filter(pub => {
-    if (isAdvogadoComOab && tribunais.length > 0) {
+    // Se não forçamos tribunal na busca (coleta ampla), precisamos descartar os fora da lista.
+    if (isAdvogadoComOab && tribunais.length > 0 && !advogadoForcarTribunalNaBusca) {
       const sigla = getSiglaTribunal(pub);
       if (sigla && !tribunais.includes(sigla)) {
         descartadasTribunal += 1;
@@ -917,6 +936,7 @@ async function processarTermo(
       conteudo: pub.conteudo || pub.teor || pub.texto || null,
       data_disponibilizacao: `${pub.data_disponibilizacao}T12:00:00.000Z`,
       data_publicacao: pub.data_publicacao ? `${pub.data_publicacao}T12:00:00.000Z` : null,
+      tribunal: getSiglaTribunal(pub),
       fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
       lida: false,
     }));
@@ -939,6 +959,8 @@ async function processarTermo(
         processo_numero: pub.numeroProcesso || pub.processo || null,
         conteudo: conteudo.slice(0, 10000), // Limitar tamanho
         data_publicacao: `${dataPub}T12:00:00.000Z`,
+        data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
+        tribunal: getSiglaTribunal(pub),
         fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
         motivo_descarte: pub.motivo_descarte || 'validacao_falhou',
         lida: false,

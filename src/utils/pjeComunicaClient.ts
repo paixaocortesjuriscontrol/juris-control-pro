@@ -111,11 +111,38 @@ function optimizeItem(item: any) {
       item?.data_publicacao ??
       item?.datapublicacao,
     tipoComunicacao: item?.tipoComunicacao,
-    siglaTribunal: item?.siglaTribunal,
-    numeroProcesso: item?.numeroProcesso,
+    siglaTribunal:
+      item?.siglaTribunal ??
+      item?.sigla_tribunal ??
+      item?.siglaTribunalId ??
+      item?.sigla_tribunal_id ??
+      item?.tribunalSigla ??
+      item?.tribunal_sigla ??
+      item?.tribunal ??
+      item?.sigla ??
+      item?.sigla_orgao ??
+      item?.siglaOrgao ??
+      null,
+    numeroProcesso:
+      item?.numeroProcesso ??
+      item?.numero_processo ??
+      item?.processo_numero ??
+      item?.processoNumero ??
+      null,
 
-    nomeOrgao: item?.nomeOrgao,
-    destinatarioNome: item?.destinatarioNome,
+    nomeOrgao:
+      item?.nomeOrgao ??
+      item?.nome_orgao ??
+      item?.orgao ??
+      item?.nomeOrgaoJulgador ??
+      item?.nome_orgao_julgador ??
+      null,
+    destinatarioNome:
+      item?.destinatarioNome ??
+      item?.destinatario_nome ??
+      item?.nomeDestinatario ??
+      item?.nome_destinatario ??
+      null,
 
     texto: typeof item?.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined,
     teor: typeof item?.teor === "string" ? item.teor.slice(0, MAX_TEXT_LENGTH) : undefined,
