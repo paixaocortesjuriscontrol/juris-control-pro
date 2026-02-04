@@ -1,148 +1,280 @@
 
-## Situação atual (o que está acontecendo de verdade)
+# Plano: Exclusão Santander + Refatoração DJEN Processos
 
-Pelos logs de rede do seu próprio Preview, **quase todas as chamadas do DJEN Processos estão batendo no fallback da Edge Function** (`/functions/v1/buscar-djen`) — e a Edge Function está respondendo 200, porém com:
+## 1. Contexto Atual
 
-- `error: "Error: Blocked (HTML)"`
-- `message: "Não foi possível conectar à API do PJE Comunica..."`  
-- e **0 itens**.
+### Volume de Dados:
+| Coordenação | Total Processos | monitorar_djen |
+|-------------|-----------------|----------------|
+| Santander Cível | 10.736 | 10.736 (100%) |
+| Santander Trabalhista | 998 | 0 |
+| Dra. Janaina | 2.412 | 2.357 |
+| Dr. Thomás | 518 | 57 |
+| Dra. Polyana | 60 | 60 |
 
-Ou seja: não é que “não existem publicações”; é que **o PJE Comunica está bloqueando requisições server-to-server (Edge Function/Deno fetch)** com uma página HTML (anti-bot/WAF).  
-Como o browser não consegue acessar por CORS, e o proxy (Edge) é bloqueado, o monitoramento fica “rodando” e encontra quase nada (os 7 que você viu são resquícios do modo antigo `pje_comunica_browser_seq`, não do OR atual).
+**Impacto da exclusão Santander:** De ~13.210 processos para ~2.474 (redução de 81%)
 
-Também há um detalhe técnico importante: quando o proxy falha, a Edge Function devolve `publicacoes/comunicacoes` (sem `items`), e o frontend interpreta como “nenhum resultado” (silenciosamente), então ele continua varrendo grupos e termina com quase zero.
+### IDs das Coordenações a Excluir:
+- Santander Cível: `968631d0-6659-46f1-b45d-899892cb0121`
+- Santander Trabalhista: `70d3e1ba-70ff-46d0-a6cf-4d4b553d324a`
 
 ---
 
-## Objetivo do ajuste
-1) Fazer o proxy **realmente conseguir obter JSON** do PJE Comunica (mesmo quando o fetch direto for bloqueado).  
-2) Quando não conseguir, **não “fingir sucesso”**; devolver erro claro para o frontend abortar ou alertar.  
-3) Garantir que a resposta do proxy seja sempre compatível com o frontend (`items`, `hasMore`, etc).
+## 2. Alteração 1: Filtrar Coordenações Santander
+
+### 2.1 Modificar o Hook de Browser
+**Arquivo:** `src/hooks/useMonitorarDjenProcessosBrowser.ts`
+
+Na query de processos monitorados (linha ~327), adicionar filtro para excluir as coordenações Santander:
+
+```typescript
+// Coordenações excluídas do DJEN Processos (volume muito alto)
+const COORDENACOES_EXCLUIDAS = [
+  '968631d0-6659-46f1-b45d-899892cb0121', // Santander Cível
+  '70d3e1ba-70ff-46d0-a6cf-4d4b553d324a', // Santander Trabalhista
+];
+
+const { data: processosMonitorados, error: procError } = await supabase
+  .from('processos')
+  .select('id, numero, coordenacao_id')
+  .eq('monitorar_djen', true)
+  .not('coordenacao_id', 'in', `(${COORDENACOES_EXCLUIDAS.join(',')})`);
+```
+
+### 2.2 Atualizar Estatísticas do Card
+**Arquivo:** `src/components/configuracoes/MonitoramentoDjenProcessosCard.tsx`
+
+Ajustar a query de estatísticas para refletir apenas processos elegíveis:
+
+```typescript
+const { count: processosMonitorados } = await supabase
+  .from('processos')
+  .select('*', { count: 'exact', head: true })
+  .eq('monitorar_djen', true)
+  .not('coordenacao_id', 'in', `(${COORDENACOES_EXCLUIDAS.join(',')})`);
+```
 
 ---
 
-## Causa raiz confirmada com evidências
-### Evidência 1 (rede)
-Requisições `POST /buscar-djen` respondem:
-```json
-{
-  "success": true,
-  "message": "... busca por palavra-chave pode estar indisponível ...",
-  "error": "Error: Blocked (HTML)",
-  "totalElements": 0,
-  "publicacoes": [],
-  "comunicacoes": []
+## 3. Alteração 2: Arquitetura Singleton (como DJEN Termos)
+
+### 3.1 Criar Engine Singleton
+**Novo arquivo:** `src/hooks/useDjenProcessosEngine.ts`
+
+Seguindo o padrão do `useDjenTermosEngine.ts`:
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                  SINGLETON STATE (global)                    │
+├─────────────────────────────────────────────────────────────┤
+│ • isRunning: boolean                                         │
+│ • progress: DjenProcessosProgress                            │
+│ • checkpoint: { grupoIdx, novas, duplicadas, runKey }       │
+│ • abortController: AbortController | null                    │
+│ • listeners: Set<(p) => void>                               │
+│ • timerInterval: NodeJS.Timer | null                        │
+└─────────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    API PÚBLICA                               │
+├─────────────────────────────────────────────────────────────┤
+│ executarDjenProcessos(dataInicio?, dataFim?, retomar?)      │
+│ cancelarDjenProcessos()                                      │
+│ limparEstadoDjenProcessos()                                  │
+│ forceKillDjenProcessos()                                     │
+│ subscribeDjenProcessos(listener) → unsubscribe              │
+│ getDjenProcessosProgress() → DjenProcessosProgress           │
+│ isDjenProcessosRunning() → boolean                           │
+│ getCheckpointProcessos() → Checkpoint | null                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 3.2 Características da Nova Engine
+
+1. **Persistência ao Sair da Tela**
+   - Estado global em módulo (não React state)
+   - Timer continua rodando mesmo navegando para outra página
+   - Checkpoint salvo em localStorage + banco
+
+2. **Checkpoint por Grupo**
+   ```typescript
+   interface Checkpoint {
+     runKey: string;           // "YYYY-MM-DD..YYYY-MM-DD"
+     grupoIdx: number;         // índice do grupo (0-based)
+     novas: number;
+     duplicadas: number;
+     tempoInicio: number;
+     dataInicioYmd: string;
+     dataFimYmd: string;
+   }
+   ```
+
+3. **Progresso Monotônico**
+   - Usa `run_key` para identificar execução
+   - Nunca regride percentual (Math.max)
+   - UI sempre mostra o maior valor entre local e banco
+
+4. **Retomada Manual**
+   - Sem auto-restart ao detectar checkpoint antigo
+   - Usuário decide quando continuar via botão "Continuar"
+
+### 3.3 Fluxo de Execução
+
+```text
+┌──────────┐    ┌────────────────┐    ┌──────────────────┐
+│ Iniciar  │───▶│ Carregar       │───▶│ Dividir em       │
+│ Execução │    │ Processos      │    │ Grupos de 10     │
+└──────────┘    │ (excl. Sant.)  │    └──────────────────┘
+                └────────────────┘             │
+                                               ▼
+┌──────────────────────────────────────────────────────────┐
+│                    LOOP DE GRUPOS                         │
+├──────────────────────────────────────────────────────────┤
+│ Para cada grupo:                                          │
+│   1. Montar query OR (proc1 OR proc2 OR ...)             │
+│   2. Buscar no PJE Comunica (com retries)                │
+│   3. Processar publicações encontradas                    │
+│   4. Salvar checkpoint (a cada 5 grupos)                 │
+│   5. Atualizar metadata no banco (throttled)             │
+│   6. Verificar cancelamento                              │
+│   7. Delay entre grupos (respeitando parâmetros)         │
+└──────────────────────────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────┐
+│                    FINALIZAÇÃO                            │
+├──────────────────────────────────────────────────────────┤
+│ • Limpar checkpoint (se concluído)                        │
+│ • Atualizar status no banco                               │
+│ • Registrar histórico                                     │
+│ • Notificar listeners                                     │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 3.4 Hook React (wrapper)
+**Novo arquivo:** `src/hooks/useDjenProcessos.ts`
+
+Hook que conecta o componente React à engine singleton:
+
+```typescript
+export function useDjenProcessos() {
+  const [progress, setProgress] = useState(getDjenProcessosProgress());
+  
+  useEffect(() => {
+    return subscribeDjenProcessos(setProgress);
+  }, []);
+  
+  return {
+    progress,
+    isRunning: isDjenProcessosRunning(),
+    executar: executarDjenProcessos,
+    cancelar: cancelarDjenProcessos,
+    limpar: limparEstadoDjenProcessos,
+    forceKill: forceKillDjenProcessos,
+  };
 }
 ```
-Sem `items`, e com bloqueio (HTML).
 
-### Evidência 2 (banco)
-Últimos 2 dias em `publicacoes_djen_processos` = **7 registros** e todos com `fonte = pje_comunica_browser_seq` (fluxo antigo), não do grouped OR.
+### 3.5 Atualizar Card
+**Arquivo:** `src/components/configuracoes/MonitoramentoDjenProcessosCard.tsx`
 
----
+Trocar o hook atual pelo novo:
 
-## Estratégia de correção (a que deve destravar)
+```typescript
+// ANTES:
+import { useMonitorarDjenProcessosBrowser } from "@/hooks/useMonitorarDjenProcessosBrowser";
 
-### A) Edge Function `buscar-djen`: adicionar fallback “browser-real” via Browserless
-Como já existe `BROWSERLESS_API_KEY` no projeto, vamos usar Browserless como fallback quando o fetch direto retornar HTML bloqueado.
-
-Fluxo dentro da Edge Function para `tipo = "palavra-chave"`:
-1. Tenta fetch direto (rápido).
-2. Se detectar `text/html` ou erro “Blocked (HTML)”:
-   - Tenta **Browserless** (`/content` ou `/scrape`) para buscar o mesmo URL como Chrome real.
-   - Faz `JSON.parse()` do corpo retornado.
-3. Se Browserless falhar:
-   - (Opcional) tentar `fetchJsonViaJina()` como fallback secundário (já existe código pronto).
-4. Se tudo falhar:
-   - **retornar HTTP 502** com `success:false` e `details` do bloqueio (não retornar “success true vazio”).
-
-Por que isso deve funcionar:
-- o PJE Comunica está bloqueando o “fetch comum” do Deno (Edge), mas frequentemente **não bloqueia um Chrome real** (Browserless), pois o fingerprint é diferente.
-
-### B) Edge Function: padronizar resposta SEMPRE com `items`
-Hoje, quando falha, retorna `{ publicacoes: [], comunicacoes: [] }`. O frontend espera `items`.
-
-Vamos padronizar:
-- sempre retornar pelo menos:
-  - `items: []`
-  - `totalElements: 0`
-  - `page`, `pageSize`, `hasMore`
-
-E incluir um campo de debug:
-- `source: "direct" | "browserless" | "jina" | "blocked"`
-
-### C) Frontend `pjeComunicaClient.ts`: não aceitar “sucesso vazio com erro embutido”
-Hoje, o fallback para Edge Function faz:
-- `if (error) throw error;`
-- caso contrário, considera sucesso e retorna `items = data?.items ?? []`
-
-Problema: quando a Edge Function retorna `success:true` + `error:"Blocked (HTML)"`, o frontend não “explode”, só segue adiante com 0 itens.
-
-Vamos ajustar para:
-- Se `data?.success === false` → lançar erro (com mensagem amigável).
-- Se existir `data?.error` ou `data?.message` indicando bloqueio → lançar erro também.
-- Se por compatibilidade vier `comunicacoes/publicacoes` sem `items`, mapear para `items` (fallback defensivo).
-
-### D) Hook `useMonitorarDjenProcessosBrowser`: “circuit breaker” para bloquear loop infinito
-Mesmo com retries, se a API estiver bloqueada globalmente, não faz sentido continuar varrendo 1321 grupos para terminar com 0.
-
-Implementar:
-- contador de “falhas por bloqueio” consecutivas
-- se bater, por exemplo, **3 grupos seguidos** com erro de bloqueio:
-  - abortar execução
-  - status `erro`
-  - mensagem clara: “PJE Comunica bloqueou o proxy; tentando Browserless/sem acesso agora”
-
-Isso evita “timeout em 7%” e evita que pareça que está “rodando mas não acha nada”.
+// DEPOIS:
+import { useDjenProcessos } from "@/hooks/useDjenProcessos";
+```
 
 ---
 
-## Sequência de implementação (ordem exata)
+## 4. Arquivos Afetados
 
-1) **Editar** `supabase/functions/buscar-djen/index.ts`
-   - Introduzir `fetchViaBrowserless(url)` (padrão já usado em outras Edge Functions do projeto).
-   - No `fetchPage`, ao detectar HTML bloqueado, tentar Browserless e parsear JSON.
-   - Ao final, se não conseguir nenhuma via:
-     - retornar **HTTP 502** com `success:false`, `details`, `blocked:true`.
-   - Garantir saída com `items` sempre que `success:true`.
-
-2) **Deploy** da Edge Function `buscar-djen` para o ambiente Preview.
-
-3) **Editar** `src/utils/pjeComunicaClient.ts`
-   - No bloco `if (corsBlocked)`, após receber `data`:
-     - se `data.success === false` ou `data.error` indicando bloqueio → `throw new Error(...)`
-     - mapear `items` corretamente e preencher `hasMore`, `totalElements`.
-
-4) **Editar** `src/hooks/useMonitorarDjenProcessosBrowser.ts`
-   - Adicionar circuit breaker por bloqueio.
-   - Melhorar mensagem de status quando a falha for “Blocked/HTML/sem conexão”.
-
-5) **Teste guiado**
-   - Hard refresh (Ctrl+F5).
-   - Rodar DJEN Processos para um dia onde você sabe que existe volume.
-   - Confirmar no Network:
-     - respostas do `buscar-djen` contendo `items` e `source:"browserless"` (ou `direct`).
-   - Confirmar no card:
-     - “total analisadas” sobe continuamente
-     - “novas” não fica travado em 7
-     - sem timeout em 7%
+| Arquivo | Ação |
+|---------|------|
+| `src/hooks/useDjenProcessosEngine.ts` | **NOVO** - Engine singleton |
+| `src/hooks/useDjenProcessos.ts` | **NOVO** - Hook React wrapper |
+| `src/hooks/useMonitorarDjenProcessosBrowser.ts` | Manter (compatibilidade) ou deprecar |
+| `src/components/configuracoes/MonitoramentoDjenProcessosCard.tsx` | Atualizar imports e lógica |
 
 ---
 
-## Riscos e como mitigaremos
+## 5. Benefícios Esperados
 
-- Browserless pode ser mais lento/caro:
-  - só será usado **quando detectarmos bloqueio**, não sempre.
-- Respostas grandes podem aumentar risco 546:
-  - manter `pageSize <= 50`
-  - manter truncamento controlado no Edge (podemos ajustar depois se precisar mais texto)
-  - evitar buscar múltiplas páginas no Edge (continuar 1 página por chamada)
+| Aspecto | Antes | Depois |
+|---------|-------|--------|
+| Processos | ~13.210 | ~2.474 |
+| Grupos (÷10) | ~1.321 | ~248 |
+| Tempo estimado | 40-60 min | ~10 min |
+| Persiste ao sair? | Não | Sim |
+| Checkpoint | Parcial | Completo |
+| Retomada | Limitada | Total |
 
 ---
 
-## Critério de sucesso
+## 6. Detalhes Técnicos
 
-1) `buscar-djen` deixa de responder com `Blocked (HTML)` na maioria das chamadas.
-2) O monitoramento passa de “7 e para” para **crescimento contínuo** de `totalPublicacoesAnalisadas` e/ou `novas`.
-3) Sem “timeout em 7%” por falta de heartbeat/resultado.
+### 6.1 Checkpoint Storage
+```typescript
+const STORAGE_KEY = 'djen-processos-checkpoint-v1';
+// Expira após 24h
+// Contém: runKey, grupoIdx, novas, duplicadas, tempoInicio
+```
+
+### 6.2 Metadata no Banco
+Atualizado em `configuracoes_monitoramento` tipo `djen_processos`:
+```json
+{
+  "status": "executando" | "concluido" | "cancelado" | "erro",
+  "grupo_atual": 150,
+  "total_grupos": 248,
+  "percentage": 60,
+  "novas": 12,
+  "duplicadas": 45,
+  "run_key": "2026-02-04..2026-02-04",
+  "browser_execution": true,
+  "estrategia": "singleton_engine_v1"
+}
+```
+
+### 6.3 Circuit Breaker (mantido)
+```typescript
+const MAX_CONSECUTIVE_BLOCKS = 3;
+// Se 3 grupos seguidos falharem por bloqueio → abortar
+```
+
+### 6.4 Delays (respeitando parâmetros do banco)
+```typescript
+delay_entre_lotes: 3000,      // 3s entre grupos
+delay_entre_paginas: 1500,    // 1.5s entre páginas do mesmo grupo
+max_retries: 4,               // tentativas por grupo
+retry_base_delay_ms: 8000,    // backoff base
+```
+
+---
+
+## 7. Ordem de Implementação
+
+1. **Migração de dados (opcional):** Criar migration para adicionar coluna `excluir_djen_processos` em coordenações (para configuração via UI no futuro)
+
+2. **Criar Engine Singleton:** `useDjenProcessosEngine.ts`
+   - Copiar estrutura de `useDjenTermosEngine.ts`
+   - Adaptar para grupos de processos
+   - Adicionar filtro de coordenações
+
+3. **Criar Hook React:** `useDjenProcessos.ts`
+   - Wrapper fino sobre a engine
+
+4. **Atualizar Card:** `MonitoramentoDjenProcessosCard.tsx`
+   - Usar novo hook
+   - Adicionar indicador visual de exclusões
+
+5. **Testar:**
+   - Executar busca para 1 dia
+   - Verificar checkpoint ao sair/voltar
+   - Testar retomada manual
+   - Confirmar exclusão Santander
 
