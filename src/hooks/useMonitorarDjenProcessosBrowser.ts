@@ -287,6 +287,10 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
     canceladoRef.current = false;
     abortControllerRef.current = new AbortController();
     
+    // Resetar timer explicitamente ao iniciar nova execução
+    startTimeRef.current = Date.now();
+    lastElapsedRef.current = 0;
+    
     const hoje = getBrazilISODate();
     const dataInicioEfetiva = dataInicio || hoje;
     const dataFimEfetiva = dataFim || hoje;
@@ -308,7 +312,8 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
       });
 
       const params = await fetchParametrosDjen();
-      const groupSize = params.group_search_size || GROUP_SIZE;
+      // Forçar group_size máximo de 10 para evitar queries OR muito longas
+      const groupSize = Math.min(params.group_search_size || GROUP_SIZE, 10);
       console.log('[DJEN v6] Parâmetros carregados, group_size:', groupSize);
 
       // 2. Buscar todos os processos monitorados
@@ -495,8 +500,8 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
 
         console.log(`[DJEN v6] Grupo ${g + 1}: ${grupoPublicacoesAnalisadas} analisadas, ${novasTotal} novas total`);
 
-        // Salvar checkpoint a cada 10 grupos
-        if ((g + 1) % 10 === 0 || g === grupos.length - 1) {
+        // Salvar checkpoint a cada 5 grupos para heartbeat mais frequente
+        if ((g + 1) % 5 === 0 || g === grupos.length - 1) {
           await saveCheckpoint({
             currentGroup: g + 1,
             totalGroups: totalGrupos,
