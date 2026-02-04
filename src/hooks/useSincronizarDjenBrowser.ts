@@ -82,14 +82,20 @@ function gerarVariantesBusca(termo: string): string[] {
   return Array.from(variantes);
 }
 
-// IMPORTANTE: Validar que o TERMO COMPLETO está presente na publicação
-// A API do PJE Comunica faz busca por substring, então pode retornar resultados parciais
-// VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
+// IMPORTANTE: Validar que o termo está presente na publicação
+// Usa validação de 80% das palavras significativas (excluindo termos jurídicos genéricos)
 function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boolean {
   if (!conteudo || !termo) return false;
   
   // Para advogado, a validação é diferente (OAB)
   if (tipo === 'advogado') return true;
+  
+  // Palavras jurídicas genéricas que não devem ser obrigatórias
+  const TERMOS_IGNORAR = new Set([
+    'LTDA', 'SA', 'ME', 'EPP', 'EIRELI', 'CIA', 
+    'SOCIEDADE', 'EMPRESA', 'COMERCIO', 'INDUSTRIA', 'SERVICOS',
+    'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM', 'COM', 'PARA', 'POR'
+  ]);
   
   // Normalizar ambos para comparação
   const normalizar = (t: string) => t
@@ -108,19 +114,26 @@ function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boo
   // Verificar se o termo completo está presente (match exato)
   if (conteudoNorm.includes(termoNorm)) return true;
   
-  // VALIDAÇÃO ESTRITA: 100% das palavras significativas devem estar presentes
-  // Isso evita capturas parciais como "Distribuidora" quando o termo é 
-  // "F & F Distribuidora de Produtos Farmacêuticos LTDA"
+  // VALIDAÇÃO 80%: permite variações como "LTDA" vs "S.A." ou nomes abreviados
   const tokens = termoNorm.split(/\s+/).filter(Boolean);
   // IMPORTANTE: verificar no termo ORIGINAL (não normalizado) se tinha "&"
   const termoOriginalTemAmpersand = /&/.test(termo);
   const allowSingleLetters = termoOriginalTemAmpersand && tokens.filter(t => t.length === 1).length >= 2;
-  const palavrasTermo = tokens.filter(p => p.length >= 2 || (allowSingleLetters && p.length === 1));
+  
+  // Filtrar palavras significativas (excluindo termos genéricos)
+  const palavrasTermo = tokens.filter(p => {
+    if (p.length < 2 && !(allowSingleLetters && p.length === 1)) return false;
+    if (TERMOS_IGNORAR.has(p)) return false;
+    return true;
+  });
+  
   if (palavrasTermo.length === 0) return true;
   
-  // VALIDAÇÃO ESTRITA: 100% das palavras devem estar presentes
-  // Usar includes ao invés de regex para ser menos restritivo e mais rápido
-  return palavrasTermo.every(p => conteudoNorm.includes(p));
+  // 80% das palavras devem estar presentes
+  const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
+  const palavrasEncontradas = palavrasTermo.filter(p => conteudoNorm.includes(p));
+  
+  return palavrasEncontradas.length >= minPalavras;
 }
 
 // Gera hash global para deduplicação (igual ao backend)
