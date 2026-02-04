@@ -7,9 +7,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileSearch, Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play, StopCircle, Globe } from "lucide-react";
+import { Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play, Globe, Skull, AlertTriangle, FileSearch, StopCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -21,8 +21,8 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 import { useRealtimeProgress } from "@/hooks/useRealtimeProgress";
-import { BotaoRetomarLote } from "./BotaoRetomarLote";
-import { useMonitorarDjenProcessosBrowser } from "@/hooks/useMonitorarDjenProcessosBrowser";
+import { useDjenProcessos, COORDENACOES_EXCLUIDAS } from "@/hooks/useDjenProcessos";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ExecutionResult {
   processados: number;
@@ -42,13 +42,15 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   const [statsOpen, setStatsOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  // Hook de execução no NAVEGADOR (evita WORKER_LIMIT das Edge Functions)
+  // Hook singleton para execução no NAVEGADOR (persiste ao sair da tela)
   const {
-    progresso: browserProgress,
-    isExecutando: browserExecutando,
-    executar: browserExecutar,
-    cancelar: browserCancelar,
-  } = useMonitorarDjenProcessosBrowser();
+    progress: engineProgress,
+    isRunning: engineRunning,
+    hasCheckpoint,
+    executar: engineExecutar,
+    cancelar: engineCancelar,
+    forceKill,
+  } = useDjenProcessos();
 
   // Hook de progresso realtime via Supabase (para detectar execuções externas/agendadas)
   const { progress: realtimeProgress } = useRealtimeProgress({
@@ -61,29 +63,37 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     },
   });
 
-  // Determina se está executando (browser local ou detectado via realtime)
-  const executando = browserExecutando || realtimeProgress.isRunning;
+  // Determina se está executando (engine local ou detectado via realtime)
+  const executando = engineRunning || realtimeProgress.isRunning;
 
-  // Progresso combinado: browser local tem prioridade
-  const progresso = browserExecutando ? {
-    grupoAtual: `Grupo ${browserProgress.currentGroup}/${browserProgress.totalGroups}`,
-    currentGroup: browserProgress.currentGroup,
-    totalGroups: browserProgress.totalGroups,
-    novas: browserProgress.novas,
-    analisadas: browserProgress.totalPublicacoesAnalisadas,
-    mensagem: browserProgress.mensagem,
-    percentage: browserProgress.percentage,
-    elapsedSeconds: browserProgress.elapsedSeconds,
-  } : (realtimeProgress.isRunning ? {
-    grupoAtual: '',
-    currentGroup: 0,
-    totalGroups: 0,
-    novas: realtimeProgress.novas ?? 0,
-    analisadas: realtimeProgress.current,
-    mensagem: `${realtimeProgress.current}/${realtimeProgress.total}`,
-    percentage: realtimeProgress.total > 0 ? Math.round((realtimeProgress.current / realtimeProgress.total) * 100) : 0,
-    elapsedSeconds: 0,
-  } : null);
+  // Progresso combinado: engine local tem prioridade
+  const progresso = useMemo(() => {
+    if (engineRunning) {
+      return {
+        grupoAtual: `Grupo ${engineProgress.currentGroup}/${engineProgress.totalGroups}`,
+        currentGroup: engineProgress.currentGroup,
+        totalGroups: engineProgress.totalGroups,
+        novas: engineProgress.novas,
+        analisadas: engineProgress.totalPublicacoesAnalisadas,
+        mensagem: engineProgress.mensagem,
+        percentage: engineProgress.percentage,
+        elapsedSeconds: engineProgress.tempoDecorrido,
+      };
+    }
+    if (realtimeProgress.isRunning) {
+      return {
+        grupoAtual: '',
+        currentGroup: 0,
+        totalGroups: 0,
+        novas: realtimeProgress.novas ?? 0,
+        analisadas: realtimeProgress.current,
+        mensagem: `${realtimeProgress.current}/${realtimeProgress.total}`,
+        percentage: realtimeProgress.total > 0 ? Math.round((realtimeProgress.current / realtimeProgress.total) * 100) : 0,
+        elapsedSeconds: 0,
+      };
+    }
+    return null;
+  }, [engineRunning, engineProgress, realtimeProgress]);
 
   // Helper para formatar tempo
   const formatElapsed = (seconds: number) => {
@@ -129,16 +139,10 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
   // Detecta se falhou e precisa de retomada (502, timeout, etc.)
   const hasFailed = metadata?.status === 'falhou' || metadata?.status === 'erro' || metadata?.status === 'timeout';
   
-  // Mostrar botão Retomar se:
-  // 1. Não foi cancelado pelo usuário
-  // 2. Tem checkpoint válido (next_offset > 0)
-  // 3. Ainda não atingiu o total OU falhou/teve erro
-  const shouldShowRetomar =
-    !wasCancelledByUser &&
-    (nextOffset ?? 0) > 0 &&
-    (hasFailed || stableTotalForResume <= 0 || resumeFromOffset < stableTotalForResume);
+  // Mostrar botão Retomar se tem checkpoint no engine
+  const shouldShowRetomar = hasCheckpoint && !engineRunning;
 
-  // Buscar estatísticas
+  // Buscar estatísticas (excluindo Santander)
   const { data: stats } = useQuery({
     queryKey: ['djen-processos-stats'],
     queryFn: async () => {
@@ -151,11 +155,12 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
         .select('*', { count: 'exact', head: true })
         .eq('lida', false);
 
+      // Contar processos EXCLUINDO coordenações Santander
       const { count: processosMonitorados } = await supabase
         .from('processos')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'ativo')
-        .eq('monitorar_andamentos', true);
+        .eq('monitorar_djen', true)
+        .not('coordenacao_id', 'in', `(${COORDENACOES_EXCLUIDAS.join(',')})`);
 
       return {
         totalPublicacoes: totalPublicacoes || 0,
@@ -195,19 +200,27 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
     }
   });
 
-  // Execução no NAVEGADOR - evita completamente o WORKER_LIMIT das Edge Functions
-  const handleExecutarManual = useCallback(async (mode: 'novo' | 'retomar' = 'novo') => {
+  // Execução via engine singleton
+  const handleExecutarManual = useCallback((mode: 'novo' | 'retomar' = 'novo') => {
     if (executando) return;
     
     const dataInicioStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : undefined;
     const dataFimStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : undefined;
     
-    await browserExecutar(dataInicioStr, dataFimStr, mode === 'retomar');
-  }, [executando, dataInicio, dataFim, browserExecutar]);
+    engineExecutar(dataInicioStr, dataFimStr, mode === 'retomar');
+    toast.info(mode === 'retomar' ? 'Retomando busca...' : 'Iniciando busca DJEN Processos...');
+  }, [executando, dataInicio, dataFim, engineExecutar]);
 
   const handleCancelar = useCallback(() => {
-    browserCancelar();
-  }, [browserCancelar]);
+    engineCancelar();
+    toast.info('Cancelando...');
+  }, [engineCancelar]);
+
+  const handleForceKill = useCallback(async () => {
+    await forceKill();
+    queryClient.invalidateQueries({ queryKey: ['config-djen-processos'] });
+    toast.success('Estado limpo. Você pode iniciar uma nova execução.');
+  }, [forceKill, queryClient]);
 
   const handleFrequenciaChange = async (value: string) => {
     if (!config?.id) return;
@@ -265,9 +278,24 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
               <FileSearch className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-base">DJEN por Processo</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                DJEN por Processo
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-xs gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Excl. Santander
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs max-w-[200px]">
+                      Coordenações Santander Cível e Trabalhista excluídas por volume alto (~11k processos).
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </CardTitle>
               <CardDescription className="text-xs">
-                Busca publicações no DJEN para processos cadastrados
+                Busca publicações no DJEN para processos cadastrados (excl. Santander)
               </CardDescription>
             </div>
           </div>
@@ -441,7 +469,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {realtimeProgress.isRunning && !browserExecutando ? 'Execução em andamento' : 'Buscando por grupos...'}
+                {realtimeProgress.isRunning && !engineRunning ? 'Execução em andamento' : 'Buscando por grupos...'}
               </div>
               <div className="flex items-center gap-2">
                 {progresso && progresso.elapsedSeconds > 0 && (
@@ -568,13 +596,39 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId }: Props) {
 
         {/* Botões */}
         <div className="flex gap-2 flex-wrap">
-          <BotaoRetomarLote
-            nextOffset={shouldShowRetomar ? resumeFromOffset : undefined}
-            total={stableTotalForResume > 0 ? stableTotalForResume : totalCheckpoint}
-            onRetomar={() => handleExecutarManual('retomar')}
-            disabled={executando}
-            wasCancelledByUser={wasCancelledByUser}
-          />
+          {/* Botão Retomar (aparece se tem checkpoint) */}
+          {shouldShowRetomar && (
+            <Button
+              variant="outline"
+              onClick={() => handleExecutarManual('retomar')}
+              disabled={executando}
+              className="gap-1"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Continuar
+            </Button>
+          )}
+
+          {/* Kill Switch */}
+          {(executando || hasCheckpoint || engineProgress.status === 'erro') && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleForceKill}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Skull className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">Forçar limpeza de estado (kill switch)</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Botão principal */}
           {executando ? (
             <Button
               variant="destructive"
