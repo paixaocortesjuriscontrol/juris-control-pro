@@ -839,8 +839,9 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   const handleForceKill = useCallback(() => {
     setShowKillDialog(false);
     // Sempre tentar parar ambos os modos para evitar ficar preso
-    forceKillHibrido();
-    forceKill();
+    // IMPORTANTE: NÃO limpa o checkpoint (false), permitindo retomar depois
+    forceKillHibrido(false);
+    forceKill(false);
     setHybridMode(false);
     setTurboMode(false);
     setBackgroundOnly(false);
