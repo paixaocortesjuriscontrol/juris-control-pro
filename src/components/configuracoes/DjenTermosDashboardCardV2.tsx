@@ -296,11 +296,30 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   // Percentual (fonte única): DJEN Termos deve usar detalhes.progress da execução ativa.
   // (registros_processados não representa “termos processados” e causava oscilação)
   const computedPercentage = (() => {
+    const fromMetadata = (): number | null => {
+      if (typeof md.percentage === 'number' && Number.isFinite(md.percentage)) {
+        return toSafePct(md.percentage);
+      }
+
+      const cur = typeof md.current === 'number' ? md.current : Number(md.current);
+      const tot = typeof md.total === 'number' ? md.total : Number(md.total);
+      if (Number.isFinite(cur) && Number.isFinite(tot) && tot > 0) {
+        return toSafePct((cur / tot) * 100);
+      }
+      return null;
+    };
+
     // 1) Se houver execução ativa no banco, usar SEMPRE execucoes_agendadas
     if (stats.currentExecution?.status === 'executando' && stats.currentExecution.finalizado_em == null) {
       const p = getDjenTermosExecutionProgress({ detalhes: stats.currentExecution.detalhes });
       if (typeof p.percentage === 'number' && Number.isFinite(p.percentage)) {
         return Math.max(0, Math.min(99, Math.round(p.percentage)));
+      }
+
+      // Fallback: se a execução ativa não tem detalhes.progress (janela comum), usar metadata
+      const mdPct = fromMetadata();
+      if (mdRunningMeaningful && mdPct != null) {
+        return Math.max(0, Math.min(99, Math.round(mdPct)));
       }
       return 0;
     }
@@ -312,6 +331,11 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       const p = getDjenTermosExecutionProgress({ detalhes: stats.currentExecution.detalhes });
       if (typeof p.percentage === 'number' && Number.isFinite(p.percentage)) {
         return Math.max(0, Math.min(99, Math.round(p.percentage)));
+      }
+
+      const mdPct = fromMetadata();
+      if (mdRunningMeaningful && mdPct != null) {
+        return Math.max(0, Math.min(99, Math.round(mdPct)));
       }
     }
 
