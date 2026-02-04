@@ -1,47 +1,67 @@
 # Memory: features/monitoring/djen-busca-nome-parte-v1
 Updated: 04/02/2026
 
-## Busca Complementar por Nome de Parte
+## Tipo de Monitoramento "Polo Passivo ou Ativo"
 
-O sistema DJEN agora suporta uma opção configurável `buscar_parte` (boolean) no cadastro de monitoramentos que realiza uma **busca adicional pelo nome da parte** quando o tipo é "palavra-chave".
+O sistema DJEN agora suporta um tipo dedicado `'parte'` para buscar publicações onde uma empresa/pessoa aparece como polo ativo ou passivo no processo.
 
 ### Motivação:
-Publicações podem mencionar empresas/pessoas apenas no campo de **nome da parte** (reclamante/reclamado) sem incluí-las no texto principal. A busca padrão por palavra-chave não encontra essas publicações.
+A versão anterior usava um checkbox `buscar_parte` que causava **dupla requisição por tribunal** (uma busca normal + uma busca adicional por nome de parte), gerando rate limit (HTTP 429). 
+
+A nova implementação usa um tipo separado com uma única passada por tribunal.
+
+### API PJE Comunica:
+A busca por nome de parte usa o parâmetro `nomeParte` na API:
+```
+https://comunica.pje.jus.br/consulta?siglaTribunal=TJRJ&dataDisponibilizacaoInicio=2026-02-03&dataDisponibilizacaoFim=2026-02-04&nomeParte=UNIAO%20QUIMICA%20FARMACEUTICA%20NACIONAL%20S%20A
+```
 
 ### Implementação:
 
 1. **Banco de Dados**: 
-   - Coluna `buscar_parte` (boolean, default false) na tabela `monitoramentos_djen`
+   - Tipo `'parte'` no campo `tipo` da tabela `monitoramentos_djen`
+   - Coluna `buscar_parte` **DESCONTINUADA** (não mais usada)
 
 2. **Dialog de Cadastro** (`MonitoramentoDialog.tsx`):
-   - Checkbox "Buscar também no nome das partes" na aba "Filtros"
-   - Visível apenas para tipo "palavra-chave"
+   - Novo tipo "Polo passivo ou ativo" no Select
+   - Campo obrigatório: "Nome da Parte"
+   - Sem OAB, sem UF
+   - Aceita tribunais opcionalmente
+   - Busca exata (sem variantes)
 
-3. **Engine de Busca** (`useDjenTermosEngine.ts`):
-   - Após a busca padrão, se `buscar_parte=true`, faz segunda busca usando `nomeAdvogado` como proxy
-   - Resultados são mesclados e deduplicados pelo ID
+3. **Cliente PJE** (`pjeComunicaClient.ts`):
+   - Tipo `'parte'` adicionado ao `PjeSearchType`
+   - Parâmetro `nomeParte?: string` na interface
+   - Constrói query string com `nomeParte` quando `tipo === 'parte'`
 
-4. **Edge Function** (`monitorar-djen/index.ts`):
-   - Adiciona candidatos de busca com `nomeAdvogado` quando `buscar_parte=true`
+4. **Engine de Busca** (`useDjenTermosEngine.ts`):
+   - Quando `tipo === 'parte'`, usa `nomeParte` diretamente
+   - Sem variantes de busca (busca exata)
+   - **Removido** o bloco duplicado de `buscar_parte`
+
+5. **Edge Function** (`buscar-pje/index.ts`):
+   - Tipo `'parte'` suportado
+   - Valida `nomeParte` quando `tipo === 'parte'`
+   - Constrói URL com parâmetro `nomeParte`
 
 ### Fluxo:
 ```
-1. Busca padrão: texto="EMPRESA XYZ LTDA"
-   → Retorna publicações onde o termo está no conteúdo
+1. Usuário cria monitoramento tipo "Polo passivo ou ativo"
+   → Nome: "UNIAO QUIMICA FARMACEUTICA NACIONAL S A"
+   → Tribunais: TJRJ, TJSP (opcional)
 
-2. Busca adicional (quando buscar_parte=true):
-   → Usa nomeAdvogado="EMPRESA XYZ LTDA" como proxy para partes
-   → Captura publicações onde o nome aparece nos metadados
+2. Engine processa com tipo='parte'
+   → Busca: nomeParte="UNIAO QUIMICA FARMACEUTICA NACIONAL S A"
+   → 1 requisição por tribunal (sem duplicação)
 
-3. Mescla resultados (deduplicando por ID)
+3. Validação de conteúdo
+   → Exige frase exata do nome no conteúdo
 
-4. Validação normal (exclusões, condições, etc.)
-
-5. Salva publicações válidas
+4. Publicações válidas são salvas normalmente
 ```
 
 ### Características:
-- **Opt-in**: Não afeta monitoramentos existentes (default false)
-- **Preciso**: Uma busca dedicada, sem variantes que trazem ruído
-- **Retrocompatível**: Monitoramentos existentes continuam funcionando igual
-- **Requisições adicionais**: ~2x requisições para termos com `buscar_parte=true`
+- **Única passada**: Não duplica requisições como a versão anterior
+- **Sem rate limit**: Evita HTTP 429 em execuções com muitos termos
+- **Explícito**: Tipo dedicado claro na UI
+- **Retrocompatível**: Monitoramentos antigos com `buscar_parte=true` continuam funcionando (legado)

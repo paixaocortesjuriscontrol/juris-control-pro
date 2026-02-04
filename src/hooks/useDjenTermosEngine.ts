@@ -87,7 +87,6 @@ interface Monitoramento {
   tribunais?: string[];
   descricao?: string | null;
   condicao_concomitante?: string | null;
-  buscar_parte?: boolean;
 }
 
 // ============================================================================
@@ -675,7 +674,7 @@ async function processarTermo(
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; descartadasTribunal: number }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
 
-  const tipo = (mon.tipo === 'parte' || (mon.tipo as string) === 'nome') ? 'palavra-chave' : mon.tipo;
+  const tipo = mon.tipo === 'parte' ? 'parte' : ((mon.tipo as string) === 'nome' ? 'palavra-chave' : mon.tipo);
   const isRateLimitError = (msg?: string) =>
     !!msg && (msg.includes('429') || msg.includes('Too Many'));
   const isAdvogadoComOab = tipo === 'advogado' && !!mon.oab;
@@ -688,7 +687,7 @@ async function processarTermo(
 
   // Configurar parâmetros base (data de disponibilização)
   const baseParams: any = {
-    tipo,
+    tipo: tipo === 'parte' ? 'parte' : tipo,
     dataInicio: diaYmd,
     dataFim: diaYmd,
     pageSize: 50,
@@ -698,7 +697,11 @@ async function processarTermo(
   let ufsParaBuscar: string[] = [];
   let variantesParaBuscar: string[] = [];
 
-  if (tipo === 'advogado' && mon.oab) {
+  if (tipo === 'parte') {
+    // Tipo PARTE: usa nomeParte diretamente, sem variantes
+    baseParams.nomeParte = extrairPalavraChavePura(mon.termo_busca);
+    variantesParaBuscar = [];
+  } else if (tipo === 'advogado' && mon.oab) {
     baseParams.oab = String(mon.oab).replace(/\D/g, '');
     // Nome é útil para fallback via `nomeAdvogado` (portal oficial) quando a busca por OAB retorna 0.
     baseParams.nomeAdvogado = extrairPalavraChavePura(mon.termo_busca);
@@ -709,7 +712,7 @@ async function processarTermo(
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
   } else {
-    // palavra-chave ou parte: usar SOMENTE a palavra-chave + tribunal (mon.tribunais)
+    // palavra-chave: usar SOMENTE a palavra-chave + tribunal (mon.tribunais)
     const termoPuro = extrairPalavraChavePura(mon.termo_busca);
     variantesParaBuscar = gerarVariantes(termoPuro);
   }
@@ -838,65 +841,7 @@ async function processarTermo(
     await delay(dynamicTribunalDelay);
   }
 
-  // ==================================================================
-  // BUSCA ADICIONAL POR NOME DE PARTE (quando buscar_parte=true)
-  // Faz segunda busca usando o termo como "nomeAdvogado" que captura partes
-  // ==================================================================
-  if (mon.buscar_parte && (tipo === 'palavra-chave' || mon.tipo === 'parte' || (mon.tipo as string) === 'nome') && !signal.aborted) {
-    const termoPuro = extrairPalavraChavePura(mon.termo_busca);
-    if (termoPuro) {
-      updateProgress({
-        mensagem: `🔎 Buscando por nome de parte: ${termoPuro.slice(0, 30)}...`,
-      });
-
-      // Fazer busca usando nomeAdvogado como proxy para busca por nome
-      // A API PJE Comunica não tem parâmetro nomeParte, mas nomeAdvogado funciona similar
-      for (const trib of tribLoop) {
-        if (signal.aborted) break;
-
-        try {
-          const resp = await buscarPjeComunicaPaginado(
-            {
-              tipo: 'advogado',
-              nomeAdvogado: termoPuro,
-              siglaTribunal: trib,
-              dataInicio: diaYmd,
-              dataFim: diaYmd,
-              page: 0,
-              pageSize: 50,
-            },
-            {
-              signal,
-              maxPages: 5,
-              delayMs: dynamicPageDelay,
-              maxRetries: runtimeConfig.max_retries,
-              retryBaseDelay: runtimeConfig.retry_base_delay,
-              onRateLimit: (waitMs) => {
-                onRateLimit?.(waitMs);
-              },
-            }
-          );
-
-          for (const item of resp.items || []) {
-            const id = String(item?.id ?? '');
-            const key = id || JSON.stringify(item).slice(0, 400);
-            if (!seen.has(key)) {
-              seen.add(key);
-              const enriched = trib
-                ? { ...item, siglaTribunal: item?.siglaTribunal ?? trib, origem_busca_parte: true }
-                : { ...item, origem_busca_parte: true };
-              resultados.push(enriched);
-            }
-          }
-        } catch (e: any) {
-          if (e?.name === 'AbortError') break;
-          console.warn(`[DJEN] Erro busca parte ${trib ?? 'TODOS'}:`, e?.message);
-        }
-
-        await delay(dynamicTribunalDelay);
-      }
-    }
-  }
+  // Bloco buscar_parte REMOVIDO - substituído pelo tipo 'parte' dedicado
 
   if (signal.aborted || resultados.length === 0) {
     return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
