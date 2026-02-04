@@ -136,6 +136,22 @@ export function DjenExecutionBanner() {
         // Mantém abaixo de 100 enquanto está executando para evitar “flash” de 100%.
         return Math.max(0, Math.min(99, Math.round(percentage)));
       }
+
+      // Fallback: há execucaoAtiva, mas detalhes.progress ainda não chegou (janela comum).
+      // Nesse caso, usar metadata para não travar em 0%.
+      if (mdRunningMeaningful) {
+        const direct = typeof md.percentage === "number" ? md.percentage : null;
+        if (typeof direct === "number" && Number.isFinite(direct)) {
+          return Math.max(0, Math.min(99, Math.round(direct)));
+        }
+
+        const current = typeof md.current === "number" ? md.current : Number(md.current);
+        const total = typeof md.total === "number" ? md.total : Number(md.total);
+        if (Number.isFinite(current) && Number.isFinite(total) && total > 0) {
+          return Math.max(0, Math.min(99, Math.round((current / total) * 100)));
+        }
+      }
+
       return 0;
     }
 
