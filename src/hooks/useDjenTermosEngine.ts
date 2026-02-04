@@ -508,19 +508,11 @@ function conteudoContemTermo(
 
   // Para advogado: validar OAB + Nome
   if (tipo === 'advogado') {
-    // 1. OAB DEVE estar presente
-    if (oab) {
-      const oabDigits = String(oab).replace(/\D/g, '');
-      if (oabDigits.length < 3) return false;
-      
-      // Regex flexível: aceita pontos/espaços entre dígitos (ex: 15.553 ou 15 553)
-      const oabPattern = new RegExp(oabDigits.split('').join('[.\\s-]?'), 'i');
-      if (!oabPattern.test(conteudo)) {
-        return false;
-      }
-    }
+    // Para advogado, o conteúdo nem sempre contém a OAB (apesar de a consulta retornar pelo filtro).
+    // Regra: se houver NOME, o nome é a validação principal; OAB vira “melhoria” (não bloqueante).
+    // Se NÃO houver nome, aí sim exigimos OAB no conteúdo (para evitar falso positivo).
 
-    // 2. Nome do advogado (se informado) - 80% das palavras
+    // 1) Validar nome do advogado (se informado) - 80% das palavras
     if (termo) {
       const termoNorm = normalizar(termo);
       const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
@@ -533,9 +525,22 @@ function conteudoContemTermo(
           return false;
         }
       }
+      // Nome ok → aceitar mesmo que OAB não apareça no texto.
+      return true;
     }
 
-    return true;
+    // 2) Sem nome: exigir OAB no conteúdo
+    if (oab) {
+      const oabDigits = String(oab).replace(/\D/g, '');
+      if (oabDigits.length < 3) return false;
+
+      // Regex flexível: aceita pontos/espaços entre dígitos (ex: 15.553 ou 15 553)
+      const oabPattern = new RegExp(oabDigits.split('').join('[.\\s-]?'), 'i');
+      return oabPattern.test(conteudo);
+    }
+
+    // Sem nome e sem OAB: não validar (evita aceitar tudo)
+    return false;
   }
 
   // Para palavra-chave/parte: FRASE EXATA na ordem - "Super Quadra" só casa com "Super Quadra"
@@ -694,6 +699,8 @@ async function processarTermo(
 
   if (tipo === 'advogado' && mon.oab) {
     baseParams.oab = String(mon.oab).replace(/\D/g, '');
+    // Nome é útil para fallback via `nomeAdvogado` (portal oficial) quando a busca por OAB retorna 0.
+    baseParams.nomeAdvogado = extrairPalavraChavePura(mon.termo_busca);
     const ufValue = String(mon.uf || '').trim().toUpperCase();
     ufsParaBuscar = parseUfs(ufValue);
     // Para advogado com OAB: buscar por OAB (sem palavra-chave) e filtrar por nome depois
@@ -765,6 +772,7 @@ async function processarTermo(
                 tipo: baseParams.tipo,
                 oab: baseParams.oab,
                 uf: uf,
+                nomeAdvogado: baseParams.nomeAdvogado,
                 palavraChave: variante || undefined,
                 numeroProcesso: baseParams.numeroProcesso,
                 siglaTribunal: isAdvogadoComOab
@@ -854,7 +862,14 @@ async function processarTermo(
         return false;
       }
     }
-    const conteudo = pub.conteudo || pub.teor || pub.texto || '';
+    // Para advogado, parte do “match” pode estar no metadado do destinatário.
+    // Compor conteúdo enriquecido evita descarte falso quando o texto não repete o nome.
+    const conteudo = [
+      pub.destinatarioNome,
+      pub.conteudo,
+      pub.teor,
+      pub.texto,
+    ].filter(Boolean).join('\n');
     if (!conteudo) {
       pubsDescartadas.push({ ...pub, motivo_descarte: 'conteudo_vazio' });
       return false;

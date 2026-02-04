@@ -9,6 +9,8 @@ export interface PjeComunicaSearchParams {
   tipo: PjeSearchType;
   oab?: string;
   uf?: string;
+  /** Nome do advogado (quando a busca por OAB não retorna resultados). */
+  nomeAdvogado?: string;
   palavraChave?: string;
   numeroProcesso?: string;
   /** Filtro opcional (ex: TJRJ, TJSP, TRF2...) */
@@ -173,6 +175,11 @@ function buildTextoParam(params: PjeComunicaSearchParams): string | null {
   // advogado
   const oab = String(params.oab || "").replace(/\D/g, "").trim();
   const uf = String(params.uf || "").trim().toUpperCase();
+  // Se não há OAB, não inventar "OAB " (isso gera buscas inválidas e resultados ruins).
+  if (!oab) {
+    const nome = (params.nomeAdvogado || "").trim();
+    return nome ? normalizeAccents(nome) : null;
+  }
   return uf ? `OAB ${oab} ${uf}` : `OAB ${oab}`;
 }
 
@@ -185,6 +192,7 @@ export async function buscarPjeComunicaNoBrowser(
   options?: { signal?: AbortSignal }
 ): Promise<PjeComunicaResponse> {
   const texto = buildTextoParam(params);
+  const nomeAdvogado = String(params.nomeAdvogado || "").trim();
   
   // Se não tem texto E também não tem tribunal/data, é inválido
   const hasTribunal = !!params.siglaTribunal;
@@ -221,6 +229,13 @@ export async function buscarPjeComunicaNoBrowser(
     const uf = String(params.uf || "").trim().toUpperCase();
     if (oab) qp.set("numeroOab", oab);
     if (uf) qp.set("ufOab", uf);
+
+    // Fallback nativo do portal: nomeAdvogado.
+    // Quando a consulta por OAB retornar 0, tentaremos nomeAdvogado em outra requisição,
+    // mas se não houver OAB já podemos consultar direto por nome.
+    if (!oab && nomeAdvogado) {
+      qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado));
+    }
   }
 
   // 3) Filtro por tribunal (quando disponível)
@@ -333,12 +348,36 @@ export async function buscarPjeComunicaNoBrowser(
     // 1) Primeira tentativa
     const first = await doRequest(qp);
 
-    // 2) Fallback específico p/ advogado: tentar com `texto` caso a API tenha retornado vazio
-    // (sem erro HTTP) — mantém o comportamento do diagnóstico.
-    if (params.tipo === 'advogado' && first.items.length === 0 && texto) {
-      const qp2 = new URLSearchParams(qp);
-      qp2.set('texto', texto);
-      return await doRequest(qp2);
+    // 2) Fallback específico p/ advogado quando retornar vazio (sem erro HTTP).
+    if (params.tipo === 'advogado' && first.items.length === 0) {
+      // 2a) Se estávamos buscando por OAB, tentar com `texto` (alguns tribunais aceitam melhor).
+      const hadOabParams = qp.has('numeroOab') || qp.has('ufOab');
+      if (hadOabParams && texto) {
+        const qp2 = new URLSearchParams(qp);
+        qp2.set('texto', texto);
+        const second = await doRequest(qp2);
+        if (second.items.length > 0) return second;
+      }
+
+      // 2b) Portal oficial usa `nomeAdvogado` e, na prática, pode retornar resultados
+      // quando a busca por OAB retorna 0.
+      const nome = nomeAdvogado;
+      if (nome) {
+        const qp3 = new URLSearchParams(qp);
+        qp3.delete('texto');
+        qp3.delete('numeroOab');
+        qp3.delete('ufOab');
+        qp3.set('nomeAdvogado', normalizeAccents(nome));
+
+        const third = await doRequest(qp3);
+        if (third.items.length > 0) return third;
+
+        // 2c) Último recurso: alguns tribunais só respeitam busca via `texto`
+        // mesmo quando o usuário fornece nome.
+        const qp4 = new URLSearchParams(qp3);
+        qp4.set('texto', normalizeAccents(nome));
+        return await doRequest(qp4);
+      }
     }
 
     return first;
