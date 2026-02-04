@@ -1459,7 +1459,11 @@ export function limparEstadoDjenTermos() {
   notifyListeners();
 }
 
-export function forceKillDjenTermos() {
+/**
+ * Force kill mantém o checkpoint para permitir retomada posterior.
+ * Para limpar completamente, use limparEstadoDjenTermos() após forceKill.
+ */
+export function forceKillDjenTermos(clearCheckpoint = false) {
   // Kill switch total
   singletonState.abortController?.abort();
   if (singletonState.timerInterval) {
@@ -1470,7 +1474,12 @@ export function forceKillDjenTermos() {
   singletonState.abortController = null;
   singletonState.executionId = null;
   singletonState.turboDisabled = false;
-  saveCheckpoint(null);
+  
+  // IMPORTANTE: NÃO limpar checkpoint por padrão para permitir retomada
+  if (clearCheckpoint) {
+    saveCheckpoint(null);
+  }
+  
   singletonState.progress = createDefaultProgress();
   notifyListeners();
 

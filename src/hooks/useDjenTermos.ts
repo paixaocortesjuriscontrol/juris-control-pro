@@ -291,18 +291,23 @@ export function useDjenTermos() {
     }
   }, [queryClient]);
 
-  const forceKill = useCallback(async () => {
-    forceKillDjenTermos();
-    toast.success('DJEN Termos finalizado forçadamente');
+  const forceKill = useCallback(async (clearCheckpoint = false) => {
+    forceKillDjenTermos(clearCheckpoint);
+    toast.success(
+      clearCheckpoint 
+        ? 'DJEN Termos finalizado e checkpoint limpo' 
+        : 'DJEN Termos parado. Use Executar para retomar de onde parou.'
+    );
     queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
     queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
     queryClient.invalidateQueries({ queryKey: ['djen-config-live'] });
   }, [queryClient]);
 
-  const forceKillHibrido = useCallback(async () => {
+  const forceKillHibrido = useCallback(async (clearCheckpoint = false) => {
     try {
       // Sempre matar o engine local também (se estiver rodando)
-      forceKillDjenTermos();
+      // NÃO limpar checkpoint por padrão para permitir retomada
+      forceKillDjenTermos(clearCheckpoint);
 
       const { data } = await supabase
         .from('configuracoes_monitoramento')
@@ -318,7 +323,11 @@ export function useDjenTermos() {
         })
         .eq('tipo', 'djen')
         .is('coordenacao_id', null);
-      toast.success('DJEN Termos finalizado forçadamente (backend)');
+      toast.success(
+        clearCheckpoint
+          ? 'DJEN Termos finalizado e checkpoint limpo (backend)'
+          : 'DJEN Termos parado (backend). Use Executar para retomar.'
+      );
       queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
       queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
       queryClient.invalidateQueries({ queryKey: ['djen-config-live'] });
@@ -346,7 +355,8 @@ export function useDjenTermos() {
 
     try {
       // Parar qualquer execução (backend/local) antes de limpar
-      forceKillDjenTermos();
+      // LIMPAR checkpoint também (true) pois estamos limpando os dados
+      forceKillDjenTermos(true);
       try {
         const { data } = await supabase
           .from('configuracoes_monitoramento')
@@ -380,8 +390,8 @@ export function useDjenTermos() {
       );
       if (error) throw error;
 
-      // Limpar estado do engine local (singleton)
-      forceKillDjenTermos();
+      // Limpar estado do engine local (singleton) - incluindo checkpoint
+      forceKillDjenTermos(true);
       limparEstadoDjenTermos();
 
       // Refetch imediato das telas ativas (Análise / Dashboards)
