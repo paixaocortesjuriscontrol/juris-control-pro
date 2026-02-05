@@ -407,6 +407,7 @@ export async function buscarPjeComunicaNoBrowser(
     // Sufixos como S A, S/A, LTDA, ME, EPP são frequentemente omitidos no cadastro
     if (params.tipo === 'parte' && first.items.length === 0) {
       const nomeParte = (params.nomeParte || "").trim().toUpperCase();
+     console.log(`[PJE Comunica] Tipo parte sem resultados. nomeParte="${nomeParte}". Tentando com sufixos...`);
       const sufixosLegais = ['S A', 'S/A', 'SA', 'LTDA', 'ME', 'EPP', 'EIRELI', 'SOCIEDADE ANONIMA'];
       
       // Só tentar adicionar sufixo se o termo não termina com um sufixo conhecido
@@ -416,17 +417,23 @@ export async function buscarPjeComunicaNoBrowser(
         // Tentar com S A e LTDA (mais comuns para empresas)
         for (const sufixo of ['S A', 'LTDA']) {
           const qpComSufixo = new URLSearchParams(qp);
-          qpComSufixo.set('nomeParte', normalizeAccents(`${nomeParte} ${sufixo}`));
+         const nomeParteComSufixo = normalizeAccents(`${nomeParte} ${sufixo}`);
+         qpComSufixo.set('nomeParte', nomeParteComSufixo);
+         console.log(`[PJE Comunica] Tentando com sufixo "${sufixo}": ${nomeParteComSufixo}`);
           try {
             const respComSufixo = await doRequest(qpComSufixo);
+           console.log(`[PJE Comunica] Resultado com sufixo "${sufixo}": ${respComSufixo.items.length} itens`);
             if (respComSufixo.items.length > 0) {
               console.log(`[PJE Comunica] Encontrado com sufixo "${sufixo}"`);
               return respComSufixo;
             }
-          } catch {
+         } catch (e: any) {
             // Ignorar erros no fallback
+           console.warn(`[PJE Comunica] Erro ao tentar com sufixo "${sufixo}":`, e?.message);
           }
         }
+     } else {
+       console.log(`[PJE Comunica] Termo já tem sufixo conhecido, não tentando adicionar mais`);
       }
     }
 
