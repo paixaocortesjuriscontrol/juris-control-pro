@@ -875,23 +875,25 @@ function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean 
   return contemFraseExata(conteudoNorm, termoNorm);
 }
 
-function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
-  if (!condicao) return true;
-  const gruposOr = String(condicao)
-    .split('|')
-    .map(g => g.trim())
-    .filter(Boolean);
-  if (gruposOr.length === 0) return true;
-
-  const conteudoNorm = normalizar(conteudo);
-  return gruposOr.some(grupo => {
-    const termosAnd = grupo
-      .split(',')
-      .map(t => t.trim())
-      .filter(Boolean);
-    if (termosAnd.length === 0) return true;
-    return termosAnd.every(t => termoAtendidoPorPalavras(conteudoNorm, t));
-  });
+/**
+ * VALIDAÇÃO ESTRITA para termos com "+" (AND logic).
+ * Cada segmento separado por "+" DEVE aparecer 100% (frase exata) no texto.
+ */
+function validarTermoComAnd(conteudoNorm: string, termo: string): boolean {
+  if (!termo.includes('+')) {
+    return contemFraseExata(conteudoNorm, normalizar(termo));
+  }
+  
+  const partesAnd = termo.split('+').map(p => p.trim()).filter(Boolean);
+  for (const parte of partesAnd) {
+    // Ignorar prefixos OAB que são validados separadamente
+    if (/^OAB\s/i.test(parte)) continue;
+    const parteNorm = normalizar(parte);
+    if (parteNorm && !contemFraseExata(conteudoNorm, parteNorm)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function conteudoContemTermo(
@@ -905,6 +907,7 @@ function conteudoContemTermo(
   const conteudoNorm = normalizar(conteudo);
 
   if (tipo === 'advogado' || tipo === 'nome') {
+    // OAB (se houver) deve aparecer no texto - SEMPRE obrigatório
     if (tipo === 'advogado' && oab) {
       const oabDigits = String(oab).replace(/\D/g, '');
       if (oabDigits.length >= 3) {
@@ -913,9 +916,11 @@ function conteudoContemTermo(
       }
     }
 
+    // Nome (se houver) deve aparecer 100% como frase exata
     if (termo) {
-      const termoNorm = normalizar(termo);
-      if (termoNorm && !contemFraseExata(conteudoNorm, termoNorm)) {
+      const termoBase = extrairPalavraChavePura(termo);
+      // Validar com lógica AND se tiver "+"
+      if (!validarTermoComAnd(conteudoNorm, termoBase)) {
         return false;
       }
     }
@@ -929,10 +934,10 @@ function conteudoContemTermo(
     return conteudoNorm.includes(numero);
   }
 
-  // Para palavra-chave/parte: FRASE EXATA na ordem - "Super Quadra" só casa com "Super Quadra"
-  const termoNorm = normalizar(termo);
-  if (!termoNorm) return true;
-  return contemFraseExata(conteudoNorm, termoNorm);
+  // Para palavra-chave/parte: FRASE EXATA 100% - validar com lógica AND se tiver "+"
+  const termoPuro = extrairPalavraChavePura(termo);
+  if (!termoPuro) return true;
+  return validarTermoComAnd(conteudoNorm, termoPuro);
 }
 
 function parseAdvogadoTermo(raw: string): { nome?: string; oabDigits?: string; uf?: string } {
@@ -1009,13 +1014,17 @@ function conteudoContemTermoOuOr(
     ? extrairPalavraChavePura(monitoramento.termo_busca)
     : monitoramento.termo_busca;
 
+  // Para tipo 'nome', validar nome 100% no texto
   if (monitoramento.tipo === 'nome') {
     return conteudoContemTermo(conteudo, termoPuro, 'nome', undefined);
   }
+  
+  // Para palavra-chave, processo, parte: validação 100% estrita
   if (monitoramento.tipo !== 'advogado') {
     return conteudoContemTermo(conteudo, termoPuro, monitoramento.tipo, monitoramento.oab);
   }
 
+  // Para tipo 'advogado': validar OAB + nome (se houver termos_or, usar OR entre eles)
   const termosOrPuros = (monitoramento.termos_or || []).map((t) => extrairPalavraChavePura(t.trim())).filter(Boolean);
   const targets = buildAdvogadoTargets(
     termoPuro,
@@ -1023,9 +1032,12 @@ function conteudoContemTermoOuOr(
     monitoramento.oab,
     monitoramento.uf
   );
+  
   if (targets.length === 0) {
     return conteudoContemTermo(conteudo, termoPuro, monitoramento.tipo, monitoramento.oab);
   }
+  
+  // OR entre targets: pelo menos UM deve casar 100%
   return targets.some((t) =>
     conteudoContemTermo(conteudo, t.nome || '', 'advogado', t.oabDigits)
   );
