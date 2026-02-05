@@ -45,6 +45,7 @@ export interface DjenTermosProgress {
   // UI
   mensagem: string;
   termoAtual: string | null;
+  termoDescricao: string | null;
   tempoDecorrido: number;
   
   // Intervalo de busca
@@ -165,6 +166,7 @@ function createDefaultProgress(): DjenTermosProgress {
     descartadasTribunal: 0,
     mensagem: '',
     termoAtual: null,
+    termoDescricao: null,
     tempoDecorrido: 0,
     dataInicioYmd: null,
     dataFimYmd: null,
@@ -1193,6 +1195,7 @@ async function runEngine(
     descartadas,
     mensagem: retomar ? `Retomando dia ${diaIdx + 1}/${totalDias}...` : `Iniciando ${totalDias} dia(s)...`,
     termoAtual: null,
+    termoDescricao: null,
     tempoDecorrido: Math.floor((Date.now() - startTime) / 1000),
     dataInicioYmd,
     dataFimYmd,
@@ -1247,6 +1250,7 @@ async function runEngine(
           percentage: percentageInicial,
           termoAtualNoDia: termoIdx + 1,
           termoAtual: termoLabel,
+          termoDescricao: mon.descricao || null,
           mensagem: `📅 ${diaFmt} • (${termoIdx + 1}/${totalTermos}) ${termoLabel} • 0/${totalTribunaisDoTermo} tribunais`,
         });
 
@@ -1445,6 +1449,7 @@ async function runEngine(
         mensagem: `Cancelado. ${novas} novas encontradas.`,
         tempoDecorrido: duracao,
         termoAtual: null,
+        termoDescricao: null,
       });
 
       await persistMetadata({
@@ -1469,6 +1474,7 @@ async function runEngine(
         mensagem: `✅ Concluído! ${novas} novas, ${duplicadas} duplicadas`,
         tempoDecorrido: duracao,
         termoAtual: null,
+        termoDescricao: null,
       });
 
       await persistMetadata({
