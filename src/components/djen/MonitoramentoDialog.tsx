@@ -308,8 +308,9 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
 
   const isUfValid = tipo !== 'advogado' || todasRegioes || selectedUfs.length > 0;
   
-  // Debug: verificar estado dos campos
-  console.log('MonitoramentoDialog validation:', { isUfValid, coordenacaoId, termoBusca, tipo, todasRegioes, selectedUfs });
+  // Em modo de edição, não exigir coordenação se o monitoramento original não tinha
+  // Em modo de criação, continuar exigindo coordenação
+  const isFormValid = termoBusca.trim().length > 0 && isUfValid && (monitoramento ? true : !!coordenacaoId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -666,7 +667,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
             </Button>
             <Button 
               type="submit" 
-              disabled={criarMonitoramento.isPending || atualizarMonitoramento.isPending || !isUfValid || !coordenacaoId || !termoBusca}
+              disabled={criarMonitoramento.isPending || atualizarMonitoramento.isPending || !isFormValid}
             >
               {monitoramento ? 'Salvar' : 'Criar Monitoramento'}
             </Button>
