@@ -905,18 +905,37 @@ async function processarTermo(
     }
 
     // 3. Verificar termo/OAB
-    // Para ADVOGADO/PARTE: quando há condição concomitante, DEVEMOS validar se o advogado/parte
-    // está no conteúdo. Caso contrário, a condição concomitante pode casar com publicações de
-    // outros advogados/partes que também mencionam o mesmo termo (ex: "SERVICO DE APOIO").
-    // Sem condição concomitante, a API filtra corretamente e validação gera falso descarte.
+    // Para ADVOGADO/PARTE: quando há condição concomitante OU o termo tem "+", 
+    // DEVEMOS validar se o advogado/parte está no conteúdo.
+    // Sem condição, a API filtra corretamente e validação gera falso descarte.
     const temCondicaoConcomitante = mon.condicao_concomitante && mon.condicao_concomitante.trim().length > 0;
-    const deveValidarTermo = (mon.tipo !== 'advogado' && mon.tipo !== 'parte') || temCondicaoConcomitante;
+    const termoTemCondicaoAnd = mon.termo_busca && mon.termo_busca.includes('+');
+    const deveValidarTermo = (mon.tipo !== 'advogado' && mon.tipo !== 'parte') || temCondicaoConcomitante || termoTemCondicaoAnd;
 
     if (deveValidarTermo) {
       const termoParaValidar = (mon.tipo === 'palavra-chave' || (mon.tipo as string) === 'nome')
         ? extrairPalavraChavePura(mon.termo_busca)
         : mon.termo_busca;
-      if (!conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab)) {
+      
+      // Se o termo tem "+" (AND implícito), validar CADA parte separadamente
+      if (termoTemCondicaoAnd) {
+        const partesAnd = mon.termo_busca.split('+').map(p => p.trim()).filter(Boolean);
+        for (const parte of partesAnd) {
+          // Para cada parte, verificar se está presente no conteúdo
+          // Ignorar partes que parecem ser tipo de tribunal/OAB (ex: "OAB TODAS-15553")
+          if (parte.match(/^OAB\s/i)) continue;
+          
+          const parteNorm = normalizar(parte);
+          const palavrasParte = parteNorm.split(/\s+/).filter(p => p.length >= 2);
+          const minPalavras = Math.ceil(palavrasParte.length * 0.8);
+          const encontradas = palavrasParte.filter(p => contemTokenInteiro(normalizar(conteudo), p));
+          
+          if (encontradas.length < minPalavras) {
+            pubsDescartadas.push({ ...pub, motivo_descarte: `termo_and_nao_encontrado: ${parte}` });
+            return false;
+          }
+        }
+      } else if (!conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab)) {
         pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
         return false;
       }

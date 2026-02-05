@@ -97,17 +97,8 @@ export function PublicacaoConteudoDjen({
       }
     }
     
-    // Se temos OAB do monitoramento, adicionar como advogado
-    if (monitoramentoOab && monitoramentoUf) {
-      const advDesc = monitoramentoDescricao || monitoramentoTermo || "";
-      const nomeAdv = advDesc.split(/[,-]/).find(s => !s.match(/OAB/i))?.trim() || "";
-      if (nomeAdv) {
-        const advString = `${nomeAdv} - OAB ${monitoramentoUf}-${monitoramentoOab}`;
-        if (!advogados.some(a => a.includes(monitoramentoOab))) {
-          advogados.push(advString);
-        }
-      }
-    }
+    // NOTA: O monitoramentoOab/termo são critérios de BUSCA, não advogados da publicação.
+    // Os advogados reais devem ser extraídos do conteúdo da publicação (matchAll acima).
     
     return { partes, advogados };
   };
