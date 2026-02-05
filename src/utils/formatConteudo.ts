@@ -25,6 +25,20 @@ export const formatConteudoParaExibicao = (conteudo: string | null | undefined):
 
   let s = raw;
 
+  // Detectar e limpar HTML truncado (tags incompletas no final)
+  // Isso acontece quando a API retorna conteúdo cortado no meio de uma tag HTML
+  const truncatedTagMatch = s.match(/<[a-z][^>]*$/i);
+  if (truncatedTagMatch) {
+    // Remove a tag incompleta do final
+    s = s.slice(0, truncatedTagMatch.index);
+  }
+  
+  // Remove atributos incompletos no final (ex: style="widt)
+  const truncatedAttrMatch = s.match(/\s+[a-z-]+\s*=\s*["'][^"']*$/i);
+  if (truncatedAttrMatch) {
+    s = s.slice(0, truncatedAttrMatch.index);
+  }
+
   // Remove blocos que não devem ser exibidos
   s = s
     .replace(/<style[\s\S]*?<\/style>/gi, "")
