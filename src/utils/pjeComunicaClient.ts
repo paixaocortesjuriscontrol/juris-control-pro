@@ -283,8 +283,8 @@ export async function buscarPjeComunicaNoBrowser(
   // O endpoint /comunicacoes (plural) retorna 404 para vários tribunais
   const endpoint = ENDPOINTS[0]; // /comunicacao (singular)
 
-  // Timeout de 60s por requisição - aumentado para buscas gerais por tribunal
-  const REQUEST_TIMEOUT_MS = 60000;
+  // Timeout de 90s por requisição para APIs lentas/instáveis
+  const REQUEST_TIMEOUT_MS = 90000;
 
   const doRequest = async (queryParams: URLSearchParams): Promise<PjeComunicaResponse> => {
     await awaitGlobalCooldown();
@@ -325,7 +325,7 @@ export async function buscarPjeComunicaNoBrowser(
         }
         if (resp.status === 429) {
           const retryAfterMs = parseRetryAfterMs(resp);
-          const baseWait = retryAfterMs ?? 8000;
+          const baseWait = retryAfterMs ?? 10000;
           setGlobalCooldown(jitterMs(baseWait));
         }
         throw new Error(`HTTP ${resp.status} ${t.slice(0, 120)}`);
@@ -550,8 +550,8 @@ export async function buscarPjeComunicaPaginado(
   // Delay entre páginas: 1500ms (restaurado do 26/01 - balanceado velocidade/estabilidade)
   const delayMs = Math.max(options?.delayMs ?? 1500, 0);
   // Retry com backoff exponencial
-  const maxRetries = options?.maxRetries ?? 3;
-  const retryBaseDelay = options?.retryBaseDelay ?? 8000;  // 8s base para 429
+  const maxRetries = options?.maxRetries ?? 5;
+  const retryBaseDelay = options?.retryBaseDelay ?? 10000;  // 10s base para retry
 
   const startPage = Math.max(params.page ?? 0, 0);
   // PageSize 50: menos páginas = menos delays = ~2-3x mais rápido (restaurado do 26/01)
