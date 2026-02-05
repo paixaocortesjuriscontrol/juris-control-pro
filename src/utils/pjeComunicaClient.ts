@@ -407,11 +407,12 @@ export async function buscarPjeComunicaNoBrowser(
     // Sufixos como S A, S/A, LTDA, ME, EPP são frequentemente omitidos no cadastro
     if (params.tipo === 'parte' && first.items.length === 0) {
       const nomeParte = (params.nomeParte || "").trim().toUpperCase();
-     console.log(`[PJE Comunica] Tipo parte sem resultados. nomeParte="${nomeParte}". Tentando com sufixos...`);
+     console.log(`[PJE Comunica] 🔍 Tipo PARTE sem resultados. nomeParte="${nomeParte}", tribunal="${params.siglaTribunal}". Verificando sufixos...`);
       const sufixosLegais = ['S A', 'S/A', 'SA', 'LTDA', 'ME', 'EPP', 'EIRELI', 'SOCIEDADE ANONIMA'];
       
       // Só tentar adicionar sufixo se o termo não termina com um sufixo conhecido
       const jaTemSufixo = sufixosLegais.some(s => nomeParte.endsWith(s) || nomeParte.endsWith(s.replace(/\s/g, '')));
+     console.log(`[PJE Comunica] 🔍 Já tem sufixo? ${jaTemSufixo}`);
       
       if (!jaTemSufixo) {
         // Tentar com S A e LTDA (mais comuns para empresas)
@@ -419,10 +420,10 @@ export async function buscarPjeComunicaNoBrowser(
           const qpComSufixo = new URLSearchParams(qp);
          const nomeParteComSufixo = normalizeAccents(`${nomeParte} ${sufixo}`);
          qpComSufixo.set('nomeParte', nomeParteComSufixo);
-         console.log(`[PJE Comunica] Tentando com sufixo "${sufixo}": ${nomeParteComSufixo}`);
+         console.log(`[PJE Comunica] ▶️ Tentando com sufixo "${sufixo}": nomeParte="${nomeParteComSufixo}" tribunal="${params.siglaTribunal}"`);
           try {
             const respComSufixo = await doRequest(qpComSufixo);
-           console.log(`[PJE Comunica] Resultado com sufixo "${sufixo}": ${respComSufixo.items.length} itens`);
+           console.log(`[PJE Comunica] ✅ Resultado com sufixo "${sufixo}": ${respComSufixo.items.length} itens (tribunal: ${params.siglaTribunal})`);
             if (respComSufixo.items.length > 0) {
               console.log(`[PJE Comunica] Encontrado com sufixo "${sufixo}"`);
               return respComSufixo;
@@ -435,6 +436,11 @@ export async function buscarPjeComunicaNoBrowser(
      } else {
        console.log(`[PJE Comunica] Termo já tem sufixo conhecido, não tentando adicionar mais`);
       }
+     
+     // Se ainda não encontrou, fazer debug
+     if (first.items.length === 0) {
+       console.log(`[PJE Comunica] ⚠️ Tipo PARTE - busca finalizada sem resultados. nomeParte="${nomeParte}", tribunal="${params.siglaTribunal}"`);
+     }
     }
 
     return first;
