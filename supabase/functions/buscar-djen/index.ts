@@ -20,6 +20,7 @@ function getCacheKey(params: SearchParams): string {
     oab: params.oab?.toLowerCase(),
     uf: params.uf?.toUpperCase(),
     palavraChave: params.palavraChave?.toLowerCase().trim(),
+    nomeParte: params.nomeParte?.toLowerCase().trim(),
     numeroProcesso: params.numeroProcesso?.replace(/\D/g, ""),
     dataInicio: params.dataInicio,
     dataFim: params.dataFim,
@@ -83,13 +84,14 @@ const JINA_READER_URL = "https://r.jina.ai";
 const BROWSERLESS_API_URL = "https://chrome.browserless.io";
 
 // Types of searches available
-type SearchType = "advogado" | "palavra-chave" | "processo";
+type SearchType = "advogado" | "palavra-chave" | "processo" | "parte";
 
 interface SearchParams {
   tipo: SearchType;
   oab?: string;
   uf?: string;
   palavraChave?: string;
+  nomeParte?: string;
   numeroProcesso?: string;
   dataInicio?: string;
   dataFim?: string;
@@ -343,7 +345,7 @@ function normalizeAccents(text: string): string {
 }
 
 async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, browserlessApiKey?: string): Promise<any> {
-  const { tipo, oab, uf, palavraChave, numeroProcesso, dataInicio, dataFim } = params;
+  const { tipo, oab, uf, palavraChave, nomeParte, numeroProcesso, dataInicio, dataFim } = params;
 
   const baseParams = new URLSearchParams();
 
@@ -355,6 +357,11 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, brow
   } else if (tipo === "advogado" && oab) {
     const oabQuery = uf ? `OAB ${oab} ${uf}` : `OAB ${oab}`;
     baseParams.append("texto", oabQuery);
+  } else if (tipo === "parte" && nomeParte) {
+    // Para busca por nome de parte (polo ativo/passivo)
+    const nomeParteNormalizado = normalizeAccents(nomeParte);
+    baseParams.append("nomeParte", nomeParteNormalizado);
+    console.log(`[buscar-djen] Parte normalizada: "${nomeParte}" -> "${nomeParteNormalizado}"`);
   } else if (tipo === "processo" && numeroProcesso) {
     baseParams.append("texto", numeroProcesso);
   }
@@ -778,6 +785,7 @@ serve(async (req) => {
       oab,
       uf,
       palavraChave,
+      nomeParte,
       numeroProcesso,
       dataInicio,
       dataFim,
@@ -786,10 +794,8 @@ serve(async (req) => {
       fetchAll,
     } = body;
 
-    // Compat: alguns registros/flows antigos usam `tipo: "parte"`.
-    // A API interna trabalha com os 3 tipos oficiais (advogado, palavra-chave, processo),
-    // então normalizamos cedo para não cair na validação de tipo.
-    const tipoNormalizado = (tipo === "parte" ? "palavra-chave" : tipo);
+    // tipo agora suporta nativamente "parte" para busca por nome de parte
+    const tipoNormalizado = tipo;
 
     console.log("DJEN Search request:", JSON.stringify(body));
 
@@ -797,7 +803,7 @@ serve(async (req) => {
     const validationErrors: string[] = [];
 
     // Validate tipo
-    const validTipos = ["advogado", "palavra-chave", "processo"];
+    const validTipos = ["advogado", "palavra-chave", "processo", "parte"];
     if (!validTipos.includes(tipoNormalizado)) {
       validationErrors.push(`Tipo de busca inválido. Use: ${validTipos.join(", ")}`);
     }
@@ -866,6 +872,16 @@ serve(async (req) => {
           }
         );
       }
+    } else if (tipoNormalizado === "parte") {
+      if (!nomeParte || nomeParte.length < 3) {
+        return new Response(
+          JSON.stringify({ error: "Nome da parte deve ter pelo menos 3 caracteres", success: false }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
     } else if (tipoNormalizado === "processo") {
       if (!numeroProcesso) {
         return new Response(JSON.stringify({ error: "Número do processo é obrigatório", success: false }), {
@@ -880,6 +896,7 @@ serve(async (req) => {
       oab,
       uf,
       palavraChave,
+      nomeParte,
       numeroProcesso,
       dataInicio,
       dataFim,
