@@ -670,7 +670,8 @@ async function processarTermo(
   diaYmd: string,
   signal: AbortSignal,
   runtimeConfig: RuntimeConfig,
-  onRateLimit?: (waitMs: number) => void
+  onRateLimit?: (waitMs: number) => void,
+  onTribunalProgress?: (tribunalIdx: number, totalTribunais: number) => void
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; descartadasTribunal: number }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
 
@@ -732,6 +733,8 @@ async function processarTermo(
     ? (advogadoForcarTribunalNaBusca ? tribunais : [])
     : tribunais;
   const tribLoop = tribunaisLoop.length > 0 ? tribunaisLoop : [undefined];
+  const totalTribunaisParaReportar = tribLoop.length;
+  let tribunalIdxAtual = 0;
 
   // UFs: se configurado múltiplas, iterar; senão usar primeira ou undefined
   const ufsLoop = ufsParaBuscar.length > 0 ? ufsParaBuscar : [undefined];
@@ -839,6 +842,9 @@ async function processarTermo(
     }
 
     await delay(dynamicTribunalDelay);
+    // Reportar progresso após processar cada tribunal
+    tribunalIdxAtual++;
+    onTribunalProgress?.(tribunalIdxAtual, totalTribunaisParaReportar);
   }
 
   // Bloco buscar_parte REMOVIDO - substituído pelo tipo 'parte' dedicado
@@ -1085,7 +1091,20 @@ async function runEngine(
   const totalTermos = termos.length;
   const listaDatas = gerarListaDatas(dataInicioYmd, dataFimYmd);
   const totalDias = listaDatas.length;
-  const globalTotal = totalDias * totalTermos;
+  
+  // ================================================================
+  // CÁLCULO DE PROGRESSO PONDERADO POR TRIBUNAIS
+  // Cada termo contribui com o número de tribunais que precisa processar.
+  // Se não há tribunais configurados, contribui com 1.
+  // Isso garante que 1 termo com 27 tribunais progrida de 0→100% gradualmente.
+  // ================================================================
+  const termoPesos = termos.map((t) => {
+    const tribs = expandirTribunais(t.tribunais);
+    // Mínimo 1 (mesmo sem tribunal), máximo útil para progresso fluido
+    return Math.max(1, tribs.length);
+  });
+  const totalPesoTermos = termoPesos.reduce((a, b) => a + b, 0);
+  const globalTotal = totalDias * totalPesoTermos;
 
   // Inicializar do checkpoint ou do zero
   let diaIdx = checkpoint?.diaIndice ?? 0;
@@ -1154,12 +1173,14 @@ async function runEngine(
   }, 1000);
 
   // Progresso inicial
-  const globalCurrent = (diaIdx * totalTermos) + termoIdx;
+  // Usar peso acumulado para calcular progresso inicial
+  const pesoAcumuladoInicial = termoPesos.slice(0, termoIdx).reduce((a, b) => a + b, 0);
+  const globalCurrentInicial = (diaIdx * totalPesoTermos) + pesoAcumuladoInicial;
   updateProgress({
     status: 'executando',
-    globalCurrent,
+    globalCurrent: globalCurrentInicial,
     globalTotal,
-    percentage: Math.round((globalCurrent / globalTotal) * 100),
+    percentage: globalTotal > 0 ? Math.min(99, Math.round((globalCurrentInicial / globalTotal) * 100)) : 0,
     diaAtualYmd: listaDatas[diaIdx] ?? null,
     diaAtualIndice: diaIdx + 1,
     totalDias,
@@ -1174,6 +1195,9 @@ async function runEngine(
     dataInicioYmd,
     dataFimYmd,
   });
+  
+  // Variáveis para rastrear progresso granular por tribunal
+  let globalCurrentAtual = globalCurrentInicial;
 
   try {
     // ================================================================
@@ -1198,16 +1222,30 @@ async function runEngine(
         if (signal.aborted) break;
 
         const mon = termos[termoIdx];
-        const globalCurrent = (diaIdx * totalTermos) + termoIdx + 1;
-        const percentage = Math.round((globalCurrent / globalTotal) * 100);
+        
+        // Peso acumulado dos termos anteriores no dia atual
+        const pesoAnterior = termoPesos.slice(0, termoIdx).reduce((a, b) => a + b, 0);
+        // Peso do dia completo (soma de todos termos)
+        const pesoDiaCompleto = diaIdx * totalPesoTermos;
+        // Peso do termo atual (quantos tribunais)
+        const pesoTermoAtual = termoPesos[termoIdx];
+        
+        // Progresso base: dias anteriores + termos anteriores do dia atual
+        const progressoBase = pesoDiaCompleto + pesoAnterior;
 
         const termoLabel = (mon.descricao || '').trim() || mon.termo_busca;
+        const tribunaisDoTermo = expandirTribunais(mon.tribunais);
+        const totalTribunaisDoTermo = Math.max(1, tribunaisDoTermo.length);
+        
+        // Atualizar com progresso inicial do termo (antes de processar tribunais)
+        globalCurrentAtual = progressoBase;
+        const percentageInicial = globalTotal > 0 ? Math.min(99, Math.round((globalCurrentAtual / globalTotal) * 100)) : 0;
         updateProgress({
-          globalCurrent,
-          percentage,
+          globalCurrent: globalCurrentAtual,
+          percentage: percentageInicial,
           termoAtualNoDia: termoIdx + 1,
           termoAtual: termoLabel,
-          mensagem: `📅 ${diaFmt} • (${termoIdx + 1}/${totalTermos}) ${termoLabel}`,
+          mensagem: `📅 ${diaFmt} • (${termoIdx + 1}/${totalTermos}) ${termoLabel} • 0/${totalTribunaisDoTermo} tribunais`,
         });
 
         // Processar termo
@@ -1228,6 +1266,48 @@ async function runEngine(
                 mensagem: `⚠️ Rate limit detectado. Aguardando ${Math.round(waitMs / 1000)}s...`,
               });
             }
+          },
+          // Callback para atualizar progresso a cada tribunal processado
+          (tribunalIdx, totalTribunais) => {
+            // Calcular progresso parcial dentro do termo
+            const progressoTribunal = Math.round((tribunalIdx / totalTribunais) * pesoTermoAtual);
+            globalCurrentAtual = progressoBase + progressoTribunal;
+            
+            // Limitar a 99% enquanto não concluiu totalmente (evita flash de 100%)
+            const percentage = globalTotal > 0 ? Math.min(99, Math.round((globalCurrentAtual / globalTotal) * 100)) : 0;
+            
+            updateProgress({
+              globalCurrent: globalCurrentAtual,
+              percentage,
+              mensagem: `📅 ${diaFmt} • (${termoIdx + 1}/${totalTermos}) ${termoLabel} • ${tribunalIdx}/${totalTribunais} tribunais`,
+            });
+            
+            // Persistir progresso no banco para sincronizar com banner/cards
+            const nowMs = Date.now();
+            if (singletonState.executionId && nowMs - singletonState.lastDetalhesPersistAt >= METADATA_PERSIST_MIN_INTERVAL_MS) {
+              singletonState.lastDetalhesPersistAt = nowMs;
+              supabase
+                .from('execucoes_agendadas')
+                .update({
+                  detalhes: {
+                    runKey,
+                    dataInicioYmd,
+                    dataFimYmd,
+                    totalDias,
+                    totalTermos,
+                    progress: {
+                      current: globalCurrentAtual,
+                      total: globalTotal,
+                      percentage,
+                    },
+                    novas,
+                    duplicadas,
+                    descartadas,
+                  },
+                })
+                .eq('id', singletonState.executionId)
+                .then(() => {}, () => {});
+            }
           }
         );
         
@@ -1235,6 +1315,10 @@ async function runEngine(
         duplicadas += result.duplicadas;
         descartadas += result.descartadas;
         descartadasTribunal += result.descartadasTribunal;
+        
+        // Após processar o termo, atualizar para o peso completo
+        globalCurrentAtual = progressoBase + pesoTermoAtual;
+        const percentageFinal = globalTotal > 0 ? Math.min(99, Math.round((globalCurrentAtual / globalTotal) * 100)) : 0;
 
         // Atualizar relevância do termo (prioriza termos que costumam achar resultados)
         const foundNow = result.novas + result.duplicadas;
@@ -1259,15 +1343,17 @@ async function runEngine(
           tempoInicio: startTime,
           dataInicioYmd,
           dataFimYmd,
-          globalCurrent,
+          globalCurrent: globalCurrentAtual,
           globalTotal,
-          percentage,
+          percentage: percentageFinal,
           totalDias,
           totalTermos,
         };
         saveCheckpoint(cp);
 
         updateProgress({
+          globalCurrent: globalCurrentAtual,
+          percentage: percentageFinal,
           novas,
           duplicadas,
           descartadas,
@@ -1277,9 +1363,9 @@ async function runEngine(
         // Atualizar metadata no Supabase (throttle para reduzir escritas)
         void persistMetadata({
           status: 'executando',
-          current: globalCurrent,
+          current: globalCurrentAtual,
           total: globalTotal,
-          percentage,
+          percentage: percentageFinal,
           novas,
           duplicadas,
           descartadas,
@@ -1308,9 +1394,9 @@ async function runEngine(
                 totalDias,
                 totalTermos,
                 progress: {
-                  current: globalCurrent,
+                  current: globalCurrentAtual,
                   total: globalTotal,
-                  percentage,
+                  percentage: percentageFinal,
                 },
                 novas,
                 duplicadas,
