@@ -1,31 +1,89 @@
 
+# Plano: Corrigir Cache Compartilhado que Impede Captura de Publicações
 
-# ✅ Plano Implementado: Progresso DJEN Termos por Tribunais
+## Problema Identificado
 
-## Status: IMPLEMENTADO ✅
+A publicação do processo **0737746-12.2025.8.07.0001** (TJDFT, 04/02/2026) contendo "OSMAR MENDES PAIXAO CORTES - OAB DF-15553" **não foi capturada** pelo monitoramento configurado para tribunais TJDFT, TRF1 e STJ.
 
-## Alterações Realizadas
+### Causa Raiz
 
-### 1. Cálculo de `globalTotal` ponderado por tribunais
-- Cada termo agora contribui com o número de tribunais que precisa processar
-- `termoPesos = termos.map(t => Math.max(1, expandirTribunais(t.tribunais).length))`
-- `globalTotal = totalDias * totalPesoTermos`
+O **cache compartilhado de advogados** (`sharedAdvogadoCache`) usa uma chave que **não inclui o tribunal**:
 
-### 2. Callback `onTribunalProgress` em `processarTermo`
-- Novo parâmetro opcional para reportar progresso granular
-- Chamado após cada tribunal ser processado no loop
+```typescript
+const cacheKey = `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}`
+// Ex: "2026-02-04|15553|DF"
+```
 
-### 3. Atualização de progresso em tempo real
-- UI atualiza a cada tribunal processado, não apenas por termo
-- Mensagem mostra "X/Y tribunais" durante processamento
-- Percentual limitado a 99% até conclusão total
+Isso causa o seguinte problema:
 
-### 4. Persistência no banco sincronizada
-- `detalhes.progress` atualizado durante loop de tribunal
-- Throttle de 3s mantido para reduzir carga no banco
+1. Sistema busca para **TJDFT** (OAB 15553 / UF DF) → API retorna X publicações
+2. Resultado é salvo no cache com chave `"2026-02-04|15553|DF"`
+3. Sistema vai buscar para **STJ** (OAB 15553 / UF DF) → **usa o cache do TJDFT!**
+4. Sistema vai buscar para **TRF1** (OAB 15553 / UF DF) → **usa o mesmo cache!**
 
-## Resultado
+**O cache foi projetado para evitar requisições duplicadas quando NÃO se filtra por tribunal**, mas quando `advogadoForcarTribunalNaBusca = true` (3 ou menos tribunais), cada tribunal deveria ter sua própria requisição separada.
 
-**Antes:** 1 termo com 27 tribunais → barra em 100% instantaneamente
-**Depois:** 1 termo com 27 tribunais → barra progride 0→99% conforme cada tribunal é processado, 100% só ao concluir
+### Por que a publicação não apareceu
 
+Se a primeira requisição (ex: TJDFT) falhou silenciosamente, retornou vazio, ou a API não incluiu essa publicação específica, o cache salva esse resultado vazio. As requisições subsequentes para STJ e TRF1 usam esse cache vazio, perdendo a chance de capturar a publicação que estava disponível no TJDFT.
+
+## Solução Proposta
+
+### Mudança 1: Incluir Tribunal na Chave do Cache
+
+Quando `advogadoForcarTribunalNaBusca = true`, a chave do cache DEVE incluir o tribunal:
+
+```typescript
+const cacheKey = isAdvogadoComOab
+  ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}|${advogadoForcarTribunalNaBusca ? trib ?? 'ALL' : 'ALL'}`
+  : null;
+```
+
+Isso garante que cada tribunal tenha seu próprio cache, evitando interferência entre buscas.
+
+### Mudança 2: Não Usar Cache Quando Filtrando por Tribunal
+
+Alternativa mais segura: simplesmente **desabilitar o cache** quando `advogadoForcarTribunalNaBusca = true`, pois nesse cenário temos poucas requisições (≤3 tribunais):
+
+```typescript
+const cacheKey = isAdvogadoComOab && !advogadoForcarTribunalNaBusca
+  ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}`
+  : null; // Não cachear quando buscando por tribunal específico
+```
+
+## Detalhes Técnicos
+
+### Arquivo a Modificar
+
+`src/hooks/useDjenTermosEngine.ts`
+
+### Localização
+
+Linhas 752-754:
+
+```typescript
+const cacheKey = isAdvogadoComOab
+  ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}`
+  : null;
+```
+
+### Nova Lógica
+
+```typescript
+// Quando advogadoForcarTribunalNaBusca = true, cada tribunal tem seu próprio cache
+// porque a API retorna resultados diferentes para cada siglaTribunal.
+// Sem esse fix, o cache do 1º tribunal é reutilizado para os demais, perdendo publicações.
+const cacheKey = isAdvogadoComOab
+  ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}${advogadoForcarTribunalNaBusca ? `|${trib ?? 'ALL'}` : ''}`
+  : null;
+```
+
+## Impacto
+
+- **Positivo**: Publicações de advogados para tribunais específicos (TJDFT, STJ, TRF1) serão corretamente buscadas e capturadas
+- **Performance**: Ligeiro aumento no número de requisições quando há poucos tribunais configurados (máximo 3 requisições adicionais por termo), mas isso já era o comportamento esperado
+- **Backward Compatible**: Não afeta monitoramentos sem filtro de tribunal (continuam usando cache compartilhado)
+
+## Validação
+
+Após a correção, executar o monitoramento DJEN para o dia 04/02/2026 e verificar se a publicação do processo 0737746-12.2025.8.07.0001 é capturada pelo monitoramento "DJEN do TJDFT, TRF1 e STJ".
