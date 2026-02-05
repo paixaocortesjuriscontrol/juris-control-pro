@@ -749,8 +749,11 @@ async function processarTermo(
         if (signal.aborted) return;
 
         try {
+          // Quando advogadoForcarTribunalNaBusca = true, cada tribunal tem seu próprio cache
+          // porque a API retorna resultados diferentes para cada siglaTribunal.
+          // Sem esse fix, o cache do 1º tribunal era reutilizado para os demais, perdendo publicações.
           const cacheKey = isAdvogadoComOab
-            ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}`
+            ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}${advogadoForcarTribunalNaBusca ? `|${trib ?? 'ALL'}` : ''}`
             : null;
 
           let respItems: any[] | null = null;
