@@ -1238,7 +1238,8 @@ async function runEngine(
         // Progresso base: dias anteriores + termos anteriores do dia atual
         const progressoBase = pesoDiaCompleto + pesoAnterior;
 
-        const termoLabel = (mon.descricao || '').trim() || mon.termo_busca;
+        // termoLabel: sempre usa termo_busca como identificador principal
+        const termoLabel = mon.termo_busca;
         const tribunaisDoTermo = expandirTribunais(mon.tribunais);
         const totalTribunaisDoTermo = Math.max(1, tribunaisDoTermo.length);
         
