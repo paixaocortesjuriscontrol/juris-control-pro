@@ -854,9 +854,10 @@ async function processarTermo(
   const pubsDescartadas: any[] = [];
   let descartadasTribunal = 0;
   const pubsValidas = resultados.filter(pub => {
-    // Se não forçamos tribunal na busca (coleta ampla), precisamos descartar os fora da lista.
-    // Importante: se a publicação NÃO trouxer sigla, descartamos (não dá para garantir filtro).
-    if (isAdvogadoComOab && tribunais.length > 0 && !advogadoForcarTribunalNaBusca) {
+    // CRÍTICO: Sempre aplicar filtro de tribunal para advogado com OAB quando há tribunais configurados.
+    // A API do PJE Comunica NÃO filtra consistentemente por siglaTribunal quando busca por numeroOab,
+    // retornando publicações de TODOS os tribunais. O filtro pós-busca é obrigatório.
+    if (isAdvogadoComOab && tribunais.length > 0) {
       const sigla = getSiglaTribunal(pub);
       if (!sigla || !tribunais.includes(sigla)) {
         descartadasTribunal += 1;
