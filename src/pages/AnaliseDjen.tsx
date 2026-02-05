@@ -597,7 +597,7 @@ const AnaliseDjen = () => {
                 </select>
               </div>
 
-              {coordenacaoFiltroEfetivo && (
+              {coordenacaoFiltroEfetivo && tipoOrigem !== 'processo' && tipoOrigem !== 'descartada' && (
                 <div className="space-y-1.5">
                   <Label className="text-xs md:text-sm">Termo</Label>
                   <select
