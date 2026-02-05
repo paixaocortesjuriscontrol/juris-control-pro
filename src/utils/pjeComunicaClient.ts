@@ -197,6 +197,15 @@ export async function buscarPjeComunicaNoBrowser(
   params: PjeComunicaSearchParams,
   options?: { signal?: AbortSignal }
 ): Promise<PjeComunicaResponse> {
+  // DEBUG: Log params for troubleshooting
+  console.log('[PJE Comunica] 🚀 buscarPjeComunicaNoBrowser params:', {
+    tipo: params.tipo,
+    nomeParte: params.nomeParte,
+    nomeAdvogado: params.nomeAdvogado,
+    siglaTribunal: params.siglaTribunal,
+    dataInicio: params.dataInicio,
+  });
+  
   const texto = buildTextoParam(params);
   const nomeAdvogado = String(params.nomeAdvogado || "").trim();
   
@@ -247,8 +256,10 @@ export async function buscarPjeComunicaNoBrowser(
   // 2a) Busca por nome de parte (polo ativo/passivo)
   if (params.tipo === "parte") {
     const nomeParte = (params.nomeParte || "").trim();
+    console.log('[PJE Comunica] ✅ Tipo PARTE detectado. nomeParte:', nomeParte);
     if (nomeParte) {
       qp.set("nomeParte", normalizeAccents(nomeParte));
+      console.log('[PJE Comunica] ✅ Parâmetro nomeParte adicionado à query:', normalizeAccents(nomeParte));
     }
   }
 
@@ -469,6 +480,7 @@ export async function buscarPjeComunicaNoBrowser(
         body: {
           tipo: params.tipo,
           palavraChave: params.palavraChave,
+          nomeParte: params.nomeParte,
           oab: params.oab,
           uf: params.uf,
           numeroProcesso: params.numeroProcesso,
