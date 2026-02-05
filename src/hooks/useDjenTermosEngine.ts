@@ -780,6 +780,7 @@ async function processarTermo(
                 oab: baseParams.oab,
                 uf: uf,
                 nomeAdvogado: baseParams.nomeAdvogado,
+               nomeParte: baseParams.nomeParte,
                 palavraChave: variante || undefined,
                 numeroProcesso: baseParams.numeroProcesso,
                 siglaTribunal: isAdvogadoComOab
