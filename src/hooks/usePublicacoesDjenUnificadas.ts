@@ -66,7 +66,13 @@ export interface FiltrosUnificados {
   monitoramentoId?: string;
   apenasNaoLidas?: boolean;
   apenasHoje?: boolean;
-  tipoOrigem?: 'termo' | 'processo' | 'descartada' | 'todos';
+  // `tipoOrigem` é o filtro do UI "Tipo de Origem":
+  // - termo: publicações vindas de monitoramentos (palavra-chave / advogado / parte)
+  // - parte: subconjunto de "termo" onde monitoramento_tipo === 'parte'
+  // - processo: publicações vindas de processos cadastrados
+  // - descartada: auditoria
+  // - todos: (legado) mantido por compatibilidade
+  tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'todos';
   incluirDescartadas?: boolean;
 }
 
@@ -271,9 +277,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // 4) aplicar filtro de tipo e monitoramento (termo) quando selecionado
         let filteredByType = filtros.tipoOrigem === 'termo'
           ? mapped.filter((p) => p.tipo_origem === 'termo')
-          : filtros.tipoOrigem === 'processo'
-            ? mapped.filter((p) => p.tipo_origem === 'processo')
-            : mapped;
+          : filtros.tipoOrigem === 'parte'
+            ? mapped.filter((p) => p.tipo_origem === 'termo' && (p.monitoramento_tipo || '').toLowerCase() === 'parte')
+            : filtros.tipoOrigem === 'processo'
+              ? mapped.filter((p) => p.tipo_origem === 'processo')
+              : mapped;
         if (filtros.monitoramentoId) {
           filteredByType = filteredByType.filter((p) => p.monitoramento_id === filtros.monitoramentoId);
         }
@@ -409,6 +417,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           queryTermos = queryTermos.eq('monitoramento_id', filtros.monitoramentoId);
         }
 
+        // Filtro "Por Parte": só monitoramentos tipo 'parte'
+        if (filtros.tipoOrigem === 'parte') {
+          queryTermos = (queryTermos as any).eq('monitoramento.tipo', 'parte');
+        }
+
         // Limitar a 500 registros para performance (contagem precisa é feita pelo RPC)
         const { data: termosData } = await queryTermos.limit(500);
 
@@ -476,7 +489,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
       // Buscar publicações de PROCESSOS (publicacoes_djen_processos)
       // Obs: quando filtrando EXCLUSIVAMENTE por 'descartada', não deve trazer termos/processos.
-      if (filtros.tipoOrigem !== 'termo' && filtros.tipoOrigem !== 'descartada') {
+      // "parte" é um subconjunto de "termo" — não deve buscar publicações de processos
+      if (filtros.tipoOrigem !== 'termo' && filtros.tipoOrigem !== 'parte' && filtros.tipoOrigem !== 'descartada') {
         // IMPORTANTE: usar !inner para garantir que filtros por campos do relacionamento
         // (ex: processo.coordenacao_id) sejam aplicados no banco.
         let queryProcessos = supabase
@@ -637,6 +651,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Se estamos filtrando apenas descartadas, garantir que só venham descartadas
       if (filtros.tipoOrigem === 'descartada') {
         deduped = deduped.filter(p => p.tipo_origem === 'descartada');
+      }
+
+      // Se estamos filtrando apenas "parte", garantir que só venham termos do tipo 'parte'
+      if (filtros.tipoOrigem === 'parte') {
+        deduped = deduped.filter(
+          (p) => p.tipo_origem === 'termo' && (p.monitoramento_tipo || '').toLowerCase() === 'parte'
+        );
       }
 
       // Ordenar por data de criação (mais recentes primeiro)
