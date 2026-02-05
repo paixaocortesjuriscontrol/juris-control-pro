@@ -1,113 +1,31 @@
 
 
-# Plano: Corrigir Progresso DJEN Termos para Refletir Tribunais
+# ✅ Plano Implementado: Progresso DJEN Termos por Tribunais
 
-## Problema Identificado
+## Status: IMPLEMENTADO ✅
 
-Quando a busca é executada com **1 termo** e **1 dia**, o cálculo de percentual usa:
-- `globalTotal = totalDias × totalTermos = 1 × 1 = 1`
-- Assim que o loop interno inicia, `globalCurrent = 1` e `percentage = 100%`
+## Alterações Realizadas
 
-Porém, o termo ainda está processando **N tribunais** (ex: 27). A barra fica em 100% enquanto as requisições continuam.
+### 1. Cálculo de `globalTotal` ponderado por tribunais
+- Cada termo agora contribui com o número de tribunais que precisa processar
+- `termoPesos = termos.map(t => Math.max(1, expandirTribunais(t.tribunais).length))`
+- `globalTotal = totalDias * totalPesoTermos`
 
-## Solução
+### 2. Callback `onTribunalProgress` em `processarTermo`
+- Novo parâmetro opcional para reportar progresso granular
+- Chamado após cada tribunal ser processado no loop
 
-Refinar o cálculo de progresso para considerar os **tribunais dentro de cada termo**, não apenas o número de termos.
+### 3. Atualização de progresso em tempo real
+- UI atualiza a cada tribunal processado, não apenas por termo
+- Mensagem mostra "X/Y tribunais" durante processamento
+- Percentual limitado a 99% até conclusão total
 
-## Alterações Técnicas
+### 4. Persistência no banco sincronizada
+- `detalhes.progress` atualizado durante loop de tribunal
+- Throttle de 3s mantido para reduzir carga no banco
 
-### 1. Refatorar cálculo de `globalTotal` (`src/hooks/useDjenTermosEngine.ts`)
+## Resultado
 
-**Antes:**
-```typescript
-const globalTotal = totalDias * totalTermos;
-```
-
-**Depois:**
-Calcular um peso aproximado por termo baseado no número de tribunais:
-
-```typescript
-// Calcular total ponderado: cada termo contribui com (1 + número de tribunais)
-const termoPesos = termos.map((t) => {
-  const tribs = expandirTribunais(t.tribunais);
-  // Mínimo 1 (mesmo sem tribunal), máximo útil para progresso fluido
-  return Math.max(1, tribs.length);
-});
-const totalPesoTermos = termoPesos.reduce((a, b) => a + b, 0);
-const globalTotal = totalDias * totalPesoTermos;
-```
-
-### 2. Atualizar cálculo de `globalCurrent` dentro do loop
-
-**Antes (linha ~1201):**
-```typescript
-const globalCurrent = (diaIdx * totalTermos) + termoIdx + 1;
-```
-
-**Depois:**
-Usar o peso acumulado até o termo atual + progresso interno do tribunal:
-
-```typescript
-// Peso acumulado dos termos anteriores
-const pesoAnterior = termoPesos.slice(0, termoIdx).reduce((a, b) => a + b, 0);
-// Peso do dia inteiro (soma de todos termos)
-const pesoDiaCompleto = diaIdx * totalPesoTermos;
-// Progresso atual = dias completos + termos anteriores + tribunal atual
-const globalCurrent = pesoDiaCompleto + pesoAnterior + tribunalProgress;
-```
-
-### 3. Atualizar `updateProgress` no loop de tribunal
-
-Adicionar chamada a `updateProgress` dentro do loop de tribunal (linha ~841) para atualizar o percentual a cada tribunal processado:
-
-```typescript
-for (const trib of tribLoop) {
-  // ... código existente ...
-  
-  // Atualizar progresso por tribunal
-  tribunalProgress++;
-  const globalCurrent = pesoDiaCompleto + pesoAnterior + tribunalProgress;
-  const percentage = Math.round((globalCurrent / globalTotal) * 100);
-  updateProgress({ globalCurrent, percentage });
-  
-  await delay(dynamicTribunalDelay);
-}
-```
-
-### 4. Passar `termoPesos` para função `processarTermo`
-
-Adicionar parâmetro para que a função possa reportar progresso granular:
-
-```typescript
-async function processarTermo(
-  mon: Monitoramento,
-  diaYmd: string,
-  signal: AbortSignal,
-  runtimeConfig: RuntimeConfig,
-  onRateLimit?: (waitMs: number) => void,
-  onTribunalProgress?: (current: number, total: number) => void // NOVO
-): Promise<...>
-```
-
-### 5. Atualizar checkpoint e metadata com novo cálculo
-
-Garantir que o checkpoint e metadata usem o mesmo cálculo ponderado para consistência na retomada.
-
-## Arquivos a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/hooks/useDjenTermosEngine.ts` | Refatorar cálculo de progresso para ponderar por tribunais |
-
-## Resultado Esperado
-
-**Antes:** 1 termo com 27 tribunais → barra em 100% instantaneamente enquanto processa
-
-**Depois:** 1 termo com 27 tribunais → barra progride de 0% a 100% conforme cada tribunal é processado
-
-## Compatibilidade
-
-- Retomada de checkpoint: será compatível (o peso é recalculado ao carregar termos)
-- Execução com múltiplos termos: cada termo ainda contribuirá proporcionalmente
-- Banner de Análise: usará o mesmo `detalhes.progress` sincronizado
+**Antes:** 1 termo com 27 tribunais → barra em 100% instantaneamente
+**Depois:** 1 termo com 27 tribunais → barra progride 0→99% conforme cada tribunal é processado, 100% só ao concluir
 
