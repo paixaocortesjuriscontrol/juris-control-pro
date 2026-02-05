@@ -362,8 +362,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const merged = [...filteredByType, ...resultados].filter((p) => {
           if (p.tipo_origem !== 'termo') return true;
           const tipo = (p.monitoramento_tipo || '').toLowerCase();
-          // Só aplicar estrito para parte/palavra-chave (advogado/processo têm validações próprias)
-          if (tipo === 'advogado' || tipo === 'processo') return true;
+          // Só aplicar estrito para palavra-chave (advogado/parte/processo têm validações próprias via API)
+          if (tipo === 'advogado' || tipo === 'processo' || tipo === 'parte') return true;
           return conteudoContemTodasPalavrasDoTermo(p.conteudo || '', p.monitoramento_termo || '');
         });
 
@@ -628,7 +628,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const resultadosFiltrados = resultados.filter((p) => {
         if (p.tipo_origem !== 'termo') return true;
         const tipo = (p.monitoramento_tipo || '').toLowerCase();
-        if (tipo === 'advogado' || tipo === 'processo') return true;
+        if (tipo === 'advogado' || tipo === 'processo' || tipo === 'parte') return true;
         return conteudoContemTodasPalavrasDoTermo(p.conteudo || '', p.monitoramento_termo || '');
       });
 
