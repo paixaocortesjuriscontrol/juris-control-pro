@@ -158,8 +158,12 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: Monit
           setSelectedUfs([]);
         } else {
           setTodasRegioes(false);
-          setSelectedUfs(monitoramento.uf.split(','));
+          setSelectedUfs(monitoramento.uf.split(',').map(s => s.trim()).filter(Boolean));
         }
+      } else {
+        // Monitoramento não tinha UF definida - resetar estados
+        setTodasRegioes(false);
+        setSelectedUfs([]);
       }
     } else {
       // Reset para novo monitoramento
