@@ -66,7 +66,7 @@ import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen } from "@/components/djen/PublicacaoConteudoDjen";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada';
-type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'processo' | 'descartada';
+type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada';
 
 const AnaliseDjen = () => {
   const { user } = useAuth();
