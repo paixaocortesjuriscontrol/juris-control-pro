@@ -385,7 +385,7 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId, onOpenFullTab, o
 
       <CardContent className="space-y-4">
         {/* Progresso em destaque quando executando - aparece no topo para visibilidade */}
-        {(executando || progresso) && (
+        {executando && (
           <div className="space-y-3 p-3 rounded-lg bg-primary/10 border-2 border-primary/30">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium text-primary">
@@ -399,23 +399,25 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId, onOpenFullTab, o
                     {formatElapsed(progresso.elapsedSeconds)}
                   </Badge>
                 )}
-                {executando && (
-                  <Button variant="outline" size="sm" onClick={handleCancelar} className="h-7 gap-1 text-destructive hover:text-destructive">
-                    <StopCircle className="h-3 w-3" />
-                    Cancelar
-                  </Button>
-                )}
+                <Button variant="outline" size="sm" onClick={handleCancelar} className="h-7 gap-1 text-destructive hover:text-destructive">
+                  <StopCircle className="h-3 w-3" />
+                  Cancelar
+                </Button>
               </div>
             </div>
-            {progresso && (
-              <>
-                <div className="flex items-center gap-2 text-xs">
-                  <Badge variant="secondary" className="font-mono">Processo {progresso.currentGroup}/{progresso.totalGroups}</Badge>
-                  <span className="text-muted-foreground">{progresso.analisadas?.toLocaleString('pt-BR') || 0} analisadas • +{progresso.novas} novas</span>
-                </div>
-                <Progress value={progresso?.percentage ?? 0} className="h-2" />
-              </>
-            )}
+            {/* Barra de progresso sempre visível durante execução */}
+            <div className="flex items-center gap-2 text-xs">
+              <Badge variant="secondary" className="font-mono">
+                Processo {progresso?.currentGroup ?? 0}/{progresso?.totalGroups ?? '?'}
+              </Badge>
+              <span className="text-muted-foreground">
+                {(progresso?.analisadas ?? 0).toLocaleString('pt-BR')} analisadas • +{progresso?.novas ?? 0} novas
+              </span>
+            </div>
+            <Progress value={progresso?.percentage ?? 0} className="h-2" />
+            <div className="text-xs text-muted-foreground text-center font-mono">
+              {progresso?.percentage ?? 0}%
+            </div>
           </div>
         )}
 
