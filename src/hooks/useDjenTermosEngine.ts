@@ -480,16 +480,15 @@ function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): bool
 }
 
 /**
- * Valida se o conteúdo realmente contém o termo buscado.
- * 
+ * Valida se o conteúdo REAL (texto/teor/conteudo) contém o termo buscado.
+ *
+ * Regra: match 100% por FRASE EXATA normalizada (ordem + limites de palavra).
+ *
  * Para ADVOGADO:
- *  - OAB deve estar presente (regex flexível)
- *  - Nome deve ter 80% das palavras encontradas
- * 
- * Para PALAVRA-CHAVE/PARTE:
- *  - 100% das palavras do termo devem estar no conteúdo (validação estrita)
- *  - Isso evita capturas parciais como "Distribuidora" quando o termo é 
- *    "F & F Distribuidora de Produtos Farmacêuticos LTDA"
+ * - Exige OAB no texto (se houver)
+ * - Exige o nome no texto (se houver)
+ *
+ * Observação: NUNCA usar destinatarioNome/metadata para validar “presença no texto”.
  */
 function conteudoContemTermo(
   conteudo: string,
@@ -501,51 +500,38 @@ function conteudoContemTermo(
 
   const conteudoNorm = normalizar(conteudo);
 
-  // Para nome: validar frase exata do nome (como advogado sem OAB)
+  // Para nome: validar frase exata do nome
   if (tipo === 'nome') {
     if (!termo) return true;
     const termoNorm = normalizar(termo);
     return contemFraseExata(conteudoNorm, termoNorm);
   }
 
-  // Para advogado: validar OAB + Nome
+  // Para advogado: exigir OAB (se houver) E nome (se houver)
   if (tipo === 'advogado') {
-    // Para advogado, o conteúdo nem sempre contém a OAB (apesar de a consulta retornar pelo filtro).
-    // Regra: se houver NOME, o nome é a validação principal; OAB vira “melhoria” (não bloqueante).
-    // Se NÃO houver nome, aí sim exigimos OAB no conteúdo (para evitar falso positivo).
+    const termoNorm = termo ? normalizar(termo) : '';
 
-    // 1) Validar nome do advogado (se informado) - 80% das palavras
-    if (termo) {
-      const termoNorm = normalizar(termo);
-      const palavrasTermo = termoNorm.split(/\s+/).filter(p => p.length >= 2);
-
-      if (palavrasTermo.length > 0) {
-        const minPalavras = Math.ceil(palavrasTermo.length * 0.8);
-        const palavrasEncontradas = palavrasTermo.filter(p => contemTokenInteiro(conteudoNorm, p));
-
-        if (palavrasEncontradas.length < minPalavras) {
-          return false;
-        }
-      }
-      // Nome ok → aceitar mesmo que OAB não apareça no texto.
-      return true;
+    if (termoNorm && !contemFraseExata(conteudoNorm, termoNorm)) {
+      return false;
     }
 
-    // 2) Sem nome: exigir OAB no conteúdo
     if (oab) {
       const oabDigits = String(oab).replace(/\D/g, '');
       if (oabDigits.length < 3) return false;
-
       // Regex flexível: aceita pontos/espaços entre dígitos (ex: 15.553 ou 15 553)
       const oabPattern = new RegExp(oabDigits.split('').join('[.\\s-]?'), 'i');
-      return oabPattern.test(conteudo);
+      if (!oabPattern.test(conteudo)) {
+        return false;
+      }
     }
 
-    // Sem nome e sem OAB: não validar (evita aceitar tudo)
-    return false;
+    // Se não tem nome nem OAB, não pode “passar” (evita aceitar tudo)
+    if (!termoNorm && !oab) return false;
+
+    return true;
   }
 
-  // Para palavra-chave/parte: FRASE EXATA na ordem - "Super Quadra" só casa com "Super Quadra"
+  // Para palavra-chave/parte/processo: FRASE EXATA na ordem
   if (!termo) return true;
   const termoNorm = normalizar(termo);
   return contemFraseExata(conteudoNorm, termoNorm);
@@ -869,18 +855,18 @@ async function processarTermo(
   let descartadasTribunal = 0;
   const pubsValidas = resultados.filter(pub => {
     // Se não forçamos tribunal na busca (coleta ampla), precisamos descartar os fora da lista.
+    // Importante: se a publicação NÃO trouxer sigla, descartamos (não dá para garantir filtro).
     if (isAdvogadoComOab && tribunais.length > 0 && !advogadoForcarTribunalNaBusca) {
       const sigla = getSiglaTribunal(pub);
-      if (sigla && !tribunais.includes(sigla)) {
+      if (!sigla || !tribunais.includes(sigla)) {
         descartadasTribunal += 1;
         pubsDescartadas.push({ ...pub, motivo_descarte: 'tribunal_nao_permitido' });
         return false;
       }
     }
-    // Para advogado, parte do “match” pode estar no metadado do destinatário.
-    // Compor conteúdo enriquecido evita descarte falso quando o texto não repete o nome.
+    // Para validação, considerar SOMENTE o texto real da publicação.
+    // NÃO usar destinatarioNome/metadata, pois isso gera falso positivo (termo “aparece” fora do texto).
     const conteudo = [
-      pub.destinatarioNome,
       pub.conteudo,
       pub.teor,
       pub.texto,
@@ -917,20 +903,17 @@ async function processarTermo(
         ? extrairPalavraChavePura(mon.termo_busca)
         : mon.termo_busca;
       
-      // Se o termo tem "+" (AND implícito), validar CADA parte separadamente
+      // Se o termo tem "+" (AND implícito), validar CADA parte como FRASE EXATA (100%)
       if (termoTemCondicaoAnd) {
         const partesAnd = mon.termo_busca.split('+').map(p => p.trim()).filter(Boolean);
+        const conteudoNorm = normalizar(conteudo);
+
         for (const parte of partesAnd) {
-          // Para cada parte, verificar se está presente no conteúdo
-          // Ignorar partes que parecem ser tipo de tribunal/OAB (ex: "OAB TODAS-15553")
+          // Ignorar partes que parecem ser tipo de OAB (ex: "OAB TODAS-15553")
           if (parte.match(/^OAB\s/i)) continue;
-          
+
           const parteNorm = normalizar(parte);
-          const palavrasParte = parteNorm.split(/\s+/).filter(p => p.length >= 2);
-          const minPalavras = Math.ceil(palavrasParte.length * 0.8);
-          const encontradas = palavrasParte.filter(p => contemTokenInteiro(normalizar(conteudo), p));
-          
-          if (encontradas.length < minPalavras) {
+          if (parteNorm && !contemFraseExata(conteudoNorm, parteNorm)) {
             pubsDescartadas.push({ ...pub, motivo_descarte: `termo_and_nao_encontrado: ${parte}` });
             return false;
           }
