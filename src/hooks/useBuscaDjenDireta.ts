@@ -598,9 +598,29 @@ export function useBuscaDjenDireta() {
   const parseAdvogadoTermo = (raw: string): { nome?: string; oab?: string; uf?: string } => {
     const trimmed = String(raw || '').trim();
     if (!trimmed) return {};
+
+    // Formato "OAB/NOME" (ex: "27284/SINTIA MATIAS GONTIJO")
+    const oabNomeMatch = trimmed.match(/^(\d{3,6})\s*\/\s*(.+)$/i);
+    if (oabNomeMatch) {
+      return {
+        oab: oabNomeMatch[1],
+        nome: oabNomeMatch[2].trim(),
+      };
+    }
+
+    // Formato "NOME/OAB" (ex: "SINTIA MATIAS GONTIJO/27284")
+    const nomeOabMatch = trimmed.match(/^(.+?)\s*\/\s*(\d{3,6})$/i);
+    if (nomeOabMatch) {
+      return {
+        oab: nomeOabMatch[2],
+        nome: nomeOabMatch[1].trim(),
+      };
+    }
+
+    // Formato com UF: "OAB/UF" ou "UF OAB" (ex: "27284/DF" ou "DF 27284")
     const digits = trimmed.replace(/\D/g, '');
     const prefixUf = trimmed.match(/([A-Za-z]{2})\s*\d/);
-    const suffixUf = trimmed.match(/\d\s*\/\s*([A-Za-z]{2})/);
+    const suffixUf = trimmed.match(/\d\s*\/\s*([A-Za-z]{2})$/);
     const uf = (prefixUf?.[1] || suffixUf?.[1])?.toUpperCase();
     const hasLetters = /[A-Za-zÀ-ÿ]/.test(trimmed);
 
@@ -608,6 +628,7 @@ export function useBuscaDjenDireta() {
       return { oab: digits, uf };
     }
 
+    // Apenas nome
     return { nome: trimmed };
   };
 
