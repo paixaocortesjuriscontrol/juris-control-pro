@@ -905,11 +905,14 @@ async function processarTermo(
     }
 
     // 3. Verificar termo/OAB
-    // Para ADVOGADO: a API pode retornar itens pelo filtro (OAB/nomeAdvogado) mesmo quando o nome/OAB
-    // não aparece dentro do texto da publicação. Nesses casos, validar estritamente pelo conteúdo gera
-    // falso descarte — então não aplicamos essa validação para advogado.
-     // Para PARTE: idem — a API filtra por nomeParte mas o nome pode não estar no corpo do texto.
-     if (mon.tipo !== 'advogado' && mon.tipo !== 'parte') {
+    // Para ADVOGADO/PARTE: quando há condição concomitante, DEVEMOS validar se o advogado/parte
+    // está no conteúdo. Caso contrário, a condição concomitante pode casar com publicações de
+    // outros advogados/partes que também mencionam o mesmo termo (ex: "SERVICO DE APOIO").
+    // Sem condição concomitante, a API filtra corretamente e validação gera falso descarte.
+    const temCondicaoConcomitante = mon.condicao_concomitante && mon.condicao_concomitante.trim().length > 0;
+    const deveValidarTermo = (mon.tipo !== 'advogado' && mon.tipo !== 'parte') || temCondicaoConcomitante;
+
+    if (deveValidarTermo) {
       const termoParaValidar = (mon.tipo === 'palavra-chave' || (mon.tipo as string) === 'nome')
         ? extrairPalavraChavePura(mon.termo_busca)
         : mon.termo_busca;
