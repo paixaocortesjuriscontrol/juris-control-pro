@@ -3,36 +3,29 @@ Updated: 05/02/2026
 
 ## Problema Corrigido
 
-Quando um monitoramento de **advogado (OAB)** tinha uma **condição concomitante**, o sistema:
-1. ✅ Buscava publicações pelo filtro OAB na API
-2. ✅ Validava se a condição concomitante estava presente
-3. ❌ **NÃO validava se o advogado/OAB estava no conteúdo**
+### Bug 1: Termo de Busca Exibido como Advogado
+O componente `PublicacaoConteudoDjen` adicionava incorretamente o **termo de monitoramento** na lista de advogados da publicação. Isso confundia a validação e exibição.
 
-Isso permitia que publicações de OUTROS advogados fossem capturadas, desde que contivessem o termo da condição concomitante.
+**Correção**: Removida a lógica que usava `monitoramentoOab`/`monitoramentoTermo` como advogado. Advogados são extraídos apenas do conteúdo da publicação.
 
-### Exemplo do Bug
-- Monitoramento: OAB 15553 + Condição "SERVICO DE APOIO"
-- Publicação de outro advogado mencionando "SERVICO DE APOIO" era capturada erroneamente
+### Bug 2: "+" no Termo Não Processado como AND
+Quando o termo de busca contém "+" (ex: `DR. OSMAR + SERVICO DE APOIO + TRABALHISTAS`), cada parte separada por "+" deve ser validada como condição AND. Anteriormente, o "+" era ignorado e apenas uma validação parcial era feita.
 
-## Solução
+**Correção**: 
+- `useDjenTermosEngine.ts`: Se `termo.includes('+')`, valida cada parte separadamente com 80% das palavras
+- `useBuscaDjenDireta.ts`: Mesma lógica aplicada na função `conteudoContemTermoOuOr`
 
-No `useDjenTermosEngine.ts`, a validação do termo/OAB agora é **obrigatória quando há condição concomitante**, mesmo para tipos `advogado` e `parte`:
-
+### Lógica de Validação:
 ```typescript
-const temCondicaoConcomitante = mon.condicao_concomitante && mon.condicao_concomitante.trim().length > 0;
-const deveValidarTermo = (mon.tipo !== 'advogado' && mon.tipo !== 'parte') || temCondicaoConcomitante;
-
-if (deveValidarTermo) {
-  // Valida termo/OAB no conteúdo
+// Se termo tem "+" → validar CADA parte
+const partesAnd = termo.split('+').map(p => p.trim());
+for (const parte of partesAnd) {
+  if (parte.match(/^OAB\s/i)) continue; // Ignora "OAB TODAS-15553"
+  // Valida 80% das palavras de cada parte
 }
 ```
 
-### Lógica de Validação:
-- **Advogado sem condição concomitante**: API filtra corretamente, não valida (evita falso descarte)
-- **Advogado COM condição concomitante**: DEVE validar OAB/nome no conteúdo
-- **Parte sem condição**: API filtra, não valida
-- **Parte COM condição**: DEVE validar termo no conteúdo
-- **Palavra-chave**: Sempre valida
-
 ## Arquivos Atualizados
-- `src/hooks/useDjenTermosEngine.ts` - Frontend engine
+- `src/components/djen/PublicacaoConteudoDjen.tsx` - Removida exibição incorreta
+- `src/hooks/useDjenTermosEngine.ts` - Validação AND para termos com "+"
+- `src/hooks/useBuscaDjenDireta.ts` - Mesma validação AND

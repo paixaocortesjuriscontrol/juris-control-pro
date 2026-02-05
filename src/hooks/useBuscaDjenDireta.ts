@@ -669,6 +669,30 @@ export function useBuscaDjenDireta() {
     oab?: string
   ): boolean => {
     if (!conteudo) return false;
+    
+    // Se o termo tem "+" (AND implícito), validar CADA parte separadamente
+    if (termo && termo.includes('+')) {
+      const partesAnd = termo.split('+').map(p => p.trim()).filter(Boolean);
+      const conteudoNorm = normalizar(conteudo);
+      
+      for (const parte of partesAnd) {
+        // Ignorar partes que parecem ser tipo de OAB (ex: "OAB TODAS-15553")
+        if (parte.match(/^OAB\s/i)) continue;
+        
+        const parteNorm = normalizar(parte);
+        const palavrasParte = parteNorm.split(/\s+/).filter(p => p.length >= 2);
+        if (palavrasParte.length === 0) continue;
+        
+        const minPalavras = Math.ceil(palavrasParte.length * 0.8);
+        const encontradas = palavrasParte.filter(p => contemTermoComoPalavraInteira(conteudoNorm, p));
+        
+        if (encontradas.length < minPalavras) {
+          return false;
+        }
+      }
+      return true;
+    }
+    
     const termoPuro = (tipo === 'palavra-chave' || tipo === 'parte' || tipo === 'advogado' || tipo === 'nome')
       ? extrairPalavraChavePura(termo)
       : termo;
