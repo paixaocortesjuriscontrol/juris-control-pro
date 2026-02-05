@@ -591,6 +591,7 @@ const AnaliseDjen = () => {
                 >
                   <option value="todos">Todos</option>
                   <option value="termo">Por Termos/OAB</option>
+                  <option value="parte">Por Parte</option>
                   <option value="processo">Por Processos</option>
                   <option value="descartada">Descartadas (auditoria)</option>
                 </select>
