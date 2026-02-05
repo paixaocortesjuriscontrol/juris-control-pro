@@ -125,17 +125,16 @@ const MonitoramentoDjen = () => {
         }
       }
       
-      // Filtro por termo de busca
-      if (termoSearch.trim()) {
-        const search = termoSearch.toLowerCase();
-        const matchTermo = m.termo_busca?.toLowerCase().includes(search);
-        const matchDescricao = m.descricao?.toLowerCase().includes(search);
-        const matchOab = m.oab?.toLowerCase().includes(search);
-        const matchUf = m.uf?.toLowerCase().includes(search);
-        if (!matchTermo && !matchDescricao && !matchOab && !matchUf) {
-          return false;
+        // Filtro por termo de busca
+        if (termoSearch.trim()) {
+          const search = termoSearch.toLowerCase();
+          const matchTermo = m.termo_busca?.toLowerCase().includes(search);
+          const matchOab = m.oab?.toLowerCase().includes(search);
+          const matchUf = m.uf?.toLowerCase().includes(search);
+          if (!matchTermo && !matchOab && !matchUf) {
+            return false;
+          }
         }
-      }
       
       return true;
     });

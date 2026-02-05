@@ -93,29 +93,51 @@ function extrairPalavraChavePura(termo: string): string {
 }
 
 // IMPORTANTE: FRASE EXATA na ordem - "Super Quadra" só casa se o texto tiver exatamente "Super Quadra".
-function conteudoContemTermo(conteudo: string, termo: string, tipo: string): boolean {
-  if (!conteudo || !termo) return false;
-  if (tipo === 'advogado') return true;
-  const termoPuro = extrairPalavraChavePura(termo);
-  if (!termoPuro) return true;
+function conteudoContemTermo(conteudo: string, termo: string, tipo: string, oab?: string): boolean {
+  if (!conteudo) return false;
 
-  const escapeRegex = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const termoPuro = extrairPalavraChavePura(termo || "");
+
+  const escapeRegex = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const contemFraseExata = (txt: string, fraseNorm: string) => {
     if (!fraseNorm) return true;
     return new RegExp(`(?:^|\\s)${escapeRegex(fraseNorm)}(?:\\s|$)`).test(txt);
   };
 
   const normalizar = (t: string) => t
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[&\/\\]/g, ' ')
-    .replace(/[^0-9A-Za-z\s]/g, ' ')
-    .replace(/\s+/g, ' ')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[&\/\\\\]/g, " ")
+    .replace(/[^0-9A-Za-z\s]/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
     .toUpperCase();
 
   const conteudoNorm = normalizar(conteudo);
-  const termoNorm = normalizar(termo);
+
+  if (tipo === "advogado") {
+    // OAB (se houver) deve aparecer no TEXTO
+    if (oab) {
+      const oabDigits = String(oab).replace(/\D/g, "");
+      if (oabDigits.length >= 3) {
+        const oabPattern = new RegExp(oabDigits.split("").join("[.\\s-]?"), "i");
+        if (!oabPattern.test(conteudo)) return false;
+      }
+    }
+
+    // Nome (se houver) deve aparecer no TEXTO (frase exata)
+    const nomeNorm = normalizar(termoPuro);
+    if (nomeNorm && !contemFraseExata(conteudoNorm, nomeNorm)) return false;
+
+    // Se não tem nome nem OAB, não aprova
+    if (!nomeNorm && !oab) return false;
+
+    return true;
+  }
+
+  // Demais tipos: frase exata (100%)
+  if (!termoPuro) return true;
+  const termoNorm = normalizar(termoPuro);
   return contemFraseExata(conteudoNorm, termoNorm);
 }
 
@@ -289,7 +311,7 @@ export function useSincronizarDjenBrowser() {
           // A API do PJE Comunica pode retornar resultados parciais (substring)
           const publicacoesFiltradas = todasPublicacoes.filter(pub => {
             const conteudo = pub.texto || pub.teor || '';
-            return conteudoContemTermo(conteudo, mon.termo_busca, mon.tipo);
+            return conteudoContemTermo(conteudo, mon.termo_busca, mon.tipo, mon.oab);
           });
 
           // Inserir publicações no banco (com deduplicação)
