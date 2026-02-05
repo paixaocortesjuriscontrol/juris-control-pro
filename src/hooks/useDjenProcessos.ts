@@ -53,11 +53,19 @@ export function useDjenProcessos(): UseDjenProcessosReturn {
     // Inscrever para receber atualizações de progresso
     const unsubscribe = subscribeDjenProcessos((p) => {
       setProgress(p);
-      setIsRunning(isDjenProcessosRunning());
+      const running = isDjenProcessosRunning();
+      setIsRunning(running);
+      
+      // Quando finaliza (concluido, cancelado, erro), invalida queries
+      if (!running && (p.status === 'concluido' || p.status === 'cancelado' || p.status === 'erro')) {
+        queryClient.invalidateQueries({ queryKey: ['config-djen-processos'] });
+        queryClient.invalidateQueries({ queryKey: ['djen-processos-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['djen-processos-historico'] });
+      }
     });
 
     return unsubscribe;
-  }, []);
+  }, [queryClient]);
 
   const executar = useCallback((dataInicio?: string, dataFim?: string, options?: ExecutarOptions): boolean => {
     return executarDjenProcessos(dataInicio, dataFim, !!options?.retomar, !!options?.turbo);
