@@ -891,35 +891,33 @@ async function processarTermo(
       return false;
     }
 
-    // 3. Verificar termo/OAB
-    // Para ADVOGADO/PARTE: quando há condição concomitante OU o termo tem "+", 
-    // DEVEMOS validar se o advogado/parte está no conteúdo.
-    // Sem condição, a API filtra corretamente e validação gera falso descarte.
-    const temCondicaoConcomitante = mon.condicao_concomitante && mon.condicao_concomitante.trim().length > 0;
+    // 3. Verificar termo/OAB - SEMPRE VALIDAR
+    // CRÍTICO: A API PJE Comunica NÃO filtra corretamente por OAB/advogado - retorna publicações
+    // de advogados diferentes. DEVEMOS validar SEMPRE que o termo/OAB aparece no conteúdo.
     const termoTemCondicaoAnd = mon.termo_busca && mon.termo_busca.includes('+');
-    const deveValidarTermo = (mon.tipo !== 'advogado' && mon.tipo !== 'parte') || temCondicaoConcomitante || termoTemCondicaoAnd;
 
-    if (deveValidarTermo) {
+    // Se o termo tem "+" (AND implícito), validar CADA parte como FRASE EXATA (100%)
+    if (termoTemCondicaoAnd) {
+      const partesAnd = mon.termo_busca.split('+').map(p => p.trim()).filter(Boolean);
+      const conteudoNorm = normalizar(conteudo);
+
+      for (const parte of partesAnd) {
+        // Ignorar partes que parecem ser tipo de OAB (ex: "OAB TODAS-15553")
+        if (parte.match(/^OAB\s/i)) continue;
+
+        const parteNorm = normalizar(parte);
+        if (parteNorm && !contemFraseExata(conteudoNorm, parteNorm)) {
+          pubsDescartadas.push({ ...pub, motivo_descarte: `termo_and_nao_encontrado: ${parte}` });
+          return false;
+        }
+      }
+    } else {
+      // Validar termo simples (sem AND)
       const termoParaValidar = (mon.tipo === 'palavra-chave' || (mon.tipo as string) === 'nome')
         ? extrairPalavraChavePura(mon.termo_busca)
         : mon.termo_busca;
       
-      // Se o termo tem "+" (AND implícito), validar CADA parte como FRASE EXATA (100%)
-      if (termoTemCondicaoAnd) {
-        const partesAnd = mon.termo_busca.split('+').map(p => p.trim()).filter(Boolean);
-        const conteudoNorm = normalizar(conteudo);
-
-        for (const parte of partesAnd) {
-          // Ignorar partes que parecem ser tipo de OAB (ex: "OAB TODAS-15553")
-          if (parte.match(/^OAB\s/i)) continue;
-
-          const parteNorm = normalizar(parte);
-          if (parteNorm && !contemFraseExata(conteudoNorm, parteNorm)) {
-            pubsDescartadas.push({ ...pub, motivo_descarte: `termo_and_nao_encontrado: ${parte}` });
-            return false;
-          }
-        }
-      } else if (!conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab)) {
+      if (!conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab)) {
         pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
         return false;
       }
