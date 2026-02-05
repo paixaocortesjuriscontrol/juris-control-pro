@@ -1,34 +1,64 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Import modularized utilities
+import {
+  delay,
+  getBrazilISODate,
+  getBrazilDayUtcRange,
+  generateHash,
+  generateGlobalHash,
+  extractProcessoNumero,
+  calcularPrimeiroDiaUtil,
+  withTimeoutPromise,
+  fetchWithTimeout,
+  fetchWithRetry,
+} from "./utils.ts";
+
+import {
+  Monitoramento,
+  normalizar,
+  normalizarParaBusca,
+  escapeRegex,
+  extrairPalavraChavePura,
+  contemFraseExata,
+  validarTermoComAnd,
+  conteudoContemTermo,
+  parseAdvogadoTermo,
+  buildAdvogadoTargets,
+  conteudoContemTermoOuOr,
+  condicaoConcomitanteAtendida,
+  shouldExclude,
+  detectAudiencia,
+  AudienciaInfo,
+} from "./validation.ts";
+
+import {
+  TODOS_IDS_CIVEIS,
+  TODOS_IDS_TRABALHISTAS,
+  expandirTribunais,
+  browserHeaders,
+  PJE_COMUNICA_API,
+} from "./tribunais.ts";
+
+import {
+  tryParseDjenJson,
+  fetchViaBrowserless,
+  fetchJsonViaJina,
+  fetchViaProxy,
+  setJinaInterval,
+} from "./proxy.ts";
+
+import {
+  generateTaskDedupKey,
+  verificarTarefaExistente,
+  criarTarefasParaResponsaveis,
+} from "./tarefas.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-function getBrazilISODate(date: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-}
-
-function getBrazilDayUtcRange(iso: string): { startUtc: string; endUtc: string } {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) {
-    const start = new Date(Date.now() - 3 * 60 * 60 * 1000);
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-    return { startUtc: start.toISOString(), endUtc: end.toISOString() };
-  }
-  const [, y, mo, d] = m;
-  const start = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), 3, 0, 0));
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  return { startUtc: start.toISOString(), endUtc: end.toISOString() };
-}
-
-const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
 
 // ============================================================================
 // PARÂMETROS DE THROTTLING - valores padrão (serão sobrescritos pela tabela)
@@ -95,78 +125,11 @@ const BASE_DELAY_MS = 1500;
 const STAGGER_DELAY_MS = 500;
 const INTER_CANDIDATE_DELAY_MS = 1000;
 
-interface Monitoramento {
-  id: string;
-  tipo: string;
-  termo_busca: string;
-  oab?: string;
-  uf?: string;
-  criado_por: string;
-  coordenacao_id?: string;
-  exclusoes?: string[];
-  condicao_concomitante?: string;
-  termos_or?: string[];
-  tribunais?: string[];
-  descricao?: string;
-  buscar_parte?: boolean;
-}
+// Note: Monitoramento interface, tribunal constants, browserHeaders, and expandirTribunais
+// are now imported from ./validation.ts and ./tribunais.ts
 
-// IDs sintéticos de tribunais que precisam ser expandidos
-const TODOS_IDS_CIVEIS = [
-  'TJAC', 'TJAL', 'TJAM', 'TJAP', 'TJBA', 'TJCE', 'TJDFT', 'TJES', 'TJGO',
-  'TJMA', 'TJMG', 'TJMS', 'TJMT', 'TJPA', 'TJPB', 'TJPE', 'TJPI', 'TJPR',
-  'TJRJ', 'TJRN', 'TJRO', 'TJRR', 'TJRS', 'TJSC', 'TJSE', 'TJSP', 'TJTO',
-];
-
-const TODOS_IDS_TRABALHISTAS = [
-  'TST', 'TRT1', 'TRT2', 'TRT3', 'TRT4', 'TRT5', 'TRT6', 'TRT7', 'TRT8',
-  'TRT9', 'TRT10', 'TRT11', 'TRT12', 'TRT13', 'TRT14', 'TRT15', 'TRT16',
-  'TRT17', 'TRT18', 'TRT19', 'TRT20', 'TRT21', 'TRT22', 'TRT23', 'TRT24',
-];
-
-// Expande IDs sintéticos (TODOS_CIVEIS, TODOS_TRT) para a lista real de tribunais
-function expandirTribunais(tribunais: string[] | undefined | null): string[] | null {
-  if (!tribunais || tribunais.length === 0) return null;
-  
-  const expandidos = new Set<string>();
-  
-  for (const t of tribunais) {
-    if (t === 'TODOS_CIVEIS') {
-      TODOS_IDS_CIVEIS.forEach(id => expandidos.add(id));
-    } else if (t === 'TODOS_TRT') {
-      TODOS_IDS_TRABALHISTAS.forEach(id => expandidos.add(id));
-    } else {
-      expandidos.add(t);
-    }
-  }
-  
-  // Se após expansão temos muitos tribunais (>15), buscar sem filtro é mais eficiente
-  if (expandidos.size > 15) {
-    console.log(`[DJEN] Expandiu para ${expandidos.size} tribunais. Buscando sem filtro para melhor performance.`);
-    return null;
-  }
-  
-  return Array.from(expandidos);
-}
-
-const browserHeaders = {
-  "Accept": "application/json, text/plain, */*",
-  "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Origin": "https://comunica.pje.jus.br",
-  "Referer": "https://comunica.pje.jus.br/",
-};
-
-// Jina Reader proxy (fast and cheap fallback)
-const JINA_READER_URL = "https://r.jina.ai";
-const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
-
-// Browserless API (real Chrome browser - bypasses anti-bot)
-const BROWSERLESS_API_URL = "https://chrome.browserless.io";
-const BROWSERLESS_API_KEY = Deno.env.get('BROWSERLESS_API_KEY') || '';
-
-// Rate limiting para Jina - MUITO conservador para evitar 429 e bloqueios
-let lastJinaRequestTime = 0;
+// Note: Proxy functions (tryParseDjenJson, fetchViaBrowserless, fetchJsonViaJina, fetchViaProxy)
+// are now imported from ./proxy.ts
 
 // Função para carregar parâmetros da tabela
 async function loadConfigFromDatabase(supabase: any): Promise<void> {
@@ -423,214 +386,8 @@ async function fetchViaProxy(url: string): Promise<any | null> {
   return null;
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function withTimeoutPromise<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  label: string
-): Promise<T> {
-  let timeoutId: number | undefined;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(`${label}_timeout_${timeoutMs}ms`));
-    }, timeoutMs) as unknown as number;
-  });
-
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-    }
-  }
-}
-
-function createStopChecker(supabase: any, execucaoId?: string, throttleMs = 2000) {
-  let lastCheck = 0;
-  let cached: { stop: boolean; reason?: string } = { stop: false };
-
-  return async () => {
-    if (cached.stop) return cached;
-    const now = Date.now();
-    if (now - lastCheck < throttleMs) return cached;
-    lastCheck = now;
-
-    try {
-      if (execucaoId) {
-        const { data: exec } = await supabase
-          .from('execucoes_agendadas')
-          .select('status')
-          .eq('id', execucaoId)
-          .maybeSingle();
-        if (exec?.status === 'cancelado') {
-          cached = { stop: true, reason: 'cancelado_execucao' };
-          return cached;
-        }
-      }
-
-      const { data } = await supabase
-        .from('configuracoes_monitoramento')
-        .select('metadata')
-        .eq('tipo', 'djen')
-        .is('coordenacao_id', null)
-        .maybeSingle();
-      const meta = (data?.metadata as any) || {};
-      if (meta?.cancelado === true) {
-        cached = { stop: true, reason: 'cancelado' };
-        return cached;
-      }
-      if (meta?.paused_globally === true) {
-        cached = { stop: true, reason: 'paused_globally' };
-        return cached;
-      }
-    } catch (e) {
-      console.warn('[DJEN] stop checker error:', e);
-    }
-
-    return cached;
-  };
-}
-
-
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  const providedSignal = options.signal;
-  let abortListener: (() => void) | null = null;
-
-  if (providedSignal) {
-    if (providedSignal.aborted) controller.abort();
-    abortListener = () => controller.abort();
-    try {
-      providedSignal.addEventListener('abort', abortListener, { once: true });
-    } catch {
-      // ignore
-    }
-  }
-
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timeoutId);
-    if (providedSignal && abortListener) {
-      try {
-        providedSignal.removeEventListener('abort', abortListener);
-      } catch {
-        // ignore
-      }
-    }
-  }
-}
-
-async function fetchWithRetry(
-  url: string, 
-  options: RequestInit, 
-  maxRetries = 4, // Aumentado de 2 para 4 (igual processos)
-  baseDelay = 3000, // Aumentado de 4s para 3s com exponential backoff
-  timeoutMs = 15_000 
-): Promise<Response> {
-  let lastError: Error | null = null;
-  
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const response = await fetchWithTimeout(url, options, timeoutMs);
-      
-      if (response.status === 429) {
-        const waitTime = baseDelay * Math.pow(2, attempt);
-        console.log(`Rate limited. Waiting ${waitTime}ms (retry ${attempt + 1})`);
-        await delay(waitTime);
-        continue;
-      }
-      
-      return response;
-    } catch (error) {
-      lastError = error as Error;
-      const waitTime = baseDelay * Math.pow(2, attempt);
-      console.log(`Fetch error, waiting ${waitTime}ms:`, error);
-      await delay(waitTime);
-    }
-  }
-  
-  throw lastError || new Error('Max retries exceeded');
-}
-
-function extractProcessoNumero(conteudo: string, explicitNumero?: string | null): string | null {
-  if (explicitNumero) return explicitNumero;
-  
-  const patterns = [
-    /(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/,
-    /Processo\s*(?:n[º°]?\.?\s*)?(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/i,
-    /(\d{7}\/\d{4})/,
-  ];
-  
-  for (const pattern of patterns) {
-    const match = conteudo.match(pattern);
-    if (match) {
-      return match[1];
-    }
-  }
-  
-  return null;
-}
-
-function generateHash(content: string): string {
-  let hash = 0;
-  for (let i = 0; i < content.length; i++) {
-    const char = content.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(16);
-}
-
-// Calcular próximo dia útil considerando recesso forense (20/dez a 6/jan)
-function calcularPrimeiroDiaUtil(dataBase: Date, diasUteisAdicionar: number = 0): Date {
-  const resultado = new Date(dataBase);
-  
-  // Função para verificar se está no recesso forense
-  const estaNoRecesso = (d: Date): boolean => {
-    const mes = d.getMonth(); // 0-11
-    const dia = d.getDate();
-    return (mes === 11 && dia >= 20) || (mes === 0 && dia <= 6);
-  };
-  
-  // Função para avançar para próximo dia útil
-  const proximoDiaUtil = (d: Date): Date => {
-    while (d.getDay() === 0 || d.getDay() === 6) {
-      d.setDate(d.getDate() + 1);
-    }
-    if (estaNoRecesso(d)) {
-      d.setMonth(0); // Janeiro
-      d.setDate(7);
-      if (d.getMonth() === 11) d.setFullYear(d.getFullYear() + 1);
-      while (d.getDay() === 0 || d.getDay() === 6) {
-        d.setDate(d.getDate() + 1);
-      }
-    }
-    return d;
-  };
-  
-  // Ajustar data base para dia útil
-  proximoDiaUtil(resultado);
-  
-  // Adicionar dias úteis
-  let contador = 0;
-  while (contador < diasUteisAdicionar) {
-    resultado.setDate(resultado.getDate() + 1);
-    proximoDiaUtil(resultado);
-    contador++;
-  }
-  
-  return resultado;
-}
+// Note: delay, withTimeoutPromise, fetchWithTimeout, fetchWithRetry, extractProcessoNumero,
+// generateHash, and calcularPrimeiroDiaUtil are now imported from ./utils.ts
 
 // Gera hash para deduplicação de tarefas
 function generateTaskDedupKey(processoId: string, titulo: string, dataVencimento: string): string {
@@ -814,341 +571,10 @@ async function criarTarefasParaResponsaveis(
   return tarefaIds;
 }
 
-function generateGlobalHash(conteudo: string, dataDisponibilizacao: string): string {
-  // Usar data de disponibilização para que republicações do mesmo conteúdo
-  // em datas diferentes sejam tratadas como registros distintos
-  const normalized = (conteudo + dataDisponibilizacao).toLowerCase().replace(/\s+/g, ' ').trim();
-  return generateHash(normalized);
-}
-
-function normalizar(texto: string): string {
-  return texto
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[&\/\\]/g, ' ')
-    // Remove pontuação geral para permitir match por palavra (ex: "LTDA." -> "LTDA")
-    .replace(/[^0-9A-Za-z\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toUpperCase();
-}
-
-function normalizarParaBusca(texto: string): string {
-  return texto
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[&\/\\]/g, ' ')
-    .replace(/[^0-9A-Za-z\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** Palavra-chave: usar SOMENTE o termo. Remove prefixos tribunal/Adv (filtros separados). */
-function extrairPalavraChavePura(termo: string): string {
-  if (!termo?.trim()) return termo;
-  let s = termo.trim();
-  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
-  s = s.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
-  s = s.replace(/^Adv\.?\s*/i, '');
-  return s.trim() || termo;
-}
-
-/** FRASE EXATA na ordem - "Super Quadra" só casa com "Super Quadra", não com "enquadramento". */
-function contemFraseExata(conteudoNorm: string, termoNorm: string): boolean {
-  if (!termoNorm) return true;
-  try {
-    const re = new RegExp(`(?:^|\\s)${escapeRegex(termoNorm)}(?:\\s|$)`, '');
-    return re.test(conteudoNorm);
-  } catch {
-    return false; // Fallback seguro se regex falhar
-  }
-}
-
-function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean {
-  const termoNorm = normalizar(termo);
-  if (!termoNorm) return true;
-  return contemFraseExata(conteudoNorm, termoNorm);
-}
-
-/**
- * VALIDAÇÃO ESTRITA para termos com "+" (AND logic).
- * Cada segmento separado por "+" DEVE aparecer 100% (frase exata) no texto.
- */
-function validarTermoComAnd(conteudoNorm: string, termo: string): boolean {
-  if (!termo.includes('+')) {
-    return contemFraseExata(conteudoNorm, normalizar(termo));
-  }
-  
-  const partesAnd = termo.split('+').map(p => p.trim()).filter(Boolean);
-  for (const parte of partesAnd) {
-    // Ignorar prefixos OAB que são validados separadamente
-    if (/^OAB\s/i.test(parte)) continue;
-    const parteNorm = normalizar(parte);
-    if (parteNorm && !contemFraseExata(conteudoNorm, parteNorm)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function conteudoContemTermo(
-  conteudo: string,
-  termo: string,
-  tipo: string,
-  oab?: string
-): boolean {
-  if (!conteudo) return false;
-
-  const conteudoNorm = normalizar(conteudo);
-
-  if (tipo === 'advogado' || tipo === 'nome') {
-    // OAB (se houver) deve aparecer no texto - SEMPRE obrigatório
-    if (tipo === 'advogado' && oab) {
-      const oabDigits = String(oab).replace(/\D/g, '');
-      if (oabDigits.length >= 3) {
-        const oabPattern = new RegExp(oabDigits.split('').join('[.\\s-]?'), 'i');
-        if (!oabPattern.test(conteudo)) return false;
-      }
-    }
-
-    // Nome (se houver) deve aparecer 100% como frase exata
-    if (termo) {
-      const termoBase = extrairPalavraChavePura(termo);
-      // Validar com lógica AND se tiver "+"
-      if (!validarTermoComAnd(conteudoNorm, termoBase)) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  if (tipo === 'processo') {
-    const numero = String(termo || '').replace(/\D/g, '');
-    if (!numero) return true;
-    return conteudoNorm.includes(numero);
-  }
-
-  // Para palavra-chave/parte: FRASE EXATA 100% - validar com lógica AND se tiver "+"
-  const termoPuro = extrairPalavraChavePura(termo);
-  if (!termoPuro) return true;
-  return validarTermoComAnd(conteudoNorm, termoPuro);
-}
-
-function parseAdvogadoTermo(raw: string): { nome?: string; oabDigits?: string; uf?: string } {
-  const trimmed = String(raw || '').trim();
-  if (!trimmed) return {};
-
-  // Formato "OAB/NOME" (ex: "27284/SINTIA MATIAS GONTIJO")
-  const oabNomeMatch = trimmed.match(/^(\d{3,6})\s*\/\s*(.+)$/i);
-  if (oabNomeMatch) {
-    return {
-      oabDigits: oabNomeMatch[1],
-      nome: oabNomeMatch[2].trim(),
-    };
-  }
-
-  // Formato "NOME/OAB" (ex: "SINTIA MATIAS GONTIJO/27284")
-  const nomeOabMatch = trimmed.match(/^(.+?)\s*\/\s*(\d{3,6})$/i);
-  if (nomeOabMatch) {
-    return {
-      oabDigits: nomeOabMatch[2],
-      nome: nomeOabMatch[1].trim(),
-    };
-  }
-
-  // Formato com UF: "OAB/UF" ou "UF OAB" (ex: "27284/DF" ou "DF 27284")
-  const digits = trimmed.replace(/\D/g, '');
-  const prefixUf = trimmed.match(/([A-Za-z]{2})\s*\d/);
-  const suffixUf = trimmed.match(/\d\s*\/\s*([A-Za-z]{2})$/);
-  const uf = (prefixUf?.[1] || suffixUf?.[1])?.toUpperCase();
-  const hasLetters = /[A-Za-zÀ-ÿ]/.test(trimmed);
-
-  if (digits.length >= 3 && (uf || !hasLetters)) {
-    return { oabDigits: digits, uf };
-  }
-
-  // Apenas nome
-  return { nome: trimmed };
-}
-
-function buildAdvogadoTargets(
-  termo: string,
-  termosOr: string[] | undefined,
-  oab?: string,
-  uf?: string
-): Array<{ nome?: string; oabDigits?: string; uf?: string }> {
-  const targets: Array<{ nome?: string; oabDigits?: string; uf?: string }> = [];
-  const baseNome = String(termo || '').trim();
-  const baseOab = String(oab || '').replace(/\D/g, '');
-  const baseUf = String(uf || '').trim().toUpperCase();
-
-  if (baseNome || baseOab) {
-    targets.push({
-      nome: baseNome || undefined,
-      oabDigits: baseOab || undefined,
-      uf: baseUf || undefined,
-    });
-  }
-
-  for (const t of termosOr || []) {
-    const parsed = parseAdvogadoTermo(t);
-    if (parsed.nome || parsed.oabDigits) {
-      targets.push(parsed);
-    }
-  }
-
-  return targets;
-}
-
-function conteudoContemTermoOuOr(
-  conteudo: string,
-  monitoramento: Monitoramento
-): boolean {
-  const termoPuro = (monitoramento.tipo === 'palavra-chave' || monitoramento.tipo === 'parte' || monitoramento.tipo === 'advogado' || monitoramento.tipo === 'nome')
-    ? extrairPalavraChavePura(monitoramento.termo_busca)
-    : monitoramento.termo_busca;
-
-  // Para tipo 'nome', validar nome 100% no texto
-  if (monitoramento.tipo === 'nome') {
-    return conteudoContemTermo(conteudo, termoPuro, 'nome', undefined);
-  }
-  
-  // Para palavra-chave, processo, parte: validação 100% estrita
-  if (monitoramento.tipo !== 'advogado') {
-    return conteudoContemTermo(conteudo, termoPuro, monitoramento.tipo, monitoramento.oab);
-  }
-
-  // Para tipo 'advogado': validar OAB + nome (se houver termos_or, usar OR entre eles)
-  const termosOrPuros = (monitoramento.termos_or || []).map((t) => extrairPalavraChavePura(t.trim())).filter(Boolean);
-  const targets = buildAdvogadoTargets(
-    termoPuro,
-    termosOrPuros.length > 0 ? termosOrPuros : undefined,
-    monitoramento.oab,
-    monitoramento.uf
-  );
-  
-  if (targets.length === 0) {
-    return conteudoContemTermo(conteudo, termoPuro, monitoramento.tipo, monitoramento.oab);
-  }
-  
-  // OR entre targets: pelo menos UM deve casar 100%
-  return targets.some((t) =>
-    conteudoContemTermo(conteudo, t.nome || '', 'advogado', t.oabDigits)
-  );
-}
-
-function shouldExclude(conteudo: string, exclusoes: string[]): string | null {
-  if (!exclusoes || exclusoes.length === 0) return null;
-
-  const conteudoUpper = conteudo.toUpperCase();
-  for (const termo of exclusoes) {
-    if (conteudoUpper.includes(termo.toUpperCase())) {
-      return termo;
-    }
-  }
-  return null;
-}
-
-interface AudienciaInfo {
-  dataAudiencia: string | null;
-  tipoAudiencia: string | null;
-  localAudiencia: string | null;
-  contexto: string;
-}
-
-function detectAudiencia(conteudo: string): AudienciaInfo | null {
-  const conteudoLower = conteudo.toLowerCase();
-  
-  const audienciaTerms = [
-    'audiência',
-    'audiencia',
-    'sessão de julgamento',
-    'sessao de julgamento',
-    'pauta de julgamento',
-  ];
-  
-  const hasAudiencia = audienciaTerms.some(term => conteudoLower.includes(term));
-  if (!hasAudiencia) return null;
-  
-  let contexto = '';
-  for (const term of audienciaTerms) {
-    const index = conteudoLower.indexOf(term);
-    if (index !== -1) {
-      const start = Math.max(0, index - 100);
-      const end = Math.min(conteudo.length, index + term.length + 200);
-      contexto = (start > 0 ? '...' : '') + 
-                 conteudo.slice(start, end) + 
-                 (end < conteudo.length ? '...' : '');
-      break;
-    }
-  }
-  
-  let dataAudiencia: string | null = null;
-  
-  const datePatterns = [
-    /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/,
-    /(\d{1,2})\s+de\s+(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+(\d{4})/i,
-  ];
-  
-  for (const pattern of datePatterns) {
-    const match = contexto.match(pattern);
-    if (match) {
-      if (match[2] && isNaN(parseInt(match[2]))) {
-        const months: Record<string, string> = {
-          'janeiro': '01', 'fevereiro': '02', 'março': '03', 'marco': '03',
-          'abril': '04', 'maio': '05', 'junho': '06', 'julho': '07',
-          'agosto': '08', 'setembro': '09', 'outubro': '10', 'novembro': '11', 'dezembro': '12'
-        };
-        const month = months[match[2].toLowerCase()] || '01';
-        dataAudiencia = `${match[3]}-${month}-${match[1].padStart(2, '0')}`;
-      } else {
-        dataAudiencia = `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
-      }
-      break;
-    }
-  }
-  
-  let tipoAudiencia: string | null = null;
-  const tipoPatterns = [
-    /audiência\s+de\s+(conciliação|instrução|julgamento|instrução e julgamento|una|inicial|custódia)/i,
-    /audiencia\s+de\s+(conciliacao|instrucao|julgamento|instrucao e julgamento|una|inicial|custodia)/i,
-  ];
-  
-  for (const pattern of tipoPatterns) {
-    const match = conteudo.match(pattern);
-    if (match) {
-      tipoAudiencia = match[1];
-      break;
-    }
-  }
-  
-  let localAudiencia: string | null = null;
-  const localPatterns = [
-    /(?:local|sala|endereço|endereco|forum|fórum)[\s:]+([^,\n]{10,60})/i,
-    /(?:na|no|em)\s+(?:sala|fórum|forum)\s+([^,\n]{5,50})/i,
-  ];
-  
-  for (const pattern of localPatterns) {
-    const match = conteudo.match(pattern);
-    if (match) {
-      localAudiencia = match[1].trim();
-      break;
-    }
-  }
-  
-  return {
-    dataAudiencia,
-    tipoAudiencia,
-    localAudiencia,
-    contexto,
-  };
-}
+// Note: generateGlobalHash, normalizar, normalizarParaBusca, escapeRegex, extrairPalavraChavePura,
+// contemFraseExata, termoAtendidoPorPalavras, validarTermoComAnd, conteudoContemTermo,
+// parseAdvogadoTermo, buildAdvogadoTargets, conteudoContemTermoOuOr, shouldExclude,
+// AudienciaInfo, and detectAudiencia are now imported from ./validation.ts and ./utils.ts
 
 interface TribunalStats {
   tribunal: string | null;
