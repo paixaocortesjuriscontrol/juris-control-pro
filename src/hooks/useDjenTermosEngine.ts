@@ -906,8 +906,9 @@ async function processarTermo(
     // Para ADVOGADO: a API pode retornar itens pelo filtro (OAB/nomeAdvogado) mesmo quando o nome/OAB
     // não aparece dentro do texto da publicação. Nesses casos, validar estritamente pelo conteúdo gera
     // falso descarte — então não aplicamos essa validação para advogado.
-    if (mon.tipo !== 'advogado') {
-      const termoParaValidar = (mon.tipo === 'palavra-chave' || mon.tipo === 'parte' || (mon.tipo as string) === 'nome')
+     // Para PARTE: idem — a API filtra por nomeParte mas o nome pode não estar no corpo do texto.
+     if (mon.tipo !== 'advogado' && mon.tipo !== 'parte') {
+      const termoParaValidar = (mon.tipo === 'palavra-chave' || (mon.tipo as string) === 'nome')
         ? extrairPalavraChavePura(mon.termo_busca)
         : mon.termo_busca;
       if (!conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab)) {
