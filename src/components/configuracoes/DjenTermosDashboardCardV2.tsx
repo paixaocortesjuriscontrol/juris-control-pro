@@ -97,6 +97,20 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
 
+  // Query para buscar TODOS os monitoramentos ativos (para lookup de descrição do termo atual)
+  const { data: todosMonitoramentos = [] } = useQuery({
+    queryKey: ['monitoramentos-djen-todos-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('monitoramentos_djen')
+        .select('id, termo_busca, descricao, tipo, oab, uf')
+        .eq('ativo', true);
+      if (error) throw error;
+      return (data || []) as { id: string; termo_busca: string; descricao?: string; tipo?: string; oab?: string; uf?: string }[];
+    },
+    staleTime: 60000, // Cache por 1 minuto
+  });
+
   const { data: monitoramentos = [] } = useQuery({
     queryKey: ['monitoramentos-djen-coord-exec', coordenacaoFiltroEfetivo],
     queryFn: async () => {
@@ -461,17 +475,24 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     const fromMd = typeof md.termoDescricao === 'string' ? md.termoDescricao : null;
     if (fromMd) return fromMd;
     
-    // Tenta buscar nos monitoramentos carregados
-    if (monitoramentos.length > 0) {
-      const termo = monitoramentos.find(m => {
-        const label = m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim();
-        return label === effectiveTermoAtual || m.termo_busca === effectiveTermoAtual;
-      });
-      return termo?.descricao || null;
+    // Tenta buscar nos monitoramentos carregados (usa lista completa para lookup)
+    const listaLookup = todosMonitoramentos.length > 0 ? todosMonitoramentos : monitoramentos;
+    if (listaLookup.length > 0) {
+      // Busca por termo_busca (match exato)
+      const termo = listaLookup.find(m => m.termo_busca === effectiveTermoAtual);
+      if (termo?.descricao) return termo.descricao;
+      
+      // Fallback: busca por qualquer match parcial
+      const termoNorm = effectiveTermoAtual.toUpperCase().trim();
+      const termoAlt = listaLookup.find(m => 
+        m.termo_busca?.toUpperCase().trim() === termoNorm ||
+        (m.descricao || '').toUpperCase().trim() === termoNorm
+      );
+      if (termoAlt?.descricao) return termoAlt.descricao;
     }
     
     return null;
-  }, [effectiveTermoAtual, progress, md, monitoramentos]);
+  }, [effectiveTermoAtual, progress, md, monitoramentos, todosMonitoramentos]);
 
   const effectiveMensagem: string =
     progress.mensagem ||
