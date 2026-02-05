@@ -450,6 +450,29 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   const effectiveTermoAtual: string | null =
     progress.termoAtual ?? (typeof md.termoAtual === 'string' ? md.termoAtual : null) ?? null;
 
+  // Descrição do termo atual para diferenciação quando há vários com mesmo nome
+  const effectiveTermoDescricao: string | null = useMemo(() => {
+    if (!effectiveTermoAtual) return null;
+    
+    // Tenta buscar a descrição do progress/metadata
+    const fromProgress = progress.termoDescricao ?? null;
+    if (typeof fromProgress === 'string' && fromProgress) return fromProgress;
+    
+    const fromMd = typeof md.termoDescricao === 'string' ? md.termoDescricao : null;
+    if (fromMd) return fromMd;
+    
+    // Tenta buscar nos monitoramentos carregados
+    if (monitoramentos.length > 0) {
+      const termo = monitoramentos.find(m => {
+        const label = m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim();
+        return label === effectiveTermoAtual || m.termo_busca === effectiveTermoAtual;
+      });
+      return termo?.descricao || null;
+    }
+    
+    return null;
+  }, [effectiveTermoAtual, progress, md, monitoramentos]);
+
   const effectiveMensagem: string =
     progress.mensagem ||
     (typeof md.mensagem === 'string' ? md.mensagem : '') ||
@@ -1008,7 +1031,12 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                     </span>
                   )}
                   {effectiveTermoAtual && (
-                    <span className="ml-1 break-words">{effectiveTermoAtual}</span>
+                    <span className="ml-1 break-words">
+                      {effectiveTermoAtual}
+                      {effectiveTermoDescricao && effectiveTermoDescricao !== effectiveTermoAtual && (
+                        <span className="text-xs text-muted-foreground ml-1">({effectiveTermoDescricao})</span>
+                      )}
+                    </span>
                   )}
                 </span>
                 <span className="font-mono font-medium">{Math.round(effectivePercentage)}%</span>
