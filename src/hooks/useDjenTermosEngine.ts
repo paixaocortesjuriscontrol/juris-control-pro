@@ -538,6 +538,114 @@ function conteudoContemTermo(
 }
 
 // ============================================================================
+// EXTRAÇÃO DE PARTES E ADVOGADOS DO CONTEÚDO
+// ============================================================================
+
+/**
+ * Extrai partes (polo ativo/passivo) e advogados do texto da publicação.
+ * Usado para popular os campos estruturados no momento do salvamento.
+ */
+function extrairPartesAdvogadosDoConteudo(texto: string | null): {
+  polo_ativo: string | null;
+  polo_passivo: string | null;
+  advogados: string[];
+} {
+  if (!texto) return { polo_ativo: null, polo_passivo: null, advogados: [] };
+
+  const plainText = texto.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  
+  let polo_ativo: string | null = null;
+  let polo_passivo: string | null = null;
+  const advogados: string[] = [];
+  const advSet = new Set<string>();
+
+  // Padrões para extrair partes (polo ativo)
+  const poloAtivoPatterns = [
+    /EXEQUENTE[:\s]+([^\n]+?)(?=\s+(?:EXECUTADO|ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /AUTOR[:\s]+([^\n]+?)(?=\s+(?:R[ÉE]U|ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /REQUERENTE[:\s]+([^\n]+?)(?=\s+(?:REQUERIDO|ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /RECLAMANTE[:\s]+([^\n]+?)(?=\s+(?:RECLAMADO|ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /AGRAVANTE[:\s]+([^\n]+?)(?=\s+(?:AGRAVADO|ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /APELANTE[:\s]+([^\n]+?)(?=\s+(?:APELADO|ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /EMBARGANTE[:\s]+([^\n]+?)(?=\s+(?:EMBARGADO|ADV|ADVOGADO|OAB|\d{7}|$))/i,
+  ];
+
+  // Padrões para extrair partes (polo passivo)
+  const poloPassivoPatterns = [
+    /EXECUTADO[:\s]+([^\n]+?)(?=\s+(?:E OUTROS|ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /R[ÉE]U[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /REQUERIDO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /RECLAMADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /AGRAVADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /APELADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|OAB|\d{7}|$))/i,
+    /EMBARGADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|OAB|\d{7}|$))/i,
+  ];
+
+  // Extrair polo ativo
+  for (const pattern of poloAtivoPatterns) {
+    const match = plainText.match(pattern);
+    if (match?.[1]) {
+      polo_ativo = match[1].trim().replace(/\s+E\s+OUTROS.*$/i, '').slice(0, 200);
+      break;
+    }
+  }
+
+  // Extrair polo passivo
+  for (const pattern of poloPassivoPatterns) {
+    const match = plainText.match(pattern);
+    if (match?.[1]) {
+      polo_passivo = match[1].trim().replace(/\s+E\s+OUTROS.*$/i, '').slice(0, 200);
+      break;
+    }
+  }
+
+  // Extrair advogados - múltiplos formatos
+  // Formato: "NOME - OAB UF-12345" ou "NOME (OAB 12345/UF)"
+  const advPatterns = [
+    // NOME - OAB DF-12345 ou NOME - OAB DF015553
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-\s*OAB[:\s]*([A-Z]{2})[:\s-]?0?(\d{3,10})/gi,
+    // NOME (OAB 12345/DF)
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*0?(\d{3,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/gi,
+    // SP123456 ou DF015553 (formato inline em tabela HTML)
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-\s*([A-Z]{2})0?(\d{3,10})/gi,
+  ];
+
+  for (const pattern of advPatterns) {
+    const matches = plainText.matchAll(pattern);
+    for (const match of matches) {
+      let nome: string, numero: string, uf: string;
+      
+      // Ajustar ordem dos grupos conforme o padrão
+      if (pattern.source.includes('\\(OAB')) {
+        // Formato: NOME (OAB 12345/DF)
+        nome = (match[1] || '').trim();
+        numero = (match[2] || '').replace(/^0+/, '');
+        uf = (match[3] || '').toUpperCase();
+      } else {
+        // Formato: NOME - OAB DF-12345
+        nome = (match[1] || '').trim();
+        uf = (match[2] || '').toUpperCase();
+        numero = (match[3] || '').replace(/^0+/, '');
+      }
+
+      if (!numero || !uf || numero.length < 3) continue;
+      
+      const key = `${numero}-${uf}`;
+      if (advSet.has(key)) continue;
+      
+      // Validar que parece um nome
+      const tokens = nome.split(' ').filter(t => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(t) && t.length >= 2);
+      if (tokens.length < 2) continue;
+      
+      advSet.add(key);
+      advogados.push(`${nome} - OAB ${uf}-${numero}`);
+    }
+  }
+
+  return { polo_ativo, polo_passivo, advogados };
+}
+
+// ============================================================================
 // HELPERS PARA BUSCA
 // ============================================================================
 
@@ -1004,19 +1112,26 @@ async function processarTermo(
     });
   }
 
-  // Inserir novas
+  // Inserir novas - com extração de partes/advogados do conteúdo
   if (novas.length > 0) {
-    const payload = novas.map(pub => ({
-      monitoramento_id: mon.id,
-      hash_conteudo: pub.hash_conteudo,
-      processo_numero: pub.numeroProcesso || pub.processo || null,
-      conteudo: pub.conteudo || pub.teor || pub.texto || null,
-      data_disponibilizacao: `${pub.data_disponibilizacao}T12:00:00.000Z`,
-      data_publicacao: pub.data_publicacao ? `${pub.data_publicacao}T12:00:00.000Z` : null,
-      tribunal: getSiglaTribunal(pub),
-      fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
-      lida: false,
-    }));
+    const payload = novas.map(pub => {
+      const conteudoTexto = pub.conteudo || pub.teor || pub.texto || null;
+      const { polo_ativo, polo_passivo } = extrairPartesAdvogadosDoConteudo(conteudoTexto);
+      
+      return {
+        monitoramento_id: mon.id,
+        hash_conteudo: pub.hash_conteudo,
+        processo_numero: pub.numeroProcesso || pub.processo || null,
+        conteudo: conteudoTexto,
+        data_disponibilizacao: `${pub.data_disponibilizacao}T12:00:00.000Z`,
+        data_publicacao: pub.data_publicacao ? `${pub.data_publicacao}T12:00:00.000Z` : null,
+        tribunal: getSiglaTribunal(pub),
+        fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
+        polo_ativo,
+        polo_passivo,
+        lida: false,
+      };
+    });
 
     await supabase
       .from('publicacoes_djen')
