@@ -34,6 +34,10 @@ export interface TarefaEquipe {
   } | null;
 }
 
+/**
+ * Hook otimizado para buscar estatísticas de tarefas por membro
+ * Usa RPC no banco para evitar N+1 queries
+ */
 export function useEquipeTarefasStats(coordenacaoId: string | null, allCoordenacaoIds?: string[]) {
   const { user } = useAuth();
 
@@ -47,73 +51,33 @@ export function useEquipeTarefasStats(coordenacaoId: string | null, allCoordenac
 
       if (coordIds.length === 0) return [] as MembroTarefaStats[];
 
-      // Get members of all target coordinations
-      const { data: membros, error: membrosError } = await supabase
-        .from("membros_coordenacao")
-        .select(`
-          usuario_id,
-          cargo,
-          usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome, email)
-        `)
-        .in("coordenacao_id", coordIds);
+      // Usar RPC otimizada que faz tudo em uma única query
+      const { data, error } = await supabase
+        .rpc('get_equipe_tarefas_stats', { p_coordenacao_ids: coordIds });
 
-      if (membrosError) throw membrosError;
-      if (!membros || membros.length === 0) return [];
+      if (error) throw error;
 
-      // Deduplicate members (in case same user is in multiple coordinations)
-      const uniqueMembros = membros.reduce((acc, membro) => {
-        if (!acc.find(m => m.usuario_id === membro.usuario_id)) {
-          acc.push(membro);
-        }
-        return acc;
-      }, [] as typeof membros);
-
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
-
-      // Get tasks for each member
-      const statsPromises = uniqueMembros.map(async (membro) => {
-        // Handle nested usuario object
-        const usuario = Array.isArray(membro.usuario) ? membro.usuario[0] : membro.usuario;
-        
-        const { data: tarefas, error: tarefasError } = await supabase
-          .from("tarefas")
-          .select("id, status, prioridade, data_vencimento")
-          .eq("responsavel_id", membro.usuario_id);
-
-        if (tarefasError) throw tarefasError;
-
-        const total = tarefas?.length || 0;
-        const pendentes = tarefas?.filter(t => t.status === "pendente").length || 0;
-        const cumpridas = tarefas?.filter(t => t.status === "cumprido").length || 0;
-        const urgentes = tarefas?.filter(t => t.prioridade === "urgente" && t.status === "pendente").length || 0;
-        
-        const atrasadas = tarefas?.filter(t => {
-          if (t.status !== "pendente" || !t.data_vencimento) return false;
-          const dataVenc = new Date(t.data_vencimento);
-          return dataVenc < hoje;
-        }).length || 0;
-
-        return {
-          usuario_id: membro.usuario_id,
-          nome: usuario?.nome || "Sem nome",
-          email: usuario?.email || "",
-          cargo: membro.cargo,
-          total_tarefas: total,
-          pendentes,
-          atrasadas,
-          cumpridas,
-          urgentes,
-        } as MembroTarefaStats;
-      });
-
-      const stats = await Promise.all(statsPromises);
-      return stats.sort((a, b) => b.total_tarefas - a.total_tarefas);
+      // Mapear para interface esperada
+      return (data || []).map((row: any) => ({
+        usuario_id: row.usuario_id,
+        nome: row.nome || "Sem nome",
+        email: row.email || "",
+        cargo: row.cargo,
+        total_tarefas: Number(row.total_tarefas) || 0,
+        pendentes: Number(row.pendentes) || 0,
+        atrasadas: Number(row.atrasadas) || 0,
+        cumpridas: Number(row.cumpridas) || 0,
+        urgentes: Number(row.urgentes) || 0,
+      })) as MembroTarefaStats[];
     },
     enabled: !!user && (!!coordenacaoId || (allCoordenacaoIds && allCoordenacaoIds.length > 0)),
+    staleTime: 30000, // Cache por 30s
   });
 }
 
+/**
+ * Hook para buscar tarefas da equipe com filtros
+ */
 export function useEquipeTarefas(
   coordenacaoId: string | null,
   filters: {
@@ -136,7 +100,12 @@ export function useEquipeTarefas(
 
       if (coordIds.length === 0) return [] as TarefaEquipe[];
 
-      // Get member IDs for target coordinations
+      // Se já temos membro específico, buscar direto
+      if (filters.membroId && filters.membroId !== "all") {
+        return await fetchTarefasForMembers([filters.membroId], filters);
+      }
+
+      // Buscar IDs dos membros das coordenações
       const { data: membros, error: membrosError } = await supabase
         .from("membros_coordenacao")
         .select("usuario_id")
@@ -149,59 +118,68 @@ export function useEquipeTarefas(
       
       if (membroIds.length === 0) return [];
 
-      // Determine which IDs to query
-      const targetIds = filters.membroId && filters.membroId !== "all" 
-        ? [filters.membroId] 
-        : membroIds;
-
-      let query = supabase
-        .from("tarefas")
-        .select(`
-          id,
-          titulo,
-          descricao,
-          data_vencimento,
-          data_cumprimento,
-          status,
-          prioridade,
-          responsavel_id,
-          processo_id,
-          created_at,
-          responsavel:profiles!tarefas_responsavel_id_fkey(id, nome),
-          processo:processos!tarefas_processo_id_fkey(numero)
-        `)
-        .in("responsavel_id", targetIds)
-        .order("data_vencimento", { ascending: true, nullsFirst: false });
-
-      if (filters.status && filters.status !== "all") {
-        query = query.eq("status", filters.status as "pendente" | "cumprido" | "atrasado");
-      }
-
-      if (filters.prioridade && filters.prioridade !== "all") {
-        query = query.eq("prioridade", filters.prioridade as "baixa" | "media" | "alta" | "urgente");
-      }
-
-      if (filters.search) {
-        query = query.ilike("titulo", `%${filters.search}%`);
-      }
-
-      const { data, error } = await query.limit(200);
-
-      if (error) throw error;
-
-      // Normalize nested objects
-      const normalized = (data || []).map(item => ({
-        ...item,
-        responsavel: Array.isArray(item.responsavel) ? item.responsavel[0] : item.responsavel,
-        processo: Array.isArray(item.processo) ? item.processo[0] : item.processo,
-      }));
-
-      return normalized as unknown as TarefaEquipe[];
+      return await fetchTarefasForMembers(membroIds, filters);
     },
     enabled: !!user && (!!coordenacaoId || (allCoordenacaoIds && allCoordenacaoIds.length > 0)),
+    staleTime: 30000, // Cache por 30s
   });
 }
 
+/**
+ * Função auxiliar para buscar tarefas de membros específicos
+ */
+async function fetchTarefasForMembers(
+  memberIds: string[], 
+  filters: { status?: string; prioridade?: string; search?: string }
+): Promise<TarefaEquipe[]> {
+  let query = supabase
+    .from("tarefas")
+    .select(`
+      id,
+      titulo,
+      descricao,
+      data_vencimento,
+      data_cumprimento,
+      status,
+      prioridade,
+      responsavel_id,
+      processo_id,
+      created_at,
+      responsavel:profiles!tarefas_responsavel_id_fkey(id, nome),
+      processo:processos!tarefas_processo_id_fkey(numero)
+    `)
+    .in("responsavel_id", memberIds)
+    .order("data_vencimento", { ascending: true, nullsFirst: false });
+
+  if (filters.status && filters.status !== "all") {
+    query = query.eq("status", filters.status as "pendente" | "cumprido" | "atrasado");
+  }
+
+  if (filters.prioridade && filters.prioridade !== "all") {
+    query = query.eq("prioridade", filters.prioridade as "baixa" | "media" | "alta" | "urgente");
+  }
+
+  if (filters.search) {
+    query = query.ilike("titulo", `%${filters.search}%`);
+  }
+
+  const { data, error } = await query.limit(200);
+
+  if (error) throw error;
+
+  // Normalize nested objects
+  const normalized = (data || []).map(item => ({
+    ...item,
+    responsavel: Array.isArray(item.responsavel) ? item.responsavel[0] : item.responsavel,
+    processo: Array.isArray(item.processo) ? item.processo[0] : item.processo,
+  }));
+
+  return normalized as unknown as TarefaEquipe[];
+}
+
+/**
+ * Hook para buscar coordenações do usuário
+ */
 export function useMinhasCoordenacoes() {
   const { user } = useAuth();
 
@@ -251,5 +229,6 @@ export function useMinhasCoordenacoes() {
       return coordenacoes as { id: string; nome: string; area: string }[];
     },
     enabled: !!user,
+    staleTime: 60000, // Cache por 1 minuto
   });
 }
