@@ -69,30 +69,20 @@ interface ParametrosDjen {
 // NOTA: Coordenações Santander foram desabilitadas diretamente no banco
 // (processos.monitorar_djen = false), portanto não há mais filtro hardcoded aqui.
 
-const MAX_PAGES_PER_GROUP = 5;
-// Tamanho do grupo para busca OR (10 processos por grupo = ~10% das requisições originais)
-const GROUP_SIZE = 10;
+const MAX_PAGES_PER_PROCESS = 10;
 
 const DEFAULT_PARAMS: ParametrosDjen = {
-  group_search_size: GROUP_SIZE,
-  delay_entre_lotes: 1500,   // Reduzido: menos requisições = menos delay necessário
-  delay_entre_paginas: 800,  // Reduzido
+  group_search_size: 1,
+  delay_entre_lotes: 3000,
+  delay_entre_paginas: 1500,
   max_retries: 4,
-  retry_base_delay_ms: 5000,
+  retry_base_delay_ms: 8000,
 };
 
 const METADATA_PERSIST_MIN_INTERVAL_MS = 3000;
 const MAX_CONSECUTIVE_BLOCKS = 3;
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-/**
- * Constrói query OR para busca agrupada de processos.
- * Formato: "0000001-00.2024.5.18.0001 OR 0000002-00.2024.5.18.0002 OR ..."
- */
-function buildGroupedQuery(processos: { numero: string }[]): string {
-  return processos.map(p => p.numero.trim()).join(' OR ');
-}
 
 // ============================================================================
 // SINGLETON STATE
@@ -376,56 +366,44 @@ async function runEngine(
 
     console.log(`[DJEN Processos] ${processosMonitorados.length} processos (busca individual com número inteiro)`);
 
-    // Agrupar processos em lotes de GROUP_SIZE para busca OR
-    const grupos: { id: string; numero: string; coordenacao_id: string | null }[][] = [];
-    for (let i = 0; i < processosMonitorados.length; i += GROUP_SIZE) {
-      grupos.push(processosMonitorados.slice(i, i + GROUP_SIZE));
-    }
-    
-    const totalGrupos = grupos.length;
     const totalProcessos = processosMonitorados.length;
-    const startGrupoIdx = checkpoint?.processoIdx ?? 0;
-
-    console.log(`[DJEN Processos] ${totalProcessos} processos em ${totalGrupos} grupos (OR query, ~${GROUP_SIZE}/grupo)`);
+    const processosLista = processosMonitorados;
 
     updateProgress({
-      totalGroups: totalGrupos,
-      currentGroup: startGrupoIdx,
-      mensagem: `${totalProcessos} processos em ${totalGrupos} grupos (busca OR otimizada)`,
+      totalGroups: totalProcessos,
+      currentGroup: startProcessoIdx,
+      mensagem: `${totalProcessos} processos (1 por vez, número inteiro)`,
     });
 
     await persistMetadata({
       status: 'executando',
-      total_grupos: totalGrupos,
-      total_processos: totalProcessos,
-      grupo_atual: startGrupoIdx,
+      total_grupos: totalProcessos,
+      grupo_atual: startProcessoIdx,
       novas: novasTotal,
       duplicadas: duplicadasTotal,
       run_key: runKey,
       browser_execution: true,
-      estrategia: 'singleton_engine_v3_grouped_or',
+      estrategia: 'singleton_engine_v2_processo_inteiro',
       turbo: turbo,
     }, { force: true });
 
-    // Loop: 1 grupo OR por vez
-    for (let grupoIdx = startGrupoIdx; grupoIdx < grupos.length; grupoIdx++) {
+    // Loop: 1 processo por vez com tipo 'processo' e número inteiro
+    for (let idx = startProcessoIdx; idx < processosLista.length; idx++) {
       if (signal.aborted) break;
 
-      const grupo = grupos[grupoIdx];
-      const queryOR = buildGroupedQuery(grupo);
-      const processosDoGrupo = new Map(grupo.map(p => [normalizeNumeroProcesso(p.numero), p]));
-      
+      const processo = processosLista[idx];
+      const numeroCompleto = processo.numero.trim();
       let page = 0;
       let hasMore = true;
 
       updateProgress({
-        currentGroup: grupoIdx + 1,
+        currentGroup: idx + 1,
         currentPage: page,
-        percentage: Math.round(((grupoIdx + 1) / totalGrupos) * 100),
-        mensagem: `Grupo ${grupoIdx + 1}/${totalGrupos} (${grupo.length} processos)`,
+        percentage: Math.round(((idx + 1) / totalProcessos) * 100),
+        mensagem: `Processo ${idx + 1}/${totalProcessos}: ${numeroCompleto.slice(0, 25)}...`,
       });
 
-      while (hasMore && page < MAX_PAGES_PER_GROUP) {
+      while (hasMore && page < MAX_PAGES_PER_PROCESS) {
         if (signal.aborted) break;
 
         let retryCount = 0;
@@ -435,10 +413,9 @@ async function runEngine(
 
         while (!success && retryCount < params.max_retries) {
           try {
-            // Busca por palavra-chave com query OR
             resp = await buscarPjeComunicaNoBrowser({
-              tipo: 'palavra-chave',
-              palavraChave: queryOR,
+              tipo: 'processo',
+              numeroProcesso: numeroCompleto,
               dataInicio: dataInicioYmd,
               dataFim: dataFimYmd,
               page,
@@ -454,7 +431,7 @@ async function runEngine(
             isBlockedError = errMsg.includes('blocked') || errMsg.includes('bloqueada') || errMsg.includes('429');
             
             retryCount++;
-            console.warn(`[DJEN Processos] Erro grupo ${grupoIdx + 1} pág ${page}, tentativa ${retryCount}:`, e?.message?.slice(0, 100));
+            console.warn(`[DJEN Processos] Erro processo ${idx + 1} pág ${page}, tentativa ${retryCount}:`, e?.message?.slice(0, 100));
             
             if (retryCount < params.max_retries) {
               const backoffMs = params.retry_base_delay_ms * Math.pow(2, retryCount - 1);
@@ -473,22 +450,22 @@ async function runEngine(
               
               saveCheckpoint({
                 runKey,
-                processoIdx: grupoIdx,
+                processoIdx: idx,
                 novas: novasTotal,
                 duplicadas: duplicadasTotal,
                 totalAnalisadas: publicacoesAnalisadas,
                 tempoInicio,
                 dataInicioYmd,
                 dataFimYmd,
-                percentage: Math.round((grupoIdx / totalGrupos) * 100),
-                totalGroups: totalGrupos,
+                percentage: Math.round((idx / totalProcessos) * 100),
+                totalGroups: totalProcessos,
               });
 
               await persistMetadata({
                 status: 'erro',
                 erro: 'API bloqueada - circuit breaker',
-                grupo_atual: grupoIdx,
-                total_grupos: totalGrupos,
+                grupo_atual: idx,
+                total_grupos: totalProcessos,
                 novas: novasTotal,
                 duplicadas: duplicadasTotal,
               }, { force: true });
@@ -506,38 +483,18 @@ async function runEngine(
           break;
         }
 
-        // Processar resultados - associar cada publicação ao processo correto
         for (const pub of resp.items) {
           publicacoesAnalisadas++;
 
-          const conteudo = pub.texto || pub.teor || pub.conteudo || '';
+          const conteudo = pub.texto || pub.teor || '';
           if (!conteudo) continue;
-
-          // Encontrar qual processo do grupo corresponde a esta publicação
-          const numPubRaw = pub.numeroProcesso || '';
-          const numPubNorm = normalizeNumeroProcesso(numPubRaw);
-          
-          // Tentar match direto primeiro
-          let processoMatch = processosDoGrupo.get(numPubNorm);
-          
-          // Se não encontrou, tentar buscar no conteúdo da publicação
-          if (!processoMatch) {
-            for (const [numNorm, proc] of processosDoGrupo) {
-              if (conteudo.includes(proc.numero) || conteudo.includes(numNorm)) {
-                processoMatch = proc;
-                break;
-              }
-            }
-          }
-          
-          if (!processoMatch) continue; // Publicação não pertence a nenhum processo do grupo
 
           const hoje = getBrazilISODate();
           const dataDisponibilizacao = pub.dataDisponibilizacao || hoje;
           const dataPublicacao = pub.dataPublicacao || dataDisponibilizacao;
           
           const conteudoNorm = normalizeConteudo(conteudo);
-          const hashConteudo = generateHash(`${processoMatch.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
+          const hashConteudo = generateHash(`${processo.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
 
           if (seenHashes.has(hashConteudo)) {
             duplicadasTotal++;
@@ -559,13 +516,13 @@ async function runEngine(
           const { error: insertError } = await supabase
             .from('publicacoes_djen_processos')
             .insert({
-              processo_id: processoMatch.id,
-              processo_numero: processoMatch.numero,
+              processo_id: processo.id,
+              processo_numero: processo.numero,
               hash_conteudo: hashConteudo,
               data_publicacao: dataPublicacao,
               data_disponibilizacao: dataDisponibilizacao,
               conteudo: conteudo.slice(0, 50000),
-              fonte: 'singleton_engine_v3_grouped_or',
+              fonte: 'singleton_engine_v2_processo_inteiro',
             });
 
           if (!insertError) {
@@ -582,7 +539,7 @@ async function runEngine(
           novas: novasTotal,
           duplicadas: duplicadasTotal,
           totalPublicacoesAnalisadas: publicacoesAnalisadas,
-          mensagem: `Grupo ${grupoIdx + 1}/${totalGrupos} | Pág ${page} | +${novasTotal} novas`,
+          mensagem: `Processo ${idx + 1}/${totalProcessos} | Pág ${page} | +${novasTotal} novas`,
         });
 
         if (hasMore && !signal.aborted) {
@@ -590,38 +547,35 @@ async function runEngine(
         }
       }
 
-      // Checkpoint a cada 5 grupos ou no final
-      if ((grupoIdx + 1) % 5 === 0 || grupoIdx === grupos.length - 1) {
+      if ((idx + 1) % 5 === 0 || idx === processosLista.length - 1) {
         saveCheckpoint({
           runKey,
-          processoIdx: grupoIdx + 1,
+          processoIdx: idx + 1,
           novas: novasTotal,
           duplicadas: duplicadasTotal,
           totalAnalisadas: publicacoesAnalisadas,
           tempoInicio,
           dataInicioYmd,
           dataFimYmd,
-          percentage: Math.round(((grupoIdx + 1) / totalGrupos) * 100),
-          totalGroups: totalGrupos,
+          percentage: Math.round(((idx + 1) / totalProcessos) * 100),
+          totalGroups: totalProcessos,
         });
 
         await persistMetadata({
           status: 'executando',
-          grupo_atual: grupoIdx + 1,
-          total_grupos: totalGrupos,
+          grupo_atual: idx + 1,
+          total_grupos: totalProcessos,
           novas: novasTotal,
           duplicadas: duplicadasTotal,
-          percentage: Math.round(((grupoIdx + 1) / totalGrupos) * 100),
+          percentage: Math.round(((idx + 1) / totalProcessos) * 100),
           run_key: runKey,
         });
       }
 
-      if (!signal.aborted && grupoIdx < grupos.length - 1) {
+      if (!signal.aborted && idx < processosLista.length - 1) {
         await delay(params.delay_entre_lotes);
       }
     }
-
-    const totalGruposProcessados = grupos.length;
 
     // Finalização
     if (singletonState.timerInterval) {
@@ -640,13 +594,13 @@ async function runEngine(
         dataInicioYmd,
         dataFimYmd,
         percentage: singletonState.progress.percentage,
-        totalGroups: totalGruposProcessados,
+        totalGroups: totalProcessos,
       });
 
       await persistMetadata({
         status: 'cancelado',
         grupo_atual: singletonState.progress.currentGroup,
-        total_grupos: totalGruposProcessados,
+        total_grupos: totalProcessos,
         novas: novasTotal,
         duplicadas: duplicadasTotal,
       }, { force: true });
@@ -660,15 +614,13 @@ async function runEngine(
 
       await persistMetadata({
         status: 'concluido',
-        grupo_atual: totalGruposProcessados,
-        total_grupos: totalGruposProcessados,
-        total_processos: totalProcessos,
+        grupo_atual: totalProcessos,
+        total_grupos: totalProcessos,
         novas: novasTotal,
         duplicadas: duplicadasTotal,
         percentage: 100,
         run_key: runKey,
         last_run: new Date().toISOString(),
-        estrategia: 'grouped_or_v3',
       }, { force: true });
 
       // Salvar histórico
@@ -681,13 +633,13 @@ async function runEngine(
 
       updateProgress({
         status: 'concluido',
-        currentGroup: totalGruposProcessados,
-        totalGroups: totalGruposProcessados,
+        currentGroup: totalProcessos,
+        totalGroups: totalProcessos,
         percentage: 100,
         novas: novasTotal,
         duplicadas: duplicadasTotal,
         totalPublicacoesAnalisadas: publicacoesAnalisadas,
-        mensagem: `Concluído! ${novasTotal} novas em ${totalProcessos} processos (${totalGruposProcessados} grupos).`,
+        mensagem: `Concluído! ${novasTotal} novas em ${totalProcessos} processos.`,
       });
       
       // Notificar conclusão com toast
