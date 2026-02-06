@@ -80,7 +80,7 @@ export function MonitoramentoTermosCard({ coordenacaoId }: Props) {
         <div className="flex-1">
           <CardTitle className="text-lg">Monitoração 360º</CardTitle>
           <CardDescription>
-            Varredura automática de termos estratégicos nas movimentações
+            Varredura automática de termos estratégicos nas publicações DJEN do dia
           </CardDescription>
         </div>
       </CardHeader>
