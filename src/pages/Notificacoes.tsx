@@ -122,7 +122,11 @@ export default function Notificacoes() {
     enabled: activeTab === "distribuicoes",
   });
   const { alertas } = useMonitoramento360({
-    enabled: activeTab === "alertas360",
+    enabled: activeTab === "alertas360" || activeTab === "todos",
+    statusFilter,
+    periodoInicio,
+    periodoFim,
+    coordenacaoId: coordenacaoId !== "todas" ? coordenacaoId : undefined,
   });
   const { data: redistribuicoesData = [] } = useRedistribuicoes({
     dataInicio: periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined,
@@ -609,19 +613,14 @@ export default function Notificacoes() {
     });
   }, [distribuicoesPendentes, coordenacaoId, searchQuery, periodoInicio, periodoFim]);
 
-  // Filter alerts by coordination
-  const alertasPendentes = alertas.filter(a => 
-    statusFilter === "todas" || a.status === 'pendente'
-  );
+  // Filter alerts - hook já filtra por status, período e coordenação; apenas busca e prioridade client-side
   const alertasFiltrados = useMemo(() => {
-    return alertasPendentes.filter(a => {
-      if (coordenacaoId !== "todas" && a.processo?.coordenacao_id !== coordenacaoId) return false;
+    return alertas.filter(a => {
       if (!matchesSearch(a.termo_encontrado) && !matchesSearch(a.processo?.numero)) return false;
-      if (!matchesPeriodo(a.created_at)) return false;
       if (!matchesPrioridade(a.prioridade)) return false;
       return true;
     });
-  }, [alertasPendentes, coordenacaoId, searchQuery, periodoInicio, periodoFim, prioridadeFilter]);
+  }, [alertas, matchesSearch, matchesPrioridade]);
 
   // Redistribuições filtradas por período
   const redistribuicoesFiltradas = useMemo(() => {
