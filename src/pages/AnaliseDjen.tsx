@@ -52,7 +52,7 @@ import {
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { cn, formatProcessoNumero } from "@/lib/utils";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly } from "@/utils/formatConteudo";
 
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
@@ -916,7 +916,7 @@ const AnaliseDjen = () => {
                                         <ChevronRight className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground flex-shrink-0 mt-0.5 md:mt-0" />
                                       )}
                                       <p className="text-xs md:text-sm font-medium text-primary hover:underline break-all">
-                                        {pub.processo_numero}
+                                        Processo {formatProcessoNumero(pub.processo_numero)}
                                       </p>
                                       {/* Link para detalhes do processo - qualquer tipo de origem com processo_id */}
                                       {pub.processo_id && (
