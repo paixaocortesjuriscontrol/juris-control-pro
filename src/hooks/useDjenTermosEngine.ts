@@ -16,6 +16,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaPaginado } from "@/utils/pjeComunicaClient";
+import { buildDjenLikeConteudo, collectMetaAdvogadoText } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
 // TIPOS
@@ -987,12 +988,7 @@ async function processarTermo(
       pub.texto,
     ].filter(Boolean).join('\n');
 
-    const metaAdvogado = [
-      (pub as any)?.destinatarioNome,
-      (pub as any)?.destinatario_nome,
-      (pub as any)?.nomeAdvogado,
-      (pub as any)?.nome_advogado,
-    ].filter(Boolean).join('\n');
+    const metaAdvogado = collectMetaAdvogadoText(pub);
 
     if (!conteudo) {
       // Para advogado com OAB, ainda assim tentamos validar via metadata antes de descartar.
@@ -1115,7 +1111,13 @@ async function processarTermo(
   // Inserir novas - com extração de partes/advogados do conteúdo
   if (novas.length > 0) {
     const payload = novas.map(pub => {
-      const conteudoTexto = pub.conteudo || pub.teor || pub.texto || null;
+      const conteudoOriginal = pub.conteudo || pub.teor || pub.texto || null;
+      const conteudoTexto = buildDjenLikeConteudo({
+        pub,
+        diaYmd,
+        monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+        conteudoOriginal,
+      });
       const { polo_ativo, polo_passivo } = extrairPartesAdvogadosDoConteudo(conteudoTexto);
       
       return {
@@ -1141,7 +1143,13 @@ async function processarTermo(
   // Persistir descartadas no banco (para auditoria e métricas)
   if (pubsDescartadas.length > 0) {
     const payloadDescartadas = pubsDescartadas.slice(0, 200).map(pub => {
-      const conteudo = pub.conteudo || pub.teor || pub.texto || '';
+      const conteudoOriginal = pub.conteudo || pub.teor || pub.texto || '';
+      const conteudo = buildDjenLikeConteudo({
+        pub,
+        diaYmd,
+        monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+        conteudoOriginal,
+      });
       const dataDisp = (pub.dataDisponibilizacao || pub.dataDJe || diaYmd).slice(0, 10);
       const dataPub = calcularDataPublicacaoYmd(dataDisp);
       const hash = gerarHash(conteudo + (pub.motivo_descarte || ''), dataDisp);
