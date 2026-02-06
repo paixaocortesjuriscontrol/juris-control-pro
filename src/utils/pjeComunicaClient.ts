@@ -102,8 +102,18 @@ const awaitGlobalCooldown = async () => {
   }
 };
 function optimizeItem(item: any) {
+  // IMPORTANTE:
+  // - Mantemos o objeto original (spread) para não perder metadados (advogados/partes/destinatários etc.)
+  //   que alguns tribunais usam para a busca, mesmo quando o corpo (conteudo/texto/teor) vem “magro”.
+  // - Ainda assim, limitamos os campos de texto para evitar explosão de memória.
+  const conteudo = typeof item?.conteudo === "string" ? item.conteudo.slice(0, MAX_TEXT_LENGTH) : undefined;
+  const texto = typeof item?.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined;
+  const teor = typeof item?.teor === "string" ? item.teor.slice(0, MAX_TEXT_LENGTH) : undefined;
+
   return {
+    ...item,
     id: item?.id,
+
     // A API pode retornar campos em snake_case (ex: data_disponibilizacao)
     // ou em outras variações; normalizamos aqui para o pipeline do DJEN.
     dataDisponibilizacao:
@@ -150,9 +160,9 @@ function optimizeItem(item: any) {
 
     // CRÍTICO: A API pode retornar o corpo da publicação como 'conteudo', 'texto' ou 'teor'.
     // Precisamos capturar TODOS para não perder publicações.
-    conteudo: typeof item?.conteudo === "string" ? item.conteudo.slice(0, MAX_TEXT_LENGTH) : undefined,
-    texto: typeof item?.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined,
-    teor: typeof item?.teor === "string" ? item.teor.slice(0, MAX_TEXT_LENGTH) : undefined,
+    conteudo,
+    texto,
+    teor,
   };
 }
 
