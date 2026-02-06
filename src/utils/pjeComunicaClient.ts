@@ -148,6 +148,9 @@ function optimizeItem(item: any) {
       item?.nome_destinatario ??
       null,
 
+    // CRÍTICO: A API pode retornar o corpo da publicação como 'conteudo', 'texto' ou 'teor'.
+    // Precisamos capturar TODOS para não perder publicações.
+    conteudo: typeof item?.conteudo === "string" ? item.conteudo.slice(0, MAX_TEXT_LENGTH) : undefined,
     texto: typeof item?.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined,
     teor: typeof item?.teor === "string" ? item.teor.slice(0, MAX_TEXT_LENGTH) : undefined,
   };
