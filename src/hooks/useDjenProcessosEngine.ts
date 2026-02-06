@@ -619,6 +619,8 @@ async function runEngine(
         novas: novasTotal,
         duplicadas: duplicadasTotal,
         percentage: 100,
+        run_key: runKey,
+        last_run: new Date().toISOString(),
       }, { force: true });
 
       // Salvar histórico
@@ -632,12 +634,16 @@ async function runEngine(
       updateProgress({
         status: 'concluido',
         currentGroup: totalProcessos,
+        totalGroups: totalProcessos,
         percentage: 100,
         novas: novasTotal,
         duplicadas: duplicadasTotal,
         totalPublicacoesAnalisadas: publicacoesAnalisadas,
         mensagem: `Concluído! ${novasTotal} novas em ${totalProcessos} processos.`,
       });
+      
+      // Notificar conclusão com toast
+      toast.success(`DJEN Processos: ${novasTotal} novas publicações encontradas!`);
     }
 
   } catch (error: any) {
@@ -661,10 +667,13 @@ async function runEngine(
     });
   } finally {
     singletonState.isRunning = false;
+    singletonState.abortController = null;
     if (singletonState.timerInterval) {
       clearInterval(singletonState.timerInterval);
       singletonState.timerInterval = null;
     }
+    // Sempre notificar listeners para garantir que a UI seja atualizada
+    notifyListeners();
   }
 }
 

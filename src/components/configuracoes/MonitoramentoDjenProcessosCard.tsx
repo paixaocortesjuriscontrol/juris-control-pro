@@ -405,18 +405,17 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId, onOpenFullTab, o
                 </Button>
               </div>
             </div>
-            {/* Barra de progresso sempre visível durante execução */}
-            <div className="flex items-center gap-2 text-xs">
-              <Badge variant="secondary" className="font-mono">
-                Processo {progresso?.currentGroup ?? 0}/{progresso?.totalGroups ?? '?'}
-              </Badge>
-              <span className="text-muted-foreground">
-                {(progresso?.analisadas ?? 0).toLocaleString('pt-BR')} analisadas • +{progresso?.novas ?? 0} novas
-              </span>
-            </div>
-            <Progress value={progresso?.percentage ?? 0} className="h-2" />
-            <div className="text-xs text-muted-foreground text-center font-mono">
-              {progresso?.percentage ?? 0}%
+            {/* Barra de progresso com porcentagem igual DJEN Termos */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">
+                  {progresso?.currentGroup ?? 0}/{progresso?.totalGroups ?? '?'} processos • +{progresso?.novas ?? 0} novas
+                </span>
+                <span className="font-mono font-semibold text-primary">
+                  {progresso?.percentage ?? 0}%
+                </span>
+              </div>
+              <Progress value={progresso?.percentage ?? 0} className="h-3" />
             </div>
           </div>
         )}
