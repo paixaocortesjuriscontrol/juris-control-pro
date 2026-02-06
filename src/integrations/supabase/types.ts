@@ -4766,6 +4766,20 @@ export type Database = {
           tribunal: string
         }[]
       }
+      get_equipe_tarefas_stats: {
+        Args: { p_coordenacao_ids: string[] }
+        Returns: {
+          atrasadas: number
+          cargo: string
+          cumpridas: number
+          email: string
+          nome: string
+          pendentes: number
+          total_tarefas: number
+          urgentes: number
+          usuario_id: string
+        }[]
+      }
       get_notificacoes_counts_by_coordenacao: {
         Args: {
           p_coordenacao_ids: string[]
