@@ -29,7 +29,13 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useMonitorarDjenProcessosBrowser } from "@/hooks/useMonitorarDjenProcessosBrowser";
+import { 
+  executarDjenProcessos as runDjenProcessos,
+  cancelarDjenProcessos,
+  isDjenProcessosRunning,
+  subscribeDjenProcessos,
+  type DjenProcessosProgress
+} from "@/hooks/useDjenProcessosEngine";
 import { useSincronizarDjenBrowser } from "@/hooks/useSincronizarDjenBrowser";
 
 // DJEN Termos re-adicionado ao grid para visualização unificada
@@ -356,12 +362,18 @@ export function DashboardMonitoramentos() {
   const [confirmReativarOpen, setConfirmReativarOpen] = useState(false);
   const [confirmTipo, setConfirmTipo] = useState<string | null>(null);
   
-  // Hooks para execução BROWSER-ONLY (evita WORKER_LIMIT 546)
-  const { 
-    executar: executarDjenProcessos, 
-    cancelar: cancelarDjenProcessos,
-    isExecutando: executandoDjenProcessos 
-  } = useMonitorarDjenProcessosBrowser();
+  // DJEN Processos: usa engine singleton com retry automático
+  const [executandoDjenProcessos, setExecutandoDjenProcessos] = useState(isDjenProcessosRunning());
+  
+  useEffect(() => {
+    return subscribeDjenProcessos((p: DjenProcessosProgress) => {
+      setExecutandoDjenProcessos(p.status === 'executando');
+    });
+  }, []);
+  
+  const executarDjenProcessos = useCallback(() => {
+    runDjenProcessos(undefined, undefined, false, false);
+  }, []);
   
   const { 
     sincronizar: executarDjenTermos, 
