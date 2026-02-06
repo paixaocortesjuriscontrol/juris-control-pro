@@ -70,9 +70,21 @@ const PRIORIDADES = [
   { value: 'urgente', label: 'Urgente' },
 ];
 
-export function useMonitoramento360(options?: { enabled?: boolean }) {
+export interface UseMonitoramento360Options {
+  enabled?: boolean;
+  statusFilter?: string;
+  periodoInicio?: Date;
+  periodoFim?: Date;
+  coordenacaoId?: string;
+}
+
+export function useMonitoramento360(options?: UseMonitoramento360Options) {
   const queryClient = useQueryClient();
   const enabled = options?.enabled ?? true;
+  const statusFilter = options?.statusFilter;
+  const periodoInicio = options?.periodoInicio;
+  const periodoFim = options?.periodoFim;
+  const coordenacaoId = options?.coordenacaoId;
 
   // Buscar termos de monitoramento
   const { data: termos = [], isLoading: loadingTermos } = useQuery({
@@ -90,11 +102,11 @@ export function useMonitoramento360(options?: { enabled?: boolean }) {
     enabled,
   });
 
-  // Buscar alertas
+  // Buscar alertas com filtros consistentes com a RPC
   const { data: alertas = [], isLoading: loadingAlertas } = useQuery({
-    queryKey: ['alertas-monitoramento'],
+    queryKey: ['alertas-monitoramento', statusFilter, periodoInicio?.toISOString(), periodoFim?.toISOString(), coordenacaoId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('alertas_monitoramento')
         .select(`
           *,
@@ -102,11 +114,37 @@ export function useMonitoramento360(options?: { enabled?: boolean }) {
           processo:processos(numero, polo_ativo, polo_passivo, vara, coordenacao_id),
           movimentacao:movimentacoes(descricao, data_movimentacao)
         `)
-        .order('created_at', { ascending: false })
-        .limit(100);
+        .order('created_at', { ascending: false });
+
+      // Filtrar por status (mesmo mapeamento da RPC)
+      if (statusFilter && statusFilter !== 'todas') {
+        const mappedStatus = statusFilter === 'concluido' ? 'tratado' : statusFilter;
+        query = query.eq('status', mappedStatus);
+      }
+
+      // Filtrar por período (usar created_at como a RPC)
+      if (periodoInicio) {
+        const inicioBRT = new Date(periodoInicio);
+        inicioBRT.setHours(0, 0, 0, 0);
+        query = query.gte('created_at', inicioBRT.toISOString());
+      }
+      if (periodoFim) {
+        const fimBRT = new Date(periodoFim);
+        fimBRT.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', fimBRT.toISOString());
+      }
+
+      const { data, error } = await query.limit(500);
 
       if (error) throw error;
-      return data as AlertaMonitoramento[];
+      
+      // Filtrar por coordenação client-side (já que processo é relação)
+      let result = data as AlertaMonitoramento[];
+      if (coordenacaoId && coordenacaoId !== 'todas') {
+        result = result.filter(a => a.processo?.coordenacao_id === coordenacaoId);
+      }
+      
+      return result;
     },
     enabled,
   });
