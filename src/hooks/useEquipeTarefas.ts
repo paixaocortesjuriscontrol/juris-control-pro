@@ -43,9 +43,9 @@ export function useEquipeTarefasStats(coordenacaoId: string | null, allCoordenac
       // Determine which coordination(s) to fetch
       const coordIds = coordenacaoId 
         ? [coordenacaoId] 
-        : (allCoordenacaoIds || []);
+        : (allCoordenacaoIds && allCoordenacaoIds.length > 0 ? allCoordenacaoIds : []);
 
-      if (coordIds.length === 0) return [];
+      if (coordIds.length === 0) return [] as MembroTarefaStats[];
 
       // Get members of all target coordinations
       const { data: membros, error: membrosError } = await supabase
@@ -132,9 +132,9 @@ export function useEquipeTarefas(
       // Determine which coordination(s) to fetch
       const coordIds = coordenacaoId 
         ? [coordenacaoId] 
-        : (allCoordenacaoIds || []);
+        : (allCoordenacaoIds && allCoordenacaoIds.length > 0 ? allCoordenacaoIds : []);
 
-      if (coordIds.length === 0) return [];
+      if (coordIds.length === 0) return [] as TarefaEquipe[];
 
       // Get member IDs for target coordinations
       const { data: membros, error: membrosError } = await supabase
