@@ -30,3 +30,20 @@ export function sanitizeFileName(original: string) {
   return result.length > 160 ? result.slice(0, 160) : result;
 }
 
+/**
+ * Formata número de processo judicial no padrão CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO
+ * Ex: "0737746-12.2025.8.07.0001"
+ */
+export function formatProcessoNumero(numero: string | null | undefined): string {
+  if (!numero) return "-";
+  
+  // Remove tudo que não é dígito
+  const digits = numero.replace(/\D/g, "");
+  
+  // Se já tem formatação ou não tem 20 dígitos, retorna como está
+  if (digits.length !== 20) return numero;
+  
+  // Formato CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO
+  return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
+}
+
