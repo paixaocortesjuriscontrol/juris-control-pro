@@ -34,6 +34,7 @@ import {
   cancelarDjenProcessos,
   isDjenProcessosRunning,
   subscribeDjenProcessos,
+  getCheckpointProcessos,
   type DjenProcessosProgress
 } from "@/hooks/useDjenProcessosEngine";
 import { useSincronizarDjenBrowser } from "@/hooks/useSincronizarDjenBrowser";
@@ -372,7 +373,13 @@ export function DashboardMonitoramentos() {
   }, []);
   
   const executarDjenProcessos = useCallback(() => {
-    runDjenProcessos(undefined, undefined, false, false);
+    // Detecta automaticamente se há checkpoint para retomar
+    const checkpoint = getCheckpointProcessos();
+    const retomar = checkpoint !== null;
+    if (retomar) {
+      console.log('[DJEN Processos] Retomando de checkpoint:', checkpoint.processoIdx);
+    }
+    runDjenProcessos(undefined, undefined, retomar, false);
   }, []);
   
   const { 
