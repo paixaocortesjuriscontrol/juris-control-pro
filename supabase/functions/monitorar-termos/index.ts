@@ -167,24 +167,28 @@ Deno.serve(async (req) => {
 
     const currentOffset = completeRun ? (configData?.metadata?.next_offset || 0) : 0;
 
-    // Varrer movimentações dos últimos 7 dias para garantir cobertura robusta
+    // Varrer movimentações E publicações DJEN dos últimos 7 dias
     const seteDiasAtras = new Date();
     seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
     seteDiasAtras.setHours(0, 0, 0, 0);
     const dataFiltro = seteDiasAtras.toISOString();
-    console.log(`Filtering movements from last 7 days: ${dataFiltro}`);
+    console.log(`Filtering movements and DJEN publications from last 7 days: ${dataFiltro}`);
 
-    // Contar total de movimentações DOS ÚLTIMOS 7 DIAS e buscar apenas termos ativos inicialmente
-    // NÃO carregar alertas/audiências/intimações aqui - usar query sob demanda depois
-    const [countResult, termosResult] = await Promise.all([
+    // Contar total de movimentações E publicações DJEN dos últimos 7 dias
+    const [countMovResult, countDjenTermosResult, countDjenProcessosResult, termosResult] = await Promise.all([
       supabase.from('movimentacoes').select('id', { count: 'exact', head: true }).gte('created_at', dataFiltro),
+      supabase.from('publicacoes_djen').select('id', { count: 'exact', head: true }).gte('created_at', dataFiltro),
+      supabase.from('publicacoes_djen_processos').select('id', { count: 'exact', head: true }).gte('created_at', dataFiltro),
       supabase.from('termos_monitoramento').select('id, termo, categoria, prioridade').eq('ativo', true),
     ]);
 
-    const totalMovimentacoes = countResult.count || 0;
+    const totalMovimentacoes = countMovResult.count || 0;
+    const totalDjenTermos = countDjenTermosResult.count || 0;
+    const totalDjenProcessos = countDjenProcessosResult.count || 0;
+    const totalRegistros = totalMovimentacoes + totalDjenTermos + totalDjenProcessos;
     const termos = termosResult.data || [];
 
-    console.log(`Init: ${termos.length} terms, ${totalMovimentacoes} movements last 7 days (${Date.now() - startTime}ms)`);
+    console.log(`Init: ${termos.length} terms, ${totalMovimentacoes} movs + ${totalDjenTermos} djen_termos + ${totalDjenProcessos} djen_processos = ${totalRegistros} total (${Date.now() - startTime}ms)`);
 
     if (termos.length === 0) {
       console.log('No active terms configured');
@@ -208,17 +212,36 @@ Deno.serve(async (req) => {
       .order('created_at', { ascending: false })
       .range(currentOffset, currentOffset + BATCH_SIZE - 1);
 
+    // Buscar publicações DJEN (termos) dos últimos 7 dias
+    const { data: publicacoesDjenTermos } = await supabase
+      .from('publicacoes_djen')
+      .select('id, processo_numero, conteudo, monitoramento_id, created_at, monitoramento:monitoramentos_djen(coordenacao_id)')
+      .gte('created_at', dataFiltro)
+      .order('created_at', { ascending: false })
+      .range(currentOffset, currentOffset + BATCH_SIZE - 1);
+
+    // Buscar publicações DJEN (processos) dos últimos 7 dias
+    const { data: publicacoesDjenProcessos } = await supabase
+      .from('publicacoes_djen_processos')
+      .select('id, processo_numero, processo_id, conteudo, created_at, processo:processos(coordenacao_id)')
+      .gte('created_at', dataFiltro)
+      .order('created_at', { ascending: false })
+      .range(currentOffset, currentOffset + BATCH_SIZE - 1);
+
     const movimentacoesList = movimentacoes || [];
-    const processedCount = currentOffset + movimentacoesList.length;
+    const djenTermosList = publicacoesDjenTermos || [];
+    const djenProcessosList = publicacoesDjenProcessos || [];
+    const totalBatchSize = movimentacoesList.length + djenTermosList.length + djenProcessosList.length;
+    const processedCount = currentOffset + Math.max(movimentacoesList.length, djenTermosList.length, djenProcessosList.length);
 
     // Importante: não usar "length < BATCH_SIZE" como condição de finalização,
     // porque o PostgREST pode cortar em 1000 linhas mesmo havendo mais dados.
-    const isComplete = processedCount >= totalMovimentacoes || movimentacoesList.length === 0;
+    const isComplete = processedCount >= Math.max(totalMovimentacoes, totalDjenTermos, totalDjenProcessos) || totalBatchSize === 0;
 
-    console.log(`Loaded: ${movimentacoesList.length} movements (offset ${currentOffset}/${totalMovimentacoes}) in ${Date.now() - startTime}ms`);
+    console.log(`Loaded: ${movimentacoesList.length} movs + ${djenTermosList.length} djen_termos + ${djenProcessosList.length} djen_processos (offset ${currentOffset}) in ${Date.now() - startTime}ms`);
 
-    // OTIMIZAÇÃO: Buscar alertas/audiências/intimações apenas para as movimentações DO LOTE ATUAL
-    // Isso evita carregar toda a tabela de alertas
+    // OTIMIZAÇÃO: Buscar alertas apenas para as movimentações DO LOTE ATUAL
+    // Para DJEN, usamos uma chave de deduplicação baseada em processo_numero + head do conteúdo
     const movIds = movimentacoesList.map(m => m.id);
     
     const [alertasResult, audienciasResult, intimacoesResult] = await Promise.all([
@@ -245,6 +268,26 @@ Deno.serve(async (req) => {
     const intimacoesExistentes = new Set(
       (intimacoesResult.data || []).map(i => i.movimentacao_id)
     );
+
+    // Buscar alertas existentes para publicações DJEN (usa chave: processo_numero + termo_id)
+    const djenProcessoNumeros = [
+      ...djenTermosList.map(p => p.processo_numero),
+      ...djenProcessosList.map(p => p.processo_numero),
+    ].filter(Boolean);
+
+    let alertasDjenExistentes = new Set<string>();
+    if (djenProcessoNumeros.length > 0) {
+      // Buscar alertas existentes que tenham contexto contendo "DJEN" para evitar duplicatas
+      const { data: alertasDjen } = await supabase
+        .from('alertas_monitoramento')
+        .select('processo_id, termo_id, contexto')
+        .like('contexto', '%[DJEN]%');
+      
+      if (alertasDjen) {
+        // Criar set com chave: processo_id + termo_id
+        alertasDjenExistentes = new Set(alertasDjen.map(a => `${a.processo_id}-${a.termo_id}`));
+      }
+    }
 
     let alertasGerados = 0;
     let audienciasDetectadas = 0;
@@ -359,7 +402,122 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Processed in ${Date.now() - startTime}ms. Inserting ${novosAlertas.length} alerts, ${novasAudiencias.length} hearings, ${novasIntimacoes.length} summons...`);
+    // ========== PROCESSAR PUBLICAÇÕES DJEN (TERMOS) ==========
+    // OTIMIZAÇÃO: Buscar todos os processo_id em batch, não individualmente
+    const djenProcessadas = new Set<string>();
+    let alertasDjenGerados = 0;
+
+    // Coletar todos os números de processo únicos das publicações DJEN
+    const numerosProcessoDjen = [...new Set([
+      ...djenTermosList.map(p => p.processo_numero).filter(Boolean),
+    ])];
+
+    // Buscar todos os processo_id de uma vez (em chunks de 100 para não ultrapassar limite)
+    const processoNumeroToId = new Map<string, string>();
+    for (let i = 0; i < numerosProcessoDjen.length; i += 100) {
+      const chunk = numerosProcessoDjen.slice(i, i + 100);
+      const { data: procs } = await supabase
+        .from('processos')
+        .select('id, numero')
+        .in('numero', chunk);
+      
+      if (procs) {
+        for (const p of procs) {
+          processoNumeroToId.set(p.numero, p.id);
+        }
+      }
+    }
+
+    console.log(`Resolved ${processoNumeroToId.size}/${numerosProcessoDjen.length} processo numbers to IDs in batch`);
+
+    for (const pub of djenTermosList) {
+      const conteudoLower = (pub.conteudo || '').toLowerCase();
+      const processoNumero = pub.processo_numero || '';
+      
+      // Usar o mapa de processo_id (busca O(1))
+      const processoId = processoNumeroToId.get(processoNumero) || null;
+      if (!processoId) continue; // Sem processo vinculado, não gera alerta
+
+      for (const termo of termos) {
+        const termoLower = termo.termo.toLowerCase();
+        
+        if (conteudoLower.includes(termoLower)) {
+          // Chave de deduplicação: processo_id + termo_id
+          const dedupKey = `${processoId}-${termo.id}`;
+          
+          // Verificar se já existe alerta DJEN para este processo + termo
+          if (alertasDjenExistentes.has(dedupKey) || djenProcessadas.has(dedupKey)) {
+            continue;
+          }
+
+          const index = conteudoLower.indexOf(termoLower);
+          const start = Math.max(0, index - 50);
+          const end = Math.min(pub.conteudo.length, index + termo.termo.length + 50);
+          const contexto = '[DJEN] ' + (start > 0 ? '...' : '') + 
+                          pub.conteudo.slice(start, end) + 
+                          (end < pub.conteudo.length ? '...' : '');
+
+          novosAlertas.push({
+            termo_id: termo.id,
+            processo_id: processoId,
+            movimentacao_id: null, // Sem movimentação - veio do DJEN
+            termo_encontrado: termo.termo,
+            contexto,
+            prioridade: termo.prioridade,
+            status: 'pendente',
+          });
+
+          djenProcessadas.add(dedupKey);
+          alertasDjenGerados++;
+          alertasGerados++;
+        }
+      }
+    }
+
+    // ========== PROCESSAR PUBLICAÇÕES DJEN (PROCESSOS) ==========
+    for (const pub of djenProcessosList) {
+      const conteudoLower = (pub.conteudo || '').toLowerCase();
+      const processoId = pub.processo_id;
+      
+      if (!processoId) continue;
+
+      for (const termo of termos) {
+        const termoLower = termo.termo.toLowerCase();
+        
+        if (conteudoLower.includes(termoLower)) {
+          // Chave de deduplicação: processo_id + termo_id
+          const dedupKey = `${processoId}-${termo.id}`;
+          
+          // Verificar se já existe alerta para este processo + termo
+          if (alertasDjenExistentes.has(dedupKey) || djenProcessadas.has(dedupKey)) {
+            continue;
+          }
+
+          const index = conteudoLower.indexOf(termoLower);
+          const start = Math.max(0, index - 50);
+          const end = Math.min(pub.conteudo.length, index + termo.termo.length + 50);
+          const contexto = '[DJEN] ' + (start > 0 ? '...' : '') + 
+                          pub.conteudo.slice(start, end) + 
+                          (end < pub.conteudo.length ? '...' : '');
+
+          novosAlertas.push({
+            termo_id: termo.id,
+            processo_id: processoId,
+            movimentacao_id: null, // Sem movimentação - veio do DJEN
+            termo_encontrado: termo.termo,
+            contexto,
+            prioridade: termo.prioridade,
+            status: 'pendente',
+          });
+
+          djenProcessadas.add(dedupKey);
+          alertasDjenGerados++;
+          alertasGerados++;
+        }
+      }
+    }
+
+    console.log(`Processed ${movimentacoesList.length} movs + ${djenTermosList.length + djenProcessosList.length} DJEN in ${Date.now() - startTime}ms. Found ${alertasDjenGerados} DJEN alerts. Inserting ${novosAlertas.length} alerts, ${novasAudiencias.length} hearings, ${novasIntimacoes.length} summons...`);
 
     // Inserir alertas em paralelo
     const insertPromises: Promise<any>[] = [];
@@ -662,19 +820,23 @@ Deno.serve(async (req) => {
     }
 
     // Atualizar metadata com próximo offset (ou resetar se completo)
-    const progressPercentage = totalMovimentacoes > 0 ? Math.round((processedCount / totalMovimentacoes) * 100) : 100;
+    const progressPercentage = totalRegistros > 0 ? Math.round((processedCount / Math.max(totalMovimentacoes, totalDjenTermos, totalDjenProcessos)) * 100) : 100;
     
     if (configData?.id) {
       const newMetadata = {
         ...(configData.metadata as Record<string, any>),
         next_offset: isComplete ? 0 : processedCount,
         current: processedCount,
-        total: totalMovimentacoes,
+        total: totalRegistros,
+        totalMovimentacoes,
+        totalDjenTermos,
+        totalDjenProcessos,
         percentage: progressPercentage,
-        last_batch_size: movimentacoesList.length,
+        last_batch_size: totalBatchSize,
         status: isComplete ? 'concluido' : 'em_andamento',
         continuingRun: completeRun && !isComplete,
         alertasGerados: ((configData.metadata as any)?.alertasGerados || 0) + alertasGerados,
+        alertasDjenGerados: ((configData.metadata as any)?.alertasDjenGerados || 0) + alertasDjenGerados,
         execucaoId: execucaoId || (configData.metadata as any)?.execucaoId,
         ...(isComplete && { 
           last_complete_run: new Date().toISOString(),
@@ -690,7 +852,7 @@ Deno.serve(async (req) => {
         })
         .eq('id', configData.id);
       
-      console.log(`Updated config metadata: ${processedCount}/${totalMovimentacoes} (${progressPercentage}%)`);
+      console.log(`Updated config metadata: ${processedCount}/${totalRegistros} (${progressPercentage}%) - ${alertasDjenGerados} DJEN alerts`);
     }
 
     // Atualiza a execução em tempo real para o dashboard (execucoes_agendadas)
@@ -702,7 +864,7 @@ Deno.serve(async (req) => {
           status: isComplete ? 'concluido' : 'executando',
           finalizado_em: isComplete ? new Date().toISOString() : null,
           lotes_processados: processedCount,
-          total_lotes: totalMovimentacoes,
+          total_lotes: Math.max(totalMovimentacoes, totalDjenTermos, totalDjenProcessos),
           registros_processados: processedCount,
           // acumulado total fica no metadata.alertasGerados; aqui somamos de forma incremental
           registros_encontrados:
@@ -710,14 +872,20 @@ Deno.serve(async (req) => {
           detalhes: {
             progress: {
               current: processedCount,
-              total: totalMovimentacoes,
+              total: totalRegistros,
               percentage: progressPercentage,
             },
             alertasGeradosLote: alertasGerados,
+            alertasDjenGeradosLote: alertasDjenGerados,
             audienciasDetectadasLote: audienciasDetectadas,
             intimacoesDetectadasLote: intimacoesDetectadas,
             tarefasCriadasTotal: tarefasCriadas,
             termosAtivos: termos.length,
+            fontes: {
+              movimentacoes: movimentacoesList.length,
+              djenTermos: djenTermosList.length,
+              djenProcessos: djenProcessosList.length,
+            },
             isComplete,
             continuingRun: completeRun && !isComplete,
           },
@@ -729,23 +897,29 @@ Deno.serve(async (req) => {
     if (isComplete) {
       await supabase.from('historico_monitoramento').insert({
         tipo: 'termos',
-        processos_verificados: totalMovimentacoes,
+        processos_verificados: totalRegistros,
         novos_andamentos: alertasGerados,
         processos_com_novos: audienciasDetectadas + intimacoesDetectadas,
         erros: 0,
         detalhes: {
           alertasGerados,
+          alertasDjenGerados,
           audienciasDetectadas,
           intimacoesDetectadas,
           tarefasCriadas,
           termosAtivos: termos.length,
+          fontes: {
+            movimentacoes: totalMovimentacoes,
+            djenTermos: totalDjenTermos,
+            djenProcessos: totalDjenProcessos,
+          },
         },
         executado_em: new Date().toISOString(),
       });
       console.log('Histórico de monitoramento salvo');
     }
 
-    const percentage = totalMovimentacoes > 0 ? Math.round((processedCount / totalMovimentacoes) * 100) : 100;
+    const percentage = totalRegistros > 0 ? Math.round((processedCount / Math.max(totalMovimentacoes, totalDjenTermos, totalDjenProcessos)) * 100) : 100;
 
     // Auto-continuation: if completeRun and not complete, trigger next batch
     // But first check if cancellation was requested
@@ -812,18 +986,22 @@ Deno.serve(async (req) => {
 
     const totalTime = Date.now() - startTime;
     
-    console.log(`Batch complete in ${totalTime}ms. Progress: ${processedCount}/${totalMovimentacoes} (${percentage}%). isComplete=${isComplete}. Tasks created: ${tarefasCriadas}`);
+    console.log(`Batch complete in ${totalTime}ms. Progress: ${processedCount}/${totalRegistros} (${percentage}%). isComplete=${isComplete}. Tasks: ${tarefasCriadas}. DJEN alerts: ${alertasDjenGerados}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         alertasGerados,
+        alertasDjenGerados,
         alertasCriados: alertasGerados,
         audienciasDetectadas,
         intimacoesDetectadas,
         tarefasCriadas,
         movimentacoesVerificadas: movimentacoesList.length,
-        processosVerificados: movimentacoesList.length,
+        djenTermosVerificados: djenTermosList.length,
+        djenProcessosVerificados: djenProcessosList.length,
+        totalVerificados: totalBatchSize,
+        processosVerificados: totalBatchSize,
         termosAtivos: termos.length,
         tempoExecucao: `${totalTime}ms`,
         isComplete,
@@ -831,8 +1009,13 @@ Deno.serve(async (req) => {
         continuingRun: completeRun && !isComplete,
         progress: {
           current: processedCount,
-          total: totalMovimentacoes,
+          total: totalRegistros,
           percentage,
+        },
+        fontes: {
+          movimentacoes: { verificadas: movimentacoesList.length, total: totalMovimentacoes },
+          djenTermos: { verificadas: djenTermosList.length, total: totalDjenTermos },
+          djenProcessos: { verificadas: djenProcessosList.length, total: totalDjenProcessos },
         },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
