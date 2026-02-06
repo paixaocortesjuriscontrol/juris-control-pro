@@ -870,14 +870,28 @@ async function processarTermo(
     }
     // Para validação, considerar SOMENTE o texto real da publicação.
     // NÃO usar destinatarioNome/metadata, pois isso gera falso positivo (termo “aparece” fora do texto).
+    // EXCEÇÃO CONTROLADA: para tipo 'advogado' com OAB, alguns tribunais retornam o corpo da publicação
+    // sem o cabeçalho (onde constam os advogados). Nesses casos, o campo `destinatarioNome` costuma
+    // trazer o advogado correto e é uma validação mais confiável do que descartar a captura.
     const conteudo = [
       pub.conteudo,
       pub.teor,
       pub.texto,
     ].filter(Boolean).join('\n');
+
+    const metaAdvogado = [
+      (pub as any)?.destinatarioNome,
+      (pub as any)?.destinatario_nome,
+      (pub as any)?.nomeAdvogado,
+      (pub as any)?.nome_advogado,
+    ].filter(Boolean).join('\n');
+
     if (!conteudo) {
-      pubsDescartadas.push({ ...pub, motivo_descarte: 'conteudo_vazio' });
-      return false;
+      // Para advogado com OAB, ainda assim tentamos validar via metadata antes de descartar.
+      if (!(isAdvogadoComOab && metaAdvogado)) {
+        pubsDescartadas.push({ ...pub, motivo_descarte: 'conteudo_vazio' });
+        return false;
+      }
     }
 
     // 1. Verificar exclusões (termos bloqueados)
@@ -919,8 +933,28 @@ async function processarTermo(
       const termoParaValidar = (mon.tipo === 'palavra-chave' || (mon.tipo as string) === 'nome')
         ? extrairPalavraChavePura(mon.termo_busca)
         : mon.termo_busca;
-      
-      if (!conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab)) {
+
+      const validouNoConteudo = conteudo ? conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab) : false;
+
+      // Fallback: para advogado com OAB, aceitar match via metadados (destinatarioNome)
+      // quando o corpo não contém a seção de advogados.
+      const validouNoMetadata = (() => {
+        if (!isAdvogadoComOab) return false;
+        if (!metaAdvogado?.trim()) return false;
+
+        const termoPuro = extrairPalavraChavePura(mon.termo_busca);
+        const termoNorm = normalizar(termoPuro);
+        const metaNorm = normalizar(metaAdvogado);
+
+        if (termoNorm && metaNorm.includes(termoNorm)) return true;
+
+        const oabDigits = String(mon.oab || '').replace(/\D/g, '').trim();
+        if (oabDigits && metaNorm.includes(oabDigits)) return true;
+
+        return false;
+      })();
+
+      if (!validouNoConteudo && !validouNoMetadata) {
         pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
         return false;
       }
