@@ -191,10 +191,10 @@ export default function ProcessoDetalhes() {
     enabled: !!id,
   });
 
-  // LAZY LOADING: Queries só executam quando a aba correspondente está ativa
-  // Isso reduz de 12+ queries simultâneas para 3-4 no carregamento inicial
+  // EAGER LOADING: Audiências, Intimações e Tarefas carregam sempre pois são usadas no card de pendências
+  // Outras queries usam lazy loading baseado na aba ativa
 
-  // Audiências query - lazy load
+  // Audiências query - carrega sempre pois é usada no card de pendências
   const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery({
     queryKey: ["audiencias-processo", id, processo?.numero],
     queryFn: async () => {
@@ -207,10 +207,10 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && !!processo?.numero && activeTab === "audiencias",
+    enabled: !!id && !!processo?.numero,
   });
 
-  // Intimações query - lazy load
+  // Intimações query - carrega sempre pois é usada no card de pendências
   const { data: intimacoes = [], isLoading: loadingIntimacoes } = useQuery({
     queryKey: ["intimacoes-processo", id, processo?.numero],
     queryFn: async () => {
@@ -223,10 +223,10 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && !!processo?.numero && activeTab === "intimacoes",
+    enabled: !!id && !!processo?.numero,
   });
 
-  // Tarefas query - lazy load
+  // Tarefas query - carrega sempre pois é usada no card de pendências
   const { data: tarefas = [], isLoading: loadingTarefas } = useQuery({
     queryKey: ["tarefas-processo", id],
     queryFn: async () => {
@@ -242,7 +242,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && activeTab === "tarefas",
+    enabled: !!id,
   });
 
   // Documentos query - lazy load
