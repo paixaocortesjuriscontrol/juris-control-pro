@@ -321,10 +321,11 @@ export function CriarTarefaPublicacaoDialog({
 
         toast.success("Tarefa atualizada com sucesso!");
         queryClient.invalidateQueries({ queryKey: ["tarefas"] });
-        queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
+        queryClient.invalidateQueries({ queryKey: ["tarefas-processo", publicacao.processo_id] });
         queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-termo"] });
         queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] });
         queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
+        queryClient.invalidateQueries({ queryKey: ["notificacoes-counts"] });
         refetchTarefas();
         setTarefaEditandoId(null);
         
@@ -412,12 +413,17 @@ export function CriarTarefaPublicacaoDialog({
       }
 
       toast.success("Tarefa criada com sucesso!");
+      // Invalidar queries de publicações
       queryClient.invalidateQueries({ queryKey: ["publicacoes-djen"] });
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo", publicacao.processo_id] });
+      // Invalidar queries de tarefas - incluindo query específica do processo
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
-      queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] });
+      queryClient.invalidateQueries({ queryKey: ["tarefas-processo", publicacao.processo_id] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-termo"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
+      // Invalidar contagens de notificações
+      queryClient.invalidateQueries({ queryKey: ["notificacoes-counts"] });
       // Atualizar a lista de tarefas criadas no dialog
       refetchTarefas();
       
