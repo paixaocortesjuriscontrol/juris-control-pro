@@ -487,14 +487,19 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
         return curTs > bestTs ? cur : best;
       });
     })();
-    
+
     // Considera também 'timeout' como execução finalizada
-    const lastCompletedExecution = typeExecutions.find(e => 
-      e.status === 'concluido' || e.status === 'falhou' || e.status === 'cancelado' || e.status === 'timeout'
-    ) || null;
-    
-    // Verifica se há uma execução com status 'timeout' explícito no banco
-    const timeoutExecution = typeExecutions.find(e => e.status === 'timeout') || null;
+    const lastCompletedExecution =
+      typeExecutions.find(
+        (e) =>
+          e.status === 'concluido' ||
+          e.status === 'falhou' ||
+          e.status === 'cancelado' ||
+          e.status === 'timeout'
+      ) || null;
+
+    // Verifica se a ÚLTIMA execução terminal foi timeout (evita "timeout" antigo sobrescrever execuções recentes ok)
+    const timeoutExecution = lastCompletedExecution?.status === 'timeout' ? lastCompletedExecution : null;
 
     const todayTypeExecs = todayExecutions.filter((e: any) => e.tipo === tipo);
     
@@ -526,9 +531,21 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     const metaHasHeartbeat = Number.isFinite(metaHeartbeatMs) && (Date.now() - metaHeartbeatMs) < 2 * 60 * 1000;
 
     // Detectar execução stale (backend marcou last_stop_reason='stale')
+    // IMPORTANTE: `last_stop_reason` é histórico; não pode sobrescrever uma execução mais nova concluída.
     const metaStopReason = (metadata?.last_stop_reason as string | undefined) ?? undefined;
-    // Não inferir "stale" por texto livre (isso causava alternância de status/% em cenários reais).
-    const metaIsStale = metaStopReason === 'stale';
+    const lastStopAt = metadata?.last_stop_at as string | undefined;
+    const lastCompleteRun = metadata?.last_complete_run as string | undefined;
+    const lastStopMs = lastStopAt ? new Date(lastStopAt).getTime() : NaN;
+    const lastCompleteMs = lastCompleteRun ? new Date(lastCompleteRun).getTime() : NaN;
+
+    // Só considerar stale se:
+    // - o backend sinalizou stale
+    // - o status atual NÃO é concluído
+    // - e o stale é igual/mais novo que o último "complete_run" (ou não há complete_run)
+    const metaIsStale =
+      metaStopReason === 'stale' &&
+      metaStatus !== 'concluido' &&
+      (!Number.isFinite(lastCompleteMs) || (Number.isFinite(lastStopMs) && lastStopMs >= lastCompleteMs));
     
     // CORREÇÃO CRÍTICA: Para DJEN, verificar se a última execução já foi finalizada
     // O metadata pode ficar com status='em_andamento' mesmo após finalizar
@@ -639,8 +656,14 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       progress = 100;
     }
 
-    // Nunca considerar 100% se não há total conhecido
-    const progressComplete = total > 0 && (progress === 100 || processados >= total);
+    const explicitCompleted =
+      metaStatus === 'concluido' || lastCompletedExecution?.status === 'concluido';
+
+    // Se não há total conhecido (ex.: Monitoração 360), ainda consideramos “completo”
+    // quando há sinal explícito de conclusão e o backend já reportou 100%.
+    const progressComplete =
+      (total > 0 && (progress === 100 || processados >= total)) ||
+      (total === 0 && (progress ?? 0) === 100 && explicitCompleted);
 
     // Determine status (após calcular progresso)
     let status: MonitoringStatus = 'idle';
@@ -717,6 +740,7 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       if (lastCompletedExecution.status === 'falhou') status = 'failed';
       else if (lastCompletedExecution.status === 'cancelado') status = 'cancelled';
       else if (lastCompletedExecution.status === 'timeout') status = 'timeout';
+      else if (lastCompletedExecution.status === 'concluido') status = 'completed';
       else if (progressComplete) status = 'completed';
 
       if (lastCompletedExecution.iniciado_em && lastCompletedExecution.finalizado_em) {
@@ -730,6 +754,8 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
       status = 'failed';
     } else if (metaStatus === 'timeout') {
       status = 'timeout';
+    } else if (metaStatus === 'concluido') {
+      status = 'completed';
     } else if (progressComplete) {
       status = 'completed';
     }
@@ -740,25 +766,29 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
     // e não há execução ativa sinalizada.
     if (progressComplete && !currentExecution && !metaIsRunning) {
       status = 'completed';
-    } else if (status === 'completed') {
+    } else if (status === 'completed' && !explicitCompleted) {
       // Se o banco diz "concluído" mas o progresso não chegou a 100, tratar como running/idle.
+      // (exceto para tipos sem total onde a conclusão vem por status explícito)
       status = hasActiveSignal ? 'running' : 'idle';
     }
 
     // Se a execução está concluída, garantir 100% quando houver total conhecido.
-    // Para tipos sem total estruturado (distribuições), mostrar 100% se concluído
-    if (status === 'completed' && progressComplete) {
+    // Para tipos sem total estruturado, mostrar 100% se concluído quando há sinal explícito.
+    if (status === 'completed' && (progressComplete || explicitCompleted)) {
       if (total > 0) {
         progress = 100;
       } else if (processados > 0) {
         // Execução concluída com processados mas sem total = 100%
         total = processados;
         progress = 100;
+      } else if ((progress ?? 0) === 100) {
+        // ok: concluído sem total/processados (ex.: Monitoração 360)
+        progress = 100;
       }
     }
 
-    // Se não há total e não há progresso real, não mostre 100%
-    if (total === 0 && (processados ?? 0) === 0 && (progress ?? 0) === 100) {
+    // Se não há total e não há progresso real, não mostre 100% (a menos que esteja explicitamente concluído)
+    if (!explicitCompleted && total === 0 && (processados ?? 0) === 0 && (progress ?? 0) === 100) {
       progress = 0;
     }
 
