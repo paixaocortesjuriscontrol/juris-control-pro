@@ -4,8 +4,8 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-
-const BATCH_SIZE = 1000; // Supabase/PostgREST limita retorno padrão a 1000 linhas por requisição
+const BATCH_SIZE = 500; // Reduzido para evitar timeouts - função tem limite de 60s
+const MAX_EXECUTION_TIME_MS = 50000; // 50 segundos - deixa margem para cleanup antes do timeout de 60s
 
 // Padrões para detectar audiências
 const AUDIENCIA_PATTERNS = [
@@ -107,7 +107,8 @@ Deno.serve(async (req) => {
     const execucaoIdFromBody = typeof body.execucaoId === 'string' ? body.execucaoId : null;
 
     const startTime = Date.now();
-    console.log(`Starting term monitoring scan... completeRun=${completeRun}`);
+    const checkTimeout = () => (Date.now() - startTime) > MAX_EXECUTION_TIME_MS;
+    console.log(`Starting term monitoring scan... completeRun=${completeRun} maxTime=${MAX_EXECUTION_TIME_MS}ms`);
 
     // Buscar configuração para obter/atualizar offset
     const { data: configData } = await supabase
@@ -235,26 +236,21 @@ Deno.serve(async (req) => {
     console.log(`Loaded: ${djenTermosList.length} djen_termos + ${djenProcessosList.length} djen_processos (offset ${currentOffset}) in ${Date.now() - startTime}ms`);
 
     // Buscar alertas existentes para publicações DJEN (usa chave: processo_id + termo_id)
-    const djenProcessoNumeros = [
-      ...djenTermosList.map(p => p.processo_numero),
-      ...djenProcessosList.map(p => p.processo_numero),
-    ].filter(Boolean);
-
+    // OTIMIZAÇÃO: Filtrar apenas alertas do dia atual para evitar scan de toda a tabela
     let alertasDjenExistentes = new Set<string>();
-    if (djenProcessoNumeros.length > 0) {
-      // Buscar alertas existentes que tenham contexto contendo "DJEN" para evitar duplicatas
-      const { data: alertasDjen } = await supabase
-        .from('alertas_monitoramento')
-        .select('processo_id, termo_id, contexto')
-        .like('contexto', '%[DJEN]%');
-      
-      if (alertasDjen) {
-        // Criar set com chave: processo_id + termo_id
-        alertasDjenExistentes = new Set(alertasDjen.map(a => `${a.processo_id}-${a.termo_id}`));
-      }
+    
+    // Buscar alertas DJEN existentes apenas do dia atual
+    const { data: alertasDjen } = await supabase
+      .from('alertas_monitoramento')
+      .select('processo_id, termo_id')
+      .like('contexto', '%[DJEN]%')
+      .gte('created_at', dataFiltro);
+    
+    if (alertasDjen) {
+      alertasDjenExistentes = new Set(alertasDjen.map(a => `${a.processo_id}-${a.termo_id}`));
     }
 
-    console.log(`Dedup sets loaded in ${Date.now() - startTime}ms`);
+    console.log(`Dedup: ${alertasDjenExistentes.size} alertas do dia. Loaded in ${Date.now() - startTime}ms`);
 
     let alertasGerados = 0;
     let audienciasDetectadas = 0;
@@ -290,6 +286,25 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Resolved ${processoNumeroToId.size}/${numerosProcessoDjen.length} processo numbers to IDs in batch`);
+
+    // Early timeout check antes do processamento pesado
+    if (checkTimeout()) {
+      console.log(`Timeout check triggered at ${Date.now() - startTime}ms - triggering next batch`);
+      // Salvar progresso e disparar próximo lote
+      if (configData?.id && completeRun) {
+        const functionUrl = `${supabaseUrl}/functions/v1/monitorar-termos`;
+        const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+        fetch(functionUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${anonKey}` },
+          body: JSON.stringify({ completeRun: true, execucaoId }),
+        }).catch(() => {});
+      }
+      return new Response(
+        JSON.stringify({ success: true, timeout: true, message: 'Tempo limite atingido, continuando em próximo lote' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     for (const pub of djenTermosList) {
       const conteudoLower = (pub.conteudo || '').toLowerCase();
