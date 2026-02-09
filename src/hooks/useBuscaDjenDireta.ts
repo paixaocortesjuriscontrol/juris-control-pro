@@ -925,8 +925,9 @@ export function useBuscaDjenDireta() {
                 tipo: params.tipo,
                 oab: tipoMapeado === 'advogado' ? variante.oab : params.oab,
                 uf: tipoMapeado === 'advogado' ? (variante.uf || ufParaBusca) : ufParaBusca,
+                nomeAdvogado: tipoMapeado === 'advogado' ? (variante.nome || undefined) : undefined,
                 palavraChave: tipoMapeado === 'advogado'
-                  ? (variante.nome || undefined)
+                  ? undefined
                   : (variante.palavraChave || undefined),
                 numeroProcesso: params.numeroProcesso,
                 siglaTribunal: trib,
