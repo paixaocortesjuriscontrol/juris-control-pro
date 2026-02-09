@@ -96,11 +96,18 @@ export function useDescartadasDjen(filtros: FiltrosDescartadas = {}) {
 
       if (filtros.termoBusca) {
         const termo = filtros.termoBusca.toLowerCase();
-        filtered = filtered.filter(p => 
-          p.monitoramento?.termo_busca?.toLowerCase().includes(termo) ||
-          p.conteudo?.toLowerCase().includes(termo) ||
-          p.processo_numero?.toLowerCase().includes(termo)
-        );
+        const termoDigits = termo.replace(/\D/g, '');
+        filtered = filtered.filter(p => {
+          if (p.monitoramento?.termo_busca?.toLowerCase().includes(termo)) return true;
+          if (p.conteudo?.toLowerCase().includes(termo)) return true;
+          if (p.processo_numero?.toLowerCase().includes(termo)) return true;
+          // Busca por número de processo normalizado (sem pontos/traços)
+          if (termoDigits.length >= 5 && p.processo_numero) {
+            const procDigits = p.processo_numero.replace(/\D/g, '');
+            if (procDigits.includes(termoDigits) || termoDigits.includes(procDigits)) return true;
+          }
+          return false;
+        });
       }
 
       return filtered;
