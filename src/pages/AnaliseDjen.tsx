@@ -21,6 +21,7 @@ import {
   FolderPlus,
   Save,
   Trash2,
+  Copy,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -918,6 +919,20 @@ const AnaliseDjen = () => {
                                       <p className="text-xs md:text-sm font-medium text-primary hover:underline break-all">
                                         Processo {formatProcessoNumero(pub.processo_numero)}
                                       </p>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const formatted = formatProcessoNumero(pub.processo_numero!);
+                                          navigator.clipboard.writeText(formatted);
+                                          toast.success("Número copiado!");
+                                        }}
+                                        title="Copiar número do processo"
+                                        className="p-0.5 h-auto flex-shrink-0"
+                                      >
+                                        <Copy className="w-3 h-3 md:w-3.5 md:h-3.5 text-muted-foreground hover:text-foreground" />
+                                      </Button>
                                       {/* Link para detalhes do processo - qualquer tipo de origem com processo_id */}
                                       {pub.processo_id && (
                                         <Link 
