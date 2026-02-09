@@ -94,6 +94,7 @@ async function invokeBuscarDjenPreferBrowser<T>(
           tipo,
           oab: body?.oab,
           uf: body?.uf,
+          nomeAdvogado: body?.nomeAdvogado,
           palavraChave: body?.palavraChave,
           numeroProcesso: body?.numeroProcesso,
           dataInicio: body?.dataInicio,
@@ -426,8 +427,8 @@ const BuscarDJEN = () => {
 
             // Se advogado, buscar uma única vez com OAB; senão, buscar cada termo
             const searchItems = mon.tipo === "advogado"
-              ? [{ palavraChave: undefined, oab: mon.oab, uf: mon.uf }]
-              : termosParaBuscar.map(t => ({ palavraChave: t, oab: undefined, uf: undefined }));
+              ? [{ palavraChave: undefined as string | undefined, oab: mon.oab, uf: mon.uf, nomeAdvogado: mon.termo_busca }]
+              : termosParaBuscar.map(t => ({ palavraChave: t as string | undefined, oab: undefined as string | undefined, uf: undefined as string | undefined, nomeAdvogado: undefined as string | undefined }));
 
             const seenIds = new Set<string>();
 
@@ -437,6 +438,7 @@ const BuscarDJEN = () => {
                 palavraChave: item.palavraChave,
                 oab: item.oab,
                 uf: item.uf,
+                nomeAdvogado: item.nomeAdvogado,
                 dataInicio: dataInicio || undefined,
                 dataFim: dataFim || undefined,
                 page: 0,
