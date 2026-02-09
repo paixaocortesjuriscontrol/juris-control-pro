@@ -210,13 +210,18 @@ export async function buscarPjeComunicaNoBrowser(
   params: PjeComunicaSearchParams,
   options?: { signal?: AbortSignal }
 ): Promise<PjeComunicaResponse> {
-  // DEBUG: Log params for troubleshooting
+  // DEBUG: Log ALL params for troubleshooting
   console.log('[PJE Comunica] 🚀 buscarPjeComunicaNoBrowser params:', {
     tipo: params.tipo,
-    nomeParte: params.nomeParte,
+    oab: params.oab,
+    uf: params.uf,
     nomeAdvogado: params.nomeAdvogado,
+    nomeParte: params.nomeParte,
     siglaTribunal: params.siglaTribunal,
     dataInicio: params.dataInicio,
+    dataFim: params.dataFim,
+    page: params.page,
+    pageSize: params.pageSize,
   });
   
   const texto = buildTextoParam(params);
@@ -262,14 +267,11 @@ export async function buscarPjeComunicaNoBrowser(
       qp.set("numeroOab", oab);
       qp.set("ufOab", uf);
     } else if (nomeAdvogado) {
-      // UF "TODAS" ou sem UF: busca pelo nome do advogado via parâmetro `texto`
-      // O parâmetro `nomeAdvogado` NÃO funciona como filtro de busca na API /comunicacao.
-      // O `texto` faz full-text search no conteúdo das publicações e FUNCIONA.
+      // UF "TODAS" ou sem UF: busca pelo nome do advogado
+      // Conforme URL oficial: comunica.pje.jus.br/consulta?nomeAdvogado=...
       const nomeNorm = normalizeAccents(nomeAdvogado);
-      qp.set("texto", nomeNorm);
-      // Também enviar nomeAdvogado como redundância (caso a API melhore no futuro)
       qp.set("nomeAdvogado", nomeNorm);
-      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por texto+nomeAdvogado: ${nomeAdvogado}`);
+      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${nomeAdvogado}`);
     } else if (oab) {
       // Tem OAB mas sem UF e sem nome: enviar OAB sem UF como última tentativa
       qp.set("numeroOab", oab);
@@ -312,6 +314,7 @@ export async function buscarPjeComunicaNoBrowser(
   const doRequest = async (queryParams: URLSearchParams): Promise<PjeComunicaResponse> => {
     await awaitGlobalCooldown();
     const url = `${endpoint}?${queryParams.toString()}`;
+    console.log(`[PJE Comunica] 🌐 Fetching URL: ${url}`);
     
     // Criar AbortController com timeout automático
     const timeoutController = new AbortController();
