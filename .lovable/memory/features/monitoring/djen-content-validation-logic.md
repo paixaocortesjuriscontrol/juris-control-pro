@@ -6,7 +6,8 @@ A validação de conteúdo do DJEN usa **FRASE EXATA 100%** para garantir precis
 ## Regras de Validação (TODAS usam 100% estrito):
 - **Palavra-chave**: Frase exata deve aparecer no texto (ex: "Super Quadra" não casa com "enquadramento")
 - **Advogados (OAB)**: Exige número da OAB (regex flexível para pontos/espaços) + nome 100% como frase exata
-- **Parte (Polo ativo/passivo)**: Frase exata deve aparecer no texto
+- **Parte (Polo ativo/passivo)**: Confia no filtro `nomeParte` da API — NÃO exige que o termo apareça no corpo do texto, pois o nome pode existir apenas nos metadados estruturados de partes
+- **Nome**: Frase exata deve aparecer no texto
 - **Processo**: Número (apenas dígitos) deve aparecer no texto
 
 ## Lógica AND (+):

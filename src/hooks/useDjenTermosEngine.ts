@@ -1032,6 +1032,15 @@ async function processarTermo(
           return false;
         }
       }
+    } else if (tipo === 'parte') {
+      // Para tipo 'parte', a API já filtrou por nomeParte — o termo aparece nos metadados
+      // estruturados (partes/polos) e NÃO necessariamente no corpo do texto.
+      // Confiar no filtro da API e pular validação de conteúdo.
+      // Apenas verificar se tem conteúdo válido.
+      if (!conteudo && !metaAdvogado) {
+        pubsDescartadas.push({ ...pub, motivo_descarte: 'conteudo_vazio' });
+        return false;
+      }
     } else {
       // Validar termo simples (sem AND)
       const termoParaValidar = (mon.tipo === 'palavra-chave' || (mon.tipo as string) === 'nome')
