@@ -7,6 +7,7 @@ import {
   generateGlobalHash,
   extractProcessoNumero,
   calcularPrimeiroDiaUtil,
+  formatLocalDate,
 } from "./utils.ts";
 
 import {
@@ -66,7 +67,7 @@ export async function processPublicationFromIndex(
       if (!isNaN(dispDate.getTime())) {
         dispDate.setDate(dispDate.getDate() + 1);
         const proximoDiaUtil = calcularPrimeiroDiaUtil(dispDate);
-        dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+        dataPublicacao = formatLocalDate(proximoDiaUtil);
       }
     } catch {
       // ignore
@@ -78,7 +79,7 @@ export async function processPublicationFromIndex(
     const hoje = new Date(dataAtual);
     hoje.setDate(hoje.getDate() + 1);
     const proximoDiaUtil = calcularPrimeiroDiaUtil(hoje);
-    dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+    dataPublicacao = formatLocalDate(proximoDiaUtil);
   } else if (!dataDisponibilizacao && dataPublicacao) {
     dataDisponibilizacao = dataPublicacao;
   }
@@ -255,7 +256,7 @@ export async function processMonitoramentoIndexed(
 ): Promise<{ novas: number; descartadas: number; duplicatas: number; tribunaisStats: TribunalStats[] }> {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
   const tribunaisStats: TribunalStats[] = [];
-  const dataAtual = new Date().toISOString().split('T')[0];
+  const dataAtual = formatLocalDate(new Date());
 
   const tribunaisExpandidos = expandirTribunais(monitoramento.tribunais);
   const tribunais = tribunaisExpandidos && tribunaisExpandidos.length > 0
