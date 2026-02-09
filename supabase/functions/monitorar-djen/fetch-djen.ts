@@ -53,13 +53,8 @@ export async function fetchDJENResultsWithStats(
       console.log(`[OAB Search] Using native ufOab=${params.ufOab}`);
     }
     if (params.nomeAdvogado) {
-      // Para cross-UF, usar `texto` como busca principal (full-text search funciona)
-      // `nomeAdvogado` sozinho NÃO funciona como filtro na API /comunicacao
-      if (!params.texto) {
-        queryParams.set('texto', params.nomeAdvogado);
-      }
       queryParams.set('nomeAdvogado', params.nomeAdvogado);
-      console.log(`[Advogado Search] Using texto+nomeAdvogado="${params.nomeAdvogado}"`);
+      console.log(`[Advogado Search] Using nomeAdvogado="${params.nomeAdvogado}"`);
     }
 
     if (params.siglaTribunal) queryParams.set('siglaTribunal', params.siglaTribunal);
