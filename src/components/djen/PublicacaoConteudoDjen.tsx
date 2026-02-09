@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { cn, formatProcessoNumero } from "@/lib/utils";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 
 interface PublicacaoConteudoDjenProps {
@@ -293,7 +293,7 @@ export function PublicacaoConteudoDjen({
       {/* Header com número do processo e ações */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 pb-3 border-b border-primary/20">
         <h3 className="text-base md:text-lg font-semibold text-primary">
-          Processo {processoNumero || "-"}
+          Processo {formatProcessoNumero(processoNumero)}
         </h3>
         <div className="flex items-center gap-2">
           <Button
