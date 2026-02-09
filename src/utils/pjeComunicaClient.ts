@@ -254,9 +254,10 @@ export async function buscarPjeComunicaNoBrowser(
     // - OAB pode vir com máscara/pontuação
     // - UF pode vir minúscula ou com espaços
     const oab = String(params.oab || "").replace(/\D/g, "").trim();
-    const uf = String(params.uf || "").trim().toUpperCase();
+    const ufRaw = params.uf ?? "";
+    const uf = String(ufRaw).trim().toUpperCase();
     if (oab) qp.set("numeroOab", oab);
-    if (uf) qp.set("ufOab", uf);
+    if (uf && uf !== "TODAS" && uf !== "UNDEFINED") qp.set("ufOab", uf);
 
     // Fallback nativo do portal: nomeAdvogado.
     // Quando a consulta por OAB retornar 0, tentaremos nomeAdvogado em outra requisição,
