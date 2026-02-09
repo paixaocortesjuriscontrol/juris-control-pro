@@ -262,11 +262,14 @@ export async function buscarPjeComunicaNoBrowser(
       qp.set("numeroOab", oab);
       qp.set("ufOab", uf);
     } else if (nomeAdvogado) {
-      // UF "TODAS" ou sem UF: busca por nome do advogado
-      // A API PJE Comunica IGNORA numeroOab quando ufOab está ausente,
-      // então a única forma de buscar cross-UF é pelo nome.
-      qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado));
-      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${nomeAdvogado}`);
+      // UF "TODAS" ou sem UF: busca pelo nome do advogado via parâmetro `texto`
+      // O parâmetro `nomeAdvogado` NÃO funciona como filtro de busca na API /comunicacao.
+      // O `texto` faz full-text search no conteúdo das publicações e FUNCIONA.
+      const nomeNorm = normalizeAccents(nomeAdvogado);
+      qp.set("texto", nomeNorm);
+      // Também enviar nomeAdvogado como redundância (caso a API melhore no futuro)
+      qp.set("nomeAdvogado", nomeNorm);
+      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por texto+nomeAdvogado: ${nomeAdvogado}`);
     } else if (oab) {
       // Tem OAB mas sem UF e sem nome: enviar OAB sem UF como última tentativa
       qp.set("numeroOab", oab);
@@ -419,9 +422,9 @@ export async function buscarPjeComunicaNoBrowser(
         if (third.items.length > 0) return third;
       }
 
-      // 2c) ÚLTIMO RECURSO: buscar só pelo nome do advogado.
-      //     Permitido quando: não tem OAB OU UF é "TODAS" (cross-UF).
-      //     A validação de conteúdo (OAB no texto) garante que não capture lixo.
+      // 2c) ÚLTIMO RECURSO: buscar só por `texto` com nome do advogado.
+      //     Já estamos usando texto na primeira tentativa, mas se falhou,
+      //     tentar sem filtros de OAB/nomeAdvogado extras.
       if (nome && (!oab || !ufValida)) {
         const qp4 = new URLSearchParams();
         if (params.siglaTribunal) qp4.set('siglaTribunal', params.siglaTribunal);
@@ -431,15 +434,14 @@ export async function buscarPjeComunicaNoBrowser(
         qp4.set('tamanhoPagina', String(pageSize));
         qp4.set('page', String(page));
         qp4.set('size', String(pageSize));
-        qp4.set('nomeAdvogado', normalizeAccents(nome));
-        console.log(`[PJE Comunica] Fallback: buscando por nomeAdvogado sem OAB (UF=${uf})`);
+        qp4.set('itensPorPagina', String(pageSize));
+        qp4.set('texto', normalizeAccents(nome));
+        console.log(`[PJE Comunica] Fallback final: buscando por texto="${nome}" (UF=${uf})`);
         return await doRequest(qp4);
       }
     }
 
     // Para tipo 'parte': não alterar o termo (sem sufixos/fallbacks), pois isso pode gerar capturas indevidas.
-
-    return first;
 
     return first;
   } catch (e: any) {

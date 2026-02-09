@@ -362,9 +362,12 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, brow
       // UF específica: busca por texto "OAB XXXXX UF"
       baseParams.append("texto", `OAB ${oab} ${ufUpper}`);
     } else if (params.nomeAdvogado) {
-      // UF "TODAS": buscar pelo nome do advogado (cross-UF)
-      baseParams.append("nomeAdvogado", normalizeAccents(params.nomeAdvogado));
-      console.log(`[buscar-djen] UF=${ufUpper || 'vazio'} → buscando por nomeAdvogado: ${params.nomeAdvogado}`);
+      // UF "TODAS": buscar pelo nome do advogado via `texto` (full-text search)
+      // O parâmetro `nomeAdvogado` sozinho NÃO funciona como filtro na API /comunicacao
+      const nomeNorm = normalizeAccents(params.nomeAdvogado);
+      baseParams.append("texto", nomeNorm);
+      baseParams.append("nomeAdvogado", nomeNorm);
+      console.log(`[buscar-djen] UF=${ufUpper || 'vazio'} → buscando por texto+nomeAdvogado: ${params.nomeAdvogado}`);
     } else if (oab) {
       baseParams.append("texto", `OAB ${oab}`);
     }
