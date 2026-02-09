@@ -934,7 +934,7 @@ export function useBuscaDjenDireta() {
                 dataInicio: params.dataInicio,
                 dataFim: params.dataFim,
                 page: 0,
-                pageSize: params.pageSize ?? 10,
+                pageSize: params.pageSize ?? 50,
               },
               {
                 signal: reqController.signal,

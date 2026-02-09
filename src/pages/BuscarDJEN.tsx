@@ -100,7 +100,7 @@ async function invokeBuscarDjenPreferBrowser<T>(
           dataInicio: body?.dataInicio,
           dataFim: body?.dataFim,
           page: body?.page ?? 0,
-          pageSize: body?.pageSize ?? 10,
+          pageSize: body?.pageSize ?? 50,
         },
         { signal: controller.signal }
       );
@@ -144,7 +144,7 @@ const BuscarDJEN = () => {
 
   // DJEN API pagination (server-side)
   // Hard cap to keep payload small and avoid Edge Function 546 (WORKER_LIMIT)
-  const DJEN_PAGE_SIZE = 10;
+  const DJEN_PAGE_SIZE = 50;
   const [apiPage, setApiPage] = useState(0);
   const [apiTotal, setApiTotal] = useState<number | null>(null);
   const [apiHasMore, setApiHasMore] = useState(false);

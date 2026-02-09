@@ -230,10 +230,9 @@ export async function buscarPjeComunicaNoBrowser(
   }
 
   const page = Math.max(params.page ?? 0, 0);
-  // Para busca geral por tribunal, permitir pageSize maior (50)
-  // Para buscas específicas, manter 10 para evitar sobrecarga
-  const maxPageSize = (hasTribunal && !texto) ? 50 : 10;
-  const pageSize = Math.min(Math.max(params.pageSize ?? 10, 1), maxPageSize);
+  // Sempre permitir pageSize até 50 - a API suporta e precisamos cobrir todos os resultados
+  const maxPageSize = 50;
+  const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), maxPageSize);
 
   const qp = new URLSearchParams();
 
