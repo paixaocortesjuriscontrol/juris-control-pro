@@ -62,6 +62,17 @@ export function extractProcessoNumero(conteudo: string, explicitNumero?: string 
   return null;
 }
 
+/**
+ * Formata uma Date como YYYY-MM-DD usando componentes locais (sem conversão UTC).
+ * Evita o bug de toISOString().split('T')[0] que desloca a data por fuso horário.
+ */
+export function formatLocalDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function calcularPrimeiroDiaUtil(dataBase: Date, diasUteisAdicionar: number = 0): Date {
   const resultado = new Date(dataBase);
   

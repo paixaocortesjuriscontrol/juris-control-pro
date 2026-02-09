@@ -112,6 +112,14 @@ function calcularPrimeiroDiaUtil(dataBase: Date, diasUteisAdicionar: number = 0)
   return resultado;
 }
 
+function formatLocalDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+
 function expandirTribunais(tribunais: string[] | undefined | null): string[] | null {
   if (!tribunais || tribunais.length === 0) return null;
   const expandidos = new Set<string>();
@@ -365,7 +373,7 @@ async function processPublicationFromIndex(
       if (!isNaN(dispDate.getTime())) {
         dispDate.setDate(dispDate.getDate() + 1);
         const proximoDiaUtil = calcularPrimeiroDiaUtil(dispDate);
-        dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+        dataPublicacao = formatLocalDate(proximoDiaUtil);
       }
     } catch { /* ignore */ }
   }
@@ -375,7 +383,7 @@ async function processPublicationFromIndex(
     const hoje = new Date(dataAtual);
     hoje.setDate(hoje.getDate() + 1);
     const proximoDiaUtil = calcularPrimeiroDiaUtil(hoje);
-    dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+    dataPublicacao = formatLocalDate(proximoDiaUtil);
   } else if (!dataDisponibilizacao && dataPublicacao) {
     dataDisponibilizacao = dataPublicacao;
   }
@@ -471,7 +479,7 @@ async function processMonitoramentoIndexed(
   diarioYmd: string
 ): Promise<{ novas: number; descartadas: number; duplicatas: number }> {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
-  const dataAtual = new Date().toISOString().split('T')[0];
+  const dataAtual = formatLocalDate(new Date());
 
   const tribunaisExpandidos = expandirTribunais(monitoramento.tribunais);
   const tribunais = tribunaisExpandidos && tribunaisExpandidos.length > 0

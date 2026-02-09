@@ -564,6 +564,13 @@ function calcularPrimeiroDiaUtil(dataBase: Date, diasUteisAdicionar: number = 0)
   return resultado;
 }
 
+function formatLocalDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 // Gerar hash MD5 simples para deduplicação
 function generateDedupHash(processoNumero: string, tipoIntimacao: string, conteudo: string): string {
   const str = `${processoNumero}|${tipoIntimacao}|${conteudo.slice(0, 500)}`;
@@ -794,7 +801,7 @@ async function processProcessosBatch(
           if (!isNaN(dispDate.getTime())) {
             dispDate.setDate(dispDate.getDate() + 1);
             const proximoDiaUtil = calcularPrimeiroDiaUtil(dispDate);
-            dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+            dataPublicacao = formatLocalDate(proximoDiaUtil);
           }
         } catch { /* ignore */ }
       }
@@ -805,7 +812,7 @@ async function processProcessosBatch(
         const amanha = new Date();
         amanha.setDate(amanha.getDate() + 1);
         const proximoDiaUtil = calcularPrimeiroDiaUtil(amanha);
-        dataPublicacao = proximoDiaUtil.toISOString().split('T')[0];
+        dataPublicacao = formatLocalDate(proximoDiaUtil);
       } else if (!dataDisponibilizacao && dataPublicacao) {
         dataDisponibilizacao = dataPublicacao;
       }
