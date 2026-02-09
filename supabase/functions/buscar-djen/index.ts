@@ -90,6 +90,7 @@ interface SearchParams {
   tipo: SearchType;
   oab?: string;
   uf?: string;
+  nomeAdvogado?: string;
   palavraChave?: string;
   nomeParte?: string;
   numeroProcesso?: string;
@@ -354,9 +355,19 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, brow
     const termoNormalizado = normalizeAccents(palavraChave);
     baseParams.append("texto", termoNormalizado);
     console.log(`[buscar-djen] Termo normalizado: "${palavraChave}" -> "${termoNormalizado}"`);
-  } else if (tipo === "advogado" && oab) {
-    const oabQuery = uf ? `OAB ${oab} ${uf}` : `OAB ${oab}`;
-    baseParams.append("texto", oabQuery);
+  } else if (tipo === "advogado") {
+    const ufUpper = (uf || "").toUpperCase();
+    const ufValida = ufUpper && ufUpper !== "TODAS" && ufUpper !== "UNDEFINED";
+    if (oab && ufValida) {
+      // UF específica: busca por texto "OAB XXXXX UF"
+      baseParams.append("texto", `OAB ${oab} ${ufUpper}`);
+    } else if (params.nomeAdvogado) {
+      // UF "TODAS": buscar pelo nome do advogado (cross-UF)
+      baseParams.append("nomeAdvogado", normalizeAccents(params.nomeAdvogado));
+      console.log(`[buscar-djen] UF=${ufUpper || 'vazio'} → buscando por nomeAdvogado: ${params.nomeAdvogado}`);
+    } else if (oab) {
+      baseParams.append("texto", `OAB ${oab}`);
+    }
   } else if (tipo === "parte" && nomeParte) {
     // Para busca por nome de parte (polo ativo/passivo)
     const nomeParteNormalizado = normalizeAccents(nomeParte);
@@ -784,6 +795,7 @@ serve(async (req) => {
       tipo = "palavra-chave",
       oab,
       uf,
+      nomeAdvogado,
       palavraChave,
       nomeParte,
       numeroProcesso,
@@ -808,9 +820,9 @@ serve(async (req) => {
       validationErrors.push(`Tipo de busca inválido. Use: ${validTipos.join(", ")}`);
     }
 
-    // Validate uf format (2 uppercase letters)
-    if (uf && (typeof uf !== 'string' || !/^[A-Za-z]{2}$/.test(uf))) {
-      validationErrors.push("UF deve ter exatamente 2 letras");
+    // Validate uf format (2 uppercase letters or "TODAS")
+    if (uf && typeof uf === 'string' && uf.toUpperCase() !== 'TODAS' && !/^[A-Za-z]{2}$/.test(uf)) {
+      validationErrors.push("UF deve ter exatamente 2 letras ou 'TODAS'");
     }
 
     // Validate oab format (up to 10 digits)
@@ -856,8 +868,8 @@ serve(async (req) => {
 
     // Validate type-specific requirements
     if (tipoNormalizado === "advogado") {
-      if (!oab) {
-        return new Response(JSON.stringify({ error: "OAB é obrigatório para busca por advogado", success: false }), {
+      if (!oab && !nomeAdvogado) {
+        return new Response(JSON.stringify({ error: "OAB ou nome do advogado é obrigatório", success: false }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -895,6 +907,7 @@ serve(async (req) => {
       tipo: tipoNormalizado as SearchType,
       oab,
       uf,
+      nomeAdvogado,
       palavraChave,
       nomeParte,
       numeroProcesso,

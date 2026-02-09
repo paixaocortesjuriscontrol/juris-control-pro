@@ -256,14 +256,21 @@ export async function buscarPjeComunicaNoBrowser(
     const oab = String(params.oab || "").replace(/\D/g, "").trim();
     const ufRaw = params.uf ?? "";
     const uf = String(ufRaw).trim().toUpperCase();
-    if (oab) qp.set("numeroOab", oab);
-    if (uf && uf !== "TODAS" && uf !== "UNDEFINED") qp.set("ufOab", uf);
+    const ufValida = uf && uf !== "TODAS" && uf !== "UNDEFINED";
 
-    // Fallback nativo do portal: nomeAdvogado.
-    // Quando a consulta por OAB retornar 0, tentaremos nomeAdvogado em outra requisição,
-    // mas se não houver OAB já podemos consultar direto por nome.
-    if (!oab && nomeAdvogado) {
+    if (ufValida && oab) {
+      // UF específica: busca por OAB/UF (mais precisa)
+      qp.set("numeroOab", oab);
+      qp.set("ufOab", uf);
+    } else if (nomeAdvogado) {
+      // UF "TODAS" ou sem UF: busca por nome do advogado
+      // A API PJE Comunica IGNORA numeroOab quando ufOab está ausente,
+      // então a única forma de buscar cross-UF é pelo nome.
       qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado));
+      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${nomeAdvogado}`);
+    } else if (oab) {
+      // Tem OAB mas sem UF e sem nome: enviar OAB sem UF como última tentativa
+      qp.set("numeroOab", oab);
     }
   }
 
@@ -392,11 +399,13 @@ export async function buscarPjeComunicaNoBrowser(
     //    Se removemos, a API pode retornar qualquer publicação.
     if (params.tipo === 'advogado' && first.items.length === 0) {
       const oab = String(params.oab || "").replace(/\D/g, "").trim();
-      const uf = String(params.uf || "").trim().toUpperCase();
+      const ufRaw = params.uf ?? "";
+      const uf = String(ufRaw).trim().toUpperCase();
+      const ufValida = uf && uf !== "TODAS" && uf !== "UNDEFINED";
       const nome = nomeAdvogado;
 
       // 2a) Tentar adicionar `nomeAdvogado` junto com OAB (portal oficial usa isso)
-      if (nome && (oab || uf)) {
+      if (nome && (oab || ufValida)) {
         const qp2 = new URLSearchParams(qp);
         qp2.set('nomeAdvogado', normalizeAccents(nome));
         const second = await doRequest(qp2);
@@ -404,17 +413,17 @@ export async function buscarPjeComunicaNoBrowser(
       }
 
       // 2b) Tentar adicionar `texto` junto com OAB (alguns tribunais aceitam melhor assim)
-      if (texto && (oab || uf)) {
+      if (texto && (oab || ufValida)) {
         const qp3 = new URLSearchParams(qp);
         qp3.set('texto', texto);
         const third = await doRequest(qp3);
         if (third.items.length > 0) return third;
       }
 
-      // 2c) ÚLTIMO RECURSO (SEM OAB): Se realmente não encontrou nada com OAB,
-      //     tentar só pelo nome - mas só se não temos OAB válida.
-      //     NUNCA fazer isso se temos OAB, pois pode retornar publicações erradas.
-      if (nome && !oab) {
+      // 2c) ÚLTIMO RECURSO: buscar só pelo nome do advogado.
+      //     Permitido quando: não tem OAB OU UF é "TODAS" (cross-UF).
+      //     A validação de conteúdo (OAB no texto) garante que não capture lixo.
+      if (nome && (!oab || !ufValida)) {
         const qp4 = new URLSearchParams();
         if (params.siglaTribunal) qp4.set('siglaTribunal', params.siglaTribunal);
         if (params.dataInicio) qp4.set('dataDisponibilizacaoInicio', params.dataInicio);
@@ -424,6 +433,7 @@ export async function buscarPjeComunicaNoBrowser(
         qp4.set('page', String(page));
         qp4.set('size', String(pageSize));
         qp4.set('nomeAdvogado', normalizeAccents(nome));
+        console.log(`[PJE Comunica] Fallback: buscando por nomeAdvogado sem OAB (UF=${uf})`);
         return await doRequest(qp4);
       }
     }
@@ -461,6 +471,7 @@ export async function buscarPjeComunicaNoBrowser(
           nomeParte: params.nomeParte,
           oab: params.oab,
           uf: params.uf,
+          nomeAdvogado: nomeAdvogado || undefined,
           numeroProcesso: params.numeroProcesso,
           siglaTribunal: params.siglaTribunal,
           dataInicio: params.dataInicio,
