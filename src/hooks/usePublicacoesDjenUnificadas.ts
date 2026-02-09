@@ -452,10 +452,16 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
           // Filtrar por termo de busca: FRASE EXATA no conteúdo (evita "Super" casar com "SUPERIOR")
           if (filtros.termoBusca) {
+            const termoLower = filtros.termoBusca.toLowerCase();
+            const termoDigits = termoLower.replace(/\D/g, '');
             const matchConteudo = conteudoContemFraseExata(pub.conteudo, filtros.termoBusca);
-            const matchProcesso = pub.processo_numero?.toLowerCase().includes(filtros.termoBusca.toLowerCase());
-            const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(filtros.termoBusca.toLowerCase());
-            if (!matchConteudo && !matchProcesso && !matchTermoMonitor) return;
+            const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
+            const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
+            // Busca normalizada por dígitos do processo
+            const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
+              ? (() => { const d = pub.processo_numero.replace(/\D/g, ''); return d.includes(termoDigits) || termoDigits.includes(d); })()
+              : false;
+            if (!matchConteudo && !matchProcesso && !matchTermoMonitor && !matchProcessoDigits) return;
           }
 
           // Verificar se o processo já existe no banco
@@ -531,11 +537,16 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           // Filtrar por termo de busca
           if (filtros.termoBusca) {
             const termo = filtros.termoBusca.toLowerCase();
+            const termoDigits = termo.replace(/\D/g, '');
+            const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
+              ? (() => { const d = pub.processo_numero.replace(/\D/g, ''); return d.includes(termoDigits) || termoDigits.includes(d); })()
+              : false;
             const match = 
               pub.conteudo?.toLowerCase().includes(termo) ||
               pub.processo_numero?.toLowerCase().includes(termo) ||
               pub.processo?.polo_ativo?.toLowerCase().includes(termo) ||
-              pub.processo?.polo_passivo?.toLowerCase().includes(termo);
+              pub.processo?.polo_passivo?.toLowerCase().includes(termo) ||
+              matchProcessoDigits;
             if (!match) return;
           }
 
@@ -603,11 +614,16 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           // Filtrar por termo de busca
           if (filtros.termoBusca) {
             const termo = filtros.termoBusca.toLowerCase();
+            const termoDigits = termo.replace(/\D/g, '');
+            const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
+              ? (() => { const d = pub.processo_numero.replace(/\D/g, ''); return d.includes(termoDigits) || termoDigits.includes(d); })()
+              : false;
             const match = 
               pub.conteudo?.toLowerCase().includes(termo) ||
               pub.processo_numero?.toLowerCase().includes(termo) ||
               pub.monitoramento?.termo_busca?.toLowerCase().includes(termo) ||
-              pub.motivo_descarte?.toLowerCase().includes(termo);
+              pub.motivo_descarte?.toLowerCase().includes(termo) ||
+              matchProcessoDigits;
             if (!match) return;
           }
 
