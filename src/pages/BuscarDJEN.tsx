@@ -409,35 +409,65 @@ const BuscarDJEN = () => {
         let anyFullPage = false;
         
           for (const mon of monsParaBuscar) {
-            const { data, error } = await invokeBuscarDjenPreferBrowser<any>({
-              tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
-              palavraChave: mon.tipo !== "advogado" ? mon.termo_busca : undefined,
-              oab: mon.tipo === "advogado" ? mon.oab : undefined,
-              uf: mon.tipo === "advogado" ? mon.uf : undefined,
-              dataInicio: dataInicio || undefined,
-              dataFim: dataFim || undefined,
-              page: 0,
-              pageSize: DJEN_PAGE_SIZE,
-            });
-          
-          if (!error && data?.success) {
-            const rawPubs = data.publicacoes || data.comunicacoes || data.items || [];
-            if (rawPubs.length === DJEN_PAGE_SIZE) anyFullPage = true;
+            // Construir lista de termos para buscar: termo principal + termos OR
+            const termosParaBuscar: string[] = [];
+            if (mon.tipo !== "advogado" && mon.termo_busca) {
+              termosParaBuscar.push(mon.termo_busca);
+            }
+            // Adicionar termos OR (palavras-chave alternativas)
+            if (mon.tipo !== "advogado" && mon.termos_or?.length) {
+              for (const t of mon.termos_or) {
+                const trimmed = t.trim();
+                if (trimmed && !termosParaBuscar.includes(trimmed)) {
+                  termosParaBuscar.push(trimmed);
+                }
+              }
+            }
 
-            rawPubs.forEach((p: any, idx: number) => {
-              allPubs.push({
-                id: `${mon.id}-${p.id ?? `p0-${idx}`}`,
-                data: p.data || p.dataDisponibilizacao || p.dataPublicacao,
-                tipo: p.tipo || p.tipoComunicacao || "Publicação",
-                conteudo: p.conteudo || p.texto || p.teor || "",
-                processo: p.processo || p.numeroProcesso,
-                tribunal: p.tribunal || p.orgao,
-                advogado: p.advogado,
-                partes: p.partes || p.destinatario,
+            // Se advogado, buscar uma única vez com OAB; senão, buscar cada termo
+            const searchItems = mon.tipo === "advogado"
+              ? [{ palavraChave: undefined, oab: mon.oab, uf: mon.uf }]
+              : termosParaBuscar.map(t => ({ palavraChave: t, oab: undefined, uf: undefined }));
+
+            const seenIds = new Set<string>();
+
+            for (const item of searchItems) {
+              const { data, error } = await invokeBuscarDjenPreferBrowser<any>({
+                tipo: mon.tipo === "advogado" ? "advogado" : "palavra-chave",
+                palavraChave: item.palavraChave,
+                oab: item.oab,
+                uf: item.uf,
+                dataInicio: dataInicio || undefined,
+                dataFim: dataFim || undefined,
+                page: 0,
+                pageSize: DJEN_PAGE_SIZE,
               });
-            });
+            
+              if (!error && data?.success) {
+                const rawPubs = data.publicacoes || data.comunicacoes || data.items || [];
+                if (rawPubs.length === DJEN_PAGE_SIZE) anyFullPage = true;
+
+                rawPubs.forEach((p: any, idx: number) => {
+                  const pubId = `${mon.id}-${item.palavraChave ?? 'adv'}-${p.id ?? `p0-${idx}`}`;
+                  // Deduplicar por conteúdo (mesmo conteúdo pode aparecer em termos OR diferentes)
+                  const dedupKey = p.id ? String(p.id) : (p.conteudo || '').slice(0, 200);
+                  if (seenIds.has(dedupKey)) return;
+                  seenIds.add(dedupKey);
+
+                  allPubs.push({
+                    id: pubId,
+                    data: p.data || p.dataDisponibilizacao || p.dataPublicacao,
+                    tipo: p.tipo || p.tipoComunicacao || "Publicação",
+                    conteudo: p.conteudo || p.texto || p.teor || "",
+                    processo: p.processo || p.numeroProcesso,
+                    tribunal: p.tribunal || p.orgao,
+                    advogado: p.advogado,
+                    partes: p.partes || p.destinatario,
+                  });
+                });
+              }
+            }
           }
-        }
         
         setPublicacoes(allPubs);
         setApiPage(0);
