@@ -4680,8 +4680,8 @@ export type Database = {
         Args: {
           p_apenas_nao_lidas?: boolean
           p_coordenacao_id: string
-          p_fim: string
-          p_inicio: string
+          p_fim?: string
+          p_inicio?: string
           p_search_query?: string
         }
         Returns: number
@@ -4736,8 +4736,8 @@ export type Database = {
         Args: {
           p_apenas_nao_lidas?: boolean
           p_coordenacao_id: string
-          p_fim: string
-          p_inicio: string
+          p_fim?: string
+          p_inicio?: string
           p_limit?: number
           p_offset?: number
           p_search_query?: string
