@@ -199,6 +199,13 @@ export function conteudoContemTermoOuOr(
   if (monitoramento.tipo === 'nome') {
     return conteudoContemTermo(conteudo, termoPuro, 'nome', undefined);
   }
+
+  // Para tipo 'parte', a API já filtrou por nomeParte — o termo aparece nos metadados
+  // estruturados (partes/polos) e NÃO necessariamente no corpo do texto.
+  // Confiar no filtro da API e pular validação de conteúdo.
+  if (monitoramento.tipo === 'parte') {
+    return true;
+  }
   
   if (monitoramento.tipo !== 'advogado') {
     return conteudoContemTermo(conteudo, termoPuro, monitoramento.tipo, monitoramento.oab);
