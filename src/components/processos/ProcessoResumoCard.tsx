@@ -107,216 +107,159 @@ export function ProcessoResumoCard({
       : null);
 
   return (
-    <div className="space-y-2">
-      {/* Pasta e botão de ação na mesma linha */}
+    <div className="space-y-3">
+      {/* Pasta e botão de ação */}
       <div className="flex items-center gap-3 flex-wrap">
         <span className="text-base font-semibold text-foreground">{pastaNome || "Pasta não informada"}</span>
-        <Button onClick={onMaisInformacoes} size="sm" className="bg-zinc-700 hover:bg-zinc-800 text-white">
+        <Button onClick={onMaisInformacoes} size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
           <Info className="w-4 h-4 mr-2" />
           Mais informações
         </Button>
       </div>
 
       {/* Resumo do processo */}
-      <Card className="border">
-        <CardContent className="p-4 md:p-6">
-          <h2 className="text-base font-semibold mb-3 text-foreground">Resumo do processo</h2>
+      <Card className="border border-border/60 shadow-md">
+        <CardContent className="p-5 md:p-6">
+          <h2 className="text-sm font-semibold mb-4 text-foreground uppercase tracking-wide border-b border-border pb-2">Resumo do processo</h2>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-3">
-            {/* Coluna Esquerda - Todas as informações */}
-            <div className="space-y-3">
-              {/* Situação */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Situação</p>
-                <p className="text-sm font-medium text-foreground">{statusLabels[processo.status] || processo.status}</p>
-              </div>
-
-              {/* Assunto */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Assunto</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-foreground">{processo.assunto || "Não informado"}</p>
-                  {processo.assunto && (
-                    <Badge className="bg-amber-400 text-amber-900 hover:bg-amber-500">
-                      <Scale className="w-3 h-3" />
-                    </Badge>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
+            {/* Coluna Esquerda */}
+            <div className="space-y-4">
+              {/* Situação + Monitoramento inline */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge className={cn(
+                  "text-xs font-semibold px-2.5 py-1 rounded-md shadow-sm",
+                  processo.status === "ativo" ? "bg-emerald-500/15 text-emerald-700 border border-emerald-300" :
+                  processo.status === "urgente" ? "bg-destructive/15 text-destructive border border-destructive/30" :
+                  processo.status === "pendente" ? "bg-amber-500/15 text-amber-700 border border-amber-300" :
+                  "bg-muted text-muted-foreground border border-border"
+                )}>
+                  {statusLabels[processo.status] || processo.status}
+                </Badge>
+                <Badge className={cn(
+                  "text-xs font-medium px-2.5 py-1 rounded-md",
+                  processo.monitorar_andamentos 
+                    ? "bg-emerald-500/10 text-emerald-700 border border-emerald-200" 
+                    : "bg-muted text-muted-foreground border border-border"
+                )}>
+                  {processo.monitorar_andamentos ? (
+                    <><Bell className="w-3 h-3 mr-1" /> Push ativo</>
+                  ) : (
+                    <><BellOff className="w-3 h-3 mr-1" /> Push inativo</>
                   )}
+                </Badge>
+              </div>
+
+              {/* Info rows */}
+              <div className="rounded-lg border border-border/50 bg-muted/30 divide-y divide-border/40">
+                <div className="flex items-center justify-between px-3 py-2.5">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Número</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-mono font-semibold text-foreground">{processo.numero}</span>
+                    <Button variant="ghost" size="icon" className="h-5 w-5 rounded" onClick={() => copyToClipboard(processo.numero)}>
+                      <Copy className="w-3 h-3 text-muted-foreground" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-
-              {/* Órgão */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão</p>
-                <p className="text-sm text-foreground">
-                  {processo.tribunal || processo.vara || "Não informado"}
-                  {processo.comarca && ` - ${processo.comarca}`}
-                </p>
-              </div>
-
-              {/* Número do Processo */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Número do Processo</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-mono text-foreground">{processo.numero}</p>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6"
-                    onClick={() => copyToClipboard(processo.numero)}
-                  >
-                    <Copy className="w-3 h-3" />
-                  </Button>
+                <div className="flex items-center justify-between px-3 py-2.5">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Assunto</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-foreground text-right max-w-[200px] truncate">{processo.assunto || "Não informado"}</span>
+                    {processo.assunto && <Scale className="w-3 h-3 text-amber-500 flex-shrink-0" />}
+                  </div>
                 </div>
-              </div>
-
-              {/* Monitoramento (Push) */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monitoramento (Push)</p>
-                <div className="flex items-center gap-2">
-                  <Badge className={cn(
-                    "text-xs",
-                    processo.monitorar_andamentos 
-                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" 
-                      : "bg-zinc-100 text-zinc-600"
-                  )}>
-                    {processo.monitorar_andamentos ? (
-                      <>
-                        <Bell className="w-3 h-3 mr-1" />
-                        Habilitado
-                      </>
-                    ) : (
-                      <>
-                        <BellOff className="w-3 h-3 mr-1" />
-                        Desabilitado
-                      </>
-                    )}
-                  </Badge>
-                  <Badge className={cn(
-                    "text-xs",
-                    processo.status === "ativo" 
-                      ? "bg-amber-100 text-amber-700" 
-                      : "bg-zinc-100 text-zinc-600"
-                  )}>
-                    {processo.status === "ativo" ? "Em andamento" : statusLabels[processo.status] || processo.status}
-                  </Badge>
+                <div className="flex items-center justify-between px-3 py-2.5">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão</span>
+                  <span className="text-sm text-foreground text-right max-w-[220px] truncate">
+                    {processo.tribunal || processo.vara || "Não informado"}
+                    {processo.comarca && ` — ${processo.comarca}`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-3 py-2.5">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Valor da ação</span>
+                  <span className="text-sm font-semibold text-foreground">{formatCurrency(processo.valor_causa)}</span>
                 </div>
               </div>
 
               {/* Envolvidos */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Envolvidos</p>
-                <div className="flex flex-wrap gap-2 mt-1">
+              <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Envolvidos</p>
+                <div className="flex flex-wrap gap-2">
                   {processo.polo_passivo && (
-                    <Badge variant="outline" className="bg-emerald-50 border-emerald-300 text-emerald-700">
+                    <Badge variant="outline" className="bg-emerald-500/10 border-emerald-300/60 text-emerald-700 py-1 px-2.5 text-xs font-medium">
                       {processo.polo_passivo}
-                      <span className="ml-2 text-xs bg-emerald-600 text-white px-1.5 py-0.5 rounded text-[10px]">
-                        Requerido
-                      </span>
+                      <span className="ml-1.5 bg-emerald-600 text-white px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase">Requerido</span>
                     </Badge>
                   )}
                   {processo.polo_ativo && (
-                    <Badge variant="outline" className="bg-zinc-50 border-zinc-300 text-zinc-700">
+                    <Badge variant="outline" className="bg-muted border-border text-foreground py-1 px-2.5 text-xs font-medium">
                       {processo.polo_ativo}
-                      <span className="ml-2 text-xs bg-zinc-500 text-white px-1.5 py-0.5 rounded text-[10px]">
-                        Requerente
-                      </span>
+                      <span className="ml-1.5 bg-muted-foreground/70 text-background px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase">Requerente</span>
                     </Badge>
                   )}
                 </div>
                 {onExpandirEnvolvidos && (
-                  <button 
-                    onClick={onExpandirEnvolvidos}
-                    className="text-xs text-blue-600 hover:underline mt-1"
-                  >
-                    Expandir
-                  </button>
+                  <button onClick={onExpandirEnvolvidos} className="text-xs text-primary hover:underline font-medium">Expandir</button>
                 )}
               </div>
 
               {/* Responsáveis */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Responsáveis</p>
-                <div className="flex flex-wrap gap-2 mt-1">
+              <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Responsáveis</p>
+                <div className="flex flex-wrap gap-2">
                   {responsaveis.length > 0 ? (
                     responsaveis.map((r) => (
-                      <div key={r.id} className="flex items-center gap-2 bg-muted/50 rounded-md px-2 py-1">
-                        <Avatar className="w-6 h-6 border border-background">
-                          <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-semibold">
+                      <div key={r.id} className="flex items-center gap-2 bg-background rounded-md px-2.5 py-1.5 border border-border/50 shadow-sm">
+                        <Avatar className="w-6 h-6 border border-primary/20">
+                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-bold">
                             {r.nome.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-sm font-medium">{r.nome}</span>
+                        <span className="text-xs font-medium text-foreground">{r.nome}</span>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">Não atribuído</p>
+                    <p className="text-xs text-muted-foreground italic">Não atribuído</p>
                   )}
                 </div>
               </div>
 
-              {/* Valor da ação */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Valor da ação</p>
-                <p className="text-sm font-medium text-foreground">{formatCurrency(processo.valor_causa)}</p>
-              </div>
-
               {/* Descrição */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Descrição</p>
-                <p className="text-sm text-foreground">{processo.descricao || "Não informado"}</p>
+              {processo.descricao && (
+                <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Descrição</p>
+                  <p className="text-sm text-foreground leading-relaxed">{processo.descricao}</p>
+                </div>
+              )}
+
+              {/* Campos adicionais */}
+              <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Dados complementares</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  {[
+                    { label: "Distribuição", value: formatDate(processo.data_distribuicao) },
+                    { label: "Órgão julgador", value: processo.orgao_julgador },
+                    { label: "Área", value: areaLabels[processo.area] || processo.area },
+                    { label: "Fase", value: processo.fase },
+                    { label: "Sistema", value: processo.sistema },
+                    { label: "Pasta física", value: processo.pasta_fisica },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex flex-col">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
+                      <span className="text-xs text-foreground font-medium">{value || "—"}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Campos adicionais - abaixo do valor da ação */}
-              <div className="pt-3 border-t space-y-3">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Data de distribuição */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Data de distribuição</p>
-                    <p className="text-sm text-foreground">{formatDate(processo.data_distribuicao)}</p>
-                  </div>
-
-                  {/* Órgão julgador */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão julgador</p>
-                    <p className="text-sm text-foreground">{processo.orgao_julgador || "Não informado"}</p>
-                  </div>
-
-                  {/* Área */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Área</p>
-                    <p className="text-sm text-foreground">{areaLabels[processo.area] || processo.area || "Não informado"}</p>
-                  </div>
-
-                  {/* Fase */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fase</p>
-                    <p className="text-sm text-foreground">{processo.fase || "Não informado"}</p>
-                  </div>
-
-                  {/* Sistema */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sistema</p>
-                    <p className="text-sm text-foreground">{processo.sistema || "Não informado"}</p>
-                  </div>
-
-                  {/* Pasta física */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta física</p>
-                    <p className="text-sm text-foreground">{processo.pasta_fisica || "Não informado"}</p>
-                  </div>
-                </div>
-
-                {/* Marcadores */}
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Marcadores</p>
-                  <div className="flex gap-1 mt-1">
-                    <Badge className="bg-zinc-700 text-white text-xs">CAPTURA</Badge>
-                  </div>
-                </div>
+              {/* Marcadores */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marcadores</span>
+                <Badge className="bg-foreground text-background text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">CAPTURA</Badge>
               </div>
             </div>
 
-            {/* Coluna Direita - Cards de Pendências, Depósitos e Custas */}
+            {/* Coluna Direita */}
             <div className="space-y-3">
               <PendenciasProcessoCard
                 audiencias={audiencias}
