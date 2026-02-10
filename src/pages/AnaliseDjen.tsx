@@ -90,10 +90,10 @@ const AnaliseDjen = () => {
 
       const ids = (data || []).map((r: any) => r.coordenacao_id).filter(Boolean);
 
-      // Se o usuário estiver em várias coordenações, por padrão mostrar TODAS.
-      if (ids.length !== 1) return "";
+      // Se não tem coordenação, mostrar todas
+      if (ids.length === 0) return "";
 
-      // Se estiver em apenas 1, manter a experiência antiga (filtrar pela coordenação do usuário)
+      // Sempre pré-selecionar a primeira coordenação do usuário
       return ids[0];
     },
     enabled: !!user?.id,
