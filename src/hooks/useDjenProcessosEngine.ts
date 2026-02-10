@@ -70,11 +70,13 @@ interface ParametrosDjen {
 // (processos.monitorar_djen = false), portanto não há mais filtro hardcoded aqui.
 
 const MAX_PAGES_PER_PROCESS = 10;
+const PARALLEL_WORKERS = 8;
+const DELAY_BETWEEN_BATCHES_MS = 1500;
 
 const DEFAULT_PARAMS: ParametrosDjen = {
   group_search_size: 1,
-  delay_entre_lotes: 3000,
-  delay_entre_paginas: 1500,
+  delay_entre_lotes: 1500,
+  delay_entre_paginas: 800,
   max_retries: 4,
   retry_base_delay_ms: 8000,
 };
@@ -364,7 +366,7 @@ async function runEngine(
       return;
     }
 
-    console.log(`[DJEN Processos] ${processosMonitorados.length} processos (busca individual com número inteiro)`);
+    console.log(`[DJEN Processos] ${processosMonitorados.length} processos (${PARALLEL_WORKERS} paralelos)`);
 
     const totalProcessos = processosMonitorados.length;
     const processosLista = processosMonitorados;
@@ -372,7 +374,7 @@ async function runEngine(
     updateProgress({
       totalGroups: totalProcessos,
       currentGroup: startProcessoIdx,
-      mensagem: `${totalProcessos} processos (1 por vez, número inteiro)`,
+      mensagem: `${totalProcessos} processos (${PARALLEL_WORKERS} paralelos)`,
     });
 
     await persistMetadata({
@@ -383,25 +385,23 @@ async function runEngine(
       duplicadas: duplicadasTotal,
       run_key: runKey,
       browser_execution: true,
-      estrategia: 'singleton_engine_v2_processo_inteiro',
+      estrategia: 'singleton_engine_v3_parallel',
       turbo: turbo,
+      parallel_workers: PARALLEL_WORKERS,
     }, { force: true });
 
-    // Loop: 1 processo por vez com tipo 'processo' e número inteiro
-    for (let idx = startProcessoIdx; idx < processosLista.length; idx++) {
-      if (signal.aborted) break;
-
-      const processo = processosLista[idx];
+    // === Função para processar 1 processo (usada em paralelo) ===
+    async function processOneProcess(
+      processo: { id: string; numero: string; coordenacao_id: string | null },
+      idx: number
+    ): Promise<{ novas: number; duplicadas: number; analisadas: number; blocked: boolean }> {
       const numeroCompleto = processo.numero.trim();
       let page = 0;
       let hasMore = true;
-
-      updateProgress({
-        currentGroup: idx + 1,
-        currentPage: page,
-        percentage: Math.round(((idx + 1) / totalProcessos) * 100),
-        mensagem: `Processo ${idx + 1}/${totalProcessos}: ${numeroCompleto.slice(0, 25)}...`,
-      });
+      let novas = 0;
+      let duplicadas = 0;
+      let analisadas = 0;
+      let blocked = false;
 
       while (hasMore && page < MAX_PAGES_PER_PROCESS) {
         if (signal.aborted) break;
@@ -423,7 +423,6 @@ async function runEngine(
             }, { signal });
 
             success = true;
-            consecutiveBlocks = 0;
           } catch (e: any) {
             if (e?.name === 'AbortError') break;
             
@@ -431,8 +430,6 @@ async function runEngine(
             isBlockedError = errMsg.includes('blocked') || errMsg.includes('bloqueada') || errMsg.includes('429');
             
             retryCount++;
-            console.warn(`[DJEN Processos] Erro processo ${idx + 1} pág ${page}, tentativa ${retryCount}:`, e?.message?.slice(0, 100));
-            
             if (retryCount < params.max_retries) {
               const backoffMs = params.retry_base_delay_ms * Math.pow(2, retryCount - 1);
               await delay(Math.min(backoffMs, 30000));
@@ -441,50 +438,12 @@ async function runEngine(
         }
 
         if (!success || !resp) {
-          if (isBlockedError) {
-            consecutiveBlocks++;
-            console.warn(`[DJEN Processos] Bloqueio consecutivo ${consecutiveBlocks}/${MAX_CONSECUTIVE_BLOCKS}`);
-            
-            if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) {
-              console.error('[DJEN Processos] Circuit breaker ativado');
-              
-              saveCheckpoint({
-                runKey,
-                processoIdx: idx,
-                novas: novasTotal,
-                duplicadas: duplicadasTotal,
-                totalAnalisadas: publicacoesAnalisadas,
-                tempoInicio,
-                dataInicioYmd,
-                dataFimYmd,
-                percentage: Math.round((idx / totalProcessos) * 100),
-                totalGroups: totalProcessos,
-              });
-
-              await persistMetadata({
-                status: 'erro',
-                erro: 'API bloqueada - circuit breaker',
-                grupo_atual: idx,
-                total_grupos: totalProcessos,
-                novas: novasTotal,
-                duplicadas: duplicadasTotal,
-              }, { force: true });
-
-              updateProgress({
-                status: 'erro',
-                mensagem: `API bloqueada após ${consecutiveBlocks} tentativas. Use "Continuar" para retomar.`,
-              });
-
-              singletonState.isRunning = false;
-              if (singletonState.timerInterval) clearInterval(singletonState.timerInterval);
-              return;
-            }
-          }
+          if (isBlockedError) blocked = true;
           break;
         }
 
         for (const pub of resp.items) {
-          publicacoesAnalisadas++;
+          analisadas++;
 
           const conteudo = pub.texto || pub.teor || '';
           if (!conteudo) continue;
@@ -497,7 +456,7 @@ async function runEngine(
           const hashConteudo = generateHash(`${processo.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
 
           if (seenHashes.has(hashConteudo)) {
-            duplicadasTotal++;
+            duplicadas++;
             continue;
           }
 
@@ -509,7 +468,7 @@ async function runEngine(
 
           if (existente) {
             seenHashes.add(hashConteudo);
-            duplicadasTotal++;
+            duplicadas++;
             continue;
           }
 
@@ -522,58 +481,133 @@ async function runEngine(
               data_publicacao: dataPublicacao,
               data_disponibilizacao: dataDisponibilizacao,
               conteudo: conteudo.slice(0, 50000),
-              fonte: 'singleton_engine_v2_processo_inteiro',
+              fonte: 'singleton_engine_v2_parallel',
             });
 
           if (!insertError) {
             seenHashes.add(hashConteudo);
-            novasTotal++;
+            novas++;
           }
         }
 
         hasMore = resp.hasMore && resp.items.length > 0;
         page++;
 
-        updateProgress({
-          currentPage: page,
-          novas: novasTotal,
-          duplicadas: duplicadasTotal,
-          totalPublicacoesAnalisadas: publicacoesAnalisadas,
-          mensagem: `Processo ${idx + 1}/${totalProcessos} | Pág ${page} | +${novasTotal} novas`,
-        });
-
         if (hasMore && !signal.aborted) {
           await delay(params.delay_entre_paginas);
         }
       }
 
-      if ((idx + 1) % 5 === 0 || idx === processosLista.length - 1) {
-        saveCheckpoint({
-          runKey,
-          processoIdx: idx + 1,
-          novas: novasTotal,
-          duplicadas: duplicadasTotal,
-          totalAnalisadas: publicacoesAnalisadas,
-          tempoInicio,
-          dataInicioYmd,
-          dataFimYmd,
-          percentage: Math.round(((idx + 1) / totalProcessos) * 100),
-          totalGroups: totalProcessos,
-        });
+      return { novas, duplicadas, analisadas, blocked };
+    }
 
-        await persistMetadata({
-          status: 'executando',
-          grupo_atual: idx + 1,
-          total_grupos: totalProcessos,
-          novas: novasTotal,
-          duplicadas: duplicadasTotal,
-          percentage: Math.round(((idx + 1) / totalProcessos) * 100),
-          run_key: runKey,
-        });
+    // === Loop principal: processar em lotes paralelos de PARALLEL_WORKERS ===
+    for (let batchStart = startProcessoIdx; batchStart < processosLista.length; batchStart += PARALLEL_WORKERS) {
+      if (signal.aborted) break;
+
+      const batchEnd = Math.min(batchStart + PARALLEL_WORKERS, processosLista.length);
+      const batch = processosLista.slice(batchStart, batchEnd);
+
+      updateProgress({
+        currentGroup: batchStart + 1,
+        percentage: Math.round(((batchStart + 1) / totalProcessos) * 100),
+        mensagem: `Lote ${Math.floor(batchStart / PARALLEL_WORKERS) + 1} (processos ${batchStart + 1}-${batchEnd}/${totalProcessos}) | ${PARALLEL_WORKERS} paralelos`,
+      });
+
+      // Executar batch em paralelo com stagger de 200ms entre cada
+      const promises = batch.map((processo, i) =>
+        delay(i * 200).then(() => processOneProcess(processo, batchStart + i))
+      );
+
+      const results = await Promise.all(promises);
+
+      let batchBlocked = 0;
+      for (const result of results) {
+        novasTotal += result.novas;
+        duplicadasTotal += result.duplicadas;
+        publicacoesAnalisadas += result.analisadas;
+        if (result.blocked) batchBlocked++;
       }
 
-      if (!signal.aborted && idx < processosLista.length - 1) {
-        await delay(params.delay_entre_lotes);
+      // Circuit breaker: se todos no lote foram bloqueados
+      if (batchBlocked >= batch.length && batch.length > 1) {
+        consecutiveBlocks++;
+        console.warn(`[DJEN Processos] Lote inteiro bloqueado ${consecutiveBlocks}/${MAX_CONSECUTIVE_BLOCKS}`);
+        
+        if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) {
+          console.error('[DJEN Processos] Circuit breaker ativado');
+          
+          saveCheckpoint({
+            runKey,
+            processoIdx: batchStart,
+            novas: novasTotal,
+            duplicadas: duplicadasTotal,
+            totalAnalisadas: publicacoesAnalisadas,
+            tempoInicio,
+            dataInicioYmd,
+            dataFimYmd,
+            percentage: Math.round((batchStart / totalProcessos) * 100),
+            totalGroups: totalProcessos,
+          });
+
+          await persistMetadata({
+            status: 'erro',
+            erro: 'API bloqueada - circuit breaker',
+            grupo_atual: batchStart,
+            total_grupos: totalProcessos,
+            novas: novasTotal,
+            duplicadas: duplicadasTotal,
+          }, { force: true });
+
+          updateProgress({
+            status: 'erro',
+            mensagem: `API bloqueada após ${consecutiveBlocks} lotes. Use "Continuar" para retomar.`,
+          });
+
+          singletonState.isRunning = false;
+          if (singletonState.timerInterval) clearInterval(singletonState.timerInterval);
+          return;
+        }
+      } else {
+        consecutiveBlocks = 0;
+      }
+
+      updateProgress({
+        currentGroup: batchEnd,
+        percentage: Math.round((batchEnd / totalProcessos) * 100),
+        novas: novasTotal,
+        duplicadas: duplicadasTotal,
+        totalPublicacoesAnalisadas: publicacoesAnalisadas,
+        mensagem: `Lote concluído (${batchEnd}/${totalProcessos}) | +${novasTotal} novas | ${PARALLEL_WORKERS} paralelos`,
+      });
+
+      // Checkpoint a cada lote
+      saveCheckpoint({
+        runKey,
+        processoIdx: batchEnd,
+        novas: novasTotal,
+        duplicadas: duplicadasTotal,
+        totalAnalisadas: publicacoesAnalisadas,
+        tempoInicio,
+        dataInicioYmd,
+        dataFimYmd,
+        percentage: Math.round((batchEnd / totalProcessos) * 100),
+        totalGroups: totalProcessos,
+      });
+
+      await persistMetadata({
+        status: 'executando',
+        grupo_atual: batchEnd,
+        total_grupos: totalProcessos,
+        novas: novasTotal,
+        duplicadas: duplicadasTotal,
+        percentage: Math.round((batchEnd / totalProcessos) * 100),
+        run_key: runKey,
+        parallel_workers: PARALLEL_WORKERS,
+      });
+
+      if (!signal.aborted && batchEnd < processosLista.length) {
+        await delay(DELAY_BETWEEN_BATCHES_MS);
       }
     }
 
