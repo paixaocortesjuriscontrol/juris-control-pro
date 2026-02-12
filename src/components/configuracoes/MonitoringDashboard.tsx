@@ -37,6 +37,7 @@ import { getExecutionProgress } from "@/utils/executionProgress";
 import { supabase } from "@/integrations/supabase/client";
 import { DjenTermosDashboardCard } from "./DjenTermosDashboardCardV2";
 import { MonitoramentoDjenProcessosCard } from "./MonitoramentoDjenProcessosCard";
+import { DataJudDashboardCard } from "./DataJudDashboardCard";
 
 const ICONS: Record<string, React.ElementType> = {
   RefreshCw,
@@ -957,6 +958,17 @@ export function MonitoringDashboard({ onNavigateToTab }: MonitoringDashboardProp
             return (
               <div key={stats.tipo} className="space-y-4">
                 <DjenTermosDashboardCard
+                  stats={stats}
+                  onAfterMutation={refetch}
+                />
+              </div>
+            );
+          }
+
+          if (stats.tipo === 'datajud_termos') {
+            return (
+              <div key={stats.tipo} className="space-y-4">
+                <DataJudDashboardCard
                   stats={stats}
                   onAfterMutation={refetch}
                 />
