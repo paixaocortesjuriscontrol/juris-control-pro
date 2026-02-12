@@ -41,6 +41,56 @@ const UF_TRIBUNAL: Record<string, string> = {
   SE: "TJSE", SP: "TJSP", TO: "TJTO",
 };
 
+// Mapeamento de nomes completos/parciais para siglas de tribunal
+const NOME_TRIBUNAL: Record<string, string> = {
+  "MINAS GERAIS": "TJMG", "MATO GROSSO DO SUL": "TJMS", "MATO GROSSO": "TJMT",
+  "SÃO PAULO": "TJSP", "RIO DE JANEIRO": "TJRJ", "RIO GRANDE DO SUL": "TJRS",
+  "RIO GRANDE DO NORTE": "TJRN", "DISTRITO FEDERAL": "TJDFT", "BAHIA": "TJBA",
+  "GOIÁS": "TJGO", "ESPÍRITO SANTO": "TJES", "PARANÁ": "TJPR", "PERNAMBUCO": "TJPE",
+  "CEARÁ": "TJCE", "MARANHÃO": "TJMA", "PARÁ": "TJPA", "PARAÍBA": "TJPB",
+  "PIAUÍ": "TJPI", "SANTA CATARINA": "TJSC", "SERGIPE": "TJSE", "TOCANTINS": "TJTO",
+  "AMAZONAS": "TJAM", "ACRE": "TJAC", "ALAGOAS": "TJAL", "AMAPÁ": "TJAP",
+  "RONDÔNIA": "TJRO", "RORAIMA": "TJRR",
+};
+
+// Extrai tribunal a partir do número CNJ (NNNNNNN-DD.AAAA.J.TR.OOOO)
+function extrairTribunalDoNumero(numero: string): string | null {
+  const digits = numero.replace(/[^0-9]/g, '');
+  if (digits.length < 20) return null;
+  const justica = digits[13]; // J
+  const tribunal = digits.substring(14, 16); // TR
+  const tribunalNum = parseInt(tribunal, 10);
+  
+  if (justica === '8') { // Justiça Estadual
+    const ufMap: Record<number, string> = {
+      1: "TJAC", 2: "TJAL", 3: "TJAP", 4: "TJAM", 5: "TJBA", 6: "TJCE",
+      7: "TJDFT", 8: "TJES", 9: "TJGO", 10: "TJMA", 11: "TJMT", 12: "TJMS",
+      13: "TJMG", 14: "TJPA", 15: "TJPB", 16: "TJPR", 17: "TJPE", 18: "TJPI",
+      19: "TJRJ", 20: "TJRN", 21: "TJRS", 22: "TJRO", 23: "TJRR", 24: "TJSC",
+      25: "TJSE", 26: "TJSP", 27: "TJTO",
+    };
+    return ufMap[tribunalNum] || null;
+  }
+  if (justica === '5') return `TRT${tribunalNum}`; // Justiça do Trabalho
+  if (justica === '4') return `TRF${tribunalNum}`; // Justiça Federal
+  return null;
+}
+
+function resolverTribunal(tribunalRaw: string | null, numero: string): string | null {
+  if (!tribunalRaw) return extrairTribunalDoNumero(numero);
+  const upper = tribunalRaw.toUpperCase().trim();
+  // Já é uma sigla válida
+  if (TRIBUNAL_ENDPOINTS[upper]) return upper;
+  // Busca por nome completo
+  if (NOME_TRIBUNAL[upper]) return NOME_TRIBUNAL[upper];
+  // Busca parcial
+  for (const [nome, sigla] of Object.entries(NOME_TRIBUNAL)) {
+    if (upper.includes(nome)) return sigla;
+  }
+  // Fallback: extrair do número CNJ
+  return extrairTribunalDoNumero(numero);
+}
+
 interface MonitoramentoDjen {
   id: string;
   termo_busca: string;
@@ -74,18 +124,34 @@ function getTribunaisParaBuscar(mon: MonitoramentoDjen): string[] {
  * - parte: busca pelo nome da parte nos campos de partes processuais
  * - palavras-chave (default): busca em complementos de movimentações + assuntos
  */
+function buildSearchQueryByNumber(numeroProcesso: string, dataInicio: string, dataFim: string) {
+  const digits = numeroProcesso.replace(/[^0-9]/g, '');
+  return {
+    query: {
+      bool: {
+        must: [
+          { term: { "numeroProcesso": digits } },
+        ],
+        filter: [
+          { range: { "dataHoraUltimaAtualizacao": { gte: dataInicio, lte: dataFim } } }
+        ]
+      }
+    },
+    size: 20,
+    _source: ["numeroProcesso", "classe.nome", "orgaoJulgador.nome", "movimentos", "dataAjuizamento", "assuntos"],
+    sort: [{ "dataHoraUltimaAtualizacao": { order: "desc" } }]
+  };
+}
+
 function buildSearchQuery(mon: MonitoramentoDjen, dataInicio: string, dataFim: string) {
   const termo = mon.termo_busca.trim();
   const dateFilter = { range: { "dataHoraUltimaAtualizacao": { gte: dataInicio, lte: dataFim } } };
 
   if (mon.tipo === 'advogado') {
-    // Advogado: busca multi_match no nome do advogado + OAB
-    // Campos relevantes: texto geral (catch-all), representantes, movimentos
     const shouldClauses: any[] = [
       { match_phrase: { "_all": termo } },
       { query_string: { query: `"${termo}"`, default_operator: "AND" } },
     ];
-    // Se tiver OAB, busca também pelo número
     if (mon.oab) {
       shouldClauses.push({ match: { "_all": mon.oab } });
       shouldClauses.push({ query_string: { query: `"${mon.oab}"` } });
@@ -96,31 +162,6 @@ function buildSearchQuery(mon: MonitoramentoDjen, dataInicio: string, dataFim: s
           must: [dateFilter],
           should: shouldClauses,
           minimum_should_match: 1,
-        }
-      },
-      size: 20,
-      _source: ["numeroProcesso", "classe.nome", "orgaoJulgador.nome", "movimentos", "dataAjuizamento", "assuntos"],
-      sort: [{ "dataHoraUltimaAtualizacao": { order: "desc" } }]
-    };
-  }
-
-  if (mon.tipo === 'parte') {
-    // Parte: busca pelo nome da parte em campos genéricos
-    return {
-      query: {
-        bool: {
-          must: [
-            dateFilter,
-            {
-              bool: {
-                should: [
-                  { match_phrase: { "_all": termo } },
-                  { query_string: { query: `"${termo}"`, default_operator: "AND" } },
-                ],
-                minimum_should_match: 1,
-              }
-            }
-          ],
         }
       },
       size: 20,
@@ -307,6 +348,77 @@ async function processDataJud(
     let monProcessados = 0;
 
     for (const mon of monitoramentos as MonitoramentoDjen[]) {
+      // PARTE: buscar por número dos processos cadastrados no banco
+      if (mon.tipo === 'parte') {
+        const termo = mon.termo_busca.trim();
+        console.log(`[DataJud] tipo=parte, termo="${termo}" - buscando processos no banco...`);
+        
+        const { data: procs, error: procErr } = await supabaseClient
+          .from('processos')
+          .select('numero, tribunal')
+          .or(`polo_ativo.ilike.%${termo}%,polo_passivo.ilike.%${termo}%`)
+          .not('numero', 'is', null);
+        
+        if (procErr) {
+          console.warn(`[DataJud] Erro buscando processos para parte "${termo}": ${procErr.message}`);
+          totalErros.push(`parte-query: ${procErr.message}`);
+          monProcessados++;
+          continue;
+        }
+        
+        if (!procs || procs.length === 0) {
+          console.log(`[DataJud] Nenhum processo no banco para parte "${termo}"`);
+          monProcessados++;
+          continue;
+        }
+        
+        console.log(`[DataJud] ${procs.length} processos para parte "${termo}"`);
+        
+        for (const proc of procs) {
+          if (!proc.numero) continue;
+          const tribunalEndpoint = resolverTribunal(proc.tribunal, proc.numero);
+          
+          if (!tribunalEndpoint) {
+            console.warn(`[DataJud] Tribunal não resolvido: "${proc.tribunal}" para ${proc.numero}`);
+            continue;
+          }
+          
+          try {
+            const q = buildSearchQueryByNumber(proc.numero, dataInicio, dataFim);
+            const resultados = await buscarDataJud(tribunalEndpoint, q);
+            totalTribunais++;
+            
+            if (resultados.length > 0) {
+              const records: any[] = [];
+              for (const source of resultados) {
+                records.push(...extrairMovimentacoes(source, tribunalEndpoint, mon.id, mon.coordenacao_id));
+              }
+              if (records.length > 0) {
+                const { data: inserted, error: insertErr } = await supabaseClient
+                  .from('movimentacoes_datajud')
+                  .upsert(records, {
+                    onConflict: 'monitoramento_id,numero_processo,data_movimentacao,tipo_movimentacao',
+                    ignoreDuplicates: true,
+                  })
+                  .select('id');
+                if (insertErr) {
+                  totalErros.push(`${tribunalEndpoint}: ${insertErr.message}`);
+                } else {
+                  const newCount = inserted?.length || 0;
+                  totalNovas += newCount;
+                  totalDuplicadas += records.length - newCount;
+                }
+              }
+            }
+          } catch (e: any) {
+            totalErros.push(`${proc.numero}: ${e.message}`);
+          }
+        }
+        monProcessados++;
+        continue;
+      }
+      
+      // ADVOGADO e PALAVRAS-CHAVE: busca por tribunais
       const tribunais = getTribunaisParaBuscar(mon);
       const query = buildSearchQuery(mon, dataInicio, dataFim);
 
@@ -344,7 +456,6 @@ async function processDataJud(
           totalErros.push(`${tribunal}: ${e.message}`);
         }
 
-        // Update progress every 3 tribunais
         if (totalTribunais % 3 === 0) {
           const pct = totalTribunaisEstimado > 0 ? Math.round((totalTribunais / totalTribunaisEstimado) * 100) : 0;
           await updateMetadata(supabaseClient, {
