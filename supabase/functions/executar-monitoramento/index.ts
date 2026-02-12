@@ -13,6 +13,7 @@ const FUNCOES_MAP: Record<string, string> = {
   distribuicoes: 'monitorar-distribuicoes',
   djen_processos: 'monitorar-djen-processos',
   termos: 'monitorar-termos',
+  datajud_termos: 'monitorar-datajud-termos',
 };
 
 const MAX_RETRIES = 3;
