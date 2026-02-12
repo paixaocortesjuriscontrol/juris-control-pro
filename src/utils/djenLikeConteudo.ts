@@ -1,5 +1,5 @@
-// Utilitários para normalizar/formatar publicações do PJE Comunica no formato “estilo DJEN”
-// (Órgão, Data, Tipo, Meio, Partes, Advogados) sem depender do “inteiro teor”.
+// Utilitários para normalizar/formatar publicações do PJE Comunica no formato "estilo DJEN"
+// (Órgão, Data, Tipo, Meio, Partes, Advogados) sem depender do "inteiro teor".
 
 type TraverseOptions = {
   maxDepth?: number;
@@ -190,28 +190,8 @@ export function buildDjenLikeConteudo(params: {
     sections.push(['Parte(s)', ...partes].join('\n'));
   }
 
-  // Se for monitoramento de advogado e o corpo veio “magro”, inserimos ao menos o advogado alvo.
-  if (monitoramento?.tipo === 'advogado') {
-    const alreadyHasAdvSection = /\bAdvogado\(s\)/i.test(original);
-    if (!alreadyHasAdvSection) {
-      const nome = String(monitoramento?.termo || '').trim();
-      const oabDigits = digitsOnly(monitoramento?.oab);
-      const uf = String(monitoramento?.uf || '').trim().toUpperCase();
-
-      // Se não temos nada, tenta puxar algo dos metadados.
-      const fallbackMeta = collectMetaAdvogadoText(pub);
-      const fallbackNome =
-        String(pub?.destinatarioNome || pub?.nomeAdvogado || '').trim() ||
-        (fallbackMeta ? fallbackMeta.split(/\n+/)[0]?.trim() : '');
-
-      const displayNome = nome || fallbackNome || 'Advogado';
-      const oabLabel = oabDigits
-        ? ` - OAB ${uf ? `${uf}-` : ''}${oabDigits}`
-        : '';
-
-      sections.push(['Advogado(s)', `${displayNome}${oabLabel}`].join('\n'));
-    }
-  }
+  // NÃO injetar dados do monitoramento (termo/OAB/UF) na seção de advogados.
+  // O conteúdo deve refletir apenas o texto original da publicação DJEN.
 
   const blocks = [
     headerLines.filter(Boolean).join('\n'),
